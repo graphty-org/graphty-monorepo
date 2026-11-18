@@ -72,14 +72,19 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataChange,
+    DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgeEnd,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -100,6 +105,10 @@ export type {
     GraphSettingKey,
     GraphStatistics,
     GroupOutlineClick,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
@@ -107,6 +116,7 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    HoverDrawn,
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
@@ -122,6 +132,7 @@ export type {
     JoinShape,
     JoinSuggestion,
     JoinWarning,
+    LayoutMotion,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
@@ -134,14 +145,20 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    MergeNodesOptions,
     ModelChange,
     ModelState,
+    MultipleTestingCorrection,
     Neighbor,
     NeighborOptions,
     NeighborPage,
     NeighborSort,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedGroup,
+    OverRepresentedValue,
+    OverRepresentedValues,
     PageColumn,
     PendingId,
     PendingStep,
@@ -152,6 +169,7 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceCounts,
     ReplaceReport,
@@ -160,8 +178,12 @@ export type {
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
+    RowReason,
+    RowReasonCode,
     RowUpdate,
     RunPlacement,
+    ScoreTerm,
+    SessionAnnotations,
     SessionAttributes,
     SessionCapabilities,
     SessionCatalogApi,
@@ -170,6 +192,7 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,
@@ -188,7 +211,10 @@ export type {
     ValueCounts,
     ValueType,
 } from "./src/session";
+export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
+export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
+export { attachKeymap } from "./src/session";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the
@@ -201,7 +227,16 @@ export { createGraphSession } from "./src/session";
  */
 export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type {
+    ImportReport,
+    LoadError,
+    LoadPath,
+    LoadPathReason,
+    LoadReport,
+    RepeatedEdgeCounts,
+    TooLargeDetails,
+} from "./src/data/report";
+export { IMPORT_ROWS_KEPT } from "./src/data/report";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -229,7 +264,10 @@ export type {
     AssetSource,
     AssetState,
     BuiltInModelFormat,
+    ModelCompression,
+    ModelEncoding,
     ModelFormat,
+    ModelGeometry,
     ModelLimits,
     ModelPart,
     ModelPartRole,
@@ -245,6 +283,7 @@ export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
  * the data, a reopened project's network-source loads -- waiting for the reader's answer
  * (`session.network`).
  */
+export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./src/session";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -272,37 +311,24 @@ export { recommendLayout } from "./src/session";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ExportFlattenReason,
     ExportStyleLossCode,
     FileStyleCode,
-    FileStyleColumnValues,
-    FileStyleKind,
-    FileStyleLoadValues,
-    FileStyleMappingKind,
-    FileStyleMeaning,
     FileStyleNote,
     FileStyleNoteCode,
     FileStyleOptions,
-    FileStyleOrigin,
-    FileStyleReason,
-    FileStyleRole,
-    FileStyleRuleOrigin,
-    FileStyleScalar,
-    FileStyleShapeTable,
     FileStyleSummary,
-    FileStyleTool,
     FileStyleTranslationCode,
     LoadStyleReport,
 } from "./src/session";
 export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
 export {
+    EXPORT_FLATTEN_REASONS,
     EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
-    FILE_STYLE_REASONS,
-    FILE_STYLE_SHAPES,
     FILE_STYLE_TRANSLATION_ISSUE,
-    fileStyleOf,
 } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -403,7 +429,8 @@ export type {
     SummaryGroup,
     TopRanking,
 } from "./src/session/results";
-export { RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+export type { PathParts } from "./src/session/results";
+export { pathParts, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
 
 /**
  * Write one English sentence saying what a result means: the sentence `result.reading()` returns,
@@ -490,7 +517,9 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 // ---------------------------------------------------------------------------------------------
 
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
 export type {
     AssetStorage,
     ProjectApi,
@@ -561,10 +590,12 @@ export type {
     FilterConditionCount,
     FilterConditionInput,
     FilterConditionMatches,
+    FilterDraft,
     FilterEffect,
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    HiddenNotDrawn,
     RuleTree,
     StepCounts,
     TimePlayback,
@@ -721,6 +752,7 @@ export type {
     ChannelShare,
     ColorWrite,
     ColumnEncodingSpec,
+    DrawnValue,
     ElementLayerSpec,
     EncodingOptions,
     EncodingProposal,
@@ -769,6 +801,10 @@ export type {
     StyleCounts,
     StyleExplanation,
     StyleFileDocument,
+    StyleGrayCollision,
+    StyleGrayCollisionOptions,
+    StyleGrayColor,
+    StyleGrayUse,
     StyleRepaintCause,
     StyleRepaintFailure,
     StyleRow,

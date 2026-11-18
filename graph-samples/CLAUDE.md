@@ -48,7 +48,7 @@ graph-samples/
 ```bash
 npm run build:all        # tsc, the vite bundle and the d.ts shims, then dist/data/v1/ (pack-datasets.mjs)
 npm run test:run         # all tests once (Node, a few seconds)
-npm run coverage         # thresholds 80/80/75/80
+npm run coverage         # thresholds 90/90/90/90
 npm run lint             # eslint + tsc --noEmit
 npm run datasets:convert # re-create data/*.ts from the recorded sources (needs unzip)
 npm run datasets:pack    # dist/data/v1/ and src/datasets/packed.ts (sizes, checksums) from data/; after a data change
@@ -89,7 +89,7 @@ npm run datasets:hosted  # build public-data/v1/ and src/datasets/hosted.ts (nee
 3. Emit ground truth as a node column (`community` u32, `side` u8, `layer` u32) and geometry as
    Float64 `x`, `y`, `z` columns (the `euclidean` weights read them). Golden-hash with
    `fullGraphHash` when weights or columns are part of the output.
-4. Export it from `src/generators/index.ts` and list it in README.md.
+4. Export it from `src/generators/index.ts` and list it in `docs/guide/generators.md`.
 
 ## Adding a small dataset (under about 5,000 nodes)
 
@@ -101,7 +101,8 @@ reaches readers only as a file on graphty.app.
 2. Write `src/datasets/<name>/meta.ts` (the `DatasetMeta`, ending in `hosting: "remote"` and
    `...PACKED["<name>"]`) and `index.ts` (re-export the meta, and a loader returning
    `fetchDataset("<name>", options)`), add the name to `names.ts` and the meta to `catalog.ts`, add
-   its fixture to `test/helpers/datasets.ts`, and the dataset to `NOTICE` and README.md.
+   its fixture to `test/helpers/datasets.ts`, and the dataset to `NOTICE` and
+   `docs/guide/datasets.md`.
 3. `npm run build:all`, then `npm run datasets:pack` (rewrites `src/datasets/packed.ts`), then
    build again. `test/datasets/datasets.test.ts` checks counts, columns, NOTICE and the catalogue,
    `test/datasets/packed.test.ts` the packed file against the catalogue and `data/`; add a content
@@ -109,7 +110,8 @@ reaches readers only as a file on graphty.app.
 4. The `./datasets/*` export pattern and `scripts/entries.js` pick the new directory up by themselves.
 
 Removing a dataset: delete its directory and `data/<name>.ts`, its lines in `names.ts`,
-`catalog.ts`, `NOTICE`, README.md and `test/helpers/datasets.ts`, and rerun `npm run datasets:pack`.
+`catalog.ts`, `NOTICE`, `docs/guide/datasets.md` and `test/helpers/datasets.ts`, and rerun
+`npm run datasets:pack`.
 
 ## Adding a large dataset (over about 5,000 nodes)
 
@@ -117,22 +119,45 @@ Large datasets are built at deploy time from their upstream sources, published a
 `https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz` (graph-format wire bytes, gzipped) and
 loaded with `fetchDataset(name)`.
 
-1. Add its sources (URL, SHA-256, file) to `SOURCES` in `scripts/build-hosted.mjs`, and an entry to
-   its `DATASETS`: the meta prose (title, description, citation, source, license, attributes,
+1. Add its sources (URL, SHA-256, file) to `SOURCES` in `scripts/hosted-sources.mjs`, and an entry to
+   `DATASETS` in `scripts/build-hosted.mjs`: the meta prose (title, description, citation, source, license, attributes,
    groundTruth, showcases) and a `build(files)` returning `fromEdgeArrays` input with its node
    columns. Counts, direction, weights, `bytes` and `sha256` come from the built file.
 2. Run `npm run datasets:hosted`. It rewrites `src/datasets/hosted.ts` (generated: never edit it by
    hand), which `catalog.ts` spreads into `DATASETS` with `hosting: "remote"`. Add the dataset to
-   `NOTICE` as `(hosted: <name>)` and to README.md's hosted table.
-3. Commit the script, `hosted.ts`, `NOTICE` and README.md, never `public-data/`. The deploy workflow
-   (`.github/workflows/deploy-pages.yml`) reruns the script, with the sources cached by the script's
-   hash, and publishes `public-data/v1/`. `test/datasets/hosted.test.ts` round-trips every built
+   `NOTICE` as `(hosted: <name>)` and to `docs/guide/datasets.md`.
+3. Commit both scripts, `hosted.ts`, `NOTICE` and the guide, never `public-data/`. The deploy workflow
+   (`.github/workflows/deploy-pages.yml`) reruns `build-hosted.mjs --reuse-published --check`: it reuses
+   each file already published whose SHA-256 matches `hosted.ts`, builds only a changed one from its
+   sources, and publishes `public-data/v1/`. `test/datasets/hosted.test.ts` round-trips every built
    file through `fetchDataset` where the files exist, and checks it against `hosted.ts`.
 4. Keep each file under GitHub Pages' 100 MB per-file limit (the site limit is 1 GB). The output is
    deterministic for a Node.js major version; the workflow and CI use Node 22.
 
-Removing one: delete its `DATASETS` entry in the script, rerun it, and drop its NOTICE and README
-lines.
+Removing one: delete its `DATASETS` entry in the script, rerun it, and drop its NOTICE and
+`docs/guide/datasets.md` lines.
+
+## Publishing the datasets
+
+The small datasets are converted into the repository (`data/<name>.ts`, by
+`npm run datasets:convert`), and graph-samples' build packs them into `dist/data/v1/<name>.gsnp.gz`
+(`scripts/pack-datasets.mjs`; `npm run datasets:pack` also rewrites their sizes and checksums in
+`src/datasets/packed.ts`). Its pictures are drawn by graphty-element with
+`node tools/render-sample-thumbnails.mjs` (from the monorepo root, after a build) into `thumbnails/`,
+committed, and copied beside each file by the same step, with the large datasets' and the
+generators' pictures (`generator-<name>.webp`). Neither `data/` nor `dist/data/` is
+published to npm.
+
+`npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,
+checks it against the SHA-256 recorded in `SOURCES` (`scripts/hosted-sources.mjs`), and writes `public-data/v1/<name>.gsnp.gz`
+and `src/datasets/hosted.ts` (the catalogue entries); it copies the small datasets' files from
+`dist/data/v1/` beside them and writes `index.json` for all of them. The `.gsnp.gz` files are not
+committed: every deploy of graphty.app (`.github/workflows/deploy-pages.yml`) runs the script and
+publishes `public-data/v1/` at `/data/graph-samples/v1/`. The build is deterministic for a given
+Node.js major version (the workflow uses 22), so the committed checksums match the published
+files. To add, change or remove a large dataset, edit its source in `scripts/hosted-sources.mjs` and its
+entry in `scripts/build-hosted.mjs`, run the script, commit both scripts and `src/datasets/hosted.ts`
+together with `NOTICE`, and merge to master.
 
 ## House Style
 

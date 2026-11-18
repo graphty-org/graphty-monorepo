@@ -372,7 +372,8 @@ const ROWS: readonly Row[] = [
     },
     // Eigenvector's model charges every pass of its 1,000-pass bound, so it is held to both bounds
     // where the graph runs them all: a small grid and a sparse random graph, whose many small
-    // components keep it from converging (both throw).
+    // components keep it from converging (both throw). The grid stays in a core's cache and the
+    // random graph does not, so between them they hold both ends of the model's cache term.
     { key: "eigenvector", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
     {
         key: "eigenvector",
@@ -743,7 +744,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                         statistics: statistics(nodes, edges, maxDegree, transitivity),
                         calibration,
                     });
-                    assert.isTrue(estimate.available, estimate.reason);
+                    assert.isTrue(estimate.available, estimate.refusal?.code);
 
                     const ratio = estimate.seconds / measured;
                     const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;

@@ -117,5 +117,85 @@ describe("oracle nodes no id or label names", () => {
         assert.strictEqual(nameDrawnNodes([server], below)[0].hint, null);
         assert.strictEqual(nameDrawnNodes([body(6, 100, 135, "#000000")], below)[0].hint?.id, "d");
         assert.strictEqual(nameDrawnNodes([server], inside)[0].hint?.id, "b");
+        // json-vis-synth: 29's three-line label inside its box, the outer lines off its center
+        const lines = [text(7, 100, 125, "multi"), text(8, 100, 135, "line"), text(9, 100, 145, "label")];
+        const tall = {
+            nodes: [{ id: "m", x: 100, y: 135, w: 60, h: 46, box: { x0: 70, y0: 112, x1: 130, y1: 158 } }],
+        };
+        assert.deepEqual(
+            nameDrawnNodes(lines, tall).map((p) => p.hint?.id),
+            ["m", "m", "m"],
+        );
+        assert.strictEqual(nameDrawnNodes([text(10, 100, 150, "Server")], below)[0].hint, null);
+    });
+
+    it("reads an icon glyph on a node's center as its body and the words below it in its box as its label", () => {
+        // json-vis-synth 14: vis-network's box for an icon node holds its label below the glyph, so it is off center
+        const text = (
+            index: number,
+            box: { x0: number; y0: number; x1: number; y1: number },
+            content: string,
+        ): Prim => ({
+            ...body(index, (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, "#000000"),
+            kind: "text",
+            fill: null,
+            box,
+            text: {
+                content,
+                x: (box.x0 + box.x1) / 2,
+                y: (box.y0 + box.y1) / 2,
+                box,
+                sizePx: box.y1 - box.y0,
+                family: "arial",
+                weight: 400,
+                style: "normal",
+                anchor: "middle",
+                rotation: 0,
+                color: "#000000",
+                opacity: 1,
+            },
+        });
+        const glyph = text(0, { x0: 188, y0: 88, x1: 212, y1: 112 }, "\uf007");
+        const words = text(1, { x0: 192, y0: 118, x1: 208, y1: 128 }, "icon");
+        const icon = { nodes: [{ id: "i", x: 200, y: 100, w: 32, h: 46, box: { x0: 184, y0: 84, x1: 216, y1: 130 } }] };
+        const named = nameDrawnNodes([glyph, words], icon);
+        assert.deepEqual(
+            named.map((p) => p.hint?.id),
+            ["i", "i"],
+        );
+        const n = associate(named, 400, 400, guide, { ownLayout: true, drawn: icon }).scene.nodes.find(
+            (x) => x.id === "i",
+        );
+        assert.deepEqual([n?.cx, n?.cy, n?.w, n?.h, n?.label?.content], [200, 100, 24, 24, "icon"]);
+    });
+
+    it("takes a text node's place and size from where the program drew it, not from its words", () => {
+        // json-vis-synth 4: vis-network's box is the words and a 5 px margin each side, and its lines run to its middle
+        const words: Prim = {
+            ...body(0, 200, 100, "#000000"),
+            kind: "text",
+            fill: null,
+            box: { x0: 190, y0: 96, x1: 210, y1: 104 },
+            text: {
+                content: "text",
+                x: 200,
+                y: 100,
+                box: { x0: 190, y0: 96, x1: 210, y1: 104 },
+                sizePx: 8,
+                family: "arial",
+                weight: 400,
+                style: "normal",
+                anchor: "middle",
+                rotation: 0,
+                color: "#000000",
+                opacity: 1,
+            },
+        };
+        const t = { nodes: [{ id: "t", x: 200, y: 100, w: 30, h: 18, box: { x0: 185, y0: 91, x1: 215, y1: 109 } }] };
+        const n = associate(nameDrawnNodes([words], t), 400, 400, guide, {
+            ownLayout: true,
+            drawn: t,
+        }).scene.nodes.find((x) => x.id === "t");
+        assert.deepEqual([n?.cx, n?.cy, n?.w, n?.h, n?.drawnBox], [200, 100, 30, 18, true]);
     });
 });

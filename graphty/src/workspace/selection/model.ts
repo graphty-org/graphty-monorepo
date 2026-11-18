@@ -36,29 +36,6 @@ export function newSelection(side: UnionLeaf["side"], within: UnionLeaf["within"
 }
 
 /**
- * The verbs that can change a group (spec 4.1): an empty None group only grows (Add); an All group
- * with no step only narrows (Keep, Except); afterwards all three.
- * @param branch - the group.
- * @returns the verbs, in the order the Add row draws them.
- */
-function verbsFor(branch: UnionBranch): readonly Verb[] {
-    if (branch.steps.length > 0) {
-        return ["add", "keep", "except"];
-    }
-    return branch.start === "all" ? ["keep", "except"] : ["add"];
-}
-
-/**
- * The verbs that can change a group at one of its steps: the verbs of the group cut short there.
- * @param branch - the group.
- * @param index - the step's place.
- * @returns the verbs.
- */
-export function verbsAt(branch: UnionBranch, index: number): readonly Verb[] {
-    return verbsFor({ ...branch, steps: branch.steps.slice(0, index) });
-}
-
-/**
  * A new step's verb: Keep in a group that starts with All, Add in one that starts with none.
  * @param branch - the group.
  * @returns the verb.

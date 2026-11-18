@@ -143,6 +143,10 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     component: "A component.",
     group: "A group.",
     upload: "Bring in a file: open the file picker or take a drop.",
+    folder: "Bring in a folder: open the folder picker.",
+    file: "A file that was loaded, beside its name.",
+    fileUpload: "Bring in a file from this device: open the file picker or take a drop.",
+    folderUpload: "Bring in a folder from this device: open the folder picker.",
 };
 
 /** The narrowest one entry in the gallery grid is allowed to be. */

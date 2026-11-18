@@ -381,6 +381,7 @@ const FACT_SENTENCES: Readonly<Record<LegendFactCode, (param: (name: string) => 
     "legend.lumped": (param) => `${param("count")} lumped into Other`,
     "legend.not-measured": (param) => `not measured (${param("count")})`,
     "legend.painted-over": (param) => `painted over by "${param("name")}"`,
+    "legend.no-spread": () => "no spread",
 };
 
 /**
@@ -453,7 +454,7 @@ export function belowLine(below: number): string {
 }
 
 /** The key's one line when the reader asked for it and no layer paints anything it lists. */
-export const NOTHING_KEYED = "Nothing is styled yet";
+export const NOTHING_KEYED = "No styles";
 
 /**
  * How a layer above covers a section's elements: "covered by Agencies".
@@ -816,4 +817,14 @@ function addCovers(
             shares.set(name, (shares.get(name) ?? 0) + n);
         }
     }
+}
+
+/**
+ * The key an image carries when the canvas shows the legend card: the card's sections, in the
+ * same words.
+ * @param session - the session, or null.
+ * @returns the sections; none without a session.
+ */
+export function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
+    return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
 }

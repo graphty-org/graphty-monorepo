@@ -24,7 +24,7 @@ import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from
  *
  * TWO THINGS EVERY ONE OF THESE TWELVE PROMISES AND NONE OF THEM ASSERTED. That all of its nodes
  * are placed somewhere real and no two are stacked on one another -- a layout that never ran
- * draws a picture and used to pass -- and that the picture is FLAT, which is the whole of what
+ * still draws a picture -- and that the picture is FLAT, which is the whole of what
  * makes it a 2D layout rather than a 3D one.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name it in a failure message.

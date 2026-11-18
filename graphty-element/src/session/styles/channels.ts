@@ -21,10 +21,6 @@
  *   compile error rather than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
- * - `node.outline` is a colour and no width, for the same reason in the same shape: the stroke
- *   is drawn by a highlight LAYER whose blur size belongs to the layer, so every outline on
- *   screen is one width. This is the sentence the element's natural-language layer reads out
- *   when someone asks for an outline width, so it answers with a reason rather than a refusal.
  * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
  *   and zigzag and sinewave ignore it because they always tile the whole edge.
  * - The four arrow caption channels draw words at ONE END of an edge, hanging from the cap
@@ -38,10 +34,8 @@
  * caveat says what the renderer can and cannot draw; a style field that IS declared and that no
  * channel reaches belongs in the reachability waiver list, `src/catalog/unreachable.ts`, where a
  * test can see it rather than only a reader. `node.glow` used to carry a note about the glow's
- * strength having no channel, and the strength has one now. The outline's width is the other
- * shape: `NodeStyle.effect.outline` declares no `width` at all any more, because a declared one
- * was accepted, validated and ignored -- so there is no field for the waiver list to name, and
- * the limit belongs here, beside the colour that IS drawn.
+ * strength having no channel, and the strength has one now; `node.outline` carried one saying
+ * every outline was drawn at one width, and `node.outlineWidth` sets it per layer now.
  *
  * The enumerated channels take their values from the element's own schemas -- the node shape
  * list, the line pattern list, the arrow list -- read out of the Zod enums rather than retyped.
@@ -80,6 +74,7 @@ import {
     NodeModelUpAxes,
     NodeShapes,
     NodeSizeModes,
+    NodeSizeSpaces,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
 import {
@@ -265,6 +260,15 @@ type LabelWeightValue = "normal" | "bold";
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
+/** What one line of a label is as tall as (`labelLineBox`). */
+type LabelLineBoxValue = "font" | "size" | "glyphs";
+
+/** Where the line round a label's panel is drawn against the panel's edge (`labelBorderAlign`). */
+type LabelBorderAlignValue = "outside" | "center";
+
+/** The shape of the panel behind a label's words (`labelBackgroundShape`). */
+type LabelBackgroundShapeValue = "rectangle" | "circle";
+
 /**
  * What a label's shifts are fractions of (`labelShiftOf`), or what a label outside its node is placed against it by
  * (`labelGapOf`): its whole box, or its words alone.
@@ -279,6 +283,12 @@ type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["size
 
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
+
+/** How a node's drawn size follows the camera: with the scene, at the orbit pivot's depth, or held on screen. */
+type NodeSizeSpaceValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeSpace"]>;
+
+/** Every node size space, in schema order. */
+const NODE_SIZE_SPACE_VALUES: readonly NodeSizeSpaceValue[] = NodeSizeSpaces.options;
 
 /**
  * How finely a round node shape is drawn (`node.meshDetail`): "full", "low", or a segment count.
@@ -355,6 +365,7 @@ export interface ChannelValues {
     "node.color": ColorValue;
     "node.size": number;
     "node.sizeMode": NodeSizeModeValue;
+    "node.sizeSpace": NodeSizeSpaceValue;
     "node.shape": NodeShapeValue;
     "node.label": string;
     "node.labelStyle": LabelStyle;
@@ -368,9 +379,12 @@ export interface ChannelValues {
     "node.labelLocation": LabelLocation;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
+    "node.labelWrapSkipEndSpace": boolean;
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
+    "node.labelMaxLines": number;
+    "node.labelMaxLinesEllipsis": boolean;
     "node.labelRunAlign": LabelRunAlignValue;
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
@@ -389,6 +403,9 @@ export interface ChannelValues {
     "node.labelPadding": number;
     "node.labelCornerRadius": number;
     "node.labelLineHeight": number;
+    "node.labelLineBox": LabelLineBoxValue;
+    "node.labelBorderAlign": LabelBorderAlignValue;
+    "node.labelBackgroundShape": LabelBackgroundShapeValue;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
     "node.labelShiftX": number;
@@ -400,6 +417,7 @@ export interface ChannelValues {
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
     "node.outline": ColorValue;
+    "node.outlineWidth": number;
     "node.glow": ColorValue;
     "node.glowStrength": number;
     "node.halo": boolean;
@@ -470,6 +488,7 @@ export interface ChannelValues {
     "node.labelFitQuantum": number;
     "node.labelFitImage": number;
     "node.labelFitImagePadding": number;
+    "node.imageAspect": boolean;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -534,7 +553,11 @@ export interface ChannelValues {
     "node.model": string;
     "node.modelSourceUp": NodeModelUpValue;
     "node.modelTurn": number;
-    "node.modelTint": boolean | "replace";
+    "node.modelTint": boolean | "replace" | "untextured";
+    "node.modelDoubleSided": boolean | "file";
+    "node.modelAnimation": string;
+    "node.modelAnimationSpeed": number;
+    "node.modelAnimationOffset": number;
     "node.modelFit": "contain" | "stretch";
     "node.modelCenter": "bounds" | "origin";
     "node.texture": string;
@@ -689,9 +712,12 @@ export interface ChannelValues {
     "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
+    "edge.labelWrapSkipEndSpace": boolean;
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
+    "edge.labelMaxLines": number;
+    "edge.labelMaxLinesEllipsis": boolean;
     "edge.labelRunAlign": LabelRunAlignValue;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
@@ -707,6 +733,9 @@ export interface ChannelValues {
     "edge.labelPadding": number;
     "edge.labelCornerRadius": number;
     "edge.labelLineHeight": number;
+    "edge.labelLineBox": LabelLineBoxValue;
+    "edge.labelBorderAlign": LabelBorderAlignValue;
+    "edge.labelBackgroundShape": LabelBackgroundShapeValue;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
@@ -870,6 +899,12 @@ export interface ChannelDescriptor {
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
     /**
+     * Whether it takes whole numbers only, when `accepts` is "number": a line count. An encoding rounds
+     * what it computes for such a channel.
+     * @since 3.40.0
+     */
+    readonly integer?: boolean;
+    /**
      * How many of this channel's numbers make one world unit, on a channel that is a length in the
      * scene rather than on screen: 48 for a label size, so a label of size 48 draws one line,
      * margins included, one world unit tall -- the diameter of a sphere node of size 1 -- and its
@@ -886,14 +921,6 @@ export interface ChannelDescriptor {
      * false, and what is lost when it is true. Absent when the channel is drawn as declared.
      */
     readonly caveat?: string;
-    /**
-     * Why the channel cannot be set, as a sentence for a reader beside a disabled control.
-     * Present exactly when `renderable` is false; `caveat` is the longer note for an
-     * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
-     * @deprecated Read {@link ChannelDescriptor.unsupported} and word it in the application.
-     * Removed at the next major release.
-     */
-    readonly unsupportedReason?: string;
     /**
      * Why the channel cannot be set, as a code with no words. Present exactly when `renderable`
      * is false. `channel.not-drawn`: the element does not draw this channel yet. New codes may be
@@ -953,18 +980,25 @@ export interface ChannelDescriptor {
      * @experimental file-styles
      */
     readonly feature?: "file-styles";
+    /**
+     * What a list channel's value holds, on a channel whose value is a list of items written
+     * separated by spaces: `"color"` for CSS colors (a gradient's, a pie's slices), `"number"` for
+     * numbers (a gradient's stops, a pie's sizes). Read and write its items with
+     * `readChannelList` and `writeChannelList` from the `./catalog` entry rather than splitting
+     * the text. Absent on every other channel.
+     * @since 3.40.0
+     */
+    readonly listOf?: "color" | "number";
 }
 
 /**
- * A caveat a channel carries, as a code.
- *
- * - `"outline.sharedWidth"`: every outline is drawn at one width, the graph's
- *   `layoutBehavior.node.outlineWidth`; a layer sets an outline's colour and not its width.
+ * A caveat a channel carries, as a code. No channel carries one now: `"outline.sharedWidth"`
+ * (every outline drawn at one width) was retired when `node.outlineWidth` gave each layer its own.
  *
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type ChannelCaveatCode = "outline.sharedWidth";
+export type ChannelCaveatCode = never; // eslint-disable-line sonarjs/redundant-type-aliases -- published; kept so imports still compile
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
@@ -1008,23 +1042,6 @@ const NODE_HALO_CAVEAT =
     "node. A selected node a layer gives a halo shows one halo: each value the layer sets wins, " +
     "and the selection style (`selectionStyle`) gives the rest. Each distinct color and opacity " +
     "is its own source mesh; the scale is per node.";
-
-/**
- * Why an outline is a colour and nothing else, written once and read in two places.
- *
- * It is `node.outline`'s caveat. A caveat is not shelf decoration: `Layer.ts` and `encoding.ts`
- * quote the caveat of a channel when they refuse a value for it, so this is the sentence a
- * consumer gets back in the refusal rather than one they have to go looking for. The element's
- * natural-language layer now quotes the same sentence when someone asks for an outline WIDTH
- * (`src/ai/commands/StyleCommands.ts`), because a request the element cannot carry out deserves
- * the same explanation however it arrived -- and two copies of it would be two answers to one
- * question the day either is edited.
- */
-export const NODE_OUTLINE_CAVEAT =
-    "An outline has a colour and no width. It is drawn as a ring around the node whose width is " +
-    "a fixed share of the node's own size, so every outline is drawn at that width whatever a " +
-    "style asks for -- which is why the node style declares no outline width to ask with. The " +
-    "outline's COLOUR is per style.";
 
 /**
  * What an arrow caption narrows, written once and read by all four caption channels.
@@ -1410,6 +1427,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             shortName: `${end} caption size`,
             group: "arrows",
             accepts: "number",
+            min: 1,
             stylePath: `arrow${end}.text.fontSize`,
             renderable: true,
             caveat: ARROW_CAPTION_CAVEAT,
@@ -1555,7 +1573,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1567,9 +1585,12 @@ const LABEL_FIELD_OF_SUFFIX = {
     Italic: "italic",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapSkipEndSpace: "wrapSkipEndSpace",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
+    MaxLines: "maxLines",
+    MaxLinesEllipsis: "maxLinesEllipsis",
     RunAlign: "runAlign",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
@@ -1586,6 +1607,9 @@ const LABEL_FIELD_OF_SUFFIX = {
     Padding: "boxPadding",
     CornerRadius: "cornerRadius",
     LineHeight: "lineHeight",
+    LineBox: "lineBox",
+    BorderAlign: "borderAlign",
+    BackgroundShape: "backgroundShape",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
     ShiftX: "shiftX",
@@ -1739,14 +1763,14 @@ function labelFieldChannels<Target extends "node" | "edge">(
     });
     const rows = [
         row("Color", "Color", { accepts: "color" }),
-        // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
-        row("Size", "Size", { accepts: "number" }),
+        row("Size", "Size", { accepts: "number", min: 1 }),
         row("LetterSize", "Letter Size", { accepts: "number", min: 0 }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
         row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
+        row("WrapSkipEndSpace", "Wrap Skip End Space", { accepts: "boolean" }),
         row("WrapEllipsis", "Wrap Ellipsis", {
             accepts: "boolean",
             caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
@@ -1761,6 +1785,18 @@ function labelFieldChannels<Target extends "node" | "edge">(
             caveat:
                 "How many blanks one blank between two words counts as against the wrap width; it is still " +
                 "drawn once. Unset, one.",
+        }),
+        row("MaxLines", "Max Lines", {
+            accepts: "number",
+            min: 1,
+            integer: true,
+            caveat: "The most lines drawn; the lines past it are cut. Unset, every line.",
+        }),
+        row("MaxLinesEllipsis", "Max Lines Ellipsis", {
+            accepts: "boolean",
+            caveat:
+                "Whether the last line Max Lines keeps runs on with the rest of its line, cut with an ellipsis; " +
+                "off, the lines past it are dropped as they are. Unset, on.",
         }),
         row("RunAlign", "Run Align", {
             accepts: "enum",
@@ -1844,6 +1880,31 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "How tall one line of the label is, as a multiple of its font's ascent plus descent: 1 is a line " +
                 "box exactly as tall as the font. Unset, 1.2.",
         }),
+        row("LineBox", "Line Box", {
+            accepts: "enum",
+            values: LABEL_LINE_BOX_VALUES,
+            caveat:
+                'What one line of the label is as tall as, before Line Height multiplies it: "font", its font\'s ' +
+                'ascent plus descent; "size", its font size, as CSS and Cytoscape.js measure a line, the letters ' +
+                'reaching past it; "glyphs", its letters\' own ink, as Cytoscape.js `text-metrics: glyph` does. ' +
+                'Unset, "font".',
+        }),
+        row("BorderAlign", "Border Align", {
+            accepts: "enum",
+            values: LABEL_BORDER_ALIGN_VALUES,
+            caveat:
+                'Where the line round the panel behind the label\'s words is drawn: "outside", all of it past the ' +
+                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box. ' +
+                'Unset, "outside".',
+        }),
+        row("BackgroundShape", "Background Shape", {
+            accepts: "enum",
+            values: LABEL_BACKGROUND_SHAPE_VALUES,
+            caveat:
+                'The shape of the panel behind the label\'s words and its border: "rectangle" (rounded by Corner ' +
+                'Radius), or "circle", a disc as wide as the panel is tall, or as tall as it is wide, whichever is ' +
+                'less, centered on it. Unset, "rectangle".',
+        }),
         row("OffsetX", "Offset X", {
             accepts: "number",
             caveat: "How far the label is moved to the right of where its location puts it, in the scene's units.",
@@ -1897,40 +1958,16 @@ function labelFieldChannels<Target extends "node" | "edge">(
 
 /** Where each label field lands in a parsed style's label block, in the renderer's spelling. */
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
+    ...LABEL_FIELD_OF_SUFFIX,
     Color: "textColor",
     Size: "fontSize",
-    LetterSize: "letterSize",
-    Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
-    WrapWidth: "wrapWidth",
-    WrapTrailingSpace: "wrapTrailingSpace",
-    WrapEllipsis: "wrapEllipsis",
-    WrapAnywhere: "wrapAnywhere",
-    WrapSpaceCount: "wrapSpaceCount",
-    RunAlign: "runAlign",
-    MinScreenSize: "minScreenSize",
-    OnTop: "onTop",
-    Rotation: "rotation",
     Background: "backgroundColor",
     Outline: "textOutlineColor",
     OutlineWidth: "textOutlineWidth",
-    Border: "borderColor",
-    BorderWidth: "borderWidth",
     Opacity: "textOpacity",
-    BackgroundOpacity: "backgroundOpacity",
     OutlineOpacity: "textOutlineOpacity",
-    BorderOpacity: "borderOpacity",
-    Padding: "boxPadding",
-    CornerRadius: "cornerRadius",
-    LineHeight: "lineHeight",
-    OffsetX: "offsetX",
-    OffsetY: "offsetY",
-    ShiftX: "shiftX",
-    ShiftY: "shiftY",
-    ShiftOf: "shiftOf",
-    GapOf: "gapOf",
-    Box: "box",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1938,6 +1975,15 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 
 /** Every place the `labelRunAlign` channels take. */
 const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
+
+/** Every value the `labelLineBox` channels take. */
+const LABEL_LINE_BOX_VALUES: readonly LabelLineBoxValue[] = ["font", "size", "glyphs"];
+
+/** Every value the `labelBorderAlign` channels take. */
+const LABEL_BORDER_ALIGN_VALUES: readonly LabelBorderAlignValue[] = ["outside", "center"];
+
+/** Every value the `labelBackgroundShape` channels take. */
+const LABEL_BACKGROUND_SHAPE_VALUES: readonly LabelBackgroundShapeValue[] = ["rectangle", "circle"];
 
 /** Every value the `labelShiftOf` channels take. */
 const LABEL_SHIFT_OF_VALUES: readonly LabelShiftOfValue[] = ["box", "words"];
@@ -1990,7 +2036,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -2146,8 +2192,7 @@ function textLookChannels<Base extends string>(
             shortName: `${shortName} size`,
             default: LABEL_SIZE_PER_WORLD_UNIT,
             accepts: "number",
-            // No min: the channel takes every number its style schema takes. A size under 1 draws
-            // no text (MIN_DRAWN_FONT_SIZE), and a layer that writes one is told W_TEXT_TOO_SMALL.
+            min: 1,
             perWorldUnit: LABEL_SIZE_PER_WORLD_UNIT,
             stylePath: `${block}.fontSize`,
         },
@@ -2388,6 +2433,18 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "shape.sizeMode",
         renderable: true,
     },
+    "node.sizeSpace": {
+        channel: "node.sizeSpace",
+        target: "node",
+        plainName: "Node Size Space",
+        shortName: "Size space",
+        group: "shape",
+        default: "scene",
+        accepts: "enum",
+        values: NODE_SIZE_SPACE_VALUES,
+        stylePath: "shape.sizeSpace",
+        renderable: true,
+    },
     "node.shape": {
         channel: "node.shape",
         target: "node",
@@ -2471,8 +2528,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "effect.outline.color",
         off: EFFECT_OFF,
         renderable: true,
-        caveat: NODE_OUTLINE_CAVEAT,
-        caveatCode: "outline.sharedWidth",
+    },
+    "node.outlineWidth": {
+        channel: "node.outlineWidth",
+        target: "node",
+        plainName: "Node Outline Width",
+        shortName: "Outline width",
+        group: "effects",
+        // What an outline with no width is drawn at when the graph sets none
+        // (`layoutBehavior.node.outlineWidth`): the ring's own band. A width alone draws nothing.
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 10,
+        stylePath: "effect.outline.width",
+        renderable: true,
     },
     "node.glow": {
         channel: "node.glow",
@@ -2619,7 +2689,6 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Marker",
         shortName: "Marker",
         group: "effects",
-        unsupportedReason: "The element draws no marker yet",
         unsupported: { code: "channel.not-drawn", params: {} },
         accepts: "nothing",
         stylePath: "texture.icon",
@@ -4033,6 +4102,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The room on each side of a picture a node holds (`node.labelFitImage`), in the units of its size. " +
             "Without `node.labelFitImage` it changes nothing.",
     },
+    "node.imageAspect": {
+        channel: "node.imageAspect",
+        target: "node",
+        plainName: "Node Image Aspect",
+        shortName: "Image aspect",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.imageAspect",
+        renderable: true,
+        caveat:
+            "The node takes its picture's (`node.image`) proportions: its box grows the longer way until the " +
+            "picture, at its own proportions, covers the node's width and height, as vis-network sizes an image " +
+            "node to its picture. The node is fitted again once the picture is read; until then, and for a " +
+            "picture that cannot be read, it keeps its own box. A node that grows to hold its label " +
+            "(`node.labelFit`) is sized by that instead.",
+    },
     "node.gradientColor": {
         channel: "node.gradientColor",
         target: "node",
@@ -4186,13 +4272,75 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "color",
         default: "false",
         accepts: "enum",
-        values: ["false", "true", "replace"],
+        values: ["false", "true", "untextured", "replace"],
         stylePath: "shape.modelTint",
         renderable: true,
         caveat:
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
-            'color by `node.color`, and "replace" paints every material in `node.color`. Takes ' +
-            'true, false or "replace".',
+            'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
+            'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
+            "`node.color`. A part the file gives no material (or one left at its defaults: white, with " +
+            "no picture, map or glow), no picture and no vertex colors takes " +
+            '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
+    },
+    "node.modelAnimation": {
+        channel: "node.modelAnimation",
+        target: "node",
+        plainName: "Node Model Animation",
+        shortName: "Model animation",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.modelAnimation",
+        renderable: true,
+        caveat:
+            "The clip a model plays, by its name in the file (the asset's summary lists them as " +
+            '`animations`); unset or "" draws the model still, in its rest pose. A name the file does not ' +
+            "have draws the first frame of its first clip and reports `W_MODEL_ANIMATION_UNKNOWN`.",
+    },
+    "node.modelAnimationSpeed": {
+        channel: "node.modelAnimationSpeed",
+        target: "node",
+        plainName: "Node Model Animation Speed",
+        shortName: "Animation speed",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 16,
+        stylePath: "shape.modelAnimationSpeed",
+        renderable: true,
+        caveat: "How fast `node.modelAnimation` plays: 1 is the file's speed; 0 holds the pose at `node.modelAnimationOffset`.",
+    },
+    "node.modelAnimationOffset": {
+        channel: "node.modelAnimationOffset",
+        target: "node",
+        plainName: "Node Model Animation Start",
+        shortName: "Animation start",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.modelAnimationOffset",
+        renderable: true,
+        caveat:
+            "Seconds into the clip a node starts at, so nodes need not move in step; with " +
+            "`node.modelAnimationSpeed` 0, the pose the node holds.",
+    },
+    "node.modelDoubleSided": {
+        channel: "node.modelDoubleSided",
+        target: "node",
+        plainName: "Node Model Double Sided",
+        shortName: "Model double-sided",
+        group: "shape",
+        default: "file",
+        accepts: "enum",
+        values: ["file", "true", "false"],
+        stylePath: "shape.modelDoubleSided",
+        renderable: true,
+        caveat:
+            'Whether the back of each triangle is drawn: "file" keeps each material\'s own choice, true ' +
+            "draws both faces (an OBJ, STL or PLY whose inside shows through where faces are missing), " +
+            "false draws only the front.",
     },
     "node.modelFit": {
         channel: "node.modelFit",
@@ -5127,6 +5275,7 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 /** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
 const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["node.glowStrength", "node.glow"],
+    ["node.outlineWidth", "node.outline"],
     ["node.haloScale", "node.haloColor"],
     ["node.haloOpacity", "node.haloColor"],
     ["edge.bandWidth", "edge.bandColor"],
@@ -5147,6 +5296,22 @@ const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ...(["node.label", "node.tooltip", "edge.label"] as const).flatMap((base) =>
         ["Style", "Size", "Color", "Background"].map((suffix): [string, Channel] => [`${base}${suffix}`, base]),
     ),
+]);
+
+/** What each space-separated list channel holds: see {@link ChannelDescriptor.listOf}. */
+const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color" | "number">([
+    ["node.gradientColors", "color"],
+    ["node.gradientStops", "number"],
+    ["node.pieColors", "color"],
+    ["node.pieSizes", "number"],
+    ["node.pieOpacities", "number"],
+    ["node.stripeColors", "color"],
+    ["node.stripeSizes", "number"],
+    ["node.stripeOpacities", "number"],
+    ["node.chartColors", "color"],
+    ["node.chartValues", "number"],
+    ["edge.gradientColors", "color"],
+    ["edge.gradientStops", "number"],
 ]);
 
 /**
@@ -5177,6 +5342,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const value = shippedDefault(descriptor) ?? descriptor.default;
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
+        const listOf = LIST_OF.get(descriptor.channel);
 
         return [
             descriptor.channel,
@@ -5185,6 +5351,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
+                ...(listOf === undefined ? {} : { listOf }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },
@@ -5194,6 +5361,66 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
 
 /** Every channel name, in table order. */
 export const CHANNELS: readonly Channel[] = Object.keys(CHANNEL_DESCRIPTORS) as Channel[];
+
+/** Where each label style field lands in the renderer's spelling, for the fields whose two spellings differ. */
+const LABEL_STYLE_PATH_OF_FIELD: ReadonlyMap<string, string> = new Map(
+    (Object.keys(LABEL_FIELD_OF_SUFFIX) as (keyof typeof LABEL_FIELD_OF_SUFFIX)[]).map((suffix) => [
+        LABEL_FIELD_OF_SUFFIX[suffix],
+        LABEL_STYLE_PATH_OF_SUFFIX[suffix],
+    ]),
+);
+
+/** Every channel by its target and style path, built on first use. */
+let channelAtPath: ReadonlyMap<string, Channel> | undefined;
+
+/**
+ * The field channels one written label style value stands for: `node.labelFont` for the `font`
+ * of a `node.labelStyle`, `edge.arrowHeadTextSize` for the `sizePx` of an
+ * `edge.arrowHeadTextStyle`. A field no channel writes on its own is left out.
+ * @param channel - A channel that takes a label style (`accepts: "labelStyle"`), or any other.
+ * @param value - The value written to it.
+ * @returns The field channels, in the order the value lists its fields; empty for any other channel.
+ */
+export function labelStyleFieldChannels(channel: Channel, value: unknown): readonly Channel[] {
+    const descriptor = CHANNEL_DESCRIPTORS[channel] as ChannelDescriptor | undefined;
+    if (descriptor?.accepts !== "labelStyle" || typeof value !== "object" || value === null) {
+        return [];
+    }
+
+    channelAtPath ??= new Map(
+        CHANNELS.map((each): [string, Channel] => {
+            const { target, stylePath } = CHANNEL_DESCRIPTORS[each];
+            return [`${target} ${stylePath}`, each];
+        }),
+    );
+    const found: Channel[] = [];
+    for (const [field, held] of Object.entries(value)) {
+        const path = LABEL_STYLE_PATH_OF_FIELD.get(field) ?? field;
+        const at =
+            held === undefined ? undefined : channelAtPath.get(`${descriptor.target} ${descriptor.stylePath}.${path}`);
+        if (at !== undefined && at !== channel) {
+            found.push(at);
+        }
+    }
+
+    return found;
+}
+
+/**
+ * The channels that paint a node's or an edge's own color and size: what coloring or sizing
+ * nodes or edges by a value sets, and what an algorithm's suggested style paints.
+ *
+ * ```ts
+ * import { PRIMARY_CHANNELS } from "@graphty/graphty-element/catalog";
+ *
+ * PRIMARY_CHANNELS.edge.size; // "edge.width"
+ * ```
+ * @since 3.40.0
+ */
+export const PRIMARY_CHANNELS = Object.freeze({
+    node: Object.freeze({ color: "node.color", size: "node.size" }),
+    edge: Object.freeze({ color: "edge.color", size: "edge.width" }),
+} as const) satisfies Readonly<Record<"node" | "edge", { readonly color: Channel; readonly size: Channel }>>;
 
 /** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(

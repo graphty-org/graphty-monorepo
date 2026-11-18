@@ -25,6 +25,9 @@ used_in_workflows:
     - W19
     - W07
     - W12
+    - W20
+    - W21
+    - W23
 dependencies: []
 props:
     graph: Graph - Graph data to render

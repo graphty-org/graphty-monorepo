@@ -43,7 +43,7 @@ export type GraphFormatName =
  * ```
  * @category Formats and detection
  */
-export type FormatName = GraphFormatName | (string & {}); // NOSONAR(S4335): keeps editor completion of the built-in names
+export type FormatName = GraphFormatName | (string & {}); // keeps editor completion of the built-in names
 
 /**
  * The built-in format names in the default registry's order, which is also the tie-break order of

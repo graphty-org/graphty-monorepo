@@ -1,17 +1,18 @@
-# Cypher: Neo4j and Amazon Neptune
+# Cypher: Neo4j, Memgraph and Amazon Neptune
 
 ::: warning Experimental
 The Cypher source and its presets are experimental: names and shapes on this page may still change.
 :::
 
-The `cypher` source reads a graph from any server that speaks openCypher. Two presets fix the
+The `cypher` source reads a graph from any server that speaks openCypher. Three presets fix the
 details for you:
 
-| Source id | For                                                                                   |
-| --------- | ------------------------------------------------------------------------------------- |
-| `neo4j`   | Neo4j over its Query API (5.26 and later, Aura), or over Bolt (any version)           |
-| `neptune` | Amazon Neptune Database over HTTPS, or Neptune Analytics. Node only (see below)       |
-| `cypher`  | the generic source: you pick the transport with `transport`, or the endpoint picks it |
+| Source id  | For                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------- |
+| `neo4j`    | Neo4j over its Query API (5.26 and later, Aura), or over Bolt (any version)           |
+| `neptune`  | Amazon Neptune Database over HTTPS, or Neptune Analytics. Node only (see below)       |
+| `memgraph` | a Memgraph on your own computer, over Bolt (see "Memgraph on your computer")          |
+| `cypher`   | the generic source: you pick the transport with `transport`, or the endpoint picks it |
 
 Every load is read-only where the server enforces it: Bolt sessions are `READ` sessions and the
 Query API gets `accessMode: "Read"`, so a query that writes fails with `E_SOURCE_FORBIDDEN`.
@@ -31,7 +32,7 @@ const { snapshot } = await loadFromSource(
 console.log(snapshot.nodeCount, snapshot.edgeCount); // 171 253
 ```
 
-A `bolt:` or `bolt+s:` endpoint uses Bolt instead, through the
+A `bolt:`, `bolt+s:`, `neo4j:` or `neo4j+s:` endpoint uses Bolt instead, through the
 [neo4j-driver](https://www.npmjs.com/package/neo4j-driver) package. It is an optional peer
 dependency: install it yourself (`npm install neo4j-driver`) only if you use Bolt. Without it, a
 Bolt load fails with `E_SOURCE_RUNTIME` and `params: { reason: "needs-peer-dependency", package:
@@ -179,6 +180,44 @@ nor Neptune tells a reader when data changed, so `validateSource` reads again an
 `report.source.validators.contentHash`, a hash of the rows the load read: `"current"` or
 `"changed"`.
 
+## Memgraph on your computer
+
+`memgraphSource` reads a Memgraph running on the same computer as your code or browser, at
+`bolt://localhost:7687` unless you name another `localhost` or `127.0.0.1` endpoint. It uses Bolt
+with encryption off, so it needs the optional peer `neo4j-driver` too. It is not one of the
+built-in sources `listSources()` lists: import it and pass it as the source.
+
+```ts
+import { loadFromSource } from "@graphty/graph-io";
+import { memgraphSource } from "@graphty/graph-io/sources/cypher";
+
+const { snapshot, report } = await loadFromSource(memgraphSource, {
+    query: "MATCH p = (:City)-[:ROAD]->() RETURN p LIMIT 100",
+});
+console.log(snapshot.nodeCount, report.source?.server.product); // ... "Memgraph"
+```
+
+- It works from Node, from a page on `http:`, and from a page on `https:` once the reader allows the
+  browser's local network access. Chrome asks once when the page is on a public site; Firefox
+  allows it unless its local network check is switched on, and then it asks.
+- An endpoint on another machine is refused (`E_SOURCE_PARAM`, `params: { name: "endpoint",
+reason: "not-loopback" }`). A page on `https:` cannot reach a remote Memgraph at all, because
+  Memgraph cannot serve the encrypted WebSocket (`wss://`) such a page needs. From Node or a page
+  on `http:`, read a remote Memgraph with the `cypher` source and `transport: "bolt"`.
+- Nodes are keyed by `id(n)`, as text in the snapshot; seeds given back as that text are matched
+  as Memgraph's integer ids.
+- Memgraph runs a query that writes even in a read session, so `probeSource` answers
+  `readOnly: "not-enforced"`: read from a Memgraph whose data you can afford to change, or give
+  the user you log in as read-only rights.
+
+When the browser refuses the connection, the load fails with `E_SOURCE_BLOCKED` and
+`params.cause: "local-network"`, so you can ask the reader to allow local network access. A browser
+does not tell a page that it refused: the failure looks the same as a Memgraph that is not running.
+graph-io reports `"local-network"` when the page is on a public address, the database on this
+computer or the local network, and the browser does not say the permission is granted (Chrome
+says; Firefox and Safari do not, so there a stopped database from a public page is also reported
+as `"local-network"`). Otherwise the cause is `"unknown"`.
+
 ## Amazon Neptune
 
 The `neptune` preset reads Neptune Database through `POST /openCypher` on port 8182, or Neptune
@@ -210,17 +249,21 @@ endpoint.
 
 The Query API works from a page on `https:` (Neo4j allows any origin by default). Bolt works from
 such a page over `bolt+s:`, which the driver opens as `wss://`, so the server needs Bolt TLS; a
-plain `bolt:` endpoint is refused there (`reason: "insecure-endpoint"`).
+plain `bolt:` or `neo4j:` endpoint is refused there (`reason: "insecure-endpoint"`).
 
 ## Credentials and connections
 
 The Query API takes `credentials.basic` or `credentials.bearer`; Bolt takes the same two and hands
 them to the driver. A credential goes only to the endpoint (or its `origins`). Over Bolt:
 
-- only direct connections: a `neo4j:` or `neo4j+s:` endpoint is refused (`reason: "routing"`),
-  because a routing table could send the credential to other hosts;
-- `bolt+ssc:` accepts any certificate, so a credential is never sent over it
+- only direct connections: a `neo4j:`, `neo4j+s:` or `neo4j+ssc:` endpoint (the form Aura and
+  Neo4j's documentation give) connects straight to the host it names, as `bolt:`, `bolt+s:` or
+  `bolt+ssc:` with the same TLS setting, and never follows a routing table, which could send the
+  credential to other hosts;
+- `bolt+ssc:` and `neo4j+ssc:` accept any certificate, so a credential is never sent over them
   (`reason: "unverified-tls"`);
+- any other scheme is refused (`reason: "scheme"`), as is an endpoint with no host
+  (`reason: "type"`);
 - a credential goes over plain `bolt:` only to this machine, or with `allowInsecure: true`.
 
 ## Errors
@@ -235,6 +278,7 @@ them to the driver. A credential goes only to the endpoint (or its `origins`). O
 | `E_SOURCE_NOT_A_GRAPH` | the result holds no node, relationship or path                                |
 | `E_SOURCE_RUNTIME`     | Neptune in a browser, or Bolt without neo4j-driver                            |
 | `E_SOURCE_PARAM`       | a bad parameter, identifier, endpoint scheme or credential                    |
+| `E_SOURCE_BLOCKED`     | a browser could not connect over Bolt: `url`, `cause` (`"local-network"`)     |
 
 `limits.timeoutMs` is also sent as Bolt's transaction timeout, and aborting the load's `signal`
 closes the Bolt session.

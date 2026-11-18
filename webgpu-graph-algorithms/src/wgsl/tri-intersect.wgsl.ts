@@ -1,11 +1,11 @@
 /**
- * The `tri-intersect` kernel body (design 8.5): one invocation per ORIENTED arc `(u, v)`; every common target `w` of
+ * The `tri-intersect` kernel body: one invocation per ORIENTED arc `(u, v)`; every common target `w` of
  * the oriented rows of `u` and `v` closes a triangle, found exactly once. The rows are sorted by target, so they are
  * intersected by a merge, or -- when one row is more than TRIANGLE_BINARY_SEARCH_RATIO times the other -- by a binary
  * search of each element of the shorter row in the longer. SEARCH forces a path: 0 chooses, 1 always merges, 2
  * always searches (the tier-agreement tests compare the two). `counts` gains one per triangle at `w` as it is found
  * and the arc's triangle count at `u` and `v` once at the end: u32 atomics, so the counts are exact and
- * order-independent. Body only (spec 3.5, D9); normative text.
+ * order-independent. Body only; normative text.
  */
 export const triIntersectWgsl = /* wgsl */ `
 fn contains(lo0: u32, hi0: u32, x: u32) -> bool {                  // binary search of x in colIdx[lo0, hi0), sorted ascending

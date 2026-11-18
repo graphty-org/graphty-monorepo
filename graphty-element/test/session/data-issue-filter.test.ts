@@ -24,7 +24,7 @@ const OPENFLIGHTS = readFileSync(new URL("../../../graph-samples/dist/data/v1/op
 async function openflights(): Promise<GraphSession> {
     vi.stubGlobal("fetch", (): Promise<Response> => Promise.resolve(new Response(OPENFLIGHTS)));
     const session = createGraphSession();
-    await session.data.loadDataset("openflights");
+    await session.data.loadDataset("openflights", { baseUrl: "https://mirror.test/" });
     return session;
 }
 

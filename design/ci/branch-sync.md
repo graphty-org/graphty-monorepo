@@ -1,5 +1,7 @@
 # Branch sync
 
+> Status: Historical. It describes syncing branches with `golden` before landing. tools/land.mjs, tools/verify.mjs, tools/prepush.sh and tools/prepush-tests.mjs were removed on 2026-11-02 (commit d99cdf5060), and tools/branch-sync.mjs on 2026-10-25 (commit 0c011ef28f). tools/branch-note.mjs and tools/branch-push.sh are still used. Today every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md).
+
 Status: adopted by the owner on 2026-10-22. Implemented in `tools/branch-sync.mjs` (run as
 `node tools/land.mjs sync`), `tools/branch-note.mjs` and `tools/branch-push.sh`. It builds on
 golden-local landing (`design/ci/golden-local.md`).

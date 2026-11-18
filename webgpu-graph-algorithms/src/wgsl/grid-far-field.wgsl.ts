@@ -1,15 +1,16 @@
 /**
- * G6, the `grid-far-field` kernel body (spec 7.7; P4-T10; D24): per node `i = sortedIdx[t]`, its finest cell
- * recomputed from `pos[i]` and the state (PD-10); for an inside node the coarsest level minus the 3x3 (3x3x3)
+ * G6, the `grid-far-field` kernel body: per node `i = sortedIdx[t]`, its finest cell
+ * recomputed from `pos[i]` and the state; for an inside node the coarsest level minus the 3x3 (3x3x3)
  * around its coarsest cell, then at every finer level the 6x6 (6x6x6) block that is the parent's 3x3 minus this
  * level's own 3x3 -- space tiled exactly once, no theta -- plus the centroid of each of the 2^dim outside
  * pseudo-cells, one per orthant about the grid centre (issue #90); for an outside node the coarsest level in full and
  * no pseudo-cell. Every cell term is the per-cell law on the mass-weighted
  * centroid (Gephi Region semantics), softened by `eps^2`: `LAW` 0 (FA2) `d * (k m_i M / d2)` with `|d|^2` first
- * floored at 0.01^2 like K3's pair law (issue #89), `LAW` 1 (FR, 7.20)
- * `d * (k^2 M / d2)` (mass 1 per node, so `M` is the cell's count), `LAW` 2 (coulomb) `d * (-g m_i M / d2^1.5)`
- * (P4-T13, PD-22). `force += f` (K2 wrote it). The loop bounds are `P.levels` and `P.gridMax` from the uniform,
- * not a `LEVELS` override (PD-16, DEP-P4-G). Body only; normative text.
+ * floored at 0.01^2 like K3's pair law (issue #89), `LAW` 1 (FR)
+ * `d * (k^2 M / d2)` (mass 1 per node, so `M` is the cell's count), `LAW` 2 (coulomb) `d * (-g m_i M / d2^1.5)`.
+ * `force += f` (K2 wrote it). The loop bounds are `P.levels` and `P.gridMax` from the uniform,
+ * not a `LEVELS` override. Body only; normative text.
+ * See design/webgpu/webgpu-acceleration-plan.md, "7.7 Repulsion, approximate tier".
  */
 export const gridFarFieldWgsl = /* wgsl */ `
 fn load_force(i: u32) -> vec3f { return vec3f(force[3u * i], force[3u * i + 1u], force[3u * i + 2u]); }
@@ -33,11 +34,11 @@ fn cell_at(level: u32, cx: i32, cy: i32, cz: i32) -> u32 {
     let s = grid_side(level);
     return level_base(level) + u32(cx) + s * (u32(cy) + select(0u, s * u32(cz), P.dim == 3u));
 }
-fn cell_force(pi: vec4f, q: vec4f) -> vec3f {                  // one far-field term, softened by state.eps (7.7)
+fn cell_force(pi: vec4f, q: vec4f) -> vec3f {                  // one far-field term, softened by state.eps
     if (q.w <= 0.0) { return vec3f(0.0); }                     // an empty cell
     let d = pi.xyz - q.xyz / q.w;                              // to the mass-weighted centroid
     var d2 = dot(d, d);
-    if (LAW == 0u) { d2 = max(d2, FA2_DIST_FLOOR_SQ); }        // FA2 alone floors d >= 0.01, as K3 and G7 do (issue #89); FR and coulomb are unfloored (7.20)
+    if (LAW == 0u) { d2 = max(d2, FA2_DIST_FLOOR_SQ); }        // FA2 alone floors d >= 0.01, as K3 and G7 do (issue #89); FR and coulomb are unfloored
     d2 = d2 + S.eps * S.eps;
     if (LAW == 1u) { return d * (P.frK * P.frK * q.w / d2); }                       // LAW 1 (FR, 7.20): k^2 / d per node, q.w nodes at the centroid
     if (LAW == 2u) { return d * (-P.coulomb * pi.w * q.w / (d2 * sqrt(d2))); }     // LAW 2 (coulomb): -g m_i M_cell / d^2
@@ -48,10 +49,10 @@ fn cell_force(pi: vec4f, q: vec4f) -> vec3f {                  // one far-field 
 fn grid_far_field(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
     let t = linear_id(wid, lid.x);
     if (t >= P.n) { return; }                                      // no barrier follows
-    let i = sortedIdx[t];                                          // sorted order (D24)
+    let i = sortedIdx[t];                                          // sorted order
     let pi = pos[i];
     let gf = f32(P.gridMax);
-    let q = (pi.xyz - S.gridMin.xyz) * S.invCellSize;              // PD-10
+    let q = (pi.xyz - S.gridMin.xyz) * S.invCellSize;
     var c0 = vec3<i32>(floor(clamp(q, vec3f(-1.0), vec3f(gf + 1.0))));
     if (P.dim == 2u) { c0.z = 0; }                                 // 2D: one z plane; the loops below visit cz = 0 only, so the 3x3 test must see cz - 0
     let g = i32(P.gridMax);

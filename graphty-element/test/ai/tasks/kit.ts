@@ -21,6 +21,7 @@ import { createGraphSession, type GraphSession } from "../../../session";
 import type { SavedMessage } from "../../../src/ai/engine/types";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import { AlgorithmManager } from "../../../src/managers/AlgorithmManager";
+import { toColorValue } from "../../../src/session/styles/channels";
 import { digest } from "../../helpers/assistant";
 
 /** What a task needs, as the design's tiers name it. */
@@ -214,7 +215,10 @@ export async function taskSession(dataset: TaskDataset): Promise<GraphSession> {
         },
     };
     const manager = new AlgorithmManager({} as never, graph as never);
+    // The working graph off: the stand-in renderer above hands the algorithms the whole store,
+    // where the element's own hands them what is shown.
     const session = createGraphSession({
+        workingGraph: false,
         ...(records.directed === undefined ? {} : { config: { data: { directed: records.directed } } }),
         runs: { execute: (context) => manager.execute(context, algorithmByKey(context.algorithm)) },
     });
@@ -514,6 +518,54 @@ export function styleOf(s: GraphSession, node: string | number, channel: string)
     // A nested form: { node: { color } }.
     const [head, tail] = channel.split(".");
     return (merged[head] as Record<string, unknown> | undefined)?.[tail];
+}
+
+/** The hue range, in degrees, each color word a task asks for covers. Red wraps past 360. */
+const HUES = { red: [345, 15], orange: [15, 45], gold: [40, 62], blue: [190, 260] } as const;
+
+/** A color word a task can grade. */
+export type ColorWord = keyof typeof HUES | "black";
+
+/**
+ * Whether a color reads as a color word: graded by hue, saturation and lightness, never by one
+ * exact hex, since a model asked for "blue" may rightly pick #2563eb as well as #0000ff (#8836).
+ * @param value - The color: a style value in any spelling the element accepts, or a resolved
+ *   color with its hex.
+ * @param word - The color word.
+ * @returns True when it reads as that color.
+ */
+export function isColorNamed(value: unknown, word: ColorWord): boolean {
+    const spelled = typeof value === "object" && value !== null ? (value as { hex?: unknown }).hex : value;
+    const color = typeof spelled === "string" ? toColorValue(spelled) : null;
+    if (color === null) {
+        return false;
+    }
+
+    const [r, g, b] = [color.r / 255, color.g / 255, color.b / 255];
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const lightness = (max + min) / 2;
+    if (word === "black") {
+        return lightness < 0.15;
+    }
+
+    const chroma = max - min;
+    const saturation = chroma === 0 ? 0 : chroma / (1 - Math.abs(2 * lightness - 1));
+    if (saturation < 0.4 || lightness < 0.15 || lightness > 0.85) {
+        return false;
+    }
+
+    let hue = 0;
+    if (max === r) {
+        hue = (((g - b) / chroma) * 60 + 360) % 360;
+    } else if (max === g) {
+        hue = ((b - r) / chroma) * 60 + 120;
+    } else {
+        hue = ((r - g) / chroma) * 60 + 240;
+    }
+
+    const [from, to] = HUES[word];
+    return from <= to ? hue >= from && hue <= to : hue >= from || hue <= to;
 }
 
 /**

@@ -13,7 +13,7 @@
  * is still going to change. The promise settles in step with the face.
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { forgetFontBoxes } from "./RichTextParser";
 

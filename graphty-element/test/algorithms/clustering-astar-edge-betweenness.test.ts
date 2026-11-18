@@ -14,12 +14,23 @@ import { AStarAlgorithm } from "../../src/algorithms/AStarAlgorithm";
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { EdgeBetweennessCentralityAlgorithm } from "../../src/algorithms/EdgeBetweennessCentralityAlgorithm";
 import { HierarchicalClusteringAlgorithm } from "../../src/algorithms/HierarchicalClusteringAlgorithm";
+import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
 import { MarkovClusteringAlgorithm } from "../../src/algorithms/MarkovClusteringAlgorithm";
 import { type AlgorithmOutput, type DeclaredAlgorithm, detachedRunContext } from "../../src/algorithms/results";
 import { SpectralClusteringAlgorithm } from "../../src/algorithms/SpectralClusteringAlgorithm";
 import { GraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
+import type { Caveats } from "../../src/session/runs/types";
 import { createMockGraph } from "../helpers/mockGraph";
+
+/**
+ * The facts an algorithm's caveats carry, empty when its output states none.
+ * @param caveats - The caveats.
+ * @returns The facts.
+ */
+function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
+    return "facts" in caveats ? caveats.facts : [];
+}
 
 const TWO_TRIANGLES = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }],
@@ -114,6 +125,23 @@ describe("clustering splits two triangles at the bridge", () => {
         );
     });
 
+    it("spectral clustering and Leiden run unseeded by default, report the seed drawn, and repeat a passed one", async () => {
+        for (const [make, seedOption] of [
+            [(g: Graph, o: object) => new SpectralClusteringAlgorithm(g, o), "seed"],
+            [(g: Graph, o: object) => new LeidenAlgorithm(g, o), "randomSeed"],
+        ] as const) {
+            const drawn = await run(TWO_TRIANGLES, (g) => make(g, {}));
+            assert.isNumber(drawn.caveats.seed);
+
+            // The drawn seed, passed back, gives the same partition; so does 0, a seed like any other.
+            const replay = await run(TWO_TRIANGLES, (g) => make(g, { [seedOption]: drawn.caveats.seed }));
+            assert.deepStrictEqual(groupsOf(replay), groupsOf(drawn));
+            assert.strictEqual(replay.caveats.seed, drawn.caveats.seed);
+            const zero = await run(TWO_TRIANGLES, (g) => make(g, { [seedOption]: 0 }));
+            assert.strictEqual(zero.caveats.seed, 0);
+        }
+    });
+
     it("hierarchical clustering into two keeps each triangle's outer pair together", async () => {
         // Hop distances tie everywhere on this graph, so which side a bridge end joins is a
         // tie-break; the outer pairs, two hops from the bridge's far side, are not.
@@ -173,7 +201,10 @@ describe("clustering splits two triangles at the bridge", () => {
             ["A", "B"],
             ["C", "D", "E"],
         ]);
-        assert.include(output.caveats.notes, "1 clusters were asked for; the graph allows 2.");
+        assert.deepInclude(factsOf(output.caveats), {
+            code: "hierarchical.fewer-clusters",
+            params: { asked: 1, allowed: 2 },
+        });
     });
 
     it("publishes a group on every node and nothing on an edge", async () => {

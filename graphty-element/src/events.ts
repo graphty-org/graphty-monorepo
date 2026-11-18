@@ -81,6 +81,7 @@ export type GraphEvent =
     | GraphDataClearedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
+    | OverviewChangedEvent
     | GraphGenericEvent
     | DataLoadingProgressEvent
     | DataLoadingErrorEvent
@@ -94,6 +95,8 @@ export type GraphEvent =
     | LayoutWarningEvent
     | LimitsWarningEvent
     | BasemapStatusEvent
+    | RenderLostEvent
+    | RenderRestoredEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -260,6 +263,14 @@ export interface CameraStateChangedEvent {
     };
 }
 
+/**
+ * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at
+ * most once per drawn frame, never per node; read `getOverview()` in the listener.
+ */
+export interface OverviewChangedEvent {
+    type: "overview-changed";
+}
+
 // Generic events for internal manager communication
 export interface GraphGenericEvent {
     type:
@@ -267,7 +278,9 @@ export interface GraphGenericEvent {
         | "manager-initialized"
         | "lifecycle-initialized"
         | "lifecycle-disposed"
+        // A skybox image arrived (`url`), or could not be loaded (`skybox-failed`, `url`).
         | "skybox-loaded"
+        | "skybox-failed"
         | "operation-queue-active"
         | "operation-queue-idle"
         | "operation-batch-complete"
@@ -314,7 +327,7 @@ export interface StyleChangedEvent {
     painted: StyleChange["painted"];
     /** The paths the changed layers read that nothing in the session answers yet. */
     unresolvedPaths: string[];
-    /** What the changed layers will paint nothing for, as codes (`W_UNKNOWN_ID`), or draw without the alpha their color asked for (`W_ALPHA_IGNORED`), or draw no text for a size under 1 (`W_TEXT_TOO_SMALL`). */
+    /** What the changed layers will paint nothing for, as codes (`W_UNKNOWN_ID`), or draw without the alpha their color asked for (`W_ALPHA_IGNORED`). */
     warnings: StyleChange["warnings"];
 }
 
@@ -512,6 +525,37 @@ export interface LimitsWarningEvent {
 }
 
 /**
+ * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL
+ * context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser
+ * reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false
+ * meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
+ *
+ * The element asks for the device back by itself, and `render-restored` follows when it is
+ * drawing again. Should the browser not give it back, `restartRenderer()` asks again.
+ * A code and facts, never a sentence.
+ * @since 3.53.0
+ */
+export interface RenderLostEvent {
+    type: "render-lost";
+    /** What happened: `E_RENDER_LOST`. */
+    code: "E_RENDER_LOST";
+    /** `renderer`: the renderer whose device was lost, `"webgl"` or `"webgpu"`. */
+    params: { readonly renderer: "webgl" | "webgpu" };
+}
+
+/**
+ * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or
+ * through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph
+ * held in memory. `rendererStatus.drawing` is true again.
+ * @since 3.53.0
+ */
+export interface RenderRestoredEvent {
+    type: "render-restored";
+    /** The renderer drawing again, `"webgl"` or `"webgpu"`. */
+    renderer: "webgl" | "webgpu";
+}
+
+/**
  * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
  * back to the bundled world image because its tiles failed (`error` then carries
  * `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the
@@ -544,13 +588,6 @@ export interface OperationCancelledEvent {
      * this one operation was cancelled. Write the reader-facing words from this code.
      */
     code: "queue-cleared" | "cancelled";
-    /**
-     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
-     * cleared, `"Manual cancellation"` when this one operation was cancelled.
-     * @deprecated Read {@link OperationCancelledEvent.code} instead; this English text is removed
-     * in the next major release.
-     */
-    reason: string;
 }
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
@@ -970,10 +1007,20 @@ export interface AiApprovalRequest {
     /**
      * Why it was held; `"policy"` when the host's approval policy asked, `"plan"` for a hand-off
      * to a helper while `confirmPlans` is set, `"web-content"` for a change asked for while the
-     * message holds web content. OPEN UNION.
+     * message holds web content, `"paid"` for a call the provider bills (a generated picture). OPEN
+     * UNION.
      */
     readonly gate:
-        "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {}); // NOSONAR(S4335): the open-union idiom
+        | "slow"
+        | "large"
+        | "replaces"
+        | "irreversible"
+        | "network"
+        | "policy"
+        | "plan"
+        | "web-content"
+        | "paid"
+        | (string & {}); // the open-union idiom
     /** The tool calls held, as the model made them. */
     readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
     /** What the reader is shown before approving; empty for a `"policy"` hold. */
@@ -1095,7 +1142,7 @@ export interface AiPendingResolvedEvent {
     /** The request's id, as `ai-approval-requested` or `ai-question-asked` gave it. */
     id: string;
     /** What was waiting. OPEN UNION. */
-    kind: "approval" | "question" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    kind: "approval" | "question" | (string & {}); // the open-union idiom
     /**
      * How it ended: `AI_COMPLETED` (approved), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE`,
      * `AI_CANCELLED` or `AI_UNDONE`.
@@ -1140,6 +1187,12 @@ export interface AiApprovalPreview {
     readonly mode?: "merge" | "replace";
     /** The URL an import would fetch, which the reader did not give. */
     readonly url?: string;
+    /** The provider a `"paid"` call is billed by (`AiProviderId`). */
+    readonly provider?: string;
+    /** The model a `"paid"` call runs (an `AI_IMAGE_MODELS` id). */
+    readonly model?: string;
+    /** What a `"paid"` call is expected to cost, in US dollars (`AiImageModelDescriptor.costUsd`). */
+    readonly costUsd?: number;
     /**
      * Every element a `large` change would touch, for `session.selection.peek(target)`, where `ids`
      * stops at ten. Under the generated tools with the `assistant` experiment on.

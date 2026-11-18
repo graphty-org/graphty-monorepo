@@ -3142,8 +3142,16 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    // Check if layout has settled
-                    if (this.layoutManager.isSettled && this.layoutManager.running) {
+                    // Check if layout has settled. Not while a graph write is queued behind the
+                    // one drawn now: the layout would settle on part of one step -- the nodes of a
+                    // `nodeData` and `edgeData` pair, without the edges -- and run again once the
+                    // rest lands, so whether it settled once or twice hung on where a frame fell
+                    // (issue #8901). It settles once, over all of it.
+                    if (
+                        this.layoutManager.isSettled &&
+                        this.layoutManager.running &&
+                        !this.layoutManager.graphWritesWaiting()
+                    ) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
 

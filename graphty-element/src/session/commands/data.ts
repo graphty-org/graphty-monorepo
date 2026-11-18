@@ -712,6 +712,40 @@ export function replaceNodesCommand(
     };
 }
 
+/**
+ * The step replacing both the graph's nodes and its edges: one step, so the graph never shows the
+ * new nodes without their edges. The held edges go first, so removing a node removes none twice.
+ * @param heldNodes - The records of the nodes it holds by id, read when the step is about to run.
+ * @param heldEdges - The ids of the edges it holds, read then too.
+ * @param nodes - The nodes it should hold afterwards.
+ * @param edges - The edges it should hold afterwards.
+ * @param idPath - Where a record's id is, `data.knownFields.nodeIdPath`.
+ * @param setup - Declared at construction.
+ * @returns The command.
+ */
+export function replaceGraphCommand(
+    heldNodes: ReadonlyMap<NodeId, Readonly<Record<string, unknown>>>,
+    heldEdges: readonly EdgeId[],
+    nodes: readonly RecordInput[],
+    edges: readonly RecordInput[],
+    idPath: string,
+    setup = false,
+): BatchCommand {
+    const removeEdges: DataApplyCommand[] =
+        heldEdges.length > 0 ? [{ op: "data.apply", mutation: { kind: "remove-edges", ids: [...heldEdges] } }] : [];
+    return {
+        op: "batch",
+        label: "Set the graph data",
+        fact: { code: "data.set", params: {} },
+        steps: [
+            ...removeEdges,
+            ...replaceNodesCommand(heldNodes, nodes, idPath).steps,
+            ...replaceEdgesCommand([], edges).steps,
+        ],
+        ...(setup ? { setup } : {}),
+    };
+}
+
 /** The keys a moved edge record names its endpoints by, as `add-edges` reads them. */
 export interface MovedEndpoints {
     readonly source: string;

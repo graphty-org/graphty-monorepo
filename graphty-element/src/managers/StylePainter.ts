@@ -1595,34 +1595,21 @@ export class StylePainter {
     }
 
     /**
-     * What one node is painted.
+     * What one node is painted. Nodes of one look share one paint (see {@link StylePainter.rowPaint}):
+     * a paint is never written after it is built, so a `Node` holding a shared style is safe, and
+     * one that is handed the style it already draws compares it by reference (#7966).
      * @param index - Its dense index.
      * @returns The paint, or null when nothing is bound or the index is not an element's.
      */
     nodePaint(index: number): NodePaint | null {
-        const { paint } = this;
-
-        if (paint === null || index < 0) {
-            return null;
-        }
-
-        const floor = this.floorOf("node");
-        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
-        return keyedByFloor(
-            nodePaintOf(resolved, paint.meshKeyOf("node", index), (channel) => paint.plainText("node", index, channel)),
-            resolved,
-            floor,
-        );
+        return this.rowPaint(index);
     }
 
     /**
-     * What a row drawn with no `Node` is painted (`NodeBatches.paintRow`), the paint
-     * {@link StylePainter.nodePaint} gives it, built once per look rather than once per row.
+     * What one row is painted, built once per look rather than once per row.
      *
      * Rows painted by their mesh key alone share one style object, and each keeps its own colour,
      * so a load of a hundred thousand rows of one shape builds one style, not a hundred thousand.
-     * Only rows with no `Node` take it: a `Node` keeps the style object it is handed, and the objects
-     * path, which builds a `Node` for every row, still builds a style of its own for each.
      * @param index - The row's dense index.
      * @returns The paint, or null when nothing is bound or the index is not an element's.
      */

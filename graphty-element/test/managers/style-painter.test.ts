@@ -590,11 +590,12 @@ describe("StylePainter row paints, one look per mesh key", () => {
         assert.isFalse(held.painter.rowPaint(1)?.style === first?.style, "a label is per row, so its style is too");
     });
 
-    it("leaves nodePaint building a style of its own for every node, as the objects path always has", async () => {
+    it("gives nodes of one look one style through nodePaint too, so a Node compares it by reference (#7966)", async () => {
         const held = harness();
         await held.paintAll();
 
-        assert.isFalse(held.painter.nodePaint(0)?.style === held.painter.nodePaint(1)?.style);
+        assert.strictEqual(held.painter.nodePaint(0)?.style, held.painter.nodePaint(1)?.style);
+        assert.strictEqual(held.painter.nodePaint(0)?.style, held.painter.rowPaint(0)?.style);
     });
 });
 

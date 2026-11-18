@@ -65,8 +65,9 @@ route fails loudly if not: a software renderer is never used. The flags come fro
 studio's tool (`design/ui/studio/tool/real.mjs`, "Browsers"), with the extracted `libEGL.so.1` in
 the main checkout's `tmp/egl/`. The run holds the machine's one GPU slot for its whole length
 (`tools/test-slots.mjs --gpu`), and each browser takes one of the machine's four shared browser slots
-(`design/ui/studio/tool/with-browser.sh`). A run started
-while those are busy waits for them, and its report says how long.
+(`design/ui/studio/tool/with-browser.sh`). The run takes its first browser slot before the GPU
+slot, and its first browser uses it, so it never holds the GPU slot while it waits for a browser. A run
+started while those are busy waits for them, and its report says how long.
 
 A route takes 2 to 6 seconds once its browser is up. The routes are spread over the browsers as
 each frees up.

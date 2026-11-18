@@ -8,21 +8,25 @@ The camera determines what part of the 3D scene is visible. Control it programma
 
 ## Camera State
 
-The camera state includes position, target, and up vector:
+The camera state holds the drawing mode it was read in and the members that mode reads. In 3D:
 
 ```typescript
 const state = graph.getCameraState();
-// Returns:
+// Returns, in 3D:
 // {
+//   mode: "3d",
 //   position: { x: 0, y: 0, z: 100 },
 //   target: { x: 0, y: 0, z: 0 },
-//   up: { x: 0, y: 1, z: 0 }
+//   ...
 // }
+// and in 2D:
+// { mode: "2d", zoom: 1, pan: { x: 0, y: 0 }, rotation: 0 }
 ```
 
-- **position**: Where the camera is located
-- **target**: What the camera is looking at
-- **up**: Which direction is "up" for the camera
+- **mode**: The drawing mode the state belongs to (`"2d"` or `"3d"`)
+- **position**: Where the camera is located (3D)
+- **target**: What the camera is looking at (3D)
+- **zoom**, **pan**: How far in and where the camera is (2D)
 
 ## Setting Camera Position
 
@@ -365,8 +369,9 @@ Simplified camera for 2D layouts:
 ```
 
 ```typescript
-// 2D camera only has x, y position
-graph.setCameraPosition({ x: 0, y: 0, z: 100 });
+// 2D camera reads zoom, pan and rotation; position and target are refused (E_UNSUPPORTED)
+graph.setCameraPan({ x: 0, y: 0 });
+graph.setCameraZoom(1);
 ```
 
 In 2D mode:

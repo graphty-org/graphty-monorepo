@@ -909,6 +909,10 @@ export function sessionMember(sources: ProjectSources): Record<string, unknown> 
                 ? {}
                 : { hidden: dispatcher.state.visibility.hidden }),
         },
+        // Whether the timeline has written its Timeline Hidden row, always written (outside `config`, so
+        // an older reader ignores it): a file without it was saved when every project with the
+        // starting rows had the row (`timelineRowWritten`).
+        timelineHiddenAdded: session.config.timelineHiddenAdded,
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
         // Written only when a value is named, so a project without names saves as before.
@@ -1973,6 +1977,23 @@ async function readSelection(
 }
 
 /**
+ * Whether a file's project has had its Timeline Hidden row written, as the session member says. A
+ * file saved before the row came only with the timeline says nothing: then every project with the
+ * starting rows got the row, so one holding a style tree had it (and a reader who deleted it meant
+ * it), and the timeline turning on never adds another.
+ * @param doc - The read document.
+ * @returns The setting to write, or nothing for a file with neither.
+ */
+function timelineRowWritten(doc: ReadDocument): { timelineHiddenAdded?: boolean } {
+    const saved = doc.members.get("graphty-session")?.[0]?.timelineHiddenAdded;
+    if (typeof saved === "boolean") {
+        return { timelineHiddenAdded: saved };
+    }
+
+    return doc.members.has("graphty-style") ? { timelineHiddenAdded: true } : {};
+}
+
+/**
  * Read a project's settings: the style member's shaders first, so the background never names one
  * the project lacks, then the settings themselves.
  * @param opening - The open.
@@ -1997,10 +2018,14 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
     }
 
     await attempt(opening, "config", () =>
-        tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
+        tx.config.set({
+            ...withReadableBackground(opening, withAddedDefaults(config)),
+            name,
+            ...timelineRowWritten(doc),
+        }),
     );
     // The settings just read write the default rows when they turn `startingRows` on (Timeline Hidden
-    // among them while the timeline is on). A file that
+    // too while the timeline is on and the file never had it). A file that
     // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
     // tree's own copies land beside them and every starting row is there twice (issue #7843).
     if (doc.members.has("graphty-style")) {

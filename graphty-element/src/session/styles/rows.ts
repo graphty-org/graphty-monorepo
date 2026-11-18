@@ -299,23 +299,48 @@ export const STARTING_GHOST_LOOK = {
  * @param look.pinned.color - The halo's color.
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
- * @param look.timelineHidden - How the Timeline Hidden row draws what lies outside the time window
- *   (`"hidden"` sets `visible: false`; `"ghost"` draws it grey and faint).
- * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Timeline Hidden,
- *   Pinned, Selected and Hovered, each pinned to the top above the one before.
+ * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Pinned,
+ *   Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
+ *   instead, the timeline's one row, Timeline Hidden, pinned to the top: `"hidden"` sets
+ *   `visible: false`; `"ghost"` draws what lies outside the time window grey and faint.
  */
-export function startingRows(look: {
-    readonly selection: {
-        readonly color: string;
-        readonly scale: number;
-        readonly edgeColor: string;
-        readonly edgeScale: number;
-    };
-    readonly everything?: StaticStyle;
-    readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
-    readonly timelineHidden: TimelineHiddenLook;
-}): readonly StartingRow[] {
-    const source = (templateId: StartingRowId): RowSpec["source"] => ({ by: "template", templateId });
+export function startingRows(
+    look:
+        | {
+              readonly selection: {
+                  readonly color: string;
+                  readonly scale: number;
+                  readonly edgeColor: string;
+                  readonly edgeScale: number;
+              };
+              readonly everything?: StaticStyle;
+              readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
+          }
+        | { readonly timelineHidden: TimelineHiddenLook },
+): readonly StartingRow[] {
+    // The timeline's row alone, written once when a project with the starting rows first has a
+    // time field.
+    if ("timelineHidden" in look) {
+        return [
+            {
+                templateId: TIMELINE_HIDDEN_ROW_ID,
+                pin: "top",
+                spec: {
+                    name: "Timeline Hidden",
+                    target: "both",
+                    selector: { match: "state", state: "outsideWindow" },
+                    // Ghost says it draws (visible: true), so what reads the look from the layers
+                    // (`time.settings.outside`, a branches view) agrees with the row.
+                    set:
+                        look.timelineHidden === "ghost"
+                            ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
+                            : { "node.visible": false, "edge.visible": false },
+                    source: source(TIMELINE_HIDDEN_ROW_ID),
+                },
+            },
+        ];
+    }
+
     const { selection, pinned } = look;
 
     return [
@@ -328,22 +353,6 @@ export function startingRows(look: {
                 selector: { match: "everything" },
                 ...(look.everything === undefined ? {} : { set: look.everything }),
                 source: source("graphty:starting-everything"),
-            },
-        },
-        {
-            templateId: TIMELINE_HIDDEN_ROW_ID,
-            pin: "top",
-            spec: {
-                name: "Timeline Hidden",
-                target: "both",
-                selector: { match: "state", state: "outsideWindow" },
-                // Ghost says it draws (visible: true), so what reads the look from the layers
-                // (`time.settings.outside`, a branches view) agrees with the row.
-                set:
-                    look.timelineHidden === "ghost"
-                        ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
-                        : { "node.visible": false, "edge.visible": false },
-                source: source(TIMELINE_HIDDEN_ROW_ID),
             },
         },
         ...(pinned === undefined
@@ -394,6 +403,15 @@ export function startingRows(look: {
             },
         },
     ];
+}
+
+/**
+ * A default row's source: its template id.
+ * @param templateId - The id.
+ * @returns The source.
+ */
+function source(templateId: StartingRowId): RowSpec["source"] {
+    return { by: "template", templateId };
 }
 
 /** Rule leaves that always read nodes: their degree, component, neighborhood or isolation. */

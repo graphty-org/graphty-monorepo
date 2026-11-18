@@ -3920,6 +3920,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startingRows: READ,
             editableBase: READ,
             timelineHiddenLook: READ,
+            timelineHiddenAdded: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,

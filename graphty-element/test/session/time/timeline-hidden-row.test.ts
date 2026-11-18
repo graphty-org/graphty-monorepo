@@ -1,8 +1,9 @@
 /**
  * The Timeline Hidden starting row: one ordinary row selecting the state "outsideWindow", added
- * with the starting rows while the timeline is on, in the look the project setting
- * `timelineHiddenLook` names. It is the reader's row: deleted, it stays gone across a save and an
- * open, it never comes twice, and a project saved with its older name (Ghost) opens with that row.
+ * once, the first time a project with the starting rows has a time field, in the look the project
+ * setting `timelineHiddenLook` names. It is the reader's row: deleted, it stays gone across a save,
+ * an open and the timeline turning off and on, it never comes twice, and a project saved with its
+ * older name (Ghost) opens with that row.
  */
 
 import { assert, describe, it } from "vitest";
@@ -10,13 +11,13 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 
 /**
- * A small timed graph with the starting rows drawn.
+ * A small graph with a time column, the starting rows drawn and no time field.
  * @param options - The look, and the session's features.
  * @param options.look - The Timeline Hidden row's look, when set.
  * @param options.features - The features; the default ones when absent.
  * @returns The session.
  */
-async function timed(options: { look?: "hidden" | "ghost"; features?: string[] } = {}): Promise<GraphSession> {
+async function untimed(options: { look?: "hidden" | "ghost"; features?: string[] } = {}): Promise<GraphSession> {
     const session = createGraphSession(options.features === undefined ? {} : { features: options.features });
     await session.config.set({
         startingRows: true,
@@ -24,6 +25,20 @@ async function timed(options: { look?: "hidden" | "ghost"; features?: string[] }
     });
     const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}`, t: i }));
     await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
+
+    return session;
+}
+
+/**
+ * A small timed graph with the starting rows drawn: {@link untimed} with the timeline turned on.
+ * @param options - The look, and the session's features.
+ * @param options.look - The Timeline Hidden row's look, when set.
+ * @param options.features - The features; the default ones when absent.
+ * @returns The session.
+ */
+async function timed(options: { look?: "hidden" | "ghost"; features?: string[] } = {}): Promise<GraphSession> {
+    const session = await untimed(options);
+    await session.time.setField({ nodes: { start: "t" } });
 
     return session;
 }
@@ -39,6 +54,21 @@ function named(session: GraphSession, name: string): ReturnType<GraphSession["st
 }
 
 /**
+ * A project's text as a writer from before the row came only with the timeline saved it: with no
+ * record of the row.
+ * @param text - The project.
+ * @returns The older text.
+ */
+function stripped(text: string): string {
+    const document = JSON.parse(text) as { members: { kind: string; timelineHiddenAdded?: boolean }[] };
+    const member = document.members.find((each) => each.kind === "graphty-session");
+    assert.isBoolean(member?.timelineHiddenAdded);
+    delete member?.timelineHiddenAdded;
+
+    return JSON.stringify(document);
+}
+
+/**
  * Open a project's text in a new session.
  * @param text - The project.
  * @returns The session.
@@ -51,7 +81,30 @@ async function reopen(text: string): Promise<GraphSession> {
 }
 
 describe("the Timeline Hidden row", () => {
-    it("is added once with the starting rows, hiding what lies outside, directly below Selected", async () => {
+    it("is not there until the timeline turns on", async () => {
+        const session = await untimed();
+        assert.lengthOf(named(session, "Timeline Hidden"), 0);
+        assert.includeMembers(
+            session.styles.tree().map((each) => each.name),
+            ["Everything", "Selected", "Hovered"],
+        );
+        assert.isFalse(session.config.timelineHiddenAdded);
+        session.dispose();
+    });
+
+    it("comes with the starting rows when they turn on over a timeline, directly below Selected", async () => {
+        const session = createGraphSession();
+        const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}`, t: i }));
+        await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
+        await session.time.setField({ nodes: { start: "t" } });
+        assert.lengthOf(named(session, "Timeline Hidden"), 0, "no starting rows, no row");
+        await session.config.set({ startingRows: true });
+        const tree = session.styles.tree().map((each) => each.name);
+        assert.strictEqual(tree.indexOf("Timeline Hidden"), tree.indexOf("Selected") - 1, tree.join(", "));
+        session.dispose();
+    });
+
+    it("is added once when the timeline turns on, hiding what lies outside, directly below Selected", async () => {
         const session = await timed();
         const parts = named(session, "Timeline Hidden");
         assert.lengthOf(parts, 2);
@@ -67,6 +120,14 @@ describe("the Timeline Hidden row", () => {
         const tree = session.styles.tree().map((row) => row.name);
         assert.strictEqual(tree.indexOf("Timeline Hidden"), tree.indexOf("Selected") - 1, tree.join(", "));
         assert.strictEqual(session.config.timelineHiddenLook, "hidden");
+        assert.isTrue(session.config.timelineHiddenAdded);
+
+        // Undo takes the row back with the field.
+        await session.undo();
+        assert.lengthOf(named(session, "Timeline Hidden"), 0);
+        assert.isFalse(session.config.timelineHiddenAdded);
+        await session.redo();
+        assert.lengthOf(named(session, "Timeline Hidden"), 2);
 
         // Asked again, nothing comes twice, and a time field coming and going leaves the row alone.
         await session.config.set({ startingRows: true, editableBase: true });
@@ -99,10 +160,33 @@ describe("the Timeline Hidden row", () => {
         const row = session.styles.tree().find((each) => each.name === "Timeline Hidden");
         await session.styles.deleteRow(row?.id ?? "");
         assert.lengthOf(named(session, "Timeline Hidden"), 0);
+        // The timeline turning off and on again does not bring it back.
+        await session.time.setField(null);
+        await session.time.setField({ nodes: { start: "t" } });
+        assert.lengthOf(named(session, "Timeline Hidden"), 0);
         const opened = await reopen((await session.project.save()).text);
         assert.lengthOf(named(opened, "Timeline Hidden"), 0);
         for (const each of [session, kept, again, opened]) {
             each.dispose();
+        }
+    });
+
+    it("keeps its once-only record across a save with the timeline off, and an older file counts as having had it", async () => {
+        const session = await timed();
+        await session.time.setField(null);
+        const saved = (await session.project.save()).text;
+        session.dispose();
+
+        // Opened into a session drawing the starting rows, as the graphty app's are.
+        for (const text of [saved, stripped(saved)]) {
+            const opened = createGraphSession();
+            await opened.config.set({ startingRows: true });
+            await opened.project.open(text, { discard: true });
+            assert.isTrue(opened.config.timelineHiddenAdded);
+            assert.lengthOf(named(opened, "Timeline Hidden"), 2);
+            await opened.time.setField({ nodes: { start: "t" } });
+            assert.lengthOf(named(opened, "Timeline Hidden"), 2, "never a second row");
+            opened.dispose();
         }
     });
 

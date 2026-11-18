@@ -216,6 +216,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.selectionStyle": "not the graph",
     "config.startingRows": "not the graph",
     "config.timelineHiddenLook": "not the graph",
+    "config.timelineHiddenAdded": "not the graph",
     "config.viewRotation": "not the graph",
     "config.acceleration": "not the graph",
     "config.backgroundColor": "not the graph",

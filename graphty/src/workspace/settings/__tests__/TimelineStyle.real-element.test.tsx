@@ -1,6 +1,6 @@
 /**
  * Settings > General > Default timeline style, on the real graphty-element: the reader's choice
- * decides the look of the Timeline Hidden row a new project gets, the row and the setting exist only
+ * decides the look of the Timeline Hidden row a project gets when its timeline turns on, the row and the setting exist only
  * with the timeline experiment on, and moving the time window leaves the header's filter chip (what
  * is visible) as it was, since the window changes only the drawing. Real clicks throughout.
  */
@@ -77,6 +77,20 @@ async function treeRows(): Promise<string[]> {
 }
 
 /**
+ * Turns the timeline on as a reader does: the Data place's edge "+", Time, then the released
+ * column; then back to the Graph place, where the style tree is.
+ */
+async function turnTimelineOn(): Promise<void> {
+    // Exact, so "Data place" (the region) does not also match.
+    await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+    const place = within(await screen.findByRole("region", { name: "Data place" }));
+    await userEvent.click(await place.findByRole("button", { name: "Add to edge attributes" }));
+    await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /^released/ }));
+    await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
+}
+
+/**
  * The Timeline Hidden row's node layer.
  * @param session - the element's session.
  * @returns the layer.
@@ -100,10 +114,15 @@ beforeAll(async () => {
 });
 
 describe("Default timeline style", () => {
-    it("gives a new project a Timeline Hidden row drawn as a ghost with Ghost", async () => {
+    it("gives a project a Timeline Hidden row drawn as a ghost with Ghost when its timeline turns on", async () => {
         const store = mount();
         await chooseStyle("Ghost");
         const session = await openBy(store, () => pickSample(MARVEL));
+        assert.isFalse(
+            (await treeRows()).some((row) => row.startsWith(ROW)),
+            "no timeline, no row",
+        );
+        await turnTimelineOn();
         await waitFor(async () => {
             assert.isTrue((await treeRows()).some((row) => row.startsWith(ROW)));
         });
@@ -114,11 +133,16 @@ describe("Default timeline style", () => {
         assert.strictEqual(session.config.timelineHiddenLook, "ghost");
     });
 
-    it("gives a new project a Timeline Hidden row that hides with Hidden", async () => {
+    it("gives a project a Timeline Hidden row that hides with Hidden when its timeline turns on", async () => {
         localStorage.setItem(TIMELINE_STYLE.key, "ghost");
         const store = mount();
         await chooseStyle("Hidden");
         const session = await openBy(store, () => pickSample(MARVEL));
+        assert.isFalse(
+            (await treeRows()).some((row) => row.startsWith(ROW)),
+            "no timeline, no row",
+        );
+        await turnTimelineOn();
         await waitFor(async () => {
             assert.isTrue((await treeRows()).some((row) => row.startsWith(ROW)));
         });

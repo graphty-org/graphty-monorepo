@@ -25,7 +25,7 @@ import {
     type RecoverOptions,
 } from "./Autosaver";
 import { indexedDbAutosaveStore } from "./indexedDbStore";
-import { entryOfMeta, type PageSource } from "./recovery";
+import { entryOfMeta, navigationFacts, type PageSource } from "./recovery";
 import type {
     AutosaveApi,
     AutosaveAvailable,
@@ -357,15 +357,6 @@ function takeLeaving(env: AutosaveEnvironment, key: string): string | null {
 }
 
 /**
- * How this page was reached, for the logs.
- * @returns `navigate`, `reload`, `back_forward`, or null where the browser does not say.
- */
-function navigationType(): string | null {
-    const [entry] = (globalThis.performance?.getEntriesByType?.("navigation") ?? []) as PerformanceNavigationTiming[];
-    return entry?.type ?? null;
-}
-
-/**
  * This tab's own entry of a key, as session storage kept it across a reload or a discard.
  * @param env - The page.
  * @param key - The key.
@@ -558,12 +549,49 @@ export class ElementAutosave {
             stashed: (name) => this.#saver?.stashed(name),
             requestPersistence: () => this.#requestPersistence(),
         };
-        this.api = Object.defineProperties(methods, {
-            status: { enumerable: true, get: () => this.#saver?.status ?? this.#status },
-            ready: { enumerable: true, get: () => this.#ready },
-            restored: { enumerable: true, get: () => this.#saver?.restored ?? null },
-        }) as AutosaveApi;
+        ElementAutosave.#owners.set(methods, this);
+        this.api = Object.defineProperties(methods, ElementAutosave.#apiGetters) as AutosaveApi;
     }
+
+    /** The autosave behind each `api`, for the getters below. */
+    static readonly #owners = new WeakMap<object, ElementAutosave>();
+
+    /**
+     * The autosave behind an `api`.
+     * @param api - An `api` this class made.
+     * @returns Its autosave.
+     */
+    static #of(api: object): ElementAutosave {
+        return ElementAutosave.#owners.get(api) as ElementAutosave;
+    }
+
+    /**
+     * `api`'s getters: the same three functions for every element, never a closure over one. V8
+     * keeps an accessor's function in the hidden class every element's `api` shares, so a closure
+     * there would keep the first element, its graph and its scene alive after it was removed
+     * (test/browser/element-removal-heap.test.ts).
+     */
+    static readonly #apiGetters: PropertyDescriptorMap = {
+        status: {
+            enumerable: true,
+            get(this: object): AutosaveStatus {
+                const owner = ElementAutosave.#of(this);
+                return owner.#saver?.status ?? owner.#status;
+            },
+        },
+        ready: {
+            enumerable: true,
+            get(this: object): Promise<AutosaveRestored | null> {
+                return ElementAutosave.#of(this).#ready;
+            },
+        },
+        restored: {
+            enumerable: true,
+            get(this: object): AutosaveRestored | null {
+                return ElementAutosave.#of(this).#saver?.restored ?? null;
+            },
+        },
+    };
 
     /** The element connected with autosave on: until it starts, it reports nothing to write. */
     connect(): void {
@@ -1342,7 +1370,7 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
             waited,
             leavingMark: leaving !== null,
             entries: metas.length,
-            navigationType: navigationType(),
+            navigationType: navigationFacts().navigationType,
         });
         return metas.map((meta) => ({
             ...entryOfMeta(meta, held.has(lockName(key, meta.id))),

@@ -52,6 +52,7 @@ import { pajekExporter } from "../../src/formats/pajek/exporter.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import { xgmmlExporter } from "../../src/formats/xgmml/exporter.js";
 import { xgmmlImporter } from "../../src/formats/xgmml/importer.js";
+import { neutralPositions } from "../../src/positions/convert.js";
 import { registry } from "../../src/registry.js";
 import {
     type CommonExportOptions,
@@ -764,6 +765,34 @@ function errorOf(err: unknown): { code: string; message: string } {
     };
 }
 
+/**
+ * Drop the position value differences that are only a change of spelling: a writer that converts
+ * to its own convention (the Cytoscape family writes y down) reads a y-down or top-left column
+ * (Pajek, yEd) into the neutral form first, so the re-read column holds the same drawing spelled
+ * another way. Rows whose neutral coordinates agree are the same place, not a loss.
+ */
+function samePlaceDropped(expected: GraphSnapshot, actual: GraphSnapshot, diffs: SnapshotDiff[]): SnapshotDiff[] {
+    const e = expected.nodes.byRole("position");
+    const a = actual.nodes.byRole("position");
+    if (e === null || a === null || e.meta.name !== a.meta.name || e.length !== a.length) {
+        return diffs;
+    }
+    const en = neutralPositions(expected, e);
+    const an = neutralPositions(actual, a);
+    const prefix = `nodes.${e.meta.name}[`;
+    return diffs.filter((d) => {
+        if (!d.path.startsWith(prefix) || !d.path.endsWith("]")) {
+            return true;
+        }
+        const row = Number(d.path.slice(prefix.length, -1));
+        if (!Number.isInteger(row)) {
+            return true;
+        }
+        const at = 3 * row;
+        return ![0, 1, 2].every((k) => valuesEqual(en[at + k], an[at + k], 1e-9));
+    });
+}
+
 async function trip(
     snapshot: GraphSnapshot,
     target: CorpusFormat,
@@ -802,11 +831,15 @@ async function trip(
             truncated: true,
         };
     }
-    const diffs = compareSnapshots(snapshot, loaded.snapshot, {
-        allowExtraColumns: false,
-        originType: true,
-        limit: 100000,
-    });
+    const diffs = samePlaceDropped(
+        snapshot,
+        loaded.snapshot,
+        compareSnapshots(snapshot, loaded.snapshot, {
+            allowExtraColumns: false,
+            originType: true,
+            limit: 100000,
+        }),
+    );
     const truncated = diffs.some((d) => d.path === "nodeCount" || d.path === "edgeCount" || d.path === "directed");
     if (!truncated) {
         diffs.push(...declarationDiffs(snapshot, loaded.snapshot));

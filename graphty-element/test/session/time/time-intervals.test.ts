@@ -2,18 +2,12 @@
  * Elements that exist for a span: intervals, open ends, spells and instant lists. Every timed row
  * is one or more spans, and a window `[from, to)` holds a span when `start < to` and `end > from`.
  */
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { createGraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { TimeField, TimeWindowInput } from "../../../src/session/time/TimeApi";
 import { slideCounters } from "../../../src/session/visibility/slide";
+import { windowEdges, windowNodes } from "../../helpers/time-window";
 import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** One element's time as a test writes it. */
 type Timed = Record<string, unknown>;
@@ -41,7 +35,7 @@ function nodesOf(rows: readonly Timed[]): Harness {
  * @returns The rows of the node mask that are set.
  */
 function shown(harness: Harness): number[] {
-    return [...harness.session.visibility.nodeMask()].flatMap((byte, row) => (byte === 1 ? [row] : []));
+    return [...windowNodes(harness.session.visibility)].flatMap((byte, row) => (byte === 1 ? [row] : []));
 }
 
 /**
@@ -285,10 +279,10 @@ describe("a field naming several ends", () => {
         });
         await harness.session.time.window({ from: 40, to: 60 });
 
-        assert.deepEqual([...harness.session.visibility.nodeMask()], [0, 1]);
-        assert.deepEqual([...harness.session.visibility.edgeMask()], [0]);
+        assert.deepEqual([...windowNodes(harness.session.visibility)], [0, 1]);
+        assert.deepEqual([...windowEdges(harness.session.visibility)], [0]);
         await harness.session.time.window({ from: 0, to: 60 });
-        assert.deepEqual([...harness.session.visibility.edgeMask()], [1]);
+        assert.deepEqual([...windowEdges(harness.session.visibility)], [1]);
     });
 
     it("reads its own end on nodes and its own spells on edges, and slides without a full pass", async () => {
@@ -309,13 +303,13 @@ describe("a field naming several ends", () => {
             edges: { start: "t", spells: "s", unit: "ordinal" },
         });
         await time.window({ from: 40, to: 60, step: 20, nodes: "all" });
-        assert.deepEqual([...visibility.nodeMask()], [1, 1]);
-        assert.deepEqual([...visibility.edgeMask()], [0, 1], "the edge at 5 is an instant, not open-ended");
+        assert.deepEqual([...windowNodes(visibility)], [1, 1]);
+        assert.deepEqual([...windowEdges(visibility)], [0, 1], "the edge at 5 is an instant, not open-ended");
 
         const { full } = slideCounters;
         await time.seek(0);
-        assert.deepEqual([...visibility.nodeMask()], [1, 0]);
-        assert.deepEqual([...visibility.edgeMask()], [0, 0]);
+        assert.deepEqual([...windowNodes(visibility)], [1, 0]);
+        assert.deepEqual([...windowEdges(visibility)], [0, 0]);
         assert.strictEqual(slideCounters.full, full, "the index answers the move");
     });
 
@@ -598,8 +592,8 @@ describe("against a brute force over intervals and spells", () => {
      */
     function masks(harness: Harness): { nodes: number[]; edges: number[] } {
         return {
-            nodes: [...harness.session.visibility.nodeMask()],
-            edges: [...harness.session.visibility.edgeMask()],
+            nodes: [...windowNodes(harness.session.visibility)],
+            edges: [...windowEdges(harness.session.visibility)],
         };
     }
 
@@ -840,55 +834,6 @@ describe("against a brute force over intervals and spells", () => {
             assert.deepEqual(got, { from: first, to: last + 1 }, `row ${String(row)}`);
             assert.isTrue(holds(spans, got?.from ?? 0, got?.to ?? 0, false), `row ${String(row)}'s window holds it`);
         });
-    });
-});
-
-describe("with the timeline off", () => {
-    const ON = { features: ["timeline"] } as const;
-    const OFF = { features: [] } as const;
-    const CSV = "source,target,start,stop\nA,B,1000,5000\nB,C,8000,9000\n";
-
-    it("gives a saved window with an end the masks of its start alone, and keeps it saved", async () => {
-        const saved = createGraphSession(ON);
-        await saved.data.import({ type: "csv", config: { data: CSV } });
-        await saved.time.setField({ edges: { start: "start", end: "stop", unit: "ms" } });
-        await saved.time.window({ from: 2000, to: 3000, nodes: "all" });
-        assert.strictEqual(saved.visibility.summary.visibleEdges, 1);
-        const { text } = await saved.project.save();
-
-        const session = createGraphSession(OFF);
-        await session.project.open(text);
-        assert.strictEqual(session.visibility.window?.end, "data.stop");
-        assert.strictEqual(session.config.data.knownFields.edgeTimeEndPath, "stop");
-        assert.strictEqual(session.visibility.summary.visibleEdges, 0, "only the start is read");
-        const again = await session.project.save();
-        assert.include(again.text, '"edgeTimeEndPath"');
-    });
-
-    for (const [key, value] of [
-        ["end", "data.stop"],
-        ["spells", "data.spells"],
-    ] as const) {
-        it(`gives a saved window naming \`${key}\` over a column that is not designated its start alone`, async () => {
-            const csv = 'source,target,start,stop,spells\nA,B,1000,5000,"[[1000,5000]]"\n';
-            const saved = createGraphSession(ON);
-            await saved.data.import({ type: "csv", config: { data: csv } });
-            await saved.visibility.setWindow({ attribute: "data.start", [key]: value, from: 2000, to: 3000 });
-            assert.strictEqual(saved.visibility.summary.visibleEdges, 1);
-            const { text } = await saved.project.save();
-
-            const session = createGraphSession(OFF);
-            await session.project.open(text);
-            assert.strictEqual(session.visibility.window?.[key], value);
-            assert.strictEqual(session.visibility.summary.visibleEdges, 0, "only the start is read");
-        });
-    }
-
-    it("refuses a window naming an end", () => {
-        const session = createGraphSession(OFF);
-        assert.throws(() => {
-            void session.visibility.setWindow({ attribute: "data.a", end: "data.b", from: 0, to: 1 });
-        }, /timeline/);
     });
 });
 

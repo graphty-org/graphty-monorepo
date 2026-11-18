@@ -1,5 +1,9 @@
 # Implementation Plan for Data View Feature
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 This plan implements a Data View feature that allows users to inspect raw graph data in a structured, searchable format. The feature includes:

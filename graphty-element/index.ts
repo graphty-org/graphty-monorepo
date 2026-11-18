@@ -103,6 +103,8 @@ export type {
     Lighting,
     LocationSourceFact,
     MapFrameFact,
+    // How a node's drawn size follows the camera, as `node.sizeSpace` takes it
+    NodeSizeSpace,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -139,6 +141,7 @@ export {
     isViewMode,
     LIGHTING_VALUES,
     NodeShapes,
+    NodeSizeSpaces,
     NodeStyle,
     RichTextStyle,
     VIEW_MODE_VALUES,
@@ -405,6 +408,7 @@ export type {
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
@@ -429,6 +433,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * array of five cannot.
  */
 export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================
 // Errors
@@ -464,6 +469,7 @@ export type {
     RendererStatus,
 } from "./src/managers/RenderManager";
 export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
+export type { Antialias } from "./src/meshes/PulledLineBatch";
 
 // =============================================================================
 // Acceleration

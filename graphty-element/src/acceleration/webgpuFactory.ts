@@ -37,7 +37,58 @@ import type {
 } from "@graphty/webgpu-graph-algorithms/browser";
 
 import { GraphtyError } from "../errors";
+import { GraphtyLogger } from "../logging/GraphtyLogger";
 import type { AcceleratorFactory, AcceleratorFactoryOptions, GraphAccelerator } from "./types";
+
+/**
+ * The device the accelerator got and each step of its work: adapter, limits, uncaptured errors and
+ * the GPU package's trace. Silent unless a consumer turns on the `acceleration` module.
+ */
+const gpuLog = GraphtyLogger.getLogger(["graphty", "acceleration", "gpu"]);
+
+/** The device limits the GPU kernels plan against, logged as granted. */
+const LOGGED_LIMITS = [
+    "maxBufferSize",
+    "maxStorageBufferBindingSize",
+    "maxStorageBuffersPerShaderStage",
+    "maxComputeWorkgroupsPerDimension",
+    "maxComputeInvocationsPerWorkgroup",
+    "maxComputeWorkgroupSizeX",
+    "maxComputeWorkgroupStorageSize",
+    "maxUniformBufferBindingSize",
+] as const;
+
+/**
+ * Logs the device an accelerator got, and routes its trace and its uncaptured errors to the log.
+ * @param accelerator - The accelerator just acquired.
+ * @returns Stops listening; called when the accelerator is released.
+ */
+function watchDevice(accelerator: GpuAccelerator): () => void {
+    const { ctx } = accelerator;
+    const { caps, device } = ctx;
+    gpuLog.info("device", {
+        vendor: caps.vendor,
+        architecture: caps.architecture,
+        device: caps.device,
+        description: caps.description,
+        software: caps.software,
+        runtime: caps.runtime,
+        features: [...caps.features],
+        limits: Object.fromEntries(LOGGED_LIMITS.map((name) => [name, caps.limits[name]])),
+    });
+    ctx.trace = (event, facts): void => {
+        gpuLog.info(event, { ...facts });
+    };
+    const onError = (event: Event): void => {
+        const { error } = event as GPUUncapturedErrorEvent;
+        gpuLog.error("uncaptured error", undefined, { type: error.constructor.name, message: error.message });
+    };
+    device.addEventListener("uncapturederror", onError);
+    return (): void => {
+        ctx.trace = null;
+        device.removeEventListener("uncapturederror", onError);
+    };
+}
 
 /** What the factory needs from the peer's root module. */
 export interface WebGpuPeerRoot {
@@ -228,7 +279,9 @@ export function createWebGpuFactory(root: WebGpuPeerRoot, browser: WebGpuPeerBro
             throw declineFailure(result);
         }
 
+        const unwatch = watchDevice(result.accelerator);
         return toGraphAccelerator(result.accelerator, () => {
+            unwatch();
             gpu.dispose();
         });
     };

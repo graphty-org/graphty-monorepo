@@ -112,7 +112,7 @@ export class CredentialStore {
      *     rejected promise leaves the store in memory only
      */
     constructor(ai?: ApiKeyManager | Promise<ApiKeyManager>) {
-        this.#ready = this.#attachWhenLoaded(ai); // NOSONAR(S7059): the constructor's contract accepts a promise of the key manager
+        this.#ready = this.#attachWhenLoaded(ai); // eslint-disable-line sonarjs/no-async-constructor -- the constructor's contract accepts a promise of the key manager
     }
 
     /**

@@ -4,7 +4,19 @@
 // died leaves no ticket in the way, and bars.mjs is passed through without holding a slot.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    closeSync,
+    constants,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    openSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+    writeSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -13,6 +25,8 @@ import { fileURLToPath } from "node:url";
 const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
 // run under tools/low-priority.sh, every waiter here would be in the low lane
 delete process.env.BROWSER_SLOT_PRIORITY;
+// the gate logs each wait to the machine's tmp/waits.jsonl; a planted pool's waits are not the machine's
+process.env.PIPELINE_WAIT_LOG = "off";
 const until = async (cond) => {
     while (!cond()) await new Promise((ok) => setTimeout(ok, 50));
 };
@@ -148,6 +162,7 @@ test("a planted pool with BROWSER_SLOT_ALSO also waits for, and holds, a slot of
     const said = join(planted, "said");
     const go = join(planted, "go");
     spawnSync("mkfifo", [go]);
+    let done = Promise.resolve();
     try {
         await until(() => spawnSync("flock", ["-n", join(machine, "slot4"), "true"]).status !== 0);
         const env = { ...process.env, BROWSER_SLOT_DIR: planted, BROWSER_SLOTS: "1", BROWSER_SLOT_ALSO: machine };
@@ -156,23 +171,39 @@ test("a planted pool with BROWSER_SLOT_ALSO also waits for, and holds, a slot of
             env,
             stdio: "ignore",
         });
-        const done = new Promise((ok) => w.on("exit", ok));
+        done = new Promise((ok) => w.on("exit", ok));
         // its own slot taken, it queues in the other pool and runs nothing while that one is full
         await until(() => existsSync(join(machine, "queue")) && readdirSync(join(machine, "queue")).length === 1);
         assert.ok(held(planted), "the planted slot was let go while waiting");
         assert.ok(!existsSync(said), "the command ran with the other pool full");
         process.kill(-holder.pid);
         await until(() => existsSync(said) && readFileSync(said, "utf8").trim());
-        assert.equal(readFileSync(said, "utf8").trim(), join(machine, "slot1"));
-        assert.ok(held(planted) && held(machine), "a slot was let go while the command ran");
+        // the four holders die in no set order, so the gate takes whichever of the four frees first
+        const slot = readFileSync(said, "utf8").trim();
+        assert.ok(
+            [1, 2, 3, 4].map((i) => join(machine, `slot${i}`)).includes(slot),
+            `not a slot of that pool: ${slot}`,
+        );
+        const holds = (file) => spawnSync("flock", ["-n", file, "true"]).status !== 0;
+        assert.ok(held(planted) && holds(slot), "a slot was let go while the command ran");
         writeFileSync(go, "\n");
         assert.equal(await done, 0);
-        assert.ok(!held(planted) && !held(machine), "a slot outlived the command");
+        assert.ok(!held(planted) && !holds(slot), "a slot outlived the command");
     } finally {
         try {
             process.kill(-holder.pid);
         } catch {
             // already let go
+        }
+        // a failed assertion leaves the command reading the go fifo: let it go before the fifo is removed
+        // (a non-blocking open fails at once when nothing reads it)
+        try {
+            const fd = openSync(go, constants.O_WRONLY | constants.O_NONBLOCK);
+            writeSync(fd, "\n");
+            closeSync(fd);
+            await done;
+        } catch {
+            // nothing was reading it
         }
         for (const p of [planted, machine]) rmSync(p, { recursive: true, force: true });
     }
@@ -230,7 +261,11 @@ test("the studio's waits keep the shared gate's lanes: a low-lane waiter never h
     const high = join(pool, `.high-${process.pid}`);
     let low;
     try {
-        await until(() => spawnSync("flock", ["-n", join(pool, "slot8"), "true"]).status !== 0);
+        // every holder, not only slot 8's: a low-lane waiter that finds slot 4 still free takes it, runs and
+        // removes its ticket at once, and the wait for that ticket below never ends (#6914's CI run)
+        await until(() =>
+            [4, 5, 6, 7, 8].every((i) => spawnSync("flock", ["-n", join(pool, `slot${i}`), "true"]).status !== 0),
+        );
         low = spawn(gate, ["true"], { env: { ...env, BROWSER_SLOT_PRIORITY: "low" }, stdio: "ignore" });
         await until(() => readdirSync(pool).some((f) => f.startsWith(".low-")));
         writeFileSync(high, "");

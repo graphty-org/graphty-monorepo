@@ -1117,6 +1117,7 @@ export class AccelerationController {
         }
 
         this.#detach();
+        logger.warn("device lost", { reason, busy: this.#busy });
         this.#transition("error", `the accelerator's device was lost: ${reason}`, "E_DEVICE_LOST");
 
         if (
@@ -1334,6 +1335,8 @@ export class AccelerationController {
         }
 
         this.#status = next;
+        // The probe's answer, the device attached, a loss and a recovery all pass through here.
+        logger.info("status", { ...next });
         this.#capabilities = Object.freeze({ acceleration: next });
         for (const listener of [...this.#listeners]) {
             // A listener is consumer code, and one that throws must not stop the others from

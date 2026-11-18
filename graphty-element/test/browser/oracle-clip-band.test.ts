@@ -88,3 +88,27 @@ describe("a fill clipped to part of its box", () => {
         assert.isUndefined(round.uncut);
     });
 });
+
+describe("a stroke whose middle a mask erases (a Cytoscape.js double border, #8381)", () => {
+    /**
+     * The ring of `sheet`, stroked 6 wide, under a mask erasing a stroke of the given path data.
+     * @param d - the erased stroke's path data
+     * @returns the ring's stroke as read
+     */
+    const masked = (d: string): { width: number; dashClass: string } | null => {
+        const svg =
+            `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="200">` +
+            `<rect x="0" y="0" width="200" height="200" fill="white"/><path fill="none" stroke="black" stroke-width="2" d="${d}"/></mask></defs>` +
+            `<path fill="none" stroke="rgb(31,119,180)" stroke-width="6" d="${CIRCLE}" mask="url(#m)"/></svg>`;
+        const s = readSvgPrimitives(svg).prims.find((x) => x.stroke !== null)?.stroke;
+        return s === undefined || s === null ? null : { width: s.width, dashClass: s.dashClass };
+    };
+
+    it("reads a ring with its middle erased along its own path as a double line, as wide as the ring", () => {
+        assert.deepEqual(masked(CIRCLE), { width: 6, dashClass: "double" });
+    });
+
+    it("reads a ring erased along another path as it is stroked", () => {
+        assert.deepEqual(masked(BOX), { width: 6, dashClass: "solid" });
+    });
+});

@@ -40,7 +40,6 @@ import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineIns
 import { ExpandRequest } from '@graphty/graph-io';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
-import { FileLayout } from '@graphty/graph-io';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
@@ -57,6 +56,7 @@ import type { GraphListing } from '@graphty/graph-io';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
 import { GraphSource } from '@graphty/graph-io';
+import type { ImageAnnotation } from '@graphty/graph-io/styles';
 import { ImportReport as ImportReport_2 } from '@graphty/graph-io';
 import type { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
@@ -67,7 +67,6 @@ import { LitElement } from 'lit';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
-import { LossNote } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
@@ -94,6 +93,7 @@ import { registerSource } from '@graphty/graph-io';
 import { ReplayFetch } from '@graphty/graph-io';
 import { replayFetch } from '@graphty/graph-io';
 import { ReplayOptions } from '@graphty/graph-io';
+import { RequestedLayout } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
 import { Scene } from '@babylonjs/core/scene.js';
 import { Scene as Scene_2 } from '@babylonjs/core';
@@ -104,9 +104,11 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { sourceEndpoint } from '@graphty/graph-io';
 import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
+import { sourceFileName } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
 import { SourceFreshness } from '@graphty/graph-io';
 import { SourceInfo } from '@graphty/graph-io';
@@ -128,15 +130,11 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer.js';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
+import type { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
 import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
@@ -262,6 +260,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput;
     // @internal
     static readonly loadedWeightByDefault: boolean;
+    // @internal
+    mixedDirection(): boolean | null;
     // (undocumented)
     static namespace: string;
     get namespace(): string;
@@ -361,6 +361,9 @@ export interface AnimationResult {
         dropRate: number;
     };
 }
+
+// @public
+export type Antialias = boolean | "at-rest" | "shader";
 
 // @public
 export type AssetStorage = "embed" | "url";
@@ -683,10 +686,12 @@ export interface Capabilities {
 export interface CapabilityCheck {
     // (undocumented)
     estimatedMemoryMB: number;
+    height?: number;
     reason?: CodedFact<GraphtyErrorCode>;
     // (undocumented)
     supported: boolean;
     warnings?: CodedFact<ScreenshotWarningCode>[];
+    width?: number;
 }
 
 // @public
@@ -967,13 +972,12 @@ export abstract class DataSource {
     protected chunkSize: number;
     dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
-    get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
     // @beta
     get declaredTime(): TimeField | null;
-    protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
+    protected declareRequestedLayout(layout: RequestedLayout | null): void;
     // @beta
     protected declareTime(field: TimeField): void;
     // (undocumented)
@@ -988,6 +992,10 @@ export abstract class DataSource {
     // @internal
     fileStyles(options?: {
         readonly toolDefaults?: boolean;
+        readonly viewport?: {
+            readonly width: number;
+            readonly height: number;
+        } | null;
         readonly signal?: AbortSignal;
     }): Promise<FileStylesRead | null>;
     static fromImporter<Opts>(importer: GraphImporter<Opts>, descriptor: FormatDescriptor, options?: ImporterSourceOptions<Opts>): ImporterDataSourceClass;
@@ -1005,6 +1013,7 @@ export abstract class DataSource {
     // (undocumented)
     nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
+    get requestedLayout(): RequestedLayout | null;
     protected resolveOptions(passed: object): Record<string, unknown>;
     // (undocumented)
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
@@ -1345,10 +1354,12 @@ export const EdgeStyle: z.ZodObject<{
             letterSize: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
             maxLines: z.ZodOptional<z.ZodNumber>;
+            maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -1362,6 +1373,19 @@ export const EdgeStyle: z.ZodObject<{
                 italic: "italic";
             }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            lineBox: z.ZodOptional<z.ZodEnum<{
+                font: "font";
+                size: "size";
+                glyphs: "glyphs";
+            }>>;
+            borderAlign: z.ZodOptional<z.ZodEnum<{
+                center: "center";
+                outside: "outside";
+            }>>;
+            backgroundShape: z.ZodOptional<z.ZodEnum<{
+                rectangle: "rectangle";
+                circle: "circle";
+            }>>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1623,10 +1647,12 @@ export const EdgeStyle: z.ZodObject<{
             letterSize: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
             maxLines: z.ZodOptional<z.ZodNumber>;
+            maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -1640,6 +1666,19 @@ export const EdgeStyle: z.ZodObject<{
                 italic: "italic";
             }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            lineBox: z.ZodOptional<z.ZodEnum<{
+                font: "font";
+                size: "size";
+                glyphs: "glyphs";
+            }>>;
+            borderAlign: z.ZodOptional<z.ZodEnum<{
+                center: "center";
+                outside: "outside";
+            }>>;
+            backgroundShape: z.ZodOptional<z.ZodEnum<{
+                rectangle: "rectangle";
+                circle: "circle";
+            }>>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -2053,10 +2092,12 @@ export const EdgeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2070,6 +2111,19 @@ export const EdgeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2277,10 +2331,12 @@ export const EdgeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2294,6 +2350,19 @@ export const EdgeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2614,8 +2683,6 @@ export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
     readonly losses: readonly ExportLoss[];
-    // @deprecated
-    readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
 
@@ -2630,7 +2697,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export interface FigureOptions {
@@ -2798,8 +2865,9 @@ export interface GlobeLook {
 
 // @public
 export class Graph implements GraphContext {
-    constructor(element: Element | string, useMockInput?: boolean, options?: {
-        readonly antialias?: boolean;
+    constructor(element: Element | string, options?: {
+        readonly antialias?: Antialias;
+        readonly preserveDrawingBuffer?: boolean;
     });
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
@@ -2816,7 +2884,7 @@ export class Graph implements GraphContext {
     aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     aiTalk(down: boolean, options?: AiTalkOptions): void;
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
-    readonly antialias: boolean;
+    get antialias(): Antialias;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -2848,6 +2916,8 @@ export class Graph implements GraphContext {
     deselectNode(): void;
     disableAiControl(): void;
     dispose(): void;
+    // @internal
+    drawnNodeSpots(): Generator<DrawnNodeSpot>;
     drawnShaders(): DrawnShaders;
     get edgeLabelCounts(): EdgeLabelCounts;
     // (undocumented)
@@ -2857,8 +2927,8 @@ export class Graph implements GraphContext {
         y: number;
     }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
-    // (undocumented)
-    enableDetailedProfiling?: boolean;
+    get enableDetailedProfiling(): boolean | undefined;
+    set enableDetailedProfiling(value: boolean | undefined);
     endAiLive(): void;
     // (undocumented)
     engine: WebGPUEngine | Engine;
@@ -2966,7 +3036,7 @@ export class Graph implements GraphContext {
     isVRSupported(): Promise<boolean>;
     labelOf(nodeId: string | number): NodeLabel | undefined;
     // @internal
-    leansLines(): boolean;
+    leansLines(): LeanLines;
     get limits(): Readonly<LimitsOption>;
     listAiConversations(options?: {
         readonly allKeys?: boolean;
@@ -3004,6 +3074,7 @@ export class Graph implements GraphContext {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    modelPreview(ref: string, host: HTMLElement, options?: ModelPreviewOptions): Promise<ModelPreview>;
     modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     // @deprecated
     needRays: boolean;
@@ -3025,6 +3096,7 @@ export class Graph implements GraphContext {
     playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
         easing?: CameraAnimationOptions["easing"];
     }): Promise<void>;
+    readonly preserveDrawingBuffer: boolean;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -3067,6 +3139,7 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
+    setAntialias(value: Antialias): boolean;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
@@ -3225,7 +3298,7 @@ export interface GraphContext {
     is2D(): boolean;
     isRunning(): boolean;
     // @internal
-    leansLines?(): boolean;
+    leansLines?(): LeanLines;
     // @deprecated
     needsRayUpdate(): boolean;
     // @internal
@@ -3377,8 +3450,8 @@ export class Graphty extends LitElement {
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
-    get antialias(): boolean;
-    set antialias(value: boolean);
+    get antialias(): Antialias;
+    set antialias(value: Antialias);
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -3607,6 +3680,7 @@ export class Graphty extends LitElement {
     set minimap(value: boolean);
     get minimapLabel(): string;
     set minimapLabel(value: string);
+    modelPreview(ref: string, host: HTMLElement, options?: ModelPreviewOptions): Promise<ModelPreview>;
     modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;
@@ -3646,6 +3720,8 @@ export class Graphty extends LitElement {
     }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get preserveDrawingBuffer(): boolean;
+    set preserveDrawingBuffer(value: boolean);
     get reducedMotion(): boolean | "auto";
     set reducedMotion(value: boolean | "auto");
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
@@ -3859,7 +3935,7 @@ export type GraphtyErrorCode =
 * missing result (`missing: { value }`), which would ask the element to paint elements the run
 * never measured. Without `missing`, such a layer is accepted: an element with no result is
 * not painted. The caller scopes the layer to the
-* elements that carry the run's result.
+* elements that carry the run's result: the problem's `scope` is that selector.
 */
 | "E_UNSCOPED_RUN_ENCODING"
 /**
@@ -3905,7 +3981,6 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @experimental timeline
 * @beta
 */
 | "E_NO_TIME_FIELD"
@@ -4801,6 +4876,12 @@ export type GraphtyWarningCode =
 */
 | "W_ANTIALIAS_LATE"
 /**
+* `preserveDrawingBuffer` was changed after the element built its engine, which reads it only
+* then: the engine keeps the value it was built with. Raised as a `graphty-warning` event.
+* `params.requested` is the value given, `params.active` the one in use.
+*/
+| "W_PRESERVE_DRAWING_BUFFER_LATE"
+/**
 * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
 * `node.modelSourceUp` turns it.
 */
@@ -5054,7 +5135,6 @@ export class InputManager implements Manager {
     dispose(): void;
     exitPointerLock(): void;
     getActiveTouches(): TouchPoint[];
-    getMockInputSystem(): MockDeviceInputSystem;
     getPointerPosition(): Vector2;
     init(): Promise<void>;
     isPointerDown(button?: MouseButton): boolean;
@@ -5212,6 +5292,7 @@ export abstract class LayoutEngine {
     get nodePositions(): ReadonlyElementPositions;
     // (undocumented)
     abstract get nodes(): Iterable<Node_2>;
+    get nodeScreenReference(): number | null;
     // @deprecated
     protected pairWeightKey(source: NodeIdType, target: NodeIdType): string;
     // @deprecated
@@ -5239,8 +5320,12 @@ export abstract class LayoutEngine {
         z: number;
     }): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
+    // @internal
+    protected releasePublishScratch(): void;
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
+    // @internal
+    rowRecord: ((row: number) => unknown) | null;
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
@@ -5251,6 +5336,8 @@ export abstract class LayoutEngine {
     get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
+    // @internal
+    storeRowOf: ((id: NodeIdType) => number) | null;
     // (undocumented)
     static type: string;
     get type(): string;
@@ -5370,6 +5457,17 @@ export interface Limits {
     selectionCap: number;
 }
 
+// @public
+export function linkCameras(...views: LinkedCameraView[]): () => void;
+
+// @public
+export interface LinkedCameraView {
+    addEventListener(type: "overview-changed", listener: () => void): void;
+    getCameraState(): CameraState;
+    removeEventListener(type: "overview-changed", listener: () => void): void;
+    setCameraState(state: CameraState): Promise<void>;
+}
+
 export { listSources }
 
 export { LoadFromSourceOptions }
@@ -5443,6 +5541,20 @@ export interface MarkSuggestion {
     readonly as: "mark";
     readonly channels: readonly Channel[];
     readonly spec: MarkSpec;
+}
+
+// @public
+export interface ModelPreview {
+    readonly canvas: HTMLCanvasElement;
+    dispose(): void;
+    resetView(): void;
+    update(style: Readonly<Partial<Record<Channel, ChannelValue>>>): Promise<void>;
+}
+
+// @public
+export interface ModelPreviewOptions {
+    readonly standInMissing?: boolean;
+    readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 // @public
@@ -5548,6 +5660,8 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnScene(): Scene;
     // @internal
+    get drawnSelectionHalo(): boolean;
+    // @internal
     get drawnSourceMesh(): AbstractMesh;
     // @internal
     drawnWorldMatrix(force?: boolean): Matrix;
@@ -5650,6 +5764,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    get sizeSpace(): NodeSizeSpace | undefined;
     // @internal
     spacingRadius(flat: boolean): number;
     // @internal
@@ -5818,6 +5934,7 @@ export interface NodeScreenPosition {
 // @public
 export const NodeShapes: z.ZodEnum<{
     none: "none";
+    rectangle: "rectangle";
     box: "box";
     diamond: "diamond";
     vee: "vee";
@@ -5847,7 +5964,6 @@ export const NodeShapes: z.ZodEnum<{
     goldberg: "goldberg";
     icosphere: "icosphere";
     geodesic: "geodesic";
-    rectangle: "rectangle";
     "round-rectangle": "round-rectangle";
     "top-round-rectangle": "top-round-rectangle";
     "bottom-round-rectangle": "bottom-round-rectangle";
@@ -5873,6 +5989,16 @@ export const NodeShapes: z.ZodEnum<{
 }>;
 
 // @public
+export type NodeSizeSpace = z.infer<typeof NodeSizeSpaces>;
+
+// @public
+export const NodeSizeSpaces: z.ZodEnum<{
+    screen: "screen";
+    scene: "scene";
+    pivot: "pivot";
+}>;
+
+// @public
 export interface NodeSource {
     readonly canExpand: boolean;
     readonly expanded: boolean;
@@ -5890,12 +6016,18 @@ export const NodeStyle: z.ZodObject<{
             uniform: "uniform";
             diameter: "diameter";
         }>>;
+        sizeSpace: z.ZodOptional<z.ZodEnum<{
+            screen: "screen";
+            scene: "scene";
+            pivot: "pivot";
+        }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
-            full: "full";
             low: "low";
+            full: "full";
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
+            rectangle: "rectangle";
             box: "box";
             diamond: "diamond";
             vee: "vee";
@@ -5925,7 +6057,6 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
-            rectangle: "rectangle";
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
@@ -5979,6 +6110,7 @@ export const NodeStyle: z.ZodObject<{
         labelFitQuantum: z.ZodOptional<z.ZodNumber>;
         labelFitImage: z.ZodOptional<z.ZodNumber>;
         labelFitImagePadding: z.ZodOptional<z.ZodNumber>;
+        imageAspect: z.ZodOptional<z.ZodBoolean>;
         model: z.ZodOptional<z.ZodString>;
         modelSourceUp: z.ZodOptional<z.ZodEnum<{
             x: "x";
@@ -6067,8 +6199,8 @@ export const NodeStyle: z.ZodObject<{
         }>>;
         position: z.ZodOptional<z.ZodEnum<{
             center: "center";
-            inside: "inside";
             outside: "outside";
+            inside: "inside";
         }>>;
         waveAmplitude: z.ZodOptional<z.ZodNumber>;
         wavePeriod: z.ZodOptional<z.ZodNumber>;
@@ -6112,6 +6244,7 @@ export const NodeStyle: z.ZodObject<{
         padding: z.ZodOptional<z.ZodNumber>;
         shape: z.ZodOptional<z.ZodEnum<{
             none: "none";
+            rectangle: "rectangle";
             box: "box";
             diamond: "diamond";
             vee: "vee";
@@ -6141,7 +6274,6 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
-            rectangle: "rectangle";
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
@@ -6173,6 +6305,7 @@ export const NodeStyle: z.ZodObject<{
         padding: z.ZodOptional<z.ZodNumber>;
         shape: z.ZodOptional<z.ZodEnum<{
             none: "none";
+            rectangle: "rectangle";
             box: "box";
             diamond: "diamond";
             vee: "vee";
@@ -6202,7 +6335,6 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
-            rectangle: "rectangle";
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
@@ -6322,9 +6454,9 @@ export const NodeStyle: z.ZodObject<{
         paddingOf: z.ZodOptional<z.ZodEnum<{
             width: "width";
             min: "min";
+            average: "average";
             max: "max";
             height: "height";
-            average: "average";
         }>>;
         minWidth: z.ZodOptional<z.ZodNumber>;
         minHeight: z.ZodOptional<z.ZodNumber>;
@@ -6362,10 +6494,12 @@ export const NodeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6379,6 +6513,19 @@ export const NodeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6586,10 +6733,12 @@ export const NodeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6603,6 +6752,19 @@ export const NodeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6810,10 +6972,12 @@ export const NodeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6827,6 +6991,19 @@ export const NodeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7026,6 +7203,7 @@ export interface Note {
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
     readonly mediaType?: string;
+    readonly tags?: readonly string[];
     readonly targets: readonly NoteTarget[];
     readonly text: string;
     readonly time: string;
@@ -7035,7 +7213,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done" | "tags")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -7062,6 +7240,7 @@ export interface NoteInput {
     }[];
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly mediaType?: string;
+    readonly tags?: readonly string[];
     readonly targets: readonly NoteTargetInput[];
     readonly text: string;
 }
@@ -7072,6 +7251,7 @@ export interface NoteListOptions {
     readonly cites?: ResultId;
     readonly done?: boolean;
     readonly missing?: boolean;
+    readonly tag?: string;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
 }
@@ -7090,6 +7270,7 @@ export interface NotePatch {
     readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
+    readonly tags?: readonly string[] | null;
     readonly targets?: readonly NoteTargetInput[];
     readonly text?: string;
 }
@@ -7110,6 +7291,8 @@ export interface NotesApi {
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
     status(id: NoteId): NoteStatus;
+    // (undocumented)
+    tags(): readonly string[];
     toDocument(options?: {
         readonly name?: string;
         readonly description?: string;
@@ -7187,8 +7370,6 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
     id: string;
-    // @deprecated
-    reason: string;
     // (undocumented)
     type: "operation-cancelled";
 }
@@ -7208,8 +7389,6 @@ export class OperationQueueManager implements Manager {
     disableBatching(): void;
     dispose(): void;
     enableBatching(): void;
-    enterBatchMode(): void;
-    exitBatchMode(): Promise<void>;
     getActiveOperations(): string[];
     getOperationController(operationId: string): AbortController | undefined;
     getOperationProgress(operationId: string): OperationProgress | undefined;
@@ -7222,10 +7401,7 @@ export class OperationQueueManager implements Manager {
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
-    isInBatchMode(): boolean;
     markCategoryCompleted(category: OperationCategory): void;
-    // (undocumented)
-    onOperationQueued?: (category: OperationCategory, description?: string) => void;
     pause(): void;
     queueOperation(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): string;
     queueOperationAsync(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): Promise<void>;
@@ -7586,6 +7762,8 @@ export class RenderManager implements Manager {
     // (undocumented)
     graphRoot: TransformNode;
     holdFrames(): () => void;
+    // @internal
+    holdSmooth(): () => void;
     init(): Promise<void>;
     // @internal
     pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
@@ -7606,6 +7784,7 @@ export class RenderManager implements Manager {
         drawn: number;
         rested: number;
         gpuBehind: number;
+        smooth: number;
     };
 }
 
@@ -7682,10 +7861,12 @@ export const RichTextStyle: z.ZodObject<{
     letterSize: z.ZodOptional<z.ZodNumber>;
     wrapWidth: z.ZodOptional<z.ZodNumber>;
     wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+    wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
     maxLines: z.ZodOptional<z.ZodNumber>;
+    maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
     keepBlankLines: z.ZodOptional<z.ZodBoolean>;
     runAlign: z.ZodOptional<z.ZodEnum<{
         baseline: "baseline";
@@ -7699,6 +7880,19 @@ export const RichTextStyle: z.ZodObject<{
         italic: "italic";
     }>>>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    lineBox: z.ZodOptional<z.ZodEnum<{
+        font: "font";
+        size: "size";
+        glyphs: "glyphs";
+    }>>;
+    borderAlign: z.ZodOptional<z.ZodEnum<{
+        center: "center";
+        outside: "outside";
+    }>>;
+    backgroundShape: z.ZodOptional<z.ZodEnum<{
+        rectangle: "rectangle";
+        circle: "circle";
+    }>>;
     minScreenSize: z.ZodOptional<z.ZodNumber>;
     declutter: z.ZodOptional<z.ZodEnum<{
         size: "size";
@@ -7934,6 +8128,7 @@ export interface ScreenshotLegendSection {
 
 // @public (undocumented)
 export interface ScreenshotOptions {
+    backgroundColor?: string;
     camera?: CameraState | {
         preset: string;
         params?: Readonly<Record<string, unknown>>;
@@ -7959,6 +8154,7 @@ export interface ScreenshotOptions {
     // (undocumented)
     quality?: number;
     showSelection?: boolean;
+    signal?: AbortSignal;
     // (undocumented)
     strictAspectRatio?: boolean;
     // (undocumented)
@@ -7966,6 +8162,7 @@ export interface ScreenshotOptions {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
         settleTimeoutMs?: number;
+        captureNow?: AbortSignal;
     };
     // (undocumented)
     transparentBackground?: boolean;
@@ -8181,6 +8378,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { sourceEndpoint }
+
 export { SourceExample }
 
 // @public
@@ -8219,6 +8418,8 @@ export interface SourceFeatures {
 }
 
 export { SourceFile }
+
+export { sourceFileName }
 
 export { SourceFinish }
 
@@ -8484,6 +8685,8 @@ export const TOL_VIBRANT_COLORS: readonly ["#0077BB", "#33BBEE", "#009988", "#EE
 export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     // @internal
+    adoptBuiltEdge(edge: Edge): void;
+    // @internal
     adoptBuiltNode(node: Node_2): void;
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
@@ -8501,6 +8704,8 @@ export class UpdateManager implements Manager {
     // @internal
     endsByRadius(edge: Edge): void;
     // @internal
+    get finalFrameIsNext(): boolean;
+    // @internal
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
@@ -8514,9 +8719,10 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     // @internal
     limitsChanged(): void;
+    // @internal
+    markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
-    get nodesScaledByView(): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -8544,6 +8750,8 @@ export class UpdateManager implements Manager {
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
     viewMoved(): void;
+    // @internal
+    viewSizedNodeDisposed(node: Node_2): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

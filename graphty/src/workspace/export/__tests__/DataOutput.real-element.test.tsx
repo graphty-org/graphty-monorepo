@@ -48,8 +48,8 @@ async function warningsFor(
     format: FormatId,
     options: Parameters<PageElement["exportGraph"]>[1],
 ): Promise<string[]> {
-    const { lossNotes } = await element.exportGraph(format, options);
-    assert.isNotEmpty(lossNotes, `${format} reports what it cannot hold`);
+    const { losses } = await element.exportGraph(format, options);
+    assert.isNotEmpty(losses, `${format} reports what it cannot hold`);
     const note = await within(dialog).findByRole("note", {});
     // The rows sit behind the one-line summary's Details (R14).
     const details = within(note).getByRole("button", { name: "Details" });
@@ -60,10 +60,6 @@ async function warningsFor(
     const lines = within(note)
         .getAllByRole("listitem")
         .map((item) => item.querySelector("span")?.textContent ?? "");
-    const text = dialog.textContent;
-    for (const { message } of lossNotes) {
-        assert.notInclude(text, message, "the element's own sentence never reaches the screen");
-    }
     for (const line of lines) {
         assert.notMatch(line, /[`]|\b[WE]_[A-Z_]+\b|\b(results|style)\.[a-z]/, `plain words: ${line}`);
     }
@@ -117,10 +113,7 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
         await warningsFor(dialog, element, "graphml", {});
 
         await pick(dialog, "Format", "Graphty JSON");
-        const { lossNotes } = await element.exportGraph("graphty", {});
-        for (const { message } of lossNotes) {
-            assert.notInclude(dialog.textContent, message);
-        }
+        assert.isEmpty((await element.exportGraph("graphty", {})).losses);
     });
 });
 
@@ -225,13 +218,10 @@ describe("Export > Data on the real element: preview, settings and refusals", ()
         await userEvent.click(styles);
         const alert = await within(dialog).findByRole("alert");
         assert.include(alert.textContent, "Not written");
-        const { losses, lossNotes } = await element.exportGraph("pajek", {});
+        const { losses } = await element.exportGraph("pajek", {});
         assert.isTrue(
             losses.some((loss) => loss.code.startsWith("E_")),
             "the element refuses a label with a double quote",
         );
-        for (const { message } of lossNotes) {
-            assert.notInclude(alert.textContent, message, "the element's own sentence never reaches the screen");
-        }
     });
 });

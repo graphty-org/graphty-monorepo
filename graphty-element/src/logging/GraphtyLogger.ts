@@ -37,7 +37,13 @@ import { resolveOptionValues } from "../catalog/options.js";
 import { GraphtyError } from "../errors/index.js";
 import { formatLogRecord } from "./format.js";
 import { resolveDataObject } from "./LazyEval.js";
-import { configureLogging, getLoggingConfig, isModuleEnabled, levelForCategory } from "./LoggerConfig.js";
+import {
+    configureLogging,
+    getLoggingConfig,
+    isLoggingConfigured,
+    isModuleEnabled,
+    levelForCategory,
+} from "./LoggerConfig.js";
 import { createConsoleSink } from "./sinks/ConsoleSink.js";
 import { createRemoteSink } from "./sinks/RemoteSink.js";
 import { type LoggerConfig, LogLevel, type LogRecord, type Sink } from "./types.js";
@@ -84,6 +90,12 @@ const loggerCache = new Map<string, Logger>();
  * Registry of sinks, the element's own console included, in the order they were attached.
  */
 const sinkRegistry = new Map<string, Sink>();
+
+/**
+ * Where warnings and errors go before anything has configured logging: the console, as they
+ * would from any library. It is not in the registry, so configuring logging is what replaces it.
+ */
+const unconfiguredConsole: Sink = createConsoleSink();
 
 /**
  * Remote log server URL (if configured).
@@ -177,6 +189,22 @@ function dispatchToSinks(record: LogRecord): void {
 function createLoggerWrapper(category: string[]): Logger {
     const emit = (level: LogLevel, message: string, data?: Record<string, unknown>, error?: Error): void => {
         const config = getLoggingConfig();
+
+        // Before anything configures logging, warnings and errors still reach the console, so a
+        // page that never touches logging is not left without its failures.
+        if (!config.enabled && !isLoggingConfigured() && level <= LogLevel.WARN && level > LogLevel.SILENT) {
+            unconfiguredConsole.write(
+                Object.freeze({
+                    timestamp: new Date(),
+                    level,
+                    category,
+                    message,
+                    data: data ? resolveDataObject(data) : undefined,
+                    error,
+                }),
+            );
+            return;
+        }
 
         // Skip if logging is disabled or module not enabled
         if (!config.enabled || !isModuleEnabled(category)) {

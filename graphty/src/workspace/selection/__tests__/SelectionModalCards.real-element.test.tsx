@@ -28,8 +28,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The full-screen selection workspace is the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /** A graph to load: Les Miserables unless a test names another. */
 interface Sample {
@@ -671,6 +671,113 @@ describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)"
             await waitFor(() => {
                 assert.isNull(document.querySelector(".sel-ws"));
             });
+        }
+    });
+});
+
+describe("a card's More menu and the title's", () => {
+    /**
+     * Runs one item of a "..." menu.
+     * @param name - whose menu: a card's letter or the title.
+     * @param item - the item's label.
+     */
+    async function runItem(name: string, item: RegExp): Promise<void> {
+        await userEvent.click(screen.getByRole("button", { name: `More for ${name}` }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"), "the menu closed");
+        });
+    }
+
+    it("Turn off, Duplicate, Move up, Save as set and Delete act on their card", async () => {
+        const { session, layer } = await twoCards();
+        const branches = (): UnionLeaf["branches"] => unionOf(session, layer.id)?.branches ?? [];
+        const [a, b] = branches().map((each) => each.id ?? "");
+
+        await runItem("B", /^Turn off/);
+        await waitFor(() => {
+            assert.isFalse(branches()[1]?.on, "B is off");
+        });
+        await runItem("B", /^Turn on/);
+        await waitFor(() => {
+            assert.notStrictEqual(branches()[1]?.on, false, "B is on again");
+        });
+
+        await runItem("B", /^Move up/);
+        await waitFor(() => {
+            assert.deepEqual(
+                branches().map((each) => each.id),
+                [b, a],
+            );
+        });
+
+        await runItem("A", /^Duplicate/);
+        await waitFor(() => {
+            assert.lengthOf(branches(), 3);
+        });
+        const copy = branches().find((each) => each.id !== a && each.id !== b);
+        assert.deepEqual(copy?.steps[0]?.rule, branches().find((each) => each.id === a)?.steps[0]?.rule);
+
+        await runItem("A", /^Save as set/);
+        await waitFor(() => {
+            assert.isTrue(
+                session.sets.list().some((set) => set.name === "A"),
+                "a set named after the card",
+            );
+        });
+
+        await runItem("A", /^Delete/);
+        await waitFor(() => {
+            assert.isFalse(
+                branches().some((each) => each.id === a),
+                "A is gone",
+            );
+        });
+        assert.lengthOf(branches(), 2);
+    });
+
+    it("the title's Clear takes the selection back to one empty card", async () => {
+        const { session, layer, modal } = await twoCards();
+        const title = modal.querySelector<HTMLElement>("[aria-label^='More for ']")?.getAttribute("aria-label") ?? "";
+        await runItem(title.replace(/^More for /, ""), /^Clear/);
+        await waitFor(() => {
+            const branches = unionOf(session, layer.id)?.branches ?? [];
+            assert.isTrue(
+                branches.every((each) => each.steps.length === 0),
+                "no step is left",
+            );
+        });
+        await waitFor(() => {
+            assert.lengthOf(cards(), 1);
+        });
+    });
+    it("the title's Select N selects what the cards match", async () => {
+        const { session, layer, modal } = await twoCards();
+        const title = modal.querySelector<HTMLElement>("[aria-label^='More for ']")?.getAttribute("aria-label") ?? "";
+        const where = session.styles.get(layer.id)?.selector;
+        assert.strictEqual(where?.match, "rule");
+        const count =
+            where?.match === "rule"
+                ? (await session.scope.count({ define: { kind: "rule", where: where.where, reading: "clipped" } }))
+                      .nodes
+                : -1;
+        assert.isAbove(count, 0);
+        await runItem(title.replace(/^More for /, ""), new RegExp(`^Select ${String(count)}`));
+        await waitFor(() => {
+            assert.equal(session.selection.nodes.length, count);
+        });
+    });
+
+    it("Tab keeps focus inside the workspace, both ways", async () => {
+        const { modal } = await twoCards();
+        const stops = modal.querySelectorAll("button, input, [tabindex='0']").length + 2;
+        for (let i = 0; i < stops; i++) {
+            await userEvent.keyboard("{Tab}");
+            assert.isTrue(modal.contains(document.activeElement), `Tab ${String(i + 1)} stays in the workspace`);
+        }
+        for (let i = 0; i < stops; i++) {
+            await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+            assert.isTrue(modal.contains(document.activeElement), `Shift+Tab ${String(i + 1)} stays in the workspace`);
         }
     });
 });

@@ -231,7 +231,7 @@ function makeScene(): Scene {
     document.body.appendChild(canvas);
     const engine = new Engine(canvas, false);
     const scene = new Scene(engine);
-    useBundledStandardShaders(scene);
+    useBundledStandardShaders();
     new FreeCamera("camera", new Vector3(0, 0, -3), scene).setTarget(Vector3.Zero());
     new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     cleanups.push(() => {

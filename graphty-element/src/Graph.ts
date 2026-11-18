@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 // Force side-effect imports to not be tree-shaken
 import "./data/index"; // register all internal data sources
 import "./layout/index"; // register all internal layouts
@@ -15,7 +16,6 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
-import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
@@ -2672,30 +2672,14 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the GLSL compiler stops on. Babylon compiles in an async method it never
-     * awaits, so the failure is a rejection nobody holds and the effect is never told: its material
-     * stays not ready for good and nothing waiting on it ever hears. The effect is told here, as a
-     * synchronous failure would have told it, and everything listening to it hears as it does
-     * under WebGL. An effect with its own `onError` is the shader check's, which has its own report.
+     * Reports a shader the GLSL compiler stops on. Babylon.js 9 hands the effect a rejection of its
+     * async compile as it would a synchronous failure, so everything listening to the effect hears
+     * as it does under WebGL; this reports it. An effect with its own `onError` is the shader
+     * check's, which has its own report. (Babylon 8 dropped the rejection, and this wrapped the
+     * engine's compile to tell the effect.)
      * @param engine - The engine that compiles the graph's shaders.
      */
     private watchShaderCompiles(engine: WebGPUEngine): void {
-        const prepare = engine._preparePipelineContextAsync.bind(engine);
-        engine._preparePipelineContextAsync = async (context, ...rest) => {
-            try {
-                await prepare(context, ...rest);
-            } catch (error) {
-                const { _compiledEffects: effects } = engine as unknown as { _compiledEffects: Record<string, Effect> };
-                const failed = Object.values(effects).find((effect) => effect.getPipelineContext() === context);
-                if (failed === undefined) {
-                    this.reportRefusedShader("compiler", [String(error)]);
-                } else {
-                    (
-                        failed as unknown as { _processCompilationErrors(cause: unknown): void }
-                    )._processCompilationErrors(error);
-                }
-            }
-        };
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
                 this.reportRefusedShader("compiler", [errors]);

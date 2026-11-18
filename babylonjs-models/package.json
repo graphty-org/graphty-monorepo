@@ -94,13 +94,13 @@
     },
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/babylonjs-models#readme",
     "dependencies": {
-        "@babylonjs/ktx2decoder": "8.56.2",
+        "@babylonjs/ktx2decoder": "9.37.0",
         "fflate": "^0.8.3",
         "meshoptimizer": "^1.3.0"
     },
     "peerDependencies": {
-        "@babylonjs/core": "^8.0.0",
-        "@babylonjs/loaders": "^8.0.0"
+        "@babylonjs/core": "^9.0.0",
+        "@babylonjs/loaders": "^9.0.0"
     },
     "peerDependenciesMeta": {
         "@babylonjs/core": {
@@ -111,8 +111,8 @@
         }
     },
     "devDependencies": {
-        "@babylonjs/core": "^8.36.1",
-        "@babylonjs/loaders": "8.56.2",
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "9.37.0",
         "@gltf-transform/core": "^4.5.1",
         "@gltf-transform/extensions": "^4.5.1",
         "@types/node": "^20.19.9",

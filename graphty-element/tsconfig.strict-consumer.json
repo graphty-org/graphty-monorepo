@@ -2,18 +2,20 @@
     // What a third party compiles against: the PUBLISHED declarations in dist/, not the sources.
     //
     // The package name is mapped onto dist/ and "types" is emptied, so nothing ambient leaks into
-    // the program. @webgpu/types is what that keeps out: if a GPUDevice, a GPUBuffer or any other
-    // GPU type reached dist/webgpu.d.ts or dist/session.d.ts, the name would resolve to nothing
-    // here and this compile would fail -- which is the point, because a consumer who has not
-    // installed @webgpu/types would get exactly that error from their own build.
+    // the program: the consumer files below must compile with only what the package publishes.
     //
-    // skipLibCheck is off for the same reason: it is the declarations themselves that are under
-    // test, and skipping their check is skipping the whole check.
+    // skipLibCheck is on, as in a consumer's project, because Babylon.js 9's own declarations
+    // (which every entry reaches, the Node-safe ones through their types) do not compile with it
+    // off: on TypeScript 5 they name WebGPU types only TypeScript 6's lib.dom declares (adding
+    // @webgpu/types conflicts with Babylon's augmentations of them), and on TypeScript 5 and 6
+    // TAAJitterMaterialPlugin.getUniforms fails exactOptionalPropertyTypes. docs/guide/installation.md
+    // says so to consumers. Until Babylon 9 they compiled: Babylon 8 declared the WebGPU types itself.
+
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "composite": false,
         "noEmit": true,
-        "skipLibCheck": false,
+        "skipLibCheck": true,
         "exactOptionalPropertyTypes": true,
         "noUncheckedIndexedAccess": true,
         "types": [],

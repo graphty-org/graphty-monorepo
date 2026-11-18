@@ -95,18 +95,16 @@ GLTFValidation.Configuration = {
 };
 
 /**
- * Babylon 8.56's OBJ parser drops vertex colors in two places: faces written `v/vt/vn` never look
- * their colors up (`_setDataForCurrentFaceWithPattern3`), and an object after an `o` or `g` line
- * loses them in `_unwrapData`, which copies them only when the array it fills is already
- * non-empty. Each face corner gets its color here, and the colors are put where `_unwrapData`
- * should have put them. It also gives a vertex the file wrote no color for a shared gray
- * (`_grayColor`), so an object with no colors at all would draw gray and state a color it never
- * had; such an object keeps no colors. Delete when Babylon fixes `SolidParser`.
+ * Babylon's OBJ parser (still in 9.37) never looks up vertex colors for faces written `v/vt/vn`
+ * (`_setDataForCurrentFaceWithPattern3`): each face corner gets its color here. It also gives a
+ * vertex the file wrote no color for a shared gray (`_grayColor`), so an object with no colors at
+ * all would draw gray and state a color it never had; such an object keeps no colors. Delete when
+ * Babylon fixes `SolidParser`. (The colors an object after an `o` or `g` line lost in
+ * `_unwrapData`, also worked around here before, are kept by Babylon itself since 9.2.2.)
  */
 interface ObjParser {
     _grayColor: unknown;
-    _wrappedColorsForBabylon: { r: number; g: number; b: number; a: number }[];
-    _unwrappedColorsForBabylon: number[];
+    _wrappedColorsForBabylon: unknown[];
     _unwrapData: (this: ObjParser) => void;
     _setData: (this: ObjParser, data: { indicePositionFromObj: number; positionColorsFromOBJ?: unknown }) => void;
     _getColor: (this: ObjParser, index: number) => unknown;
@@ -118,11 +116,7 @@ parser._unwrapData = function (this: ObjParser): void {
         this._wrappedColorsForBabylon.length = 0;
     }
 
-    const colors = this._wrappedColorsForBabylon.flatMap((c) => [c.r, c.g, c.b, c.a]);
     unwrapData.call(this);
-    if (colors.length > 0 && this._unwrappedColorsForBabylon.length === 0) {
-        this._unwrappedColorsForBabylon.push(...colors);
-    }
 };
 parser._setData = function (this: ObjParser, data): void {
     data.positionColorsFromOBJ ??= this._getColor(data.indicePositionFromObj);

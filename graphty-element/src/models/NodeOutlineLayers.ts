@@ -78,6 +78,10 @@ fragmentOutputs.color=vec4f(uniforms.outlineColor,hit);
 class ModelBandLayer extends SelectionOutlineLayer {
     constructor(name: string, scene: Scene) {
         super(name, scene, { mainTextureRatio: 1 });
+        // Every shader the layer draws with is imported at the top of this module. Left false, the
+        // layer imports them again before its first mask effect compiles, and under Babylon.js 9
+        // that took a few frames in which a stable frame showed a selected model with no band.
+        this._shadersLoaded = true;
         const engine = scene.getEngine();
         const shaderLanguage = this._shaderLanguage;
         this._thinEffectLayer._createMergeEffect = () =>

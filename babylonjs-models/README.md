@@ -22,7 +22,7 @@ nothing is fetched from a CDN: the Draco decoder and the KTX2 transcoders ship i
 npm install babylonjs-models @babylonjs/core @babylonjs/loaders
 ```
 
-`@babylonjs/core` and `@babylonjs/loaders` 8 are optional peer dependencies: the main
+`@babylonjs/core` and `@babylonjs/loaders` 9 are optional peer dependencies: the main
 `babylonjs-models` entry needs them. `babylonjs-models/files` and `babylonjs-models/detect` never
 load Babylon.js, so they work in Node, a Web Worker or a server with only `npm install babylonjs-models`.
 

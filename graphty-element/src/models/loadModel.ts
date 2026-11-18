@@ -80,7 +80,7 @@ export async function loadModel(
         throw new ModelLoadFailure({ code: "E_MODEL_PARSE", params: { format } });
     }
 
-    own.pinPbrShaders(scene);
+    own.pinPbrShaders();
     try {
         return await models.loadModelFiles(scene, files, main, format, {
             ...own.LOAD_OPTIONS,

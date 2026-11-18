@@ -181,7 +181,8 @@ Graphty has peer dependencies on Babylon.js and Lit:
 ```json
 {
     "peerDependencies": {
-        "@babylonjs/core": "^8.0.0",
+        "@babylonjs/core": "^9.0.0",
+        "@babylonjs/loaders": "^9.0.0",
         "lit": "^3.0.0"
     }
 }
@@ -190,7 +191,7 @@ Graphty has peer dependencies on Babylon.js and Lit:
 These are typically installed automatically. If you need to install them manually:
 
 ```bash
-npm install @babylonjs/core lit
+npm install @babylonjs/core @babylonjs/loaders lit
 ```
 
 ## TypeScript Setup
@@ -205,6 +206,12 @@ import type { Edge, Graph, Node } from "@graphty/graphty-element";
 const element = document.querySelector("graphty-element");
 const graph: Graph = (element as any).graph;
 ```
+
+Babylon.js 9's own declarations do not compile under `"skipLibCheck": false`: on TypeScript 5
+they name WebGPU types (`GPUDevice`, `GPUBuffer`) that only TypeScript 6's DOM library declares,
+and on any version one of them fails `"exactOptionalPropertyTypes": true`. Keep
+`"skipLibCheck": true` (the default of Vite's and most other project templates) in a project that
+uses graphty-element.
 
 ## Bundle Size Considerations
 

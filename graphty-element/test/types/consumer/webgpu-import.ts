@@ -6,11 +6,10 @@
  * third-party accelerator need, compiled against `dist/` by `tsconfig.strict-consumer.json`
  * rather than against `src/` -- so what is checked is what is published.
  *
- * It is a compile, not a test: nothing here runs. What it catches is a GPU type escaping into the
- * published surface. `GPUDevice`, `GPUBuffer` and the rest come from `@webgpu/types`, which the
- * strict-consumer project does not put in scope and which a consumer of this package is never
- * asked to install. A declaration that named one would fail to resolve here, which is the same
- * error that consumer's build would report -- found in this repository instead of in theirs.
+ * It is a compile, not a test: nothing here runs. What it catches is a GPU type a consumer must
+ * name: the status and accelerator types below hold none, so this compiles with no WebGPU types
+ * in scope (`tsconfig.strict-consumer.json` puts none there, and a consumer of this package is
+ * never asked to install `@webgpu/types`).
  */
 
 import "@graphty/graphty-element/webgpu";

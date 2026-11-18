@@ -671,9 +671,9 @@ export class LabelDeclutter {
         this.remember(camera);
 
         const engine = this.scene.getEngine();
-        // Read from the ref, not the return value: Babylon 8's toGlobalToRef fills `ref` and then
-        // returns the camera's own normalised viewport, which would put every label inside a
-        // one-pixel screen.
+        // Read from the ref, not the return value: Babylon's toGlobalToRef (8 and 9) fills `ref`
+        // and then returns the camera's own normalised viewport, which would put every label
+        // inside a one-pixel screen.
         camera.viewport.toGlobalToRef(engine.getRenderWidth(), engine.getRenderHeight(), this.viewport);
         const { viewport } = this;
         // World to pixels in one matrix, built once a pass: Vector3.ProjectToRef rebuilds it for

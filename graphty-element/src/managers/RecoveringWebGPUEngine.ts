@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 

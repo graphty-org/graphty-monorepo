@@ -74,8 +74,9 @@ patchedDependencies:
     # an async shader import and compile, and never checks that the engine is still alive. A
     # disposed engine's effects report ready with no program, so disposing a graph while a model's
     # first PBR material decodes threw "Cannot read properties of null (reading 'program')" as an
-    # unhandled rejection (issue #6683). This stops the decode once the engine is disposed.
-    "@babylonjs/core@8.56.2": patches/@babylonjs__core@8.56.2.patch
+    # unhandled rejection (issue #6683). This stops the decode once the engine is disposed. Still
+    # unfixed in 9.37.0 (Misc/rgbdTextureTools.js is unchanged); recheck at the next Babylon upgrade.
+    "@babylonjs/core@9.37.0": patches/@babylonjs__core@9.37.0.patch
     # Mantine 8.3.18's useCombobox keeps the list's id in a ref that Combobox.Options fills in an
     # effect, and nothing re-renders the target afterwards. A list open when it mounts
     # (defaultDropdownOpened, or dropdownOpened true from the start) leaves its combobox with

@@ -2057,7 +2057,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             entry.summary = checked.summary;
             // What the file says of itself (its clips, how it is drawn) is known before its pictures
             // arrive: the waiting record carries those warnings as the accepted one will.
-            const has = new Set(entry.record.problems.map((p) => p.code));
+            // The stand-in skips the missing parts, which the record already reports as missing:
+            // its W_MODEL_PART_SKIPPED is about the stand-in, not the file.
+            const has = new Set([...entry.record.problems.map((p) => p.code), "W_MODEL_PART_SKIPPED"]);
             const known = checked.warnings.filter((w) => !has.has(w.code));
             if (known.length > 0) {
                 entry.record = record({ ...entry.record, problems: [...entry.record.problems, ...known] });

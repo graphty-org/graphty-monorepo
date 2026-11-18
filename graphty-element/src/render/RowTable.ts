@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 /**
  * @file The drawn place and size of every row of one graph, as float textures a shader can read
  * and as a CPU table picking can walk (design/rendering/row-renderer.md 4.1).

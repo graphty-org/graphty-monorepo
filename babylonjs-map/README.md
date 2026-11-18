@@ -16,7 +16,7 @@ and parsers for the common ways of writing a location.
 npm install babylonjs-map @babylonjs/core
 ```
 
-`@babylonjs/core` 8 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
+`@babylonjs/core` 9 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
 install it yourself. `babylonjs-map/location` and `babylonjs-map/projection` never load Babylon.js,
 so they work in Node, a Web Worker or a page without a 3D scene, with only:
 

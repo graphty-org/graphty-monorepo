@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 import "./babylonEngineExtensions";
 
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
@@ -275,8 +276,8 @@ export async function openWebGPUEngine(
     });
     engine.sharesDevice = shared;
     try {
-        // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
-        // is given, though its type and its docs ask for the instance itself.
+        // glslang goes in as a promise: Babylon (8.43 to 9.37) calls `.then` on whatever `glslang`
+        // option it is given, though its type and its docs ask for the instance itself.
         await engine.initAsync({ glslang: Promise.resolve(compilers.glslang) }, { twgsl: compilers.twgsl });
         return engine;
     } catch (error) {
@@ -1038,7 +1039,7 @@ export class RenderManager implements Manager {
             this.scene = new Scene(this.engine);
         }
 
-        useBundledStandardShaders(this.scene);
+        useBundledStandardShaders();
         drawOnlyEnabledMeshes(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;

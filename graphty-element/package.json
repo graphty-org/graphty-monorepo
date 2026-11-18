@@ -180,8 +180,8 @@
         "docs:preview": "vitepress preview docs --port ${PORT:?start it through servherd, which sets PORT}"
     },
     "devDependencies": {
-        "@babylonjs/core": "^8.56.2",
-        "@babylonjs/loaders": "8.56.2",
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "9.37.0",
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": "1.29.2",
@@ -206,6 +206,7 @@
         "@types/react": "^19.3.0",
         "@types/toposort": "^2.0.7",
         "@vitest/browser-playwright": "catalog:",
+        "@webgpu/types": "^0.1.74",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
         "axe-core": "^4.13.0",
@@ -234,8 +235,8 @@
         "webpack": "^5.112.2"
     },
     "peerDependencies": {
-        "@babylonjs/core": "^8.0.0",
-        "@babylonjs/loaders": "^8.0.0",
+        "@babylonjs/core": "^9.0.0",
+        "@babylonjs/loaders": "^9.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",

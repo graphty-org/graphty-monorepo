@@ -291,7 +291,7 @@ export class LiveModelPreview implements ModelPreview {
         const scene = new Scene(this.#engine);
         this.#scene = scene;
         scene.clearColor = new Color4(0, 0, 0, 0);
-        useBundledStandardShaders(scene);
+        useBundledStandardShaders();
         // The graph's two lights: a fill from above and a key that keeps its place to the camera.
         const light = LIGHTS[lighting];
         const hemi = new HemisphericLight("preview-fill", new Vector3(1, 1, 0), scene);
@@ -321,6 +321,19 @@ export class LiveModelPreview implements ModelPreview {
             }
             // The camera's input and glide, applied here so an unchanged view can skip the frame.
             camera.update();
+            // Babylon.js 9's glide decays for seconds after it stops showing, turning the model
+            // by a fraction of a pixel a frame and drawing every one of them. The camera reads its
+            // offsets as zero once a frame's turn is under its epsilon: the glide ends there, as it
+            // did before 9 (writing zero stops the velocity behind them).
+            if (
+                camera.inertialAlphaOffset === 0 &&
+                camera.inertialBetaOffset === 0 &&
+                camera.inertialRadiusOffset === 0
+            ) {
+                camera.inertialAlphaOffset = 0;
+                camera.inertialBetaOffset = 0;
+                camera.inertialRadiusOffset = 0;
+            }
             const view = camera.getViewMatrix();
             if (!this.#dirty && !this.#playing && view.equals(this.#drawnView)) {
                 return;

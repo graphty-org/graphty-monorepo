@@ -47,12 +47,11 @@ export const LOAD_OPTIONS: LoadModelFilesOptions = Object.freeze({
 });
 
 /**
- * Make every PBRMaterial created in `scene` use the PBR shaders babylonjs-models bundles, as
- * src/meshes/bundledStandardShaders.ts does for StandardMaterial.
- * @param scene - The scene whose materials are pinned.
+ * Make every PBRMaterial use the PBR shaders babylonjs-models bundles (both languages, imported
+ * with its loaders), as src/meshes/bundledStandardShaders.ts does for StandardMaterial.
  */
-export function pinPbrShaders(scene: Scene): void {
-    pinShadersLoaded(PBRMaterial, scene);
+export function pinPbrShaders(): void {
+    pinShadersLoaded(PBRMaterial);
 }
 
 /** The bundled neutral environment, one per scene. */

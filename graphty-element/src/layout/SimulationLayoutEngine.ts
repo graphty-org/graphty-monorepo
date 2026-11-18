@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 /**
  * @file The layout bridge: one `LayoutEngine` driving `@graphty/layout`'s `LayoutSimulation`,
  * on the CPU or on whatever the element's acceleration controller has attached.

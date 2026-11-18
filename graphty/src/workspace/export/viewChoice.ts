@@ -13,7 +13,7 @@ import { cameraViewName, viewProblemWords } from "../toolbar/viewWords";
 export const CURRENT = "current";
 
 /** One entry of the View list: a value, its words, and why it cannot be used now. */
-export interface ViewEntry {
+interface ViewEntry {
     readonly value: string;
     readonly label: string;
     /** Null for the reader's camera, else a view name. */

@@ -106,7 +106,7 @@ export interface ResolvedTour {
  * @param value - The value.
  * @returns True when valid.
  */
-export function validTime(value: unknown): boolean {
+function validTime(value: unknown): boolean {
     return value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0);
 }
 
@@ -134,7 +134,7 @@ export function timeProblem(stop: { duration?: unknown; hold?: unknown }, index:
  * @param tours - The saved tours.
  * @returns The tour, or the fact for a name nothing is saved under.
  */
-export function resolveTour(input: TourInput, tours: ReadonlyMap<string, Tour>): ResolvedTour | CodedFact {
+function resolveTour(input: TourInput, tours: ReadonlyMap<string, Tour>): ResolvedTour | CodedFact {
     if (typeof input === "string") {
         const saved = tours.get(input);
         if (saved === undefined) {

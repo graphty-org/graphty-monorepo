@@ -103,7 +103,7 @@ function unknownView(missing: readonly string[], available: readonly string[]): 
  * @throws A `GraphtyError` with `E_PROTECTED` for a camera view's name, `E_BAD_COMMAND` for an
  *     empty one.
  */
-export function assertViewName(name: string): void {
+function assertViewName(name: string): void {
     if (typeof name !== "string" || name.trim() === "") {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",

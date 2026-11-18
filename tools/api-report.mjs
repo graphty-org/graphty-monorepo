@@ -331,7 +331,9 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  * too much: the column a comparing join writes regions to (JoinChoices.membership) and the kind a
  * link join gives the nodes and edges it adds (JoinLink.kind).
  */
-const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind"]);
+// TourStop.view: the name of the view a tour stop flies to, a camera view's id or the consumer's
+// saved view name, never words the element shows.
+const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind", "TourStop.view"]);
 
 /**
  * Whether a result type may hold a plain string under this property name.

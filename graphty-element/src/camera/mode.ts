@@ -34,7 +34,7 @@ const READ_3D = [
  * @param state - The state.
  * @returns Its `mode` alone when it has one; else each mode it holds a member of; both for `{}`.
  */
-export function stateModes(state: CameraState): readonly DrawingMode[] {
+function stateModes(state: CameraState): readonly DrawingMode[] {
     if (state.mode !== undefined) {
         return [state.mode];
     }

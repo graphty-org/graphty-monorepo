@@ -546,7 +546,6 @@ export interface BasemapStatusEvent {
     };
     source: string;
     state: "off" | "loading" | "ready" | "fallback";
-    // (undocumented)
     type: "basemap-status";
 }
 
@@ -633,9 +632,8 @@ export interface CameraState {
     zoom?: number;
 }
 
-// @public (undocumented)
+// @public
 export interface CameraStateChangedEvent {
-    // (undocumented)
     state: {
         position?: {
             x: number;
@@ -654,7 +652,6 @@ export interface CameraStateChangedEvent {
         };
         [key: string]: unknown;
     };
-    // (undocumented)
     type: "camera-state-changed";
 }
 
@@ -777,23 +774,17 @@ export class CredentialStore {
     remember(target: SourceCredentialTarget, credential: Credential_2): Promise<void>;
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingCompleteEvent {
-    // (undocumented)
     duration: number;
     edgesLoaded: number;
-    // (undocumented)
     errors: number;
-    // (undocumented)
     format: string;
     loadId?: number;
     nodesLoaded: number;
     report: ImportReport;
-    // (undocumented)
     success: boolean;
-    // (undocumented)
     type: "data-loading-complete";
-    // (undocumented)
     warnings: number;
 }
 
@@ -806,24 +797,16 @@ export interface DataLoadingError {
     params?: Readonly<Record<string, unknown>>;
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingErrorEvent {
-    // (undocumented)
     canContinue: boolean;
-    // (undocumented)
     context: "detection" | "validation" | "parsing";
-    // (undocumented)
     edgeId?: string;
-    // (undocumented)
     error: Error;
-    // (undocumented)
     format?: string;
-    // (undocumented)
     line?: number;
     loadId?: number;
-    // (undocumented)
     nodeId?: unknown;
-    // (undocumented)
     type: "data-loading-error";
 }
 
@@ -831,7 +814,6 @@ export interface DataLoadingErrorEvent {
 export interface DataLoadingErrorSummaryEvent {
     code: "load-errors";
     errors: readonly LoadError[];
-    // (undocumented)
     format: string;
     loadId?: number;
     params: {
@@ -841,23 +823,19 @@ export interface DataLoadingErrorSummaryEvent {
     };
     primaryCategory?: string;
     totalErrors: number;
-    // (undocumented)
     type: "data-loading-error-summary";
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingProgressEvent {
     bytesProcessed: number;
-    // (undocumented)
     chunksProcessed: number;
     edgeRecordsLoaded: number;
-    // (undocumented)
     format: string;
     loadId?: number;
     nodeRecordsLoaded: number;
     percentage?: number;
     totalBytes?: number;
-    // (undocumented)
     type: "data-loading-progress";
 }
 
@@ -1046,7 +1024,7 @@ export const DEFAULT_VIEW_MODE: ViewMode;
 // @public (undocumented)
 export const defaultEdgeStyle: EdgeStyleConfig;
 
-// @public (undocumented)
+// @public
 export const defaultNodeStyle: NodeStyleConfig;
 
 // @public
@@ -1071,6 +1049,12 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
 export function defineShader(definition: ShaderDefinition, options?: RegisterOptions): void;
 
 export { defineSource }
+
+// @beta
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+
+// @beta
+export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
 // @public
 export interface DrawnShaders {
@@ -1224,32 +1208,26 @@ export const EDGE_CONSTANTS: {
     readonly BEZIER_MAX_SEGMENTS: 64;
 };
 
-// @public (undocumented)
+// @public
 export interface EdgeAddEvent {
-    // (undocumented)
     dstNodeId: NodeIdType_2;
-    // (undocumented)
     metadata: object;
-    // (undocumented)
     srcNodeId: NodeIdType_2;
-    // (undocumented)
     type: "edge-add-before";
 }
 
 // @public (undocumented)
 export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
 
-// @public (undocumented)
+// @public
 export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
 
-// @public (undocumented)
+// @public
 export type EdgeEventType = EdgeEvent["type"];
 
-// @public (undocumented)
+// @public
 export interface EdgeGenericEvent {
-    // (undocumented)
     edge: Edge;
-    // (undocumented)
     type: "edge-update-after" | "edge-update-before";
 }
 
@@ -2603,7 +2581,7 @@ export interface ErrorSummary {
     totalErrors: number;
 }
 
-// @public (undocumented)
+// @public
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
 
 // @public
@@ -2705,7 +2683,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -2844,13 +2822,9 @@ export interface FindValueRow {
 
 // @public
 export interface FitInsets {
-    // (undocumented)
     readonly bottom: number;
-    // (undocumented)
     readonly left: number;
-    // (undocumented)
     readonly right: number;
-    // (undocumented)
     readonly top: number;
 }
 
@@ -3321,78 +3295,60 @@ export interface GraphContextConfig {
     xr?: XRConfig;
 }
 
-// @public (undocumented)
+// @public
 export interface GraphDataAddedEvent {
     cause?: HistoryCause;
-    // (undocumented)
     count: number;
-    // (undocumented)
     dataType: "nodes" | "edges";
-    // (undocumented)
     shouldStartLayout: boolean;
-    // (undocumented)
     shouldZoomToFit: boolean;
-    // (undocumented)
     type: "data-added";
 }
 
 // @public
 export interface GraphDataClearedEvent {
-    // (undocumented)
     type: "data-cleared";
 }
 
-// @public (undocumented)
+// @public
 export interface GraphDataLoadedEvent {
     cause?: HistoryCause;
-    // (undocumented)
     details: {
         chunksLoaded: number;
         dataSourceType: string;
         report: ImportReport;
         loadId?: number;
     };
-    // (undocumented)
     graph: Graph;
-    // (undocumented)
     type: "data-loaded";
 }
 
-// @public (undocumented)
+// @public
 export interface GraphErrorEvent {
-    // (undocumented)
     context: "init" | "data-loading" | "layout" | "algorithm" | "xr" | "other";
-    // (undocumented)
     details?: Record<string, unknown>;
-    // (undocumented)
     error: Error;
-    // (undocumented)
     graph: Graph | null;
-    // (undocumented)
     type: "error";
 }
 
-// @public (undocumented)
+// @public
 export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
-// @public (undocumented)
+// @public
 export type GraphEventType = GraphEvent["type"];
 
-// @public (undocumented)
+// @public
 export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
-    // (undocumented)
     type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
-// @public (undocumented)
+// @public
 export interface GraphLayoutInitializedEvent {
-    // (undocumented)
     layoutType: string;
-    // (undocumented)
     shouldZoomToFit: boolean;
-    // (undocumented)
     type: "layout-initialized";
 }
 
@@ -3407,11 +3363,9 @@ export interface GraphOverview {
     viewport: OverviewRect;
 }
 
-// @public (undocumented)
+// @public
 export interface GraphSettledEvent {
-    // (undocumented)
     graph: Graph;
-    // (undocumented)
     type: "graph-settled";
 }
 
@@ -3420,7 +3374,6 @@ export { GraphSource }
 // @public
 export interface GraphStartedEvent {
     timestamp: number;
-    // (undocumented)
     type: "graph-started";
 }
 
@@ -5093,25 +5046,17 @@ export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d
 // @public
 export interface InputEnabledChangedEvent {
     enabled: boolean;
-    // (undocumented)
     type: "input-enabled-changed";
 }
 
 // @public
 export interface InputKeyEvent {
-    // (undocumented)
     altKey: boolean;
-    // (undocumented)
     code: string;
-    // (undocumented)
     ctrlKey: boolean;
-    // (undocumented)
     key: string;
-    // (undocumented)
     metaKey: boolean;
-    // (undocumented)
     shiftKey: boolean;
-    // (undocumented)
     type: "input:key-down" | "input:key-up";
 }
 
@@ -5154,7 +5099,6 @@ export class InputManager implements Manager {
 
 // @public
 export interface InputPointerEvent {
-    // (undocumented)
     type: "input:pointer-down" | "input:pointer-move" | "input:pointer-up";
     x: number;
     y: number;
@@ -5162,7 +5106,6 @@ export interface InputPointerEvent {
 
 // @public
 export interface InputShortcutEvent {
-    // (undocumented)
     type: "input:undo" | "input:redo" | "input:select-all";
 }
 
@@ -5171,7 +5114,6 @@ export interface InputTouchEndEvent {
     array: {
         value: number;
     }[];
-    // (undocumented)
     type: "input:touch-end";
 }
 
@@ -5181,20 +5123,15 @@ export interface InputTouchEvent {
         x: number;
         y: number;
     }[];
-    // (undocumented)
     type: "input:touch-start" | "input:touch-move";
 }
 
 // @public
 export interface InputWheelEvent {
     deltaMode: number;
-    // (undocumented)
     deltaX: number;
-    // (undocumented)
     deltaY: number;
-    // (undocumented)
     deltaZ: number;
-    // (undocumented)
     type: "input:wheel";
 }
 
@@ -5220,7 +5157,6 @@ export const KELLY_COLORS: readonly ["#F3C300", "#875692", "#F38400", "#A1CAF1",
 export interface LayoutChangedEvent {
     layoutType: string;
     options: Record<string, unknown>;
-    // (undocumented)
     type: "layout-changed";
 }
 
@@ -5419,7 +5355,6 @@ export interface LayoutWarningEvent {
     code: GraphtyWarningCode;
     layoutType: string;
     params: Readonly<Record<string, unknown>>;
-    // (undocumented)
     type: "layout-warning";
 }
 
@@ -5433,7 +5368,6 @@ export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 
 // @public
 export interface Limits {
-    approximateAboveNodes: number;
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
@@ -5783,59 +5717,46 @@ class Node_2 implements ModelUser {
 }
 export { Node_2 as Node }
 
-// @public (undocumented)
+// @public
 export interface NodeAddEvent {
-    // (undocumented)
     metadata: object;
-    // (undocumented)
     nodeId: NodeIdType_2;
-    // (undocumented)
     type: "node-add-before";
 }
 
 // @public
 export interface NodeClickEvent {
-    // (undocumented)
     data: Record<string, unknown>;
-    // (undocumented)
     event: PointerEvent;
-    // (undocumented)
     node: Node_2;
-    // (undocumented)
     type: "node-click";
 }
 
 // @public
 export interface NodeDragEndEvent {
-    // (undocumented)
     node: Node_2;
     pinned: boolean;
-    // (undocumented)
     position: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type: "node-drag-end";
 }
 
 // @public
 export interface NodeDragStartEvent {
-    // (undocumented)
     node: Node_2;
     pinned: boolean;
-    // (undocumented)
     position: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type: "node-drag-start";
 }
 
-// @public (undocumented)
+// @public
 export type NodeEvent = NodeGenericEvent | NodeAddEvent | NodeClickEvent | NodeHoverEvent | NodeDragStartEvent | NodeDragEndEvent;
 
 // @public
@@ -5858,24 +5779,19 @@ export interface NodeEventDetail {
     tooltip?: string;
 }
 
-// @public (undocumented)
+// @public
 export type NodeEventType = NodeEvent["type"];
 
-// @public (undocumented)
+// @public
 export interface NodeGenericEvent {
-    // (undocumented)
     node: Node_2;
-    // (undocumented)
     type: "node-update-after" | "node-update-before";
 }
 
 // @public
 export interface NodeHoverEvent {
-    // (undocumented)
     data: Record<string, unknown>;
-    // (undocumented)
     node: Node_2;
-    // (undocumented)
     type: "node-hover";
 }
 
@@ -7172,7 +7088,7 @@ export const NodeStyle: z.ZodObject<{
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 
 // @public
@@ -7361,7 +7277,6 @@ export type OperationCanceledEvent = OperationCancelledEvent;
 export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
     id: string;
-    // (undocumented)
     type: "operation-cancelled";
 }
 
@@ -7420,7 +7335,6 @@ export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
 export interface OverviewChangedEvent {
-    // (undocumented)
     type: "overview-changed";
 }
 
@@ -7599,18 +7513,36 @@ export function projectFileName(name: string | null | undefined): string;
 
 // @public
 export interface ProjectOpenOptions {
+    // @beta
+    readonly bindOtherData?: boolean;
+    // @beta
+    readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
     readonly draft?: {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     };
+    // @beta
+    readonly fetchSources?: boolean;
     readonly fileName?: string;
+    // @beta
+    readonly files?: Readonly<Record<string, Blob>>;
     readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
     };
+    // @beta
+    readonly location?: string;
+    // @beta
+    readonly migrate?: boolean;
     readonly ownWork?: boolean;
+    // @beta
+    readonly rerun?: boolean;
+    // @beta
+    readonly sections?: readonly DocumentSection[];
+    // @beta
+    readonly signal?: AbortSignal;
 }
 
 // @public
@@ -7624,14 +7556,26 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
+    // @beta
+    readonly embed?: Readonly<Record<string, SourceStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
+    // @beta
+    readonly form?: "full" | "section";
+    // @beta
+    readonly format?: 1 | 2;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
+    // @beta
+    readonly paths?: Readonly<Record<string, string>>;
+    // @beta
+    readonly results?: boolean;
+    // @beta
+    readonly sections?: readonly DocumentSection[];
 }
 
 // @public
@@ -7721,7 +7665,6 @@ export interface RenderLostEvent {
     params: {
         readonly renderer: "webgl" | "webgpu";
     };
-    // (undocumented)
     type: "render-lost";
 }
 
@@ -7807,7 +7750,6 @@ export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-
 // @public
 export interface RenderRestoredEvent {
     renderer: "webgl" | "webgpu";
-    // (undocumented)
     type: "render-restored";
 }
 
@@ -7825,7 +7767,7 @@ export interface ResultRef {
 
 export { RetryOptions }
 
-// @public (undocumented)
+// @public
 export const RichTextStyle: z.ZodObject<{
     enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textPath: z.ZodOptional<z.ZodString>;
@@ -8066,7 +8008,7 @@ export const RichTextStyle: z.ZodObject<{
     closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
 
 // @public
@@ -8544,6 +8486,9 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
     readonly limits?: SourceLimitOptions;
 };
 
+// @beta
+export type SourceStorage = "embedded" | "referenced";
+
 export { SourceValidators }
 
 // @public
@@ -8625,7 +8570,6 @@ export class StatsManager implements Manager {
 export interface StatsUpdateEvent {
     stats: ReturnType<StatsManager["getStats"]>;
     totalUpdates: number;
-    // (undocumented)
     type: "stats-update";
 }
 
@@ -8647,7 +8591,6 @@ export interface StyleChangedEvent {
     layers: number;
     painted: StyleChange["painted"];
     reason: StyleChange["reason"];
-    // (undocumented)
     type: "style-changed";
     unresolvedPaths: string[];
     warnings: StyleChange["warnings"];
@@ -8864,7 +8807,6 @@ export interface XRModeConfig {
 export interface XRSessionEndedEvent {
     cause: "exit" | "device";
     mode: "vr" | "ar";
-    // (undocumented)
     type: "xr-session-ended";
 }
 
@@ -8873,7 +8815,6 @@ export interface XRSessionStartedEvent {
     mode: "vr" | "ar";
     referenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded" | "viewer";
     requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
-    // (undocumented)
     type: "xr-session-started";
 }
 

@@ -38,6 +38,7 @@ const FILES: Readonly<Record<CorpusFormat, string>> = {
     pajek: "football.net",
     xgmml: "karate.xgmml",
     cys: "karate-3x.cys",
+    sif: "A50-50-head.sif",
 };
 
 interface TrackedStream {

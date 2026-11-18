@@ -87,10 +87,10 @@ describe("LoadReport.errors", () => {
 
     it("lists a refused draft row", async () => {
         const session = createGraphSession();
-        const draft = await session.data.prepare({ type: "csv", config: { data: "id,name\n,A\nb,B\n" } });
+        const draft = await session.data.prepare({ type: "csv", config: { data: "source,target\n,A\nb,B\n" } });
 
         const report = await draft.report();
-        assert.deepInclude(report.errors, { code: "refused-row", params: { rowsAre: "nodes" } });
+        assert.deepInclude(report.errors, { code: "refused-row", params: { rowsAre: "edges" } });
         session.dispose();
     });
 

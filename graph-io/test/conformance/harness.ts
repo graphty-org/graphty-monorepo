@@ -142,7 +142,7 @@ export interface Fixture {
  * its content alone: the formats added after importOptions() started naming the format, so their
  * sniffers are not exercised by the rest of the suite.
  */
-const SNIFF_CHECKED_FORMATS: ReadonlySet<string> = new Set(["xgmml", "cx", "cx2", "cys", "obo"]);
+const SNIFF_CHECKED_FORMATS: ReadonlySet<string> = new Set(["xgmml", "cx", "cx2", "cys", "obo", "sif"]);
 
 /** A format's manifest.json. */
 interface Manifest {

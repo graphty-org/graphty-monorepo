@@ -523,6 +523,8 @@ export { browserProjects } from "./src/session";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
 export type {
     AssetStorage,
+    DocumentCode,
+    DocumentSection,
     ProjectApi,
     ProjectAssetChoice,
     ProjectOpenOptions,
@@ -533,6 +535,7 @@ export type {
     ProjectSource,
     ProjectStatus,
     SavedProject,
+    SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // Autosaved work read and deleted without an element (a start screen that offers it first).

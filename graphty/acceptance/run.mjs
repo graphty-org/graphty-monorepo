@@ -18,7 +18,9 @@
  * passed, 1 when one failed, 2 on a usage error. See README.md beside this file.
  *
  * The run holds the machine's one GPU slot (tools/test-slots.mjs --gpu) and each browser one of the
- * shared browser slots (design/ui/studio/tool/with-browser.sh, cap 4).
+ * shared browser slots (design/ui/studio/tool/with-browser.sh, cap 4). It takes its first browser slot
+ * BEFORE the GPU slot, and its first browser uses that slot, so it never holds the GPU slot while it waits
+ * for a browser: such a wait kept every GPU job on the machine waiting for hours (#8930).
  */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -40,6 +42,7 @@ const gitArgs = ["-C", here, "rev-parse", "--path-format=absolute", "--git-commo
 const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own git
 const main = dirname(commonDir.stdout.trim());
 const OUT = join(repo, "tmp/dry-run");
+const GATE = join(repo, "design/ui/studio/tool/with-browser.sh");
 const FILES = join(repo, "design/ui/studio/tool/files");
 // The GPU flags the design studio's tool proved on this machine (design/ui/studio/tool/real.mjs):
 // ANGLE on Vulkan, with the extracted libEGL.so.1 in the main checkout's tmp/egl, without which
@@ -152,23 +155,21 @@ function passStopsOn(children) {
 
 async function runAll(o) {
     const picked = select(o.only);
-    if (!existsSync(join(o.dist, "index.html"))) {
-        console.error(`no built app at ${o.dist}: run pnpm exec nx run graphty:build first`);
-        process.exit(2);
-    }
     rmSync(OUT, { recursive: true, force: true });
     mkdirSync(join(OUT, "claims"), { recursive: true });
     mkdirSync(join(OUT, "results"), { recursive: true });
     const workers = Math.min(o.workers, picked.length);
     console.log(`dry run: ${picked.length} routes on ${workers} browser(s), build ${o.dist}`);
-    const started = Date.now();
-    const gate = join(repo, "design/ui/studio/tool/with-browser.sh");
+    // from when the run began to wait for its first browser slot (the entry below), so the report counts that wait
+    const started = Number(process.env.DRY_RUN_STARTED) || Date.now();
     const ids = picked.map((r) => r.id).join(",");
+    // the first browser runs in the slot the run took before the GPU slot; the others wait for slots of their own
+    const inSlot = process.env.DRY_RUN_SLOT_HELD === "1";
     const children = Array.from({ length: workers }, (_, n) =>
         spawn(
             "bash", // eslint-disable-line sonarjs/no-os-command-from-path -- developer tooling runs the developer's own bash
             [
-                gate,
+                ...(n === 0 && inSlot ? ["-c", 'exec "$@"', "bash"] : [GATE]),
                 process.execPath,
                 fileURLToPath(import.meta.url),
                 "--worker",
@@ -455,18 +456,35 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
             console.log(`${r.id.padEnd(40)} ${r.feature} (${r.from}; ${Object.keys(r.checks).length} checks)`);
     } else if (o.worker) {
         await runWorker(o);
+    } else if (!existsSync(join(o.dist, "index.html"))) {
+        console.error(`no built app at ${o.dist}: run pnpm exec nx run graphty:build first`);
+        process.exit(2);
     } else if (process.env.DRY_RUN_GPU_HELD !== "1") {
-        // hold the machine's one GPU slot for the whole run, then run again inside it
+        // take one browser slot, then the machine's one GPU slot inside it, then run again inside both: the GPU
+        // slot is never held while the run has no browser to use it (#8930)
         const child = spawn(
-            process.execPath,
+            "bash", // eslint-disable-line sonarjs/no-os-command-from-path -- developer tooling runs the developer's own bash
             [
+                GATE,
+                process.execPath,
                 join(repo, "tools/test-slots.mjs"),
                 "--gpu",
                 process.execPath,
                 fileURLToPath(import.meta.url),
                 ...process.argv.slice(2),
             ],
-            { stdio: "inherit", env: { ...process.env, DRY_RUN_GPU_HELD: "1" }, detached: true },
+            {
+                stdio: "inherit",
+                env: {
+                    ...process.env,
+                    BROWSER_SLOTS: "4",
+                    BROWSER_GPU: "",
+                    DRY_RUN_GPU_HELD: "1",
+                    DRY_RUN_SLOT_HELD: "1",
+                    DRY_RUN_STARTED: String(Date.now()),
+                },
+                detached: true,
+            },
         );
         passStopsOn([child]);
         child.on("exit", (code) => process.exit(code ?? 1));

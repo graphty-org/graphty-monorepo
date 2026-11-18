@@ -2091,8 +2091,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         inputs: readonly FilterConditionInput[],
         taken: readonly FilterCondition[] = [],
     ): readonly FilterCondition[] => {
-        if (!Array.isArray(inputs)) {
-            assertConditions(inputs);
+        const given: unknown = inputs;
+        if (!Array.isArray(given)) {
+            assertConditions(given);
         }
 
         const held = new Set<unknown>(conditionsNow());

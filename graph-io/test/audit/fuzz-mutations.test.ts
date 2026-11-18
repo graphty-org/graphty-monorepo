@@ -82,6 +82,7 @@ async function classify(
 // ============================================================ part 1: fast-check mutations
 
 const TOKENS: Readonly<Record<CorpusFormat, readonly string[]>> = {
+    sif: ["\t", " ", "\n", "\r", "pp", "pd", "interactsWith", "-"],
     obo: [
         "[Term]",
         "[Typedef]",
@@ -774,6 +775,7 @@ describe("fuzz audit: structural attacks", () => {
             neo4j: `:ID,name,:LABEL\n1,"${big}",P\n`,
             pajek: `*Vertices 1\n1 "${big}"\n*Edges\n1 1\n`,
             obo: `format-version: 1.4\n\n[Term]\nid: X:1\nname: ${big}\n`,
+            sif: `a\tpp\t${big}\n`,
             xgmml: `<graph><node id="a" label="${big}"/></graph>`,
             cys: makeZip([
                 { name: "S/3.0.0.version", data: "" },

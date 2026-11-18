@@ -796,7 +796,7 @@ function assertFilter(filter: RuleTree): void {
                 throw malformed(`An "${filter.kind}" filter needs a list of filters.`, { of: filter.of });
             }
 
-            for (const member of filter.of) {
+            for (const member of filter.of as readonly RuleTree[]) {
                 assertFilter(member);
             }
 

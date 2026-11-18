@@ -56,7 +56,16 @@ import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
-import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
+import {
+    DETECTION_SAMPLE,
+    fetchBytes,
+    isSourceData,
+    sampleOf,
+    takeFetched,
+    toSourceInput,
+    urlTail,
+    validatorsOf,
+} from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
 import { bestRole, cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
@@ -266,7 +275,7 @@ import type {
     ValueCounts,
     ValueType,
 } from "./types";
-import { valueLabelsAt } from "./valueLabels";
+import { typedValueLabelsAt, valueLabelsAt } from "./valueLabels";
 import { wholeGraph } from "./working/graphs";
 import type { WorkingGraph, WorkingScope, WorkingView } from "./working/view";
 
@@ -1345,9 +1354,15 @@ export class SessionData implements SessionDataApi {
             let snapshot: GraphSnapshot;
             // The status of the answer, kept here so a failure can say whether a retry could help.
             let status: number | undefined;
+            // Every body read, in order, so the dataset's copy id is the digest of its bytes.
+            const bodies: Promise<ArrayBuffer>[] = [];
             const watched: typeof fetch = async (input, init) => {
                 const response = await fetch(input, init);
                 ({ status } = response);
+                if (response.ok) {
+                    bodies.push(response.clone().arrayBuffer());
+                }
+
                 return response;
             };
             try {
@@ -1359,6 +1374,10 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
+                url: {
+                    sha256: await sha256Hex(joined(await Promise.all(bodies))),
+                    fetchedAt: new Date().toISOString(),
+                },
             });
         } finally {
             turn.leave();
@@ -1416,14 +1435,20 @@ export class SessionData implements SessionDataApi {
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing" | "signal">,
         turn: LoadTurn,
-        sample?: SampleLoad & { readonly facts: LoadFacts["sample"] },
+        sample?: SampleLoad & { readonly facts: LoadFacts["sample"]; readonly url?: LoadFacts["url"] },
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
         const origin: LoadedSourceKind | undefined = sample === undefined ? undefined : "sample";
         const chosenOrigin = origin ?? options.origin;
         const noted = this.noting(
             dispatch,
-            () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample: sample.facts })),
+            () =>
+                sample === undefined
+                    ? bytesFacts(resolvedConfig)
+                    : Promise.resolve({
+                          sample: sample.facts,
+                          ...(sample.url === undefined ? {} : { url: sample.url }),
+                      }),
             choiceOptions(options),
         );
         const mark = historyMark(options);
@@ -1783,6 +1808,16 @@ export class SessionData implements SessionDataApi {
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)),
         );
+    }
+
+    /**
+     * What a load read: its bytes' digest, size and media type, a URL's validators, a sample's
+     * dataset. Internal: the version 2 data section writes a source's origin and copy id from it.
+     * @param key - The load's key.
+     * @returns The facts, or undefined for a load with none recorded.
+     */
+    loadFactsOf(key: SourceKey): LoadFacts | undefined {
+        return this.loadFacts.get(key);
     }
 
     /**
@@ -2918,7 +2953,16 @@ export class SessionData implements SessionDataApi {
                 if (loadKey !== undefined) {
                     taken.add(loadKey);
                 }
-                const { input, ...entry } = each as LoadedSource & { readonly input?: string };
+                const {
+                    input,
+                    drawn: _drawn,
+                    readBy: _readBy,
+                    ...entry
+                } = each as LoadedSource & {
+                    readonly input?: string;
+                    readonly drawn?: unknown;
+                    readonly readBy?: unknown;
+                };
                 return Object.freeze({
                     ...entry,
                     key,
@@ -5371,7 +5415,7 @@ export class SessionData implements SessionDataApi {
         pushLayerRenames(steps, styles, rename);
         pushVisibilityRenames(steps, visibility, rename);
         // The names given to its values.
-        for (const [value, label] of valueLabelsAt(this.writes.valueLabels(), `data.${from}`)) {
+        for (const { value, label } of typedValueLabelsAt(this.writes.valueLabels(), `data.${from}`)) {
             steps.push(
                 { op: "data.label", path: `data.${name}`, value, label },
                 { op: "data.label", path: `data.${from}`, value, label: null },
@@ -7091,18 +7135,23 @@ function nextSourceKey(stored: readonly LoadedSource[], provenance: Provenance |
 
 /**
  * What a load's bytes were, for its project-file entry: a file's name, size, media type and
- * SHA-256, inline data's size and SHA-256, a URL's SHA-256 when its body was read here. Nothing
- * for anything else (a pair of files, a URL its reader fetched itself).
- * ponytail: a URL load that names its type is fetched by its reader, so its body is not hashed;
- * fetch it here, as an undetected one is, if every URL entry must carry its digest.
+ * SHA-256, inline data's size and SHA-256, a URL body's SHA-256, size and the validators its
+ * response carried. Nothing for anything else (a pair of files).
  * @param config - The source's options as the load read them.
  * @returns The facts.
  */
 async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Partial<LoadFacts>> {
     const { data, file, url } = config;
     if (typeof url === "string") {
-        const sha256 = data instanceof Uint8Array ? await sha256Hex(data) : undefined;
-        return { url: { ...(sha256 === undefined ? {} : { sha256 }), fetchedAt: new Date().toISOString() } };
+        const fetchedAt = new Date().toISOString();
+        if (data instanceof Uint8Array) {
+            const sha256 = await sha256Hex(data);
+            return { url: { sha256, size: data.byteLength, ...validatorsOf(data), fetchedAt } };
+        }
+
+        // A URL whose type was named is fetched by its reader, which kept what it read.
+        const read = takeFetched(url);
+        return read === undefined ? { url: { fetchedAt } } : { url: { ...read, sha256: await read.sha256, fetchedAt } };
     }
 
     const blob = fileOf(file);
@@ -7126,6 +7175,22 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
     }
 
     return {};
+}
+
+/**
+ * Bodies as one run of bytes, in order.
+ * @param bodies - The bodies.
+ * @returns Their bytes, joined.
+ */
+function joined(bodies: readonly ArrayBuffer[]): Uint8Array {
+    const bytes = new Uint8Array(bodies.reduce((size, body) => size + body.byteLength, 0));
+    let at = 0;
+    for (const body of bodies) {
+        bytes.set(new Uint8Array(body), at);
+        at += body.byteLength;
+    }
+
+    return bytes;
 }
 
 /**

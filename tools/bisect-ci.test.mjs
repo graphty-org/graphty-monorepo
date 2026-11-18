@@ -22,6 +22,7 @@ import {
     runPoint,
     setupFailed,
     start,
+    summary,
     T4_CAP_MINUTES,
     unsafeTargets,
 } from "./bisect-ci.mjs";
@@ -134,6 +135,27 @@ describe("the lane rules", () => {
         assert.deepEqual(s.next, { points: ["m8"], runs: 2, confirm: true }, "at most 2 confirming runs");
         const { answer } = bisect(s, (sha) => sha !== "m2" && sha !== "m4");
         assert.equal(answer.culprit, "m5");
+    });
+
+    it("answers an LLM red the account caused with no confirming run and no culprit", () => {
+        const s = start(
+            { lane: "llm", good: "g", bad: "m4", targets: [TEST], accountRefused: true },
+            fakeGit(4, () => true),
+        );
+        assert.equal(s.next, undefined, "no confirming run");
+        assert.equal(s.answer.status, "account-refused");
+        assert.equal(s.answer.culprit, null);
+        assert.match(summary(s), /no merge named: .*refusing the account/);
+        const yml = parseYaml(readFileSync(new URL("../.github/workflows/bisect.yml", import.meta.url), "utf8"));
+        const plan = yml.jobs.plan.steps.find((x) => x.id === "plan");
+        assert.equal(plan.env.ACCOUNT_REFUSED, "${{ steps.refused.outputs.refused }}");
+        const release = readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+        const marker = parseYaml(release).jobs.llm.steps.find((x) => x.name === "LLM account refused");
+        assert.match(
+            marker.if,
+            /steps\.llm\.outputs\.owner_item != ''/,
+            "the step bisect.yml reads in the red run's jobs",
+        );
     });
 
     it("never bisects an LLM answer that differs between its two confirming runs", () => {

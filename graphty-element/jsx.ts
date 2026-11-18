@@ -612,33 +612,69 @@ export interface GraphtyElementJSXProps {
      * Emitted when voice transcript is available
      */
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     /**
      * Emitted when the map under the location map layout changes state: drawn, loading, or fallen back to the bundled world image because its tiles failed (`error` then carries `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the browser reveals one and null otherwise; an image load never does). The fields are those of `basemapStatus`. A code and facts, never a sentence.
      */
     "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
+    /**
+     * Emitted when the camera moved, with where it is now.
+     */
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
+    /**
+     * Emitted when nodes or edges were added to the graph.
+     */
     "ondata-added"?: (event: CustomEvent<EventOfType<"data-added">>) => void;
     /**
      * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that replaces the dataset -- after every node and edge is gone. It carries nothing, so it survives structured cloning; a consumer that wants the new counts reads them.
      */
     "ondata-cleared"?: (event: CustomEvent<EventOfType<"data-cleared">>) => void;
+    /**
+     * Emitted when a load from a data source has finished adding its data.
+     */
     "ondata-loaded"?: (event: CustomEvent<EventOfType<"data-loaded">>) => void;
+    /**
+     * Emitted when a load has finished.
+     */
     "ondata-loading-complete"?: (event: CustomEvent<EventOfType<"data-loading-complete">>) => void;
+    /**
+     * Emitted for each error a load meets.
+     */
     "ondata-loading-error"?: (event: CustomEvent<EventOfType<"data-loading-error">>) => void;
     /**
      * Emitted when a load skipped records it could not read or store. It carries facts, not words: a reader writes its own message from `code`, `params` and `errors`.
      */
     "ondata-loading-error-summary"?: (event: CustomEvent<EventOfType<"data-loading-error-summary">>) => void;
+    /**
+     * Emitted while a load runs, with how far it has got.
+     */
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     /**
      * Emitted once per `removeNodes` call, naming everything that went.
      */
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
+    /**
+     * Emitted when something the graph was doing failed.
+     */
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
+    /**
+     * Emitted when the layout stops moving.
+     */
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
     /**
      * Emitted once the render loop has started, after the element finished initializing.
@@ -725,34 +761,73 @@ export interface GraphtyElementJSXProps {
      * Emitted when a new layout engine has been built and is now the running layout.
      */
     "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
+    /**
+     * Emitted when a layout is ready to run.
+     */
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
     /**
      * Emitted when a layout could not do everything it was asked. The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does not take (`W_UNKNOWN_OPTION`), or a 2D view replaced its dimension options (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
      */
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
     /**
      * Emitted when the `limits` the element was given are not in force: under `render-path="objects"` the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`); or when more rows ask to be objects than `objectRows` or `objectEdges` allows, so the rest are drawn plain (`W_OBJECT_CAP`, `params.of`, `params.wanted`, `params.cap`). A code and its parameters, never a sentence.
      */
     "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     /**
      * Emitted when a queued operation is aborted before it finished.
      */
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onoperation-obsoleted"?: (event: CustomEvent<EventOfType<"operation-obsoleted">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onoperation-progress"?: (event: CustomEvent<EventOfType<"operation-progress">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onoperation-queue-active"?: (event: CustomEvent<EventOfType<"operation-queue-active">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
     /**
      * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
      */
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     /**
      * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
@@ -762,10 +837,25 @@ export interface GraphtyElementJSXProps {
      * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph held in memory. `rendererStatus.drawing` is true again.
      */
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
+    /**
+     * Emitted when the selected node changed.
+     */
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     /**
      * Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns.
@@ -783,6 +873,9 @@ export interface GraphtyElementJSXProps {
      * Emitted when a VR or AR session has started and the graph is drawing into it.
      */
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
 }
 

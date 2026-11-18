@@ -557,7 +557,7 @@ function groupWalkChildren(node: Loose): unknown[] {
     if (node.kind === "rule") {
         children.push(node.where);
     } else if (node.kind === "all" || node.kind === "any") {
-        children.push(...(Array.isArray(node.of) ? node.of : []));
+        children.push(...(Array.isArray(node.of) ? (node.of as readonly unknown[]) : []));
     } else if (node.kind === "not") {
         children.push(node.of);
     } else if (node.kind === "member") {

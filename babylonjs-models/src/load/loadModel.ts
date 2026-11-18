@@ -669,7 +669,7 @@ function bodyEnd(text: string, open: number): number {
  * @param files - The set.
  * @returns The set, its text layers given the default where it was left out.
  */
-export function withPreviewSurfaceDefaults(files: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, Uint8Array> {
+function withPreviewSurfaceDefaults(files: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, Uint8Array> {
     const out = new Map(files);
     for (const [path, text] of usdTextLayers(files)) {
         let changed = text;
@@ -699,7 +699,7 @@ export function withPreviewSurfaceDefaults(files: ReadonlyMap<string, Uint8Array
  * @param files - The set.
  * @returns The set, its text layers renamed when that applies.
  */
-export function withStPrimvar(files: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, Uint8Array> {
+function withStPrimvar(files: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, Uint8Array> {
     const texts = usdTextLayers(files);
     const all = [...texts.values()];
     const names = new Set(all.flatMap((t) => [...t.matchAll(/texCoord2[dfh]\[\] primvars:(\w+)/g)].map((m) => m[1])));

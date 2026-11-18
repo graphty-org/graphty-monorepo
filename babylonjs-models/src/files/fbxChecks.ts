@@ -432,7 +432,7 @@ export const CURVE_TUBE = Object.freeze({ tessellation: 8, cap: 3 });
  * @param points - The polyline's points.
  * @returns The triangles.
  */
-export function tubeTriangles(points: number): number {
+function tubeTriangles(points: number): number {
     // A ring per point plus a closing ring at each cap, 2 triangles per side between rings.
     return 2 * CURVE_TUBE.tessellation * (points + 3);
 }

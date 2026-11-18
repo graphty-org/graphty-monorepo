@@ -581,7 +581,7 @@ export interface AssetsApi {
 }
 
 /** How `session.assets` reaches the project's model settings: read one, and dispatch a change. */
-export interface ModelDefaultsBinding {
+interface ModelDefaultsBinding {
     read(id: AssetId): ModelDefaults | undefined;
     dispatch(command: {
         readonly op: "asset.defaults";

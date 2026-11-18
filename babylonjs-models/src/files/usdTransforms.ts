@@ -107,7 +107,7 @@ export function compose(a: Affine, b: Affine): Affine {
  * @param m - The transform.
  * @returns Its inverse.
  */
-export function invert(m: Affine): Affine {
+function invert(m: Affine): Affine {
     const [a, b, c, , d, e, f, , g, h, i] = m;
     const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
     if (det === 0 || !Number.isFinite(det)) {

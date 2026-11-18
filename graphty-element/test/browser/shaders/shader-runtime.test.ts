@@ -16,8 +16,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import type { LayerSpec, StyleDocument } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import { shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
 import { CRASH_MARKER_KEY } from "../../../src/shaders/crashMarker";
@@ -101,7 +100,7 @@ async function mounted(before?: (element: Graphty) => void): Promise<{ element: 
  * @returns The counts, live.
  */
 function ticks(element: Graphty): { readonly drawn: number; readonly rested: number } {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.ticks;
+    return renderManagerOf(element.graph).ticks;
 }
 
 /**

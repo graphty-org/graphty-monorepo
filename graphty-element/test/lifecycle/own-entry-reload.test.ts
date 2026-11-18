@@ -6,59 +6,13 @@
  * guard beside own-entry.test.ts's three-engine walk.
  */
 
-import { rmSync } from "node:fs";
-
 import type { BrowserContext, Page } from "playwright";
-import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { ENGINES, launch, profile } from "./engines";
-import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
+import { owned, type PageCheck, useLifecycleFixture } from "./fixture";
 
-/** One entry as the fixture's `listed` reports it. */
-interface Listed {
-    readonly id: string;
-    readonly own: boolean | undefined;
-    readonly live: boolean;
-}
-
-let fx: Fixture;
-const open: { context: BrowserContext; dir: string }[] = [];
-
-beforeAll(async () => {
-    fx = await startFixture();
-});
-
-afterAll(async () => {
-    await fx.close();
-});
-
-afterEach(async () => {
-    for (const { context, dir } of open.splice(0)) {
-        await context.close().catch(() => undefined);
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    }
-});
-
-/**
- * The `listed` report a tab made at or after `from`.
- * @param tab - The tab label.
- * @param from - The log position to start at.
- * @returns The report.
- */
-function listedAt(tab: string, from: number): Promise<LogEvent & { item: string | null; entries: Listed[] }> {
-    return fx.waitFor((e) => e.seq >= from && e.tab === tab && e.type === "listed") as Promise<
-        LogEvent & { item: string | null; entries: Listed[] }
-    >;
-}
-
-/**
- * The ids a listing marks as this tab's own.
- * @param entries - The listing.
- * @returns The ids.
- */
-function owned(entries: readonly Listed[]): string[] {
-    return entries.filter((entry) => entry.own === true).map((entry) => entry.id);
-}
+const { fx, track, listedAt } = useLifecycleFixture();
 
 describe.each(ENGINES)("%s", (engine) => {
     /**
@@ -70,7 +24,7 @@ describe.each(ENGINES)("%s", (engine) => {
     const opened = async (key: string, delay?: number): Promise<{ context: BrowserContext; page: Page }> => {
         const dir = profile(engine);
         const context = await launch(engine, dir);
-        open.push({ context, dir });
+        track(() => context.close(), dir);
         const page = await context.newPage();
         await page.goto(fx.url({ key, tab: `${key}.a`, list: 1, ...(delay === undefined ? {} : { delay }) }));
         await page.waitForFunction("window.fixture !== undefined");
@@ -142,7 +96,7 @@ describe.each(ENGINES)("%s", (engine) => {
         const key = `own-camera-${engine}`;
         const dir = profile(engine);
         const context = await launch(engine, dir);
-        open.push({ context, dir });
+        track(() => context.close(), dir);
         const page = await context.newPage();
         await page.goto(fx.url({ key, tab: `${key}.a`, keepCamera: 1 }));
         await page.waitForFunction("window.fixture !== undefined");

@@ -153,7 +153,9 @@ describe("the trailing slot", () => {
     it("rides 8px in on a data row, which is a list row rather than a grid row", () => {
         renderInPanel(<DataRow name="Mr_Whiskers" value="4" trailing={advanced} />);
 
-        // RT-6 is the documented exception: VOCAB section 3 gives a list row
+        // A data row is the documented exception: design/ui/mockups/system/VOCAB.md
+        // section 3 (see also design/ui/app-shell-progressive-disclosure-design.md)
+        // gives a list row
         // "padding 0 8px, radius 4px" so its selected tint is inset from the
         // panel edge, and the whole row -- name, value and slot -- moves in
         // with it. It is the only row type not measured against the field grid.

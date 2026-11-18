@@ -20,6 +20,7 @@ export const GITHUB_DESCRIPTOR: SourceDescriptor = Object.freeze({
         { name: "repository", plainName: "Repository", type: "string", required: true },
         { name: "path", plainName: "File", type: "string", required: true },
         { name: "ref", plainName: "Branch, tag or commit", type: "string", advanced: true },
+        { name: "release", plainName: "Release", type: "string", advanced: true },
     ],
     features: ["list"],
 });

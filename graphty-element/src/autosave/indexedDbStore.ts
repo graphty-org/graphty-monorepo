@@ -16,6 +16,8 @@
  * @module autosave
  */
 
+import { sha256Hex } from "@graphty/graph-io";
+
 import {
     autosaveAbortError,
     type AutosaveCommitOptions,
@@ -142,22 +144,11 @@ function transactionDone(tx: IDBTransaction): Promise<void> {
 /**
  * The `blobs` key of a large value.
  * @param value - the part's value
- * @returns its SHA-256 with a type prefix, or null where no digest is available
+ * @returns its SHA-256 with a type prefix
  */
-async function sha256(value: string | Uint8Array): Promise<string | null> {
-    const subtle = globalThis.crypto?.subtle as SubtleCrypto | undefined;
-    if (subtle === undefined) {
-        // Outside a secure context there is no digest: the part is stored inline, unshared.
-        return null;
-    }
-    const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
-    const digest = new Uint8Array(await subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>));
-    let hex = "";
-    for (const byte of digest) {
-        hex += byte.toString(16).padStart(2, "0");
-    }
+async function sha256(value: string | Uint8Array): Promise<string> {
     // Text and bytes with the same encoding are different values.
-    return `${typeof value === "string" ? "s" : "b"}:${hex}`;
+    return `${typeof value === "string" ? "s" : "b"}:${await sha256Hex(value)}`;
 }
 
 /**

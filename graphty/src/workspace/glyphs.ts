@@ -27,6 +27,7 @@ import {
     Check,
     ChevronDown,
     ChevronLeft,
+    ChevronRight,
     ChevronsRight,
     Circle,
     CircleAlert,
@@ -101,7 +102,10 @@ import {
     RectangleGoggles,
     Redo2,
     RefreshCw,
+    Rotate3d,
+    RotateCcwSquare,
     RotateCw,
+    RotateCwSquare,
     Route,
     Scan,
     Search,
@@ -299,6 +303,8 @@ export const GLYPHS = {
     // Take a property off the value it varies by, keeping one value.
     unlink: Unlink2,
     back: ChevronLeft,
+    // The next one of several, as back is the one before.
+    next: ChevronRight,
     // The current choice in a list.
     check: Check,
     expand: ChevronDown,
@@ -328,6 +334,10 @@ export const GLYPHS = {
     noPicture: Waypoints,
     // A node drawn as a 3D model, and a picture drawn on a node (the node-models experiment).
     model: Box,
+    // The Load custom model dialog's rotate buttons: a quarter turn about the up axis, and a tip.
+    turnLeft: RotateCcwSquare,
+    turnRight: RotateCwSquare,
+    tip: Rotate3d,
     picture: Image,
     gpu: Zap,
     developer: Code,
@@ -378,6 +388,8 @@ export const GLYPHS = {
     wholeTimeline: ZoomOut,
     // The window moved to where the selection is.
     jumpToSelection: LocateFixed,
+    // The model preview's Reset view: back to the first view of the model.
+    resetView: LocateFixed,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

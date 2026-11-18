@@ -8,14 +8,12 @@
  */
 
 import { fromCsr } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
-import { type GpuContext } from "../../src/context.js";
 import { fixture, randomEdgesLoose, rmatEdges, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { messyEdges, runCooToCsr, runSimpleSymmetric } from "../helpers/structure.js";
 import { csrOfArcs, simpleSymmetricOracle } from "../oracle/coo.js";
-import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+import { gpuScale, sharedContext } from "../setup/gpu.js";
 
 /** Arcs sorted by (source, target) from a seeded list. */
 function sortedArcs(n: number, m: number, seed: number): { src: number[]; dst: number[]; w: number[] } {
@@ -46,14 +44,7 @@ const FIXTURES = [
 ] as const;
 
 describe("cooToCsr (GPU, design 6 row 10)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "coo-to-csr" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "coo-to-csr" });
 
     it("sorted input: rows in input order, bitwise the counting build, bitwise run to run; the flag stays 0", async (t) => {
         const ctx = await context(t);
@@ -127,19 +118,12 @@ describe("cooToCsr (GPU, design 6 row 10)", () => {
     });
 
     afterAll(() => {
-        shared?.dispose();
+        context.dispose();
     });
 });
 
 describe("the simple symmetric graph (GPU, the P11 plan's PD-4)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "simple-symmetric" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "simple-symmetric" });
 
     for (const name of FIXTURES) {
         it(`${name}: bitwise the reference, twice; fromCsr validates it at the full level`, async (t) => {
@@ -236,6 +220,6 @@ describe("the simple symmetric graph (GPU, the P11 plan's PD-4)", () => {
     });
 
     afterAll(() => {
-        shared?.dispose();
+        context.dispose();
     });
 });

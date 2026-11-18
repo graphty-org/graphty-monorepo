@@ -45,7 +45,13 @@
  * that never shows (a hidden radio, issue #5845) ran the full test guard and ended as a bare "Test
  * timed out". `withTestGuards` gives every Playwright provider the wait guard, so the action fails
  * first and says what it was waiting for.
+ *
+ * A page that goes away mid-run (its renderer crashed or was killed, the browser exited) leaves vitest
+ * saying only "Browser connection was closed" (#8763), so `withTestGuards` also makes every Playwright
+ * provider print why when it happens (tools/browser-crash-log.mjs).
  */
+
+import { logBrowserCrashes } from "./browser-crash-log.mjs";
 
 /** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element, a real action) may run. */
 export const WAIT_GUARD_MS = 900_000;
@@ -68,7 +74,8 @@ function guardSetup() {
 }
 
 /**
- * Gives every Playwright provider of a `browser` block the wait guard as its action deadline: the
+ * Gives every Playwright provider of a `browser` block the wait guard as its action deadline, and a report
+ * of a page or browser that goes away mid-run (tools/browser-crash-log.mjs): the
  * block's own and any an instance carries, which wins over it. In place, because the provider reads
  * the object `playwright()` was handed, and a copy of it would change nothing.
  * @param browser - the `browser` block of a `test` block
@@ -77,6 +84,7 @@ function guardActions(browser) {
     for (const provider of [browser.provider, ...(browser.instances ?? []).map((i) => i.provider)]) {
         if (provider?.name === "playwright") {
             provider.options.actionTimeout = WAIT_GUARD_MS;
+            logBrowserCrashes(provider);
         }
     }
 }
@@ -110,6 +118,11 @@ function guardTest(test) {
  */
 export function withTestGuards(config) {
     const test = guardTest(config.test ?? {});
+    // A run with a failed test still writes its coverage. tools/test-quarantine.mjs retries only the
+    // failed files, so when the retry passes, the first run is the shard's only full coverage; vitest's
+    // default drops it, and the full run's coverage check then finds the package missing (#8474).
+    // Root only: vitest reads coverage from the root config, never from an inline project.
+    test.coverage = { ...test.coverage, reportOnFailure: true };
     if (Array.isArray(test.projects)) {
         test.projects = test.projects.map((p) =>
             p && typeof p === "object" && !Array.isArray(p) ? { ...p, test: guardTest(p.test ?? {}) } : p,

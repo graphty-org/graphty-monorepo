@@ -46,13 +46,13 @@ it("reads established local ports from /proc/net/tcp", () => {
     assert.deepEqual([...connectedPorts(proc)], [9102]);
 });
 
-it("stops only a worktree server with no connection for 2 hours", () => {
+it("stops only a worktree server with no connection for 12 hours", () => {
     const stopped = [];
     const run = (now) => stopIdleServers({ root, home, procDir: proc, now, stop: (n) => stopped.push(n) > 0 });
     run(0);
-    run(2 * 3600e3 - 1);
-    assert.deepEqual(stopped, [], "nothing is stopped before 2 hours");
-    const r = run(2 * 3600e3);
+    run(12 * 3600e3 - 1);
+    assert.deepEqual(stopped, [], "nothing is stopped before 12 hours");
+    const r = run(12 * 3600e3);
     assert.deepEqual(stopped, ["sh-idle"]);
     assert.deepEqual(r.stopped, ["idle"]);
 });

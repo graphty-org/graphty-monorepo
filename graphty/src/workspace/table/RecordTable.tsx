@@ -40,6 +40,8 @@ interface Row {
  * @param kind - nodes or edges.
  * @param column - the column.
  * @param record - the row's record.
+ * @param whole - a structure value (degree) is measured over the whole graph (All, or a filter's
+ *     own matches), else over what is shown.
  * @returns the cell's value.
  */
 function cellValue(
@@ -47,9 +49,11 @@ function cellValue(
     kind: RecordKind,
     column: TableColumnChoice,
     record: NodeRecord | EdgeRecord,
+    whole: boolean,
 ): DataTableValue {
     const key = column.attribute ?? column.id;
-    const value = column.structure === true ? session.data.structureValue(record.id, key) : record[key];
+    const scope = whole ? ({ scope: "graph" } as const) : {};
+    const value = column.structure === true ? session.data.structureValue(record.id, key, scope) : record[key];
     if (kind === "edge" && (key === "source" || key === "target")) {
         const id = value as NodeId;
         return session.data.nodeName(id).name;
@@ -68,6 +72,11 @@ interface RecordTableProps {
     columns: readonly TableColumnChoice[];
     /** Which records: the graph, or a group's members. */
     scope: ScopeInput;
+    /**
+     * Structure values (degree) are measured over the whole graph even when the records are a
+     * group's members: a filter's own matches, which read the whole graph. Implied by scope "graph".
+     */
+    wholeGraph?: boolean;
     /** Only the records an open issue is on: one issue's id, or "any" for every open issue; null for every record. */
     issue?: IssueId | null;
     /** The issues each column's warning carries, by column id: a cell on a record they are on is tinted. */
@@ -85,12 +94,6 @@ interface RecordTableProps {
     matching?: string;
     /** A click marks the row in this table only and leaves the graph's selection alone (an editor's preview). */
     localSelection?: boolean;
-    /**
-     * With `groupOf`, a Group column drawn first (a chit and the group's name) in place of the row
-     * tint: the outline-and-pane selection editor's table, while the `selection-workspace`
-     * experiment is off.
-     */
-    groupColumn?: boolean;
 }
 
 /**
@@ -146,24 +149,6 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
 }
 
 /**
- * A row's Group cell: its group's chit and name, or nothing.
- * @param group - the row's group, or null.
- * @param filled - whether the chit is filled with the group's color.
- * @returns the cell.
- */
-function groupCell(group: { name: string; color: string } | null, filled: boolean): React.ReactNode {
-    return group === null ? null : (
-        <span className="ws-table-group">
-            <span
-                className="sel-chit"
-                style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
-            />
-            {group.name}
-        </span>
-    );
-}
-
-/**
  * The records of one kind, read a window at a time from graphty-element's `nodePage` or
  * `edgePage`. The element sorts (a result column by the run's value, a grouping by group size),
  * reads each run's values, and holds the selection; the table draws what it is handed.
@@ -172,6 +157,7 @@ function groupCell(group: { name: string; color: string } | null, filled: boolea
  * @param props.kind - Nodes or edges
  * @param props.columns - The visible columns
  * @param props.scope - Which records
+ * @param props.wholeGraph - Structure values are measured over the whole graph
  * @param props.issue - Only the records an open issue is on
  * @param props.issueColumns - The issues each column's warning carries
  * @param props.sort - The sorted column
@@ -182,7 +168,6 @@ function groupCell(group: { name: string; color: string } | null, filled: boolea
  * @param props.groupOf - The group a record is in, while a selection is edited
  * @param props.matching - Only the records that match this text
  * @param props.localSelection - A click marks the row here only, never the graph's selection
- * @param props.groupColumn - A Group column first in place of the row tint
  * @returns The table
  */
 export function RecordTable({
@@ -200,7 +185,7 @@ export function RecordTable({
     groupOf,
     matching,
     localSelection = false,
-    groupColumn = false,
+    wholeGraph = false,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const [marked, setMarked] = useState<readonly (NodeId | EdgeId)[]>([]);
@@ -275,21 +260,9 @@ export function RecordTable({
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)
-                    : (row) => cellValue(session, kind, column, row.record),
+                    : (row) => cellValue(session, kind, column, row.record, wholeGraph || scope === "graph"),
         };
     });
-
-    if (groupOf !== undefined && groupColumn) {
-        // A chit and the group's name, never a row tint: lime means selected (spec 8).
-        tableColumns.unshift({
-            id: "sel:group",
-            header: "Group",
-            sortable: false,
-            hideable: false,
-            value: (row) => groupOf(row.record.id)?.name,
-            cell: (row) => groupCell(groupOf(row.record.id), filled),
-        });
-    }
 
     // One selection, the element's: the rows draw it and a click on a row changes it.
     const graphSelection = kind === "node" ? session.selection.nodes : session.selection.edges;
@@ -322,7 +295,7 @@ export function RecordTable({
             // Each row is tinted in its group's color while the canvas draws the group colors (the
             // owner, 2026-11-04: no Group column).
             rowColor={
-                groupOf === undefined || !filled || groupColumn
+                groupOf === undefined || !filled
                     ? undefined
                     : (row) => {
                           const color = groupOf(row.record.id)?.color;

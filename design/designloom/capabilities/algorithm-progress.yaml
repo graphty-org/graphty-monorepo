@@ -13,6 +13,7 @@ used_by_workflows:
     - W08
     - W09
     - W10
+    - W21
 implemented_by_components:
     - progress-bar
 requirements:

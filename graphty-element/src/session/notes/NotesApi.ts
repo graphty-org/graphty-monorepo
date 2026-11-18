@@ -172,7 +172,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
         const fields =
             before === undefined || after === undefined
                 ? []
-                : (["text", "targets", "cites", "mediaType", "extensions", "done"] as const).filter(
+                : (["text", "targets", "cites", "mediaType", "extensions", "done", "tags"] as const).filter(
                       (field) => before[field] !== after[field],
                   );
         if (before !== undefined && after !== undefined && fields.length === 0) {
@@ -250,6 +250,11 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
                 found = found.filter((note) => (note.done !== undefined) === options.done);
             }
 
+            if (options.tag !== undefined) {
+                const { tag } = options;
+                found = found.filter((note) => note.tags?.includes(tag) === true);
+            }
+
             if (options.missing !== undefined) {
                 // ponytail: one edge binding pass per note with edge targets; batch through
                 // `rowsOf` if a notes panel filters thousands of edge notes this way.
@@ -287,6 +292,15 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
             }
 
             return Object.freeze([...authors]);
+        },
+
+        tags() {
+            const tags = new Set<string>();
+            for (const note of notes().sort(newestFirst).reverse()) {
+                note.tags?.forEach((tag) => tags.add(tag));
+            }
+
+            return Object.freeze([...tags]);
         },
 
         counts() {

@@ -153,9 +153,9 @@ Gaps found while finishing, each open:
   the layout by the sheet's `ratio=2` as Graphviz does (the same sheet already fails node.width and node.height).
   On a side that names no caption (an SVG of free texts), a specimen labeled as a caption is still dropped.
 - The Cytoscape.js writer keeps a node's own opacity under a translucent class as an exceptions column that comes
-  back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures), and
-  rounds a label offset to 5 decimals where the rules hold 4.333333333333334 (two harness plans, expected
-  failures).
+  back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures). Fixed
+  2026-11-12 (#7179): a label offset read back at 6 significant digits (4.33333) where the block held
+  4.333333333333334; the vis reader's derived label offsets are canonical numbers now.
 - Fixed 2026-11-01 (#3111): Graphviz's arrow gap written into a Cytoscape file (XGMML, CX2) read back as
   Cytoscape's 4, and a per-element exceptions column of repro-shared-interaction.cx2 came back from XGMML and CX2
   as a layer of its own; every format's block repair now takes the block's none as well as its value.
@@ -682,8 +682,8 @@ Still open, each judged against Pajek's drawing:
   (synth-vertices label size 66/71 -> 68/71, color 65/71 -> 69/71; lin-rel4 v226 to v233 225/234 -> 234/234).
 - LightOrange: Pajek's SVG export draws it #ffd9bc (its default vertex fill), not its EPS dictionary's #ffccb3;
   FIXED (2026-10-19) in graph-io's Pajek color table (graphstream-b node fill 93/111 -> 111/111).
-- Pajek quirks graph-io does not copy: `cross` is drawn as an ellipse in the SVG export (graph-io still draws a
-  cross; `edges-lines-p2` `h-cross-1-3` node.shape fails), `Triangle` (capital T) is not a shape, and an `empty`
+- Pajek quirks graph-io did not copy: `cross` is drawn as an ellipse in the SVG export and `Triangle` (capital T) is
+  not a shape (both copied since 2026-11-15, #8193), and an `empty`
   vertex draws no body, which graphty still sizes (synth-vertices width 48/80). A placed line that names no shape and
   starts its parameters with `bc`, `bw`, `s_size`, `phi`, `r`, `q`, `lc`, `la`, `lr`, `lphi`, `fos` or `font` is drawn
   with none of them; graph-io copies this since the third fix round (2026-10-20). The earlier reading that such a
@@ -1523,7 +1523,7 @@ Fixed:
   `ring-hole-0-7`, `-p2` `customgraphics-3-ring`, `-p5` `ring-hole-0-1`).
 - ARROW, HAYSTACK, uncurved parallel edges (bbdf7ce71), the label background box and its ROUND_RECTANGLE corners
   (12b7e0d4d, e6d877107) and OPEN_HALF_CIRCLE caps (dbfd268c8), fixed by the sibling rounds, pass on the session
-  sheets too. Test: `graph-io/test/formats/cys/fix-round-2.test.ts`.
+  sheets too. Test: `graph-io/test/formats/cys/arrows-and-parallel-edges.test.ts`.
 
 Still open, and why:
 
@@ -1850,10 +1850,10 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
 - Shapes:
     - `cross` is drawn as an ellipse, `empty` draws nothing (and its label at size 1 in white), `r` is ignored on
       box and diamond (`specimen-node-shapes` `r-*`), and a shape keyword with a capital letter (`Box`, `Triangle`)
-      or no shape keyword at all draws an ellipse. Open: graph-io reads a shape keyword in any case and keeps it
-      lower-cased in the `shape` column (`isShapeKeyword`, a published helper), so it draws `Box` and `Triangle`
-      as a box and a triangle (`shape-box-capitalized`, `shape-triangle-capitalized`); keeping the keyword as
-      written changes what an import returns, a breaking change left for the owner.
+      or no shape keyword at all draws an ellipse. FIXED (2026-11-15, #8193): graph-io keeps a shape keyword as
+      written in the `shape` column and draws `cross`, and a keyword in any case but lower (`Box`, `Triangle`), as an
+      ellipse (`shape-cross`, `shape-box-capitalized`, `shape-triangle-capitalized`, `h-cross-1-3`, `bw-4-cross`,
+      synth-vertices' crosses).
     - `man` and `woman` are about 2.5 x 6.5 times the size of the other shapes at the same `x_fact` / `y_fact` (50 x
       130 px at 1, against 20 for an ellipse); the sheets draw them at 0.5.
     - `q` reshapes the diamond: 0.01 is a diamond with cut tips, 0.5 a hexagon, 1 a square, 2 a bow tie. FIXED
@@ -1982,7 +1982,10 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
     - FIXED (2026-10-19) SVG Vertices 3D Effect (`Form10.effect3d`): each vertex is a linear gradient from its fill
       to half of it, top to bottom, turned with `phi` (`node-shapes-p2` gradient 0/38 -> 38/38).
     - `x_fact 0 y_fact 0` draws nothing; graphty draws a 2 px dot (`x-fact-0`). The same holds for a vertex a vector
-      value of 0 hides (`specimen-mappings-bypass` `vec-0`).
+      value of 0 hides (`specimen-mappings-bypass` `vec-0`). FIXED (2026-11-15, #8193): Pajek writes it as an
+      `<ellipse rx="0.00">`, which SVG does not render; the oracle reader now leaves out an ellipse or circle of radius
+      0, graph-io draws such an ellipse with no border, and the comparator reads a graphty node of no width or height
+      and no border as drawing no body.
     - A vertex line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`, `s-size-no-shape`) is
       drawn by Pajek with every parameter on the line ignored: default size and fill, and the shape carried from the
       line before (a box on the `node-sizes-opacity` pages, 20 x 20 at the default size, 80 x 80 at Size of Vertices
@@ -3202,7 +3205,7 @@ Fixed:
   now reads the face the same way for every Cytoscape desktop format, and the Cytoscape writer puts bold and italic
   on the name as a Java face suffix (`SansSerif.bold,bold,12`) as desktop itself writes them. NDEx files written by
   other tools (`cx2js/UD-294.cx`, `Dialog,bold,12`) are now drawn plain, as Cytoscape draws them. The sheet passes.
-  Test: `graph-io/test/formats/cx/fix-round-2.test.ts`.
+  Test: `graph-io/test/formats/cx/font-faces.test.ts`.
 - `ARROW` caps, `HAYSTACK` edges and curved-false parallel edges: fixed for all four Cytoscape desktop formats by the
   XGMML round (`bbdf7ce71`); `cx-specimen-arrows` and `-edges-lines` no longer fail on them.
 - Label background size: graphty's box now measures 27.2 x 11.73 against Cytoscape's 27.2 x 11.74 (`labels`,
@@ -3280,7 +3283,7 @@ Fixed:
 - `OPEN_HALF_CIRCLE` caps and the lines under CIRCLE, T and HALF_* caps (`arrows`, `mappings-bypass-p11`): fixed by
   the sibling comparator round; no `edge.arrow` or `edge.route` failure remains on these sheets.
 
-Tests: `graph-io/test/formats/xgmml/fix-round-2.test.ts`, `graphty-element/test/session/file-style-label-box.test.ts`,
+Tests: `graph-io/test/formats/xgmml/arrows-edges-and-label-boxes.test.ts`, `graphty-element/test/session/file-style-label-box.test.ts`,
 `graphty-element/test/browser/oracle-svg-primitives.test.ts` (a family CSS rejects).
 
 Still open, and why:
@@ -3668,7 +3671,7 @@ Rows still open, each with what stops it:
 ## Specimen sheets: Graphviz DOT settings graph-io now reads, and the DOT rows still open (fix round 3, 2026-10-20)
 
 Graph-io now reads these Graphviz settings, each checked against Graphviz 14.1.2's own drawing of the DOT sheets.
-The unit tests are in `graph-io/test/formats/dot/styles-fix-round-3.test.ts`, `graphty-element/test/browser/oracle-svg-primitives.test.ts`
+The unit tests are in `graph-io/test/formats/dot/styles-label-runs-and-places.test.ts`, `graphty-element/test/browser/oracle-svg-primitives.test.ts`
 and `graphty-element/test/fidelity/oracle/compare-oracle-labels.test.ts`.
 
 - HTML `<B>`, `<I>` and `<FONT COLOR FACE POINT-SIZE>` (`dot-specimen-labels-p2` `html-b`, `html-i`, `html-nested`,
@@ -3859,7 +3862,7 @@ Fixed:
   the rule gives every fanned edge's side on both sheets. A collection (`cySubNetworks`), whose elements desktop
   creates in list order, keeps the old fan; a file graphty wrote reads its fan back as written. `edges-lines` and
   `mappings-bypass-p10` pass; `cx-lianhe-affiliation` 19 -> 14 failing, `cx-nci-pid-rhoa` 22 -> 10. Test:
-  `graph-io/test/formats/cx/fix-round-3.test.ts`.
+  `graph-io/test/formats/cx/parallel-edges.test.ts`.
 - `cx-ddram` sub-pixel label lines (comparator; `comparator-text-metrics`): Cytoscape draws the further lines of
   wrapped labels at 0.15 px (node 6907); the association dropped the first line with its node as illegible but kept
   the others as free text no drawing could match. A free oracle text under one render pixel is no longer judged,

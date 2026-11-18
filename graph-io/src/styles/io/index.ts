@@ -14,5 +14,5 @@ export {
     writeStyleBlock,
     type WriteStyleBlockOptions,
 } from "./block.js";
-export { extractStyles, type ExtractStylesOptions, type StyleImportOptions } from "./generic.js";
+export { extractStyles, type ExtractStylesOptions, readFileStyles, type StyleImportOptions } from "./generic.js";
 export { type ExporterStyleInput, type ExporterStyleOptions } from "./writer.js";

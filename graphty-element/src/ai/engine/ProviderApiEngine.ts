@@ -5,8 +5,10 @@
  */
 
 import {
+    AI_IMAGE_MODELS,
     AI_VOICE_CAPABILITIES,
     aiHostedToolStatus,
+    type AiImageModelDescriptor,
     type AiResultCode,
     type AiResultParams,
     aiVoiceStatus,
@@ -18,6 +20,7 @@ import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
+    type GeneratedImage,
     type LiveOpened,
     type LiveOptions,
     type ProviderApiSettings,
@@ -114,6 +117,18 @@ function failed(error: TurnError): { code: Exclude<AiResultCode, "AI_COMPLETED">
     };
 }
 
+/** Gemini's API, when no `baseUrl` is configured. */
+const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
+
+/** The part of Gemini's `generateContent` answer a picture is read from. */
+interface GeminiImageAnswer {
+    readonly candidates?: readonly {
+        readonly content?: {
+            readonly parts?: readonly { readonly inlineData?: { mimeType?: string; data?: string } }[];
+        };
+    }[];
+}
+
 /** A provider's API, called from the page. */
 export class ProviderApiEngine implements AiEngine {
     readonly kind = "provider-api";
@@ -122,6 +137,8 @@ export class ProviderApiEngine implements AiEngine {
     declare transcribe?: (audio: Blob, options: TranscribeOptions, signal: AbortSignal) => Promise<TurnText>;
     declare speak?: (text: string, options: SpeakOptions, signal: AbortSignal) => Promise<SpokenAudio>;
     declare openLive?: (options: LiveOptions, signal: AbortSignal) => Promise<LiveOpened>;
+    declare generateImage?: (prompt: string, signal: AbortSignal) => Promise<GeneratedImage>;
+    declare imageModel?: AiImageModelDescriptor;
 
     /**
      * An engine over a provider's live configuration.
@@ -152,6 +169,12 @@ export class ProviderApiEngine implements AiEngine {
 
         if (AI_VOICE_CAPABILITIES[provider].live?.status === "available") {
             this.openLive = (liveOptions, signal) => this.live(liveOptions, signal);
+        }
+
+        const imageModel = AI_IMAGE_MODELS[provider];
+        if (provider === "google" && imageModel !== undefined) {
+            this.imageModel = imageModel;
+            this.generateImage = (prompt, signal) => this.geminiImage(imageModel.id, prompt, signal);
         }
     }
 
@@ -312,6 +335,57 @@ export class ProviderApiEngine implements AiEngine {
             return await live.openLive(settings, options, signal);
         } catch (error) {
             // The adapter codes its own failures; anything it threw is coded here, never rethrown.
+            return failed(providerFailure(error, settings.provider, signal, [settings.apiKey]));
+        }
+    }
+
+    /**
+     * One picture from Gemini's image model, wide enough for a photo dome. No retry: each call
+     * may be billed, so a failure is reported, never sent again.
+     * @param model - The image model.
+     * @param prompt - What to draw.
+     * @param signal - Cancels the request.
+     * @returns The picture, or the code it failed with: `AI_NO_RESPONSE` when the answer holds
+     *     no picture (the provider declined the prompt).
+     */
+    private async geminiImage(model: string, prompt: string, signal: AbortSignal): Promise<GeneratedImage> {
+        const settings = this.settings();
+        if (settings.apiKey === undefined || settings.apiKey === "") {
+            return failed(keyMissing(settings.provider, signal));
+        }
+
+        try {
+            const base = settings.baseUrl ?? GEMINI_API;
+            const url = `${base.endsWith("/") ? base.slice(0, -1) : base}/models/${encodeURIComponent(model)}:generateContent`;
+            const init: RequestInit = {
+                method: "POST",
+                headers: { "content-type": "application/json", "x-goog-api-key": settings.apiKey },
+                body: JSON.stringify({
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "16:9" } },
+                }),
+                signal,
+            };
+            const response = await (settings.fetch === undefined ? fetch(url, init) : settings.fetch(url, init));
+            if (!response.ok) {
+                throw Object.assign(new Error(`The image request failed with HTTP ${response.status}.`), {
+                    statusCode: response.status,
+                });
+            }
+
+            const answer = (await response.json()) as GeminiImageAnswer;
+            const inline = answer.candidates?.[0]?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData;
+            if (inline?.data === undefined) {
+                return { code: "AI_NO_RESPONSE", params: { provider: settings.provider } };
+            }
+
+            const bytes = Uint8Array.from(atob(inline.data), (char) => char.codePointAt(0) ?? 0);
+            return {
+                code: "AI_COMPLETED",
+                params: {},
+                image: new Blob([bytes], { type: inline.mimeType ?? "image/png" }),
+            };
+        } catch (error) {
             return failed(providerFailure(error, settings.provider, signal, [settings.apiKey]));
         }
     }

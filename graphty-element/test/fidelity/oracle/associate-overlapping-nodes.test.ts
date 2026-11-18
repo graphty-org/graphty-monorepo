@@ -228,3 +228,57 @@ describe("two nodes of one name drawn close together", () => {
         }
     });
 });
+
+describe("lines of one color between nodes drawn on one another", () => {
+    // json-cyjs-perf (#8382): haystack lines end inside their nodes, and where two nodes overlap a line's end lies inside
+    // both. The first line, 1.6 px wide, lies nearest s, whose edge graphty draws 5 px wide; read by distance alone it
+    // took s -> c and left t -> c to the 5 px line, so the two lines swapped widths and routes.
+    const OVER: [string, number, number, number][] = [...NODES.slice(0, 6), ["s", 200, 200, 40], ["t", 210, 200, 60]];
+    const stroke = (width: number): NonNullable<Prim["stroke"]> => ({
+        color: "#999999",
+        opacity: 1,
+        width,
+        dash: null,
+        dashClass: "solid",
+    });
+    const line = (index: number, from: Pt, width: number): Prim => {
+        const points: Pt[] = [from, [500, 100]];
+        return {
+            index,
+            tag: "path",
+            kind: "path",
+            box: boxOfPoints(points),
+            closed: false,
+            corners: 0,
+            fill: null,
+            stroke: stroke(width),
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            points,
+        };
+    };
+    const edge = (id: string, source: string, width: number): PScene["edges"][number] => ({
+        id,
+        source,
+        target: "c",
+        points: [],
+        stroke: stroke(width),
+        arrows: [],
+        label: null,
+    });
+
+    it("gives each line the edge graphty draws at its width", () => {
+        const discs: Prim[] = OVER.map(([, x, y, size], index) => {
+            const points = disc(x, y, size / 2);
+            return { ...prims[0], index, box: boxOfPoints(points), points };
+        });
+        const drawn = [...discs, line(OVER.length, [203, 200], 1.6), line(OVER.length + 1, [208, 200], 5)];
+        const scene: PScene = { ...guide, nodes: OVER.map(node), edges: [edge("e1", "s", 5), edge("e2", "t", 1.6)] };
+        const o = associate(drawn, 600, 400, scene).scene;
+        const width = (id: string): number | undefined =>
+            o.edges.find((e) => [e.source, e.target].sort().join("-") === `c-${id}`)?.stroke?.width;
+        assert.strictEqual(width("s"), 5);
+        assert.strictEqual(width("t"), 1.6);
+    });
+});

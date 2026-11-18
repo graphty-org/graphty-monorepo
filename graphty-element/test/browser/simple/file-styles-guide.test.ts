@@ -11,8 +11,8 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { openAndSave } from "../../../docs/examples/file-styles/open-and-save";
 import type { Graphty } from "../../../index.js";
-import { fileStyleOf } from "../../../session";
 import { fileStylesOn } from "../../helpers/file-styles-on";
+import { loadedLayers } from "../../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -76,7 +76,7 @@ describe("the styles-from-files guide's first example", () => {
         const published: unknown = element;
         const graphml = await openAndSave(published as PublishedGraphty, "https://example.com/teams.gexf");
 
-        const fileLayers = element.session.styles.list().filter((layer) => fileStyleOf(layer) !== null);
+        const fileLayers = loadedLayers(element.session);
         assert.isNotEmpty(fileLayers);
         assert.strictEqual(color(element, "n1"), "#ff0000");
         assert.strictEqual(color(element, "n0"), "#0000ff");
@@ -88,11 +88,8 @@ describe("the styles-from-files guide's first example", () => {
         assert.strictEqual(color(again, "n1"), "#ff0000");
         assert.strictEqual(color(again, "n0"), "#0000ff");
         assert.deepEqual(
-            again.session.styles
-                .list()
-                .map((layer) => fileStyleOf(layer)?.ruleId)
-                .filter((id) => id !== undefined),
-            fileLayers.map((layer) => fileStyleOf(layer)?.ruleId),
+            loadedLayers(again.session).map((layer) => layer.name),
+            fileLayers.map((layer) => layer.name),
         );
     });
 

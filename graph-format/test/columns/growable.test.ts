@@ -5,7 +5,14 @@ import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { bitmapCount, bitmapToIndices } from "../../src/columns/bitmap.js";
 import { GrowableBitmap, GrowableTypedArray } from "../../src/columns/growable.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { HAS_RESIZABLE_ARRAY_BUFFER, STAGING_RESERVE_BYTES } from "../../src/util/typed-array.js";
+import {
+    HAS_RESIZABLE_ARRAY_BUFFER,
+    STAGING_RESERVE_BYTES,
+    STAGING_RESIZABLE_MIN_BYTES,
+} from "../../src/util/typed-array.js";
+
+/** Pushes enough u32 elements to take a staging array past STAGING_RESIZABLE_MIN_BYTES. */
+const PAST_MIN_U32 = STAGING_RESIZABLE_MIN_BYTES / 4 + 1;
 
 /** Both growth strategies of design section 6.2, run against every test below. */
 const STRATEGIES: readonly { readonly name: string; readonly resizable: boolean }[] = [
@@ -19,7 +26,7 @@ describe.each(STRATEGIES)("GrowableTypedArray ($name)", ({ resizable }) => {
         expect(g.length).toBe(0);
         expect(g.capacity).toBe(0);
         expect(g.array.length).toBe(0);
-        expect(g.array.buffer.resizable).toBe(resizable);
+        expect(g.array.buffer.resizable).toBe(false); // under STAGING_RESIZABLE_MIN_BYTES on both strategies
         expect(g.push(7)).toBe(0);
         expect(g.length).toBe(1);
         expect(g.capacity).toBe(16);
@@ -52,7 +59,7 @@ describe.each(STRATEGIES)("GrowableTypedArray ($name)", ({ resizable }) => {
             expect(g.get(i)).toBe(i * 3);
         }
         expect(g.array.buffer.byteLength % 64).toBe(0);
-        expect(g.array.buffer.resizable).toBe(resizable);
+        expect(g.array.buffer.resizable).toBe(false); // 4 KiB, under STAGING_RESIZABLE_MIN_BYTES
     });
 
     it("pushAll appends a bulk range and returns its first index", () => {
@@ -239,21 +246,40 @@ describe("staging address-space reservations", () => {
     // WebKit gives a process about 64 GiB for ArrayBuffers and frees a reservation only when its
     // buffer is garbage collected; at 256 MiB a buffer, a builder reserved 2 GiB and a page holding
     // a few graphs threw "RangeError: Out of memory".
-    it("an empty builder reserves a few MiB, not gigabytes", () => {
-        const reserved = reservedBytesDuring(() => new GraphBuilder({ directed: false }));
-        expect(reserved).toBeGreaterThan(0);
-        expect(reserved).toBeLessThanOrEqual(16 * STAGING_RESERVE_BYTES);
-        expect(reserved).toBeLessThan(64 * 1024 * 1024);
+    it("an empty builder reserves no address space", () => {
+        expect(reservedBytesDuring(() => new GraphBuilder({ directed: false }))).toBe(0);
+    });
+
+    // V8 maps every resizable buffer on its own: 100k one-row columns took 200k memory mappings, past
+    // vm.max_map_count on the CI runner, and the import threw "ArrayBuffer.prototype.resize: Out of memory".
+    it("100k one-row columns reserve no address space", () => {
+        const reserved = reservedBytesDuring(() => {
+            for (let i = 0; i < 100_000; i++) {
+                new GrowableTypedArray(Float64Array, { resizable: true }).push(i);
+            }
+        });
+        expect(reserved).toBe(0);
+    });
+
+    it("a column past STAGING_RESIZABLE_MIN_BYTES reserves STAGING_RESERVE_BYTES", () => {
+        const g = new GrowableTypedArray(Uint32Array, { resizable: true });
+        const reserved = reservedBytesDuring(() => {
+            for (let i = 0; i < PAST_MIN_U32; i++) {
+                g.push(i);
+            }
+        });
+        expect(reserved).toBe(STAGING_RESERVE_BYTES);
     });
 
     it("a column grown to 64 MiB is copied at most twice, its reservation growing with it", () => {
         const g = new GrowableTypedArray(Uint32Array, { resizable: true });
-        const buffers = new Set<ArrayBufferLike>();
+        const buffers = new Set<ArrayBuffer>();
         for (let i = 0; i < 16 * 1024 * 1024; i++) {
             g.push(i);
             buffers.add(g.array.buffer);
         }
-        expect(buffers.size).toBeLessThanOrEqual(3);
+        // the plain buffers under STAGING_RESIZABLE_MIN_BYTES are copied as they double; past it, at most twice
+        expect([...buffers].filter((b) => b.resizable).length).toBeLessThanOrEqual(3);
         expect(g.array.buffer.maxByteLength).toBeLessThanOrEqual(256 * 1024 * 1024);
         expect(g.get(16 * 1024 * 1024 - 1)).toBe(16 * 1024 * 1024 - 1);
     });
@@ -263,16 +289,18 @@ describe("GrowableTypedArray growth mechanics", () => {
     it("keeps the same buffer while growing in place on the resizable path", () => {
         expect(HAS_RESIZABLE_ARRAY_BUFFER).toBe(true);
         const g = new GrowableTypedArray(Uint32Array, { resizable: true });
-        g.push(1);
+        for (let i = 0; i < PAST_MIN_U32; i++) {
+            g.push(i);
+        }
         const { buffer } = g.array;
         expect(buffer.resizable).toBe(true);
         expect(buffer.maxByteLength).toBe(STAGING_RESERVE_BYTES);
-        for (let i = 1; i < 5000; i++) {
+        for (let i = PAST_MIN_U32; i < 100_000; i++) {
             g.push(i);
         }
         expect(g.array.buffer).toBe(buffer);
         expect(buffer.byteLength).toBe(g.capacity * 4);
-        expect(g.get(4999)).toBe(4999);
+        expect(g.get(99_999)).toBe(99_999);
     });
 
     it("replaces the buffer on every growth of the copy path", () => {
@@ -291,7 +319,9 @@ describe("GrowableTypedArray growth mechanics", () => {
 
     it("defaults to the detected strategy", () => {
         const g = new GrowableTypedArray(Uint32Array);
-        g.push(1);
+        for (let i = 0; i < PAST_MIN_U32; i++) {
+            g.push(i);
+        }
         expect(g.array.buffer.resizable).toBe(HAS_RESIZABLE_ARRAY_BUFFER);
     });
 });
@@ -404,7 +434,7 @@ describe.each(STRATEGIES)("GrowableBitmap ($name)", ({ resizable }) => {
         b.set(39, true);
         const view = b.view();
         expect(view.length).toBe(2);
-        expect(view.buffer.resizable).toBe(resizable);
+        expect(view.buffer.resizable).toBe(false); // under STAGING_RESIZABLE_MIN_BYTES
         view[0] = 1;
         expect(b.get(0)).toBe(true);
         const trimmed = b.trim();

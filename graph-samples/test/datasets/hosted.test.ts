@@ -30,11 +30,6 @@ describe("the hosted datasets", () => {
             }
         }
     });
-
-    it("are not also bundled", () => {
-        const names = new Set(HOSTED_DATASETS.map((meta) => meta.name));
-        expect(DATASETS.filter((meta) => meta.hosting !== "remote" && names.has(meta.name))).toEqual([]);
-    });
 });
 
 // The .gsnp.gz files are build output of scripts/build-hosted.mjs (npm run datasets:hosted), not

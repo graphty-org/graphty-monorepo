@@ -19,6 +19,7 @@ import * as nodePath from "node:path";
 import * as url from "node:url";
 
 import { type GpuCaps } from "../../src/types/context.js";
+import { noiseDirOverride, noiseFloorWriting } from "../setup/env.js";
 
 /**
  * A path under the package root, resolved on use (never at module load, see the imports).
@@ -42,10 +43,8 @@ function noiseFloorFile(): string {
  * @returns the absolute directory
  */
 function noiseDir(): string {
-    const override = process.env.GRAPHTY_NOISE_DIR;
-    return override === undefined || override === ""
-        ? packagePath("test", "fixtures", "noise")
-        : nodePath.resolve(override);
+    const override = noiseDirOverride();
+    return override === undefined ? packagePath("test", "fixtures", "noise") : nodePath.resolve(override);
 }
 
 /**
@@ -112,14 +111,6 @@ function safe(s: string): string {
 }
 
 /**
- * Whether writes are enabled (GRAPHTY_NOISE_FLOOR_WRITE=1).
- * @returns true when this run records fixtures and rows
- */
-function writing(): boolean {
-    return process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
-}
-
-/**
  * Where a per-adapter raw output lives: test/fixtures/noise/<kernel>-<fixture>-<adapterClass>.json (under
  * GRAPHTY_NOISE_DIR instead when that test-only variable is set).
  * @param kernel - the kernel id
@@ -183,7 +174,7 @@ export function writeNoiseFixture(
     values: ArrayLike<number>,
     dtype: "f32" | "u32",
 ): void {
-    if (!writing()) {
+    if (!noiseFloorWriting()) {
         return;
     }
     fs.mkdirSync(noiseDir(), { recursive: true });
@@ -271,7 +262,7 @@ function readNoiseFloor(): NoiseFloorDocument | null {
  * @param row - the row to record
  */
 export function recordNoiseRow(row: NoiseRow): void {
-    if (!writing()) {
+    if (!noiseFloorWriting()) {
         return;
     }
     fs.mkdirSync(nodePath.dirname(noiseFloorFile()), { recursive: true });
@@ -308,6 +299,47 @@ export function noiseFloorFor(testId: string): { readonly value: number; readonl
         throw new Error(`noise floor: tolerance "${testId}" names basis row "${entry.basis}", which is not recorded`);
     }
     return { value: entry.value, basis: entry.basis };
+}
+
+/** A tolerance id's spec cap and the noise-floor basis row its derived value must come from. */
+export interface ToleranceCap {
+    readonly cap: number;
+    readonly basis: string;
+}
+
+/**
+ * The tolerance a parity test uses: the derived value of benchmarks/results/noise-floor.json (noiseFloorFor),
+ * asserted to come from the basis row the caps table names and to sit under its spec cap (a floor above the cap is
+ * a finding, spec 10.4, never a loosened cap), or the spec cap itself during a recording run
+ * (GRAPHTY_NOISE_FLOOR_WRITE=1), when the derived values do not exist yet. The one copy of this rule for every caps
+ * table (P3 FA2, P4 grid, P5 FR and spring, SSSP).
+ * @param caps - the caps table that owns `id`
+ * @param id - the tolerance id
+ * @param table - the table's name, for the error when `id` is not in it
+ * @returns the tolerance value and its basis row
+ */
+export function resolveTolerance(
+    caps: Readonly<Record<string, ToleranceCap>>,
+    id: string,
+    table: string,
+): { readonly value: number; readonly basis: string } {
+    if (!(id in caps)) {
+        throw new Error(`${id}: not a ${table} tolerance id`);
+    }
+    const spec = caps[id];
+    if (noiseFloorWriting()) {
+        return { value: spec.cap, basis: spec.basis };
+    }
+    const derived = noiseFloorFor(id);
+    if (derived.basis !== spec.basis) {
+        throw new Error(`${id}: the committed basis row ${derived.basis} is not ${spec.basis}`);
+    }
+    if (!(derived.value <= spec.cap)) {
+        throw new Error(
+            `${id}: the derived tolerance ${derived.value} is above the spec cap ${spec.cap} (a finding, spec 10.4)`,
+        );
+    }
+    return derived;
 }
 
 /**

@@ -354,9 +354,17 @@
                 "done": {
                     "$ref": "#/$defs/timestamp",
                     "description": "When the note was marked done. Absent: not done. A later version 1 field: an older reader keeps it as an unknown field and writes it back."
+                },
+                "tags": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 64,
+                    "uniqueItems": true,
+                    "items": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
+                    "description": "Words the writer files the note under. Distinct, each 1 to 256 characters and not only white space. A later version 1 field: an older reader keeps it as an unknown field and writes it back."
                 }
             },
-            "description": "One note. Open: a reader keeps fields it does not know and writes them back. A later version 1 field MUST stay valid when text, targets or cites change without it. Reserved field names for later: inReplyTo, tags.",
+            "description": "One note. Open: a reader keeps fields it does not know and writes them back. A later version 1 field MUST stay valid when text, targets or cites change without it. Reserved field names for later: inReplyTo.",
             "maxProperties": 64
         }
     }

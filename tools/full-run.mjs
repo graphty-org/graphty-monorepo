@@ -400,10 +400,11 @@ export const REPLACEABLE = new Set(["red", "owner-item", "rejected", "refused", 
  * @param [o.heldState] the held head's own latest verdict ("" when no run judged it)
  * @param [o.newer] whether the judged commit is newer on master than the held one (its history holds it)
  * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end the held head: a newer
- *   green-clean commit then promotes, a green-images one is held in its place) or "none"
+ *   green-clean commit then promotes, a green-images one is held in its place), "unknown" (the store did not say what
+ *   is held: nothing can be decided, and release.yml fails the Verdict job so a re-run decides, #5597) or "none"
  */
 export function holdAction({ held, sha, state, heldState = "", newer = false }) {
-    if (held === "unknown") return "none";
+    if (held === "unknown") return "unknown";
     if (!held) return state === "green-clean" ? "none" : "start";
     if (held === sha) return "update";
     const green = state === "green-clean" || state === "green-images";
@@ -502,6 +503,14 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
 }
 
 /**
+ * bisect.yml's run name (its run-name), which carries the lane and the range's green commit.
+ * @param lane the bisect.yml lane
+ * @param good the last green full-run commit
+ * @returns the run name
+ */
+export const bisectRunName = (lane, good) => `Bisect (${lane} lane) from ${good}`;
+
+/**
  * The bisect.yml dispatch for a red run, or why there is none.
  * @param o the facts
  * @param o.red the lanes that did not pass (LANES keys)
@@ -509,12 +518,19 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
  * @param o.good the last green full-run commit, or empty
  * @param o.run the run id
  * @param o.failures `GET /v1/failures`'s answer, or null
+ * @param [o.bisected] the run names of recent bisect.yml runs ("Bisect (llm lane) from <good>")
  * @returns `{ inputs }` for bisect.yml, or `{ why }`
  */
-export function bisectPlan({ red, sha, good, run, failures }) {
+export function bisectPlan({ red, sha, good, run, failures, bisected = [] }) {
     const lane = red.find((l) => LANES[l].bisect);
     if (!lane) return { why: `${red.map((l) => LANES[l].name).join(", ")}: no bisect; the pipeline round looks` };
     if (!good) return { why: "no green full run is recorded before this one, so there is no range to bisect" };
+    // every point of an llm bisect is paid: a later red from the same green commit (no green run between) re-ran
+    // the same points of the same range for about $10 on 2026-11-14 (#8314), so the earlier bisect answers it
+    if (lane === "llm" && bisected.includes(bisectRunName("llm", good)))
+        return {
+            why: `the LLM lane's range from ${short(good)} is already bisected (a paid lane); the pipeline round looks`,
+        };
     // ponytail: the first MAX_TARGETS failing tests; a dispatch input holds at most 65,535 characters, and a
     // broken setup fails a thousand tests that all bisect to the same merge
     const tests = lane === "ci" ? (failures?.tests ?? []).slice(0, MAX_TARGETS) : [];
@@ -578,8 +594,11 @@ const output = (fields) => {
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
     console.log(lines.join("\n"));
 };
-const read = async (cfg, path) => {
-    const r = await call(cfg, "GET", path);
+// The held head's read waits longer than call()'s own retries (1 + 3 s): a store that answered 5xx for 12 s left a
+// newer green-images verdict unable to replace the hold (#5597), and the verdict has minutes to spare.
+const HELD_RETRY_MS = [5000, 15000, 30000, 60000];
+const read = async (cfg, path, retryMs = undefined) => {
+    const r = await call(retryMs ? { ...cfg, retryMs: cfg.retryMs ?? retryMs } : cfg, "GET", path);
     if (!r.ok) console.log(`::warning::results store: GET ${path} did not answer (${r.why})`);
     return r.ok ? r.data : null;
 };
@@ -592,7 +611,7 @@ const read = async (cfg, path) => {
  */
 export async function heldNow(cfg, fallback) {
     if (!cfg) return { head: fallback ?? "unknown", base: "", state: "" };
-    const store = await read(cfg, "/v1/candidate");
+    const store = await read(cfg, "/v1/candidate", HELD_RETRY_MS);
     if (!store) return { head: "unknown", base: "", state: "" };
     const hold = store.hold;
     if (!hold?.head) return { head: "", base: "", state: "" };
@@ -1190,7 +1209,25 @@ export function fileFlakies(env, lanes, stories, run = sh) {
 async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes, refused = [] }) {
     const failures = cfg ? await read(cfg, `/v1/failures?run=${runId}&good=${good}`) : null;
     const coded = red.filter((l) => !refused.includes(l));
-    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures }));
+    // a listing GitHub fails leaves the bisect to dispatch: a missed duplicate costs one bisect, a missed red more
+    const bisected = bestEffort(
+        () =>
+            sh("gh", [
+                "run",
+                "list",
+                "--workflow",
+                "bisect.yml",
+                "--limit",
+                "100",
+                "--json",
+                "displayTitle",
+                "--jq",
+                ".[].displayTitle",
+            ]).split("\n"),
+        "listing the recent bisects",
+        () => [],
+    );
+    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures, bisected }));
     const body = redIssue({ sha, red, lanes, run: runUrl, bisect });
     const issue = bestEffort(
         () => fileRed(body),

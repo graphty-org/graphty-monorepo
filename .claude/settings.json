@@ -20,7 +20,16 @@
             "Read(**/*.pem)",
             "Read(**/*.key)",
             "Read(**/id_rsa*)",
-            "Read(**/id_ed25519*)"
+            "Read(**/id_ed25519*)",
+            "Bash(git stash)",
+            "Bash(git stash push:*)",
+            "Bash(git stash save:*)",
+            "Bash(git stash pop:*)",
+            "Bash(git stash apply:*)",
+            "Bash(git stash drop:*)",
+            "Bash(git stash clear:*)",
+            "Bash(git stash branch:*)",
+            "Bash(git stash -:*)"
         ]
     },
     "hooks": {
@@ -31,6 +40,16 @@
                     {
                         "type": "command",
                         "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-no-foreground-wait.mjs\"",
+                        "timeout": 5
+                    }
+                ]
+            },
+            {
+                "matcher": "AskUserQuestion",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-no-questions-in-rounds.mjs\"",
                         "timeout": 5
                     }
                 ]
@@ -53,6 +72,17 @@
                     {
                         "type": "command",
                         "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-area-rules.mjs\""
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/issue-round-idle-hook.mjs\"",
+                        "timeout": 5
                     }
                 ]
             }

@@ -221,6 +221,13 @@ const OFF_SHARDS = [
         "test-command": "pnpm exec nx run graph-samples:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // gazetteer - single shard (Node.js, no browser)
+    {
+        shard: "gazetteer",
+        package: "gazetteer",
+        "test-command": "pnpm exec nx run gazetteer:coverage --exclude-task-dependencies",
+        "needs-browser": false,
+    },
     // babylonjs-map - single shard (Node.js, no browser)
     {
         shard: "babylonjs-map",
@@ -612,6 +619,7 @@ export const GROUPS = {
     "small-node": [
         "graph-format",
         "graph-samples",
+        "gazetteer",
         "babylonjs-map",
         "babylonjs-models",
         "cytoscape-extensions",
@@ -640,6 +648,8 @@ export const GROUPS = {
 export const GROUP_MEMBER_SECONDS = {
     "graph-format": 78,
     "graph-samples": 39,
+    // Measured locally on 2026-11-15 (about 1 s of tests, 2 s with transform); remeasure from the group job's log.
+    gazetteer: 5,
     "babylonjs-map": 3,
     // Measured locally on 2026-11-14 (about 2 s of vitest with coverage); remeasure from the group job's log.
     "babylonjs-models": 4,

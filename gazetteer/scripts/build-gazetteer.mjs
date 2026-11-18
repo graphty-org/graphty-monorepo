@@ -1,38 +1,38 @@
 #!/usr/bin/env node
 /**
- * Build the gazetteer graphty.app serves at https://graphty.app/data/gazetteer/v1/, which the
- * location map layout reads place names with (src/layout/locationMap/gazetteer.ts):
+ * Build the data of @graphty/gazetteer, the place names the location map layout of graphty-element
+ * reads (graphty-element/src/layout/locationMap/gazetteer.ts):
  *
- *     node graphty-element/scripts/build-gazetteer.mjs [--cache <dir>] [--out <dir>]
+ *     node gazetteer/scripts/build-gazetteer.mjs [--cache <dir>] [--out <dir>]
  *
  * It fetches its sources once into the cache directory (default: <repo>/tmp/gazetteer-sources),
- * refuses a Natural Earth file whose SHA-256 is not the one recorded here, and writes one gzipped
- * JSON file per layer into the output directory (default: <repo>/graph-samples/public-data/gazetteer/v1,
- * build output beside graph-samples' hosted datasets, not committed):
+ * refuses a Natural Earth file whose SHA-256 is not the one recorded here, and writes one JSON file
+ * per layer into the output directory (default: gazetteer/data, committed; the package build turns
+ * each into its own ES module):
  *
- *   countries.json.gz  Natural Earth 1:10m admin 0 countries (public domain): name, other names
- *                      and ISO codes, label point, population
- *   regions.json.gz    Natural Earth 1:10m admin 1 states and provinces (public domain): name, other
- *                      names, postal and ISO 3166-2 codes, label point
- *   cities.json.gz     GeoNames cities15000 (CC BY 4.0), trimmed: name, Latin-script other names,
- *                      country, first-level region, point, population
+ *   countries.json  Natural Earth 1:10m admin 0 countries (public domain): name, other names and
+ *                   ISO codes, label point, population
+ *   regions.json    Natural Earth 1:10m admin 1 states and provinces (public domain): name, other
+ *                   names, postal and ISO 3166-2 codes, label point
+ *   cities.json     GeoNames cities15000 (CC BY 4.0), trimmed: name, Latin-script other names,
+ *                   country, first-level region, point, population
  *
  * Each file is { format: "graphty-gazetteer", version: 1, layer, attribution, source, license,
  * fields, places }, every place a row of `fields`: [name, alternates, country, region, latitude,
- * longitude, population]. `country` is the ISO 3166-1 alpha-2 code and `region` the GeoNames
- * first-level key ("US.TX"); a Natural Earth region carries it when GeoNames names that key the
- * same, and the cities file adds `regions`, GeoNames' names of each key its cities carry
- * ({ "US.TX": ["Texas"] }), so a city is narrowed by a region name. GeoNames publishes cities15000 again every day and keeps no old copies, so its
- * checksum is not pinned; the files record the date they were built from. Needs `unzip` on the PATH.
- * deploy-pages.yml runs it and tools/assemble-pages-site.sh publishes the output.
+ * longitude, population], one row per line. `country` is the ISO 3166-1 alpha-2 code and `region`
+ * the GeoNames first-level key ("US.TX"); a Natural Earth region carries it when GeoNames names that
+ * key the same, and the cities file adds `regions`, GeoNames' names of each key its cities carry
+ * ({ "US.TX": ["Texas"] }), so a city is narrowed by a region name. GeoNames publishes cities15000
+ * again every day and keeps no old copies, so its checksum is not pinned; the cities file records the
+ * date each GeoNames file was downloaded (the cached file's modification time, set when it is fetched).
+ * Needs `unzip` on the PATH.
  */
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { gzipSync } from "node:zlib";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const flag = (name, fallback) => {
@@ -40,7 +40,7 @@ const flag = (name, fallback) => {
     return at >= 0 ? path.resolve(process.argv[at + 1]) : fallback;
 };
 const cacheDir = flag("--cache", path.join(repoRoot, "tmp/gazetteer-sources"));
-const outDir = flag("--out", path.join(repoRoot, "graph-samples/public-data/gazetteer/v1"));
+const outDir = flag("--out", path.join(repoRoot, "gazetteer/data"));
 
 const NATURAL_EARTH = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/";
 const SOURCES = {
@@ -63,7 +63,7 @@ const NATURAL_EARTH_LICENSE = "Public domain (Natural Earth, https://www.natural
 /**
  * A source file, from the cache or fetched into it, checked against its recorded checksum.
  * @param source - The source.
- * @returns The bytes.
+ * @returns The bytes, the cached file and the date it was downloaded (YYYY-MM-DD, UTC).
  */
 async function sourceBytes(source) {
     const file = path.join(cacheDir, path.basename(new URL(source.url).pathname));
@@ -83,11 +83,11 @@ async function sourceBytes(source) {
         throw new Error(`${file}: SHA-256 ${sha}, expected ${source.sha256}`);
     }
 
-    return { bytes, file };
+    return { bytes, file, fetched: statSync(file).mtime.toISOString().slice(0, 10) };
 }
 
 /**
- * A name as the layout matches it (mirrors normalizePlace in gazetteer.ts).
+ * A name as the layout matches it (mirrors normalizePlace in graphty-element's gazetteer.ts).
  * @param value - The name.
  * @returns The key.
  */
@@ -237,7 +237,8 @@ async function regions() {
  * @returns The file.
  */
 async function cities() {
-    const { file } = await sourceBytes(SOURCES.cities);
+    const { file, fetched } = await sourceBytes(SOURCES.cities);
+    const admin1Fetched = (await sourceBytes(SOURCES.admin1)).fetched;
     const text = execFileSync("unzip", ["-p", file, "cities15000.txt"], { maxBuffer: 1 << 30 }).toString("utf8");
     const places = [];
     for (const line of text.split("\n")) {
@@ -264,7 +265,7 @@ async function cities() {
 
     const layer = layerFile(
         "city",
-        `${SOURCES.cities.url}, ${SOURCES.admin1.url} (${new Date().toISOString().slice(0, 10)})`,
+        `${SOURCES.cities.url} (${fetched}), ${SOURCES.admin1.url} (${admin1Fetched})`,
         "CC BY 4.0 (GeoNames, https://www.geonames.org/)",
         { text: "GeoNames", url: "https://www.geonames.org/" },
         places,
@@ -276,6 +277,26 @@ async function cities() {
     return layer;
 }
 
+/**
+ * A layer file as JSON text, one place (and one region) per line, so a rebuild's diff shows the
+ * places that changed.
+ * @param file - The layer file.
+ * @returns The text.
+ */
+function layerJson(file) {
+    const { places, regions, ...head } = file;
+    const lines = (rows) => rows.map((row) => JSON.stringify(row)).join(",\n");
+    const parts = [JSON.stringify(head).slice(1, -1), `"places":[\n${lines(places)}\n]`];
+    if (regions !== undefined) {
+        const entries = Object.entries(regions).map(
+            ([key, names]) => `${JSON.stringify(key)}:${JSON.stringify(names)}`,
+        );
+        parts.push(`"regions":{\n${entries.join(",\n")}\n}`);
+    }
+
+    return `{${parts.join(",")}}\n`;
+}
+
 mkdirSync(outDir, { recursive: true });
 for (const [name, build] of [
     ["countries", countries],
@@ -283,7 +304,7 @@ for (const [name, build] of [
     ["cities", cities],
 ]) {
     const file = await build();
-    const gz = gzipSync(Buffer.from(JSON.stringify(file)), { level: 9 });
-    writeFileSync(path.join(outDir, `${name}.json.gz`), gz);
-    console.log(`${name}.json.gz: ${file.places.length} places, ${gz.length} bytes`);
+    const text = layerJson(file);
+    writeFileSync(path.join(outDir, `${name}.json`), text);
+    console.log(`${name}.json: ${file.places.length} places, ${text.length} bytes`);
 }

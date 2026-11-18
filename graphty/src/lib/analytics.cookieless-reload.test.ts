@@ -10,6 +10,7 @@ import { interceptPostHog, POSTHOG_TEST_HOST, type PostHogTestNetwork, sentEvent
 import { forgetUsageAnswer } from "../workspace/privacy/usageData";
 import {
     count,
+    importPostHogModule,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
     startAnalyticsAtBoot,
@@ -62,7 +63,7 @@ describe("a sharing reader's reload", () => {
         localStorage.setItem("graphty.usageData.v1", "share");
         // Every removal made while the anonymous instance is being created. The shared instance
         // rewrites its own entries as it runs, so only this window says what the anonymous init did.
-        const { default: posthog } = await import("posthog-js/full/no-external");
+        const { default: posthog } = await importPostHogModule();
         const init = posthog.init.bind(posthog);
         let inAnonymousInit = false;
         vi.spyOn(posthog, "init").mockImplementation((token, options, name) => {

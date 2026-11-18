@@ -21,6 +21,7 @@ import {
 } from "../test/posthog-network";
 import {
     count,
+    importPostHogModule,
     postHog,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
@@ -316,7 +317,7 @@ describe("the real posthog-js chunk", () => {
         // is still loading: no id is stored yet, so it loads nothing and makes no id of its own.
         stopPostHog();
         resetAnalyticsForTests();
-        const imports = vi.fn(() => import("posthog-js/full/no-external"));
+        const imports = vi.fn(importPostHogModule);
         setAnalyticsCallsForTests({
             hostname: () => "graphty.app",
             posthogHost: PREFIX,
@@ -347,6 +348,23 @@ describe("the real posthog-js chunk", () => {
         assert.isTrue(client.config.disable_surveys_automatic_display);
         assert.isFalse(client.config.disable_surveys);
         stopPostHog();
+    });
+
+    it("leaves none of PostHog's survey records behind when sharing stops", async () => {
+        const client = await started();
+        // As the survey card sends an answer and a dismissal.
+        client.capture("survey sent", { $survey_id: "SURVEY_A", $survey_response: "teach" });
+        client.capture("survey dismissed", { $survey_id: "SURVEY_B" });
+        const surveyKeys = (): string[] => Object.keys(localStorage).filter((key) => key.startsWith("seenSurvey_"));
+        // Not vacuous: posthog-js wrote them itself, past before_send.
+        assert.sameMembers(surveyKeys(), ["seenSurvey_SURVEY_A", "seenSurvey_SURVEY_B"]);
+        stopPostHog();
+        assert.deepEqual(surveyKeys(), []);
+        assert.deepEqual(
+            Object.keys(localStorage).filter((key) => key.includes("ph_") && !key.startsWith("__ph_opt_in_out_")),
+            [],
+            "only the opt-out marker is kept",
+        );
     });
 
     // Last, on an instance of its own: posthog-js reads its remote config once, at init, and the

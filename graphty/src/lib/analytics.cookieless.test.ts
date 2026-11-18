@@ -14,6 +14,7 @@ import { interceptPostHog, POSTHOG_TEST_HOST, type PostHogTestNetwork, sentEvent
 import { answerUsageData, forgetUsageAnswer } from "../workspace/privacy/usageData";
 import {
     count,
+    importPostHogModule,
     postHog,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
@@ -101,7 +102,7 @@ describe("the anonymous mode on the real posthog-js chunk", () => {
         startAnalyticsAtBoot(config);
 
         // The named instance, as posthog-js keeps it on its default instance.
-        const { default: posthog } = await import("posthog-js/full/no-external");
+        const { default: posthog } = await importPostHogModule();
         const anonymous = await vi.waitFor(() => {
             const instance = (posthog as unknown as { anonymous?: PostHog }).anonymous;
             assert.isDefined(instance, "the anonymous instance was created");
@@ -143,6 +144,8 @@ describe("the anonymous mode on the real posthog-js chunk", () => {
                 $cookieless_mode: true,
                 tracking: "anonymous",
                 distinct_id: "$posthog_cookieless",
+                // Without it PostHog's ingestion makes a person profile for each hashed id.
+                $process_person_profile: false,
             });
             for (const key of ["$device_id", "$session_id", "$window_id", "$browser_version", "$os_version"]) {
                 assert.notProperty(event.properties, key);

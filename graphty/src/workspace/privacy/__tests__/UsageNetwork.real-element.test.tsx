@@ -17,6 +17,7 @@ import { commands, userEvent } from "vitest/browser";
 
 import {
     type AnalyticsCalls,
+    importPostHogModule,
     onUsageEvent,
     postHog,
     resetAnalyticsForTests,
@@ -183,7 +184,7 @@ function recordingCalls(): Partial<AnalyticsCalls> {
         privacySignals: () => ({ dnt: false, gpc: false }),
         importPostHog: () => {
             imports++;
-            return import("posthog-js/full/no-external");
+            return importPostHogModule();
         },
     };
 }

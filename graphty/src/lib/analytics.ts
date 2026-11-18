@@ -15,6 +15,8 @@
 
 import type { LoadedSourceKind, SelectionDelta, SessionCommand, SourceLoaded } from "@graphty/graphty-element/session";
 import type { CaptureResult, PostHog, PostHogConfig } from "posthog-js";
+// The file's URL, not the module: a failed load is retried at a URL the browser has not seen.
+import posthogUrl from "posthog-js/full/no-external?url";
 
 import { type SiteConfig, siteConfig } from "../siteConfig";
 import { startUsageDataIfShared } from "../workspace/privacy/usageData";
@@ -308,8 +310,30 @@ function afterLoadAndIdle(run: () => void): void {
     }
 }
 
+/** Failed loads of posthog-js so far on this page, read by importPostHogModule. */
+let failedImports = 0;
+
+/**
+ * Loads posthog-js, the one self-contained file it ships. A browser keeps a failed module load for
+ * the life of the page and answers every later `import()` of that URL with the same failure without
+ * asking the network again (Chromium, Firefox and WebKit alike), so a load after a failure asks for
+ * the file at a URL it has not seen (`?retry=<n>`). A load that succeeded is the same URL every time,
+ * so every caller gets the one module and its one default instance.
+ * @returns the module.
+ */
+export function importPostHogModule(): Promise<{ default: PostHog }> {
+    const url = new URL(posthogUrl, import.meta.url);
+    if (failedImports > 0) {
+        url.searchParams.set("retry", String(failedImports));
+    }
+    return (import(/* @vite-ignore */ url.href) as Promise<{ default: PostHog }>).catch((error: unknown) => {
+        failedImports++;
+        throw error;
+    });
+}
+
 const defaultCalls: AnalyticsCalls = {
-    importPostHog: () => import("posthog-js/full/no-external"),
+    importPostHog: importPostHogModule,
     hostname: () => globalThis.location.hostname,
     privacySignals: () => {
         const nav = navigator as Navigator & { globalPrivacyControl?: boolean };
@@ -1443,12 +1467,20 @@ export function startPostHog(fresh = true): void {
 }
 
 /**
+ * The starts of the keys posthog-js writes: its persistence (`ph_`) and the survey records its
+ * capture of "survey sent" or "survey dismissed" writes straight to localStorage, past before_send
+ * and whatever the persistence setting (`seenSurvey_`, and its survey code's `inProgressSurvey_`
+ * and `lastSeenSurveyDate`).
+ */
+const POSTHOG_KEY_STARTS = ["ph_", "seenSurvey_", "inProgressSurvey_", "lastSeenSurveyDate"];
+
+/**
  * Removes PostHog's keys from a storage, keeping its opt-out marker (`__ph_opt_in_out_<token>`).
  * @param storage - localStorage or sessionStorage.
  */
 function removePostHogKeys(storage: Storage): void {
     for (const key of Object.keys(storage)) {
-        if (key.startsWith("ph_")) {
+        if (POSTHOG_KEY_STARTS.some((start) => key.startsWith(start))) {
             storage.removeItem(key);
         }
     }
@@ -1594,6 +1626,7 @@ export function resetAnalyticsForTests(): void {
     anonymousClient = undefined;
     anonymousStarted = false;
     importing = undefined;
+    // failedImports stays: the page's module map still holds the failed URLs.
     retries.length = 0;
     globalThis.removeEventListener("online", retryFailedLoad);
     stopWaitingForId();

@@ -1050,6 +1050,7 @@ describe("cleanPostHogEvent", () => {
                 $browser_language: "en",
                 $timezone_offset: 0,
                 $device: "d",
+                $process_person_profile: false,
                 ph_keyword: "SECRET",
                 use_case: "teach",
                 $future_key: "x",
@@ -1064,6 +1065,7 @@ describe("cleanPostHogEvent", () => {
             "$geoip_disable",
             "$host",
             "$os",
+            "$process_person_profile",
             "$raw_user_agent",
             "$timezone",
             "algorithm",
@@ -1074,6 +1076,7 @@ describe("cleanPostHogEvent", () => {
         ]);
         assert.equal(out?.properties.tracking, "anonymous");
         assert.equal(out?.properties.$current_url, "external");
+        assert.isFalse(out?.properties.$process_person_profile, "no person profile");
     });
 
     it("adds the super properties", async () => {

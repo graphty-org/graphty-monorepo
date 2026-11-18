@@ -10,7 +10,12 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
 import { interceptPostHog, POSTHOG_TEST_HOST, type PostHogTestNetwork, sentEvents } from "../test/posthog-network";
 import { forgetUsageAnswer } from "../workspace/privacy/usageData";
-import { resetAnalyticsForTests, setAnalyticsCallsForTests, startAnalyticsAtBoot } from "./analytics";
+import {
+    importPostHogModule,
+    resetAnalyticsForTests,
+    setAnalyticsCallsForTests,
+    startAnalyticsAtBoot,
+} from "./analytics";
 
 const KEY = "phc_debuglinktest";
 let network: PostHogTestNetwork;
@@ -55,7 +60,7 @@ describe("a link with PostHog's debug parameter", () => {
         });
         startAnalyticsAtBoot(config);
 
-        const { default: posthog } = await import("posthog-js/full/no-external");
+        const { default: posthog } = await importPostHogModule();
         const anonymous = await vi.waitFor(() => {
             const instance = (posthog as unknown as { anonymous?: PostHog }).anonymous;
             assert.isDefined(instance, "the anonymous instance was created");

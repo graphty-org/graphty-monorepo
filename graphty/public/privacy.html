@@ -268,8 +268,8 @@
                 </li>
                 <li>
                     PostHog keeps a random id in this browser while sharing is on, so it can tell your later visits
-                    apart from other people's. The app never links it to a name or email. Turning sharing off deletes
-                    it, in every open tab.
+                    apart from other people's, and a note of each survey you answered or closed. The app never links
+                    them to a name or email. Turning sharing off deletes them, in every open tab.
                 </li>
                 <li>
                     The app keeps your survey answer and which surveys you have seen in this browser
@@ -343,9 +343,10 @@
                 <li>
                     Answer <b>No thanks</b> to the usage data question, or turn off <b>Share usage data</b> in
                     <b>Settings &gt; Privacy</b> (the privacy chip in the status bar opens it). PostHog goes back to
-                    anonymous counts and Sentry stops, at once, in every open tab, and PostHog's id is deleted. Nothing
-                    beyond the anonymous counts is sent after that; PostHog may still send what it recorded in the last
-                    few seconds before you turned it off, including the click that turned it off.
+                    anonymous counts and Sentry stops, at once, in every open tab, and PostHog's id and survey notes are
+                    deleted. PostHog keeps one entry in this browser that says sharing is off and holds nothing else.
+                    Nothing beyond the anonymous counts is sent after that; PostHog may still send what it recorded in
+                    the last few seconds before you turned it off, including the click that turned it off.
                 </li>
                 <li>
                     The anonymous counts have no switch in the app. Do Not Track or Global Privacy Control stops the

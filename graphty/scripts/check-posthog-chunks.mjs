@@ -2,10 +2,11 @@
 /**
  * Proves that PostHog stays out of first paint and is still loaded lazily: walks every file
  * dist/index.html loads and every file those import statically, and fails when one holds PostHog
- * (its ingest host, its opt-out marker or its cookieless id). PostHog is one lazy chunk, imported
- * after first paint for every visitor (src/lib/analytics.ts); a match here means something imports
- * posthog-js statically. It also fails when no landing file names that chunk in a dynamic
- * `import(`. That proves some lazy import exists, not which start makes it: the after-first-paint
+ * (its ingest host, its opt-out marker or its cookieless id). PostHog is one lazy file, imported by
+ * URL after first paint for every visitor (src/lib/analytics.ts, importPostHogModule); a match here
+ * means something imports posthog-js statically. It also fails when no landing file names that file
+ * (by URL, so as a string, not inside an `import(`). That proves the landing code can load it, not
+ * which start does: the after-first-paint
  * start and the Share start share one import, so the after-first-paint start itself is guarded by
  * src/lib/analytics.test.ts (the case that holds the afterFirstPaint seam).
  * Run after `vite build`, from graphty/.
@@ -33,23 +34,23 @@ if (chunks.length === 0) {
     process.exit(1);
 }
 /**
- * Whether a file imports a chunk dynamically: `import("./<chunk>")` in any quote style.
+ * Whether a file names a chunk in a string literal, as the URL importPostHogModule loads.
  * @param {string} text - the file's text
  * @param {string} chunk - the chunk's path in dist
  * @returns {boolean} true when it does
  */
-function importsLazily(text, chunk) {
+function namesChunk(text, chunk) {
     const name = basename(chunk).replaceAll(".", String.raw`\.`);
-    return new RegExp("import\\(\\s*[\"'`][^\"'`]*" + name + "[\"'`]").test(text);
+    return new RegExp("[\"'`][^\"'`]*" + name + "[\"'`]").test(text);
 }
 const lazy = [...seen].some((file) => {
     const text = readFileSync(file, "utf8");
-    return chunks.some((chunk) => importsLazily(text, chunk));
+    return chunks.some((chunk) => namesChunk(text, chunk));
 });
 if (!lazy) {
-    console.error(`no first-paint file imports ${chunks.join(", ")} lazily: no lazy load of PostHog is left`);
+    console.error(`no first-paint file names ${chunks.join(", ")}: no lazy load of PostHog is left`);
     process.exit(1);
 }
 console.log(
-    `${seen.size} files an ordinary load fetches hold none of PostHog, and one imports ${chunks.join(", ")} lazily`,
+    `${seen.size} files an ordinary load fetches hold none of PostHog, and one names ${chunks.join(", ")} to load later`,
 );

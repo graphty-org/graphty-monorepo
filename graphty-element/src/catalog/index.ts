@@ -27,12 +27,18 @@ export type {
     LabelGradientType,
     LabelIconPosition,
     LabelLocation,
+    LabelLocationPlace,
     LabelPointerDirection,
     LabelSizeMode,
     LabelStyleFieldDescriptor,
     LabelTextAlign,
 } from "./label-style";
-export { LABEL_STYLE_DEFAULTS, LABEL_STYLE_DESCRIPTORS, LABEL_STYLE_FIELDS } from "./label-style";
+export {
+    LABEL_LOCATION_PLACES,
+    LABEL_STYLE_DEFAULTS,
+    LABEL_STYLE_DESCRIPTORS,
+    LABEL_STYLE_FIELDS,
+} from "./label-style";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./optionsFromZod";
 export { optionsFromZod } from "./optionsFromZod";
 export type { EdgeArrowKind, GlyphDescriptor, NodeShape } from "./shapes";

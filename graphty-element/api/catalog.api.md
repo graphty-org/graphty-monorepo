@@ -1768,6 +1768,9 @@ export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "infern
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
 
 // @public
+export const LABEL_LOCATION_PLACES: readonly LabelLocationPlace[];
+
+// @public
 export const LABEL_LOOKS: readonly LabelLookDescriptor[];
 
 // @public
@@ -1789,7 +1792,7 @@ export type LabelBadge = "notification" | "label" | "label-success" | "label-war
 export type LabelDeclutterOrder = "degree" | "size";
 
 // @public
-export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter" | "minNodeScreenSize" | "textAlign" | "location";
+export type LabelFieldName = "background" | "backgroundOpacity" | "backgroundShape" | "borderAlign" | "borderColor" | "borderOpacity" | "borderWidth" | "box" | "boxPadding" | "color" | "cornerRadius" | "declutter" | "font" | "gapOf" | "italic" | "letterSize" | "lineBox" | "lineHeight" | "location" | "maxLines" | "maxLinesEllipsis" | "minNodeScreenSize" | "minScreenSize" | "offsetX" | "offsetY" | "onTop" | "opacity" | "outline" | "outlineOpacity" | "outlineWidth" | "rotation" | "runAlign" | "shiftOf" | "shiftX" | "shiftY" | "sizePx" | "textAlign" | "weight" | "wrapAnywhere" | "wrapEllipsis" | "wrapSkipEndSpace" | "wrapSpaceCount" | "wrapTrailingSpace" | "wrapWidth";
 
 // @public
 export function labelFieldOf(channel: Channel): {
@@ -1811,6 +1814,15 @@ export type LabelIconPosition = "left" | "right";
 
 // @public
 export type LabelLocation = "top" | "top-right" | "top-left" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" | "inside-top" | "inside-bottom" | "inside-left" | "inside-right" | "inside-top-left" | "inside-top-right" | "inside-bottom-left" | "inside-bottom-right" | "automatic";
+
+// @public
+export interface LabelLocationPlace {
+    readonly column?: "left" | "center" | "right";
+    // (undocumented)
+    readonly id: LabelLocation;
+    readonly places: readonly ("outside" | "inside")[];
+    readonly row?: "top" | "middle" | "bottom";
+}
 
 // @public
 export function labelLook(id: string): LabelLookDescriptor | undefined;

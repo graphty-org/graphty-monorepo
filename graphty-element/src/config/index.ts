@@ -11,6 +11,8 @@ export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";
 export type { EdgeStyleConfig } from "./EdgeStyle";
 export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes, EdgeStyle } from "./EdgeStyle";
+export type { FramingExtent } from "./Framing";
+export { DEFAULT_FRAMING_EXTENT, FRAMING_EXTENT_VALUES } from "./Framing";
 export type { FetchEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";

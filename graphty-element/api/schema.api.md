@@ -158,6 +158,9 @@ export type CombineMode = "replace" | "multiply" | "add";
 export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
 // @public
+export const DEFAULT_FRAMING_EXTENT: FramingExtent;
+
+// @public
 export const DEFAULT_LIGHTING: Lighting;
 
 // @public
@@ -1591,6 +1594,12 @@ export type FilterDirection = SelectionDirection;
 
 // @public
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[];
+
+// @public
+export const FRAMING_EXTENT_VALUES: readonly ["drawn", "centers"];
+
+// @public
+export type FramingExtent = (typeof FRAMING_EXTENT_VALUES)[number];
 
 // @public
 export interface GlobeLook {

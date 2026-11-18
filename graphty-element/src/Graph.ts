@@ -134,6 +134,7 @@ import {
     type XRConfig,
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
+import { DEFAULT_FRAMING_EXTENT } from "./config/Framing";
 import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
@@ -5822,7 +5823,7 @@ export class Graph implements GraphContext {
                 const duration = pointerEventTime(pointerInfo.event) - clickStartTime;
                 const dx = this.scene.pointerX - clickStartPos.x;
                 const dy = this.scene.pointerY - clickStartPos.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                const distance = Math.hypot(dx, dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     this.handleBackgroundClick(pointerInfo.event);
@@ -8697,7 +8698,7 @@ export class Graph implements GraphContext {
             const dx = state.position.x - state.target.x;
             const dy = state.position.y - state.target.y;
             const dz = state.position.z - state.target.z;
-            orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
+            orbitController.cameraDistance = orbitController.clampDistance(Math.hypot(dx, dy, dz));
         }
 
         // Update the pivot's world matrix and camera position
@@ -8998,7 +8999,7 @@ export class Graph implements GraphContext {
             const dx = targetState.position.x - targetState.target.x;
             const dy = targetState.position.y - targetState.target.y;
             const dz = targetState.position.z - targetState.target.z;
-            const calculatedDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const calculatedDistance = Math.hypot(dx, dy, dz);
             distanceAnimation = this.animateCameraDistance(
                 orbitController,
                 calculatedDistance,
@@ -9653,7 +9654,8 @@ export class Graph implements GraphContext {
         // The whole graph is framed as the project's framing says, by what is drawn when it says
         // nothing, so no node at the rim is cut off; a subset by its centres unless the caller asks otherwise.
         const whole = nodeIds === undefined;
-        const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
+        const extent =
+            extentOption ?? (whole ? (this.session.config.framing?.extent ?? DEFAULT_FRAMING_EXTENT) : "centers");
         // The `Node`s, and the rows drawn with no `Node` (renderPath "batched"), measured by row:
         // building a `Node` for a row only to measure it cost 8.7 KB a row (#8204).
         const { nodes: measured, columns } = this.#measuredNodes(nodeIds);

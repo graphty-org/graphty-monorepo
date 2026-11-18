@@ -1616,18 +1616,57 @@ const LABEL_FIELD_OF_SUFFIX = {
     ShiftOf: "shiftOf",
     GapOf: "gapOf",
     Box: "box",
-} as const satisfies Record<string, keyof LabelStyle>;
+} as const satisfies Record<string, LabelFieldName & keyof LabelStyle>;
 
 /**
  * A label style field one channel writes on its own: see {@link labelFieldOf}.
- * @since 3.40.0
+ * @since 3.58.0
  */
 export type LabelFieldName =
-    | (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX]
+    | "background"
+    | "backgroundOpacity"
+    | "backgroundShape"
+    | "borderAlign"
+    | "borderColor"
+    | "borderOpacity"
+    | "borderWidth"
+    | "box"
+    | "boxPadding"
+    | "color"
+    | "cornerRadius"
     | "declutter"
+    | "font"
+    | "gapOf"
+    | "italic"
+    | "letterSize"
+    | "lineBox"
+    | "lineHeight"
+    | "location"
+    | "maxLines"
+    | "maxLinesEllipsis"
     | "minNodeScreenSize"
+    | "minScreenSize"
+    | "offsetX"
+    | "offsetY"
+    | "onTop"
+    | "opacity"
+    | "outline"
+    | "outlineOpacity"
+    | "outlineWidth"
+    | "rotation"
+    | "runAlign"
+    | "shiftOf"
+    | "shiftX"
+    | "shiftY"
+    | "sizePx"
     | "textAlign"
-    | "location";
+    | "weight"
+    | "wrapAnywhere"
+    | "wrapEllipsis"
+    | "wrapSkipEndSpace"
+    | "wrapSpaceCount"
+    | "wrapTrailingSpace"
+    | "wrapWidth";
 
 /** Every way `labelTextAlign` lines up a label's lines. */
 const LABEL_TEXT_ALIGN_VALUES: readonly LabelTextAlign[] = ["left", "center", "right"];
@@ -2024,7 +2063,7 @@ const NODE_LABEL_MIN_NODE_SCREEN_SIZE: ChannelDescriptor = {
  * that varies a field, instead of copying the names.
  * @param channel - Any channel.
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
- * @since 3.40.0
+ * @since 3.58.0
  * @example
  * ```ts
  * import { labelFieldOf } from "@graphty/graphty-element/catalog";

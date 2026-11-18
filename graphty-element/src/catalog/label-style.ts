@@ -48,6 +48,54 @@ export type LabelLocation =
     | "automatic";
 
 /**
+ * Where a {@link LabelLocation} puts a label, as a cell of a 3 x 3 grid around (or inside) what it
+ * labels, so a control can draw the locations as a grid instead of a list: the row and column of
+ * its cell, and whether it lies beyond the node's outline (`outside`), within it (`inside`), or is
+ * the middle that is both (`center`). `"automatic"` has no cell: the element picks a place per label.
+ * @since 3.58.0
+ */
+export interface LabelLocationPlace {
+    readonly id: LabelLocation;
+    /** Its cell's row, or undefined for `"automatic"`. */
+    readonly row?: "top" | "middle" | "bottom";
+    /** Its cell's column, or undefined for `"automatic"`. */
+    readonly column?: "left" | "center" | "right";
+    /** Which grids hold it: beyond the outline, within it, or both (the middle). Empty for `"automatic"`. */
+    readonly places: readonly ("outside" | "inside")[];
+}
+
+/**
+ * Every {@link LabelLocation}, as the cell it puts a label in: see {@link LabelLocationPlace}.
+ * @since 3.58.0
+ * @example
+ * ```ts
+ * import { LABEL_LOCATION_PLACES } from "@graphty/graphty-element/catalog";
+ * LABEL_LOCATION_PLACES.find((place) => place.row === "top" && place.column === "right" && place.places.includes("inside"))?.id;
+ * // "inside-top-right"
+ * ```
+ */
+export const LABEL_LOCATION_PLACES: readonly LabelLocationPlace[] = Object.freeze([
+    { id: "top-left", row: "top", column: "left", places: ["outside"] },
+    { id: "top", row: "top", column: "center", places: ["outside"] },
+    { id: "top-right", row: "top", column: "right", places: ["outside"] },
+    { id: "left", row: "middle", column: "left", places: ["outside"] },
+    { id: "center", row: "middle", column: "center", places: ["outside", "inside"] },
+    { id: "right", row: "middle", column: "right", places: ["outside"] },
+    { id: "bottom-left", row: "bottom", column: "left", places: ["outside"] },
+    { id: "bottom", row: "bottom", column: "center", places: ["outside"] },
+    { id: "bottom-right", row: "bottom", column: "right", places: ["outside"] },
+    { id: "inside-top-left", row: "top", column: "left", places: ["inside"] },
+    { id: "inside-top", row: "top", column: "center", places: ["inside"] },
+    { id: "inside-top-right", row: "top", column: "right", places: ["inside"] },
+    { id: "inside-left", row: "middle", column: "left", places: ["inside"] },
+    { id: "inside-right", row: "middle", column: "right", places: ["inside"] },
+    { id: "inside-bottom-left", row: "bottom", column: "left", places: ["inside"] },
+    { id: "inside-bottom", row: "bottom", column: "center", places: ["inside"] },
+    { id: "inside-bottom-right", row: "bottom", column: "right", places: ["inside"] },
+    { id: "automatic", places: [] },
+] satisfies LabelLocationPlace[]);
+
+/**
  * Which labels {@link LabelStyle.declutter} keeps first where two would overlap: the node with more
  * edges (`"degree"`, as `layoutBehavior.labels.declutter` does), or the larger label and then the
  * larger node (`"size"`).

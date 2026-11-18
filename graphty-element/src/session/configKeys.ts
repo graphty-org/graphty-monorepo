@@ -9,6 +9,7 @@
 import { z } from "zod";
 
 import { DataConfig } from "../config/DataConfig";
+import { FRAMING_EXTENT_VALUES } from "../config/Framing";
 import { GraphBehaviorOpts } from "../config/GraphBehavior";
 import { GraphStyle, LayoutTransition } from "../config/GraphStyle";
 
@@ -97,7 +98,7 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         {
             group: "framing",
             schema: z
-                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).optional() })
+                .strictObject({ extent: z.enum(FRAMING_EXTENT_VALUES), padding: z.number().min(0).optional() })
                 .optional(),
         },
     ],

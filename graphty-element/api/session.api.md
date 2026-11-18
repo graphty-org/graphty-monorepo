@@ -1631,6 +1631,9 @@ export interface FixResult {
 }
 
 // @public
+export type FramingExtent = (typeof FRAMING_EXTENT_VALUES)[number];
+
+// @public
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
@@ -1646,7 +1649,7 @@ export interface GraphAccelerator {
 
 // @public
 export interface GraphFraming {
-    readonly extent: "drawn" | "centers";
+    readonly extent: FramingExtent;
     readonly padding?: number;
 }
 

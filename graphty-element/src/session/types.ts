@@ -53,6 +53,7 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
+import type { FramingExtent } from "../config/Framing";
 import type {
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
@@ -3696,7 +3697,7 @@ export interface ProjectConfig {
 /** How the element frames the graph: see {@link ProjectConfig.framing}. */
 export interface GraphFraming {
     /** What each node counts as: `"drawn"` the box it is drawn in, with its labels; `"centers"` its center alone. */
-    readonly extent: "drawn" | "centers";
+    readonly extent: FramingExtent;
     /** CSS pixels kept clear at each end of the canvas's shorter side, 0 or more; absent, a small margin. */
     readonly padding?: number;
 }

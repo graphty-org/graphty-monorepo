@@ -725,7 +725,8 @@ await element.downloadProject({ assets });
 An empty list means there is nothing to ask. `element.downloadProject({ assets, markSaved: false })`
 downloads a copy and leaves `project.dirty` as it was.
 
-A project file holds at most 64 MB of model files. When it opens, each model is checked against
+A project file holds at most 64 MB of model files (the `documentBytes` limit, below); a model past
+it is left out of the file and named in the save's `leftOut`. When it opens, each model is checked against
 the fingerprint the file recorded for it, then by every check a dropped file gets; a model that
 fails is left out (its nodes keep their ordinary shape), and the open's `problems` name it with its
 code, such as `E_MODEL_DIGEST_MISMATCH` for a file whose bytes were changed.
@@ -736,13 +737,17 @@ To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limit
 defaults refuse only what a browser tab cannot hold or draw: 1 GB per model (a model fetched by URL
 counts its `.bin` and pictures too), 20,000,000 triangles, 1 GB of decoded pictures (a KTX2 picture
 counts a quarter of a PNG or JPEG of the same size), 10,000 files beside a model fetched by URL, and
-10,000 glTF nodes, materials, textures and animations. The session holds 256 MB in all.
+10,000 glTF nodes, materials, textures and animations. The session sets no limit on the models it
+holds together (`sessionBytes` is `Infinity`), since a model held but not drawn costs only memory;
+a page that wants a cap sets one. `documentBytes` (64 MB) caps the model files one project file
+embeds.
 `params.what` names the limit; for a count it is `"count"`, with `params.item` saying what was
 counted (`"materials"`, `"textures"`, `"nodes"`, ...). Only your page's code can change the limits,
 lower or higher; a project file never can, and `assets.limits()` reads them:
 
 ```ts
 element.session.assets.setLimits({ maxBytes: 64 * 1024 * 1024, maxTriangles: 2_000_000, maxMaterials: 64 });
+element.session.assets.setLimits({ sessionBytes: 512 * 1024 * 1024, documentBytes: 128 * 1024 * 1024 });
 ```
 
 ## Problems and their codes

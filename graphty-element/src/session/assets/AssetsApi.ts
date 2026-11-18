@@ -304,10 +304,13 @@ export interface ModelLimits {
     readonly maxJoints: number;
     /** Pixels per texture side; larger textures are drawn smaller. Default 2048. */
     readonly maxTextureSize: number;
-    /** Decoded texture bytes of all models in a scene. Default 256 MB. */
-    readonly sceneTextureBytes: number;
-    /** Stored asset bytes in the session. Default 256 MB. */
+    /**
+     * Stored asset bytes in the session, all models together. Default `Infinity`: no limit, since
+     * a model held but not drawn costs only memory; a page that wants a cap sets one.
+     */
     readonly sessionBytes: number;
+    /** Model file bytes one project file embeds, all models together. Default 64 MB. */
+    readonly documentBytes: number;
     /** Triangles across the scene before `W_MODEL_BUDGET`. Default 2,000,000. */
     readonly sceneTriangleBudget: number;
     /** Default 30,000. */
@@ -332,8 +335,8 @@ export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
     maxMorphTargets: 64,
     maxJoints: 256,
     maxTextureSize: 2048,
-    sceneTextureBytes: 256 * MB,
-    sessionBytes: 256 * MB,
+    sessionBytes: Number.POSITIVE_INFINITY,
+    documentBytes: 64 * MB,
     sceneTriangleBudget: 2_000_000,
     fetchTimeoutMs: 30_000,
 });
@@ -2800,16 +2803,11 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         setLimits(changes) {
             const next: Record<string, number> = { ...limits };
             for (const [key, value] of Object.entries(changes)) {
-                if (
-                    !(key in DEFAULT_MODEL_LIMITS) ||
-                    typeof value !== "number" ||
-                    value <= 0 ||
-                    !Number.isFinite(value)
-                ) {
+                if (!(key in DEFAULT_MODEL_LIMITS) || typeof value !== "number" || value <= 0 || Number.isNaN(value)) {
                     throw new GraphtyError({
                         code: "E_OPTION_RANGE",
                         source: "config",
-                        message: `The model limit ${key} must be a positive number.`,
+                        message: `The model limit ${key} must be a positive number (Infinity for none).`,
                         details: { option: key, value: String(value) },
                     });
                 }

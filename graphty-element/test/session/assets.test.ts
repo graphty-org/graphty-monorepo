@@ -281,6 +281,20 @@ describe("session.assets: ids and records", () => {
         });
     });
 
+    it("holds any number of models by default, and refuses one past a page's session limit", async () => {
+        const assets = createAssetsApi();
+        assert.strictEqual(assets.limits().sessionBytes, Number.POSITIVE_INFINITY);
+        assert.strictEqual((await assets.add(binaryStl(2))).state, "accepted");
+        assert.strictEqual((await assets.add(binaryStl(3))).state, "accepted");
+        assets.setLimits({ sessionBytes: 1 });
+        assertRejected(await assets.add(binaryStl(4)), "E_MODEL_TOO_LARGE", { what: "sessionBytes" });
+        assets.setLimits({ sessionBytes: Number.POSITIVE_INFINITY });
+        assert.strictEqual((await assets.add(binaryStl(5))).state, "accepted");
+        assert.throws(() => {
+            assets.setLimits({ sessionBytes: Number.NaN });
+        }, /positive/);
+    });
+
     it("refuses a bad name with E_BAD_COMMAND", async () => {
         try {
             await add(binaryStl(1), { name: "rack" as `asset:${string}` });

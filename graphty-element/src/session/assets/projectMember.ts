@@ -26,9 +26,6 @@ export const ASSETS_MEMBER = "graphty-assets";
 /** The member's version. */
 const VERSION = 1;
 
-/** The most file bytes one document embeds: 64 MB. */
-export const MAX_DOCUMENT_ASSET_BYTES = 64 * 1024 * 1024;
-
 /** A problem about the member, as the project file reports it. */
 type Problem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
@@ -337,13 +334,14 @@ function savedDefaults(record: AssetRecord): { defaults?: ModelDefaults } {
  */
 function embedEntry(build: MemberBuild, record: AssetRecord, key: string, source: string | undefined): void {
     const first = !build.digests.has(record.digest);
-    if (first && build.bytes + record.byteLength > MAX_DOCUMENT_ASSET_BYTES) {
+    const limit = build.assets.limits().documentBytes;
+    if (first && build.bytes + record.byteLength > limit) {
         build.leftOut.push({
             code: "E_MODEL_TOO_LARGE",
             params: {
                 what: "documentBytes",
                 found: build.bytes + record.byteLength,
-                limit: MAX_DOCUMENT_ASSET_BYTES,
+                limit,
                 id: record.id,
             },
         });
@@ -507,10 +505,11 @@ function refused(code: "E_BAD_DOCUMENT" | "E_MODEL_TOO_LARGE", details: Record<s
 /**
  * Check a whole member before anything is decoded: its closed top level and the document cap.
  * @param member - The member.
+ * @param limit - The session's `documentBytes` limit.
  * @returns Its entries.
  * @throws A `GraphtyError` with `E_BAD_DOCUMENT` or `E_MODEL_TOO_LARGE`.
  */
-function entriesOf(member: Record<string, unknown>): unknown[] {
+function entriesOf(member: Record<string, unknown>, limit: number): unknown[] {
     const extra = unknownKey(member, MEMBER_KEYS);
     if (extra !== undefined) {
         throw refused("E_BAD_DOCUMENT", { pointer: `/${extra}` });
@@ -527,11 +526,11 @@ function entriesOf(member: Record<string, unknown>): unknown[] {
         }
     }
 
-    if (length > base64Length(MAX_DOCUMENT_ASSET_BYTES)) {
+    if (length > base64Length(limit)) {
         throw refused("E_MODEL_TOO_LARGE", {
             what: "documentBytes",
             found: Math.floor((length * 3) / 4),
-            limit: MAX_DOCUMENT_ASSET_BYTES,
+            limit,
         });
     }
 
@@ -835,7 +834,7 @@ async function restoreEntry(
  */
 export async function restoreAssets(session: GraphSession, member: Record<string, unknown>): Promise<Problem[]> {
     const assets = assetsOf(session);
-    const entries = entriesOf(member);
+    const entries = entriesOf(member, assets.limits().documentBytes);
     const problems: Problem[] = [];
     const decoded = new Map<string, Map<string, Uint8Array>>();
     for (const [index, raw] of entries.entries()) {

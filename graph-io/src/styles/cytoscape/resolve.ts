@@ -31,6 +31,7 @@ import {
     arrowGap,
     arrowProportion,
     arrowSizeParser,
+    borderUnderFill,
     colorParser,
     CYTOSCAPE_LEXICON,
     cytoscapeLabelBase,
@@ -160,8 +161,8 @@ export function edgeEnds(
         return sides.length === 0 ? null : Math.max(...sides);
     });
     const nodeBox = Array.from({ length: snapshot.nodeCount }, (_, i) => {
-        const [w, h, b] = [nodes.width?.[i], nodes.height?.[i], nodes.borderWidth?.[i]];
-        return typeof w === "number" && typeof h === "number" ? ([w, h, typeof b === "number" ? b : 0] as const) : null;
+        const [w, h] = [nodes.width?.[i], nodes.height?.[i]];
+        return typeof w === "number" && typeof h === "number" ? ([w, h, desktopBorder(nodes, i)] as const) : null;
     });
     const position = snapshot.nodes.byRole("position");
     // stored y up unless the column says otherwise; the label places are worked out y down, as Cytoscape draws
@@ -534,6 +535,7 @@ export function resolveCytoscape(
     labelDress(target, out, one, n, elements.ends);
     if (target === "node") {
         squashHexagons(out);
+        wholeBorders(out);
         // the value as written: a chart is text, or an object in CX2; a size a number or its text
         const raw: CytoscapeValueParser = (v) => {
             if (typeof v === "string" || typeof v === "number") {
@@ -845,10 +847,41 @@ function squashHexagons(out: Partial<Record<string, StyleColumn>>): void {
         if (shape[i] !== "hexagon" || typeof h !== "number") {
             return h;
         }
+        // every border is read at half its width here (wholeBorders() runs after): desktop insets the path by all of it
         const b = border?.[i];
-        const w = typeof b === "number" ? Math.min(b, h) : 0;
+        const w = typeof b === "number" ? Math.min(2 * b, h) : 0;
         return (h - w) * HEXAGON_ASPECT + w;
     });
+}
+
+/**
+ * Gives back the whole width of every border Cytoscape desktop's fill does not cover (a patterned or invisible border,
+ * or one under a translucent fill): the lexicon reads each `NODE_BORDER_WIDTH` as the half an opaque fill leaves showing.
+ * @param out - the node values per property, changed in place
+ */
+function wholeBorders(out: Partial<Record<string, StyleColumn>>): void {
+    const { borderWidth } = out;
+    if (borderWidth === undefined) {
+        return;
+    }
+    out.borderWidth = borderWidth.map((b, i) =>
+        typeof b !== "number" || borderUnderFill((p) => out[p]?.[i] ?? null) ? b : num6(2 * b),
+    );
+}
+
+/**
+ * The width of the stroke Cytoscape desktop draws round a node, all of it inside the node's size: twice the neutral
+ * border where its fill covers the inner half (lexicon.ts `borderUnderFill`).
+ * @param nodes - the nodes' values per property
+ * @param i - the node
+ * @returns the stroke's width, 0 for none
+ */
+function desktopBorder(nodes: Partial<Record<string, StyleColumn>>, i: number): number {
+    const b = nodes.borderWidth?.[i];
+    if (typeof b !== "number") {
+        return 0;
+    }
+    return borderUnderFill((p) => nodes[p]?.[i] ?? null) ? 2 * b : b;
 }
 
 /**

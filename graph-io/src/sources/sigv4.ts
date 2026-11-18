@@ -8,7 +8,7 @@
 import { detectRuntime } from "./context.js";
 import { type AwsSigV4Options } from "./credentials.js";
 import { failAlone } from "./fail.js";
-import { sha256Bytes } from "./sha256.js";
+import { hex, sha256Hex, subtle } from "./sha256.js";
 
 /** Headers never signed: proxies and clients may change them in flight. */
 const UNSIGNED = new Set(["user-agent", "expect", "x-amzn-trace-id", "authorization", "content-length"]);
@@ -36,56 +36,12 @@ function compareText(a: string, b: string): number {
 }
 
 /**
- * Web Crypto: the global one, or Node 18's, which is not global without a flag. A browser page that
- * is not a secure context (plain http on a host other than localhost) has none.
- * @returns the subtle crypto, or null where there is none
- */
-async function subtle(): Promise<SubtleCrypto | null> {
-    const global = (globalThis as { crypto?: Crypto }).crypto;
-    if (global?.subtle !== undefined) {
-        return global.subtle;
-    }
-    if (detectRuntime() !== "node") {
-        return null;
-    }
-    // Built at run time so no bundler sees a literal: a consumer's browser build has no
-    // `node:crypto`, and esbuild failed on the literal the build had folded the name into.
-    const name = ["node", "crypto"].join(":");
-    return ((await import(/* @vite-ignore */ /* webpackIgnore: true */ name)) as { webcrypto: Crypto }).webcrypto
-        .subtle;
-}
-
-/**
- * Lowercase hex of bytes.
- * @param bytes - the bytes
- * @returns hex
- */
-function hex(bytes: ArrayBuffer): string {
-    return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/**
  * SHA-256 of bytes, as hex.
  * @param data - the bytes
  * @returns the digest
  */
-async function sha256(data: Uint8Array | ArrayBuffer): Promise<string> {
-    const s = await subtle();
-    if (s === null) {
-        return hex(sha256Bytes(data instanceof Uint8Array ? data : new Uint8Array(data)));
-    }
-    return hex(await s.digest("SHA-256", data as BufferSource));
-}
-
-/**
- * SHA-256 as 64 lowercase hexadecimal digits: of bytes exactly as given, or of a text's UTF-8 bytes
- * (the Cypher source's content hash, a project file's record of a file it loaded). Web Crypto where
- * there is one, else plain JavaScript (a page that is not a secure context). Experimental.
- * @param data - the bytes or the text
- * @returns the digest
- */
-export function sha256Hex(data: string | Uint8Array): Promise<string> {
-    return sha256(typeof data === "string" ? utf8(data) : data);
+function sha256(data: Uint8Array | ArrayBuffer): Promise<string> {
+    return sha256Hex(data instanceof Uint8Array ? data : new Uint8Array(data));
 }
 
 /**

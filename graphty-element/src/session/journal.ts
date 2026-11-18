@@ -21,7 +21,7 @@ import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
 
 /** The identity of a journal entry. Opaque; unique within its session. */
-export type JournalId = string; // NOSONAR(S6564): the designed public name a run's journalId is typed by
+export type JournalId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- the designed public name a run's journalId is typed by
 
 /** One command the session ran. Frozen. */
 export interface JournalEntry {
@@ -86,6 +86,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "algo.remove": "run",
     "algo.move": "run",
     "algo.rename": "run",
+    "annotations.set": "data",
+    "annotations.patch": "data",
     // Never journaled itself: each member of a batch writes its own entry.
     batch: "data",
     "config.set": "config",
@@ -99,7 +101,6 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.import-source": "data",
     "data.setSource": "data",
     "data.label": "data",
-    "data.setFileStyles": "data",
     "shader.set": "style",
     "data.columns": "data",
     "data.derive": "data",

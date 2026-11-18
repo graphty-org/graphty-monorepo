@@ -1,8 +1,8 @@
 # 07. graph-format API consumed by the GPU package, package skeleton, and conventions
 
 Status: research note for the WebGPU plan. Everything below about existing code was read from the
-files cited (paths relative to `/home/apowers/Projects/webgpu-graph-algorithms/` unless absolute);
-everything about the design cites `/home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md`
+files cited (paths relative to `<staging>/` unless absolute);
+everything about the design cites `design/graph-format/graph-format-design.md`
 (hereafter "design") by section and line. Plain ASCII throughout.
 
 Contents
@@ -417,7 +417,7 @@ snapshot.colIdx)`), also the path for `arena === null`; (3) else windows on ARC 
   `foldArcs`) or `edgeCount` (per edge, from the `edgeToArc` writeback path). `parents` is
   `Uint32Array` with `INVALID_INDEX`, never `Int32Array` with -1 (design 10.1 lines 2352-2354).
 - The package throws when no device is available and never falls back (project rule
-  `/home/apowers/Projects/webgpu-graph-algorithms/CLAUDE.md`; design 10.8 lines 2540-2546).
+  `<staging>/CLAUDE.md`; design 10.8 lines 2540-2546).
 - Never write into a view array or a core array (I17); scratch is `.slice()` or a fresh array.
 - Never apply `|`, `&`, `>>>` to arc indices or byte offsets that can exceed 2^31 (I3); use `%`,
   `Math.floor`, `Math.trunc`.
@@ -573,7 +573,7 @@ Notes and rationale:
   test-d file: `test/types/typed-arrays.test-d.ts` line 1). Version `^0.1.72` matches graph-format
   (`packages/graph-format/package.json` line 66) and what the monorepo lock re-resolved to
   (README.md lines 147-150).
-- Playwright: the monorepo root pins `playwright ^1.54.1` (`/home/apowers/Projects/graphty-monorepo/package.json`
+- Playwright: the monorepo root pins `playwright ^1.54.1` (`package.json`
   line 148) and `@vitest/browser ^3.2.4` (line 130) with a `pnpm.overrides` entry
   `"@vitest/browser@<3.2.7": "^3.2.7"` (line 60); declare the same carets here. Playwright 1.54.1 wants
   Chromium build 1181 (Chromium 139), the build `HEADLESS_GPU_REPORT.md` line 36 verified on the RTX
@@ -769,7 +769,7 @@ graph-io's format barrels -- README.md line 65-66.) `packages/pnpm-workspace.yam
 At W1 the `packages/README.md` checklist (lines 44-198) repeats with these additions to
 `move/root-touch-points.diff`: `pnpm-workspace.yaml` (after `graph-io`, before `algorithms`),
 `commitlint.config.js` `scope-enum` + `"webgpu-graph-algorithms"`
-(`/home/apowers/Projects/graphty-monorepo/commitlint.config.js` lines 4-22; note the existing
+(`commitlint.config.js` lines 4-22; note the existing
 `"gpu-3d-force-layout"` scope on line 15 is a stale name of an older experiment and can stay),
 `knip.config.ts` (the entry above plus the monorepo's `ignore: ["dist/**", "coverage/**",
 "node_modules/**"]`), root `package.json` `coverage:preview:webgpu-graph-algorithms` on port 9058,
@@ -802,7 +802,7 @@ Dawn fallback to Mesa llvmpipe is noted at gpu-upload.test.ts lines 13-15). The 
 
 ## 5. Scaffold triage: delete / keep / move
 
-The repository root `/home/apowers/Projects/webgpu-graph-algorithms/` currently holds a July 2025
+The repository root `<staging>/` currently holds a July 2025
 npm scaffold (git status: every file untracked). Nothing in it is imported by anything. Decision per
 file (the new package lives under `packages/webgpu-graph-algorithms/`; the root becomes a thin
 staging wrapper like it already is for graph-format / graph-io):
@@ -880,7 +880,7 @@ Every item is enforced today on graph-format / graph-io and applies unchanged:
   `tsc --noEmit`. Test files get the relaxed block (lines 208-245). Benchmarks and scripts are
   ignored by eslint (lines 33, 41) but type-checked by `tsconfig.json`.
 - No `eslint-disable`, no `@ts-expect-error`, no `@ts-ignore` (owner rule in
-  `/home/apowers/.claude/CLAUDE.md`; graph-io CLAUDE.md lines 163-168 states the house style: JSDoc
+  `~/.claude/CLAUDE.md`; graph-io CLAUDE.md lines 163-168 states the house style: JSDoc
   on every exported symbol with `@param name - description` and `@returns`, explicit return types,
   inline `import { type X, y }` qualifiers, `.js` suffixes on relative imports, no default exports,
   no `console.log` in `src/`).
@@ -912,7 +912,7 @@ Every item is enforced today on graph-format / graph-io and applies unchanged:
 
 Local files (all read in full or at the cited lines):
 
-- `/home/apowers/Projects/webgpu-graph-algorithms/packages/graph-format/src/index.ts` (139 lines, the barrel)
+- `graph-format/src/index.ts` (139 lines, the barrel)
 - `.../graph-format/src/constants.ts` (lines 16, 22, 30, 37, 45)
 - `.../graph-format/src/errors.ts` (lines 50-120)
 - `.../graph-format/src/types/index.ts`, `types/columns.ts` (lines 59-80, 120-193, 255-540, 555-660, 715-727), `types/snapshot.ts` (lines 1-886), `types/builder.ts` (lines 20-125)
@@ -930,9 +930,9 @@ Local files (all read in full or at the cited lines):
 - `.../graph-format/node_modules/webgpu/{package.json,types.d.ts,index.js,README.md}` (webgpu 0.4.0; `@webgpu/types` 0.1.72)
 - `.../packages/graph-io/{package.json,project.json,tsconfig.json,tsconfig.build.json,tsconfig.strict-consumer.json,vitest.config.ts,CLAUDE.md}`, `scripts/{entries,build-bundle}.js`, `test/common/text.test.ts` line 7, `benchmarks/run.ts`
 - `.../packages/{README.md,STATUS.md,CONFORMANCE.md,package.json,pnpm-workspace.yaml,knip.config.ts,tsconfig.base.json,vitest.shared.config.ts,vite.shared.config.ts,eslint.config.js,.prettierrc,.prettierignore,.npmrc,.gitignore}`, `packages/move/root-touch-points.diff`
-- `/home/apowers/Projects/webgpu-graph-algorithms/{package.json,tsconfig.json,vitest.config.ts,vite.config.ts,eslint.config.js,knip.json,.gitignore,.env.example,CLAUDE.md,HEADLESS_GPU_REPORT.md}`, `src/index.ts`, `src/types/index.ts`, `test/setup/*.ts`, `test/helpers/*.ts`, `test/browser/*.test.ts`, `test/unit/index.test.ts`, `.github/workflows/test.yml`
-- `/home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md` lines 2320-2553 (section 10), 3959-4047 (14.3), 4212-4278 (14.5, 14.6)
-- `/home/apowers/Projects/graphty-monorepo/{commitlint.config.js,pnpm-workspace.yaml,package.json (lines 55-61, 130, 148, 158-160)}`, `.github/workflows/ci.yml` (lines 236-330), `algorithms/vitest.config.ts` (read-only)
+- `<staging>/{package.json,tsconfig.json,vitest.config.ts,vite.config.ts,eslint.config.js,knip.json,.gitignore,.env.example,CLAUDE.md,HEADLESS_GPU_REPORT.md}`, `src/index.ts`, `src/types/index.ts`, `test/setup/*.ts`, `test/helpers/*.ts`, `test/browser/*.test.ts`, `test/unit/index.test.ts`, `.github/workflows/test.yml`
+- `design/graph-format/graph-format-design.md` lines 2320-2553 (section 10), 3959-4047 (14.3), 4212-4278 (14.5, 14.6)
+- `{commitlint.config.js,pnpm-workspace.yaml,package.json (lines 55-61, 130, 148, 158-160)}`, `.github/workflows/ci.yml` (lines 236-330), `algorithms/vitest.config.ts` (read-only)
 
 Not fetched / not verified in this note: the exact Vitest 3.x spelling of per-instance Playwright
 launch arguments (`browser.instances[].launch` vs `providerOptions`) -- to be confirmed against the

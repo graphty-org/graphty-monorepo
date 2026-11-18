@@ -59,18 +59,15 @@ async function refusal(call: () => Promise<unknown>): Promise<string | undefined
 }
 
 describe("runs.rename", () => {
-    it("names the run in its record and its label, and undo and redo take it back and forth", async () => {
+    it("names the run in its record, and undo and redo take it back and forth", async () => {
         const session = await triangle();
         const run = await session.runs.start("degree", undefined, { as: "deg", style: false });
-        const record = (): { name: string | null; label: string } => {
-            const { name, label } = session.runs.get(run.runId)?.record ?? { name: null, label: "" };
-            return { name, label };
-        };
+        const record = (): { name: string | null } => ({ name: session.runs.get(run.runId)?.record.name ?? null });
         const before = record();
         assert.isNull(before.name);
 
         await session.runs.rename(run.runId, "Connections");
-        assert.deepStrictEqual(record(), { name: "Connections", label: "Connections" });
+        assert.deepStrictEqual(record(), { name: "Connections" });
 
         await session.undo();
         assert.deepStrictEqual(record(), before);

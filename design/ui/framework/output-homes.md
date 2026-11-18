@@ -32,7 +32,7 @@ every command is also in Quick actions, and in the main menu where its scheme pu
 | item that is not (pair) | its row in the result's item tab | -- | the result editor | the row's context menu |
 | result, run | its row in In this project | the result editor popover, which holds its parameters, its Appearance and its readings (headline readings; top and bottom items, or for a metric result its Top nodes, whose "N more" opens the Nodes tab sorted by its column; Used by) | a computed column's header; a layer's origin; the finish notice; Find | the editor's menu; the row's context menu |
 | catalog entry | its row in the Catalog | its (i) description | Quick actions; a result editor's name | a click runs it (`interaction-patterns.md` 3.3) |
-| style layer, Base style, Overrides | its row in the Styles list of the Graph panel (`information-architecture.md` 11) | the style-layer editor | an Appearance row's picker; a value row; a column's Color by and Size by; a result editor's Appearance; Find | the row and its editor |
+| style layer, the default layers included | its row in the Styles list of the Graph panel (`information-architecture.md` 11) | the style-layer editor | an Appearance row's picker; a value row; a column's Color by and Size by; a result editor's Appearance; Find | the row and its editor |
 | hidden elements (a state, not an object) | the count on the canvas legend's not-drawn line, drawn by the element and keyboard reachable (`canvas-drawing.md` 8), outside the style stack | -- | Selection's Show on canvas; the not-drawn line's Select hidden and Show all; Quick actions | Select hidden, Show all (section 3.9) |
 | Look | the Look icon on the header of the graph's property section (Figma's Apply variable mode) | its menu of Looks | Quick actions | the icon |
 | comparison | while open, the comparison surface; once saved, a run folded under its comparison result's row in In this project | its two operands | Compare with...; Find | Save comparison |
@@ -188,7 +188,7 @@ it. What an export states about scale is `state-matrix.md` 4.7.
 | Select same value | `select-same` | an Attributes row's menu; a table cell's menu; Selection | Select | not a step | -- | E |
 | Select members | `select-members` | a set's, path's, group's or found path's type row; the shared menu of several focused set, path or item rows | Select | not a step | -- | E |
 | Enter to members, Back to object | `enter-members` | the keyboard, with one set, path or item selected | Select | not a step | Enter, Shift+Enter | E |
-| Select painted, Select overridden | `select-painted` | a style layer's row icon; the Overrides row | Select | not a step | -- | E |
+| Select painted | `select-painted` | a style layer's row icon | Select | not a step | -- | E |
 | Next finding, Previous finding | `next-finding` | a result's item tab, Members, a sorted column, Find's hits | Select | not a step | next finding (E) | E |
 | Find | `find` | the Graph panel's Find | Select | not a step | find (A) | E>A |
 | Zoom to selection | `zoom-selection` | View; the selection's context menu | View (camera) | not a step | zoom to selection (E) | E |
@@ -260,8 +260,7 @@ it. What an export states about scale is `state-matrix.md` 4.7.
 | Color by, Size by, Width by, Label with | `encode` | a result editor's Appearance; a column header's menu on Nodes and Edges; an Attributes row's menu | style edit | "Color by log fold change"; "Size by degree" | -- | E |
 | Highlight | `highlight` | a result editor's Appearance, when its shape names a subset (a found path) | style edit | "Highlight shortest path" | -- | E |
 | Look | `look` | the Look icon on the graph's property section header | style edit | "Use Look Print" | -- | E |
-| Override | `override` | an Appearance row; the type row's overflow | style edit (the Overrides layer) | "Override color of 3 nodes" | -- | E |
-| Clear all overrides | `clear-overrides` | the Overrides row; the graph's type-row overflow | style edit | "Clear all overrides" | -- | E |
+| Override | `override` | an Appearance row; the type row's overflow | style edit (a new layer on top) | "Override color of 3 nodes" | -- | E |
 | Fix at <value>, Edit a copy | `fix-at`, `edit-copy` | the encoding popover's header; an automatic layer's editor | style edit | "Fix size of Degree at 12" | -- | E |
 | Reset, Reset to default, Clear | `reset` | a style or option row's menu; its minus button | style edit | "Reset color of Hubs" | -- | E |
 | Fit domain to current scope, Treat as categories, Treat as numbers | `fit-domain`, `treat-as` | the encoding popover; a bound pill's menu | style edit; Declare | "Treat region as categories" | -- | E |

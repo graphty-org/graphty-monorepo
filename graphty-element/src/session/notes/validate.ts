@@ -25,13 +25,14 @@ export const NOTE_LIMITS = Object.freeze({
     extensionKeys: 256,
     mediaType: 255,
     idPart: 256,
+    tags: 64,
 });
 
 /** The fields graphty-element stamps itself, which an input may not carry. */
 const ELEMENT_FIELDS = ["id", "time", "author", "edited"] as const;
 
 /** The fields `add` takes. */
-const INPUT_FIELDS = ["text", "targets", "cites", "mediaType", "extensions"] as const;
+const INPUT_FIELDS = ["text", "targets", "cites", "mediaType", "extensions", "tags"] as const;
 
 /** The fields `update` takes. */
 const PATCH_FIELDS = [...INPUT_FIELDS, "done"] as const;
@@ -620,6 +621,7 @@ interface NoteParts {
     readonly cites: readonly NoteCite[] | undefined;
     readonly extensions: Readonly<Record<string, unknown>> | undefined;
     readonly done: string | undefined;
+    readonly tags: readonly string[] | undefined;
 }
 
 /** The fields a version 1 note names; any other field of a note opened from a file is kept as read. */
@@ -634,6 +636,7 @@ const NOTE_FIELDS: ReadonlySet<string> = new Set([
     "cites",
     "extensions",
     "done",
+    "tags",
 ]);
 
 /**
@@ -677,6 +680,30 @@ export function recordOf(parts: NoteParts, extra: Readonly<Record<string, unknow
 }
 
 /**
+ * Check a note's tags: a list of at most 64 strings, each 1 to 256 characters and not only white
+ * space. A repeated tag is kept once, in its first place.
+ * @param tags - The tags as given.
+ * @returns The tags, frozen; undefined for an empty list.
+ * @throws A `GraphtyError` `E_BAD_COMMAND` `"bad-tags"`, or `"too-many"` with `details.field` `"tags"`.
+ */
+export function checkTags(tags: unknown): readonly string[] | undefined {
+    if (!Array.isArray(tags) || tags.some((tag: unknown) => !isShortString(tag) || !/\S/u.test(tag))) {
+        throw refuseNote(
+            "E_BAD_COMMAND",
+            "bad-tags",
+            "A note's tags are a list of strings, each 1 to 256 characters and not only white space.",
+        );
+    }
+
+    const kept = [...new Set(tags as string[])];
+    if (kept.length > NOTE_LIMITS.tags) {
+        throw refuseNote("E_BAD_COMMAND", "too-many", "A note has at most 64 tags.", { field: "tags" });
+    }
+
+    return kept.length === 0 ? undefined : Object.freeze(kept);
+}
+
+/**
  * Check an `add` input and make the record it writes.
  * @param input - The input, as the caller gave it.
  * @param minted - The id and time graphty-element stamps, and the author setting.
@@ -698,6 +725,7 @@ export function buildNote(
     const cites = given.cites === undefined ? undefined : citesOf(given.cites, context);
     const mediaType = given.mediaType === undefined ? undefined : checkMediaType(given.mediaType);
     const extensions = given.extensions === undefined ? undefined : checkExtensions(given.extensions);
+    const tags = given.tags === undefined ? undefined : checkTags(given.tags);
     if (context.count >= NOTE_LIMITS.notes) {
         throw refuseNote("E_TOO_LARGE", "notes", "A session holds at most 10,000 notes.");
     }
@@ -715,7 +743,23 @@ export function buildNote(
         cites,
         extensions,
         done: undefined,
+        tags,
     });
+}
+
+/**
+ * The tags an `update` leaves: left out is unchanged, `null` or `[]` clears them.
+ * @param held - The tags now.
+ * @param given - The patch's tags.
+ * @returns The tags, the held list itself when they are the same.
+ */
+function patchTags(held: readonly string[] | undefined, given: unknown): readonly string[] | undefined {
+    if (given === undefined) {
+        return held;
+    }
+
+    const next = given === null ? undefined : checkTags(given);
+    return canonicalize(next ?? null) === canonicalize(held ?? null) ? held : next;
 }
 
 /**
@@ -753,13 +797,15 @@ export function patchNote(held: Note, patch: unknown, edited: string, context: N
     if (given.done !== undefined) {
         done = given.done ? (held.done ?? edited) : undefined;
     }
+    const tags = patchTags(held.tags, given.tags);
     if (
         text === held.text &&
         targets === held.targets &&
         cites === held.cites &&
         mediaType === held.mediaType &&
         extensions === held.extensions &&
-        done === held.done
+        done === held.done &&
+        tags === held.tags
     ) {
         return null;
     }
@@ -777,6 +823,7 @@ export function patchNote(held: Note, patch: unknown, edited: string, context: N
             cites,
             extensions,
             done,
+            tags,
         },
         unknownFields(held),
     );

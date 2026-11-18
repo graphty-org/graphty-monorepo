@@ -136,9 +136,9 @@ describe("sigma's node size", () => {
         expect(planned(r, "edge", "width")).toEqual([1.5]);
     });
 
-    it("draws labels 12 px, as sigma 4 sets every node's labelSize", async () => {
+    it("draws labels 12 px on screen, as sigma 4 sets every node's labelSize, whatever the zoom", async () => {
         const r = await load(doc, "json");
-        expect(planned(r, "node", "labelSize")).toEqual([12, 12]);
+        expect(planned(r, "node", "labelScreenSize")).toEqual([12, 12]);
     });
 
     it("comes with positions the viewer fits into its canvas, 30 px in from each side", async () => {

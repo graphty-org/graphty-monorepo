@@ -55,7 +55,10 @@ describe("Community Detection Algorithm Options", () => {
 
                 // The damping factor a run used is in the caveats' notes, which is where a
                 // reader is told what the numbers mean.
-                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.85 },
+                });
             });
         });
 
@@ -111,7 +114,10 @@ describe("Community Detection Algorithm Options", () => {
                 const algo = new PageRankAlgorithm(graph, { dampingFactor: 0.5 });
                 await algo.run();
 
-                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.5 },
+                });
             });
         });
 

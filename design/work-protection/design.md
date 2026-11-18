@@ -1,6 +1,6 @@
 # Work protection in graphty-element
 
-Status: design, 2026-10-13. Package: `@graphty/graphty-element`. Where this design and the
+Status: implemented in graphty-element 3.30.0 (`graphty-element/src/autosave/`). Designed 2026-10-13. Package: `@graphty/graphty-element`. Where this design and the
 autosave parts of `design/ui/object-first-ux/round-3/file-project.md` section 5 or issue #818
 disagree, this design replaces them (see section 12).
 

@@ -12,6 +12,8 @@ export type { EnabledFeatures } from "../features/resolve";
 export { featuresFromUrl, resolveFeatures } from "../features/resolve";
 export type { CanvasKeyAction, CanvasKeyDescriptor, CanvasKeyView } from "./canvasKeys";
 export { CANVAS_KEY_DESCRIPTORS } from "./canvasKeys";
+export type { KeymapAction, KeymapDescriptor } from "./keymap";
+export { KEYMAP_DESCRIPTORS } from "./keymap";
 export type { LabelLookDescriptor, LabelLookId } from "./label-looks";
 export { LABEL_LOOKS, labelLook, labelLookChanges } from "./label-looks";
 export type {
@@ -46,7 +48,6 @@ export type {
     Channel,
     ChannelValue,
     CostClass,
-    DeprecatedAlgorithm,
     DeprecatedCatalogMethod,
     DrawingMode,
     EdgeId,
@@ -111,7 +112,6 @@ export type {
 export {
     ATTRIBUTE_TYPES,
     COST_CLASSES,
-    DEPRECATED_ALGORITHMS,
     DEPRECATED_LAYOUT_IDS,
     isAttributeType,
     isCostClass,

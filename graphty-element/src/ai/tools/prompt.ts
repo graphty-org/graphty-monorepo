@@ -10,6 +10,7 @@
 import type { AiMessageScope } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { GraphSession } from "../../session/types";
+import { wholeGraph } from "../../session/working/graphs";
 import type { GraphCommand } from "../commands/types";
 import { INTENT_HELP } from "./inputs";
 
@@ -22,7 +23,7 @@ const ON_DEMAND = [
     "notes: notes on elements",
     "import_data: load data from text or a URL the reader gave; rename the data source",
     "export_graph: write the graph as a file for the reader",
-    "project: settings, name, what a column measures",
+    "project: settings (edge direction: directed or undirected, background, data columns), name, what a column measures",
     "capture: a picture or a video for the reader",
     "immersive: VR and AR",
     "time: move a window along a time column, play it",
@@ -254,7 +255,7 @@ const IDS_SCANNED = 10_000;
  * @returns The line's text.
  */
 function idsLine(session: GraphSession): string {
-    const { ids, nodeCount } = session.data.snapshot();
+    const { ids, nodeCount } = wholeGraph(session.data.store);
     const first = Array.from({ length: Math.min(nodeCount, 5) }, (_, index) => ids.idOf(index));
     if (nodeCount > 0 && nodeCount <= IDS_SCANNED) {
         let low = Infinity;

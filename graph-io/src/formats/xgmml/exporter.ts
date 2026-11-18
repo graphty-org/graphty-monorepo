@@ -19,7 +19,7 @@ import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { DictHeuristic } from "../../common/attributes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { escapeXmlAttribute, escapeXmlText } from "../../common/escape.js";
-import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
+import { capabilities, checkCapabilities, LOSS, type SanitizedIds, sanitizeIds } from "../../common/export.js";
 import { formatF32, formatF64, idText } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
@@ -27,6 +27,7 @@ import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import { neutralPositions } from "../../positions/convert.js";
 import type { ExporterStyleInput, ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -222,6 +223,8 @@ interface Plan {
     /** 1 for a node a traversal from the roots reaches; the others are written without parents. */
     readonly reachable: Uint8Array;
     readonly position: Column | null;
+    /** The position column's rows in the neutral form (center, y up), x, y, z per node; null without one. */
+    readonly neutral: Float64Array | null;
     readonly edgeId: Column | null;
 }
 
@@ -598,6 +601,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
         positionDtype: "f64",
+        idsAsText: true,
     }).filter((n) => n.code !== LOSS.JSON);
     const note: NoteFn = (code, message, column = null, count = null): void => {
         notes.push(Object.freeze({ code, message, column, count }));
@@ -683,6 +687,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
         hierarchy,
         reachable: reachableNodes(snapshot.nodeCount, hierarchy),
         position,
+        neutral: position === null ? null : neutralPositions(snapshot, position),
         edgeId,
     };
 }
@@ -1147,11 +1152,10 @@ function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, st
  * @returns the coordinates as XML attributes (none for an unset or non-finite position)
  */
 function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
-    const xyz = cellOf(plan.position, node);
-    if (xyz === null) {
+    if (cellOf(plan.position, node) === null || plan.neutral === null) {
         return [];
     }
-    const coords = Array.from(xyz as ArrayLike<number>);
+    const coords = Array.from(plan.neutral.subarray(3 * node, 3 * node + 3));
     const [x, y] = coords;
     const z = itemAt(coords, 2);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
@@ -1171,7 +1175,7 @@ function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [st
 /**
  * The group marker and the nested `<graph>` of a group node: its own id, label and atts, and an
  * `xlink:href` to each child.
- * @param snapshot - the snapshot
+ * @param ids - the node ids to write
  * @param sub - the group's subgraph record (empty when it has none)
  * @param children - the child node indices
  * @param inner - the indentation inside the node
@@ -1179,7 +1183,7 @@ function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [st
  * @returns nothing
  */
 function* groupAttOf(
-    snapshot: GraphSnapshot,
+    ids: SanitizedIds,
     sub: Record<string, unknown>,
     children: ArrayLike<number> & Iterable<number>,
     inner: string,
@@ -1194,7 +1198,7 @@ function* groupAttOf(
         yield* jsonAtt(key, value, `${inner}        `);
     }
     for (const child of children) {
-        yield `${inner}        <node xlink:href="#${escapeXmlAttribute(idText(snapshot.ids.idOf(child)))}"/>\n`;
+        yield `${inner}        <node xlink:href="#${escapeXmlAttribute(idText(ids.idAt(child)))}"/>\n`;
     }
     yield `${inner}    </graph>\n${inner}</att>\n`;
 }
@@ -1202,7 +1206,7 @@ function* groupAttOf(
 /**
  * The XML of one node and its group graph, whose members are `xlink:href` references (every
  * node is declared at the top level, in index order).
- * @param snapshot - the snapshot
+ * @param ids - the node ids to write
  * @param plan - the plan
  * @param node - the node
  * @param indent - the indentation
@@ -1211,7 +1215,7 @@ function* groupAttOf(
  * @returns nothing
  */
 function* nodeOf(
-    snapshot: GraphSnapshot,
+    ids: SanitizedIds,
     plan: Plan,
     node: number,
     indent: string,
@@ -1220,7 +1224,7 @@ function* nodeOf(
     const labelCol = slot(plan.nodes, "label");
     const label = cellOf(labelCol, node);
     const labelAttr = label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`;
-    yield `${indent}<node id="${escapeXmlAttribute(idText(snapshot.ids.idOf(node)))}"${labelAttr}${xmlAttributesOf(plan.nodes, node)}>\n`;
+    yield `${indent}<node id="${escapeXmlAttribute(idText(ids.idAt(node)))}"${labelAttr}${xmlAttributesOf(plan.nodes, node)}>\n`;
     const inner = `${indent}    `;
     yield* attsOf(plan.nodes, node, node === 0, plan, inner);
     const children = plan.reachable[node] === 1 ? plan.hierarchy.childrenOf(node) : [];
@@ -1228,7 +1232,7 @@ function* nodeOf(
     const pointer = cellOf(slot(plan.nodes, "pointer"), node);
     const subgraph = cellOf(slot(plan.nodes, "subgraph"), node);
     if (children.length > 0 || subgraph !== null) {
-        yield* groupAttOf(snapshot, (subgraph ?? {}) as Record<string, unknown>, children, inner);
+        yield* groupAttOf(ids, (subgraph ?? {}) as Record<string, unknown>, children, inner);
     } else if (typeof nested === "string") {
         yield `${inner}<att>\n${inner}    <graph label="${escapeXmlAttribute(nested)}"/>\n${inner}</att>\n`;
     } else if (typeof pointer === "string") {
@@ -1250,6 +1254,7 @@ function* nodeOf(
  */
 function* write(snapshot: GraphSnapshot, options: XgmmlWriteOptions | undefined): Generator<string, void, undefined> {
     const plan = planFor(snapshot, options);
+    const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, plan.options.sanitizeIds);
     const styles = options?.styles;
     const meta = snapshot.meta.extra[META_KEY] as { graphId?: unknown; directed?: unknown } | undefined;
     const graphId = typeof meta?.graphId === "string" ? ` id="${escapeXmlAttribute(meta.graphId)}"` : "";
@@ -1271,10 +1276,10 @@ function* write(snapshot: GraphSnapshot, options: XgmmlWriteOptions | undefined)
     const graphGraphics = cellOf(slot(plan.graph, "graphics"), 0) as Record<string, unknown> | null;
     yield* graphicsOf(styles === undefined ? graphGraphics : styledGraphGraphics(styles, graphGraphics), [], "    ");
     for (let u = 0; u < snapshot.nodeCount; u++) {
-        yield* nodeOf(snapshot, plan, u, "    ", styles);
+        yield* nodeOf(ids, plan, u, "    ", styles);
     }
-    yield* networksOf(snapshot, plan);
-    yield* edgesOf(snapshot, plan, styles);
+    yield* networksOf(snapshot, ids, plan);
+    yield* edgesOf(snapshot, ids, plan, styles);
     yield "</graph>\n";
 }
 
@@ -1305,11 +1310,12 @@ function* metadataOf(snapshot: GraphSnapshot): Generator<string, void, undefined
 /**
  * The root-level subgraphs of an `xgmml.networks` membership column.
  * @param snapshot - the snapshot
+ * @param ids - the node ids to write
  * @param plan - the plan
  * @yields the subgraph atts
  * @returns nothing
  */
-function* networksOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
+function* networksOf(snapshot: GraphSnapshot, ids: SanitizedIds, plan: Plan): Generator<string, void, undefined> {
     const column = slot(plan.nodes, "networks");
     if (column?.dtype !== "list") {
         return;
@@ -1325,7 +1331,7 @@ function* networksOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, voi
     for (const [id, nodes] of members) {
         yield `    <att>\n        <graph id="${escapeXmlAttribute(id)}">\n`;
         for (const u of nodes) {
-            yield `            <node xlink:href="#${escapeXmlAttribute(idText(snapshot.ids.idOf(u)))}"/>\n`;
+            yield `            <node xlink:href="#${escapeXmlAttribute(idText(ids.idAt(u)))}"/>\n`;
         }
         yield "        </graph>\n    </att>\n";
     }
@@ -1334,6 +1340,7 @@ function* networksOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, voi
 /**
  * The edges: one per logical edge, expanded pairs folded.
  * @param snapshot - the snapshot
+ * @param ids - the node ids to write
  * @param plan - the plan
  * @param styles - the styles being written, or undefined
  * @yields the edge elements
@@ -1341,6 +1348,7 @@ function* networksOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, voi
  */
 function* edgesOf(
     snapshot: GraphSnapshot,
+    ids: SanitizedIds,
     plan: Plan,
     styles: ExporterStyleInput | undefined,
 ): Generator<string, void, undefined> {
@@ -1361,8 +1369,8 @@ function* edgesOf(
         const weight = weights.text(e);
         const idAttr = id === null ? "" : ` id="${escapeXmlAttribute(scalarText(id))}"`;
         const labelAttr = label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`;
-        const source = escapeXmlAttribute(idText(snapshot.ids.idOf(u)));
-        const target = escapeXmlAttribute(idText(snapshot.ids.idOf(v)));
+        const source = escapeXmlAttribute(idText(ids.idAt(u)));
+        const target = escapeXmlAttribute(idText(ids.idAt(v)));
         yield `    <edge${idAttr}${labelAttr} source="${source}" target="${target}" cy:directed="${directed ? "1" : "0"}"${optionalAttribute("weight", weight)}${xmlAttributesOf(plan.edges, e)}>\n`;
         yield* attsOf(plan.edges, e, first, plan, "        ");
         const kept = cellOf(graphicsCol, e) as Record<string, unknown> | null;

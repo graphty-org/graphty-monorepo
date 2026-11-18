@@ -19,15 +19,7 @@
  * The flag set is recorded in each scene's provenance, since a GPU also changes which force layout
  * implementation runs.
  */
-import {
-    type AbstractMesh,
-    Color3,
-    Color4,
-    InstancedMesh,
-    type Mesh,
-    StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
+import { Color3, Color4, InstancedMesh, type Mesh, StandardMaterial, Vector3 } from "@babylonjs/core";
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 import { commands, page } from "vitest/browser";
 
@@ -35,6 +27,7 @@ import { compareSample, compareScenes, type SampleResult } from "../../../graph-
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import type { Property, Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graph } from "../../src/Graph";
+import { nodeInternals } from "../../src/Node";
 import { drawnScene, GPU, mountSample, nodeKeys, readJson, referenceScenes, unmount } from "./mount";
 import { type Floors, gateMessages, gateReportText, judgeKey, type KeyGate, type KnownFailures } from "./oracle/floors";
 import { renderReport, type ReportSample, type SelfCheck } from "./report";
@@ -127,7 +120,7 @@ const FAULTS: readonly Fault[] = [
         sample: "gexf-miserables",
         plant: (graph) => {
             for (const node of graph.getDataManager().nodes.values()) {
-                const ring = (node as unknown as { border: AbstractMesh | null }).border;
+                const ring = nodeInternals.drawn(node).border;
                 if (ring !== null) {
                     ring.scaling = ring.scaling.multiply(new Vector3(3, 3, 1));
                 }

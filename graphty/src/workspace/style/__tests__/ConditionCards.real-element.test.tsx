@@ -20,7 +20,6 @@ import { page, userEvent } from "vitest/browser";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
@@ -163,18 +162,20 @@ async function elementCount(session: GraphSession, leaf: RuleTree, side: "node" 
 }
 
 /**
- * The count a chip shows: the number after its last comma, before its noun ("22 nodes").
- * @param words - The start of the chip's words.
+ * The count the Which row says for one card: the number after the card's words in the row's name
+ * ("Which nodes, 22 of 77, degree from 10, 22 nodes"). The row draws only its name; its count and
+ * each card's words are its tooltip and its accessible name (#8739).
+ * @param words - The start of the card's words.
  * @returns The count.
  */
 async function chipCount(words: string): Promise<number> {
-    return waitFor(() => {
-        const chip = [...document.querySelectorAll<HTMLElement>("[data-chip]")].find((each) =>
-            (each.textContent ?? "").startsWith(words),
-        );
-        const n = /, (\d+)\u00a0(?:nodes?|edges?)$/.exec(chip?.textContent ?? "")?.[1];
-        assert.isDefined(n, `a counted chip starting "${words}": ${chip?.textContent ?? "none"}`);
-        return Number(n);
+    return waitFor(async () => {
+        const name = (await whichRow()).getAttribute("aria-label") ?? "";
+        const at = name.indexOf(words);
+        assert.isAtLeast(at, 0, `the row names "${words}": ${name}`);
+        const n = /^[^]*?, ([\d,]+) (?:nodes?|edges?)(?:,|$)/.exec(name.slice(at + words.length))?.[1];
+        assert.isDefined(n, `a counted card starting "${words}": ${name}`);
+        return Number(n?.replaceAll(",", ""));
     });
 }
 
@@ -243,12 +244,8 @@ describe("the combined Style panel", () => {
         const list = await screen.findByRole("tablist", { name: "Style for" });
         const node = within(list).getByRole("tab", { name: "Node" });
         const edge = within(list).getByRole("tab", { name: /^Edge/ });
-        // The selection workspace drops the "not styled" note from the kind tabs (StylePanel.tsx).
-        if (selectionWorkspaceOn(session)) {
-            assert.notInclude(edge.textContent ?? "", "not styled");
-        } else {
-            assert.include(edge.textContent ?? "", "not styled", "a kind that is off says so");
-        }
+        // The kind tabs say no "not styled" note (StylePanel.tsx).
+        assert.notInclude(edge.textContent ?? "", "not styled");
         assert.strictEqual(node.getAttribute("aria-selected"), "true");
         const before = JSON.stringify(session.styles.get(layer.id));
         const steps = session.history.position;
@@ -403,7 +400,7 @@ describe("the combined Style panel", () => {
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(edgePart).matched, await elementCount(session, leaf, "edge"));
         // The Ends card says so.
-        assert.include((await whichRow("edges")).textContent ?? "", "Ends: both in this layer's nodes");
+        assert.include((await whichRow("edges")).getAttribute("aria-label") ?? "", "Ends: both in this layer's nodes");
 
         // A node card edited on the Node tab moves the edges with it.
         await userEvent.click(
@@ -429,7 +426,7 @@ describe("the combined Style panel", () => {
         const layers = folderLayers(session);
         assert.isAbove(layers.length, 2);
         await clickRow("Louvain");
-        assert.isNotNull(await screen.findByText(/layers in Louvain/), "the scope line, above the tabs");
+        await screen.findByTestId("style-tab");
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const byLayer = within(region).getByRole("group", { name: /from each layer/ });
@@ -440,16 +437,16 @@ describe("the combined Style panel", () => {
         assert.strictEqual(byLayer.querySelector("[data-layer-source]")?.textContent, "\u00ABLayer\u00BB");
         // Each layer's value, top first as the tree lists them, without the field's name again.
         const summary = within(byLayer).getByRole("button", { name: /from each layer/ });
-        assert.match(summary.textContent ?? "", /Group 1, Group 2, Group 3, \+\d/);
+        assert.match(summary.getAttribute("aria-label") ?? "", /Group 1, Group 2, Group 3, \+\d/);
         await userEvent.click(summary);
-        // Each line's count is the element's `scope.count`, a promise the line fills in once it
-        // answers: a reader sees the count arrive, so the line is read once it has.
+        // Each line draws its layer and value; its count is its tooltip, never drawn (#8739).
         await waitFor(() => {
             const first = within(byLayer).getAllByRole("listitem")[0]?.textContent ?? "";
-            assert.match(first, /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
+            assert.strictEqual(first, "Group 1: Group 1", "the first line is the tree's first layer");
         });
-        // The open cards say the union, as the closed row does (counted the same way).
-        assert.isNotNull(await within(region).findByText(/^77 of 77 nodes$/));
+        // The open cards say the union, as the closed row does (counted the same way), in Done's tooltip.
+        await userEvent.hover(within(region).getByRole("button", { name: "Done" }));
+        assert.isNotNull(await screen.findByText(/^77 of 77 nodes$/));
 
         const steps = session.history.position;
         const card = await addCard("name");
@@ -516,7 +513,7 @@ describe("the combined Style panel", () => {
         await userEvent.click(await screen.findByRole("checkbox", { name: "Style edges" }));
         const row = await whichRow("edges");
         assert.match(row.getAttribute("aria-label") ?? "", /^Which edges, Ends/, "no 'of 254 edges' without a number");
-        assert.include(row.textContent ?? "", "Ends: both in this layer's nodes");
+        assert.include(row.getAttribute("aria-label") ?? "", "Ends: both in this layer's nodes");
     });
 
     it("on a layer with a card and one with none: every node, and the card held by 1 of 2 layers", async () => {
@@ -527,21 +524,13 @@ describe("the combined Style panel", () => {
         await clickRow("Some");
         await clickRow("All", "Control");
         const row = await whichRow();
-        // The selection workspace reads a card that differs by layer in plain words (WhichPicker.tsx).
-        const workspace = selectionWorkspaceOn(session);
+        // A card that differs by layer is read in plain words (WhichPicker.tsx).
         await waitFor(() => {
             assert.match(
                 row.getAttribute("aria-label") ?? "",
-                // The token is spoken as what it stands for, never its marks.
-                workspace
-                    ? /^Which nodes, 77 of 77 nodes, name by layer, 1 of 2 layers$/
-                    : /^Which nodes, 77 of 77 nodes, name: each layer's own value, 1 of 2 layers$/,
+                /^Which nodes, 77 of 77 nodes, name by layer, 1 of 2 layers$/,
             );
         });
-        assert.include(
-            row.textContent ?? "",
-            workspace ? "name by layer, 1 of 2 layers" : "name: «Layer», 1 of 2 layers",
-        );
     });
 
     it("a rule the cards cannot draw opens as the rule in words and is unchanged on close", async () => {
@@ -551,7 +540,7 @@ describe("the combined Style panel", () => {
         await clickRow("Two");
         const row = await whichRow();
         const words = "Rule: data.name == 'Myriel' || data.name == 'Napoleon'";
-        assert.include(row.textContent ?? "", words);
+        assert.include(row.getAttribute("aria-label") ?? "", words);
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });
         assert.isNotNull(within(region).getByRole("group", { name: (name) => name.startsWith(words) }));

@@ -56,6 +56,15 @@ describe("styles.counts, how many elements a layer covers and where it wins", ()
             encode: { "node.size": { by: "data.score" } },
         });
         assert.sameMembers([...styles.counts(scored.id).reads], ["data.team", "data.score"]);
+
+        // A rule selector reads its rule's path, as a run's group layer does.
+        const team = await styles.add({
+            name: "Team a",
+            target: "node",
+            selector: { match: "rule", where: { kind: "categories", attribute: "data.team", values: ["a"] } },
+            set: { "node.color": "#00ff00" },
+        });
+        assert.deepStrictEqual([...styles.counts(team.id).reads], ["data.team"]);
         session.dispose();
     });
 

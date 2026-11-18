@@ -3,9 +3,11 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
+import type { NodeScreenPosition } from "../Graph";
 import type { EdgeRowLines } from "../meshes/EdgeRowLines";
 import type { MeshCache } from "../meshes/MeshCache";
 import type { NodeBatches } from "../meshes/NodeBatch";
+import type { LeanLines } from "../meshes/PulledLineBatch";
 import type { DrawnTarget, RowTable } from "../render/RowTable";
 import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
@@ -82,11 +84,12 @@ export interface GraphContext {
 
     /**
      * Whether a straight pulled line draws the lean program (`EDGE_PULLED_LEAN`): only with
-     * `antialias` false and the `"batched"` path's batches open. Optional, as `getRowTable` is.
-     * @returns True when it does.
+     * `antialias` false and the `"batched"` path's batches open; `"smooth"` under `antialias`
+     * "shader" (`EDGE_LINE_AA`). Optional, as `getRowTable` is.
+     * @returns The program.
      * @internal
      */
-    leansLines?(): boolean;
+    leansLines?(): LeanLines;
 
     /**
      * The node batches, on the `"batched"` render path.
@@ -157,6 +160,14 @@ export interface GraphContext {
      * Optional method for selection functionality
      */
     getSelectionManager?(): SelectionManager | undefined;
+
+    /**
+     * Where a node is drawn on screen; absent on a context built without a graph.
+     * @param nodeId - The node's id.
+     * @returns The position, or undefined for an id the graph does not hold.
+     * @internal
+     */
+    nodeScreenPosition?(nodeId: string | number): NodeScreenPosition | undefined;
 
     /**
      * Get EventManager for emitting events
@@ -302,10 +313,7 @@ export class DefaultGraphContext implements GraphContext {
      * @returns True if in 2D mode, false otherwise
      */
     is2D(): boolean {
-        const config = this.styles().config.graph;
-        // Support both new viewMode and deprecated twoD for backward compatibility
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        return config.viewMode === "2d" || config.twoD;
+        return this.styles().config.graph.viewMode === "2d";
     }
 
     /**

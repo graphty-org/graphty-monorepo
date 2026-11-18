@@ -89,7 +89,7 @@ describe("a frame drawn while a style pass is painting", () => {
 
         const { graph, session } = element;
         // The frame's own style step, driven by hand so the test chooses when a frame lands.
-        const frame = (graph as unknown as { updateManager: { syncStyles: () => void } }).updateManager;
+        const frame = graph.getUpdateManager();
         const painter = graph.getStylePainter();
 
         graph.engine.stopRenderLoop();

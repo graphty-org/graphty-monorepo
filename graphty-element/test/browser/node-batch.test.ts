@@ -702,6 +702,85 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(objects.frame, batched.frame), 0);
     });
 
+    it("hold a paused circle still through a removal, and lay it out again on resume", async () => {
+        // A paused static layout keeps every remaining node where it is on a removal, and still
+        // places a node added meanwhile; the re-run waits for the consumer to resume. The position table and the drawn nodes agree on both
+        // paths throughout (#8039).
+        const ring = Array.from({ length: 12 }, (_, i) => ({ id: `r${String(i)}` }));
+        const links = ring.map((_, i) => ({ src: `r${String(i)}`, dst: `r${String((i + 1) % 12)}` }));
+        const kept = ring.slice(0, 11).map((node) => node.id);
+        const table = (element: Graphty): Vector3[] =>
+            kept.map((id) => {
+                const at = element.session.positions.get(id);
+                assert.isDefined(at, `${id} has a row in the position table`);
+                return new Vector3(at.x, at.y, at.z);
+            });
+        const agrees = (element: Graphty, path: "objects" | "batched"): void => {
+            if (path === "objects") {
+                const rows = table(element);
+                kept.forEach((id, i) => {
+                    const mesh = element.graph.getNode(id)?.mesh.position;
+                    assert.isDefined(mesh);
+                    assert.isBelow(Vector3.Distance(mesh, rows[i]), 1e-3, `${id} is drawn at its row`);
+                });
+            }
+        };
+        const pausedRemoval = async (
+            path: "objects" | "batched",
+        ): Promise<{ element: Graphty; before: Vector3[]; paused: Frame }> => {
+            const element = await mounted(renderer);
+            element.graph.setRenderPath(path);
+            await element.graph.setLayout("circular");
+            await element.session.data.addNodes(ring);
+            await element.session.data.addEdges(links);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            const before = table(element);
+            element.graph.setRunning(false);
+            await element.session.data.removeNodes(["r11"]);
+            await operationQueueOf(element.graph).waitForCompletion();
+            // A node added while still paused is placed, among the nodes that stayed.
+            // Two, so the circle the resume lays out (thirteen nodes) is not the one paused (twelve).
+            await element.session.data.addNodes([{ id: "late" }, { id: "later" }]);
+            await element.session.data.addEdges([{ src: "late", dst: "r0" }]);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            const late = element.session.positions.get("late");
+            assert.isDefined(late, "the node added while paused has a row");
+            if (path === "objects") {
+                const mesh = element.graph.getNode("late")?.mesh.position;
+                assert.isDefined(mesh);
+                assert.isBelow(Vector3.Distance(mesh, new Vector3(late.x, late.y, late.z)), 1e-3);
+            }
+
+            return { element, before, paused: await readFrame(element.graph) };
+        };
+        const resumed = async (element: Graphty): Promise<Frame> => {
+            element.graph.setRunning(true);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            return readFrame(element.graph);
+        };
+
+        const frames: Record<"objects" | "batched", { paused: Frame; resumed: Frame }> = {} as never;
+        for (const path of ["objects", "batched"] as const) {
+            const { element, before, paused } = await pausedRemoval(path);
+            table(element).forEach((row, i) => {
+                assert.isBelow(Vector3.Distance(row, before[i]), 1e-3, `${kept[i]} stayed put while paused`);
+            });
+            agrees(element, path);
+
+            const after = await resumed(element);
+            assert.isAbove(Vector3.Distance(table(element)[0], before[0]), 0.1, "resuming re-ran the circle");
+            agrees(element, path);
+            frames[path] = { paused, resumed: after };
+            element.remove();
+        }
+
+        assert.equal(overBar(frames.objects.paused, frames.batched.paused), 0);
+        assert.equal(overBar(frames.objects.resumed, frames.batched.resumed), 0);
+    });
+
     it("keep the rest of a look on the batch when a consumer reads one row's mesh", async () => {
         // A batch hides its whole source mesh, so a held row drawn from the shared source took every row
         // of its look off the batch: one `getNode(id).mesh` emptied a one-look graph's batch (#8038).
@@ -720,12 +799,27 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
+    it("keep the rest of a look on the batch when a row's mesh was read before the switch to it", async () => {
+        // A mesh read on the objects path left the held row on its look's shared source, which the batch
+        // hides: the switch took every row of that look off the batch (#8073).
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        assert.isFalse(graph.getNode(0)?.mesh.isDisposed(), "the consumer gets the node's own mesh");
+
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "the rest of its look stays on the batch");
+        assert.equal(graph.rowCounts.objectNodes, 1);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
     it.each(["2d", "3d"] as const)("batch a screen-scaled map's rows through a zoom in %s", async (view) => {
         const element = await mounted(renderer);
         await loaded(element, view);
         const { graph } = element;
+        graph.setLayoutBehavior({ node: { sizeSpace: "screen" } });
         await graph.setLayout("location-map", {
-            nodeScale: "screen",
             mapDimension: view,
             map: { source: "natural-earth-gray" },
         });
@@ -759,7 +853,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             set: { "edge.arrowHead": "normal" },
         } as never);
         await operationQueueOf(graph).waitForCompletion();
-        element.layoutBehavior = { node: { depthIndependentSize: true } };
+        element.layoutBehavior = { node: { sizeSpace: "pivot" } };
         await element.waitForStableFrame();
         await frameOn(graph, "batched");
         const scale = graph.getNode(0)?.drawnScale;

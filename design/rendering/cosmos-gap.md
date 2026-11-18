@@ -1,6 +1,6 @@
 # Closing graphty-element's three largest gaps to cosmos.gl
 
-Status: design, not built. Code read at origin/master 5de23d248a (2026-11-08). Paths are under `graphty-element/src/` unless
+Status: measured at the row renderer's close-out on 2026-11-15 (section 5.5). Code read at origin/master 5de23d248a (2026-11-08). Paths are under `graphty-element/src/` unless
 named otherwise. This document extends `design/rendering/row-renderer.md` (the row renderer, whose stages are named here by
 their number there, for example "stage 26, lazy `Node`") and draws on `design/ui/framework/research/cosmos-gl.md`. Its own
 stages are named G1, G2 and so on.
@@ -223,6 +223,18 @@ No CPU change moves a fill-bound frame. Two picture changes do, so both are opt-
 With the default picture the frame stays at 72-90 ms (71.5 ms of GPU, 89.6 ms measured), about 2.5-3.2x cosmos.gl. G1's Proof checks whether the flush also
 recovers part of the 18 ms between the harness's 89.6 ms and the GPU's 71.5 ms.
 
+As built (issue #8235): `antialias: "at-rest"` keeps the default picture without paying for it while anything moves.
+The engine is built multisampled, as under `true`; a moving frame is drawn through a pass post-process with no
+multisampling (`RenderManager.drawFast`) and copied to the canvas, with every straight pulled batch, 2D and 3D (#8428), switched to
+`EDGE_PULLED_LEAN` by a define and a vertex count (`drawLinesLean`, no piece moved); the first tick that would rest
+draws one frame straight to the canvas with the join template, which is the `true` frame by construction, and the
+loop then rests on it (at-rest turns drawing on demand on). A pointer held on the canvas counts as motion. Because the
+canvas stays multisampled, an element built with `true` switches to `"at-rest"` and back at any time
+(`Graph.setAntialias`), which the app needs: the edge count is known only after the load. Measured on the RTX at
+100k + 1M, 4 interleaved runs: a fast frame of the still view 30.4 ms serial and 28.2 ms of GPU against `false`'s 30.1
+and 28.2; the layout frame 20.5 ms against 21.0 (`true`: 41.3); the smooth frame 73.2 ms of GPU, on screen 75.3 ms
+after the last moving frame; the held 1200x900 picture equal to `true`'s in every pixel (`false`: 176,639 differ).
+
 ### 3.5 What is kept out on purpose
 
 - **Drawing batches outside Babylon.** Under `"batched"` the scene is 4 meshes at 100k nodes, Babylon's share of a frame is
@@ -387,6 +399,16 @@ off) tenfold and adding the fixed cost back gives **about 8.5-14.5 s at 1M + 10k
 stage 30's 6 s target. That assumes linear growth; garbage collection may grow faster. Heap is the row renderer's estimate, 850-920 MB before 20-byte batches, against
 an 800 MB target; G9 measures it and G11 exists for a miss. **It stops** at the per-row work the session keeps: the
 derivation pass over a million rows, the style repaint's column writes, the position repack and the builder.
+
+### 5.5 Measured at the close-out (2026-11-15)
+
+Row renderer stage 38 measured every projection above in one session, interleaved with cosmos.gl
+(`benchmarks/results/close-out/summary.md`, "The three gaps to cosmos.gl"). As ratios to cosmos.gl: first load at
+100k + 1M is 6.2x from record arrays and 7.2x through the column door (projected 7.5-10x and 5.6-8x), at 100k + 1k 4.0x
+(projected 8-12x), at 1M + 10k 9.7x (projected 13-22x); the 100k + 1M still frame is 2.55x (projected 2.5-3.2x) and the
+1M + 1M still frame 2.6x (projected 77-92 ms, measured 76.3 ms). Every load is ahead of its projection and every frame on
+track. Against the projection, the column door loads slower than record arrays at every size but 1M + 1M, while holding
+less heap.
 
 ## 6. Public API
 

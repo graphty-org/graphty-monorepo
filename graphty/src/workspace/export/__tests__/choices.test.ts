@@ -53,7 +53,6 @@ describe("the Export dialog's choices", () => {
         const result: ExportResult = {
             format: "csv",
             losses: [],
-            lossNotes: [],
             text: () => {
                 whole++;
                 return Promise.reject(new Error("read the whole file"));
@@ -155,7 +154,8 @@ describe("the Export dialog's choices", () => {
     });
 
     it("hands the element the scope and columns the reader chose", () => {
-        assert.isUndefined(exportScope("all"));
+        // All names the whole graph: with no scope the element writes the working graph the app reads.
+        assert.equal(exportScope("all"), "all");
         assert.equal(exportScope("shown"), "shown");
         assert.equal(exportScope("selection"), "selection");
         assert.deepEqual(exportScope("set:hubs"), { set: "hubs" });

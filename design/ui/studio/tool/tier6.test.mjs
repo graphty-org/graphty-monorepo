@@ -61,7 +61,8 @@ test("the calls left must carry every session of the round at its limit", () => 
 
 test("the gate of a tier whose criteria score no bar by a script asks for no bars run, and holds it to the cap", async () => {
     const studio = resolve(here, "..");
-    const tier = join(studio, "tier6/rounds");
+    // the round and its pass in a folder of the test's own, never in the studio's files (#8412)
+    const tier = join(scratch(), "rounds");
     const rd = join(tier, "round-97");
     const frozen = readFileSync(join(studio, "tier6/criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)[1];
     const walk = async (name) => {
@@ -74,9 +75,9 @@ test("the gate of a tier whose criteria score no bar by a script asks for no bar
     const gate = () =>
         spawnSync(process.execPath, [join(here, "real.mjs"), "--gate", rd], {
             encoding: "utf8",
-            env: { ...process.env, REAL_TIER: "", REAL_GEMINI_COUNT: count },
+            env: { ...process.env, REAL_TIER: "6", REAL_GEMINI_COUNT: count },
         });
-    const clean = () => Promise.all([rd, join(tier, "r97")].map((d) => rm(d, { recursive: true, force: true })));
+    const clean = () => rm(dirname(tier), { recursive: true, force: true });
     await clean();
     try {
         await mkdir(rd, { recursive: true });

@@ -28,12 +28,16 @@ import { canonText } from "../../styles/canon/text.js";
 import { putYedRamp, yedGradientAngle, yedGradientRamp } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
+    YED_LABEL_BOX_PADDING,
+    YED_LABEL_LINE,
     YED_LABEL_PADDING,
     yedLabelBox,
     yedLabelFillsNodeHeight,
     yedLabelFillsNodeWidth,
+    yedLabelHeight,
 } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
@@ -1203,7 +1207,8 @@ function hasStoredBox(label: unknown): boolean {
 }
 
 /**
- * Reads what a label's box is sized to; a box as wide as its node lines its words up by the label's `alignment`.
+ * Reads what a label's box is sized to, and how its lines line up by the label's `alignment`: inside a box as wide as
+ * its node, and against one another in a box sized to its words (yed-graphml-specimen-labels `alignment-left`).
  * @param label - the label element
  * @param position - where the label is placed
  * @param put - receives the values
@@ -1212,11 +1217,8 @@ function readLabelBoxSize(label: unknown, position: string | null, put: PutValue
     if (!hasStoredBox(label)) {
         return;
     }
-    const policy = treeAttr(label, "autoSizePolicy");
-    put("labelBox", yedLabelBox(policy, position));
-    if (yedLabelFillsNodeWidth(policy)) {
-        put("labelTextAlign", treeAttr(label, "alignment") ?? null);
-    }
+    put("labelBox", yedLabelBox(treeAttr(label, "autoSizePolicy"), position));
+    put("labelTextAlign", treeAttr(label, "alignment") ?? null);
 }
 
 /**
@@ -2579,11 +2581,29 @@ function readEdgeRoute(
  * @returns the one control point, or null without a usable arc or line
  */
 function arcControl(arc: unknown, ends: readonly [BendPoint, BendPoint]): BendPoint[] | null {
+    if (arc === undefined) {
+        return null;
+    }
+    const ratio = treeAttr(arc, "type") === "fixedRatio";
+    return yedArcControl(ratio, Number(treeAttr(arc, ratio ? "ratio" : "height")), ends);
+}
+
+/**
+ * The control point of the quadratic Bezier yEd draws an arc edge as (see {@link arcControl}), from its arc type and
+ * its height or ratio: GraphML's `y:Arc` and GML's `arcType`, `arcHeight` and `arcRatio` say the same.
+ * @param ratio - whether it is a `fixedRatio` arc (else `fixedHeight`)
+ * @param value - its ratio, or its height
+ * @param ends - the route's two ends
+ * @returns the one control point, or null without a usable value or line
+ */
+export function yedArcControl(
+    ratio: boolean,
+    value: number,
+    ends: readonly [BendPoint, BendPoint],
+): BendPoint[] | null {
     const [[x0, y0], [x1, y1]] = ends;
     const length = Math.hypot(x1 - x0, y1 - y0);
-    const ratio = treeAttr(arc, "type") === "fixedRatio";
-    const value = Number(treeAttr(arc, ratio ? "ratio" : "height"));
-    if (arc === undefined || length === 0 || !Number.isFinite(length) || !Number.isFinite(value)) {
+    if (length === 0 || !Number.isFinite(length) || !Number.isFinite(value)) {
         return null;
     }
     const twice = 2 * (ratio ? (value * length) / 4 : value);
@@ -2653,13 +2673,6 @@ const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
 
 /** How far from the line's end yEd starts a label at a source or target position. */
 const YED_EDGE_LABEL_END = 10;
-
-/** A label's box round its lines of words: yEd's padding, and each line against the font's size. */
-export const YED_LABEL_BOX_PADDING = 4;
-export const YED_LABEL_LINE = 1.164;
-
-/** A label's words against their font size, for a file that stores no width. */
-export const YED_LABEL_CHARACTER = 0.55;
 
 /**
  * Where a line from a point in a box leaves the box, or the line's end for one that stays inside.
@@ -2852,46 +2865,12 @@ function unplacedSmartSpot(label: unknown, source: readonly number[], target: re
     return flipped ? "six_pos/head" : "six_pos/tail";
 }
 
-/** Canonical values per property, by element index. */
-export type ValueColumns = Partial<Record<string, (StyleValue | null)[]>>;
-
-/**
- * A collector of canonical values for one target.
- * @param n - the element count
- * @returns the values and a setter for element i
- */
-export function valueColumns(n: number): {
-    readonly values: ValueColumns;
-    put(i: number, property: string, value: StyleValue | null): void;
-} {
-    const values: ValueColumns = Object.create(null) as ValueColumns;
-    return {
-        values,
-        put(i, property, value) {
-            if (value !== null) {
-                values[property] ??= new Array<StyleValue | null>(n).fill(null);
-                values[property][i] = value;
-            }
-        },
-    };
-}
-
 /** What the yEd reader read. */
 export interface YedRead {
     /** Node values. */
     readonly node: ValueColumns;
     /** Edge values. */
     readonly edge: ValueColumns;
-}
-
-/**
- * The height yEd gives a label of some lines of text: each line its font's ascent plus descent, and the box's padding.
- * @param text - the label's text
- * @param fontSize - its font size
- * @returns the height
- */
-export function yedLabelHeight(text: string, fontSize: number): number {
-    return text.split("\n").length * YED_LABEL_LINE * fontSize + YED_LABEL_BOX_PADDING;
 }
 
 /**

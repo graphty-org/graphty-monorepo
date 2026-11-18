@@ -75,9 +75,16 @@ async function meshesForAView(size: number): Promise<number> {
     // the load's meshes are built, but some may not be announced yet
     await meshAnnouncementsDelivered();
 
+    // Babylon reports a new mesh a task after adding it (`onNewMeshAddedObservable` fires from a setImmediate), so
+    // meshes the load built just before the paint wait ended were reported after this observer was added and counted
+    // as the view's: one per node, on the runs where the timing fell that way. Only meshes the scene did not hold when
+    // the view was shown are the view's.
+    const loaded = new Set(graph.scene.meshes);
     let added = 0;
-    const counting = graph.scene.onNewMeshAddedObservable.add(() => {
-        added++;
+    const counting = graph.scene.onNewMeshAddedObservable.add((mesh) => {
+        if (!loaded.has(mesh)) {
+            added++;
+        }
     });
     const view = session.styles.showBranches({ rule: PICKED, rest: "plain" });
     await graph.waitForPainted();

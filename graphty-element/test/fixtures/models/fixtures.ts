@@ -230,10 +230,12 @@ export function zip(entries: Record<string, Uint8Array>, level: 0 | 9 = 9): Uint
 }
 
 /**
- * The hostile references, each refused with E_MODEL_EXTERNAL_URL. A `file:` URL is a path on its
- * author's disk and means only its base name (design 12.5), so it is not here.
+ * The hostile references, each refused with E_MODEL_EXTERNAL_URL: schemes other than a web
+ * address. A web address or a path above the folder is a part the reader may supply (design 3.3),
+ * and a `file:` URL is a path on its author's disk that means only its base name (design 12.5), so
+ * neither is here.
  */
-export const HOSTILE_REFERENCES = ["//host/x.bin", "%2e%2e/x.bin", "../x.bin", "blob:https://a/b", "http://host/x.bin"];
+export const HOSTILE_REFERENCES = ["blob:https://a/b", "javascript:alert(1)", "ftp://host/x.bin", "data:text/html,x"];
 
 /** A glTF whose accessor claims 2e8 elements with no buffer view behind it. */
 export function accessorBomb(): Map<string, Uint8Array> {

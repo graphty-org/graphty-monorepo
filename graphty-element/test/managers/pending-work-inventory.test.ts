@@ -46,7 +46,7 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 12,
+        count: 11,
         kind: "load",
         reason:
             "format detection runs inside a load that holds a place in the load line (a URL's download goes " +
@@ -71,9 +71,8 @@ const INVENTORY: Record<string, Covered> = {
         count: 1,
         kind: "load",
         reason:
-            "a source's download, inside a load; also fetchJson's, for Styles.fromUrl (a style object handed " +
-            "to its caller, drawing nothing) and InputManager's playback file (the input it replays moves the " +
-            "camera like a reader)",
+            "a source's download, inside a load; also fetchJson's, for InputManager's playback file (the " +
+            "input it replays moves the camera like a reader)",
     },
     "src/session/backgroundImage.ts": {
         count: 1,
@@ -81,7 +80,6 @@ const INVENTORY: Record<string, Covered> = {
             "prepareBackgroundImage decodes a chosen picture and hands its data URL to the caller; it draws " +
             "nothing itself; the skybox the caller then writes is drawn by the render manager",
     },
-    "src/session/assets/unzip.ts": { count: 1, kind: "load", reason: "unzipping a file being loaded" },
     "src/session/assets/AssetsApi.ts": {
         count: 3,
         kind: "model",
@@ -89,8 +87,13 @@ const INVENTORY: Record<string, Covered> = {
             "an asset read for a model or a picture; the model and picture caches hold the frame until it is on " +
             "its nodes (the intake and samples modules draw nothing)",
     },
-    "src/models/loadModel.ts": { count: 2, kind: "model", reason: "a model's loader chunk and text formats" },
-    "src/models/chunk.ts": { count: 2, kind: "model", reason: "a model's asset container load" },
+    "src/models/loadModel.ts": {
+        count: 2,
+        kind: "model",
+        reason:
+            "a model's chunk and babylonjs-models, inside its load; babylonjs-models' container load, readers, " +
+            "unzipping and decoders all run inside that load",
+    },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
         count: 2,
@@ -171,6 +174,12 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/ai/AiManager.ts": { count: 3, reason: "the assistant's voice and XR modules; they draw nothing" },
     "src/ai/conversation/Conversation.ts": { count: 1, reason: "the saved conversations' store; it draws nothing" },
+    "src/ai/engine/ProviderApiEngine.ts": {
+        count: 2,
+        reason:
+            "a generated picture's request and answer, handed to the assistant's tool; it draws nothing itself; " +
+            "the skybox the tool then writes is drawn by the render manager",
+    },
     "src/ai/engine/load.ts": { count: 4, reason: "the model engines' modules; they draw nothing" },
     "src/ai/engine/tanstack/anthropic.ts": { count: 2, reason: "the provider's own requests; they draw nothing" },
     "src/ai/engine/tanstack/index.ts": { count: 3, reason: "the providers' SDKs; they draw nothing" },

@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 
 import { allocateArenaCore, allocateSeparateCore } from "../../src/builder/arena.js";
 import { ALIGNMENT, INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import {
     type ArenaLayout,
     type Column,
@@ -26,6 +25,7 @@ import {
     type U32,
 } from "../../src/index.js";
 import { layoutSegments } from "../../src/util/typed-array.js";
+import { thrownCode } from "../helpers/errors.js";
 
 // ============================================================ helpers
 
@@ -35,18 +35,6 @@ function expectGpuBindable(name: string, view: ArrayBufferView): void {
     expect((view.buffer as ArrayBuffer).resizable, `${name}: resizable buffer`).toBe(false);
     expect(view.byteOffset % 4, `${name}: byteOffset ${view.byteOffset}`).toBe(0);
     expect(view.byteLength % 4, `${name}: byteLength ${view.byteLength}`).toBe(0);
-}
-
-function errorCode(fn: () => unknown): string | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
 }
 
 const CORE_NAMES: readonly CoreArrayName[] = ["rowPtr", "colIdx", "weights", "arcToEdge", "edgeToArc"];
@@ -526,9 +514,9 @@ describe("audit: column packing and gpuView (design sections 10.2, 10.4, 5.7)", 
     it("paddedU32View covers a subarray at the tail of a padded store and refuses a store it cannot", () => {
         const backing = new Uint8Array(new ArrayBuffer(8));
         expect(paddedU32View(new Uint8Array(backing.buffer, 4, 3)).length).toBe(1);
-        expect(errorCode(() => paddedU32View(new Uint8Array(backing.buffer, 5, 3)))).toBe("E_COLUMN_ALIGNMENT");
-        expect(errorCode(() => paddedU32View(new Uint8Array(new ArrayBuffer(7), 4, 3)))).toBe("E_COLUMN_ALIGNMENT");
-        expect(errorCode(() => paddedU32View(new Uint8Array(new ArrayBuffer(7), 0, 7)))).toBe("E_COLUMN_ALIGNMENT");
+        expect(thrownCode(() => paddedU32View(new Uint8Array(backing.buffer, 5, 3)))).toBe("E_COLUMN_ALIGNMENT");
+        expect(thrownCode(() => paddedU32View(new Uint8Array(new ArrayBuffer(7), 4, 3)))).toBe("E_COLUMN_ALIGNMENT");
+        expect(thrownCode(() => paddedU32View(new Uint8Array(new ArrayBuffer(7), 0, 7)))).toBe("E_COLUMN_ALIGNMENT");
         expect(paddedU32View(new Uint8Array(new ArrayBuffer(8), 0, 7)).length).toBe(2);
     });
 
@@ -540,7 +528,7 @@ describe("audit: column packing and gpuView (design sections 10.2, 10.4, 5.7)", 
         expect(column.dtype).toBe("u8");
         expectGpuBindable("gpuView(odd)", s.nodes.gpuView("odd"));
         expect(Array.from((column as { data: Uint8Array }).data)).toEqual([9, 8, 7, 6]);
-        expect(errorCode(() => s.nodes.set("odd2", odd, undefined, { adopt: "strict" }))).toBe("E_COLUMN_ALIGNMENT");
+        expect(thrownCode(() => s.nodes.set("odd2", odd, undefined, { adopt: "strict" }))).toBe("E_COLUMN_ALIGNMENT");
     });
 
     it("f64 columns convert exactly once, the copy is invalidated by markDirty(), dropCaches() and replacement", () => {
@@ -583,12 +571,12 @@ describe("audit: column packing and gpuView (design sections 10.2, 10.4, 5.7)", 
         s.nodes.set("json", [{ a: 1 }, null, 3, "x"]);
         for (const name of ["names", "lists", "json"]) {
             expect(
-                errorCode(() => s.nodes.gpuView(name)),
+                thrownCode(() => s.nodes.gpuView(name)),
                 name,
             ).toBe("E_GPU_INELIGIBLE");
             expect(s.nodes.require(name).gpu).toBe("none");
         }
-        expect(errorCode(() => s.nodes.gpuView("nope"))).toBe("E_UNKNOWN_COLUMN");
+        expect(thrownCode(() => s.nodes.gpuView("nope"))).toBe("E_UNKNOWN_COLUMN");
     });
 
     it("declared defaults are already in the data of unset rows (a kernel binds gpuView() as is)", () => {
@@ -705,7 +693,7 @@ describe("audit: I10 plain-ArrayBuffer enforcement", () => {
         const shared = new Uint32Array(new SharedArrayBuffer(16)) as unknown as U32;
         shared.set([1, 2, 3, 4]);
         let adopted: Column | null = null;
-        const code = errorCode(() => {
+        const code = thrownCode(() => {
             adopted = s.nodes.set("shared", shared);
         });
         if (code === null) {

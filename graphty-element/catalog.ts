@@ -41,6 +41,7 @@ export type {
     AiEffect,
     AiEffectCode,
     AiHostedToolId,
+    AiImageModelDescriptor,
     AiInputKind,
     AiKeyShape,
     AiKeyShapeCheck,
@@ -71,6 +72,7 @@ export {
     AI_EFFECT_CODES,
     AI_HOSTED_TOOL_CAPABILITIES,
     AI_HOSTED_TOOL_IDS,
+    AI_IMAGE_MODELS,
     AI_INPUT_KINDS,
     AI_PROVIDER_DESCRIPTORS,
     AI_PROVIDER_IDS,
@@ -101,14 +103,6 @@ export { BASEMAP_SOURCE_DESCRIPTORS } from "./src/catalog/basemaps";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
-export type {
-    AssetKind,
-    BuiltInModelFormat,
-    ModelDetection,
-    ModelDetectionInput,
-    ModelFormat,
-} from "./src/catalog/detectModel";
-export { assetFileExtensions, detectAssetKind, detectModelFormat } from "./src/catalog/detectModel";
 export type { UnservedFormat } from "./src/catalog/formats";
 export { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "./src/catalog/formats";
 export type {
@@ -127,8 +121,18 @@ export {
 } from "./src/catalog/layouts";
 export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
+export type {
+    AssetKind,
+    BuiltInModelFormat,
+    ModelDetection,
+    ModelDetectionInput,
+    ModelFormat,
+} from "babylonjs-models/detect";
+export { assetFileExtensions, detectAssetKind, detectModelFormat } from "babylonjs-models/detect";
 // The sample 3D models a style layer names in `node.model` ("asset:sample/server") without adding
 // a file, the same list `session.catalog.models()` returns, each with a thumbnail picture.
+export type { ModelOrientation, ModelTurnStep, ModelUpAxis } from "./src/catalog/modelOrientation";
+export { turnModelOrientation } from "./src/catalog/modelOrientation";
 export type { ModelDescriptor } from "./src/catalog/models";
 export { MODEL_DESCRIPTORS } from "./src/catalog/models";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
@@ -229,7 +233,13 @@ export type {
     ChannelGroup,
     ChannelValueKind,
 } from "./src/session/styles/channels";
-export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+export {
+    CHANNEL_DESCRIPTORS,
+    channelDescriptor,
+    CHANNELS,
+    channelsFor,
+    PRIMARY_CHANNELS,
+} from "./src/session/styles/channels";
 // Every value of an enum channel with a default name and picture (`catalog.channelValues`), and the
 // one reader and writer of a list channel's items (`ChannelDescriptor.listOf`).
 export type { ChannelValueDescriptor } from "./src/catalog/channelValues";

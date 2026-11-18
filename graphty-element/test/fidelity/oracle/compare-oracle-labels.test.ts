@@ -477,6 +477,12 @@ describe("a label's lines drawn as separate texts", () => {
             text("x", 106, 100, { blank: { before: true, after: false } }, 6),
         ]);
         assert.strictEqual(kept?.content, "s x");
+        // a run lowered by half a line is still on its line (vis-network's font.bold.vadjust: "<b>B</b> x")
+        const lowered = mergeTexts([
+            text("B", 103.5, 105.5, {}, 7),
+            text("x", 110, 100, { blank: { before: true, after: false } }, 9),
+        ]);
+        assert.strictEqual(lowered?.content, "B x");
         assert.strictEqual(merged?.lines?.length, 2);
         // a line under another, or a text far to its side, stays apart
         assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 100, 112)])?.content, "a\nb");
@@ -564,6 +570,26 @@ describe("edge label checks", () => {
         // turned along graphty's line, it is drawn as the program drew it, upright either way
         assert.isUndefined(report(text("x", 100, 200, { rotation: 90 }))["label.rotation"]);
         assert.isUndefined(report(text("x", 100, 200, { rotation: -90 }))["label.rotation"]);
+        // a program that keeps its labels level on a sloped line (vis-network's default) is matched by a level label
+        // on whatever line graphty draws, and not by one turned along it (json-vis-nodelegend, #8197)
+        const sloped = scene("oracle", {
+            edges: [
+                {
+                    ...edge(text("x", 200, 200)),
+                    points: [
+                        [120, 120],
+                        [280, 280],
+                    ],
+                },
+            ],
+        });
+        const slopedOracle: PScene = {
+            ...sloped,
+            nodes: sloped.nodes.map((n) => (n.id === "b" ? { ...n, cx: 300, cy: 300 } : n)),
+        };
+        const level = (g: PText): Record<string, string[]> => compareOracle("t", slopedOracle, unrelated(g)).failures;
+        assert.isUndefined(level(text("x", 100, 200))["label.rotation"]);
+        assert.deepEqual(level(text("x", 100, 200, { rotation: 90 }))["label.rotation"], ["edge:e1"]);
         assert.strictEqual(
             lineAngleAt(
                 [

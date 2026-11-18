@@ -33,7 +33,7 @@ import {
 
 import { DICT_SAMPLE_ROWS, DictHeuristic } from "../../common/attributes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
-import { quoteCsvCell } from "../../common/escape.js";
+import { quoteCsvCell, spreadsheetSafeText } from "../../common/escape.js";
 import { capabilities, checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
 import { formatDecimal, formatInteger } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
@@ -87,6 +87,15 @@ export interface CsvExportOptions extends CommonExportOptions {
      * @defaultValue true
      */
     header?: boolean | undefined;
+    /**
+     * Whether to keep spreadsheets from running cells as formulas: a cell starting with `=`, `+`,
+     * `-`, `@`, a tab or a CR (other than a plain number such as `-5`) is written with a leading `'`.
+     * Turn it on for a file someone may open in Excel or LibreOffice when the graph came from a source
+     * you do not trust: a label such as `=HYPERLINK("http://x","click")` otherwise runs as a formula,
+     * quoted or not. The prefixed cells read back with the `'`, so the round trip is no longer exact.
+     * @defaultValue false
+     */
+    spreadsheetSafe?: boolean | undefined;
 }
 
 /**
@@ -221,6 +230,7 @@ interface ResolvedCsvExportOptions {
     readonly delimiter: string;
     readonly newline: string;
     readonly header: boolean;
+    readonly spreadsheetSafe: boolean;
 }
 
 /** A column written under a header. */
@@ -296,6 +306,12 @@ function resolveCsvExportOptions(
             found: o.header,
         });
     }
+    if (o.spreadsheetSafe !== undefined && typeof o.spreadsheetSafe !== "boolean") {
+        throw new GraphFormatError("E_UNSUPPORTED", "option spreadsheetSafe: expected a boolean", {
+            option: "spreadsheetSafe",
+            found: o.spreadsheetSafe,
+        });
+    }
     if (o.header !== undefined && typeof o.header !== "boolean") {
         throw new GraphFormatError("E_UNSUPPORTED", "option header: expected a boolean", {
             option: "header",
@@ -309,6 +325,7 @@ function resolveCsvExportOptions(
         delimiter: o.delimiter ?? ",",
         newline: o.newline ?? "\n",
         header: o.header ?? true,
+        spreadsheetSafe: o.spreadsheetSafe ?? false,
     };
 }
 
@@ -1107,10 +1124,10 @@ function sourceRunEnd(src: ArrayLike<number>, edgeRows: ArrayLike<number>, r: nu
  * @returns nothing
  */
 function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
-    const { delimiter, newline } = plan.csv;
+    const { delimiter, newline, spreadsheetSafe } = plan.csv;
     // rows vary in width by design, so a bare cell holding any delimiter the importer sniffs for
     // (a space in "New York") can win the sniff over the real delimiter: such a cell is quoted
-    const quote = sniffSafeQuote(delimiter);
+    const quote = sniffSafeQuote(delimiter, spreadsheetSafe);
     // a leading `#` or `%` would open a comment line on the first row
     const first = (text: string): string => (/^[#%]/.test(text) ? forcedQuote(text) : quote(text));
     const list = snapshot.edgeList();
@@ -1198,23 +1215,30 @@ function forcedQuote(text: string): string {
  * Quote a cell holding any delimiter the importer sniffs for, not only the written one, so no bare
  * cell can win the sniff over the real delimiter where the rows give it no evidence.
  * @param delimiter - the field delimiter
+ * @param spreadsheetSafe - whether to prefix formula-like cells with `'`
  * @returns the quoting function
  */
-function sniffSafeQuote(delimiter: string): (text: string) => string {
-    return (text: string): string =>
-        DELIMITER_CANDIDATES.some((c) => text.includes(c)) ? forcedQuote(text) : quoteCsvCell(text, delimiter);
+function sniffSafeQuote(delimiter: string, spreadsheetSafe: boolean): (text: string) => string {
+    return (raw: string): string => {
+        const text = spreadsheetSafe ? spreadsheetSafeText(raw) : raw;
+        return DELIMITER_CANDIDATES.some((c) => text.includes(c)) ? forcedQuote(text) : quoteCsvCell(text, delimiter);
+    };
 }
 
 /**
  * The cell writers of a delimiter.
  * @param delimiter - the field delimiter
+ * @param spreadsheetSafe - whether to prefix formula-like cells with `'`
  * @returns `quote` for a text and `cell` for a column value (an unset value is the empty cell)
  */
-function cellWriters(delimiter: string): {
+function cellWriters(
+    delimiter: string,
+    spreadsheetSafe: boolean,
+): {
     quote: (text: string) => string;
     cell: (column: Column, row: number) => string;
 } {
-    const quote = (text: string): string => quoteCsvCell(text, delimiter);
+    const quote = (text: string): string => quoteCsvCell(spreadsheetSafe ? spreadsheetSafeText(text) : text, delimiter);
     const cell = (column: Column, row: number): string => {
         const text = cellText(column, row);
         return text === null ? "" : quote(text);
@@ -1232,7 +1256,7 @@ function cellWriters(delimiter: string): {
 function* nodeLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
     const { csv } = plan;
     const { delimiter, newline } = csv;
-    const { quote, cell } = cellWriters(delimiter);
+    const { quote, cell } = cellWriters(delimiter, csv.spreadsheetSafe);
     const headers = [csv.dialect.id];
     if (plan.nodeLabel !== null) {
         headers.push(plan.nodeLabel.meta.name);
@@ -1244,7 +1268,7 @@ function* nodeLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void
         yield headers.map(quote).join(delimiter) + newline;
     }
     // a one-column table gives the delimiter sniff no evidence: a bare `|` in an id would win it
-    const idQuote = headers.length === 1 ? sniffSafeQuote(delimiter) : quote;
+    const idQuote = headers.length === 1 ? sniffSafeQuote(delimiter, csv.spreadsheetSafe) : quote;
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const cells = [idQuote(plan.idText(i))];
         if (plan.nodeLabel !== null) {
@@ -1267,7 +1291,7 @@ function* nodeLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void
 function* edgeLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
     const { csv } = plan;
     const { delimiter, newline } = csv;
-    const { quote, cell } = cellWriters(delimiter);
+    const { quote, cell } = cellWriters(delimiter, csv.spreadsheetSafe);
     if (csv.header) {
         yield edgeHeaders(plan).map(quote).join(delimiter) + newline;
     }
@@ -1431,7 +1455,7 @@ function check(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExpor
  */
 export const csvExporter: GraphExporter<CsvExportOptions> = Object.freeze({
     format: "csv",
-    options: Object.freeze(["delimiter", "dialect", "header", "newline", "table"]),
+    options: Object.freeze(["delimiter", "dialect", "header", "newline", "spreadsheetSafe", "table"]),
     capabilities: CSV_CAPABILITIES,
     check,
     export(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {

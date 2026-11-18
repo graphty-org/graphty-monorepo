@@ -65,13 +65,36 @@ export async function matchingNodeIds(
     selector: string | undefined,
     connectedBy?: string,
 ): Promise<string[]> {
+    const shown = shownIdsOf(graph);
+    const keep = (ids: Iterable<unknown>): string[] =>
+        Array.from(ids, String).filter((id) => shown === null || shown.nodes.has(id));
     if (connectedBy === undefined && (selector === undefined || isMatchAllSelector(selector))) {
-        return Array.from(graph.getDataManager().nodes.keys(), String);
+        return keep(graph.getDataManager().nodes.keys());
     }
 
     const scope = await graph.getSession().scope.resolve(nodeScopeOf(selector, connectedBy));
 
-    return Array.from(scope.nodes, String);
+    return keep(scope.nodes);
+}
+
+/**
+ * What is shown, while the session reads the working graph: the node and edge ids an assistant's
+ * tools answer over, spelled as strings.
+ * @param graph - The graph.
+ * @returns The ids, or null while every element is read.
+ */
+export function shownIdsOf(graph: Graph): { nodes: ReadonlySet<string>; edges: ReadonlySet<string> } | null {
+    const session = graph.getSession();
+    if (!session.workingGraph) {
+        return null;
+    }
+
+    const ids = (records: readonly { readonly id: unknown }[]): ReadonlySet<string> =>
+        new Set(records.map((record) => String(record.id)));
+    return {
+        nodes: ids(session.data.nodePage({ limit: Infinity }).records),
+        edges: ids(session.data.edgePage({ limit: Infinity }).records),
+    };
 }
 
 /**

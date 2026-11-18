@@ -124,11 +124,10 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     graphEl.addEventListener("selection-changed", (event) => {
         const display = container.querySelector("#selected-node-display");
         if (display) {
-            const customEvent = event as CustomEvent<{ currentNode: { id: string; data: { label?: string } } | null }>;
-            const node = customEvent.detail.currentNode;
+            const node = event.detail.currentNode;
             if (node) {
-                const label = node.data.label ?? node.id;
-                display.textContent = `${label} (${node.id})`;
+                const label: unknown = node.data.label ?? node.id;
+                display.textContent = `${String(label)} (${String(node.id)})`;
                 (display as HTMLElement).style.color = "#FFFF00";
             } else {
                 display.textContent = "None";

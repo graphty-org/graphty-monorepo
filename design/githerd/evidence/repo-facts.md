@@ -1,6 +1,6 @@
 # Repository and machine facts read on 2026-10-03
 
-> Historical record; the pipeline it describes (githerd and the Mergify merge queue) was replaced on 2026-10-18 by design/ci/golden-local.md. Its facts were true when gathered, and that design cites them.
+> Historical record; the pipeline it describes (githerd and the Mergify merge queue) was replaced on 2026-10-18 by golden-local landing (design/ci/golden-local.md, itself now history); today every change reaches master through its own pull request (CLAUDE.md, "Shipping a change"). Its facts were true when gathered, and that design cites them.
 
 Facts about the repository's settings, workflows, tools and this machine that the githerd design
 depends on and that `platform-facts.md` does not cover. Each was read with a command; the scripts

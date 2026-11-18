@@ -24,6 +24,7 @@ import {
     readCorpusText,
     readMalformedBytes,
 } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 
 type Options = GraphmlImportOptions & CommonImportOptions;
 
@@ -44,13 +45,7 @@ async function load(
 }
 
 async function importError(input: ImportInput, options?: Options): Promise<ImportError> {
-    try {
-        await load(input, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected an ImportError");
+    return expectImportError(() => load(input, options), { format: "graphml" });
 }
 
 function codes(report: ImportReport): string[] {
@@ -233,8 +228,11 @@ describe("graphmlImporter malformed corpus", () => {
         "missing-node-id.graphml": { code: GRAPHML_ISSUE.MISSING_ID, nodes: 2, edges: 1 },
     };
 
-    // a malformed file need not be listed in either table
     const recoverableByName: Partial<typeof recoverable> = recoverable;
+
+    it("covers every malformed file", () => {
+        expect([...malformedFiles("graphml")]).toEqual([...Object.keys(fatal), ...Object.keys(recoverable)].sort());
+    });
     for (const name of malformedFiles("graphml")) {
         it(`${name}: ImportError with a report under errorLimit 0`, async () => {
             const bytes = readMalformedBytes("graphml", name);

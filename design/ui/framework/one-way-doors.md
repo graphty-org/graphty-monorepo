@@ -50,7 +50,7 @@ and 2 were decided on 2026-09-28 (`decided-doors.md`), except the halves those s
 | 2b, menus and Quick actions | 91 |
 | 3, reopen | 88; 89; 3; 4; 5, its reference half; 95 |
 | 4a, rank | 92; 26; 42; 9; 10; 93; 94; 14, the descriptor-spelling half (options) and the catalog-label half (`displayName`, `family`) and `Run.accelerator` |
-| 4b, color | 20; 31; 58; 84; 85; 5, the stack-order half; 14, the descriptor-spelling half (channels) |
+| 4b, color | 20; 58; 84; 85; 5, the stack-order half; 14, the descriptor-spelling half (channels) |
 | 4c, the Assistant | none |
 | 5, sets and paths | 39, object selection; 27 |
 | 6, filters and layout | 12; 13; 22; 25; 86; 75; 17 |
@@ -89,7 +89,7 @@ reopen publishes the shape; (c): recipes have not yet shown what the file holds.
 **Section contents before the file slice.** The autosave writes a section only once the doors that
 fix its contents are decided, and each such door sits in the queue at the slice that first writes
 its section: records, the frozen graph reference and stored precision in the rank slice (doors 9,
-10, 93, 94), the style stack in the color slice (doors 31, 84, 85, and door 5's stack order), filter
+10, 93, 94), the style stack in the color slice (doors 84, 85, and door 5's stack order), filter
 steps and the hidden state in the filters slice (doors 25, 86). Until a section's doors are
 decided it lives in the session only, and the reopen test states in writing which sections survive
 a reopen. Nothing is written as a cache a later reader may drop, because by then real work sits in
@@ -119,7 +119,7 @@ reference.
 | `<slug>_<n>` | style-layer ids (`src/session/styles/Layer.ts`, `mintLayerId`) | no kind prefix; unique only within a session |
 | `set_<ns>.<rest>` | sets from another project (`element-contract.md` 2) | `.` as a namespace separator |
 | `<ns>__<id>` | ids an applied recipe brings (door 19) | `__` as a namespace separator |
-| `graphty:e<n>`, `graphty:overrides` | edges (door 3) and the Overrides layer (door 31) | `:` as a namespace separator, as catalog keys use (`graphty:degree`) |
+| `graphty:e<n>` | edges (door 3) | `:` as a namespace separator, as catalog keys use (`graphty:degree`) |
 
 Run ids match `/^[a-z][a-z0-9_-]*$/` (`src/session/runs/types.ts`), which refuses both `.` and `:`.
 
@@ -132,12 +132,11 @@ because `__` passes every shipped pattern and `.` and `:` do not. Catalog keys k
 which is a different thing: the name of a capability, never an id stored as a reference. Set ids
 keep their shipped form. **Layer ids become project-unique before the autosave writes them** (door
 88), keeping their shipped spelling, because re-keying saved style documents would break every
-style file already written; a new layer kind takes the prefix. `graphty:overrides` becomes
-`graphty__overrides`, and the edge form of door 3 takes `__` too, before either is written. Run and
+style file already written; a new kind of id takes the prefix. The edge form of door 3 takes `__`, before it is written. Run and
 result ids keep their derivation (door 7). A found set or path gets its id when found, so Keep,
 undo and the announcement of its loss name one object.
 
-**Depends on it.** `element-contract.md` 2; `implementation-mapping.md` 1; doors 3, 19, 31.
+**Depends on it.** `element-contract.md` 2; `implementation-mapping.md` 1; doors 3, 19.
 
 #### 3. Edge identity
 
@@ -357,7 +356,7 @@ entries are needed because highlights, paths and comparison membership carry mea
 channels; without them an exported figure shows marks with no key. Export follows Figma's frame
 export: no background set exports transparent.
 
-**Depends on it.** `canvas-drawing.md` 8, 13; `interface-templates.md` 13; `element-needs.md`, "Reader-facing text for graph facts".
+**Depends on it.** `canvas-drawing.md` 8, 13; `interface-templates.md` 13; `element-needs.md`, "Message keys for graph facts".
 
 #### 84. A category's color fixed at first paint
 
@@ -403,30 +402,6 @@ High contrast is one Look resolved by the canvas it is drawn on (`canvas-drawing
 data. Until the element supports it, no accessibility Look ships.
 
 **Depends on it.** `conceptual-model.md` 5.1; `canvas-drawing.md` 13; `figma-crosswalk.md` 1.
-
-#### 31. Overrides, Base style and the stack order
-
-**Decision.** Whether graphty-element creates two layers of its own in every style stack --
-**Overrides** (hand edits, kept first once used) and **Base style** (the bottom) -- whether they
-are saved, their published ids, and the order the file stores (`conceptual-model.md` 5.1: Overrides
-first, new layers directly below it, Base style last). The bottom layer is called Base style, not
-the older name, because a Look is the palette substitution of door 85 and the two would read as one
-thing.
-
-**Why it is a door.** A layer id written into files and read by consumers' code is a published
-name, and a saved layer is file format.
-
-**Options.** No built-in layers, hand edits becoming ordinary layers; the two layers, saved, with
-reserved ids; the two layers, derived on load and never saved.
-
-**Recommendation: the two layers, saved, with ids in the reserved `graphty:` namespace.** A hand
-edit needs one place that wins over authored and algorithm layers and that a recipe can drop
-(`files-and-recipes.md` 1); the base style needs one place a style file can replace. Saving them
-keeps a reopened project identical. Recommended ids: `graphty:overrides` and `graphty:base`. Base
-style leaves unset any channel that inherits from another (the arrow colors follow their line), so
-a Color by on edges also colors the arrowheads. Hidden elements are not a layer (door 86).
-
-**Depends on it.** `conceptual-model.md` 5.1; `files-and-recipes.md` 1; `element-needs.md`.
 
 ### Sets and paths (build slice 5)
 
@@ -754,18 +729,18 @@ shows the project's stack as it applies to the current graph.
 
 **The reference form, due with the split.** A project-level object pointing into one graph must
 say which graph: a result id is derived from algorithm, sample and frozen scope with no graph
-(`src/session/runs/runId.ts`), and an Overrides entry or a note target keyed by a bare node id
+(`src/session/runs/runId.ts`), and a layer selector or a note target keyed by a bare node id
 would apply to every graph that shares the id. Recommended: every reference stored on the project
 carries a graph qualifier (graph id plus element id or result id); **run-made layers live with
-their result, per graph**; Overrides and Base style belong to each graph; result ids are unique per
+their result, per graph**; result ids are unique per
 graph, and the Results panel keys rows on graph plus result id; a layer whose selector names
 another graph's set reads unresolvable there, and its row says how many graphs it paints.
 
-**One stored order for the stack.** Authored layers sit on the project and run-made layers,
-Overrides and Base style on each graph, but the stack is one order: it is stored as one ordered
+**One stored order for the stack.** Authored layers sit on the project and run-made layers
+on each graph, but the stack is one order: it is stored as one ordered
 list on the project whose entries may carry a graph qualifier, and each graph draws its own view of
 that list, so dragging a run-made layer above an authored one changes one order. A style file
-replaces Base style on every graph of the project, since a style file applies to the project.
+applies to every graph of the project.
 
 **One binding form, and the background.** A layer, rule or scope bound to a result names the
 result's author-level id (`as:`), in a project and a recipe alike, resolved on each graph; a
@@ -902,7 +877,7 @@ overrides the recipient's theme; a saved view captures hidden elements and the L
 (`conceptual-model.md` 1.1 is the one list). A recipe may carry notes on its definitions (`conceptual-model.md`
 6). A recipe declares one **requirement slot** per attribute it reads (element kind, measurement
 level, weight role, type role, name hints) and one per catalog entry by key and version; it drops
-what only its data can mean (fixed sets, notes on elements, positions, pins, Overrides, the camera)
+what only its data can mean (fixed sets, notes on elements, positions, pins, layers whose selector names elements by id, the camera)
 and turns the rest into slots: **attribute**, **catalog**, **set**, **argument**, **requirement**,
 **source** and **join**. Applying is one verb, `applyRecipe`, which binds by name, always asks for
 weight roles, lists every mismatch, and keeps anything unbound switched off and listed.
@@ -999,7 +974,7 @@ latest source loses that.
 stored (the list is in `element-contract.md` 11): among them the order of the saved views, each
 view's note order, item attributes, group columns, the start nodes of a neighborhood or path
 step, a filter step over items, per-run direction and weight overrides, the No value look, the
-Base style and Overrides rows, the project's overview recipe and the applied recipes.
+project's overview recipe and the applied recipes.
 
 **Why it is a door.** Each field is added under the version number and tolerant reader, so adding
 it later is additive. What is one-way is its name and meaning once files carry it. The view order

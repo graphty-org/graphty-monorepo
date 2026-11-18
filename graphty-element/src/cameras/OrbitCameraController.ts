@@ -579,6 +579,28 @@ export class OrbitCameraController {
     }
 
     /**
+     * Slide the pivot along the line from the camera through it to where it passes nearest a point,
+     * the camera staying where it is, so the view does not move. Framed on a globe's data, the pivot
+     * sat among the arcs above the surface and the camera stopped short of the surface, at
+     * `minZoomDistance` from the pivot; slid to near the globe's center, the camera comes down to
+     * the surface floor along its line of sight, as it does from a whole-sphere framing.
+     * @param point - The point, in world space.
+     */
+    public slidePivotNear(point: Vector3): void {
+        // The camera stands at pivot - shifted * distance, where shifted carries the lens shift, so
+        // moving the pivot by shifted * a and the distance by a leaves the camera where it is.
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        const world = this.pivot.computeWorldMatrix(true);
+        const shifted = Vector3.TransformNormal(new Vector3(free.x * tanX, free.y * tanY, 1), world);
+        const a = Vector3.Dot(point.subtract(this.pivot.position), shifted) / shifted.lengthSquared();
+        this.pivot.position.addInPlace(shifted.scale(a));
+        this.pivot.computeWorldMatrix(true);
+        this.cameraDistance = this.clampDistance(this.cameraDistance + a);
+        this.updateCameraPosition();
+    }
+
+    /**
      * Take new view insets without moving what is drawn. The lens shift follows the insets, so
      * the pivot moves by the change in the shift and the camera stays where it is; the next fit
      * centers the graph on the new free area.

@@ -201,14 +201,14 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Project",
         core: false,
         profiles: STANDARD,
-        actions: ["settings", "rename", "rename_run", "declare", "status"],
+        actions: ["settings", "generate_background", "rename", "rename_run", "declare", "status"],
     },
     {
         name: "capture",
         plainName: "Capture",
         core: false,
         profiles: STANDARD,
-        actions: ["screenshot", "animation", "cancel"],
+        actions: ["screenshot", "animation", "cancel", "stop"],
     },
     {
         name: "immersive",
@@ -241,10 +241,15 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
             "values",
             "over_represented",
             "group_table",
+            "collapse_group",
+            "expand_group",
+            "collapsed_groups",
             "preview_type",
             "rename",
             "set_type",
             "set_role",
+            "compute",
+            "score",
             "hide",
             "label_value",
         ],
@@ -281,8 +286,11 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
 
 /**
  * The codes a tool result carries for the model, beside the session's own `E_*` codes and its
- * success codes. An application that shows a transcript words them itself. OPEN UNION: codes may
- * be added in a minor release.
+ * success codes. An application that shows a transcript words them itself. Each cause has one
+ * code: a session failure that means one of these is reported as it (`E_BAD_SELECTOR` as
+ * `AI_BAD_SELECTOR`, `E_UNKNOWN_ATTRIBUTE` as `AI_UNKNOWN_COLUMN`, `E_UNSUPPORTED` as
+ * `AI_NOT_AVAILABLE`, `E_UNKNOWN_RUN` as `AI_UNKNOWN_RUN`, `E_OPTION_RANGE` as
+ * `AI_ARG_OUT_OF_RANGE`). OPEN UNION: codes may be added in a minor release.
  */
 export const AI_TOOL_CAUSE_CODES = Object.freeze([
     "AI_OK",
@@ -310,4 +318,4 @@ export const AI_TOOL_CAUSE_CODES = Object.freeze([
 ] as const);
 
 /** One code a tool result carries for the model. OPEN UNION. */
-export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known codes in autocomplete while accepting a session code
+export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {}); // the open-union idiom; keeps the known codes in autocomplete while accepting a session code

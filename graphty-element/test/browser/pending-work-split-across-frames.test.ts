@@ -37,7 +37,7 @@ describe("work split across frames, under the minimum-work test mode", () => {
         await graph.addEdges(EDGES);
         await graph.setLayout("circular");
         await graph.waitForStableFrame();
-        ({ updateManager } = graph as unknown as { updateManager: UpdateManager });
+        updateManager = graph.getUpdateManager();
     });
 
     afterAll(() => {

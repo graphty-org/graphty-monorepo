@@ -108,6 +108,7 @@ jobs:
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
                       babylonjs-map/dist/
+                      babylonjs-models/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/

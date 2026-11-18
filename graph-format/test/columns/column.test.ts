@@ -16,7 +16,6 @@ import {
     rewrapColumn,
 } from "../../src/columns/column.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import {
     type Column,
     type ColumnDeclPatch,
@@ -26,19 +25,7 @@ import {
 } from "../../src/types/index.js";
 import { type MutableColumnParts } from "../../src/types/internal.js";
 import { canViewAsPaddedU32, paddedU32View } from "../../src/util/typed-array.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 function values(name: string, entries: readonly unknown[], decl: ColumnDeclPatch = {}): Column {
     return columnFromValues("node", entries.length, name, entries, decl);
@@ -154,6 +141,7 @@ describe("resolveColumnMeta", () => {
             origin: null,
             dynamic: false,
             extra: {},
+            coordinates: null,
         });
         expect(Object.isFrozen(meta)).toBe(true);
     });

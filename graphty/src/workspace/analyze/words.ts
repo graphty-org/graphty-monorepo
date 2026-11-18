@@ -33,6 +33,12 @@ export const HEADINGS: readonly Heading[] = [
     { id: "measure", title: "Measure the graph", shapes: ["fact", "temporal"] },
 ];
 
+/** The last entry under a heading: run every method under it as one batch, or cancel that batch. */
+export const RUN_ALL = {
+    run: "Run all",
+    cancel: "Cancel all",
+} as const;
+
 /** What the app says about one algorithm. */
 interface AlgorithmWords {
     /** Its name in the list, on its row and in the footer. */
@@ -200,6 +206,72 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "Which missing edges the shared neighbors suggest.",
         aliases: ["missing links", "recommend", "adamic-adar", "jaccard"],
     },
+    "removal-impact": {
+        name: "Removal impact",
+        answers: "What the selected nodes or edges hold together: the nodes cut off if they were removed.",
+        aliases: ["simulate removing", "what breaks", "what if", "cut off", "vulnerable", "resilience"],
+    },
+};
+
+/**
+ * The line under an algorithm in the Find list, keyed by the element's `descriptionId`. An
+ * algorithm a third party registered has no line here, so it shows none.
+ */
+export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
+    "algorithm.degree": "Counts how many edges each node has, incoming, outgoing and in total.",
+    "algorithm.betweenness":
+        "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
+    "algorithm.edge-betweenness":
+        "Scores an edge by how many of the shortest paths between pairs of nodes cross it, which is what finds the edges that hold the graph together.",
+    "algorithm.closeness":
+        "Scores a node by how short its paths to the rest of the graph are, which is what finds the nodes that reach everything quickly.",
+    "algorithm.pagerank": "Ranks a node by the influence that flows into it from the nodes that point at it.",
+    "algorithm.eigenvector":
+        "Scores a node by how influential its neighbors are, so a few important connections count for more than many unimportant ones.",
+    "algorithm.katz": "Scores a node by every path that reaches it, with a longer path counting for less.",
+    "algorithm.hits":
+        "Scores every node twice: as a hub that points at good sources, and as an authority that good hubs point at.",
+    "algorithm.louvain":
+        "Groups nodes into communities by repeatedly merging the groups whose merger tightens the partition the most.",
+    "algorithm.leiden":
+        "Groups nodes into communities the way Louvain does, with a refinement pass that rules out groups held together by a single node.",
+    "algorithm.label-propagation":
+        "Groups nodes into communities by letting every node repeatedly take whichever label most of its neighbors carry.",
+    "algorithm.girvan-newman":
+        "Groups nodes into communities by repeatedly cutting the edge that the most shortest paths run through, until the graph falls apart.",
+    "algorithm.markov-clustering":
+        "Groups nodes into clusters by letting flow spread along the edges and concentrate where it gets trapped, round after round.",
+    "algorithm.spectral-clustering":
+        "Splits the nodes into a chosen number of clusters, placing each node by the graph's eigenvectors and grouping the nodes that land close together.",
+    "algorithm.hierarchical-clustering":
+        "Starts with every node on its own and keeps merging the two closest clusters, by steps apart, until a chosen number remain.",
+    "algorithm.components":
+        "Finds the separate pieces of the graph: two nodes belong to the same piece when a path joins them.",
+    "algorithm.shortest-path":
+        "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
+    "algorithm.astar":
+        "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+    "algorithm.all-pairs-distance":
+        "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
+    "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",
+    "algorithm.dfs":
+        "Walks as deep as it can from one node before backtracking, recording the order in which it reached each node.",
+    "algorithm.kruskal":
+        "Finds the cheapest set of edges that still joins every node, by taking the cheapest edge that does not close a loop.",
+    "algorithm.prim":
+        "Finds the cheapest set of edges that still joins every node, by growing outwards from one starting node.",
+    "algorithm.bipartite-matching":
+        "Pairs up the two sides of a two-sided graph so that as many nodes as possible end up with a partner.",
+    "algorithm.max-flow": "Finds the most that can flow from a source to a sink when every edge has a capacity.",
+    "algorithm.min-cut": "Finds the cheapest set of edges to remove to split the graph into two pieces.",
+    "algorithm.k-core":
+        "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbors inside that core.",
+    "algorithm.clustering-coefficient":
+        "Scores a node by how many of its neighbors are also neighbors of each other, and counts the triangles that makes.",
+    "algorithm.link-prediction":
+        "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
+    "algorithm.removal-impact":
+        "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
 };
 
 /**
@@ -394,7 +466,6 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
             utm: "UTM",
         },
     },
-    "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
     "location-map.flatNodeScale": { label: "Flat map node size" },

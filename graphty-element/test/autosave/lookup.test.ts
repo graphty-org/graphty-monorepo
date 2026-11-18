@@ -40,19 +40,33 @@ describe("listAutosaves and removeAutosave", () => {
         assert.isTrue(isGraphtyError(error) && error.code === "E_AUTOSAVE_UNKNOWN_ENTRY");
     });
 
-    it("answers with nothing when the store never answers, as behind another tab's unfinished write", async () => {
+    it("refuses with E_AUTOSAVE_STALLED when the store never answers, as behind another tab's unfinished write", async () => {
         vi.useFakeTimers();
         try {
             // Another tab holds a read-write transaction and is suspended: this read is queued behind it.
             const store = { ...memoryAutosaveStore(), list: () => new Promise<never>(() => undefined) };
-            let settled: readonly unknown[] | null = null;
-            void listAutosaves("k", { store }).then((entries) => {
-                settled = entries;
-            });
+            const outcome: { settled: unknown } = { settled: null };
+            // Read through a call: the assertion below narrows the field to null for the compiler.
+            const settledNow = (): unknown => outcome.settled;
+            void listAutosaves("k", { store }).then(
+                (entries) => {
+                    outcome.settled = entries;
+                },
+                (reason: unknown) => {
+                    outcome.settled = reason;
+                },
+            );
             await vi.advanceTimersByTimeAsync(LIST_TIMEOUT_MS - 1);
-            assert.isNull(settled, "still waiting before the bound");
+            assert.isNull(outcome.settled, "still waiting before the bound");
             await vi.advanceTimersByTimeAsync(1);
-            assert.deepEqual(settled, []);
+            const settled = settledNow();
+            // Never an empty list: that says nothing is kept, and a page would open again work
+            // another tab is writing.
+            assert.isTrue(isGraphtyError(settled) && settled.code === "E_AUTOSAVE_STALLED", String(settled));
+            assert.deepEqual(isGraphtyError(settled) ? settled.details : null, {
+                afterMs: LIST_TIMEOUT_MS,
+                step: "list",
+            });
         } finally {
             vi.useRealTimers();
         }

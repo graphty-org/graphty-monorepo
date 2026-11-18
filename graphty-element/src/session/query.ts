@@ -27,6 +27,7 @@ import { searchOf, type SelectionTarget } from "./selection/targets";
 import {
     columnsFor,
     compileExpressionPredicate,
+    compileExpressionValue,
     rulePath,
     type SelectorSource,
     type SelectorTarget,
@@ -171,6 +172,17 @@ export interface QueryEngine {
      * @returns The hits, the value rows and the total.
      */
     search(text: string, request: SearchRequest): SearchAnswer;
+    /**
+     * What an expression reads for every element of one kind, by dense index: a computed column's
+     * values (`session.data.derive`). A path nothing answers reads null.
+     * @param where - The expression.
+     * @param target - Nodes or edges.
+     * @param overlay - Values to read in place of the session's, by path and dense index: the
+     *   computed columns worked out earlier in the same pass.
+     * @returns One value per element, null for nothing.
+     * @throws A `GraphtyError` coded `E_BAD_SELECTOR` for an expression that does not parse.
+     */
+    values(where: Query, target: SelectorTarget, overlay?: ReadonlyMap<Path, readonly unknown[]>): unknown[];
 }
 
 /**
@@ -305,7 +317,32 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return hits;
     };
 
+    const values = (
+        where: Query,
+        target: SelectorTarget,
+        overlay?: ReadonlyMap<Path, readonly unknown[]>,
+    ): unknown[] => {
+        const columns = columnsFor(elements, target);
+        const read =
+            overlay === undefined || overlay.size === 0
+                ? columns
+                : {
+                      ...columns,
+                      value: (index: number, path: Path): unknown =>
+                          overlay.has(path) ? overlay.get(path)?.[index] : columns.value(index, path),
+                      has: (index: number, path: Path): boolean => {
+                          const held = overlay.get(path);
+                          return held === undefined ? columns.has(index, path) : (held[index] ?? null) !== null;
+                      },
+                  };
+        const { value } = compileExpressionValue(where, read);
+        const graph = parts.snapshot();
+        const count = target === "node" ? graph.nodeCount : graph.edgeCount;
+        return Array.from({ length: count }, (_unused, index) => value(index) ?? null);
+    };
+
     return {
+        values,
         nodes: (where) => nodesOf(halfTest(compile(where, "node"), "node")),
         edges: (where) => edgesOf(halfTest(compile(where, "edge"), "edge")),
         // One compile per target: the node compile's paths are the expression's paths.

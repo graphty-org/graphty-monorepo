@@ -1,5 +1,5 @@
 /**
- * The option record of label propagation (design 3.3 line 807, 8.6). Types only.
+ * The option record of label propagation. Types only.
  */
 
 /**

@@ -157,6 +157,32 @@ describe("static layouts", () => {
         expectPlaced(cy);
     });
 
+    it("graphty-multipartite orders string layers alphabetically and leaves out nodes without the field", async () => {
+        const cy = makeCy();
+        const tiers = ["b", "a", "c"];
+        cy.nodes().forEach((n, i) => {
+            n.data("tier", i === 11 ? undefined : tiers[i % 3]);
+        });
+        await run(cy, { name: "graphty-multipartite", subsets: "tier" });
+        const x = (t: string): number[] => cy.nodes(`[tier = "${t}"]`).map((n) => n.position().x);
+        expect(new Set(x("a").map((v) => v.toFixed(3))).size).toBe(1);
+        expect(Math.max(...x("a"))).toBeLessThan(Math.min(...x("b")));
+        expect(Math.max(...x("b"))).toBeLessThan(Math.min(...x("c")));
+    });
+
+    it("take a bounding box given by its corners, as { x1, y1, x2, y2 }", async () => {
+        const cy = makeCy();
+        const corners = { x1: 100, y1: 50, x2: 300, y2: 150 };
+        await run(cy, { name: "graphty-circular", boundingBox: corners });
+        for (const p of positions(cy).values()) {
+            expect(p.x).toBeGreaterThanOrEqual(corners.x1 - 1e-6);
+            expect(p.x).toBeLessThanOrEqual(corners.x2 + 1e-6);
+            expect(p.y).toBeGreaterThanOrEqual(corners.y1 - 1e-6);
+            expect(p.y).toBeLessThanOrEqual(corners.y2 + 1e-6);
+        }
+        expectPlaced(cy);
+    });
+
     it("graphty-spectral brings a grid's columns and rows back", async () => {
         // the 3 x 4 grid's two smallest nonzero Laplacian eigenvectors run along its 4 columns and its 3 rows, so
         // each column shares one x and each row one y, and no two columns or rows share it

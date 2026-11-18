@@ -354,6 +354,39 @@ describe("scene comparison", () => {
         });
     });
 
+    it("pairs lookalike parallel edges by their paths, whatever order each side lists them in", () => {
+        const nodes = [node("a", 0, 0), node("b", 100, 0), node("c", 0, 100)];
+        const line = (id: string, extra: Partial<SceneEdge> = {}): SceneEdge =>
+            edge(
+                id,
+                "a",
+                "b",
+                [
+                    [0, 0],
+                    [100, 0],
+                ],
+                extra,
+            );
+        const bow = (id: string, extra: Partial<SceneEdge> = {}): SceneEdge =>
+            edge(
+                id,
+                "a",
+                "b",
+                [
+                    [0, 0],
+                    [50, 30],
+                    [100, 0],
+                ],
+                { curved: true, ...extra },
+            );
+        const reference = scene("cytoscape-desktop", nodes, [line("a->b"), bow("a->b#1")]);
+        const drawn = scene("graphty", nodes, [bow("a->b"), line("a->b#1")]);
+        expect(compareScenes(reference, drawn).properties.edgePath.status).toBe("pass");
+        // told apart by their colors, they keep their order pairing, and the drawing fails
+        const red = scene("graphty", nodes, [bow("a->b", { color: "#ff0000" }), line("a->b#1")]);
+        expect(compareScenes(reference, red).properties.edgePath.status).toBe("fail");
+    });
+
     it("judges an edge's route from center to center, wherever each side cuts it at the node outlines", () => {
         // the reference reads the line's ends at the node centers; graphty stops it at each node's
         // outline, 10 px from the center on each side
@@ -475,6 +508,43 @@ describe("scene comparison", () => {
         const c = compareScenes(ref, boxed);
         expect(c.properties.groups).toMatchObject({ status: "fail", n: 1, worst: [{ id: "extra g" }] });
         expect(c.properties.annotations).toMatchObject({ status: "fail", n: 1, worst: [{ id: "extra shape#0" }] });
+    });
+
+    it("judges a text annotation the reference gives no width by where it is and how tall", () => {
+        const text = (x: number, y: number, w: number) => ({
+            kind: "text" as const,
+            text: "t",
+            bbox: { x, y, w, h: 20 },
+        });
+        const unsized = { ...ref, annotations: [text(100, 100, 0)] };
+        expect(
+            compareScenes(unsized, { ...ref, annotations: [text(100, 100, 150)] }).properties.annotations,
+        ).toMatchObject({
+            status: "pass",
+            n: 1,
+        });
+        // the same text 30 below where the reference has it, and nothing where it is
+        expect(
+            compareScenes(unsized, { ...ref, annotations: [text(100, 130, 150)] }).properties.annotations,
+        ).toMatchObject({
+            status: "fail",
+            n: 2,
+        });
+    });
+
+    it("judges an arrow annotation by its two ends, within a tenth of its length", () => {
+        const arrow = (x: number, y: number, w: number, h: number) => ({
+            kind: "arrow" as const,
+            bbox: { x, y, w, h },
+        });
+        const line = { ...ref, annotations: [arrow(100, 100, 60, 3)] };
+        const judged = (x: number, y: number, w: number, h: number) =>
+            compareScenes(line, { ...ref, annotations: [arrow(x, y, w, h)] }).properties.annotations;
+        // the same line drawn 2 units thinner and 1 lower: its box overlaps the reference's by a third
+        expect(judged(100, 101, 60, 1)).toMatchObject({ status: "pass", n: 1 });
+        // its start 5 units along (a twelfth of 60) passes, 8 units does not
+        expect(judged(95, 100, 65, 3)).toMatchObject({ status: "pass", n: 1 });
+        expect(judged(92, 100, 68, 3)).toMatchObject({ status: "fail", n: 2 });
     });
 
     it("takes each property from the best route that carries it, and checks the routes against each other", () => {

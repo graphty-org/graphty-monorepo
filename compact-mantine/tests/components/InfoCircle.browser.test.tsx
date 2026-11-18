@@ -1,8 +1,8 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import React, { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../src";
 import { InfoCircle } from "../../src/components/InfoCircle";
@@ -18,6 +18,13 @@ function renderCircle(ui: React.ReactElement): ReturnType<typeof render> {
 }
 
 const EXPLANATION = "How often a node sits on the shortest path between two others.";
+
+// The real pointer stays where the last test clicked or hovered, which is exactly where the next
+// test renders its circle, so the circle mounted under it opened on hover by itself (#8441).
+// Every test starts with the pointer parked in the far corner.
+beforeEach(async () => {
+    await commands.mouseAway();
+});
 
 describe("InfoCircle", () => {
     it("names what it explains", () => {

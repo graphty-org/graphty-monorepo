@@ -17,8 +17,7 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import type { GroupOutlinePass } from "../../../src/meshes/GroupOutlinePass";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { groupOutlinesOf } from "../../../src/session/styles/StylesApi";
@@ -407,7 +406,7 @@ describe("a group use", () => {
      * @returns The pass, or null.
      */
     function passOf(element: Graphty): GroupOutlinePass | null {
-        return (element.graph as unknown as { renderManager: RenderManager }).renderManager.shaderPasses().outline;
+        return renderManagerOf(element.graph).shaderPasses().outline;
     }
 
     it("draws one outline around the nodes carrying it, and again around the rest after off", async () => {

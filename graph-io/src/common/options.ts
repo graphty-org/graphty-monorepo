@@ -389,6 +389,19 @@ function enumOption<T extends string>(name: string, value: unknown, fallback: T,
     return value as T;
 }
 
+/** The values of the zAs option. */
+const Z_AS_MODES: ReadonlySet<string> = new Set(["column", "position"]);
+
+/**
+ * Resolve the zAs option: where a file's z coordinate goes.
+ * @param value - the option
+ * @returns the mode; E_UNSUPPORTED for any other value
+ * @category Plugin helpers
+ */
+export function zAsOption(value: unknown): "column" | "position" {
+    return enumOption<"column" | "position">("zAs", value, "column", Z_AS_MODES);
+}
+
 /**
  * Resolve one boolean option.
  * @param name - the option name, for the error

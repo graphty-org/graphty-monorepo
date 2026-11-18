@@ -16,7 +16,6 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
 import { algorithmScope } from "../../src/algorithms/scope.js";
-import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
 import { GraphResidency } from "../../src/memory/residency.js";
 import { prepareAdvance } from "../../src/primitives/advance.js";
@@ -31,7 +30,7 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { advanceOracle } from "../oracle/advance.js";
-import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+import { gpuScale, sharedContext } from "../setup/gpu.js";
 
 /** The star hub's degree; the overflow case fakes a capacity below it. */
 const HUB_DEGREE = 10_000;
@@ -56,22 +55,8 @@ function argumentOf(fn: () => unknown): string | null {
 }
 
 describe("advance: the block-mapped expansion and the edge queue (design 6 row 8; P8-T5)", () => {
-    let shared: GpuContext | null = null;
-    let twinShared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "advance" }));
-        shared = ctx;
-        return ctx;
-    }
-
-    async function twin(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = twinShared ?? (await acquire({ subgroups: false, label: "advance-twin" }));
-        twinShared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "advance" });
+    const twin = sharedContext({ subgroups: false, label: "advance-twin" });
 
     /**
      * The differential of one fixture: every frontier of `frontiers` expanded twice on the context and once on the

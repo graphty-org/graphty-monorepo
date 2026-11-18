@@ -18,6 +18,9 @@ import { NodeShapes } from "../../src/config/NodeStyle";
 import { isGraphtyError } from "../../src/errors";
 import { createGraphSession } from "../../src/session";
 import type { ElementSession } from "../../src/session/types";
+import { disposedAfterEach } from "../helpers/disposed-after-each";
+
+const owned = disposedAfterEach();
 
 /** The element's default canvas color, which a look with no background sits on. */
 const CANVAS = "whitesmoke";
@@ -83,7 +86,7 @@ describe("label looks", () => {
     });
 
     it("paints a look's fields beneath the layer's own, over the layers beneath", async () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);
         await session.styles.add({
             name: "Big red",
@@ -112,7 +115,7 @@ describe("label looks", () => {
     });
 
     it("refuses a look the catalog does not have", async () => {
-        const session = createGraphSession();
+        const session = owned(createGraphSession());
         await session.data.addNodes([{ id: "a" }]);
 
         const refused = await session.styles

@@ -602,7 +602,7 @@ describe("a third party's palette, in the legend a reader is shown", () => {
         assert.strictEqual(block.kind, "categorical", "the block's shape comes from the palette's own kind");
         assert.strictEqual(block.palette?.name, "acme-teams");
         assert.deepStrictEqual(
-            block.swatches.map((swatch) => swatch.label),
+            block.swatches.map((swatch) => swatch.value),
             [...TEAMS_BY_SIZE],
         );
         assert.deepStrictEqual(

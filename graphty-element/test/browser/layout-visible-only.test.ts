@@ -10,7 +10,9 @@ import "../../src/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import type { ElementSession } from "../../src/session/types";
+import { windowCount } from "../helpers/time-window";
 
 /** Twenty nodes on a path. */
 const IDS = Array.from({ length: 20 }, (_, index) => `n${String(index)}`);
@@ -29,6 +31,8 @@ async function pathGraph(): Promise<{ graph: Graph; container: HTMLDivElement }>
     document.body.appendChild(container);
     const graph = new Graph(container);
     await graph.init();
+    // The working graph off, so `layout.visibleOnly` alone decides what a layout runs over.
+    graph.getSession().workingGraph = false;
     await graph.addNodes(IDS.map((id) => ({ id })));
     await graph.addEdges(IDS.slice(1).map((id, index) => ({ src: IDS[index], dst: id })));
     await operationQueueOf(graph).waitForCompletion();
@@ -44,7 +48,8 @@ function positionsOf(graph: Graph): Map<string, [number, number, number]> {
     const engine = graph.getLayoutManager().layoutEngine;
     const out = new Map<string, [number, number, number]>();
     for (const node of graph.getDataManager().nodes.values()) {
-        const at = engine?.getNodePosition(node);
+        // A node the working graph hides was never handed to the engine: it is where it was.
+        const at = engine === undefined ? undefined : layoutEngineInternals.positionOf(engine, node);
         if (at !== undefined) {
             out.set(String(node.id), [at.x, at.y, at.z ?? 0]);
         }
@@ -129,7 +134,34 @@ describe("a layout over only what the filter shows", () => {
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 72, 0.5);
     });
 
-    it("runs the whole graph by default, hidden nodes keeping their slots", async () => {
+    it("moves no node and no camera as a time window steps, and still follows the filter", async () => {
+        await session.data.updateNodes(IDS.map((id, index) => ({ id, values: { step: index } })));
+        await graph.setLayout("circular", { dim: 2 });
+        graph.setLayoutBehavior({ layout: { visibleOnly: true } });
+        await session.time.setField({ nodes: { start: "step" } });
+        await session.time.window({ from: 2, to: 6 });
+        await graph.waitForSettled();
+        const before = positionsOf(graph);
+        const camera = JSON.stringify(graph.getCameraState());
+        const runs = layoutsRun;
+
+        for (let step = 0; step < 5; step++) {
+            await session.time.stepBy(1);
+            await graph.waitForSettled();
+        }
+
+        assert.isBelow(windowCount(session.visibility).nodes, IDS.length, "the window leaves nodes out");
+        assert.strictEqual(session.visibility.summary.visibleNodes, IDS.length, "all of them still visible");
+        assert.strictEqual(layoutsRun, runs, "no layout ran");
+        assert.deepEqual(positionsOf(graph), before, "no node moved");
+        assert.strictEqual(JSON.stringify(graph.getCameraState()), camera, "the camera stayed");
+
+        // A filter is still a layout input: the circle is laid out again over what it keeps.
+        await show(SHOWN);
+        assert.isAbove(layoutsRun, runs);
+    });
+
+    it("runs the whole graph with the working graph off, hidden nodes keeping their slots", async () => {
         await graph.setLayout("circular", { dim: 2 });
         const five = ["n0", "n1", "n2", "n3", "n4"];
         await show(five);
@@ -174,7 +206,10 @@ describe("a layout over only what the filter shows", () => {
         );
         await Promise.all([building, ...changes]);
         await graph.waitForSettled();
-        assert.strictEqual(layoutsRun, 2, "the layout asked for, then one relayout for the four changes");
+        // The layout asked for reads what the filter keeps when it is built, so changes that land
+        // before then are already in it; the rest share one relayout.
+        assert.isAtLeast(layoutsRun, 1);
+        assert.isAtMost(layoutsRun, 2, "the layout asked for, then at most one relayout for the four changes");
         // The last filter's three nodes on a circle of their own, 120 degrees apart.
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), SHOWN.slice(0, 3))), 120, 0.5);
     });

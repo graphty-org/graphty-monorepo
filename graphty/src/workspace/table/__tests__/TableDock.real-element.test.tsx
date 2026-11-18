@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { groupName } from "../columns";
 
 /** Two rings of six joined by a bridge: Louvain finds the rings. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, team: i < 6 ? "North" : "South" }));
@@ -175,7 +176,7 @@ describe("the table dock", () => {
         await userEvent.click(within(dock).getByRole("tab", { name: "Louvain" }));
         await within(dock).findByText(`${String(groups?.length)} groups`);
         const [first] = groups ?? [];
-        const name = first.name ?? String(first.group);
+        const name = groupName(first);
         await userEvent.click(within(dock).getByRole("button", { name: `${name} options` }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Show members in table" }));
         await within(dock).findByText(`${String(first.size)} nodes`);

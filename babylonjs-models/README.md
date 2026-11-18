@@ -27,6 +27,14 @@ Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY, a glTF or GLB that uses
 `splat`, `spz`, `sog` or `splat-ply`, and a glTF names the extension in `params.extension`. `detectModelFormat` answers `supported: false` for such a
 glTF or GLB when its first 4 KB name the extension.
 
+A glTF may use any glTF extension Babylon.js's loader reads, except these, which a glTF that
+requires them is refused for and one that only uses them is drawn without: the transmission
+family (drawn without, `W_MODEL_EXTENSION_IGNORED`), `EXT_lights_area` (Babylon fetches its lookup
+table from its CDN), `EXT_lights_image_based` (it would replace your scene's environment),
+`KHR_interactivity`, `KHR_node_hoverability` and `KHR_node_selectability` (what pointer input does
+is your page's), `MSFT_audio_emitter` (sound) and `MSFT_lod` (it goes on loading after the load).
+An `EXT_lights_ies` light's profile in a file of its own is one of the model's parts.
+
 ```bash
 npm install babylonjs-models @babylonjs/core @babylonjs/loaders
 ```

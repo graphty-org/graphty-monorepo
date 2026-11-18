@@ -69,6 +69,10 @@ const READABLE_EXTENSIONS = new Set([
     "KHR_meshopt_compression",
     "KHR_texture_basisu",
     "EXT_mesh_gpu_instancing",
+    "KHR_animation_pointer",
+    "KHR_materials_scatter",
+    "EXT_lights_ies",
+    "MSFT_minecraftMesh",
 ]);
 
 /**
@@ -305,7 +309,7 @@ function trianglesOf(mode: unknown, count: number): number {
 
 /** What {@link checkGltf} reads. */
 /**
- * Look up every file a glTF names -- buffers, then images -- before any structure check, so every
+ * Look up every file a glTF names -- buffers, images, then IES light profiles -- before any structure check, so every
  * missing or ambiguous part is found at once (design 12.4).
  * @param json - The glTF.
  * @param path - Its path in the set.
@@ -329,6 +333,22 @@ export function findGltfParts(
             }
         }
     }
+    // An IES light profile in a file of its own (EXT_lights_ies): a picture-like part of the light.
+    for (const light of iesLights(json)) {
+        if (isObject(light) && typeof light.uri === "string") {
+            findReference(light.uri, path, files, "texture", findings);
+        }
+    }
+}
+
+/**
+ * A glTF's IES light profiles (`EXT_lights_ies`).
+ * @param json - The glTF.
+ * @returns Its lights, as written.
+ */
+function iesLights(json: Record<string, unknown>): unknown[] {
+    const ies = isObject(json.extensions) ? json.extensions.EXT_lights_ies : undefined;
+    return isObject(ies) && Array.isArray(ies.lights) ? (ies.lights as unknown[]) : [];
 }
 
 export interface GltfInput {

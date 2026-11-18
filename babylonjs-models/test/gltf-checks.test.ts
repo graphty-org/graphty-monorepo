@@ -171,6 +171,32 @@ describe("the glTF checks", () => {
         assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED");
     });
 
+    it("accept the extensions Babylon 9 added that are read, and name an IES light's file as a part", async () => {
+        const required = ["KHR_animation_pointer", "KHR_materials_scatter", "EXT_lights_ies", "MSFT_minecraftMesh"];
+        const lit = (json: Json): void => {
+            json.extensionsUsed = required;
+            json.extensionsRequired = required;
+            const lights = { lights: [{ uri: "lamp.ies" }] };
+            json.extensions = Object.fromEntries([["EXT_lights_ies", lights]]);
+        };
+        assert.deepInclude(await refusalOf(cubeWith(lit)), {
+            code: "E_MODEL_MISSING_FILE",
+            params: { name: "lamp.ies", referencedBy: "cube.gltf", role: "texture", optional: true },
+        });
+        const files = cubeWith(lit).set("lamp.ies", new TextEncoder().encode("IESNA:LM-63-2002\n"));
+        const checked = await checkModelFiles(files, {}, DEFAULT_MODEL_LIMITS);
+        assert.deepStrictEqual([...checked.summary.extensionsRequired], required);
+        assert.isTrue(checked.files.has("lamp.ies"), "the profile is loaded with the model");
+        // Left out: what a file does on pointer input is the page's.
+        const interactive = await refusalOf(
+            cubeWith((json) => {
+                json.extensionsUsed = ["KHR_interactivity"];
+                json.extensionsRequired = ["KHR_interactivity"];
+            }),
+        );
+        assert.strictEqual(interactive.code, "E_MODEL_FORMAT_UNSUPPORTED");
+    });
+
     it("refuse a model over the triangle and texture limits", async () => {
         const plain = cubeWith(() => undefined);
         const triangles = await refusalOf(plain, { ...DEFAULT_MODEL_LIMITS, maxTriangles: 5 });

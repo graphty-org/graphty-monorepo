@@ -3,9 +3,19 @@
  * into an asset container.
  *
  * What it registers, and only this:
- * - the glTF 2.0 loader (`.gltf`, `.glb`) with the extensions that change how a model looks or is
- *   stored. The decoder extensions (Draco, meshopt, KTX2) are in src/decoders/, each its own
- *   module, imported only for a model that uses it; none fetches anything from a CDN;
+ * - the glTF 2.0 loader (`.gltf`, `.glb`) with the extensions that change how a model looks, moves
+ *   or is stored. The decoder extensions (Draco, meshopt, KTX2) are in src/decoders/, each its own
+ *   module, imported only for a model that uses it; none fetches anything from a CDN. The
+ *   extensions Babylon.js ships that are not registered, each for a reason
+ *   (test/gltf-extensions.test.ts lists them, so a new one is a decision): Gaussian splatting
+ *   (splats are refused); the transmission family (drawn without: src/files/gltfChecks.ts);
+ *   `EXT_lights_area` (Babylon fetches its lookup table from assets.babylonjs.com and keeps it on
+ *   the scene); `EXT_lights_image_based` (it replaces the scene's environment, which is the
+ *   page's); `KHR_interactivity`, `KHR_node_hoverability` and `KHR_node_selectability` (a file's
+ *   own behavior graph and pointer handling: what input does is the page's); `MSFT_audio_emitter`
+ *   (sound the page did not ask for); `MSFT_lod` (it goes on loading finer levels after the load
+ *   has settled). A glTF that requires one of them is refused; one that only uses it draws
+ *   without it;
  * - the OBJ loader (with its MTL reader), with a fix that keeps an OBJ's vertex colors;
  * - the TGA and DDS texture loaders, which Babylon would otherwise import lazily;
  * - the FBX loader (`.fbx`, binary and ASCII), the OpenUSD loader (`.usd`, `.usda`, `.usdc`,
@@ -60,6 +70,12 @@ import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_xmp_json_ld.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_sRGBFactors.js";
 // Read as thin instances of the mesh they copy.
 import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_mesh_gpu_instancing.js";
+// Animations of any property a JSON pointer names, subsurface scattering, IES light profiles (a
+// light's own file, a part of the model, or a buffer view) and Minecraft exports' materials.
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_animation_pointer.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_scatter.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_lights_ies.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_minecraftMesh.js";
 // What the glTF loader would otherwise import lazily.
 import "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter.js";

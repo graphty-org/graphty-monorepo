@@ -136,6 +136,35 @@ describe("the Camera menu's saved views", () => {
         const fit = within(menu).getByRole("menuitem", { name: /^Fit/ });
         assert.notEqual(fit.getAttribute("aria-disabled"), "true", "Fit works in 2D");
     });
+
+    it("words a tour's broken stop by what it names: Only in for a camera view, Saved in for a saved view", async () => {
+        const { session } = await openRing();
+        await userEvent.keyboard("v");
+        await waitFor(() => {
+            assert.isTrue(session.views.has("View 1"));
+        });
+        await session.tours.save([
+            { name: "Fronts", tour: { stops: [{ view: "frontView" }] } },
+            { name: "Saves", tour: { stops: [{ view: "View 1" }] } },
+        ]);
+
+        await userEvent.keyboard("5");
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "2d");
+        });
+        const menu = await openCamera();
+        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Play tour/ }));
+        const tours = (await screen.findAllByRole("menu")).at(-1);
+        if (tours === undefined) {
+            throw new Error("the Play tour submenu never opened");
+        }
+        const fronts = within(tours).getByRole("menuitem", { name: /^Fronts/ });
+        assert.equal(fronts.getAttribute("aria-disabled"), "true");
+        assert.include(fronts.textContent, "Stop 1: Only in 3D");
+        const saves = within(tours).getByRole("menuitem", { name: /^Saves/ });
+        assert.equal(saves.getAttribute("aria-disabled"), "true");
+        assert.include(saves.textContent, "Stop 1: Saved in 3D");
+    });
 });
 
 describe("a tour played from the Camera menu", () => {

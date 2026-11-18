@@ -321,7 +321,7 @@ function TourList({ session, element, store }: ListProps): React.JSX.Element {
 
     const card = (name: string, tour: Tour): CardListItem => {
         const plan = element?.planTour(name) ?? null;
-        const problem = drawn ?? (plan === null ? null : tourProblemWords(plan));
+        const problem = drawn ?? (plan === null ? null : tourProblemWords(plan, element));
         const playing = progress?.tour === name;
         const length = plan === null ? null : lengthWords(plan.totalMs);
         const items: SelectionMenuItem[] = [

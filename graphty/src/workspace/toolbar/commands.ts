@@ -229,7 +229,7 @@ export function tourRows(ctx: CommandContext): PaletteRow[] {
         group: "Play tour",
         keywords: ["tour", "play"],
         disabled: ({ session, element }) =>
-            nothingDrawn(session) ?? (element === null ? null : tourProblemWords(element.planTour(name))),
+            nothingDrawn(session) ?? (element === null ? null : tourProblemWords(element.planTour(name), element)),
         run: async ({ element }) => {
             await element?.playTour(name, { restoreCamera: true });
         },

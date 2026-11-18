@@ -17,7 +17,7 @@ import { type SelectionMenuItem, SelectionMenuItems } from "../selection/Selecti
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { nextName, savedViewReason } from "../toolbar/commands";
-import { cameraViewName, viewProblemWords } from "../toolbar/viewWords";
+import { cameraViewName, stopProblemWords } from "../toolbar/viewWords";
 import { orRefusal } from "./actions";
 
 /**
@@ -269,7 +269,7 @@ export function TourStops({
     return (
         <ol className="ws-tour-stops" ref={list} aria-label={`Stops of ${name}`}>
             {stops.map((stop, at) => {
-                const reason = viewProblemWords(problems[at] ?? null, true);
+                const reason = stopProblemWords(problems[at] ?? null, element);
                 const label = `Stop ${String(at + 1)}`;
                 return (
                     // A stop's view may repeat, so its place is its key: an edit never moves it.

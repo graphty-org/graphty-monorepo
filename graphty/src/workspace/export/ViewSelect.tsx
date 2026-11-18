@@ -12,6 +12,8 @@ interface ViewSelectProps {
     readonly views: ViewChoice;
     /** Called with the picked view name, or null for the reader's camera. */
     readonly onChange: (view: string | null) => void;
+    /** Whether the list is disabled, such as while a recording runs. */
+    readonly disabled?: boolean;
 }
 
 /**
@@ -20,9 +22,10 @@ interface ViewSelectProps {
  * @param props - Component props
  * @param props.views - the entries and the chosen one, from `viewChoice`
  * @param props.onChange - called with the picked view
+ * @param props.disabled - whether the list is disabled
  * @returns the list
  */
-export function ViewSelect({ views, onChange }: ViewSelectProps): React.JSX.Element {
+export function ViewSelect({ views, onChange, disabled = false }: ViewSelectProps): React.JSX.Element {
     const entries = [views.current, ...views.cameras, ...views.saved];
     return (
         <Select
@@ -46,6 +49,7 @@ export function ViewSelect({ views, onChange }: ViewSelectProps): React.JSX.Elem
             value={views.chosen.value}
             error={views.chosen.reason ?? undefined}
             allowDeselect={false}
+            disabled={disabled}
             renderOption={({ option }) => {
                 const reason = entries.find((entry) => entry.value === option.value)?.reason;
                 return reason === null || reason === undefined ? (

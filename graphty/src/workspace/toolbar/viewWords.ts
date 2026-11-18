@@ -75,17 +75,40 @@ export function viewProblemWords(problem: CodedFact | null, saved = false): stri
     }
 }
 
+/** What judges a view name: the element's `viewProblem`. */
+interface ViewJudge {
+    viewProblem: (name: string, options?: { saved?: boolean }) => CodedFact | null;
+}
+
+/**
+ * Why a tour stop cannot be flown, from its `planTour` problem: "Saved in 3D" for a stop on a saved
+ * view, "Only in 3D" for one on a camera view (the element answers E_PROTECTED for a camera view's
+ * name judged as saved).
+ * @param problem - the stop's problem, or null.
+ * @param element - the element that judges the stop's view name.
+ * @returns the reason, or null when it can be flown.
+ */
+export function stopProblemWords(problem: CodedFact | null, element: ViewJudge | null): string | null {
+    const name = problem?.params.name;
+    const saved = typeof name === "string" && element?.viewProblem(name, { saved: true })?.code !== "E_PROTECTED";
+    return viewProblemWords(problem, saved);
+}
+
 /**
  * Why a tour cannot play, from its `planTour` result: its own problem, else its first broken stop.
  * @param plan - the plan.
  * @param plan.problem - the tour's own problem.
  * @param plan.stops - the stops, each with its problem.
+ * @param element - the element that judges a stop's view name.
  * @returns the reason, or null when it can play.
  */
-export function tourProblemWords(plan: {
-    readonly problem: CodedFact | null;
-    readonly stops: readonly { readonly problem: CodedFact | null }[];
-}): string | null {
+export function tourProblemWords(
+    plan: {
+        readonly problem: CodedFact | null;
+        readonly stops: readonly { readonly problem: CodedFact | null }[];
+    },
+    element: ViewJudge | null,
+): string | null {
     if (plan.problem !== null) {
         return viewProblemWords(plan.problem);
     }
@@ -93,7 +116,7 @@ export function tourProblemWords(plan: {
     if (index === -1) {
         return null;
     }
-    return `Stop ${String(index + 1)}: ${viewProblemWords(plan.stops[index].problem, true) ?? ""}`;
+    return `Stop ${String(index + 1)}: ${stopProblemWords(plan.stops[index].problem, element) ?? ""}`;
 }
 
 /**

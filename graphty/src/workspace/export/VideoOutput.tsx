@@ -212,7 +212,7 @@ function videoTarget(
         return { tours, tour, camera: "still", plan: null, tourReason: null, views, ask };
     }
     const plan = element?.planTour(tour) ?? null;
-    const tourReason = plan === null ? null : tourProblemWords(plan);
+    const tourReason = plan === null ? null : tourProblemWords(plan, element);
     const ask = tourReason === null ? { tour, fps: choices.fps } : null;
     return { tours, tour, camera: "tour", plan, tourReason, views, ask };
 }
@@ -244,6 +244,7 @@ function CameraFields({ target, choices, recording, set }: CameraFieldsProps): R
             <>
                 <ViewSelect
                     views={target.views}
+                    disabled={recording}
                     onChange={(view) => {
                         set({ view });
                     }}

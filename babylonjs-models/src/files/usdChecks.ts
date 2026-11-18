@@ -594,6 +594,7 @@ export function scanUsd(
     cap("materials", materials.length, limits.maxMaterials);
     cap("textures", pictures.length, limits.maxTextures);
     cap("morphTargets", sum("blendShapes"), limits.maxMorphTargets);
+    cap("animations", animations.length, limits.maxAnimations);
     if (textureBytes > limits.maxTextureBytes) {
         refuse("E_MODEL_TOO_LARGE", { what: "textureBytes", found: textureBytes, limit: limits.maxTextureBytes });
     }

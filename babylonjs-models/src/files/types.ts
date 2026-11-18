@@ -172,7 +172,7 @@ export interface ModelLimits {
     /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
     readonly maxBytes: number;
     /**
-     * Per OBJ, ASCII STL or ASCII PLY file, read as one string. Default 536,870,888 bytes (2^29 - 24),
+     * Per OBJ, ASCII STL, ASCII PLY, ASCII FBX, text USD or BVH file, read as one string. Default 536,870,888 bytes (2^29 - 24),
      * the longest string a browser holds: longer text cannot be read at all.
      */
     readonly maxTextBytes: number;
@@ -180,23 +180,23 @@ export interface ModelLimits {
     readonly maxTriangles: number;
     /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 1 GB. */
     readonly maxTextureBytes: number;
-    /** What every glTF accessor decodes to, together. Default 1 GB. */
+    /** What every glTF accessor decodes to, together; also an FBX file's deflated arrays and a binary USD layer's compressed sections. Default 1 GB. */
     readonly maxDecodedBytes: number;
     /** Files a model fetched by URL may load beside its main file. Default 10,000. */
     readonly maxFiles: number;
-    /** glTF nodes. Default `Infinity`: no limit. */
+    /** glTF nodes and FBX models. Default `Infinity`: no limit. */
     readonly maxNodes: number;
-    /** glTF meshes. Default `Infinity`: no limit. */
+    /** glTF, FBX and USD meshes. Default `Infinity`: no limit. */
     readonly maxMeshes: number;
-    /** glTF materials. Default `Infinity`: no limit. */
+    /** glTF, FBX and USD materials. Default `Infinity`: no limit. */
     readonly maxMaterials: number;
-    /** glTF textures. Default `Infinity`: no limit. */
+    /** glTF, FBX and USD textures. Default `Infinity`: no limit. */
     readonly maxTextures: number;
-    /** glTF animations. Default `Infinity`: no limit. */
+    /** glTF, FBX and USD animations. Default `Infinity`: no limit. */
     readonly maxAnimations: number;
-    /** Morph targets on one glTF primitive. Default `Infinity`: no limit. */
+    /** Morph targets on one glTF primitive; an FBX file's blend shape channels, a USD stage's blend shapes. Default `Infinity`: no limit. */
     readonly maxMorphTargets: number;
-    /** Joints in one glTF skin. Default `Infinity`: no limit. */
+    /** Joints in one glTF or FBX skin, or in a BVH file. Default `Infinity`: no limit. */
     readonly maxJoints: number;
     /** Pixels per texture side; larger textures earn `W_MODEL_TEXTURES_REDUCED`. Default 2048. */
     readonly maxTextureSize: number;

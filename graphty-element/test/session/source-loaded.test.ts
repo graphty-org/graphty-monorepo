@@ -6,7 +6,7 @@
  * again publish none.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
@@ -181,14 +181,21 @@ describe("source:loaded from loadDataset", () => {
     let baseUrl = "";
 
     beforeAll(async () => {
+        // The fixture files by name, read once: a request only looks a name up, so no path is ever
+        // built from it and none can leave the fixture directory.
+        const files = new Map(
+            readdirSync(DATA)
+                .filter((name) => /^[a-z0-9-]+\.gsnp\.gz$/.test(name))
+                .map((name) => [name, resolve(DATA, name)]),
+        );
         server = createServer((request, response) => {
-            const name = (request.url ?? "").replace(/^\//, "");
-            if (!/^[a-z0-9-]+\.gsnp\.gz$/.test(name) || !existsSync(resolve(DATA, name))) {
+            const file = files.get((request.url ?? "").replace(/^\//, ""));
+            if (file === undefined) {
                 response.statusCode = 404;
                 response.end();
                 return;
             }
-            response.end(readFileSync(resolve(DATA, name)));
+            response.end(readFileSync(file));
         });
         await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
         baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/`;
@@ -211,6 +218,14 @@ describe("source:loaded from loadDataset", () => {
         assert.notInclude(JSON.stringify(events[0]), "127.0.0.1");
         agreesWithSources(session, events[0]);
         session.dispose();
+    });
+
+    it("serves only the fixture files: a path out of their directory gets 404", async () => {
+        for (const path of ["..%2Fpackage.json", "../package.json", "karate.gsnp.gz/..%2F..%2Fpackage.json"]) {
+            const response = await fetch(`${baseUrl}${path}`);
+            assert.strictEqual(response.status, 404, path);
+        }
+        assert.strictEqual((await fetch(`${baseUrl}karate.gsnp.gz`)).status, 200, "not vacuous: a fixture is served");
     });
 });
 

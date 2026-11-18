@@ -397,11 +397,7 @@ async function writeLineWith(line: LineWrite): Promise<LayerId> {
  * @param combined - whether the literal combines with what lies beneath.
  * @returns the encode, or undefined for a plain literal.
  */
-function encodeOf(
-    write: LineValue,
-    channel: EncodeKey,
-    combined: boolean,
-): Layer["encode"] {
+function encodeOf(write: LineValue, channel: EncodeKey, combined: boolean): Layer["encode"] {
     if ("binding" in write) {
         return { [channel]: write.binding };
     }

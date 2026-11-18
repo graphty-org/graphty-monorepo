@@ -24,6 +24,7 @@ import {
     IDENTITY_COLUMNS,
     type IdentityGraph,
     PAIRS_ORDERED_ATTRIBUTE,
+    resumeEdgeCounter,
     sessionEdgeHash,
     withNodeHashes,
 } from "./edgeIdentity";
@@ -972,18 +973,28 @@ export class GraphStore {
     }
 
     /**
-     * Whether an edge may be given back an id the element assigned before: one the counter has
-     * handed out, that no live edge holds now.
-     * @param edgeId - the counter
-     * @returns true when it may
+     * The id for an edge being added: `wanted` when it is one no live edge holds -- an id given
+     * back to an edge removed earlier, or one a save file recorded -- else the next one from the
+     * counter. The counter continues past a wanted id it has not issued yet, so it never issues
+     * that id again.
+     * @param wanted - the counter asked for, if any
+     * @returns the id to stamp
+     * @throws Error when the store has been disposed
      */
-    mayReuseEdgeId(edgeId: number): boolean {
-        return (
-            Number.isSafeInteger(edgeId) &&
-            edgeId >= 0 &&
-            edgeId < this.counter.next &&
-            this.edgeIndexOf(edgeId) === INVALID_INDEX
-        );
+    takeEdgeId(wanted?: number): number {
+        if (
+            wanted === undefined ||
+            !Number.isSafeInteger(wanted) ||
+            wanted < 0 ||
+            wanted >= INVALID_INDEX ||
+            this.edgeIndexOf(wanted) !== INVALID_INDEX
+        ) {
+            return this.nextEdgeId();
+        }
+
+        this.requireAlive("takeEdgeId");
+        resumeEdgeCounter(this.counter, wanted);
+        return wanted;
     }
 
     /**

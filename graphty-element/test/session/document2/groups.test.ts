@@ -285,11 +285,15 @@ describe("collapsed groups in version 2 save files", () => {
         assert.match(String((entry.edge as JsonObject).key), ULID);
         assert.deepEqual(entry.columns, { weight: 2 });
         assert.notInclude(JSON.stringify(section(text, "data")), "group:");
-        assert.notInclude(JSON.stringify(section(text, "data")), String((entry.edge as JsonObject).key));
+        // The data section keeps only its id (spec 6.2); the edge itself is the view's.
+        const { edgeIds, ...built } = section(text, "data");
+        assert.notInclude(JSON.stringify(built), String((entry.edge as JsonObject).key));
+        assert.isString(((edgeIds as JsonObject).reader as JsonObject)[String((entry.edge as JsonObject).key)]);
 
         const opened = await open(text);
         assert.deepEqual(picture(opened), collapsed);
         const back = addedEdge(opened, node);
+        assert.strictEqual(back, edge);
         assert.strictEqual(opened.data.edge(back)?.weight, 2);
         assert.deepEqual([...opened.selection.edges], [back]);
         const again = await save(opened);

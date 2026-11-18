@@ -88,10 +88,11 @@ export type DataMutation =
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
           /**
-           * The element-assigned ids to give the edges back, by position in `records`: for edges
-           * removed earlier and added again, so what is keyed by their ids (a run's edge values)
-           * still finds them. An id the graph holds, or one the element never assigned, gets a
-           * fresh one. Default: every edge gets a fresh id.
+           * The element-assigned ids to give the edges, by position in `records`: for edges removed
+           * earlier and added again, or opened from a save file that recorded their ids, so what is
+           * keyed by their ids (a run's edge values) still finds them. An id a live edge holds, or
+           * one that is not an element-assigned id, gets a fresh one; the counter continues past
+           * every id given, so none is issued twice. Default: every edge gets a fresh id.
            */
           readonly ids?: readonly (EdgeId | undefined)[];
           /** The record key weights are read from for this call, overriding `data.knownFields.edgeWeightPath`. */

@@ -255,7 +255,7 @@ export function isVersion2(value: unknown): value is JsonObject {
  * @param name - The member name.
  * @returns The escaped token.
  */
-function token(name: string): string {
+export function token(name: string): string {
     return name.replaceAll("~", "~0").replaceAll("/", "~1");
 }
 

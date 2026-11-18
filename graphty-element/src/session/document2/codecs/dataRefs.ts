@@ -240,6 +240,8 @@ interface DataMemory {
     folded: readonly string[];
     /** The edge-id column the last data section read named, until settings say one. */
     edgeIdColumn?: string;
+    /** Each edge's saved id the last data section read, by load and then key (spec 6.2). */
+    edgeIds: ReadonlyMap<string, ReadonlyMap<string, EdgeId>>;
 }
 
 const MEMORY = projectMemory<DataMemory>();
@@ -263,6 +265,7 @@ function memoryOf(session: GraphSession): DataMemory {
             origins: new Map(),
             kinds: new Map(),
             folded: [],
+            edgeIds: new Map(),
         };
         MEMORY.set(session, memory);
     }
@@ -308,6 +311,8 @@ export interface DataRead {
     /** The records of the sources that could not be fetched. */
     readonly unavailable: readonly JsonObject[];
     readonly edgeIdColumn?: string;
+    /** Each edge's saved id, by load and then key. */
+    readonly edgeIds?: ReadonlyMap<string, ReadonlyMap<string, EdgeId>>;
 }
 
 /**
@@ -347,6 +352,7 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
     memory.types = read.types;
     memory.folded = read.folded ?? [];
     memory.edgeIdColumn = read.edgeIdColumn;
+    memory.edgeIds = read.edgeIds ?? new Map();
     const model = dataModelOf(session);
     for (const [id, copy] of model.copies) {
         const known = read.copies[id];
@@ -369,6 +375,51 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
         sources: { ...read.copies },
         ...(read.refused ? { written: mintUlid() } : {}),
     };
+}
+
+/**
+ * The id an edge was saved with in the data section the session last read, for an edge added
+ * again after the data is built (one added to a node standing in for a group).
+ * @param session - The session.
+ * @param ref - The edge's reference.
+ * @returns The id, or undefined.
+ */
+export function savedEdgeId(session: GraphSession, ref: EdgeRef): EdgeId | undefined {
+    return MEMORY.get(session)?.edgeIds.get(ref.load)?.get(ref.key);
+}
+
+/**
+ * The `edgeIds` member (spec 6.2): every edge's element-assigned id by its load and key, in graph
+ * order, so an open gives each edge the id it had. A source that could not be fetched keeps the
+ * ids it was read with.
+ * @param model - The model.
+ * @returns The member, or undefined when there are no edges.
+ */
+function edgeIdsOf(model: DataModel): JsonObject | undefined {
+    const byLoad = new Map<string, Map<string, EdgeId>>();
+    for (const [id, ref] of model.edgeRefs) {
+        let ids = byLoad.get(ref.load);
+        if (ids === undefined) {
+            ids = new Map();
+            byLoad.set(ref.load, ids);
+        }
+
+        if (!ids.has(ref.key)) {
+            ids.set(ref.key, id);
+        }
+    }
+
+    const read = memoryOf(model.session).edgeIds;
+    for (const load of model.unavailable.keys()) {
+        const kept = read.get(load);
+        if (kept !== undefined && !byLoad.has(load)) {
+            byLoad.set(load, new Map(kept));
+        }
+    }
+
+    return byLoad.size === 0
+        ? undefined
+        : Object.fromEntries([...byLoad].map(([load, ids]) => [load, Object.fromEntries(ids)]));
 }
 
 /**
@@ -1730,6 +1781,7 @@ function bodyOf(
     const conversions = conversionsOf(model.session);
     const issues = issuesOf(model);
     const joins = model.sources.map((source) => ({ op: "join.add", source: source.id }));
+    const edgeIds = edgeIdsOf(model);
     const digest = digestOf({
         directed: model.directed,
         sources: records.map(({ label: _label, loaded: _loaded, ...record }) => ({
@@ -1762,6 +1814,7 @@ function bodyOf(
         ...(conversions.length === 0 ? {} : { conversions }),
         ...(issues === undefined ? {} : { issues }),
         joins,
+        ...(edgeIds === undefined ? {} : { edgeIds }),
         graph: graphOf(model, embedded, types),
     };
     return { body, digest, stamp: { build: memory.build.build, sources: memory.build.sources ?? sources } };

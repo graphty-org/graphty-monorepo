@@ -330,7 +330,8 @@ The full rules are in design/data/data-store-options.md, section 5; in short:
 
 - **By record key, in every form.** A section is byte-identical in a full file or alone, so an
   element reference must mean something without the data section beside it. It names the element
-  by its record key and nothing else; internal ids live in memory only and are never saved:
+  by its record key and nothing else, never by an internal id (the data section keeps each edge's
+  element-assigned id separately, in `edgeIds`, so the edge has the same id after a reopen):
 
     ```jsonc
     { "space": "account", "key": "acct-1002" }                         // a node

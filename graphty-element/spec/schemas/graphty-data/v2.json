@@ -792,6 +792,17 @@
             }
         },
         "rekeys": false,
+        "edgeIds": {
+            "description": "Each edge's element-assigned id, by the edge's load and then its key (spec/README.md 6.2).",
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$"
+                }
+            }
+        },
         "graph": {
             "type": "object",
             "required": ["directed", "multigraph", "graph", "nodes", "links"],

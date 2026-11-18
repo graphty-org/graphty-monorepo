@@ -236,6 +236,7 @@ The closed objects of section 10 are the exceptions. Every default lives in the 
 | `conversions`   | no       | type conversions (4.1.6)                                                                      |
 | `issues`        | no       | `ignored` and `kept` (4.1.7)                                                                  |
 | `joins`         | yes      | the join history (4.1.8)                                                                      |
+| `edgeIds`       | no       | each edge's element-assigned id, by load and key (6.2)                                        |
 | `graph`         | yes      | the merged graph as NetworkX node-link JSON (4.1.9)                                           |
 
 #### 4.1.1 The build stamp and direction
@@ -682,9 +683,20 @@ source whose row made it.
   "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3" }                          // a keyless edge row
 ```
 
-A reference names the element by record key and nothing else; internal ids are never saved. It
-MUST mean the same in a section file and in a full file. An edge's element-assigned id is internal:
-it is not kept across a reopen, from any source, and references bind edges by (load, key). An edge reference never names its ends:
+A reference names the element by record key and nothing else; it never names an element-assigned
+id. It MUST mean the same in a section file and in a full file, and references bind edges by
+(load, key).
+
+An edge's element-assigned id (the decimal counter graphty-element gives every edge) is kept across
+a save and reopen, for every edge alike, by the data section's `edgeIds` member: an object keyed by
+the edge's `load`, each value an object from the edge's `key` to its id, every edge in graph order,
+an edge added to a node standing in for a group included (under `reader`). A writer writes every
+edge; a source that could not be fetched keeps the ids it was read with. A reader gives each edge
+the id saved for its (load, key) and continues its counter past the largest, so no new edge reuses
+one. An edge whose saved id another edge already holds gets a fresh id, and a value that is not a
+decimal id is not used; both are reported as `W_MEMBER_LEFT_OUT` (pointer
+`/edgeIds/<load>/<key>`). A file without `edgeIds`, or an edge it does not name, gets fresh ids.
+The id is never the edge's own id from its file (its `edgeId` column), which stays its key. An edge reference never names its ends:
 `key` is the record key, never NetworkX's multigraph key.
 
 ### 6.3 Binding

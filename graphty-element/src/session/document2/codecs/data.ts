@@ -33,9 +33,13 @@
  *   conversions leave values as read.
  */
 
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { EdgeId, NodeId } from "../../../catalog/types";
+import { edgeCounterOf } from "../../../data/edgeIdentity";
 import type { ColumnSettings } from "../../commands/data";
 import type { LoadedSource, TransactionScope } from "../../types";
+import { token } from "../framing";
 import type {
     DocumentProblem,
     EdgeRef,
@@ -564,7 +568,12 @@ interface Built {
     readonly kinds: readonly (readonly [string, string])[];
     /** The reader operations read that are not `add`s, by `op`, in order. */
     readonly folded: readonly string[];
+    /** Each edge's saved element-assigned id, by its load and then its key (spec 6.2). */
+    readonly edgeIds: SavedEdgeIds;
 }
+
+/** Saved edge ids, by load and then key. */
+type SavedEdgeIds = ReadonlyMap<string, ReadonlyMap<string, EdgeId>>;
 
 /** The build so far. */
 interface Building {
@@ -997,6 +1006,60 @@ function loadOf(record: JsonObject, key: string, added: { nodes: number; edges: 
 }
 
 /**
+ * The `edgeIds` member (spec 6.2): each edge's element-assigned id by its load and key. A value
+ * that is not an element-assigned id is left out and reported; a file without the member gives none.
+ * @param value - The member.
+ * @param problems - Collects what is left out.
+ * @returns The ids.
+ */
+function savedEdgeIds(value: unknown, problems: DocumentProblem[]): SavedEdgeIds {
+    const saved = new Map<string, Map<string, EdgeId>>();
+    if (value === undefined) {
+        return saved;
+    }
+
+    if (!isPlainObject(value)) {
+        problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer: "/edgeIds" } });
+        return saved;
+    }
+
+    for (const [load, keys] of Object.entries(value)) {
+        if (!isPlainObject(keys)) {
+            problems.push({
+                code: "W_MEMBER_LEFT_OUT",
+                params: { section: "data", pointer: `/edgeIds/${token(load)}` },
+            });
+            continue;
+        }
+
+        const ids = new Map<string, EdgeId>();
+        saved.set(load, ids);
+        for (const [key, id] of Object.entries(keys)) {
+            if (typeof id === "string" && edgeCounterOf(id) !== INVALID_INDEX) {
+                ids.set(key, id);
+            } else {
+                problems.push({
+                    code: "W_MEMBER_LEFT_OUT",
+                    params: { section: "data", pointer: edgeIdPointer(load, key) },
+                });
+            }
+        }
+    }
+
+    return saved;
+}
+
+/**
+ * The pointer of one saved edge id.
+ * @param load - Its load.
+ * @param key - Its key.
+ * @returns The pointer.
+ */
+function edgeIdPointer(load: string, key: string): string {
+    return `/edgeIds/${token(load)}/${token(key)}`;
+}
+
+/**
  * Build every node and edge the sources supply, in join order, then the conversions and the
  * reader's operations, without touching the session.
  * @param body - The section's body.
@@ -1048,6 +1111,7 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer: "/repeatedEdges" } });
     }
 
+    const edgeIds = savedEdgeIds(body.edgeIds, problems);
     settleEnds(into);
     convert(into, section.conversions);
     if (section.reader !== undefined) {
@@ -1074,6 +1138,7 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         folded: (section.reader?.operations ?? [])
             .map((operation) => String(operation.op))
             .filter((op) => op !== "add"),
+        edgeIds,
         refused: problems
             .slice(before)
             .some((problem) => problem.code === "W_MEMBER_LEFT_OUT" && problem.params.section === "data"),
@@ -1173,6 +1238,8 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
         },
     });
     const edgesBefore = tx.data.edges({ scope: "graph" }).length;
+    // Each edge takes the id it was saved with; a file saved before ids were kept names none.
+    const wanted = built.edges.map((edge) => built.edgeIds.get(edge.ref.load)?.get(edge.ref.key));
     await tx.execute({
         op: "data.apply",
         mutation: {
@@ -1181,12 +1248,22 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
             source: "source",
             target: "target",
             directed: built.directed,
+            ...(wanted.some((id) => id !== undefined) ? { ids: wanted } : {}),
         },
     });
     const edgeIds = tx.data
         .edges({ scope: "graph" })
         .slice(edgesBefore)
         .map((edge) => edge.id);
+    built.edges.forEach((edge, at) => {
+        // Two edges saved with one id: the later gets a fresh one, and its saved id is reported.
+        if (wanted[at] !== undefined && edgeIds[at] !== wanted[at]) {
+            context.problems.push({
+                code: "W_MEMBER_LEFT_OUT",
+                params: { section: "data", pointer: edgeIdPointer(edge.ref.load, edge.ref.key) },
+            });
+        }
+    });
     const provenance: Record<string, { nodes: NodeId[]; edges: EdgeId[] }> = {};
     const entry = (key: string): { nodes: NodeId[]; edges: EdgeId[] } => (provenance[key] ??= { nodes: [], edges: [] });
     for (const node of built.nodes) {
@@ -1236,6 +1313,7 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
         refused: built.refused,
         readerEdges,
         unavailable: built.unavailable,
+        edgeIds: built.edgeIds,
         ...(built.edgeIdColumn === undefined ? {} : { edgeIdColumn: built.edgeIdColumn }),
     });
     context.restored.add("graph");
@@ -1254,7 +1332,18 @@ export const dataCodec: SectionCodec = {
     version: 2,
     reads: [2],
     bound: false,
-    members: ["build", "directed", "repeatedEdges", "sources", "types", "conversions", "issues", "joins", "graph"],
+    members: [
+        "build",
+        "directed",
+        "repeatedEdges",
+        "sources",
+        "types",
+        "conversions",
+        "issues",
+        "joins",
+        "edgeIds",
+        "graph",
+    ],
     write(context: WriteContext) {
         return Promise.resolve({ body: dataBodyOf(context.session, context.embed, context.problems).body });
     },

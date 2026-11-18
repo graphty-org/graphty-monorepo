@@ -467,8 +467,8 @@ export interface GraphWriter {
      * @param weight - The resolved weight.
      * @param record - The record.
      * @param fileId - The file's own id for the edge, read at `edgeIdPath`, when it has one.
-     * @param reuse - An id the element assigned before, to give back to an edge removed earlier;
-     *     a fresh one when the graph holds it or the element never assigned it.
+     * @param reuse - The id to give the edge: one it held before it was removed, or one a save
+     *     file recorded; a fresh one when a live edge holds it.
      * @returns The row and the id; INVALID_INDEX for both when either endpoint cannot be stored.
      */
     addEdge(
@@ -2028,10 +2028,9 @@ class Writer implements GraphWriter {
             created.push(target);
         }
 
-        // Asked before the row is added, so the id is not read as the new row's own.
-        const reused = reuse !== undefined && this.store.mayReuseEdgeId(reuse);
+        // Taken before the row is added, so the id is not read as the new row's own.
+        const edgeId = this.store.takeEdgeId(reuse);
         const index = builder.addEdge(source, target, weight);
-        const edgeId = reused ? reuse : this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId, this.graph.touchesRanges);
         this.store.recordsChanged();

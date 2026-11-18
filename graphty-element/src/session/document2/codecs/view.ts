@@ -33,7 +33,7 @@ import type {
     WriteContext,
 } from "../types";
 import { addedValues } from "./data";
-import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, typedIds } from "./dataRefs";
+import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, savedEdgeId, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { filterRule } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
@@ -1138,7 +1138,14 @@ async function readGroupEdges(
     const before = tx.data.edges({ scope: "graph" }).length;
     await tx.execute({
         op: "data.apply",
-        mutation: { kind: "add-edges", records, source: "source", target: "target" },
+        mutation: {
+            kind: "add-edges",
+            records,
+            source: "source",
+            target: "target",
+            // Each takes the id it was saved with, as the data section's edges do.
+            ids: keys.map((key) => savedEdgeId(session, { load: READER, key })),
+        },
     });
     tx.data
         .edges({ scope: "graph" })

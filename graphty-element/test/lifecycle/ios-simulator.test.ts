@@ -41,18 +41,10 @@ import { afterAll, assert, beforeAll, beforeEach, describe, it, onTestFailed } f
 import { kill } from "./engines";
 import { type Fixture, keptWork, startFixture } from "./fixture";
 import { ownChild, processes } from "./processes";
+import { bootSimulator, simctl } from "./simulator";
 
 const MACOS = process.platform === "darwin" && process.env.GRAPHTY_LIFECYCLE_MACOS === "1";
 const SAFARI = "com.apple.mobilesafari";
-
-/**
- * Run `xcrun simctl`.
- * @param args - Its arguments.
- * @returns What it printed.
- */
-function simctl(...args: string[]): string {
-    return execFileSync("xcrun", ["simctl", ...args], { encoding: "utf8", maxBuffer: 256 << 20 });
-}
 
 /**
  * Terminate Safari. Safari may already be gone (iOS ends a background app in answer to a memory
@@ -72,27 +64,6 @@ function terminateSafari(udid: string): "terminated" | "already gone" {
 
         throw error;
     }
-}
-
-/**
- * The newest iPad the installed runtimes offer, else the newest iPhone.
- * @returns Its udid.
- */
-function pickDevice(): string {
-    const { devices } = JSON.parse(simctl("list", "devices", "available", "-j")) as {
-        devices: Record<string, { udid: string; name: string }[]>;
-    };
-    const ios = Object.entries(devices)
-        .filter(([runtime]) => runtime.includes("iOS"))
-        .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-        .flatMap(([, list]) => list)
-        .reverse();
-    const device = ios.find((d) => d.name.startsWith("iPad")) ?? ios.find((d) => d.name.startsWith("iPhone"));
-    if (device === undefined) {
-        throw new Error("no iOS simulator is installed");
-    }
-
-    return device.udid;
 }
 
 /**
@@ -259,14 +230,9 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
     let safariLog: SafariLog;
 
     beforeAll(async () => {
-        udid = pickDevice();
-        try {
-            simctl("boot", udid);
-        } catch {
-            // Already booted.
-        }
-
-        simctl("bootstatus", udid, "-b");
+        // Booted already by the workflow's step before this file (simulator.ts says why); booting here
+        // is for a run by hand.
+        udid = bootSimulator();
         safariLog = followSafari(udid);
         // The stream is running once it printed anything (`log stream` starts with "Filtering the log
         // data using ..."). A Safari already running (a Simulator booted before this run) logged its

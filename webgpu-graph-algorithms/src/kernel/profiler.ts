@@ -18,7 +18,9 @@ import type { CommandBatch, ReadbackRequest } from "./batch.js";
 
 /** One resolved pass timing. */
 export interface PassTiming {
+    /** The compute pass's label. */
     readonly label: string;
+    /** The pass's GPU time in nanoseconds. */
     readonly ns: number;
 }
 

@@ -102,9 +102,11 @@ const ArrowStyle = z.strictObject({
     /**
      * How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the line stops
      * there too, leaving the gap empty (Cytoscape desktop draws its T bar four of its lengths off the node, its half
-     * circles one). Unset or 0, the cap touches the node. A cap drawn part-way along (`position`) ignores it.
+     * circles one). Unset or 0, the cap touches the node; below 0 it overlaps the node by that much, its tip inside
+     * it (Pajek draws a part-way arrowhead on a short line with its tip past the target's outline). A cap drawn
+     * part-way along (`position`) ignores it.
      */
-    gap: z.number().nonnegative().optional(),
+    gap: z.number().optional(),
     /**
      * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
      * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,

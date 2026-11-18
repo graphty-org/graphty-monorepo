@@ -142,6 +142,7 @@ docs/compact-mantine/
 docs/remote-logger/
 docs/babylonjs-map/
 docs/cytoscape-extensions/
+docs/webgpu-graph-algorithms/
 
 # Layout package specific
 layout/examples/layout.js

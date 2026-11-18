@@ -10,8 +10,11 @@ import type { PositionMap } from "./types/index.js";
 
 /** The output of an index-based layout: `n` rows of `dim` components in node-index order, in layout units (not scene units). */
 export interface LayoutResult {
+    /** `dim` numbers per node, in node-index order. */
     readonly positions: F32;
+    /** Numbers per node: 2 or 3. */
     readonly dim: 2 | 3;
+    /** The number of nodes (rows). */
     readonly n: number;
 }
 
@@ -191,9 +194,13 @@ export function rescaleInPlace<T extends F32 | F64>(
 
 /** A target rectangle in the caller's units: the corner with the lowest coordinates, then the width and height. */
 export interface Box {
+    /** The lowest x of the rectangle. */
     readonly x: number;
+    /** The lowest y of the rectangle. */
     readonly y: number;
+    /** The width. */
     readonly w: number;
+    /** The height. */
     readonly h: number;
 }
 

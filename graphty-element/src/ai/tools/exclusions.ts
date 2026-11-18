@@ -14,7 +14,7 @@ type ExclusionReason =
     | "internal-handle"
     /** The assistant's own connection, keys, voice or status. */
     | "assistant-config"
-    /** Acceleration, renderer, input, profiling, label decluttering, render on demand. */
+    /** Acceleration, machine calibration, renderer, input, profiling, label decluttering, render on demand. */
     | "machine-preference"
     /**
      * A default the application chooses for every later call, saved in no project: the palette a
@@ -542,7 +542,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "GraphSession",
-        members: ["acceleration", "setAccelerator"],
+        members: ["acceleration", "setAccelerator", "calibrate"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },
@@ -578,7 +578,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "ElementSession",
-        members: ["acceleration", "setAccelerator"],
+        members: ["acceleration", "setAccelerator", "calibrate"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },

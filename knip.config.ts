@@ -211,6 +211,8 @@ const config: KnipConfig = {
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
                 "test/setup/*.ts",
+                // what test/docs-examples.test.ts points the docs examples' `./node` imports at, by path
+                "test/helpers/docs-node-entry.ts",
                 "benchmarks/layout-run.ts",
                 "scripts/**/*.{ts,js}",
                 // the browser demo (`npm run demo`): its two pages and its vite config

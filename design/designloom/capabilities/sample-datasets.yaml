@@ -3,7 +3,8 @@ name: Sample Datasets
 category: data
 description: Provide built-in example datasets that users can load to learn the tool or test features without needing
     their own data. Include datasets of varying sizes and domains with documentation explaining what each contains.
-status: planned
+status: implemented
+notes: "Ships: graph-samples and graphty/src/workspace/start/SamplesDialog.tsx."
 algorithms: []
 used_by_workflows:
     - W14

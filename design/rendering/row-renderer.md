@@ -841,6 +841,19 @@ opening. `renderer: "webgpu"` starts on a WebGL scene and replaces it with a new
 the background but not this flag, so a consumer that parked the animation before WebGPU opened found it running. The
 swap in `Graph` now carries it, on both paths.
 
+As built (#8281): a plain line stops at the outline of a translucent node (`node.opacity` under 1) on both paths, and
+still at the centre of an opaque one, which hides it. On `"objects"`, `Edge.bareEnd` leaves such an end where
+`Edge.leaveNode` says. On `"batched"`, the straight pulled programs (lean, joined and animated, 2D and 3D, `PULLED_TRIM_GLSL` in
+`meshes/edgeJoinShader.ts`) does the same on the GPU from the rows: `RowTable.measure` writes a seen-through flag and an
+ellipse flag beside the round one in `rowExtent`, and in its spare float the row's reach outline (`Node.reachOutline`,
+`ColumnRow.reachOutline`), whose sides go once per distinct outline into a fourth texture, `rowOutline`. The shader reads
+one `rowExtent` texel per end, and for a seen-through end its half extents and border, then `EDGE_TRIM_GLSL`'s closed
+forms or the outline's sides. No edge byte is written. `test/browser/pulled-edge-trim.test.ts` holds both paths at 0
+pixels inside the body and 0 pixels apart on five shapes, in 2D and 3D, on WebGL and WebGPU. A pulled curve was already
+cut at its nodes' outlines on the CPU (`curveSpan`); the animated program (`pulledAnimatedLine.ts`) takes in the same
+`PULLED_TRIM_GLSL`. On WebGPU the GLSL is translated keeping its names, so a name WGSL reserves (`from`) leaves the pipeline
+invalid and the whole frame blank, with no error raised.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

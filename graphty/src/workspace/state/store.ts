@@ -10,6 +10,7 @@
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
 import type { AiPointing } from "@graphty/graphty-element/ai";
 import type { AiResultCode, AiResultParams, GeneratorParams } from "@graphty/graphty-element/catalog";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
@@ -308,6 +309,8 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
+    /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
+    readonly recording: boolean;
     /**
      * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
@@ -446,6 +449,7 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
+    recording: "fresh: a recording ends with the page that ran it",
     followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
@@ -559,6 +563,7 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
+    recording: false,
     followSelection: true,
     exportOn: "image",
     exportSource: null,
@@ -672,6 +677,12 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
         get: () => state,
         set: (change) => {
             const given = typeof change === "function" ? change(state) : change;
+            if (given.notice !== undefined && given.notice !== null) {
+                GraphtyLogger.getLogger(["graphty", "workspace"]).info("notice", {
+                    message: given.notice.message,
+                    error: given.notice.error === true,
+                });
+            }
             // A notice that is not a failure is spoken once, politely, by the status line (its
             // toast is not an alert); a failure's toast is its own alert. A write that says its
             // own words keeps them.

@@ -283,10 +283,25 @@ export interface SourcesWriteInput {
     /** The `provenance` graph value, for each load's `foundNodes` (the nodes it found already held). */
     readonly provenance?: Provenance;
     /**
-     * The loads whose rows this save left out of the data member, by key: the SHA-256 of the rows
-     * as read, written as the entry's `rowsSha256` (an open compares it to tell a changed source).
+     * The loads whose rows this save left out of the data member, by key: what their entries say
+     * about the rows as read (`rowsSha256`, `removedRows`).
      */
-    readonly references?: ReadonlyMap<SourceKey, string>;
+    readonly references?: ReadonlyMap<SourceKey, ReferenceEntry>;
+}
+
+/** The rows of a load as read that the graph no longer held when it was saved: the reader removed them. */
+export interface RemovedRows {
+    readonly nodes: readonly (string | number)[];
+    /** Each removed edge as its `[source, target]` pair. */
+    readonly edges: readonly (readonly [string | number, string | number])[];
+}
+
+/** What a referenced load's entry says about its rows as read when the save left them out. */
+export interface ReferenceEntry {
+    /** The SHA-256 of the rows as read: an open compares it to tell a changed source. */
+    readonly rowsSha256: string;
+    /** The rows as read the graph did not hold, which an open leaves out; absent when none. */
+    readonly removedRows?: RemovedRows;
 }
 
 /** What a save writes about the loads. */
@@ -606,10 +621,15 @@ function localPart(
     load: LoadedSource,
     facts: LoadFacts,
 ): { kind: string; part: Record<string, unknown>; dropped: readonly string[] } {
-    // A sample read by URL and kept as a reference is written as the URL it reads again.
+    // A sample read by URL and kept as a reference is written with the URL it reads again.
     const address = facts.copy === "reference" ? sampleAddress(load, facts) : undefined;
-    const url = address ?? load.config?.url;
-    if (load.kind === "sample" && address === undefined) {
+    if (address !== undefined) {
+        const { address: url, dropped } = redactUrl(address);
+        return { kind: "sample", part: { url }, dropped };
+    }
+
+    const url = load.config?.url;
+    if (load.kind === "sample") {
         return { kind: "sample", part: { ...(facts.sample ?? { dataset: load.name ?? "sample" }) }, dropped: [] };
     }
 
@@ -647,7 +667,7 @@ function localPart(
  * @param record - Its network record, for a network load.
  * @param rename - Collects each network key and the id it is written as.
  * @param found - The nodes its rows named that the graph already held (its provenance's `held`).
- * @param rowsSha256 - For a reference whose rows the save left out: their digest as read.
+ * @param reference - For a reference whose rows the save left out: what its entry says of them.
  * @returns The entry and the parameters its URL left out.
  */
 function entryOf(
@@ -656,7 +676,7 @@ function entryOf(
     record: SourceLoadRecord | undefined,
     rename: Map<string, string>,
     found: readonly NodeId[] | undefined,
-    rowsSha256?: string,
+    reference?: ReferenceEntry,
 ): Written {
     const network = record !== undefined;
     if (network) {
@@ -692,7 +712,8 @@ function entryOf(
                 ? undefined
                 : defined({ nodes: record.total, edges: record.totalEdges }),
         copy: facts.copy,
-        rowsSha256,
+        rowsSha256: reference?.rowsSha256,
+        removedRows: reference?.removedRows === undefined ? undefined : jsonOf(reference.removedRows),
     });
     return { entry, dropped: local?.dropped ?? [...secrets] };
 }
@@ -1019,7 +1040,9 @@ const PART_SHAPES: Readonly<Record<(typeof PARTS)[number], Shape | Check>> = {
             Object.keys(value).every((name) => name === "generator" || name === "params")) ||
             (text(1, 128)(value.dataset) &&
                 (value.baseUrl === undefined || text(1, 8192)(value.baseUrl)) &&
-                Object.keys(value).every((name) => name === "dataset" || name === "baseUrl"))),
+                Object.keys(value).every((name) => name === "dataset" || name === "baseUrl")) ||
+            // An application's own sample file kept as a reference: where it is read again.
+            (text(1, 8192)(value.url) && Object.keys(value).every((name) => name === "url"))),
 };
 
 const ENTRY: Shape = {
@@ -1045,6 +1068,7 @@ const ENTRY: Shape = {
         total: COUNTS,
         copy: oneOf("copy", "reference"),
         rowsSha256: pattern(SHA256),
+        removedRows: openMap,
         file: PART_SHAPES.file,
         url: PART_SHAPES.url,
         source: PART_SHAPES.source,
@@ -1263,7 +1287,8 @@ function describedOf(raw: Record<string, unknown>, network: boolean): Record<str
         return { type: `source:${String(source.id)}`, config: isObject(source.params) ? source.params : {} };
     }
 
-    const { address } = partOf(raw, "url");
+    // A URL entry's address, or the address an application's own sample is read again from.
+    const address = partOf(raw, "url").address ?? partOf(raw, "sample").url;
     return {
         type: typeof raw.format === "string" ? raw.format : undefined,
         config: { ...partOf(raw, "options"), ...(typeof address === "string" ? { url: address } : {}) },
@@ -1298,7 +1323,8 @@ function readFacts(raw: Record<string, unknown>, now: string): LoadFacts {
         mode: raw.mode === "merge" ? "merge" : "replace",
         file: isObject(file) ? file : undefined,
         url: isObject(url) ? defined({ ...url, address: undefined }) : undefined,
-        sample: isObject(raw.sample) ? raw.sample : undefined,
+        // An application's own sample read by URL keeps its address in the load's config.
+        sample: isObject(raw.sample) && raw.sample.url === undefined ? raw.sample : undefined,
         credentialSlot: typeof source?.credentialSlot === "string" ? source.credentialSlot : undefined,
         copy: raw.copy === "reference" ? "reference" : undefined,
         opened: true,

@@ -67,6 +67,7 @@ import {
     readSourcesMember,
     redactedParams,
     redactUrl,
+    type ReferenceEntry,
     savedLoads,
     type SourcesRead,
     type SourcesWrite,
@@ -203,13 +204,13 @@ const READS: Partial<Record<string, readonly number[]>> = { [SOURCE_RECORD_MEMBE
 /**
  * What a session's project file writes about its loads.
  * @param session - The session.
- * @param references - The digests of the referenced loads whose rows the save leaves out.
+ * @param references - What the entries of the referenced loads whose rows the save leaves out say.
  * @returns The sources member and the ids of each record's loads, or undefined for a session
  *     that keeps no load records (one this module did not build).
  */
 export function sourcesFileOf(
     session: GraphSession,
-    references?: ReadonlyMap<SourceKey, string>,
+    references?: ReadonlyMap<SourceKey, ReferenceEntry>,
 ): SourcesWrite | undefined {
     const data = session.data as Partial<Pick<SessionData, "sourceFile">>;
     return typeof data.sourceFile === "function" ? data.sourceFile(references) : undefined;
@@ -1208,7 +1209,7 @@ function write(
     const extensions = checkedExtensions(options.extensions ?? {});
     const ids = graphIdsOf(session);
     const leaveOut = new Set<string>(options.leaveOut ?? []);
-    const file = sourcesFileOf(session, references?.sha256);
+    const file = sourcesFileOf(session, references?.entries);
     const members = [
         dataMember(session, file, references),
         sessionMember(sources),
@@ -3113,6 +3114,10 @@ export function projectOf(
         }
         // The network loads wait, fetching nothing, until the application runs them.
         networkSources?.restore(member === undefined ? undefined : loads, ownWork);
+        // A reference read again from a URL can be read again, as the load it was.
+        (session.data as Partial<Pick<SessionData, "keepOpenedInputs">>).keepOpenedInputs?.(
+            filled?.inputs ?? new Map(),
+        );
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;

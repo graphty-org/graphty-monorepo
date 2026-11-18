@@ -21,8 +21,8 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { NetworkApiInternal } from "../network";
 import { pairKey } from "../replace";
 import type { CodedFact } from "../shared";
-import type { GraphSession, LoadChoices, LoadedSource, SourceNoPathReason } from "../types";
-import { type LoadFacts, paramsOf, redactUrl, sampleAddress } from "./member";
+import type { DataSourceInput, GraphSession, LoadChoices, LoadedSource, SourceNoPathReason } from "../types";
+import { type LoadFacts, paramsOf, redactUrl, type ReferenceEntry, type RemovedRows, sampleAddress } from "./member";
 import { targetOf } from "./pending";
 import type { SourceLoadRecord } from "./types";
 
@@ -175,6 +175,19 @@ function fetchedUrl(how: LoadHow): URL | undefined {
 }
 
 /**
+ * The page's origin, which `sampleAddress` resolves an application's own sample against.
+ * @returns The origin, or undefined outside a page.
+ */
+function pageOrigin(): string | undefined {
+    const base = (globalThis as { document?: { baseURI?: string } }).document?.baseURI;
+    try {
+        return base === undefined ? undefined : new URL(base).origin;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * Read a load again in a scratch session, after the network gate allows its host.
  * @param how - The load.
  * @param scratch - Makes an empty session; this disposes it.
@@ -187,7 +200,9 @@ async function readAsLoaded(
     network: NetworkApiInternal | undefined,
 ): Promise<ReadRows | UnavailableReason> {
     const url = fetchedUrl(how);
-    if (network !== undefined && url !== undefined) {
+    // The page's own origin is never asked about, as the page's own sample loads are not: a fetch
+    // there tells no other site anything.
+    if (network !== undefined && url !== undefined && url.origin !== pageOrigin()) {
         const allowed = await network.ask({ url, kind: "data", by: "file", layerIds: [] });
         if (!allowed) {
             return "denied";
@@ -307,8 +322,8 @@ export interface LeaveOut {
     readonly nodes: ReadonlyMap<NodeId, SourceKey>;
     /** Each left-out edge, with the load it belongs to. */
     readonly edges: ReadonlyMap<EdgeId, SourceKey>;
-    /** The digest of each referenced load's rows as read: its entry's `rowsSha256`. */
-    readonly sha256: ReadonlyMap<SourceKey, string>;
+    /** What each referenced load's entry says of its rows as read: `rowsSha256`, `removedRows`. */
+    readonly entries: ReadonlyMap<SourceKey, ReferenceEntry>;
     /** The referenced loads that could not be read, saved as copies this time. */
     readonly problems: readonly ReferenceProblem[];
 }
@@ -374,6 +389,96 @@ function markUnchanged(
 }
 
 /**
+ * The rows of a load as read that the graph does not hold: the reader removed them, so an open
+ * leaves them out, while rows the load gains later are added.
+ * @param read - The load's rows as read now.
+ * @param graphNodes - The graph's nodes.
+ * @param graphEdges - The graph's edges.
+ * @returns The removed rows, or undefined when there are none.
+ */
+function removedOf(
+    read: ReadRows,
+    graphNodes: readonly Readonly<Record<string, unknown>>[],
+    graphEdges: readonly Readonly<Record<string, unknown>>[],
+): RemovedRows | undefined {
+    const ids = new Set(graphNodes.map((node) => String(node.id)));
+    const pairs = new Set(graphEdges.map((edge) => pairKey(String(edge.source), String(edge.target), read.directed)));
+    const nodes = read.nodes.filter((node) => !ids.has(String(node.id))).map((node) => node.id as string | number);
+    const edges = read.edges
+        .filter((edge) => !pairs.has(pairKey(String(edge.source), String(edge.target), read.directed)))
+        .map((edge): [string | number, string | number] => [
+            edge.source as string | number,
+            edge.target as string | number,
+        ]);
+    return nodes.length === 0 && edges.length === 0 ? undefined : { nodes, edges };
+}
+
+/**
+ * The rows a reference gives now that the file holds no place for and the reader did not remove:
+ * rows the load gained since the save, added after the file's rows. An edge is added only between
+ * nodes the graph opens with.
+ * @param of - The entries read, their rows, and the rows the open already holds.
+ * @param of.entries - The referenced entries, for each one's `removedRows`.
+ * @param of.reads - Each read entry's rows, by id.
+ * @param of.nodes - The nodes the open holds; gains the new nodes.
+ * @param of.links - The links the open holds; gains the new links.
+ */
+function addGained(of: {
+    readonly entries: readonly Record<string, unknown>[];
+    readonly reads: ReadonlyMap<string, ReadRows>;
+    readonly nodes: Record<string, unknown>[];
+    readonly links: Record<string, unknown>[];
+}): void {
+    const ids = new Set(of.nodes.map((node) => String(node.id)));
+    for (const entry of of.entries) {
+        const id = String(entry.id);
+        const read = of.reads.get(id);
+        if (read !== undefined) {
+            const gone = goneOf(entry, read.directed);
+            const pair = (edge: Readonly<Record<string, unknown>>): string =>
+                pairKey(String(edge.source), String(edge.target), read.directed);
+            const pairs = new Set(of.links.map((link) => pair(link)));
+            for (const node of read.nodes.filter(
+                (each) => !ids.has(String(each.id)) && !gone.nodes.has(String(each.id)),
+            )) {
+                ids.add(String(node.id));
+                of.nodes.push({ ...node, [LOADS_KEY]: [id] });
+            }
+
+            const ends = (edge: Readonly<Record<string, unknown>>): boolean =>
+                ids.has(String(edge.source)) && ids.has(String(edge.target));
+            for (const edge of read.edges.filter((each) => ends(each) && !gone.edges.has(pair(each)))) {
+                if (!pairs.has(pair(edge))) {
+                    pairs.add(pair(edge));
+                    of.links.push({ ...edge, [LOADS_KEY]: [id] });
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The rows an entry says the reader removed: node ids, and edges by pair.
+ * @param entry - The entry.
+ * @param directed - Whether an edge's order counts.
+ * @returns The ids and pair keys.
+ */
+function goneOf(
+    entry: Readonly<Record<string, unknown>>,
+    directed: boolean,
+): { nodes: ReadonlySet<string>; edges: ReadonlySet<string> } {
+    const removed = isObject(entry.removedRows) ? entry.removedRows : {};
+    const nodes = Array.isArray(removed.nodes) ? removed.nodes : [];
+    const edges = (Array.isArray(removed.edges) ? removed.edges : []).filter((each): each is unknown[] =>
+        Array.isArray(each),
+    );
+    return {
+        nodes: new Set(nodes.map(String)),
+        edges: new Set(edges.map(([source, target]) => pairKey(String(source), String(target), directed))),
+    };
+}
+
+/**
  * Read each referenced load once. Which of its rows the file can leave out is worked out by the
  * returned function, from the graph as it is when it is called: the save calls it in the same tick
  * it writes the file, so an edit made while the loads were read is written, never left out.
@@ -401,18 +506,19 @@ export async function planLeaveOut(
     return (stillReferenced) => {
         const nodes = new Map<NodeId, SourceKey>();
         const edges = new Map<EdgeId, SourceKey>();
-        const sha256 = new Map<SourceKey, string>();
+        const entries = new Map<SourceKey, ReferenceEntry>();
         const graphNodes = session.data.nodes({ scope: "graph" });
         const graphEdges = session.data.edges({ scope: "graph" });
         for (const { key, read } of reads) {
             if (stillReferenced.has(key)) {
-                sha256.set(key, read.sha256);
+                const removedRows = removedOf(read, graphNodes, graphEdges);
+                entries.set(key, { rowsSha256: read.sha256, ...(removedRows === undefined ? {} : { removedRows }) });
                 markUnchanged({ session, key, read, computed, graphNodes, graphEdges }, nodes, edges);
             }
         }
 
         const kept = problems.filter((problem) => stillReferenced.has(problem.params.source as SourceKey));
-        return { nodes, edges, sha256, problems: kept };
+        return { nodes, edges, entries, problems: kept };
     };
 }
 
@@ -458,6 +564,8 @@ export interface Filled {
     readonly problems: ReferenceProblem[];
     /** The entries that could not be read: their rows open bare and are written back as placeholders. */
     readonly unread: ReadonlySet<string>;
+    /** What each reference read from a URL was read from, so the opened load can be read again. */
+    readonly inputs: ReadonlyMap<string, DataSourceInput>;
     /**
      * Where each of the file's links is in `links`, by the file's position: undefined for a
      * placeholder the load no longer gives. The selection, provenance and runs name edges by the
@@ -480,6 +588,17 @@ export interface FillInput {
 }
 
 /**
+ * Where an entry is read from: a URL entry's address, or an application's own sample's.
+ * @param entry - The entry.
+ * @returns The address, or undefined for a generated graph, a dataset or a network load.
+ */
+function addressOf(entry: Readonly<Record<string, unknown>>): string | undefined {
+    const part = isObject(entry.url) ? entry.url.address : undefined;
+    const address = part ?? (isObject(entry.sample) ? entry.sample.url : undefined);
+    return typeof address === "string" ? address : undefined;
+}
+
+/**
  * How to read an entry of the sources member again.
  * @param entry - The entry.
  * @param data - The data member, whose `sources` holds the load's choices.
@@ -489,7 +608,7 @@ function howOf(entry: Readonly<Record<string, unknown>>, data: Readonly<Record<s
     const listed = (Array.isArray(data.sources) ? data.sources : []).find(
         (each: unknown) => isObject(each) && each.key === entry.id,
     ) as Partial<LoadedSource> | undefined;
-    const url = isObject(entry.url) ? entry.url.address : undefined;
+    const url = addressOf(entry);
     const choices = listed?.choices === undefined ? {} : { choices: listed.choices };
     if (isObject(entry.source)) {
         const { source } = entry;
@@ -539,7 +658,7 @@ async function readEntries(
         if (typeof read === "string") {
             unread.add(id);
             // The load is not in the opened graph, so its name and address come with the fact.
-            const url = isObject(entry.url) && typeof entry.url.address === "string" ? entry.url.address : undefined;
+            const url = addressOf(entry);
             problems.push({
                 code: "W_SOURCE_UNAVAILABLE",
                 params: {
@@ -577,7 +696,7 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
     UNREAD.delete(input.session);
     const hasRef = (row: Readonly<Record<string, unknown>>): boolean => typeof row[REF_KEY] === "string";
     if (member?.data !== "references" || ![...input.nodes, ...input.links].some((row) => hasRef(row))) {
-        return { nodes: [...input.nodes], links: [...input.links], problems, unread };
+        return { nodes: [...input.nodes], links: [...input.links], problems, unread, inputs: new Map() };
     }
 
     const entries = (Array.isArray(member.loads) ? member.loads : []).filter(
@@ -633,9 +752,33 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
         links.push(...kept);
     }
 
+    const placed = links.length;
+    addGained({ entries, reads, nodes, links });
+
     if (unread.size > 0) {
         UNREAD.set(input.session, unread);
     }
 
-    return { nodes, links, problems, unread, ...(links.length === input.links.length ? {} : { linkAt }) };
+    const inputs = new Map(
+        entries.flatMap((entry): [string, DataSourceInput][] => {
+            const how = howOf(entry, input.data);
+            const generated = typeof how.sample?.generator === "string" || typeof how.sample?.baseUrl === "string";
+            return reads.has(String(entry.id)) &&
+                how.network === undefined &&
+                !generated &&
+                addressOf(entry) !== undefined
+                ? [
+                      [
+                          String(entry.id),
+                          {
+                              ...(how.type === undefined ? {} : { type: how.type }),
+                              ...(how.name === undefined ? {} : { name: how.name }),
+                              config: how.config,
+                          },
+                      ],
+                  ]
+                : [];
+        }),
+    );
+    return { nodes, links, problems, unread, inputs, ...(placed === input.links.length ? {} : { linkAt }) };
 }

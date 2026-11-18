@@ -172,6 +172,7 @@ import {
     type LoadFacts,
     redactedParams,
     redactUrl,
+    type ReferenceEntry,
     sampleAddress,
     type SourcesRead,
     type SourcesWrite,
@@ -923,6 +924,8 @@ export class SessionData implements SessionDataApi {
      */
     private readonly kept = new Map<string, DataSourceInput>();
     private keptSerial = 0;
+    /** What the last open read each reference from again, by load key: those loads are reloadable. */
+    private openedInputs: ReadonlyMap<string, DataSourceInput> = new Map();
     /**
      * The rows a draft read from each source, so `remap` and `reloadSource` read a load again
      * without opening its file or fetching its URL. ponytail: held as long as the source is,
@@ -1800,14 +1803,16 @@ export class SessionData implements SessionDataApi {
      * What a project file writes about the loads: the `graphty-sources` member (null when the graph
      * holds no load), what the save left out, and how each record's `_source.loads` is written.
      * Internal: the project file writes it.
-     * @param references - The digests of the referenced loads whose rows the save leaves out.
+     * @param references - What the entries of the referenced loads whose rows the save leaves out say.
      * @returns the member and its ids
      */
-    sourceFile(references?: ReadonlyMap<SourceKey, string>): SourcesWrite {
+    sourceFile(references?: ReadonlyMap<SourceKey, ReferenceEntry>): SourcesWrite {
         const write = writeSourcesMember({
             sources: this.sources(),
             loads: this.loads(),
-            facts: this.loadFacts,
+            facts: this.referencesOn()
+                ? this.loadFacts
+                : new Map([...this.loadFacts].map(([key, { copy: _copy, ...facts }]) => [key, facts])),
             waiting: [...this.pendingLoads],
             provenance: this.provenance(),
             ...(references === undefined || references.size === 0 ? {} : { references }),
@@ -1846,7 +1851,7 @@ export class SessionData implements SessionDataApi {
         // The open published its graph before these choices came back: tell readers of `sources()`.
         this.copyTick++;
         for (const [key, facts] of read?.facts ?? []) {
-            if (facts.copy === "reference") {
+            if (facts.copy === "reference" && this.referencesOn()) {
                 this.writes.emit?.("source:copy", { source: key, copy: "reference" });
             }
         }
@@ -2945,8 +2950,10 @@ export class SessionData implements SessionDataApi {
                     ...entry,
                     key,
                     kind,
-                    ...(input !== undefined && this.kept.has(input) ? { reloadable: true as const } : {}),
-                    ...(this.loadFacts.get(key)?.copy === "reference" ? { copy: "reference" as const } : {}),
+                    ...((input !== undefined && this.kept.has(input)) || this.openedInputs.has(key)
+                        ? { reloadable: true as const }
+                        : {}),
+                    ...(this.referenced(key) ? { copy: "reference" as const } : {}),
                     ...(loadKey === undefined ? {} : { loadKey }),
                     ...loadFacts(records.get(loadKey ?? ""), catalog),
                     ...addressOf(kind, each.config, records.get(loadKey ?? "")),
@@ -3933,6 +3940,7 @@ export class SessionData implements SessionDataApi {
             const record = this.networkRecordOf(load);
             if (
                 facts?.copy !== "reference" ||
+                !this.referencesOn() ||
                 facts.kept !== undefined ||
                 refusalOf(load, facts, record) !== undefined
             ) {
@@ -3986,6 +3994,25 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Whether the source references experiment is on. With it off every load is saved as a copy,
+     * as before the experiment, even one an opened file kept as a reference: its choice is held,
+     * unused, and comes back if the experiment is switched on again.
+     * @returns True when it is on.
+     */
+    private referencesOn(): boolean {
+        return this.pages.sourceReferences?.() === true;
+    }
+
+    /**
+     * Whether a save keeps a load as a reference: chosen, and the experiment on.
+     * @param key - The load's key.
+     * @returns True when it does.
+     */
+    private referenced(key: SourceKey): boolean {
+        return this.referencesOn() && this.loadFacts.get(key)?.copy === "reference";
+    }
+
+    /**
      * How a project save keeps each load: a copy or a reference.
      * @returns One entry per load, in `sources()` order.
      */
@@ -3998,9 +4025,7 @@ export class SessionData implements SessionDataApi {
                 return Object.freeze({
                     source: load.key,
                     copy:
-                        facts?.copy === "reference" && reason === undefined
-                            ? ("reference" as const)
-                            : ("copy" as const),
+                        this.referenced(load.key) && reason === undefined ? ("reference" as const) : ("copy" as const),
                     ...(reason === undefined
                         ? {}
                         : { refused: { code: "W_SOURCE_NO_PATH" as const, params: { source: load.key, reason } } }),
@@ -4017,7 +4042,7 @@ export class SessionData implements SessionDataApi {
      */
     setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy {
         this.requireLive("setCopy");
-        if (this.pages.sourceReferences?.() !== true) {
+        if (!this.referencesOn()) {
             throw featureOff("source-references", "setCopy");
         }
 
@@ -4063,7 +4088,17 @@ export class SessionData implements SessionDataApi {
     sourceInput(key: SourceKey): DataSourceInput | undefined {
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
-        return token === undefined ? undefined : this.kept.get(token);
+        return (token === undefined ? undefined : this.kept.get(token)) ?? this.openedInputs.get(key);
+    }
+
+    /**
+     * Keep what an open read each reference from again, so those loads are reloadable. Internal:
+     * the project file calls it once an open is done; each open replaces the last one's.
+     * @param inputs - What each reference was read from, by load key.
+     */
+    keepOpenedInputs(inputs: ReadonlyMap<string, DataSourceInput>): void {
+        this.openedInputs = inputs;
+        this.copyTick++;
     }
 
     /**
@@ -4075,9 +4110,7 @@ export class SessionData implements SessionDataApi {
     private async reloadSourceNow(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
         const entry = this.sources().find((each) => each.key === key);
-        const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
-            ?.input;
-        const input = token === undefined ? undefined : this.kept.get(token);
+        const input = this.sourceInput(key);
         if (entry === undefined) {
             throw new GraphtyError({
                 code: "E_SOURCE_UNKNOWN",

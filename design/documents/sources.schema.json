@@ -227,6 +227,15 @@
                         "baseUrl": { "type": "string", "format": "uri", "maxLength": 8192 }
                     },
                     "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "required": ["url"],
+                    "properties": {
+                        "url": { "type": "string", "format": "uri", "maxLength": 8192 }
+                    },
+                    "additionalProperties": false,
+                    "description": "Experimental. An application's own sample file kept as a reference (copy: reference): the absolute address it is read again from."
                 }
             ]
         },
@@ -348,6 +357,22 @@
                     "type": "string",
                     "pattern": "^[0-9a-f]{64}$",
                     "description": "Experimental. Present when the save left this load's rows out of the data member as placeholders ({ id, _source.ref } for a node, { source, target, _source.ref } for an edge): the SHA-256 of the rows as read, which an open compares to report W_SOURCE_CHANGED."
+                },
+                "removedRows": {
+                    "type": "object",
+                    "properties": {
+                        "nodes": { "type": "array", "items": { "type": ["string", "number"] } },
+                        "edges": {
+                            "type": "array",
+                            "items": {
+                                "type": "array",
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "items": { "type": ["string", "number"] }
+                            }
+                        }
+                    },
+                    "description": "Experimental. With rowsSha256: the rows of the load as read at the save that the graph no longer held (the reader removed them), nodes by id and edges as [source, target]. An open leaves them out and adds every other row the load gives that the file holds no place for (rows the source gained since)."
                 },
                 "total": {
                     "type": "object",

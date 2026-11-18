@@ -1619,6 +1619,10 @@ export interface SessionDataApi {
      * How a project save keeps each load: as a copy (its rows inside the file, the default) or as
      * a reference (where to read it again; an open reads the rows again). One entry per load, in
      * {@link SessionDataApi.sources} order. A load that cannot be a reference carries `refused`.
+     * With the `source-references` experiment off every entry is a copy and a save writes every
+     * load as a copy, as before the experiment, even in a project opened from a file that held
+     * references (the open still reads them again, so the graph is whole); only a reference the
+     * open could not read is written back as it was, so nothing is lost.
      * @example
      * ```ts
      * for (const each of session.data.copies()) {
@@ -2963,7 +2967,8 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly reloadable?: true;
     /**
      * `"reference"` when a project save keeps this load as a reference, read again on open
-     * ({@link SessionDataApi.setCopy}); absent when it is kept as a copy.
+     * ({@link SessionDataApi.setCopy}); absent when it is kept as a copy, and always absent with
+     * the `source-references` experiment off.
      * @since 3.58.0
      */
     readonly copy?: "reference";

@@ -576,7 +576,7 @@ describe("a sample read by URL, as an application opens its own samples", () => 
         session.data.setCopy(key, "reference");
         const saved = await session.project.save();
         assert.isTrue(dataOf(saved.text).nodes.every((node) => node["_source.ref"] === key));
-        assert.strictEqual((sourcesOf(saved.text).loads[0]?.url as { address?: string }).address, SAMPLE);
+        assert.deepEqual(sourcesOf(saved.text).loads[0]?.sample, { url: SAMPLE });
 
         const { session: opened, problems } = await reopen(saved.text);
         assert.deepEqual(problems, []);
@@ -635,5 +635,91 @@ describe("a network source's load", () => {
         );
         assert.strictEqual(session.data.copies()[0]?.refused?.params.reason, "secret-url");
         assert.strictEqual(session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference").copy, "copy");
+    });
+});
+
+describe("defects found walking the feature", () => {
+    it("shows rows the source gained after the save, and keeps the reader's deletions", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = await twoLoads();
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        await session.data.removeNodes(["a"]);
+        const saved = await session.project.save();
+
+        const grown = JSON.parse(GRAPH) as { nodes: object[]; edges: object[] };
+        grown.nodes.push({ id: "e", label: "Eve" });
+        grown.edges.push({ source: "c", target: "e" });
+        stubSite({ [URL_A]: JSON.stringify(grown) });
+        const { session: opened } = await reopen(saved.text);
+        assert.deepEqual(Object.keys(labels(opened)).sort(), ["b", "c", "d", "e"]);
+        assert.strictEqual(labels(opened).e, "Eve");
+        const pairs = opened.data
+            .edges({ scope: "graph" })
+            .map((edge) => `${String(edge.source)}-${String(edge.target)}`)
+            .sort();
+        assert.deepEqual(pairs, ["b-c", "c-d", "c-e"]);
+    });
+
+    it("saves copies with the experiment off, even for a project that holds references", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = await twoLoads();
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        const saved = await session.project.save();
+
+        const off = createGraphSession();
+        off.network.setPolicy("allow");
+        await off.project.open(saved.text);
+        assert.deepEqual(labels(off), labels(session));
+        assert.isTrue(off.data.copies().every((each) => each.copy === "copy"));
+        assert.isUndefined(off.data.sources()[0]?.copy);
+        const again = await off.project.save();
+        assert.notInclude(again.text, "_source.ref");
+        assert.notInclude(again.text, '"copy"');
+        assert.notInclude(again.text, "rowsSha256");
+        assert.isUndefined(sourcesOf(again.text).data);
+        assert.strictEqual(dataOf(again.text).nodes[0]?.label, "Ann");
+    });
+
+    it("keeps a reopened reference reloadable", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = await twoLoads();
+        const key = session.data.sources()[0]?.key ?? "";
+        session.data.setCopy(key, "reference");
+        const saved = await session.project.save();
+        const { session: opened } = await reopen(saved.text);
+        assert.isTrue(opened.data.sources()[0]?.reloadable);
+        assert.isDefined(opened.data.sourceInput(key));
+        await opened.data.reloadSource(key, {});
+        assert.strictEqual(labels(opened).a, "Ann");
+    });
+
+    it("reopens an application's own sample as a sample, reloadable, without asking to fetch it", async () => {
+        const SAMPLE = "https://app.example.com/samples/graph.json";
+        vi.stubGlobal("document", { baseURI: "https://app.example.com/start/" });
+        stubSite({ "/samples/graph.json": GRAPH, [SAMPLE]: GRAPH });
+        const session = createGraphSession({ features: ["source-references"] });
+        await session.data.import(
+            { type: "json", name: "Sample", config: { url: "/samples/graph.json" } },
+            { origin: "sample" },
+        );
+        const key = session.data.sources()[0]?.key ?? "";
+        session.data.setCopy(key, "reference");
+        const saved = await session.project.save();
+
+        // The page's own origin is never asked about: the policy stays "ask".
+        const opened = createGraphSession({ features: ["source-references"] });
+        const asked: string[] = [];
+        opened.on("network:pending", (request) => {
+            asked.push(request.params.url);
+            opened.network.deny(request.params.id);
+        });
+        const report = await opened.project.open(saved.text);
+        assert.deepEqual(asked, []);
+        assert.deepEqual(report.problems, []);
+        assert.deepEqual(labels(opened), labels(session));
+        const [load] = opened.data.sources();
+        assert.strictEqual(load?.kind, "sample");
+        assert.isTrue(load?.reloadable);
+        assert.strictEqual(opened.data.copies()[0]?.copy, "reference");
     });
 });

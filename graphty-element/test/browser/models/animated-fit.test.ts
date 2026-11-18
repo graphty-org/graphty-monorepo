@@ -25,22 +25,23 @@ afterEach(() => {
 });
 
 /**
- * A triangle (one unit across) at rest at the origin, whose one clip holds it 5 units up and
- * lifts it half a unit more.
+ * A triangle (one unit across) at rest at the origin, with one clip of two keys on its node.
+ * @param path - What the clip animates: `translation` or `scale`.
+ * @param keys - The two keys' values, three numbers each.
  * @returns The GLB.
  */
-function liftedTriangle(): Uint8Array {
-    const keys = new Float32Array([0, 1, 0, 5, 0, 0, 5.5, 0]);
-    const bin = new Uint8Array(36 + keys.byteLength);
+function animatedTriangle(path: "translation" | "scale", keys: readonly number[]): Uint8Array {
+    const times = new Float32Array([0, 1, ...keys]);
+    const bin = new Uint8Array(36 + times.byteLength);
     bin.set(TRIANGLE_BIN, 0);
-    bin.set(new Uint8Array(keys.buffer), 36);
+    bin.set(new Uint8Array(times.buffer), 36);
     return glb(
         triangleGltf({
             animations: [
                 {
-                    name: "lift",
+                    name: "clip",
                     samplers: [{ input: 1, output: 2 }],
-                    channels: [{ sampler: 0, target: { node: 0, path: "translation" } }],
+                    channels: [{ sampler: 0, target: { node: 0, path } }],
                 },
             ],
             accessors: [
@@ -59,19 +60,29 @@ function liftedTriangle(): Uint8Array {
     );
 }
 
+/**
+ * Prepares an animated template of a GLB on a fresh scene.
+ * @param bytes - The GLB.
+ * @returns The template.
+ */
+async function animatedTemplate(bytes: Uint8Array): Promise<Awaited<ReturnType<typeof prepareTemplate>>> {
+    const engine = new NullEngine();
+    engines.push(engine);
+    const scene = new Scene(engine);
+    const { container } = await loadModel(scene, bytes, LOAD_OPTIONS);
+    return prepareTemplate(
+        scene,
+        container,
+        "clip",
+        { up: "y", turn: 0, center: "bounds", fit: "contain", replace: false, animated: true },
+        () => null,
+    );
+}
+
 describe("animated model fit", () => {
     it("sizes and centers a model by its clip's poses, not its rest pose", async () => {
-        const engine = new NullEngine();
-        engines.push(engine);
-        const scene = new Scene(engine);
-        const { container } = await loadModel(scene, liftedTriangle(), LOAD_OPTIONS);
-        const template = await prepareTemplate(
-            scene,
-            container,
-            "lift",
-            { up: "y", turn: 0, center: "bounds", fit: "contain", replace: false, animated: true },
-            () => null,
-        );
+        // The clip holds the triangle 5 units up and lifts it half a unit more.
+        const template = await animatedTemplate(animatedTriangle("translation", [0, 5, 0, 0, 5.5, 0]));
         const bounds = template.animation?.bounds;
         assert.isDefined(bounds);
         // Sized by the clip's first frame, the triangle at its full size, and its lift centered on
@@ -79,6 +90,16 @@ describe("animated model fit", () => {
         assert.closeTo(template.size.y, 1, 1e-6);
         assert.closeTo(bounds.min.y, -0.75, 1e-6);
         assert.closeTo(bounds.max.y, 0.75, 1e-6);
+        template.dispose();
+    });
+
+    it("sizes a model whose clip grows it in from nothing by the size it grows to", async () => {
+        // The clip scales the triangle from 0 to 1: its first frame is a point.
+        const template = await animatedTemplate(animatedTriangle("scale", [0, 0, 0, 1, 1, 1]));
+        const bounds = template.animation?.bounds;
+        assert.isDefined(bounds);
+        assert.closeTo(template.size.y, 1, 1e-6);
+        assert.isAtMost(bounds.max.y - bounds.min.y, 1 + 1e-6, "drawn no larger than its node's box");
         template.dispose();
     });
 });

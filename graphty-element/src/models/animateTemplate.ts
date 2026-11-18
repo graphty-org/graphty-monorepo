@@ -56,6 +56,8 @@ export interface AnimatedPart {
     readonly mesh?: Mesh;
     /** That mesh's vertices in its own space (bind space for a skin), with its skin weights. */
     readonly local?: VertexData;
+    /** The mesh's index of each of `local`'s vertices, when it holds only some (a material slice). */
+    readonly from?: readonly number[];
 }
 
 /** What a template plays. */
@@ -251,7 +253,8 @@ function morphsOf(parts: readonly AnimatedPart[]): Map<AnimatedPart, Morph> {
             const deltas = new Float32Array(base.length);
             if (positions !== null) {
                 for (let k = 0; k < base.length; k++) {
-                    deltas[k] = positions[k] - base[k];
+                    const at = (part.from?.[Math.floor(k / 3)] ?? Math.floor(k / 3)) * 3 + (k % 3);
+                    deltas[k] = positions[at] - base[k];
                 }
             }
             return { target, deltas };
@@ -286,7 +289,9 @@ function morphsOf(parts: readonly AnimatedPart[]): Map<AnimatedPart, Morph> {
  */
 function mapBones(parts: readonly AnimatedPart[], morphs: ReadonlyMap<AnimatedPart, Morph>): BoneMap {
     const offsets = new Map<AnimatedPart, number>();
-    const skeletons = new Map<Skeleton, number>();
+    // Keyed by mesh for a skeleton whose meshes each need their own matrices, so the slices of one
+    // mesh share one block of bones.
+    const skeletons = new Map<Skeleton | Mesh, number>();
     let count = 1;
     for (const part of parts) {
         if (part.mesh === undefined || part.local === undefined) {
@@ -298,10 +303,11 @@ function mapBones(parts: readonly AnimatedPart[], morphs: ReadonlyMap<AnimatedPa
             // A skeleton that places its skin by each mesh's own pose matrix (FBX's
             // needInitialSkinMatrix) gives each mesh matrices of its own: shared, the last mesh's
             // overwrote the others', and ArcherRi01.fbx's body was drawn lying beside its bow.
-            let offset = skeleton.needInitialSkinMatrix ? undefined : skeletons.get(skeleton);
+            const owner = skeleton.needInitialSkinMatrix ? part.mesh : skeleton;
+            let offset = skeletons.get(owner);
             if (offset === undefined) {
                 offset = count;
-                skeletons.set(skeleton, offset);
+                skeletons.set(owner, offset);
                 count += skeleton.bones.length;
             }
             offsets.set(part, offset);
@@ -485,9 +491,26 @@ function clipRadius(frames: readonly FrameReach[]): number {
 }
 
 /**
+ * The frame a model is sized by: the first, unless it draws the model collapsed (a grow-in from
+ * scale 0), when the frame drawing it largest does instead.
+ * @param frames - The clip's frames.
+ * @returns The frame.
+ */
+function sizingFrame(frames: readonly FrameReach[]): FrameReach {
+    const size = (frame: FrameReach): number => {
+        const extent = frame.max.subtract(frame.min);
+        return Math.max(extent.x, extent.y, extent.z);
+    };
+    const largest = frames.reduce((most, frame) => (size(frame) > size(most) ? frame : most));
+    // ponytail: half the largest is the line; a model that really shrinks to under half its size
+    // in its first frame is sized by its largest frame instead.
+    return size(frames[0]) * 2 < size(largest) ? largest : frames[0];
+}
+
+/**
  * The box a model is fitted by: as big as the first frame of its first clip, which a still node
- * holds, and centered on what that clip draws -- every frame when it plays in place, the first when
- * it {@link travels} -- so a node's model is sized and centered as it is drawn, never by its rest or
+ * holds ({@link sizingFrame}), and centered on what that clip draws -- every frame when it plays in
+ * place, the first when it {@link travels} -- so a node's model is sized and centered as it is drawn, never by its rest or
  * bind pose (BrainStem's T-pose, a plane's skin before its bones place it), and a ball's bounce is
  * centered on its node. A spinning model keeps its size. Every other clip moves the model from there.
  * @param frames - The first clip's frames.
@@ -502,7 +525,8 @@ function framedBox(frames: readonly FrameReach[]): Reach {
     }
 
     const middle = low.add(high).scale(0.5);
-    const half = frames[0].max.subtract(frames[0].min).scale(0.5);
+    const sized = sizingFrame(frames);
+    const half = sized.max.subtract(sized.min).scale(0.5);
     return { min: middle.subtract(half), max: middle.add(half) };
 }
 

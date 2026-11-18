@@ -38,16 +38,19 @@ const RECENT_MAX = 5;
  * (`exportGraph` with a format, scope and columns), Styles (`styles.toFile`), Recipe
  * (`session.recipe`) and Project (`downloadProject`), with the files exported in this visit under
  * Recent, each opening its output again with the choices it was made with. Open while the
- * workspace dialog is "export"; it opens on Image or Video as the store's `exportOn` says, or on Data with CSV and the table the store's
+ * workspace dialog is "export"; it opens on Image or Video as the store's `exportOn` says (Video with
+ * the tour `exportTour` names, for a tour's Record...), or on Data with CSV and the table the store's
  * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
  * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
-    const { store, session } = useWorkspace();
+    const { store, session, element } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === "export");
     const exportOn = useWorkspaceState((state) => state.exportOn);
     const exportSource = useWorkspaceState((state) => state.exportSource);
+    const exportTour = useWorkspaceState((state) => state.exportTour);
+    const [recording, setRecording] = useState(false);
     const [output, setOutput] = useState<OutputId>("image");
     const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
     const [video, setVideo] = useState<VideoChoices>(DEFAULT_VIDEO);
@@ -64,6 +67,10 @@ export function ExportDialog(): React.JSX.Element {
         const scope: DataChoices["scope"] = exportSource !== null && several ? `source:${exportSource}` : "all";
         if (exportOn === "image" || exportOn === "video") {
             setOutput(exportOn);
+            if (exportOn === "video" && exportTour !== null) {
+                // A tour's Record...: Video with that tour chosen.
+                setVideo((choices) => ({ ...choices, camera: "tour", tour: exportTour }));
+            }
             setData((choices) => ({ ...choices, scope }));
         } else {
             setOutput("data");
@@ -76,11 +83,23 @@ export function ExportDialog(): React.JSX.Element {
                 scope,
             }));
         }
-    }, [opened, exportOn, exportSource, session]);
+    }, [opened, exportOn, exportSource, exportTour, session]);
 
     const close = (): void => {
         store.set({ dialog: null });
     };
+    // While a video records, Escape and the close button stop it and the dialog stays open; the
+    // next one closes it.
+    const closeOrStop = (): void => {
+        if (recording) {
+            element?.cancelAnimationCapture();
+        } else {
+            close();
+        }
+    };
+    // A recording flies each flight as authored; when motion is reduced an opaque overlay covers
+    // the moving canvas.
+    const covered = recording && element?.isMotionReduced() === true;
 
     /**
      * Closes with a notice and, for a file, lists it first under Recent with this output's choices.
@@ -91,9 +110,13 @@ export function ExportDialog(): React.JSX.Element {
     // A press outside closes the settings on its way down, so the click it ends in is judged by what
     // was open when it began: one click on the backdrop closes the settings alone.
     const settingsAtPress = useRef(false);
+    // The choices as they are when a file is done, not as they were when its output last drew: a
+    // recording names its tour as it starts and ends seconds later.
+    const latest = useRef({ image, video, data });
+    latest.current = { image, video, data };
     const done = (message: string, file?: string): void => {
         if (file !== undefined) {
-            const choices = { image, video, data }[output as "image" | "video" | "data"] as RecentExport["choices"];
+            const choices = latest.current[output as "image" | "video" | "data"] as RecentExport["choices"];
             setRecent((list) =>
                 [{ output, name: file, choices }, ...list.filter((entry) => entry.name !== file)].slice(0, RECENT_MAX),
             );
@@ -118,7 +141,15 @@ export function ExportDialog(): React.JSX.Element {
             case "image":
                 return <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />;
             case "video":
-                return <VideoOutput choices={video} onChange={setVideo} onCancel={close} onDone={done} />;
+                return (
+                    <VideoOutput
+                        choices={video}
+                        onChange={setVideo}
+                        onCancel={close}
+                        onDone={done}
+                        onRecording={setRecording}
+                    />
+                );
             case "data":
                 return (
                     <DataOutput
@@ -137,15 +168,17 @@ export function ExportDialog(): React.JSX.Element {
     return (
         <Modal
             opened={opened}
-            onClose={close}
+            onClose={closeOrStop}
             // Mantine's modal sees Escape before anything inside it: a settings popover closes alone.
             closeOnEscape={!settingsOpen}
             closeOnClickOutside={false}
             overlayProps={{
+                ...(covered ? { backgroundOpacity: 1, color: "var(--mantine-color-body)" } : {}),
                 onPointerDown: () => {
                     settingsAtPress.current = settingsOpen;
                 },
                 onClick: () => {
+                    // Closing under a recording cancels it (the Video output does on closing).
                     if (!settingsAtPress.current) {
                         close();
                     }

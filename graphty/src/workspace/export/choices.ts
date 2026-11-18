@@ -7,6 +7,7 @@
 
 import type {
     AnimationOptions,
+    CaptureEstimate,
     ExportResult,
     ExportScope,
     ScreenshotLegendPosition,
@@ -252,7 +253,16 @@ const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${GraphtyErrorC
     E_DISPOSED: "The graph was closed.",
     E_UNKNOWN_CAMERA: "This view is not available.",
     "E_UNSUPPORTED/format": "This browser cannot write this image format.",
+    "E_UNSUPPORTED/mode": "A view does not fit this drawing mode.",
+    "E_UNSUPPORTED/xr": "Not while in VR or AR.",
+    "E_BAD_COMMAND/name-taken": "That name is taken.",
+    "E_BAD_COMMAND/no-stops": "The tour has no stops.",
     E_CAPTURE_FAILED: "The drawing could not be captured.",
+    "E_CAPTURE_FAILED/hidden": "The tab was hidden, so the recording stopped.",
+    "E_CAPTURE_FAILED/resized": "The canvas changed size, so the recording stopped.",
+    "E_CAPTURE_FAILED/interrupted": "The camera was moved, so the recording stopped.",
+    "E_CAPTURE_FAILED/replaced": "Another camera move took over, so the recording stopped.",
+    "E_CAPTURE_FAILED/mode-changed": "The drawing mode changed, so the recording stopped.",
 };
 
 /** The words for the codes a screenshot shares with other failures but means something else by. */
@@ -427,31 +437,56 @@ export const IMAGE_EXTENSIONS: Readonly<Record<ImageFormat, string>> = { png: "p
 
 /** The Video output's choices. */
 export interface VideoChoices {
-    /** Still: the reader's camera; tour: the camera flies through `stops`. */
+    /** Still: the camera holds on `view`; tour: the element plays the saved tour `tour`. */
     readonly camera: "still" | "tour";
-    /** The views a tour visits, in order: camera view ids or saved view names. */
-    readonly stops: readonly string[];
-    /** Length in seconds. */
+    /** The saved tour a tour recording plays; null for the project's first. */
+    readonly tour: string | null;
+    /** The view a still recording holds: null for the reader's camera, else a view name. */
+    readonly view: string | null;
+    /** A still recording's length in seconds; a tour's length is the tour's own. */
     readonly seconds: number;
     readonly fps: 30 | 60;
 }
 
-export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", stops: [], seconds: 5, fps: 30 };
+export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", tour: null, view: null, seconds: 5, fps: 30 };
 
 /**
- * The options for one recording.
- * @param choices - the video choices.
+ * The options for one recording. A tour is named and its length is the element's plan of it, each
+ * flight recorded as authored (the app covers the canvas when motion is reduced); a still holds a
+ * view for its seconds.
+ * @param choices - the video choices; a tour recording needs its tour named.
  * @param downloadFilename - the file name, for a download; none keeps the video as a blob.
  * @returns the `captureAnimation` options.
  */
 export function animationOptions(choices: VideoChoices, downloadFilename?: string): AnimationOptions {
+    const destination =
+        downloadFilename === undefined ? {} : { destination: { download: true, filename: downloadFilename } };
+    if (choices.camera === "tour" && choices.tour !== null) {
+        return { tour: choices.tour, motion: "authored", fps: choices.fps, format: "auto", ...destination };
+    }
     return {
+        cameraMode: "stationary",
         duration: choices.seconds * 1000,
         fps: choices.fps,
         format: "auto",
-        ...(choices.camera === "tour" ? { cameraMode: "animated", tour: choices.stops } : { cameraMode: "stationary" }),
-        ...(downloadFilename === undefined ? {} : { destination: { download: true, filename: downloadFilename } }),
+        ...(choices.view === null ? {} : { camera: { view: choices.view } }),
+        ...destination,
     };
+}
+
+/**
+ * The element's frame estimate in the app's words: the frame count, and when the element expects
+ * frames to drop, the warning that says so.
+ * @param estimate - `estimateAnimationCapture`'s answer.
+ * @returns the value and the warning, null when no frames are expected to drop.
+ */
+export function framesWords(estimate: CaptureEstimate): { value: string; warning: string | null } {
+    const value = `${String(estimate.totalFrames)} frames`;
+    if (!estimate.likelyToDropFrames) {
+        return { value, warning: null };
+    }
+    const fps = estimate.recommendedFps === undefined ? "" : ` ${String(estimate.recommendedFps)} fps is recommended.`;
+    return { value, warning: `This browser may drop frames at this rate.${fps}` };
 }
 
 /**

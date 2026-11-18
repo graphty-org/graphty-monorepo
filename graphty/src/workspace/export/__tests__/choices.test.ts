@@ -12,6 +12,7 @@ import {
     failureWords,
     fileName,
     formatRows,
+    framesWords,
     presetChoices,
     presetOf,
     previewOf,
@@ -177,19 +178,52 @@ describe("the Export dialog's choices", () => {
         assert.deepEqual(options.columns, ["name"]);
     });
 
-    it("records a tour by naming its views, and a still view without a camera path", () => {
+    it("records a saved tour by name for its own length, and a still view for its seconds", () => {
         const tour = animationOptions(
-            { camera: "tour", stops: ["topView", "isometric"], seconds: 3, fps: 30 },
+            { camera: "tour", tour: "Supply walk", view: "topView", seconds: 3, fps: 30 },
             "a.webm",
         );
-        assert.equal(tour.cameraMode, "animated");
-        assert.deepEqual(tour.tour, ["topView", "isometric"]);
-        assert.equal(tour.duration, 3000);
+        assert.equal(tour.tour, "Supply walk");
+        assert.equal(tour.motion, "authored");
+        assert.isUndefined(tour.duration, "a tour lasts as long as the tour");
+        assert.isUndefined(tour.cameraMode);
+        assert.isUndefined(tour.camera);
         assert.deepEqual(tour.destination, { download: true, filename: "a.webm" });
-        const still = animationOptions({ camera: "still", stops: [], seconds: 5, fps: 60 });
+        const still = animationOptions({ camera: "still", tour: "Supply walk", view: "Overview", seconds: 5, fps: 60 });
         assert.equal(still.cameraMode, "stationary");
+        assert.equal(still.duration, 5000);
+        assert.deepEqual(still.camera, { view: "Overview" });
         assert.isUndefined(still.tour);
         assert.isUndefined(still.destination);
+        const current = animationOptions({ camera: "still", tour: null, view: null, seconds: 3, fps: 30 });
+        assert.isUndefined(current.camera, "the reader's camera");
+    });
+
+    it("words why a recording failed by its reason, and dropped frames as a warning", () => {
+        for (const [reason, words] of [
+            ["hidden", "The tab was hidden, so the recording stopped."],
+            ["resized", "The canvas changed size, so the recording stopped."],
+            ["interrupted", "The camera was moved, so the recording stopped."],
+            ["replaced", "Another camera move took over, so the recording stopped."],
+            ["mode-changed", "The drawing mode changed, so the recording stopped."],
+        ] as const) {
+            assert.equal(failureWords(thrown("E_CAPTURE_FAILED", { reason })), words);
+        }
+        assert.equal(failureWords(thrown("E_UNSUPPORTED", { reason: "xr", mode: "vr" })), "Not while in VR or AR.");
+        assert.equal(
+            failureWords(thrown("E_UNSUPPORTED", { reason: "mode", modes: ["3d"], mode: "2d" })),
+            "A view does not fit this drawing mode.",
+        );
+        assert.equal(failureWords(thrown("E_BAD_COMMAND", { reason: "no-stops" })), "The tour has no stops.");
+        assert.equal(failureWords(thrown("E_BAD_COMMAND", { reason: "name-taken", name: "a" })), "That name is taken.");
+        assert.deepEqual(framesWords({ totalFrames: 420, likelyToDropFrames: false }), {
+            value: "420 frames",
+            warning: null,
+        });
+        assert.deepEqual(framesWords({ totalFrames: 840, likelyToDropFrames: true, recommendedFps: 30 }), {
+            value: "840 frames",
+            warning: "This browser may drop frames at this rate. 30 fps is recommended.",
+        });
     });
 
     it("words a capture's codes as being about the image, and the same codes elsewhere as before", () => {

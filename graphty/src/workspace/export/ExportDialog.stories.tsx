@@ -109,3 +109,47 @@ export const ImageSavedView: Story = {
 
 /** Export > Data, opened on the node table: CSV, what it cannot hold, and the first lines with the Degree columns. */
 export const Data: Story = exportStory("nodes");
+
+/**
+ * Export > Video with a saved tour chosen: its length from the element's plan, the frame rate and
+ * the frame count.
+ */
+export const VideoTour: Story = {
+    ...freshStore({ project: { name: "Ring", id: 1 } }),
+    play: async (context) => {
+        const { canvasElement } = context;
+        const store = storeOf(context);
+        store.set({ dialog: null });
+        await loadRing(canvasElement);
+        const element = canvasElement.ownerDocument.querySelector("graphty-element");
+        await element?.session.views.save([{ name: "Overview" }]);
+        await element?.session.tours.save([
+            {
+                name: "Ring walk",
+                tour: {
+                    stops: [
+                        { view: "Overview", hold: 2000 },
+                        { view: "topView", duration: 2000, hold: 3000 },
+                    ],
+                },
+            },
+        ]);
+        store.set({ dialog: "export", exportOn: "video", exportTour: null });
+        const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export" });
+        await within(dialog).findByText(/^\d+ frames$/);
+    },
+};
+
+/** Export > Video with no tours: Camera on Still with its View list, and the way to the Views section. */
+export const VideoNoTours: Story = {
+    ...freshStore({ project: { name: "Ring", id: 1 } }),
+    play: async (context) => {
+        const { canvasElement } = context;
+        const store = storeOf(context);
+        store.set({ dialog: null });
+        await loadRing(canvasElement);
+        store.set({ dialog: "export", exportOn: "video", exportTour: null });
+        const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export" });
+        await within(dialog).findByText(/^\d+ frames$/);
+    },
+};

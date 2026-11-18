@@ -1,13 +1,15 @@
-import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { CaptureEstimate } from "@graphty/graphty-element";
-import { Alert, Badge, Button, Input, Loader, MultiSelect, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import { ActionRow, ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
+import type { AnimationProgressEvent, CaptureEstimate, TourPlan } from "@graphty/graphty-element";
+import { isGraphtyError } from "@graphty/graphty-element/session";
+import { Alert, Button, Input, Progress, Select, Text, Tooltip } from "@mantine/core";
+import React, { useEffect, useId, useRef, useState } from "react";
 
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { animationOptions, failureWords, fileName, type VideoChoices } from "./choices";
-
-/** The camera views a tour starts with when no two views are saved. */
-const FIRST_TOUR = ["frontView", "isometric", "topView"];
+import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useViewsChanged } from "../toolbar/useViewsChanged";
+import { lengthWords, tourProblemWords } from "../toolbar/viewWords";
+import { animationOptions, failureWords, fileName, framesWords, type VideoChoices } from "./choices";
+import { type ViewChoice, viewChoice } from "./viewChoice";
+import { ViewSelect } from "./ViewSelect";
 
 /** Props for VideoOutput. */
 interface VideoOutputProps {
@@ -16,173 +18,380 @@ interface VideoOutputProps {
     onCancel: () => void;
     /** Closes the dialog with a notice, and lists the file under Recent. */
     onDone: (message: string, file?: string) => void;
+    /** Told when a recording starts and ends, so the dialog's Escape and close act as Stop. */
+    onRecording?: (recording: boolean) => void;
 }
 
 /**
- * The views a tour flies between: the reader's, else the saved views when there are two, else the
- * first tour's cameras.
- * @param choices - the video choices
- * @param saved - the saved views' names
- * @param cameras - the camera presets' ids
- * @returns the stops
- */
-function tourStops(choices: VideoChoices, saved: string[], cameras: ReadonlySet<string>): readonly string[] {
-    if (choices.stops.length > 0) {
-        return choices.stops;
-    }
-    return saved.length >= 2 ? saved : FIRST_TOUR.filter((id) => cameras.has(id));
-}
-
-/**
- * The element's dropped-frames estimate as a chip.
+ * The element's frame estimate as a value row; when the element expects dropped frames the value
+ * is in the warning color, focusable, and its words are its tooltip and its description.
  * @param props - Component props
- * @param props.estimate - the element's estimate
- * @returns the chip
+ * @param props.estimate - the element's estimate, or null before it answers
+ * @returns the row
  */
-function FramesChip({ estimate }: Readonly<{ estimate: CaptureEstimate }>): React.JSX.Element {
+function FramesRow({ estimate }: Readonly<{ estimate: CaptureEstimate | null }>): React.JSX.Element {
+    const warningId = useId();
+    const words = estimate === null ? null : framesWords(estimate);
     return (
-        <Tooltip
-            label={
-                estimate.recommendedFps === undefined
-                    ? `${String(estimate.totalFrames)} frames`
-                    : `${String(estimate.recommendedFps)} fps recommended`
-            }
-        >
-            <Badge
-                size="sm"
-                variant="light"
-                color={estimate.likelyToDropFrames ? "orange" : "gray"}
-                data-testid="video-frames"
-            >
-                {estimate.likelyToDropFrames ? "May drop frames" : `${String(estimate.totalFrames)} frames`}
-            </Badge>
-        </Tooltip>
+        <Input.Wrapper size="xs" label="Frames">
+            {words?.warning === undefined || words.warning === null ? (
+                <Text size="sm" data-testid="video-frames">
+                    {words?.value}
+                </Text>
+            ) : (
+                <Tooltip label={words.warning}>
+                    <Text
+                        size="sm"
+                        c="var(--cm-text-warning)"
+                        tabIndex={0}
+                        aria-describedby={warningId}
+                        data-testid="video-frames"
+                    >
+                        {words.value}
+                        <span id={warningId} hidden>
+                            {words.warning}
+                        </span>
+                    </Text>
+                </Tooltip>
+            )}
+        </Input.Wrapper>
     );
 }
 
 /**
- * The Video output: a still camera or a tour of views, length and frame rate, the element's
- * dropped-frames estimate as a chip, and Record. Every recording is graphty-element's
- * `captureAnimation`; a tour names its views and the element flies between them.
+ * With no tours: says so, and Views and tours... closes the dialog and opens the Views section.
+ * @returns the row
+ */
+function NoToursRow(): React.JSX.Element {
+    const { store } = useWorkspace();
+    const door = useCommand("view.views-section");
+    return (
+        <div className="ws-export-wide">
+            <ActionRow
+                state="No tours yet"
+                actions={
+                    door === null ? null : (
+                        <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            aria-disabled={door.disabledReason !== null}
+                            aria-description={door.disabledReason ?? undefined}
+                            onClick={() => {
+                                if (door.disabledReason === null) {
+                                    store.set({ dialog: null });
+                                    door.run();
+                                }
+                            }}
+                        >
+                            {door.command.label}
+                        </Button>
+                    )
+                }
+            />
+        </div>
+    );
+}
+
+/**
+ * The recording's bar, from the element's `animation-progress`, and for a tour the stop it is on,
+ * from `tour-progress` (kept in the store by the toolbar).
+ * @param props - Component props
+ * @param props.tour - the tour recording, or null for a still
+ * @returns the bar
+ */
+function RecordingBar({ tour }: Readonly<{ tour: string | null }>): React.JSX.Element {
+    const { element } = useWorkspace();
+    const tourProgress = useWorkspaceState((state) => state.tourProgress);
+    const [progress, setProgress] = useState(0);
+    useEffect(() => {
+        if (element === null) {
+            return undefined;
+        }
+        const onProgress = ({ detail }: CustomEvent<AnimationProgressEvent>): void => {
+            setProgress(detail.progress);
+        };
+        element.addEventListener("animation-progress", onProgress);
+        return () => {
+            element.removeEventListener("animation-progress", onProgress);
+        };
+    }, [element]);
+    const stop =
+        tour !== null && tourProgress?.tour === tour
+            ? `Stop ${String(tourProgress.stop + 1)} of ${String(tourProgress.stops)}`
+            : null;
+    return (
+        <div className="ws-export-progress">
+            <Progress value={progress} aria-label="Recording" />
+            {stop === null ? null : (
+                <Text size="xs" c="dimmed">
+                    {stop}
+                </Text>
+            )}
+        </div>
+    );
+}
+
+/** What the frame estimate is asked for: a saved tour, or a still's length. */
+type EstimateAsk =
+    { readonly tour: string; readonly fps: number } | { readonly duration: number; readonly fps: number };
+
+/**
+ * The element's frame estimate for a recording, asked again when what it reads changes.
+ * @param element - the element, or null.
+ * @param asking - the estimate's options, or null when there is nothing to estimate.
+ * @returns the estimate, or null.
+ */
+function useEstimate(
+    element: ReturnType<typeof useWorkspace>["element"],
+    asking: EstimateAsk | null,
+): CaptureEstimate | null {
+    const [estimate, setEstimate] = useState<CaptureEstimate | null>(null);
+    const tour = asking !== null && "tour" in asking ? asking.tour : null;
+    const duration = asking !== null && "duration" in asking ? asking.duration : null;
+    const fps = asking?.fps ?? null;
+    useEffect(() => {
+        if (element === null || fps === null) {
+            setEstimate(null);
+            return undefined;
+        }
+        let current = true;
+        element.estimateAnimationCapture(tour === null ? { duration: duration ?? 0, fps } : { tour, fps }).then(
+            (next) => {
+                if (current) {
+                    setEstimate(next);
+                }
+            },
+            () => {
+                if (current) {
+                    setEstimate(null);
+                }
+            },
+        );
+        return () => {
+            current = false;
+        };
+    }, [element, tour, duration, fps]);
+    return estimate;
+}
+
+/** What a recording would play now, read from the element: the tour or the view, and why not. */
+interface VideoTarget {
+    /** The saved tours, project order. */
+    readonly tours: readonly string[];
+    /** The tour asked for, else the first; null with neither. */
+    readonly tour: string | null;
+    /** Still when there is no tour to play. */
+    readonly camera: "still" | "tour";
+    readonly plan: TourPlan | null;
+    /** Why the tour cannot be recorded, worded. */
+    readonly tourReason: string | null;
+    readonly views: ViewChoice;
+    /** What to ask the frame estimate for, or null when the tour cannot be recorded. */
+    readonly ask: EstimateAsk | null;
+}
+
+/**
+ * What the choices record now: the tour named (or the project's first) and the element's plan of
+ * it, or the still view, judged by the element.
+ * @param element - the element, or null.
+ * @param session - the session, or null.
+ * @param choices - the video choices.
+ * @returns the target.
+ */
+function videoTarget(
+    element: ReturnType<typeof useWorkspace>["element"],
+    session: ReturnType<typeof useWorkspace>["session"],
+    choices: VideoChoices,
+): VideoTarget {
+    const tours = session === null ? [] : [...session.tours.keys()];
+    const tour = choices.tour ?? tours[0] ?? null;
+    const views = viewChoice(element, session, choices.view);
+    // With no tours, and none asked for, the camera is still.
+    if (tour === null || choices.camera === "still") {
+        const ask = { duration: choices.seconds * 1000, fps: choices.fps };
+        return { tours, tour, camera: "still", plan: null, tourReason: null, views, ask };
+    }
+    const plan = element?.planTour(tour) ?? null;
+    const tourReason = plan === null ? null : tourProblemWords(plan);
+    const ask = tourReason === null ? { tour, fps: choices.fps } : null;
+    return { tours, tour, camera: "tour", plan, tourReason, views, ask };
+}
+
+/** Props for CameraFields. */
+interface CameraFieldsProps {
+    readonly target: VideoTarget;
+    readonly choices: VideoChoices;
+    readonly recording: boolean;
+    readonly set: (change: Partial<VideoChoices>) => void;
+}
+
+/**
+ * The fields that follow Camera: a tour's Tour select and its read-only Length (a tour that is
+ * gone stays chosen, in error), or a still's View list and its 3 / 5 / 10 s, and with no tours,
+ * the row that leads to the Views section.
+ * @param props - Component props
+ * @param props.target - what would be recorded
+ * @param props.choices - the video choices
+ * @param props.recording - whether a recording runs
+ * @param props.set - changes the choices
+ * @returns the fields
+ */
+function CameraFields({ target, choices, recording, set }: CameraFieldsProps): React.JSX.Element {
+    const { tours, tour, plan } = target;
+    const noTours = tours.length === 0 ? <NoToursRow /> : null;
+    if (target.camera === "still") {
+        return (
+            <>
+                <ViewSelect
+                    views={target.views}
+                    onChange={(view) => {
+                        set({ view });
+                    }}
+                />
+                {noTours}
+                <Input.Wrapper size="xs" label="Length">
+                    <SegmentedControl
+                        fullWidth
+                        value={String(choices.seconds)}
+                        disabled={recording}
+                        data={["3", "5", "10"].map((value) => ({ value, label: `${value} s` }))}
+                        onChange={(value) => {
+                            set({ seconds: Number(value) });
+                        }}
+                    />
+                </Input.Wrapper>
+            </>
+        );
+    }
+    return (
+        <>
+            <Select
+                label="Tour"
+                data={tour !== null && !tours.includes(tour) ? [...tours, tour] : tours}
+                value={tour}
+                error={target.tourReason ?? undefined}
+                disabled={recording}
+                allowDeselect={false}
+                onChange={(next) => {
+                    if (next !== null) {
+                        set({ tour: next });
+                    }
+                }}
+            />
+            {noTours}
+            <Input.Wrapper size="xs" label="Length">
+                <Text size="sm" data-testid="video-length">
+                    {plan === null ? null : lengthWords(plan.totalMs)}
+                </Text>
+            </Input.Wrapper>
+        </>
+    );
+}
+
+/**
+ * The Video output: a saved tour (its length the element's plan of it) or a still view held for
+ * 3, 5 or 10 seconds, the frame rate, the element's frame estimate, and Record. Every recording is
+ * graphty-element's `captureAnimation`; the bar follows `animation-progress` and the stop label
+ * `tour-progress`. With no tours, Camera is on Still and "Views and tours..." opens the Views
+ * section. Leaving the output while it records cancels the recording, so nothing records unseen.
  * @param props - Component props
  * @param props.choices - The video choices
  * @param props.onChange - Called with new choices
  * @param props.onCancel - Closes the dialog
  * @param props.onDone - Closes the dialog with a notice
+ * @param props.onRecording - Told when a recording starts and ends
  * @returns The output's body and footer
  */
-export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<VideoOutputProps>): React.JSX.Element {
+export function VideoOutput({
+    choices,
+    onChange,
+    onCancel,
+    onDone,
+    onRecording,
+}: Readonly<VideoOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
-    const [estimate, setEstimate] = useState<CaptureEstimate | null>(null);
     const [recording, setRecording] = useState(false);
     const [failure, setFailure] = useState<string | null>(null);
+    useViewsChanged(element);
 
-    const presets = session?.catalog.cameras() ?? [];
-    const cameras = new Set(presets.map((camera) => camera.id));
-    const saved = session === null ? [] : [...session.views.keys()];
-    const stops = tourStops(choices, saved, cameras);
-    const asked: VideoChoices = { ...choices, stops };
-    const tourShort = asked.camera === "tour" && stops.length < 2;
+    const target = videoTarget(element, session, choices);
+    const { tour, camera, views } = target;
+    const asked: VideoChoices = { ...choices, camera, tour };
+    const reason = camera === "tour" ? target.tourReason : views.chosen.reason;
 
-    useEffect(() => {
-        if (element === null) {
-            return undefined;
-        }
-        let live = true;
-        void element.estimateAnimationCapture({ duration: choices.seconds * 1000, fps: choices.fps }).then((next) => {
-            if (live) {
-                setEstimate(next);
+    // The recording, for cancelling it when the output closes under it.
+    const live = useRef(false);
+    useEffect(
+        () => () => {
+            if (live.current) {
+                element?.cancelAnimationCapture();
             }
-        });
-        return () => {
-            live = false;
-        };
-    }, [element, choices.seconds, choices.fps]);
+        },
+        [element],
+    );
+
+    const estimate = useEstimate(element, target.ask);
 
     const set = (change: Partial<VideoChoices>): void => {
         setFailure(null);
-        onChange({ ...choices, ...change });
+        onChange({ ...asked, ...change });
     };
 
     const record = async (): Promise<void> => {
         if (element === null) {
             return;
         }
+        // Recent keeps the choices the file was made with, the tour named.
+        onChange(asked);
+        live.current = true;
         setRecording(true);
+        onRecording?.(true);
         setFailure(null);
-        const name = fileName(project, asked.camera === "tour" ? "tour" : "view", "webm");
+        const name = fileName(project, camera === "tour" && tour !== null ? tour : views.chosen.label, "webm");
         try {
             const result = await element.captureAnimation(animationOptions(asked, name));
             const file = name.replace(/\.webm$/, `.${result.metadata.format}`);
             const dropped = result.metadata.framesDropped;
             onDone(dropped > 0 ? `Exported ${file}, ${String(dropped)} frames dropped` : `Exported ${file}`, file);
         } catch (error) {
-            const { code, details } = (error ?? {}) as { code?: unknown; details?: { reason?: unknown } };
-            if (code === "E_UNSUPPORTED" && details?.reason !== "format") {
-                setFailure("Tour needs 3D views");
-            } else if (error instanceof Error && error.name === "AnimationCancelledError") {
-                setFailure(null);
-            } else {
-                setFailure(failureWords(error));
-            }
+            setFailure(isGraphtyError(error) && error.code === "E_CANCELLED" ? null : failureWords(error));
         } finally {
+            live.current = false;
             setRecording(false);
+            onRecording?.(false);
         }
     };
 
     return (
         <>
-            <div className="ws-export-main">
-                <Text fw={550} size="md" role="heading" aria-level={3}>
-                    Video
-                </Text>
+            <section className="ws-export-main" aria-label="Video">
+                <div>
+                    <Text fw={550} size="md" role="heading" aria-level={3}>
+                        Video
+                    </Text>
+                </div>
                 <div className="ws-export-fields">
                     <Input.Wrapper size="xs" label="Camera">
                         <SegmentedControl
                             fullWidth
-                            value={choices.camera}
+                            value={camera}
+                            disabled={recording}
                             data={[
+                                { value: "tour", label: "Tour", disabled: tour === null },
                                 { value: "still", label: "Still" },
-                                { value: "tour", label: "Tour" },
                             ]}
-                            onChange={(camera) => {
-                                set({ camera: camera === "still" ? "still" : "tour" });
-                            }}
-                        />
-                    </Input.Wrapper>
-                    <Input.Wrapper size="xs" label="Length">
-                        <SegmentedControl
-                            fullWidth
-                            value={String(choices.seconds)}
-                            data={["3", "5", "10"].map((value) => ({ value, label: `${value} s` }))}
-                            onChange={(value) => {
-                                set({ seconds: Number(value) });
-                            }}
-                        />
-                    </Input.Wrapper>
-                    {choices.camera === "tour" ? (
-                        <MultiSelect
-                            className="ws-export-wide"
-                            size="xs"
-                            label="Views"
-                            data={[
-                                ...saved.map((view) => ({ value: view, label: view })),
-                                ...presets
-                                    .filter((camera) => !saved.includes(camera.id))
-                                    .map((camera) => ({ value: camera.id, label: camera.plainName })),
-                            ]}
-                            value={[...stops]}
-                            error={tourShort ? "2 or more" : undefined}
                             onChange={(next) => {
-                                set({ stops: next });
+                                set({ camera: next === "tour" ? "tour" : "still" });
                             }}
                         />
-                    ) : null}
+                    </Input.Wrapper>
+                    <CameraFields target={target} choices={choices} recording={recording} set={set} />
                     <Input.Wrapper size="xs" label="Frame rate">
                         <SegmentedControl
                             fullWidth
                             value={String(choices.fps)}
+                            disabled={recording}
                             data={[
                                 { value: "30", label: "30 fps" },
                                 { value: "60", label: "60 fps" },
@@ -192,20 +401,13 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
                             }}
                         />
                     </Input.Wrapper>
-                    <Input.Wrapper size="xs" label="Frames">
-                        <div>{estimate === null ? null : <FramesChip estimate={estimate} />}</div>
-                    </Input.Wrapper>
+                    <FramesRow estimate={estimate} />
                 </div>
+                {recording ? <RecordingBar tour={camera === "tour" ? tour : null} /> : null}
                 {failure === null ? null : <Alert color="red" role="alert" title={failure} />}
-            </div>
+            </section>
             <ModalFooter className="ws-export-footer">
-                <Text size="sm" c="dimmed" className="ws-export-note">
-                    {recording ? (
-                        <>
-                            <Loader size="xs" /> Recording
-                        </>
-                    ) : null}
-                </Text>
+                <Text size="sm" c="dimmed" className="ws-export-note" />
                 {recording ? (
                     <Button
                         variant="default"
@@ -220,7 +422,7 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
                         Cancel
                     </Button>
                 )}
-                <Button disabled={recording || element === null || tourShort} onClick={() => void record()}>
+                <Button disabled={recording || element === null || reason !== null} onClick={() => void record()}>
                     Record
                 </Button>
             </ModalFooter>

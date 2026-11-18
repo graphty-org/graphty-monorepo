@@ -95,3 +95,13 @@ export function tourProblemWords(plan: {
     }
     return `Stop ${String(index + 1)}: ${viewProblemWords(plan.stops[index].problem, true) ?? ""}`;
 }
+
+/**
+ * A tour's length as a clock reads it: "0:14", "1:05".
+ * @param ms - the length in milliseconds, such as `planTour(name).totalMs`.
+ * @returns the words.
+ */
+export function lengthWords(ms: number): string {
+    const seconds = Math.round(ms / 1000);
+    return `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, "0")}`;
+}

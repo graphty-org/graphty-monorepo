@@ -112,3 +112,10 @@
     align-items: center;
     gap: 4px;
 }
+
+/* The recording's bar and the stop it is on, under the fields. */
+.ws-export-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}

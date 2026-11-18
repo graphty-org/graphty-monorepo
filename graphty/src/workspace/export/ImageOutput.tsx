@@ -1,18 +1,12 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type {
-    Graphty as GraphtyElement,
-    ScreenshotLegendPosition,
-    ScreenshotLegendSection,
-    ScreenshotOptions,
-} from "@graphty/graphty-element";
+import type { ScreenshotLegendPosition, ScreenshotLegendSection, ScreenshotOptions } from "@graphty/graphty-element";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
-import { Alert, Button, Checkbox, Input, Loader, Select, Stack, Text } from "@mantine/core";
+import { Alert, Button, Checkbox, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { cameraViewName, viewProblemWords } from "../toolbar/viewWords";
 import {
     CUSTOM,
     factWords,
@@ -28,14 +22,13 @@ import {
     refusalWords,
     screenshotOptions,
 } from "./choices";
+import { viewChoice } from "./viewChoice";
+import { ViewSelect } from "./ViewSelect";
 
 const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
 
 /** The preview is captured this wide (height by the canvas's aspect), not at the canvas's size. */
 const PREVIEW_WIDTH = 480;
-
-/** The View list's entry for the reader's own camera. */
-const CURRENT = "current";
 
 /** The corners the key can sit in, in the app's words. */
 const CORNERS: readonly { value: ScreenshotLegendPosition; label: string }[] = [
@@ -68,40 +61,6 @@ function keyOption(
     session: GraphSession | null,
 ): ScreenshotOptions["legend"] {
     return on ? { position: corner, sections: imageKey(session) } : false;
-}
-
-/** One entry of the View list: a value, its words, and why it cannot be used now. */
-interface ViewEntry {
-    readonly value: string;
-    readonly label: string;
-    readonly view: string | null;
-    readonly reason: string | null;
-}
-
-/**
- * The View list: the current camera, then the camera views, then the saved views (the order the
- * element resolves a name), each judged by the element's `viewProblem`.
- * @param element - the element, or null.
- * @param session - the session, or null.
- * @returns the entries by group.
- */
-function viewEntries(
-    element: GraphtyElement | null,
-    session: GraphSession | null,
-): { current: ViewEntry; cameras: ViewEntry[]; saved: ViewEntry[] } {
-    const cameras = (session?.catalog.cameras() ?? []).map(({ id, plainName }) => ({
-        value: `camera:${id}`,
-        label: cameraViewName(id, plainName),
-        view: id,
-        reason: viewProblemWords(element?.viewProblem(id) ?? null),
-    }));
-    const saved = [...(session?.views.keys() ?? [])].map((name) => ({
-        value: `saved:${name}`,
-        label: name,
-        view: name,
-        reason: viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, true),
-    }));
-    return { current: { value: CURRENT, label: "Current camera", view: null, reason: null }, cameras, saved };
 }
 
 /**
@@ -163,26 +122,8 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const backgroundReason = backgroundCheck?.format === choices.format ? backgroundCheck.reason : null;
     const [status, setStatus] = useState<Status>({ kind: "idle" });
 
-    const views = viewEntries(element, session);
-    const found =
-        choices.view === null
-            ? views.current
-            : (views.cameras.find((entry) => entry.view === choices.view) ??
-              views.saved.find((entry) => entry.view === choices.view));
-    // A chosen view that is gone (removed, renamed, another project) stays chosen and shows the
-    // element's reason, so the field says why the capture would fail instead of hiding the choice.
-    const missing: ViewEntry | null =
-        found === undefined && choices.view !== null
-            ? {
-                  value: `missing:${choices.view}`,
-                  label: choices.view,
-                  view: choices.view,
-                  reason: viewProblemWords(element?.viewProblem(choices.view, { saved: true }) ?? null, true),
-              }
-            : null;
-    const chosen = found ?? missing ?? views.current;
-    const saved = missing === null ? views.saved : [...views.saved, missing];
-    const entries = [views.current, ...views.cameras, ...saved];
+    const views = viewChoice(element, session, choices.view);
+    const { chosen } = views;
     const preset = presetOf(choices);
     const legendOn = choices.legend ?? legendShown;
 
@@ -357,42 +298,10 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                             }
                         }}
                     />
-                    <Select
-                        label="View"
-                        data={[
-                            { value: CURRENT, label: views.current.label },
-                            ...[
-                                { group: "Camera views", items: views.cameras },
-                                { group: "Saved views", items: saved },
-                            ]
-                                .filter(({ items }) => items.length > 0)
-                                .map(({ group, items }) => ({
-                                    group,
-                                    items: items.map((entry) => ({
-                                        value: entry.value,
-                                        label: entry.label,
-                                        disabled: entry.reason !== null,
-                                    })),
-                                })),
-                        ]}
-                        value={chosen.value}
-                        error={chosen.reason ?? undefined}
-                        allowDeselect={false}
-                        renderOption={({ option }) => {
-                            const reason = entries.find((entry) => entry.value === option.value)?.reason;
-                            return reason === null || reason === undefined ? (
-                                option.label
-                            ) : (
-                                <Stack gap={0}>
-                                    <Text size="xs">{option.label}</Text>
-                                    <Text size="xs" c="dimmed">
-                                        {reason}
-                                    </Text>
-                                </Stack>
-                            );
-                        }}
-                        onChange={(value) => {
-                            set({ view: entries.find((entry) => entry.value === value)?.view ?? null });
+                    <ViewSelect
+                        views={views}
+                        onChange={(view) => {
+                            set({ view });
                         }}
                     />
                     <Input.Wrapper

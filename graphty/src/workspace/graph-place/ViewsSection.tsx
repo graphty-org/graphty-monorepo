@@ -18,7 +18,7 @@ import {
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { EasingName, GraphSession, Tour } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useReducer, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey, matchesKey } from "../keys/keys";
@@ -28,7 +28,8 @@ import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { goToSavedView, nextName, savedViewReason } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
-import { tourProblemWords } from "../toolbar/viewWords";
+import { useViewsChanged } from "../toolbar/useViewsChanged";
+import { lengthWords, tourProblemWords } from "../toolbar/viewWords";
 import { orRefusal } from "./actions";
 import { RowMore, TourStops } from "./TourStops";
 
@@ -45,34 +46,6 @@ const EASINGS: readonly { readonly id: EasingName; readonly label: string }[] = 
     { id: "easeOut", label: "Ease out" },
     { id: "easeInOut", label: "Ease in and out" },
 ];
-
-/**
- * A tour's length as a clock reads it: "0:14", "1:05".
- * @param ms - the length in milliseconds.
- * @returns the words.
- */
-function lengthWords(ms: number): string {
-    const seconds = Math.round(ms / 1000);
-    return `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-/**
- * Draws again whenever anything `viewProblem` or `planTour` reads may have changed: views, their
- * order, tours, the drawing mode, an immersive session, a registered camera view.
- * @param element - the element, or null.
- */
-function useViewsChanged(element: GraphtyElement | null): void {
-    const [, redraw] = useReducer((n: number) => n + 1, 0);
-    useEffect(() => {
-        if (element === null) {
-            return undefined;
-        }
-        element.addEventListener("views-changed", redraw);
-        return () => {
-            element.removeEventListener("views-changed", redraw);
-        };
-    }, [element]);
-}
 
 /**
  * Moves a saved view or tour one place up or down its list.

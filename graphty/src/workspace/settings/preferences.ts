@@ -73,6 +73,16 @@ export const MAP_DEPTH_INDEPENDENT_SIZE = {
 } as const;
 
 /**
+ * Show empty style sections (Settings > General, Style panel v2 only): on, the Style tab shows every
+ * section, an empty one as its empty header; off, only the sections the layer sets, and "Add section".
+ */
+export const STYLE_EMPTY_SECTIONS = {
+    key: "graphty.styleEmptySections.v1",
+    values: ["on", "off"],
+    fallback: "on",
+} as const;
+
+/**
  * Your name (Settings > General): written on each project's author setting, which graphty-element
  * stamps on every note added and never saves in a project file. Free text, so it is not a `Preference`.
  */

@@ -8,17 +8,18 @@ import { assert } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
 /**
  * Opens three nodes and a layer "Key people" over every node that sets only its color.
+ * @param state - workspace state to start from (a reader preference).
  * @returns the session and the layer's id.
  */
-export async function openProject(): Promise<{ session: GraphSession; id: string }> {
+export async function openProject(state: Partial<WorkspaceState> = {}): Promise<{ session: GraphSession; id: string }> {
     await page.viewport(1440, 900);
-    render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
+    render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 }, ...state })} />);
     const session = await waitFor(() => {
         const found = document.querySelector("graphty-element")?.session;
         assert.isDefined(found);

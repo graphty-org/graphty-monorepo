@@ -6,12 +6,7 @@ import {
     FileSource,
     TargetTooltip,
 } from "@graphty/compact-mantine";
-import {
-    DEFAULT_BACKGROUND_COLOR,
-    type GraphBackgroundConfig,
-    type Lighting,
-    LIGHTING_VALUES,
-} from "@graphty/graphty-element/schema";
+import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
 import {
     type GraphSession,
     type GraphSettingKey,
@@ -29,44 +24,8 @@ import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { BACKGROUND_SECTION_WORDS, BACKGROUND_WORDS } from "../style/words";
-import { settingsNotInEffect, SHOWN_SETTINGS } from "./settingsInEffect";
-
-const LIGHTING_WORDS: Readonly<Record<Lighting, string>> = {
-    studio: "Studio",
-    headlight: "Headlight",
-    matte: "Matte",
-    flat: "Flat",
-};
-
-/**
- * The settings that change nothing in the current view, held in state and re-read on every
- * project change (the view is project state). Read during render instead, the answer changed only
- * when something else happened to re-render the panel: a render React threw away because its
- * state had not changed still recorded the new keys, so the focus keeper's effect never ran for
- * them and focus fell to the panel's last row.
- * @param session - the element's session, or null.
- * @returns the hidden settings' keys.
- */
-function useNotInEffect(session: GraphSession | null): readonly GraphSettingKey[] {
-    const [hidden, setHidden] = useState(() => notInEffectKey(session));
-    useEffect(() => {
-        const update = (): void => {
-            setHidden(notInEffectKey(session));
-        };
-        update();
-        return session?.on("project:changed", update);
-    }, [session]);
-    return hidden === "" ? [] : (hidden.split(",") as GraphSettingKey[]);
-}
-
-/**
- * The hidden settings as one string, so an unchanged answer is an unchanged state.
- * @param session - the element's session, or null.
- * @returns the keys, comma-separated.
- */
-function notInEffectKey(session: GraphSession | null): string {
-    return session === null ? "" : settingsNotInEffect(session).join(",");
-}
+import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
+import { SHOWN_SETTINGS } from "./settingsInEffect";
 
 /**
  * Keeps focus in the panel when the row holding it is hidden because its setting stopped
@@ -428,7 +387,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
  * @param props.onCommit - writes a new address
  * @returns The field
  */
-function BackgroundImage({
+export function BackgroundImage({
     address,
     onCommit,
 }: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {

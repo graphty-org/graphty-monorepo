@@ -10,9 +10,13 @@ import "@graphty/graphty-element";
 import { assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Graph settings these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 /**
  * Renders the workspace on Graph settings and waits for the element and a small graph.

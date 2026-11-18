@@ -250,6 +250,12 @@
             "name": "LabelsProvider",
             "from": "@graphty/compact-mantine",
             "dom": ""
+        },
+        {
+            "name": "ControlGroup",
+            "from": "@graphty/compact-mantine",
+            "dom": "[data-testid=\"control-group\"]",
+            "words": ".cm-legend-text"
         }
     ],
     "elsewhere": ["Popout.Panel", "Popout.Content", "Menu.Dropdown", "Modal", "ContextMenu"],

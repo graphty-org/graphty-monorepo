@@ -18,7 +18,7 @@ import { siteFileStyles } from "../../siteConfig";
 import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
 import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
-import { fileStylesOn } from "../features";
+import { fileStylesOn, stylePanelV2On } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
@@ -33,6 +33,7 @@ import {
     readAuthor,
     readPreference,
     SINGLE_KEY_SHORTCUTS,
+    STYLE_EMPTY_SECTIONS,
     TIMELINE_STYLE,
     writeAuthor,
     writeFileStylesChoice,
@@ -97,6 +98,7 @@ function General(): React.JSX.Element {
     const styled = session ? fileStylesOn(session) : siteFileStyles();
     const [timelineStyle, setTimelineStyle] = useState(() => readPreference(TIMELINE_STYLE));
     const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
+    const emptySections = useWorkspaceState((state) => state.styleEmptySections);
     return (
         <Stack gap="md">
             <YourName />
@@ -175,6 +177,18 @@ function General(): React.JSX.Element {
                     writePreference(MAP_DEPTH_INDEPENDENT_SIZE, next ? "on" : "off");
                 }}
             />
+            {stylePanelV2On(session) ? (
+                <Switch
+                    label="Show empty style sections"
+                    description="Off, the Style tab shows only the sections a layer sets, and Add section."
+                    checked={emptySections}
+                    onChange={(event) => {
+                        const next = event.currentTarget.checked;
+                        store.set({ styleEmptySections: next });
+                        writePreference(STYLE_EMPTY_SECTIONS, next ? "on" : "off");
+                    }}
+                />
+            ) : null}
         </Stack>
     );
 }

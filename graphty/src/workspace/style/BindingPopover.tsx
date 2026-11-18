@@ -26,7 +26,16 @@ import { type DataBinding, type DataChoice, type LayerBinding, startingValue, to
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
-import { channelPhrase, channelWord, enumWords, failureWords, LAYER_TOKEN, paletteWord, SCALE_WORDS } from "./words";
+import {
+    channelPhrase,
+    channelWord,
+    COMBINE_WORDS,
+    enumWords,
+    failureWords,
+    LAYER_TOKEN,
+    paletteWord,
+    SCALE_WORDS,
+} from "./words";
 
 /** What `toColorValue` reads. */
 type ColorInput = Parameters<typeof toColorValue>[0];
@@ -54,12 +63,8 @@ const OVERFLOW_WORDS = {
     ],
 } as const;
 
-/** How a number meets what the layers beneath painted. */
-const COMBINE_WORDS = [
-    { value: "replace", label: "Replace" },
-    { value: "multiply", label: "Multiply" },
-    { value: "add", label: "Add" },
-];
+/** How a number meets what the layers beneath painted, in today's words (`COMBINE_WORDS`). */
+const COMBINE_OPTIONS = Object.entries(COMBINE_WORDS).map(([value, { word }]) => ({ value, label: word }));
 
 /**
  * A painted value as a CSS color, when it is a color.
@@ -338,7 +343,7 @@ function CombineField({
                     label={`How ${name.toLowerCase()} meets the layers beneath`}
                     kind="select"
                     width="fill"
-                    data={[...COMBINE_WORDS]}
+                    data={COMBINE_OPTIONS}
                     value={binding.combine ?? "replace"}
                     onChange={(mode) => {
                         patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });

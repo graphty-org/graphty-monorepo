@@ -14,12 +14,16 @@ import { createGraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { renderQualityWords } from "../../style/words";
 import { Workspace } from "../../Workspace";
 import { SHADER_MOTION, SHADER_QUALITY, TRUSTED_SHADERS_KEY } from "../shaderPreferences";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Graph settings these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 /** The element's crash marker: a shader being compiled or first drawn. */
 const CRASH_MARKER_KEY = "graphty-shader-crash-marker";

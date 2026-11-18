@@ -13,6 +13,7 @@ import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
 import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
 import { columnGlyph, loadName, sourceKeyOf, sourceKindWord, sourcesWords, type TypeGlyph } from "../data-place/words";
+import { stylePanelV2On } from "../features";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
@@ -42,6 +43,7 @@ import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { GraphSettings } from "./GraphSettings";
+import { GraphSettingsV2 } from "./GraphSettingsV2";
 import { AttributeValues, Overview } from "./GraphValues";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
@@ -928,7 +930,8 @@ function bodyOf(
     switch (resolved.kind) {
         case "graph":
             return {
-                style: <GraphSettings />,
+                // Style panel v2 (with file styles) draws its own Graph settings.
+                style: stylePanelV2On(session) ? <GraphSettingsV2 /> : <GraphSettings />,
                 values: <Overview />,
             };
         case "node":

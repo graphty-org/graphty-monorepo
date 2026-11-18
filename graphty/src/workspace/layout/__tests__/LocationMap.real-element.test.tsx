@@ -11,11 +11,15 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { MAP_DEPTH_INDEPENDENT_SIZE } from "../../settings/preferences";
 import { datasetBase } from "../../start/open";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Graph settings these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 /** Three airports with a place each, and one node with none. */
 const NODES = [

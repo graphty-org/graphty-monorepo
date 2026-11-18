@@ -108,6 +108,42 @@ describe("Style panel v2 on", () => {
     });
 });
 
+describe("Style panel v2 with empty sections not shown", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+
+    it("shows only the sections the layer sets, and Add section shows one and opens its '+'", async () => {
+        const { session, id } = await openProject({ styleEmptySections: false });
+        const tab = await openStyle("Key people");
+        const panel = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>("[data-style-panel-v2]");
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.deepEqual(
+            within(panel)
+                .getAllByRole("heading", { level: 3 })
+                .map((heading) => heading.textContent),
+            ["Fill"],
+            "only the section the layer sets",
+        );
+        await userEvent.click(within(panel).getByRole("button", { name: "Add section" }));
+        const menu = await screen.findByRole("menu");
+        assert.notInclude(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((item) => item.textContent),
+            "Fill",
+        );
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Border" }));
+        // The section shows, with its own "+" menu open.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Rings" }));
+        await waitFor(() => {
+            assert.isDefined(written(session, id, "node.outerBorderColor"));
+            assert.isNotNull(sectionOf(tab, "node-border").querySelector('[data-thing="rings"]'));
+        });
+    });
+});
+
 describe("Style panel v2 off", () => {
     withFeatures(["file-styles"]);
 

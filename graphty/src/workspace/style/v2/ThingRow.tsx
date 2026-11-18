@@ -5,6 +5,7 @@
  */
 
 import type { Channel } from "@graphty/graphty-element/catalog";
+import { TextInput } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../../glyphs";
@@ -14,11 +15,12 @@ import { shownChannel } from "../offered";
 import { Field, type RowContext } from "../PropertyRow";
 import { layerWord, removeLine } from "../row";
 import { failureWords } from "../words";
+import { dropReplace, familyOf, replaceUse } from "./families";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
-import { rubricChannels, rubricOf } from "./rubric";
-import { RubricLine } from "./RubricLine";
-import { ThingPopover } from "./ThingPopover";
+import { rubricChannels, rubricOf, SHAPE_REPLACE_RUBRIC } from "./rubric";
+import { LineFrame, RubricLine } from "./RubricLine";
+import { FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
 
 /**
@@ -26,9 +28,15 @@ import { mainOf, setOn, type ThingSpec } from "./things";
  * @param ctx - the row.
  * @param name - the thing's name, for the step.
  * @param channels - the thing's channels.
+ * @param shape - whether it is the Shape thing, whose shader in the shapes' place goes too.
  * @returns when it is done.
  */
-async function removeThing(ctx: RowContext, name: string, channels: readonly Channel[]): Promise<unknown> {
+async function removeThing(
+    ctx: RowContext,
+    name: string,
+    channels: readonly Channel[],
+    shape: boolean,
+): Promise<unknown> {
     const { many, session } = ctx;
     if (many !== undefined) {
         // ponytail: several rows clear one channel at a time, one undo step each (Style panel v2, chunk 6).
@@ -44,6 +52,15 @@ async function removeThing(ctx: RowContext, name: string, channels: readonly Cha
             const held = channels.filter((c) => layer?.set?.[c] !== undefined || layer?.encode?.[c] !== undefined);
             if (layer !== undefined && held.length > 0) {
                 await removeLine(tx, layer, ...held);
+            }
+            // A shader drawn in the shapes' place is the Shape thing's too (design 4.1).
+            const after = tx.styles.get(id);
+            if (shape && after?.set !== undefined) {
+                const set: Record<string, unknown> = { ...after.set };
+                dropReplace(ctx, set);
+                if (set["node.shaders"] !== after.set["node.shaders"]) {
+                    await tx.styles.update(id, { set }, { keepEmpty: true });
+                }
             }
         }
     });
@@ -79,7 +96,10 @@ export function ThingRow({
     }
     const kind = ctx.side === "node" ? "Node" : "Edge";
     const title = `${kind} ${thing.name.toLowerCase()}`;
-    const rubric = rubricOf(ctx.side, thing.id, main.channel);
+    const family = familyOf(ctx.side, thing.id);
+    // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
+    const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
+    const rubric = replacing === undefined ? rubricOf(ctx.side, thing.id, main.channel) : SHAPE_REPLACE_RUBRIC;
     const covered = new Set(rubric === undefined ? [] : rubricChannels(rubric));
     // Every channel the minus takes off: the thing's own and every line of its rubric.
     const all = [...new Set([...channels, ...covered])];
@@ -106,13 +126,19 @@ export function ThingRow({
             {rubric === undefined ? (
                 others.map((descriptor) => <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />)
             ) : (
-                <ThingPopover ctx={ctx} title={title} rubric={rubric} others={others} />
+                <ThingPopover
+                    ctx={ctx}
+                    title={title}
+                    rubric={rubric}
+                    others={others}
+                    first={<FirstLines ctx={ctx} main={main} family={family} />}
+                />
             )}
         </SettingsPopout>
     );
     const remove = (): void => {
         onCancel();
-        removeThing(ctx, thing.name, all)
+        removeThing(ctx, thing.name, all, thing.id === "shape")
             .then(() => {
                 store.set({ announcement: `${thing.name} removed` });
             })
@@ -135,6 +161,32 @@ export function ThingRow({
                     removeLabel={removeLabel}
                     onRemove={remove}
                 />
+            </div>
+        );
+    }
+    if (replacing !== undefined) {
+        return (
+            <div data-thing={thing.id}>
+                <LineFrame
+                    line="node.shaders:replace"
+                    name={null}
+                    set
+                    rule="R10"
+                    control={
+                        <TextInput
+                            size="xs"
+                            readOnly
+                            aria-label={title}
+                            value={ctx.session.shaders.describe(replacing.shader)?.plainName ?? replacing.shader}
+                        />
+                    }
+                    modifier={settings}
+                    removeName={removeLabel}
+                    onRemove={remove}
+                />
+                {common.map((line) => (
+                    <RubricLine key={line.channel} ctx={ctx} line={line} />
+                ))}
             </div>
         );
     }

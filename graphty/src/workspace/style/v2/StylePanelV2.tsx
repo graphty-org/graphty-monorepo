@@ -11,19 +11,24 @@ import type { Channel } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
-import { useWorkspace } from "../../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../../state/WorkspaceContext";
 import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
 import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
 import { useFindKey } from "../parts/useFindKey";
 import type { RowContext } from "../PropertyRow";
 import { startFor, writeIn } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
+import { shadersChannel } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { experimentChannelsOff, failureWords } from "../words";
+import { replaceUse } from "./families";
 import { FIT_TO_LABEL } from "./rubric";
 import { ThingRow } from "./ThingRow";
 import { mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
 import { sectionsOf } from "./valueSections";
+
+/** The words of the button that shows a section while empty sections are not shown (design 11). */
+const ADD_SECTION = "Add section";
 
 /**
  * Every channel of a thing that its section offers: its items' and its own, less what another
@@ -45,31 +50,71 @@ function thingChannels(part: PartSpec, section: SectionThings, thing: ThingSpec)
 }
 
 /**
- * One section: see the file header.
- * @param props - Component props
- * @param props.ctx - the row and kind
- * @param props.part - its part
- * @param props.section - its things
- * @returns The section
+ * A section's things the element offers here, in "+" menu groups, and those the row sets.
+ * @param ctx - the row.
+ * @param part - its part.
+ * @param section - its things.
+ * @param waiting - things "+" added that wait for their first value.
+ * @returns the groups and the shown things.
  */
-function ThingSection({
-    ctx,
-    part,
-    section,
-}: Readonly<{ ctx: RowContext; part: PartSpec; section: SectionThings }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    // Things "+" added that the row does not set yet, waiting for their first value.
-    const [waiting, setWaiting] = useState<readonly string[]>([]);
-    const [menu, setMenu] = useState(false);
+function thingsOf(
+    ctx: RowContext,
+    part: PartSpec,
+    section: SectionThings,
+    waiting: readonly string[],
+): {
+    readonly things: readonly (readonly { thing: ThingSpec; channels: readonly Channel[] }[])[];
+    readonly shown: readonly { thing: ThingSpec; channels: readonly Channel[] }[];
+} {
     const things = section.groups.map((group) =>
         group.flatMap((thing) => {
             const channels = thingChannels(part, section, thing);
             return channels.length === 0 || mainOf(ctx, thing, channels) === undefined ? [] : [{ thing, channels }];
         }),
     );
-    const shown = things
-        .flat()
-        .filter(({ thing, channels }) => waiting.includes(thing.id) || channels.some((c) => setOn(ctx, c)));
+    const shown = things.flat().filter(
+        ({ thing, channels }) =>
+            waiting.includes(thing.id) ||
+            channels.some((c) => setOn(ctx, c)) ||
+            // A shader drawn in the shapes' place keeps the Shape row (design 5).
+            (thing.id === "shape" && replaceUse(ctx) !== undefined),
+    );
+    return { things, shown };
+}
+
+/**
+ * Whether the row sets anything a section holds.
+ * @param ctx - the row.
+ * @param part - its part.
+ * @param section - its things.
+ * @returns true when it does.
+ */
+function sectionUsed(ctx: RowContext, part: PartSpec, section: SectionThings): boolean {
+    return part.id === "shaders"
+        ? setOn(ctx, shadersChannel(ctx.side))
+        : thingsOf(ctx, part, section, []).shown.length > 0;
+}
+
+/**
+ * One section: see the file header.
+ * @param props - Component props
+ * @param props.ctx - the row and kind
+ * @param props.part - its part
+ * @param props.section - its things
+ * @param props.openMenu - opens its "+" menu at once (picked from Add section)
+ * @returns The section
+ */
+function ThingSection({
+    ctx,
+    part,
+    section,
+    openMenu = false,
+}: Readonly<{ ctx: RowContext; part: PartSpec; section: SectionThings; openMenu?: boolean }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    // Things "+" added that the row does not set yet, waiting for their first value.
+    const [waiting, setWaiting] = useState<readonly string[]>([]);
+    const [menu, setMenu] = useState(openMenu);
+    const { things, shown } = thingsOf(ctx, part, section, waiting);
     // A one-only thing leaves the menu once set; Label stays, disabled, until a node can hold several
     // labels (design 7.4: list-valued labels are not in graphty-element yet).
     const groups: AddOption[][] = things.map((group) =>
@@ -169,6 +214,9 @@ function ThingSection({
  */
 export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const [query, setQuery] = useState("");
+    const showEmpty = useWorkspaceState((state) => state.styleEmptySections);
+    // Sections picked from Add section while empty sections are not shown (design 11).
+    const [revealed, setRevealed] = useState<readonly string[]>([]);
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
     const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf };
@@ -180,9 +228,27 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
         const part = parts.find((each) => each.id === section.part);
         return part === undefined ? [] : [{ part, section }];
     });
+    const shownSections = sections.filter(
+        ({ part, section }) => showEmpty || revealed.includes(part.id) || sectionUsed(ctx, part, section),
+    );
+    const hidden = sections.filter((each) => !shownSections.includes(each));
+    const addSection =
+        hidden.length === 0 ? null : (
+            <div className="ws-add-section" data-add-section="">
+                <AddButton
+                    kind={ctx.side}
+                    title={ADD_SECTION}
+                    words={ADD_SECTION}
+                    groups={[hidden.map(({ part }) => ({ key: part.id, label: part.title }))]}
+                    onAdd={(id) => {
+                        setRevealed((now) => [...now, id]);
+                    }}
+                />
+            </div>
+        );
     const body =
         query.trim() === "" ? (
-            sections.map(({ part, section }) =>
+            shownSections.map(({ part, section }) =>
                 part.id === "shaders" ? (
                     <Section
                         key={part.id}
@@ -190,7 +256,13 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                         spec={{ id: part.id, title: part.title, channels: itemChannels(part.items[0]), shaders: true }}
                     />
                 ) : (
-                    <ThingSection key={part.id} ctx={ctx} part={part} section={section} />
+                    <ThingSection
+                        key={part.id}
+                        ctx={ctx}
+                        part={part}
+                        section={section}
+                        openMenu={!showEmpty && revealed.includes(part.id)}
+                    />
                 ),
             )
         ) : (
@@ -203,6 +275,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
             <section className="ws-style-group" data-group={ctx.side} data-style-parts="" data-style-panel-v2="">
                 <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
                 {body}
+                {query.trim() === "" ? addSection : null}
             </section>
         </div>
     );

@@ -1,7 +1,7 @@
 import { ControlSection, PanelField, Popout, TargetTooltip } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
-import { ActionIcon, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { nodeModelsOn } from "../features";
@@ -739,6 +739,8 @@ export interface AddOption {
  * @param props.onOpenChange - called when its menu opens or closes
  * @param props.anchorOnly - draws no "+" of its own: the menu opens at the header's end, from the
  *   "+" an empty section carries (Style panel v2)
+ * @param props.words - draws the "+" with these words beside it, always as a menu ("Add section",
+ *   Style panel v2)
  * @returns The button and its menu
  */
 export function AddButton({
@@ -753,6 +755,7 @@ export function AddButton({
     opened,
     onOpenChange,
     anchorOnly = false,
+    words,
 }: Readonly<{
     kind: "node" | "edge" | "background";
     title: string;
@@ -766,10 +769,26 @@ export function AddButton({
     opened?: boolean;
     onOpenChange?: (opened: boolean) => void;
     anchorOnly?: boolean;
+    words?: string;
 }>): React.JSX.Element | null {
     const shown = menuGroups(groups, flat);
     if (anchorOnly) {
         return <AddMenu groups={shown} onAdd={onAdd} opened={opened} onOpenChange={onOpenChange} />;
+    }
+    if (words !== undefined) {
+        return (
+            <AddMenu
+                groups={shown}
+                onAdd={onAdd}
+                opened={opened}
+                onOpenChange={onOpenChange}
+                target={
+                    <Button variant="subtle" size="xs" leftSection={<GLYPHS.add size={14} aria-hidden />} data-plus="">
+                        {words}
+                    </Button>
+                }
+            />
+        );
     }
     const options = shown.flat();
     const name = `Add to ${kind} ${title.toLowerCase()}`;

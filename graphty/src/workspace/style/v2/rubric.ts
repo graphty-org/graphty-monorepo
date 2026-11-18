@@ -169,6 +169,16 @@ const SHAPE_GROUPS: readonly SubGroup[] = [
 ];
 
 /**
+ * The Shape row while a shader draws in the shapes' place (design 7.1, "replace shader"): its
+ * parameters stay the Shaders section's row's; the pop-over holds every Shape member's sub-groups.
+ */
+export const SHAPE_REPLACE_RUBRIC: ThingRubric = {
+    common: [{ channel: "node.size" }],
+    main: [{ channel: "node.shapeRotation", name: "Rotation" }],
+    groups: SHAPE_GROUPS,
+};
+
+/**
  * A backdrop behind or in front of a node (Underlay, Overlay).
  * @param of - which.
  * @returns its rubric.
@@ -218,6 +228,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.modelTint", name: "Tint", rule: "R9" },
             { channel: "node.modelFit", name: null, rule: "R8f" },
             { channel: "node.modelCenter", name: "Center", rule: "R8" },
+            { channel: "node.shapeRotation", name: "Rotation" },
         ],
         groups: [
             {

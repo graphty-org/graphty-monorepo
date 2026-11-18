@@ -143,7 +143,12 @@ export function SegmentsLine({
     onPick,
 }: Readonly<{
     label: string;
-    options: readonly { readonly value: string; readonly name: string; readonly glyph?: keyof typeof GLYPHS }[];
+    options: readonly {
+        readonly value: string;
+        readonly name: string;
+        readonly glyph?: keyof typeof GLYPHS;
+        readonly disabled?: boolean;
+    }[];
     value: string;
     onPick: (value: string) => void;
 }>): React.JSX.Element {
@@ -159,6 +164,7 @@ export function SegmentsLine({
                 const Glyph = option.glyph === undefined ? undefined : GLYPHS[option.glyph];
                 return {
                     value: option.value,
+                    disabled: option.disabled,
                     label:
                         pictured && Glyph !== undefined ? (
                             <Tooltip label={option.name}>

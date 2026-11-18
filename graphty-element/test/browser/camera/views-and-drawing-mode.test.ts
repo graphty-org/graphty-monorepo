@@ -85,7 +85,26 @@ describe("views and the drawing mode", () => {
         assert.strictEqual(unknown?.code, "E_UNKNOWN_CAMERA");
         assert.strictEqual(unknown?.params.name, "nowhere");
         assert.includeMembers(unknown?.params.available as string[], ["fitToGraph", "deep"]);
-        assert.strictEqual((await refusalOf(graph.applyCameraView("nowhere")))?.code, "E_UNKNOWN_CAMERA");
+        assert.deepStrictEqual(await refusalOf(graph.applyCameraView("nowhere")), unknown);
+
+        const empty = graph.viewProblem("");
+        assert.deepStrictEqual(empty, { code: "E_BAD_COMMAND", params: { reason: "empty-name" } });
+        assert.deepStrictEqual(await refusalOf(graph.applyCameraView("")), empty);
+    });
+
+    test("zoomToSelection in 2D pans the selection's center into view instead of refusing", async () => {
+        await graph.setViewMode("2d");
+        await graph.getSession().selection.apply({ nodes: ["a"] });
+        const { zoom } = graph.getCameraState();
+
+        await graph.zoomToSelection();
+
+        const center = graph.getNode("a")?.drawnPosition;
+        assert.isDefined(center);
+        const after = graph.getCameraState();
+        assert.closeTo(after.pan?.x ?? Number.NaN, center.x, 1e-3);
+        assert.closeTo(after.pan?.y ?? Number.NaN, center.y, 1e-3);
+        assert.strictEqual(after.zoom, zoom, "the zoom is kept");
     });
 
     test("every door refuses a state the drawing mode does not read", async () => {

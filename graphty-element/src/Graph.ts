@@ -9498,7 +9498,8 @@ export class Graph implements GraphContext {
      * Center the camera on the selection, keeping where it stands.
      *
      * The camera turns to look at the center of the box around the selected nodes and the ends
-     * of the selected edges; with nothing selected it does not move. The camera is view state, so this is not an undoable step.
+     * of the selected edges (in 2D it pans that center into the middle of the view, keeping its
+     * zoom); with nothing selected it does not move. It never refuses for the drawing mode. The camera is view state, so this is not an undoable step.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.0.0
@@ -9514,7 +9515,13 @@ export class Graph implements GraphContext {
             return undefined;
         }
 
-        return this.setCameraTarget(bounds.center, options);
+        // A state the drawing mode reads: 2D pans its view's center there, 3D turns to look at it.
+        const { x, y, z } = bounds.center;
+        const state = this.getCameraState();
+        return this.#placeCamera(
+            state.position === undefined ? { pan: { x, y } } : { position: state.position, target: { x, y, z } },
+            options,
+        );
     }
 
     /**
@@ -9813,9 +9820,11 @@ export class Graph implements GraphContext {
      *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
      *   `"centers"` when `nodes` names a subset.
      * @returns The camera state the view computed.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` when nothing answers to the name,
-     * `E_UNSUPPORTED` when the view does not work in the drawing mode the element is in, or
-     * `E_UNKNOWN_OPTION` / `E_OPTION_RANGE` when `params` is not what the view declared.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
+     * `E_UNKNOWN_CAMERA` `{ name, available }` (camera views, then saved views) when nothing
+     * answers to the name, `E_UNSUPPORTED` when the view does not work in the drawing mode the
+     * element is in, or `E_UNKNOWN_OPTION` / `E_OPTION_RANGE` when `params` is not what the view
+     * declared.
      */
     resolveCameraPreset(
         preset: string,
@@ -9833,11 +9842,28 @@ export class Graph implements GraphContext {
            can never be shadowed this way, so asking the views first is what gives a registered
            view the same protection the element's own five have. A snapshot whose name no view
            holds is still reached by the name its author chose. */
+        if (typeof preset !== "string" || preset.trim() === "") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "a view name is a string with something in it",
+                source: "view",
+                details: { reason: "empty-name" },
+            });
+        }
+
         if (!isCameraViewName(preset)) {
             const snapshot = this.session.views.get(preset);
             if (snapshot) {
                 return snapshot;
             }
+            // The same details viewProblem gives: every name that would have answered.
+            const available = [...cameraViewIds(), ...this.session.views.keys()];
+            throw new GraphtyError({
+                code: "E_UNKNOWN_CAMERA",
+                message: `no camera view or saved view is named "${preset}". The names that answer are: ${available.join(", ")}`,
+                source: "view",
+                details: { name: preset, available },
+            });
         }
 
         const context = this.cameraViewContext(this.boundsToFrame(options?.nodes, options?.extent), options?.params);

@@ -73,7 +73,7 @@ if (import.meta.env.VITE_REMOTE_LOG_URL) {
     const remoteLogging = GraphtyLogger.configure({
         enabled: true,
         level: LogLevel.INFO,
-        modules: ["autosave", "workspace", "view", "algorithm", "acceleration"],
+        modules: ["autosave", "workspace", "view", "algorithm", "acceleration", "layout", "data", "style", "command"],
     });
     logUncaught();
     void remoteLogging.then(logPageStart); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the logger

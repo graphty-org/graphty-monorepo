@@ -1,4 +1,4 @@
-import { DataRow, FileSource, ModalFooter, UiGlyph, useFileDrop } from "@graphty/compact-mantine";
+import { DataRow, FileSource, ModalFooter, ScrollArea, UiGlyph, useFileDrop } from "@graphty/compact-mantine";
 import {
     assetFileExtensions,
     detectModelFormat,
@@ -25,7 +25,6 @@ import {
     Group,
     Loader,
     Modal,
-    ScrollArea,
     Stack,
     Text,
     TextInput,

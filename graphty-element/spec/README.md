@@ -852,10 +852,9 @@ kind) is opened through a migration into the sections above:
   `join.add`, its node ids as the key column in the space `source:<id>`, its types carried as a
   column under a type rule, and an empty reader source; its `metadata` holds the version 1
   `sources` member verbatim, and each node's original `_source.loads` is the copy column
-  `version-1-loads`; values the session member holds per element by id are columns of that
-  source like any other, named by 4.1.8 rule 3 when a column of that name is already taken, and
-  every path that reads them, in a layer, a set rule, a condition or a filter, reads
-  `data.<column>`; each layer reading them is an ordinary layer (4.2 rule 1);
+  `version-1-loads`; the per-element values a session member's `fileStyles` holds outside the
+  data are left out and reported (`W_MEMBER_LEFT_OUT`, pointer `/fileStyles`), since a version 2
+  load holds a file's looks as ordinary columns of its source;
 - hidden columns go into view, `columns.types` into `conversions`, declared measurements and
   ordinal orders into the type schemas (one on a column no type carries is reported as dropped),
   ignored issues unchanged, kept pairs into `issues.kept`;

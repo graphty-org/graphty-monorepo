@@ -34,7 +34,7 @@ import type {
     SectionWrite,
     WriteContext,
 } from "../types";
-import { type LoadedLooks, loadedLooksAsColumns, typedIds } from "./dataRefs";
+import { typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { asName, columnSchema, dataColumnsIn, isNamespace, namespaceFromId, splitRunId } from "./recipeCommands";
 import { fileIdsOf, fileSetId } from "./viewParts";
@@ -297,19 +297,10 @@ function bareSetId(id: string): string {
  * @param id - The id to write.
  * @param rowId - The written id of the layer named by `row`.
  * @param session - The session, for the file ids of the sets a selector names.
- * @param looks - The look values a load kept, as columns.
  * @returns The layer.
  */
-function writeLayer(
-    spec: LayerSpec,
-    id: string,
-    rowId: string | undefined,
-    session: GraphSession,
-    looks?: LoadedLooks,
-): JsonObject {
-    // Temporary, with loadedLooksAsColumns (issue 8259): a layer filed under a load's template
-    // writes no source, as a layer the reader made does.
-    const source = spec.source?.by === "user" || looks?.madeByLoad(spec.source) ? undefined : spec.source;
+function writeLayer(spec: LayerSpec, id: string, rowId: string | undefined, session: GraphSession): JsonObject {
+    const source = spec.source?.by === "user" ? undefined : spec.source;
     return {
         id,
         name: spec.name,
@@ -384,10 +375,9 @@ function namedPalettes(layers: readonly JsonObject[]): Set<string> {
  * name and the JSON Schema type and measurement the session knows.
  * @param session - The session.
  * @param columns - The columns, as `<node|edge>:<name>`.
- * @param looks - The look values a load kept, as columns.
  * @returns The entries.
  */
-function columnDependencies(session: GraphSession, columns: ReadonlySet<string>, looks: LoadedLooks): JsonObject[] {
+function columnDependencies(session: GraphSession, columns: ReadonlySet<string>): JsonObject[] {
     const attributes = session.data.attributes();
     return [...columns].map((ref) => {
         const kind = ref.slice(0, ref.indexOf(":"));
@@ -396,9 +386,7 @@ function columnDependencies(session: GraphSession, columns: ReadonlySet<string>,
         return {
             kind,
             name,
-            // Temporary, with loadedLooksAsColumns (issue 8259): a look column is no session attribute yet.
-            schema:
-                column === undefined ? (looks.schemas.get(ref) ?? {}) : columnSchema(column.type, column.measurement),
+            schema: column === undefined ? {} : columnSchema(column.type, column.measurement),
         };
     });
 }
@@ -440,14 +428,9 @@ function readsOf(layer: JsonObject, columns: Set<string>, runs: Set<string>, typ
  * What the layers need from the data: the columns and runs they read (spec 3.6).
  * @param session - The session, for the columns' types.
  * @param layers - The written layers.
- * @param looks - The look values a load kept, as columns.
  * @returns `dependencies`, or undefined when they read nothing.
  */
-function dependenciesOf(
-    session: GraphSession,
-    layers: readonly JsonObject[],
-    looks: LoadedLooks,
-): JsonObject | undefined {
+function dependenciesOf(session: GraphSession, layers: readonly JsonObject[]): JsonObject | undefined {
     const columns = new Set<string>();
     const runs = new Set<string>();
     const types = new Set<string>();
@@ -455,7 +438,7 @@ function dependenciesOf(
         readsOf(layer, columns, runs, types);
     }
 
-    const written = columnDependencies(session, columns, looks);
+    const written = columnDependencies(session, columns);
     const dependencies = {
         ...(written.length === 0 ? {} : { columns: written }),
         ...(types.size === 0 ? {} : { types: [...types] }),
@@ -499,11 +482,7 @@ function palettesFor(
  */
 function compose(session: GraphSession, problems: DocumentProblem[]): SectionWrite {
     const memory = memoryOf(session);
-    const held = withAcceptedAssetIds(session, session.styles.toDocument());
-    // Temporary, with loadedLooksAsColumns (issue 8259): the layers read look values as ordinary
-    // columns before their dependencies are gathered; the save framing rewrites the rest of the body.
-    const looks = loadedLooksAsColumns(session);
-    const document = { ...held, layers: held.layers.map((layer) => looks.rewrite(layer)) };
+    const document = withAcceptedAssetIds(session, session.styles.toDocument());
     const ids = session.styles
         .list()
         .filter((layer) => !layer.locked)
@@ -519,7 +498,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
         const id = ids[place];
         const opened = memory.layers.get(id);
         const rowId = spec.row === undefined ? undefined : writtenId(spec.row);
-        if (opened?.baseline === baselineOf(writeLayer(spec, "", rowId, session, looks))) {
+        if (opened?.baseline === baselineOf(writeLayer(spec, "", rowId, session))) {
             // Unchanged since the open (a `type` selector applied by id included): as the file held it.
             placeIds.push(writtenId(id));
             layers.push(opened.original);
@@ -531,7 +510,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
             // Edited, but still on the elements of its types: its own id and its type selector.
             const own = writtenId(id);
             placeIds.push(own);
-            layers.push({ ...writeLayer(spec, own, rowId, session, looks), selector: typed });
+            layers.push({ ...writeLayer(spec, own, rowId, session), selector: typed });
             return;
         }
 
@@ -546,7 +525,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
 
         const own = writtenId(id);
         placeIds.push(own);
-        layers.push(writeLayer(spec, own, rowId, session, looks));
+        layers.push(writeLayer(spec, own, rowId, session));
     });
 
     // A layer this release could not apply goes back after the layer it followed in its file.
@@ -581,7 +560,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
     }
 
     const { dependencies: _was, ...header } = memory.header;
-    const dependencies = dependenciesOf(session, layers, looks);
+    const dependencies = dependenciesOf(session, layers);
     return { header: { ...header, ...(dependencies === undefined ? {} : { dependencies }) }, body };
 }
 

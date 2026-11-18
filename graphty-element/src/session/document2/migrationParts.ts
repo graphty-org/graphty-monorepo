@@ -8,8 +8,7 @@
 import { sha256HexSync } from "@graphty/graph-io";
 
 import { GraphtyError } from "../../errors/GraphtyError";
-import { FILE_TEMPLATE_PREFIX } from "../styles/fileStyles/store";
-import { canonicalJson as sharedCanonicalJson, freeColumnName, LOOK_TAKEN, lookPathsRewrite } from "./codecs/dataRefs";
+import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
 import type { DocumentProblem, EdgeRef, JsonObject, NodeRef } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -193,10 +192,6 @@ export interface MigratedData {
     readonly directed: boolean;
     /** The migrated source's id. */
     readonly source: string;
-    /** From each version 1 path to a file's look value to the ordinary column holding it, `data.<column>`. */
-    readonly lookPaths: ReadonlyMap<string, string>;
-    /** The templates (`file:<importId>`) of the version 1 loads whose look values are now columns. */
-    readonly lookTemplates: ReadonlySet<string>;
     /** The version 1 `data.knownFields` names the mapping carries as roles (`edgeIdPath`, ...). */
     readonly carried: ReadonlySet<string>;
 }
@@ -241,97 +236,13 @@ function namesKinds(value: unknown): boolean {
 }
 
 /**
- * The look values a version 1 session member's `fileStyles` holds (a file's colors, sizes...), as
- * ordinary columns of the migrated source: named by their key, or `<key> (<source id>)` when an
- * element the values cover already holds a different value of that name or an element they do
- * not cover holds that name at all, as a save names the same values; and the path each was read
- * at, now `data.<column>`.
- * @param session - The session member.
- * @param source - The migrated source's id.
- * @param graph - The version 1 nodes and links, whose columns' names are taken.
- * @param graph.nodes - The nodes.
- * @param graph.links - The links.
- * @returns Per node key and per link position, each column's value; and the paths.
- */
-function lookColumns(
-    session: JsonObject | undefined,
-    source: string,
-    graph: { readonly nodes: readonly unknown[]; readonly links: readonly unknown[] },
-): {
-    nodes: Map<string, Record<string, unknown>>;
-    edges: Map<number, Record<string, unknown>>;
-    paths: Map<string, string>;
-} {
-    const nodes = new Map<string, Record<string, unknown>>();
-    const edges = new Map<number, Record<string, unknown>>();
-    const paths = new Map<string, string>();
-    // Each element's record, by node key and by link position.
-    const records = {
-        node: new Map<string | number, Record<string, unknown>>(
-            graph.nodes.flatMap((node) => (isObject(node) ? [[keyText(node.id), node] as const] : [])),
-        ),
-        edge: new Map<string | number, Record<string, unknown>>(
-            graph.links.flatMap((link, at) => (isObject(link) ? [[at, link] as const] : [])),
-        ),
-    };
-    const looked = {
-        node: nodes as Map<string | number, Record<string, unknown>>,
-        edge: edges as Map<string | number, Record<string, unknown>>,
-    };
-    // Whether an element holds a name so far, in its record or an earlier look, and its value.
-    const held = (kind: "node" | "edge", id: string | number, name: string): { value: unknown } | undefined => {
-        const look = looked[kind].get(id);
-        if (look !== undefined && name in look) {
-            return { value: look[name] };
-        }
-
-        const record = records[kind].get(id);
-        return record !== undefined && name in record ? { value: record[name] } : undefined;
-    };
-    for (const load of objectsOf(session?.fileStyles)) {
-        for (const column of objectsOf(load.columns)) {
-            const kind = column.kind === "edge" ? "edge" : "node";
-            const key = String(column.key);
-            const ids = Array.isArray(column.ids) ? (column.ids as unknown[]) : [];
-            const values = Array.isArray(column.values) ? (column.values as unknown[]) : [];
-            const covered = new Map<string | number, unknown>();
-            ids.forEach((id, at) => {
-                if (kind === "edge" && typeof id === "number" && id >= 0) {
-                    covered.set(id, values[at] ?? null);
-                } else if (kind === "node") {
-                    covered.set(keyText(id), values[at] ?? null);
-                }
-            });
-            // Taken by the same test a save uses: a different value on an element the values cover,
-            // or the name on any element they do not cover.
-            const taken = (name: string): boolean =>
-                (LOOK_TAKEN[kind] as readonly string[]).includes(name) ||
-                name === LOADS_COLUMN ||
-                [...covered].some(([id, value]) => {
-                    const row = held(kind, id, name);
-                    return row !== undefined && sharedCanonicalJson(row.value) !== sharedCanonicalJson(value);
-                }) ||
-                [...records[kind].keys()].some((id) => !covered.has(id) && held(kind, id, name) !== undefined);
-            const name = freeColumnName(key, source, taken);
-            paths.set(`graphty.style.${String(load.namespace)}.${kind}.${key}`, `data.${name}`);
-            for (const [id, value] of covered) {
-                looked[kind].set(id, { ...looked[kind].get(id), [name]: value });
-            }
-        }
-    }
-
-    return { nodes, edges, paths };
-}
-
-/**
  * A row of a version 1 node or link: its members but provenance, which goes to its own column.
  * @param record - The node or link.
- * @param extra - The file-style values it carries.
  * @returns The row's values.
  */
-function rowOf(record: JsonObject, extra: Record<string, unknown> | undefined): Record<string, unknown> {
+function rowOf(record: JsonObject): Record<string, unknown> {
     const { [PROVENANCE]: loads, ...values } = record;
-    return { ...values, ...(Array.isArray(loads) ? { [LOADS_COLUMN]: loads } : {}), ...extra };
+    return { ...values, ...(Array.isArray(loads) ? { [LOADS_COLUMN]: loads } : {}) };
 }
 
 /**
@@ -712,18 +623,12 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const { data, session } = inputs;
     const graph = isObject(data.graph) ? data.graph : {};
     const directed = graph.directed !== false;
-    // The source id comes first, since a look column whose name is taken is named after it.
-    const sourceUlid = ulidOf(`source\u0000${canonicalJson({ graph, fileStyles: session?.fileStyles ?? null })}`);
+    const sourceUlid = ulidOf(`source\u0000${canonicalJson(graph)}`);
     const source = `src_${sourceUlid}`;
     const v1Nodes = Array.isArray(graph.nodes) ? (graph.nodes as unknown[]) : [];
     const v1Links = Array.isArray(graph.links) ? (graph.links as unknown[]) : [];
-    const looks = lookColumns(session, source, { nodes: v1Nodes, links: v1Links });
-    const nodeRows = v1Nodes.flatMap((node, at): Row[] =>
-        isObject(node) ? [{ values: rowOf(node, looks.nodes.get(keyText(node.id))), at }] : [],
-    );
-    const edgeRows = v1Links.flatMap((link, at): Row[] =>
-        isObject(link) ? [{ values: rowOf(link, looks.edges.get(at)), at }] : [],
-    );
+    const nodeRows = v1Nodes.flatMap((node, at): Row[] => (isObject(node) ? [{ values: rowOf(node), at }] : []));
+    const edgeRows = v1Links.flatMap((link, at): Row[] => (isObject(link) ? [{ values: rowOf(link), at }] : []));
 
     const nodeTable = tableOf(nodeRows);
     const edgeTable = tableOf(edgeRows);
@@ -802,12 +707,6 @@ export function migrateData(inputs: DataInputs): MigratedData {
     return {
         section,
         dataId,
-        lookPaths: looks.paths,
-        lookTemplates: new Set(
-            objectsOf(session?.fileStyles).flatMap((load) =>
-                typeof load.importId === "string" ? [`${FILE_TEMPLATE_PREFIX}${load.importId}`] : [],
-            ),
-        ),
         source,
         binding: { build, sources: { reader: readerCopy, [source]: copyId } },
         nodeRef,
@@ -822,15 +721,4 @@ export function migrateData(inputs: DataInputs): MigratedData {
             ].flatMap(([name, column]) => (column === undefined ? [] : [String(name)])),
         ),
     };
-}
-
-/**
- * A value (a layer, a filter) with every path to a version 1 look value reading its ordinary
- * column, as any column is read (spec 9.1).
- * @param value - The value.
- * @param data - The migrated data.
- * @returns The value.
- */
-export function readLookColumns<T>(value: T, data: MigratedData | undefined): T {
-    return lookPathsRewrite(data?.lookPaths ?? new Map<string, string>())(value);
 }

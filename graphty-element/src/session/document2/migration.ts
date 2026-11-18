@@ -49,7 +49,6 @@ import {
     migrateData,
     type MigratedData,
     objectsOf,
-    readLookColumns,
     ulidOf,
 } from "./migrationParts";
 import type { DocumentProblem, DocumentSection, EdgeRef, JsonObject, NodeRef } from "./types";
@@ -405,23 +404,14 @@ function renameSets<T>(value: T, context: Context): T {
 }
 
 /**
- * A layer without its `source` when nothing can make it again. A layer the reader made writes no
- * source (an absent source means no run, template or plugin made it), and neither does a layer
- * filed under the template of a load whose look values the data migration made ordinary columns:
- * nothing can make it from that template again, so it is an ordinary layer.
+ * A layer without its `source` when the reader made it: an absent source means no run, template or
+ * plugin made it.
  * @param layer - The layer.
- * @param data - The migrated data, when the file has any.
  * @returns The layer, or a copy without its source.
  */
-function withoutUnmadeSource(layer: JsonObject, data: Context["data"]): JsonObject {
-    const made = isObject(layer.source) ? layer.source : undefined;
-    const unmade =
-        made !== undefined &&
-        (made.by === "user" ||
-            (made.by === "template" &&
-                typeof made.templateId === "string" &&
-                (data?.lookTemplates.has(made.templateId) ?? false)));
-    return unmade ? Object.fromEntries(Object.entries(layer).filter(([key]) => key !== "source")) : layer;
+function withoutReaderSource(layer: JsonObject): JsonObject {
+    const byReader = isObject(layer.source) && layer.source.by === "user";
+    return byReader ? Object.fromEntries(Object.entries(layer).filter(([key]) => key !== "source")) : layer;
 }
 
 /**
@@ -455,7 +445,7 @@ function migrateStyle(
 
         used.add(id);
         const { id: _id, name, kind: _kind, fileStyle: _fileStyle, ...withSource } = layer;
-        const rest = withoutUnmadeSource(withSource, data);
+        const rest = withoutReaderSource(withSource);
         const named = layerNames(layer, sets);
         const rename = named ? asRunId : asName;
         const source = isObject(rest.source) && typeof rest.source.runId === "string" ? rest.source : undefined;
@@ -492,9 +482,7 @@ function migrateStyle(
 
     const session = context.members.get("graphty-session");
     const valueLabels = objectsOf(session?.valueLabels).flatMap((label, at) => {
-        const { value } = label;
-        // A label on a file's look value labels the ordinary column that holds it now.
-        const path = readLookColumns(label.path, data);
+        const { path, value } = label;
         const plain = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
         if (typeof path !== "string" || typeof label.label !== "string" || !plain) {
             problems.push(leftOut("graphty-session", `/valueLabels/${String(at)}`));
@@ -1418,25 +1406,9 @@ function sectionsOf(
             : undefined;
     }
 
-    return lookPathsAsColumns(sections, data);
-}
-
-/**
- * Every path to a version 1 look value, wherever a section holds it (a layer, a set rule, a
- * condition, a filter), rewritten to read its ordinary column.
- * @param sections - The migrated sections.
- * @param data - The migrated data, when the file has any.
- * @returns The same sections, rewritten.
- */
-function lookPathsAsColumns(
-    sections: Partial<Record<DocumentSection, JsonObject>>,
-    data: Context["data"],
-): Partial<Record<DocumentSection, JsonObject>> {
-    for (const name of ORDER) {
-        const section = sections[name];
-        if (name !== "data" && section !== undefined) {
-            sections[name] = readLookColumns(section, data);
-        }
+    // Version 1 kept a load's looks outside its data; version 2 holds them as the load's own columns.
+    if (session?.fileStyles !== undefined) {
+        problems.push(leftOut("graphty-session", "/fileStyles"));
     }
 
     return sections;

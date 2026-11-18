@@ -306,131 +306,25 @@ describe("a version 1 project file, migrated", () => {
 });
 
 describe("version 1 file styles, migrated", () => {
-    it("makes them ordinary columns of the migrated source, read by data paths and written into the graph", async () => {
+    it("leaves out and reports the look values version 1 kept outside the data", async () => {
         const session = await busySession();
         const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
-        const member = (kind: string): JsonObject =>
-            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
-        member("graphty-session").fileStyles = [
-            {
-                importId: "load-1",
-                namespace: "gexf",
-                columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }],
-            },
-        ];
-        (member("graphty-style").layers as JsonObject[]).push({
-            id: "from-file",
-            name: "From the file",
-            source: { by: "template", templateId: "file:load-1" },
-            selector: { match: "everything" },
-            encode: { "node.color": { by: "graphty.style.gexf.node.color" } },
-        });
-        const v2 = migrateDocument1(v1, []);
-        const sections = v2?.sections as Record<string, JsonObject>;
-        const source = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived") as JsonObject;
-        assert.property((source.copy as JsonObject).nodes, "color");
-        const layer = (sections.style.layers as JsonObject[]).find((each) => each.name === "From the file");
-        assert.deepEqual((layer?.encode as JsonObject)["node.color"], { by: "data.color" });
-        assert.notProperty(layer, "source", "nothing can make it from its load's template again");
-        assert.notInclude(JSON.stringify(v2), "graphty.style");
-        const graph = sections.data.graph as JsonObject;
-        const a = (graph.nodes as JsonObject[]).find((node) => node["graphty.key"] === "a");
-        assert.strictEqual(a?.color, "#ff0000");
-        session.dispose();
-    });
-
-    it("reads the column in set rules and the filter, and gives repeated names a column each", async () => {
-        const session = await busySession();
-        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
-        const member = (kind: string): JsonObject =>
-            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
-        // Three loads give a node "color", and the data has a "dept" look of the same name.
-        const column = (key: string, value: string): JsonObject => ({ kind: "node", key, ids: ["a"], values: [value] });
-        const sessionMember = member("graphty-session");
-        sessionMember.fileStyles = [
-            { namespace: "gexf", columns: [column("color", "#ff0000"), column("dept", "x")] },
-            { namespace: "gexf-2", columns: [column("color", "#00ff00")] },
-            { namespace: "gexf-3", columns: [column("color", "#0000ff")] },
-        ];
-        // The rule set and the filter read the second load's color instead of a data column.
-        const rewired = JSON.parse(
-            JSON.stringify({ sets: sessionMember.sets, visibility: sessionMember.visibility }).replaceAll(
-                "data.dept",
-                'graphty.style.\\"gexf-2\\".node.color',
-            ),
+        const sessionMember = (v1.members as JsonObject[]).find(
+            (each) => each.kind === "graphty-session",
         ) as JsonObject;
-        Object.assign(sessionMember, rewired);
-
-        const v2 = migrateDocument1(v1, []);
-        assert.isDefined(v2);
-        assert.deepStrictEqual(invalid(v2), []);
-        assert.notInclude(JSON.stringify(v2), "graphty.style");
-        const sections = v2.sections as Record<string, JsonObject>;
-        const source = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived") as JsonObject;
-        const id = String(source.id);
-        const names = [`color`, `color (${id})`, `color (${id}) 2`, `dept (${id})`];
-        assert.includeMembers(Object.keys((source.copy as { nodes: JsonObject }).nodes), names);
-        const view = JSON.stringify(sections.view);
-        assert.include(view, JSON.stringify(`data.${JSON.stringify(`color (${id})`)}`).slice(1, -1));
-        session.dispose();
-    });
-
-    it("paints the layer from the ordinary column once the migrated file is open", async () => {
-        const source = createGraphSession();
-        await source.data.addNodes([{ id: "a" }, { id: "b" }]);
-        const v1 = JSON.parse((await source.project.save({ format: 1 })).text) as JsonObject;
-        const member = (kind: string): JsonObject =>
-            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
-        member("graphty-session").fileStyles = [
-            { namespace: "gexf", columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }] },
-        ];
-        (member("graphty-style").layers as JsonObject[]).push({
-            id: "from-file",
-            name: "From the file",
-            target: "node",
-            selector: { match: "everything" },
-            encode: { "node.color": { by: "graphty.style.gexf.node.color", scale: "passthrough" } },
-        });
-        const session = createGraphSession({ features: ["save-files-v2"] });
-        await session.project.open(JSON.stringify(v1), { migrate: true });
-        const layer = session.styles.list().find((each) => each.name === "From the file");
-        assert.isDefined(layer);
-        assert.isTrue(layer.enabled, "its column is answered, so the layer is not unbound");
-        const color = session.styles.explain({ node: "a" }).merged["node.color"] as { hex: string };
-        assert.strictEqual(color.hex, "#ff0000");
-        source.dispose();
-        session.dispose();
-    });
-
-    it("keeps a value label on a look value as a label on its column, and shares a column holding the same value", async () => {
-        const source = createGraphSession();
-        await source.data.addNodes([{ id: "a", color: "#ff0000" }, { id: "b" }]);
-        const v1 = JSON.parse((await source.project.save({ format: 1 })).text) as JsonObject;
-        const member = (kind: string): JsonObject =>
-            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
-        const sessionMember = member("graphty-session");
         sessionMember.fileStyles = [
             { namespace: "gexf", columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }] },
         ];
-        sessionMember.valueLabels = [{ path: "graphty.style.gexf.node.color", value: "#ff0000", label: "Red" }];
         const problems: DocumentProblem[] = [];
         const v2 = migrateDocument1(v1, problems);
         assert.isDefined(v2);
-        const sections = v2.sections as Record<string, JsonObject>;
-        assert.deepInclude(sections.style.valueLabels as JsonObject[], {
-            path: "data.color",
-            value: "#ff0000",
-            label: "Red",
-        });
-        assert.notDeepInclude(problems, {
+        assert.deepStrictEqual(invalid(v2), []);
+        assert.deepInclude(problems, {
             code: "W_MEMBER_LEFT_OUT",
-            params: { kind: "graphty-session", pointer: "/valueLabels/0" },
+            params: { kind: "graphty-session", pointer: "/fileStyles" },
         });
-        const copy = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived")?.copy as {
-            nodes: JsonObject;
-        };
-        assert.notInclude(JSON.stringify(Object.keys(copy.nodes)), "color (", "the same value shares the column");
-        source.dispose();
+        assert.notInclude(JSON.stringify(v2.sections), "#ff0000");
+        session.dispose();
     });
 });
 

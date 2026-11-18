@@ -101,12 +101,12 @@ them that names an element or a dataset.
 
 **Bound to one dataset.** These name particular nodes and edges, and say which data they belong to.
 
-| Section | File                    | Holds                                                                                                                                                                                                                                                                              | Taken from version 1                                                                                  |
-| ------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| data    | `.graphty-data.json`    | the source records (each with its copy embedded, or a reference with its copy id), the reader source, the build stamp, `directed` and `repeatedEdges`, the type registry, type conversions, data issues, the join history, and the merged graph as NetworkX node-link JSON         | `graphty-data`, `graphty-sources`, the session's columns, declarations and issues, per-element values |
-| results | `.graphty-results.json` | the record: each run's outputs and the layout's, the seed each actually used, engine versions, duration, caveats, and which build of the data each ran on                                                                                                                          | the outputs of `graphty-results`                                                                      |
-| notes   | `.graphty-notes.json`   | notes (notes.md, version 2)                                                                                                                                                                                                                                                        | `graphty-notes`                                                                                       |
-| view    | `.graphty-view.json`    | the session a file is opened to: camera, saved views, selection, pinned positions, every set, the filter in force and the time window, the layer order and the layers that name elements or a dataset, every run record and the layout record, view settings, hidden table columns | `graphty-arrangement`, `graphty-view-state`, the session's views, sets, visibility, runs and layout   |
+| Section | File                    | Holds                                                                                                                                                                                                                                                                              | Taken from version 1                                                                                |
+| ------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| data    | `.graphty-data.json`    | the source records (each with its copy embedded, or a reference with its copy id), the reader source, the build stamp, `directed` and `repeatedEdges`, the type registry, type conversions, data issues, the join history, and the merged graph as NetworkX node-link JSON         | `graphty-data`, `graphty-sources`, the session's columns, declarations and issues                   |
+| results | `.graphty-results.json` | the record: each run's outputs and the layout's, the seed each actually used, engine versions, duration, caveats, and which build of the data each ran on                                                                                                                          | the outputs of `graphty-results`                                                                    |
+| notes   | `.graphty-notes.json`   | notes (notes.md, version 2)                                                                                                                                                                                                                                                        | `graphty-notes`                                                                                     |
+| view    | `.graphty-view.json`    | the session a file is opened to: camera, saved views, selection, pinned positions, every set, the filter in force and the time window, the layer order and the layers that name elements or a dataset, every run record and the layout record, view settings, hidden table columns | `graphty-arrangement`, `graphty-view-state`, the session's views, sets, visibility, runs and layout |
 
 ### The cases above, as sections
 
@@ -920,11 +920,9 @@ migration:
   `source:<id>`, its types carried as a column under a type rule, and an empty reader source. Its
   `metadata` holds the version 1 `sources` member verbatim (each original source's address or file
   name, credential slot, license and citation), and each node's original `_source.loads` is the
-  copy column `version-1-loads`. Values the session member holds per element by id are columns of
-  that source like any other, named by the `joins` clash rule above when a column of that name is
-  already taken, and every path that reads one, in a layer, a set rule, a condition or a filter,
-  reads `data.<column>`; each layer reading them is an ordinary layer (4.2 rule 1 of the spec).
-  The graph reopens exactly as saved, with every edit already in it;
+  copy column `version-1-loads`. The per-element values a session member's `fileStyles` holds
+  outside the data are left out and reported, since a version 2 load holds a file's looks as
+  ordinary columns of its source. The graph reopens exactly as saved, with every edit already in it;
 - converts the session's `columns` and `issues` members: hidden columns into view; `columns.types`
   into `conversions` entries; each `declarations` entry (keyed `<kind>:<name>`) as `measurement`
   (and, for ordinal, the `enum` order) into the schema of every type of that kind carrying the

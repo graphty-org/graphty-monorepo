@@ -1,7 +1,7 @@
 /**
- * @file The colors and sizes a file gives its elements, saved in a version 2 file: they are
- * ordinary columns of the source's data, read by layers as `data.<column>`, and the reopened
- * session draws what the loaded one drew.
+ * @file The colors and sizes a file gives its elements, saved in a version 2 file: a load keeps
+ * them as ordinary columns of its source, so a save writes them as it writes any column, embedded
+ * or by reference, and a reader's edit of one survives as any edited column does.
  */
 
 import { afterEach, assert, describe, it, vi } from "vitest";
@@ -9,9 +9,16 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 import { dataCodec } from "../../../src/session/document2/codecs/data";
 import { elementRefsOf } from "../../../src/session/document2/codecs/dataRefs";
-import type { DocumentProblem, JsonObject, WriteContext } from "../../../src/session/document2/types";
+import type {
+    DocumentProblem,
+    DocumentSection,
+    JsonObject,
+    ReadContext,
+    WriteContext,
+} from "../../../src/session/document2/types";
 
 const ON = { features: ["save-files-v2", "file-styles"] };
+const URL_OF_RING = "https://example.org/ring.gexf";
 
 /** Six nodes in a ring, each with its own color and size. */
 const GEXF = `<?xml version="1.0" encoding="UTF-8"?>
@@ -32,8 +39,8 @@ ${Array.from({ length: 6 }, (_unused, i) => `<edge source="n${String(i)}" target
  * @param session - The session.
  * @returns The values, by node.
  */
-function drawn(session: GraphSession): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
+function drawn(session: GraphSession): Record<string, { color?: string; size?: unknown }> {
+    const out: Record<string, { color?: string; size?: unknown }> = {};
     for (const node of session.data.nodes()) {
         const { merged } = session.styles.explain({ node: node.id });
         const color = merged["node.color"] as { hex?: string } | undefined;
@@ -43,42 +50,115 @@ function drawn(session: GraphSession): Record<string, unknown> {
     return out;
 }
 
+/**
+ * The ring loaded with its looks, from its text or from its URL.
+ * @param from - Where the file comes from.
+ * @returns The session.
+ */
+async function ring(from: "text" | "url" = "text"): Promise<GraphSession> {
+    const session = createGraphSession(ON);
+    const config = from === "url" ? { url: URL_OF_RING } : { data: GEXF };
+    await session.data.import({ type: "gexf", config }, { styles: "file" });
+    return session;
+}
+
+/**
+ * The column the file's fill color is held in: the node column whose value on `n0` is the color
+ * `n0` is drawn with.
+ * @param session - The session.
+ * @returns The column.
+ */
+function fillColumn(session: GraphSession): string {
+    const color = drawn(session).n0.color?.toLowerCase();
+    const n0: Record<string, unknown> = session.data.node("n0") ?? {};
+    const name = Object.keys(n0).find((key) => String(n0[key]).toLowerCase() === color);
+    assert.isDefined(name, "a column holds the fill the file gave");
+    return name;
+}
+
+/**
+ * The data section's body as the codec writes it.
+ * @param session - The session.
+ * @param embed - Embedded or referenced per source.
+ * @returns The body and what the write reported.
+ */
+async function writeData(
+    session: GraphSession,
+    embed: WriteContext["embed"] = {},
+): Promise<{ body: JsonObject; problems: DocumentProblem[] }> {
+    const problems: DocumentProblem[] = [];
+    const { body } = await dataCodec.write({
+        session,
+        problems,
+        refs: () => elementRefsOf(session),
+        dataId: () => "data-1",
+        sections: new Set<DocumentSection>(["data"]),
+        embed,
+        isDerived: () => false,
+        bindsTo: () => Promise.resolve(undefined),
+    });
+    return { body, problems };
+}
+
+/**
+ * Read a data body into a new session through the codec.
+ * @param body - The body.
+ * @returns The session and what the read reported.
+ */
+async function readData(body: JsonObject): Promise<{ session: GraphSession; problems: DocumentProblem[] }> {
+    const session = createGraphSession(ON);
+    const problems: DocumentProblem[] = [];
+    await session.transaction("Open data", async (tx) => {
+        const context: ReadContext = {
+            session,
+            problems,
+            refs: () => elementRefsOf(session),
+            dataId: () => "data-1",
+            sections: new Set<DocumentSection>(["data"]),
+            tx,
+            rerun: true,
+            dataMode: "replace",
+            restored: new Set(),
+            other: () => undefined,
+            canned: new Map(),
+            restoreDerived: () => undefined,
+        };
+        await dataCodec.read({ header: { kind: "graphty-data", version: 2 }, body, pointer: "" }, context);
+    });
+    return { session, problems };
+}
+
+/**
+ * The source the ring was loaded into, as a data body writes it.
+ * @param body - The body.
+ * @returns Its record.
+ */
+function ringSource(body: JsonObject): JsonObject {
+    return (body.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
+}
+
 describe("a file's looks in a version 2 save file", () => {
-    it("saves them as ordinary columns read by data paths, and reopens drawing the same", async () => {
-        const session = createGraphSession(ON);
-        await session.data.import({ type: "gexf", config: { data: GEXF } }, { styles: "file" });
-        const before = drawn(session) as Record<string, { color?: string; size?: unknown }>;
+    it("saves an embedded GEXF's viz colors as columns of its source, and reopens drawing the same", async () => {
+        const session = await ring();
+        const before = drawn(session);
         // The file's own values are drawn: each node has its own color and size.
         assert.isDefined(before.n0.color);
         assert.notStrictEqual(before.n0.color, before.n1.color);
         assert.notStrictEqual(before.n0.size, before.n1.size);
+        const fill = fillColumn(session);
 
         const saved = await session.project.save({ format: 2 });
         assert.notInclude(saved.text, "graphty.style");
         assert.notInclude(saved.text, "fileStyle");
-        assert.notDeepInclude(
-            saved.report.leftOut.map((problem) => problem.params),
-            { kind: "graphty-session", field: "fileStyles" },
-        );
+        assert.deepEqual(saved.report.leftOut, []);
 
-        // The colors are a column of the source's copy and of the graph, and a layer reads it as data.
+        // The fill is a column of the source's copy and of the graph, and a layer reads it as data.
         const file = JSON.parse(saved.text) as { sections: Record<string, JsonObject> };
         const { data, style } = file.sections;
-        const source = (data.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
-        const copied = Object.keys((source.copy as { nodes: JsonObject }).nodes).filter((name) => name !== "id");
-        assert.isNotEmpty(copied);
-        const graphNode = (data.graph as { nodes: JsonObject[] }).nodes[0];
-        for (const column of copied) {
-            assert.property(graphNode, column);
-        }
-        const reads = JSON.stringify(style.layers);
-        assert.isTrue(
-            copied.some((column) => reads.includes(`data.${column}`)),
-            `a layer reads one of ${copied.join(", ")}`,
-        );
-        for (const layer of style.layers as JsonObject[]) {
-            assert.notProperty(layer, "source", `layer ${String(layer.name)} writes no source`);
-        }
+        const copy = (ringSource(data).copy as { nodes: JsonObject }).nodes;
+        assert.property(copy, fill);
+        assert.property((data.graph as { nodes: JsonObject[] }).nodes[0], fill);
+        assert.include(JSON.stringify(style.layers), `data.${fill}`);
 
         const reopened = createGraphSession(ON);
         await reopened.project.open(saved.text);
@@ -87,119 +167,59 @@ describe("a file's looks in a version 2 save file", () => {
         reopened.dispose();
     });
 
-    it("saves a filter and a set rule on a look value as reading its column, and reopens matching the same", async () => {
-        const session = createGraphSession(ON);
-        await session.data.import({ type: "gexf", config: { data: GEXF } }, { styles: "file" });
-        // The size each node is drawn at, from the file's sizes 2 to 7: the larger nodes only.
-        const where = "graphty.style.gexf.node.el.by.copy.width > `1`";
-        await session.visibility.set({ kind: "expression", where });
-        session.sets.create({ kind: "rule", where, reading: "induced" }, { name: "Large" });
-        const members = async (target: GraphSession): Promise<string[]> => {
-            const id = target.sets.list().find((set) => set.name === "Large")?.id;
-            const held: string[] = [];
-            for (const node of target.data.nodes()) {
-                if (id !== undefined && (await target.sets.containing({ node: node.id })).sets.includes(id)) {
-                    held.push(String(node.id));
-                }
-            }
-
-            return held.sort();
-        };
-        const large = await members(session);
-        assert.includeMembers(large, ["n5"]);
-        assert.notInclude(large, "n0");
-
-        const saved = await session.project.save({ format: 2 });
-        assert.notInclude(saved.text, "graphty.style");
-        const recipe = await session.project.save({ format: 2, sections: ["recipe"] });
-        assert.notInclude(recipe.text, "graphty.style");
-
-        const reopened = createGraphSession(ON);
-        await reopened.project.open(saved.text);
-        assert.deepEqual(await members(reopened), large);
-        session.dispose();
-        reopened.dispose();
-    });
-
-    it("names a second load's values beside the first's, so each load's layers keep painting its own nodes", async () => {
-        const session = createGraphSession(ON);
-        await session.data.import({ type: "gexf", config: { data: GEXF } }, { styles: "file" });
+    it("keeps each of two loads' looks painting its own nodes through a reopen", async () => {
+        const session = await ring();
         const second = GEXF.replaceAll('id="n', 'id="m')
             .replaceAll('source="n', 'source="m')
             .replaceAll('target="n', 'target="m')
             .replaceAll('"200"', '"90"');
         await session.data.import({ type: "gexf", config: { data: second } }, { styles: "file", mode: "merge" });
-        const before = drawn(session) as Record<string, { color?: string }>;
+        const before = drawn(session);
         assert.notStrictEqual(before.n0.color, before.m0.color, "the two files give different colors");
 
         const saved = await session.project.save({ format: 2 });
-        assert.notInclude(saved.text, "graphty.style");
-        const file = JSON.parse(saved.text) as { sections: Record<string, JsonObject> };
-        const sources = (file.sections.data.sources as JsonObject[]).filter((each) => each.kind !== "reader");
-        assert.lengthOf(sources, 2);
-        // A layer reading a name both loads held would paint the other load's nodes too.
-        const other = Object.keys((sources[1].copy as { nodes: JsonObject }).nodes);
-        assert.isTrue(other.some((name) => name.endsWith(` (${String(sources[1].id)})`)));
-
         const reopened = createGraphSession(ON);
         await reopened.project.open(saved.text);
         assert.deepEqual(drawn(reopened), before);
-        session.dispose();
-        reopened.dispose();
-    });
-
-    it("names a look column beside a different value the same node already holds", async () => {
-        const session = createGraphSession(ON);
-        await session.data.import({ type: "gexf", config: { data: GEXF } }, { styles: "file" });
-        await session.data.updateNodes([{ id: "n0", values: { "copy.fill": "mine" } }]);
-        const before = drawn(session);
-
-        const saved = await session.project.save({ format: 2 });
-        const file = JSON.parse(saved.text) as { sections: Record<string, JsonObject> };
-        const source = (file.sections.data.sources as JsonObject[]).find(
-            (each) => each.kind !== "reader",
-        ) as JsonObject;
-        const { nodes } = source.copy as { nodes: JsonObject };
-        const beside = `copy.fill (${String(source.id)})`;
-        assert.property(nodes, "copy.fill");
-        assert.property(nodes, beside);
-        assert.include(JSON.stringify(file.sections.style), beside);
-
-        const reopened = createGraphSession(ON);
-        await reopened.project.open(saved.text);
-        assert.deepEqual(drawn(reopened), before);
-        assert.strictEqual(reopened.data.nodes().find((node) => node.id === "n0")?.["copy.fill"], "mine");
         session.dispose();
         reopened.dispose();
     });
 
     it("names the columns the layers read, with their types, in the style's dependencies", async () => {
-        const session = createGraphSession(ON);
-        await session.data.import({ type: "gexf", config: { data: GEXF } }, { styles: "file" });
+        const session = await ring();
         const saved = await session.project.save({ format: 2 });
         const file = JSON.parse(saved.text) as { sections: Record<string, JsonObject> };
-        const source = (file.sections.data.sources as JsonObject[]).find(
-            (each) => each.kind !== "reader",
-        ) as JsonObject;
-        // The look columns: those the session holds no attribute of.
-        const attributes = new Set(session.data.attributes().map((each) => each.name));
-        const copied = Object.keys((source.copy as { nodes: JsonObject }).nodes).filter(
-            (name) => name !== "id" && !attributes.has(name),
-        );
+        const copy = (ringSource(file.sections.data).copy as { nodes: JsonObject }).nodes;
         const { columns } = file.sections.style.dependencies as {
             columns: { kind: string; name: string; schema: JsonObject }[];
         };
         const nodeColumns = columns.filter((each) => each.kind === "node");
-        // Every look column is read by a layer here, whole names and all (`el.load`, `copy.fill`).
-        assert.sameMembers(
+        assert.include(
             nodeColumns.map((each) => each.name),
-            copied,
+            fillColumn(session),
         );
         for (const column of nodeColumns) {
+            assert.property(copy, column.name, `${column.name} is a column of the source`);
             assert.isNotEmpty(Object.keys(column.schema), `${column.name} carries its type`);
         }
 
         session.dispose();
+    });
+
+    it("keeps a reader's edit of a look column through a reopen", async () => {
+        const session = await ring();
+        const fill = fillColumn(session);
+        await session.data.updateNodes([{ id: "n0", values: { [fill]: "#123456" } }]);
+        const before = drawn(session);
+        assert.strictEqual(before.n0.color?.toLowerCase(), "#123456");
+
+        const saved = await session.project.save({ format: 2 });
+        const reopened = createGraphSession(ON);
+        await reopened.project.open(saved.text);
+        assert.strictEqual(reopened.data.node("n0")?.[fill], "#123456");
+        assert.deepEqual(drawn(reopened), before);
+        session.dispose();
+        reopened.dispose();
     });
 });
 
@@ -208,40 +228,45 @@ describe("a file's looks in a source saved as a reference", () => {
         vi.unstubAllGlobals();
     });
 
-    it("reports each look column it leaves out", async () => {
+    it("writes a referenced GEXF as its reference alone, reporting no look column left out", async () => {
         vi.stubGlobal("fetch", () => Promise.resolve(new Response(GEXF)));
-        const session = createGraphSession(ON);
-        await session.data.import(
-            { type: "gexf", config: { url: "https://example.org/ring.gexf" } },
-            { styles: "file" },
-        );
-        const problems: DocumentProblem[] = [];
-        const context = (embed: WriteContext["embed"]): WriteContext => ({
-            session,
-            problems,
-            refs: () => elementRefsOf(session),
-            dataId: () => "data-1",
-            sections: new Set(["data"]),
-            embed,
-            isDerived: () => false,
-            bindsTo: () => Promise.resolve(undefined),
-        });
-        const { body } = await dataCodec.write(context({}));
-        const source = (body.sources as JsonObject[]).find((each) => each.kind === "url") as JsonObject;
-        const looks = Object.keys((source.copy as { nodes: JsonObject }).nodes).filter(
-            (name) => !session.data.attributes().some((each) => each.name === name),
-        );
-        assert.isNotEmpty(looks);
-        assert.deepEqual(problems, []);
+        const session = await ring("url");
+        const fill = fillColumn(session);
+        const embedded = await writeData(session);
+        const id = String(ringSource(embedded.body).id);
+        assert.property((ringSource(embedded.body).copy as { nodes: JsonObject }).nodes, fill);
+        assert.deepEqual(embedded.problems, []);
 
-        await dataCodec.write(context({ [String(source.id)]: "referenced" }));
-        for (const name of looks) {
-            assert.deepInclude(problems, {
-                code: "W_MEMBER_LEFT_OUT",
-                params: { section: "data", pointer: `/sources/${String(source.id)}`, field: `node:${name}` },
-            });
-        }
-
+        // The looks are columns of the rows the file gives, so the reference stands for them as it
+        // stands for every other column.
+        const referenced = await writeData(session, { [id]: "referenced" });
+        const record = ringSource(referenced.body);
+        assert.notProperty(record, "copy");
+        assert.strictEqual((record.origin as JsonObject).url, URL_OF_RING);
+        assert.deepEqual(referenced.problems, []);
         session.dispose();
+    });
+
+    it("embeds a referenced GEXF whose look column the reader edited, and keeps the edit through a reopen", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(GEXF)));
+        const session = await ring("url");
+        const fill = fillColumn(session);
+        const id = String(ringSource((await writeData(session)).body).id);
+        await session.data.updateNodes([{ id: "n0", values: { [fill]: "#123456" } }]);
+
+        const { body, problems } = await writeData(session, { [id]: "referenced" });
+        // An edited source is embedded whatever was asked, as any edited column makes it.
+        assert.property(ringSource(body), "copy");
+        assert.notDeepInclude(
+            problems.map((problem) => problem.params.pointer),
+            `/sources/${id}`,
+        );
+
+        const reopened = await readData(body);
+        assert.deepEqual(reopened.problems, []);
+        assert.strictEqual(reopened.session.data.node("n0")?.[fill], "#123456");
+        assert.strictEqual(reopened.session.data.node("n1")?.[fill], session.data.node("n1")?.[fill]);
+        session.dispose();
+        reopened.session.dispose();
     });
 });

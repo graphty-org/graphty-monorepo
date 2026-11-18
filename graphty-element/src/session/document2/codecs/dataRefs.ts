@@ -18,18 +18,9 @@ import { expandedGraph } from "../../groups";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
 import { type LoadFacts, redactedParams } from "../../sources/member";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex } from "../../sources/provenance";
-import { fileStylePath } from "../../styles/fileStyles/path";
-import {
-    asFileStyleStore,
-    FILE_STYLES_VALUE,
-    FILE_TEMPLATE_PREFIX,
-    type FileStyleStore,
-} from "../../styles/fileStyles/store";
-import { quotePath, renamePaths } from "../../styles/predicate";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
 import type { BuildStamp, DocumentProblem, EdgeRef, ElementRefs, JsonObject, NodeRef, SourceStorage } from "../types";
-import { columnSchema } from "./recipeCommands";
 import { mintUlid } from "./viewParts";
 
 // ---------------------------------------------------------------------------------------------
@@ -477,8 +468,6 @@ interface DataModel {
     readonly unavailable: ReadonlyMap<string, JsonObject>;
     /** The working columns a reserved prefix left out, as `<kind>:<column>`. */
     readonly reserved: ReadonlySet<string>;
-    /** Temporary, with loadedLooksAsColumns (issue 8259): the look values a load kept, as columns. */
-    readonly looks: LoadedLooks;
 }
 
 /** The `_source.*` columns graphty-element keeps provenance in: its own, written as `_source.loads`. */
@@ -920,21 +909,17 @@ function dataModelOf(session: GraphSession): DataModel {
     const shared = sources.length === 0 ? `source:${READER}` : `source:${sources[0].id}`;
 
     const reserved = new Set<string>();
-    // Temporary, with loadedLooksAsColumns (issue 8259): delete with it.
-    const looks = loadedLooksAsColumns(session);
-    const withLooks = <T extends NodeRecord | EdgeRecord>(record: T, extra: JsonObject | undefined): T =>
-        extra === undefined ? record : { ...record, ...extra };
     // The whole graph, whatever the filter shows: a save writes every element. With a group
     // collapsed it is the graph expanded, the collapse being view's decision (spec 4.7 rule 8),
     // and a member out of the graph is named by the loads that supplied it.
     const expanded = expandedGraph(session);
     const nodes = (expanded?.nodes ?? session.data.nodes({ scope: "graph" })).map((node) =>
-        withLooks(withoutReserved(node, "node", reserved), looks.nodes.get(node.id)),
+        withoutReserved(node, "node", reserved),
     );
     const edges = (
         expanded?.edges.map(({ id, record }) => ({ ...record, id }) as EdgeRecord) ??
         session.data.edges({ scope: "graph" })
-    ).map((edge) => withLooks(withoutReserved(edge, "edge", reserved), looks.edges.get(edge.id)));
+    ).map((edge) => withoutReserved(edge, "edge", reserved));
     const loadIndex = expanded === null ? undefined : suppliedIndex(session);
     const sourcesOf = (id: NodeId | EdgeId, kind: "node" | "edge"): readonly string[] => {
         if (loadIndex === undefined) {
@@ -1036,7 +1021,6 @@ function dataModelOf(session: GraphSession): DataModel {
         ...(reader === undefined ? {} : { reader }),
         unavailable: memory.unavailable,
         reserved,
-        looks,
     };
 }
 
@@ -1652,15 +1636,6 @@ function sourceRecordsOf(
         const storage = storageOf(source, model, embed[source.id] ?? "embedded", problems);
         if (storage === "embedded") {
             embedded.add(source.id);
-        } else {
-            // Temporary, with loadedLooksAsColumns (issue 8259): reading the source again does not
-            // give the look values a load kept outside the data, so a reference leaves them out.
-            for (const column of new Set(model.looks.bySource.get(source.id))) {
-                problems.push({
-                    code: "W_MEMBER_LEFT_OUT",
-                    params: { section: "data", pointer: `/sources/${source.id}`, field: column },
-                });
-            }
         }
 
         records.push(sourceRecordOf(source, model, storage));
@@ -1809,27 +1784,6 @@ export function dataBodyOf(
 }
 
 /**
- * The name a column takes beside another column of the same name that a different source gave
- * (spec 4.1.8 rule 3): `<column> (<source id>)`.
- * @param column - The column.
- * @param source - The source id.
- * @returns The name.
- */
-function besideName(column: string, source: string): string {
-    return `${column} (${source})`;
-}
-
-// ---------------------------------------------------------------------------------------------
-// Look values a file gave, as ordinary columns (the version 1 migration and, temporarily, a save)
-// ---------------------------------------------------------------------------------------------
-
-/**
- * The names a per-element value of a load may never take, because an element record already holds
- * them as its own fields: a node's `id`; an edge's `id`, `source` and `target` (spec 4.1.8 rule 3).
- */
-export const LOOK_TAKEN = { node: ["id"], edge: ["id", "source", "target"] } as const;
-
-/**
  * A column's name (spec 4.1.8 rule 3): the key itself when free, else `<key> (<source id>)`, else
  * that name followed by ` 2`, ` 3`, ... until free.
  * @param key - The wanted name.
@@ -1842,7 +1796,7 @@ export function freeColumnName(key: string, source: string, taken: (name: string
         return key;
     }
 
-    const beside = besideName(key, source);
+    const beside = `${key} (${source})`;
     let name = beside;
     let n = 2;
     while (taken(name)) {
@@ -1851,222 +1805,6 @@ export function freeColumnName(key: string, source: string, taken: (name: string
     }
 
     return name;
-}
-
-/**
- * A rewrite of the paths a file's look values were read at (`graphty.style.<namespace>.<kind>.<key>`)
- * to the ordinary columns that hold them now (`data.<column>`), in every string of a section body:
- * a path field, or an expression naming the path. A layer's `userData` is the reader's own and is
- * never touched.
- *
- * The version 1 migration keeps using this after issue 8259; the save's use of it goes with
- * `loadedLooksAsColumns`.
- * @param paths - From each old path to its `data.<column>`.
- * @returns The rewrite.
- */
-export function lookPathsRewrite(paths: ReadonlyMap<string, string>): <T>(value: T) => T {
-    if (paths.size === 0) {
-        return (value) => value;
-    }
-
-    const rename = (text: string): string => {
-        const literal = paths.get(text);
-        if (literal !== undefined || !text.includes("graphty.style.")) {
-            return literal ?? text;
-        }
-
-        try {
-            return renamePaths(text, (path) => {
-                const to = paths.get(path);
-                return to === undefined ? undefined : quotePath(to);
-            });
-        } catch {
-            // Not an expression: words, not a path.
-            return text;
-        }
-    };
-    const rewrite = (value: unknown): unknown => {
-        if (typeof value === "string") {
-            return rename(value);
-        }
-
-        if (Array.isArray(value)) {
-            return value.map((each) => rewrite(each));
-        }
-
-        if (!isPlainObject(value)) {
-            return value;
-        }
-
-        return Object.fromEntries(
-            Object.entries(value).map(([name, each]) => [name, name === "userData" ? each : rewrite(each)]),
-        );
-    };
-    return <T>(value: T) => rewrite(value) as T;
-}
-
-/** The look values a load kept, as ordinary columns, and the rewrite of what reads them. */
-export interface LoadedLooks {
-    /** Each element's extra columns, by node id. */
-    readonly nodes: ReadonlyMap<NodeId | EdgeId, JsonObject>;
-    /** Each element's extra columns, by edge id. */
-    readonly edges: ReadonlyMap<NodeId | EdgeId, JsonObject>;
-    /** The columns each source id holds, as `<node|edge>:<name>`. */
-    readonly bySource: ReadonlyMap<string, readonly string[]>;
-    /** Each column's JSON Schema type, as `<node|edge>:<name>`, as a session attribute's would be. */
-    readonly schemas: ReadonlyMap<string, JsonObject>;
-    /** A value (a section body) with every path to a look value reading its column, `data.<column>`. */
-    readonly rewrite: <T>(value: T) => T;
-    /**
-     * Whether a layer's `source` is the template of a load these columns came from: such a layer
-     * writes no source, as a layer the reader made does, since nothing can make it again.
-     */
-    readonly madeByLoad: (source: unknown) => boolean;
-}
-
-/** No look values: nothing to add, nothing to rewrite. */
-const NO_LOOKS: LoadedLooks = {
-    nodes: new Map(),
-    edges: new Map(),
-    bySource: new Map(),
-    schemas: new Map(),
-    rewrite: (value) => value,
-    madeByLoad: () => false,
-};
-
-/**
- * The JSON Schema of a look column: the one type every value has, or none.
- * @param values - The values.
- * @returns The schema.
- */
-function lookSchema(values: readonly unknown[]): JsonObject {
-    const set = values.filter((value) => value !== null && value !== undefined);
-    const type = (["number", "boolean", "string"] as const).find((each) => set.every((value) => typeof value === each));
-    return set.length === 0 || type === undefined ? {} : columnSchema(type, undefined);
-}
-
-/**
- * Which load gave a file's look values, part of {@link loadedLooksAsColumns} and temporary with it.
- * The session does not record it, so the load is the one that supplied every element they cover
- * that the session still holds; of several, the earliest no earlier values took.
- * @param session - The session.
- * @param load - The stored look values.
- * @param held - Whether the session still holds an element.
- * @param order - The session's load keys, earliest first.
- * @param used - The load keys earlier values took.
- * @returns The load key, or undefined when no element they cover is held.
- */
-function loadKeyOf(
-    session: GraphSession,
-    load: FileStyleStore["loads"][number],
-    held: (kind: "node" | "edge", id: NodeId | EdgeId) => boolean,
-    order: readonly string[],
-    used: ReadonlySet<string>,
-): string | undefined {
-    let candidates: readonly string[] | undefined;
-    for (const { kind, ids } of load.values.columns) {
-        for (const id of ids.filter((each) => held(kind, each))) {
-            const of = new Set(session.data.sourcesOf(id, { kind }));
-            candidates = (candidates ?? order).filter((key) => of.has(key));
-        }
-    }
-
-    return candidates?.find((key) => !used.has(key)) ?? candidates?.at(-1);
-}
-
-/**
- * TEMPORARY until graphty-element writes loaded look values as ordinary columns at load time
- * (issue https://github.com/graphty-org/graphty-monorepo/issues/8259), then delete this function
- * and its callers.
- *
- * Today a load that reads looks from a file (a color, a size per element) keeps the values outside
- * the data, read by layers at `graphty.style.<namespace>.<kind>.<key>`, and files the layers it
- * makes under its own template. A save writes the values as ordinary columns of the source the
- * load made, named as any column is (spec 4.1.8 rule 3: the key, or `<key> (<source id>)` when an
- * element they cover already holds a different value of that name, or an element they do not
- * cover holds that name at all), every path that reads them as `data.<column>`, and those layers with no
- * source. Reopened, the session holds plain columns and plain layers.
- * @param session - The session.
- * @returns The columns and the rewrite.
- */
-export function loadedLooksAsColumns(session: GraphSession): LoadedLooks {
-    const store = asFileStyleStore(dispatcherOf(session).state.graph.values.get(FILE_STYLES_VALUE));
-    if (store.loads.length === 0) {
-        return NO_LOOKS;
-    }
-
-    const memory = memoryOf(session);
-    const order = session.data.sources().map((load) => load.key);
-    const records = {
-        node: new Map<NodeId | EdgeId, Readonly<JsonObject>>(
-            session.data.nodes({ scope: "graph" }).map((node) => [node.id, node]),
-        ),
-        edge: new Map<NodeId | EdgeId, Readonly<JsonObject>>(
-            session.data.edges({ scope: "graph" }).map((edge) => [edge.id, edge]),
-        ),
-    };
-    const values = { node: new Map<NodeId | EdgeId, JsonObject>(), edge: new Map<NodeId | EdgeId, JsonObject>() };
-    // The row an element holds under a name so far, its record's or an earlier look's.
-    const rowWith = (kind: "node" | "edge", id: NodeId | EdgeId, name: string): Readonly<JsonObject> | undefined => {
-        const looked = values[kind].get(id);
-        if (looked !== undefined && name in looked) {
-            return looked;
-        }
-
-        const record = records[kind].get(id);
-        return record !== undefined && name in record ? record : undefined;
-    };
-    const paths = new Map<string, string>();
-    const bySource = new Map<string, string[]>();
-    const schemas = new Map<string, JsonObject>();
-    const used = new Set<string>();
-    for (const load of store.loads) {
-        const loadKey = loadKeyOf(session, load, (kind, id) => records[kind].has(id), order, used);
-        if (loadKey !== undefined) {
-            used.add(loadKey);
-        }
-
-        const source = loadKey === undefined ? READER : sourceIdOf(loadKey, memory);
-        for (const { kind, key, ids, values: cells } of load.values.columns) {
-            const covered = new Map<NodeId | EdgeId, unknown>();
-            ids.forEach((id, at) => {
-                if (records[kind].has(id) && cells[at] !== null) {
-                    covered.set(id, cells[at]);
-                }
-            });
-            // Taken when an element the look covers holds a different value under the name, or any
-            // element it does not cover holds the name at all (a layer reading the column would
-            // paint that element too).
-            const taken = (name: string): boolean =>
-                (LOOK_TAKEN[kind] as readonly string[]).includes(name) ||
-                [...covered].some(([id, value]) => {
-                    const row = rowWith(kind, id, name);
-                    return row !== undefined && canonicalJson(row[name]) !== canonicalJson(value);
-                }) ||
-                [...records[kind].keys()].some((id) => !covered.has(id) && rowWith(kind, id, name) !== undefined);
-            const name = freeColumnName(key, source, taken);
-            paths.set(fileStylePath(load.values.namespace, kind, key), `data.${name}`);
-            bySource.set(source, [...(bySource.get(source) ?? []), `${kind}:${name}`]);
-            schemas.set(`${kind}:${name}`, lookSchema([...covered.values()]));
-            for (const [id, value] of covered) {
-                values[kind].set(id, { ...values[kind].get(id), [name]: value });
-            }
-        }
-    }
-
-    const templates = new Set(store.loads.map((load) => `${FILE_TEMPLATE_PREFIX}${load.values.importId}`));
-    return {
-        nodes: values.node,
-        edges: values.edge,
-        bySource,
-        schemas,
-        rewrite: lookPathsRewrite(paths),
-        madeByLoad: (layerSource) =>
-            isPlainObject(layerSource) &&
-            layerSource.by === "template" &&
-            typeof layerSource.templateId === "string" &&
-            templates.has(layerSource.templateId),
-    };
 }
 
 // ---------------------------------------------------------------------------------------------

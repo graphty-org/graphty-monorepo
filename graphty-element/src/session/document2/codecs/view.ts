@@ -33,16 +33,7 @@ import type {
     WriteContext,
 } from "../types";
 import { addedValues } from "./data";
-import {
-    addedColumns,
-    edgeRefOf,
-    elementRefsOf,
-    type LoadedLooks,
-    loadedLooksAsColumns,
-    READER,
-    rememberReaderEdge,
-    typedIds,
-} from "./dataRefs";
+import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { filterRule } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
@@ -304,13 +295,10 @@ function inView(layer: Layer, session: GraphSession): boolean {
  * (an absent `source` means reader-made), any other written as it is.
  * @param w - The writer.
  * @param source - The layer's source.
- * @param looks - The look values a load kept, as columns.
  * @returns The member, or nothing.
  */
-function layerSourceJson(w: Writer, source: LayerSpec["source"], looks: LoadedLooks): JsonObject {
-    // Temporary, with loadedLooksAsColumns (issue 8259): a layer filed under a load's template
-    // writes no source, as a layer the reader made does.
-    if (source === undefined || source.by === "user" || looks.madeByLoad(source)) {
+function layerSourceJson(w: Writer, source: LayerSpec["source"]): JsonObject {
+    if (source === undefined || source.by === "user") {
         return {};
     }
     if (source.by !== "run") {
@@ -326,7 +314,6 @@ function layerSourceJson(w: Writer, source: LayerSpec["source"], looks: LoadedLo
  * @returns The layers.
  */
 function layersJson(w: Writer): JsonObject[] {
-    const looks = loadedLooksAsColumns(w.session);
     return w.session.styles
         .list()
         .filter((layer) => !layer.locked && inView(layer, w.session))
@@ -339,7 +326,7 @@ function layersJson(w: Writer): JsonObject[] {
                 selector: mapRefs(layer.selector, w.mapper, ""),
                 ...(layer.set === undefined ? {} : { set: layer.set }),
                 ...(layer.encode === undefined ? {} : { encode: mapRefs(layer.encode, w.mapper, "") }),
-                ...layerSourceJson(w, source, looks),
+                ...layerSourceJson(w, source),
                 ...(layer.enabled ? {} : { enabled: false }),
                 ...(layer.userData === undefined ? {} : { userData: layer.userData }),
             };

@@ -161,7 +161,9 @@ export interface DrawnTransform {
  * The finite scene rows of a landed batch measured on the device (issue #8801), so an owner fitting the arrangement to a
  * view reads these instead of walking every row: how many, their sum, their box, and the largest squared distance
  * of one from their mean as the device computed it. Measured in f32, so it agrees with an f64 walk of the same rows
- * to f32 rounding; the box is exact.
+ * to f32 rounding; the box is exact. The sums are taken about the origin, so the mean's error grows with the
+ * arrangement's distance from it: about 1e-7 of that distance (a layout centred 10,000 radii out is off by about
+ * 1e-3 of its radius), negligible for a force layout, which centres itself near the origin.
  * @public
  */
 export interface LandedEnvelope {

@@ -732,6 +732,14 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @internal
      */
     envelopeRowsWalked = 0;
+    /**
+     * Fit from the envelope the device measured when it holds (issue #8801); false walks every row on the
+     * CPU as before, for a test that compares the two fits. Even when true, the walk still fits every landing
+     * the device did not measure: those before the drawn ring's first batch lands, any after a row was written
+     * or held, and every one under renderPath "objects".
+     * @internal
+     */
+    deviceEnvelope = true;
     /** The simulation's array was written by the element since the last landing, so a device measure no longer holds. */
     #adoptedSinceLanding = false;
     #landedPublished = 0;
@@ -1859,7 +1867,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
         const measured =
-            (held === null ? this.#deviceEnvelope(snapshot.nodeCount, radius) : null) ??
+            (held === null && this.deviceEnvelope ? this.#deviceEnvelope(snapshot.nodeCount, radius) : null) ??
             this.#walkEnvelope(simPositions, snapshot.nodeCount, radius, held);
         this.#simBox = measured.box;
 
@@ -1881,7 +1889,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /**
      * The envelope the device measured over the landing the simulation's array holds, as {@link measureEnvelope}
-     * would measure it there to f32 rounding (the box exactly): no row walked on the CPU (issue #8801).
+     * would measure it there to f32 rounding (the box exactly), so that landing is fitted with no row walked on
+     * the CPU (issue #8801). The fits before the first measured landing, and after a write or with a held row,
+     * still walk.
      * @param nodeCount - The loaded snapshot's node count.
      * @param scalingFactor - The scene-unit radius the arrangement is published at.
      * @returns The envelope, or null when the array holds rows the device did not measure.

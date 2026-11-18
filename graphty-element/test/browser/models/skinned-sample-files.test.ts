@@ -37,11 +37,11 @@ function nextFrame(element: Graphty): Promise<void> {
 }
 
 /**
- * How many pixels of a thumbnail are drawn (not transparent).
+ * A thumbnail's pixels.
  * @param url - The PNG data URL.
- * @returns The count.
+ * @returns Its RGBA bytes and size.
  */
-async function coverage(url: string): Promise<number> {
+async function pixelsOf(url: string): Promise<ImageData> {
     const image = new Image();
     image.src = url;
     await image.decode();
@@ -51,7 +51,16 @@ async function coverage(url: string): Promise<number> {
     const context = canvas.getContext("2d");
     assert.isNotNull(context);
     context.drawImage(image, 0, 0);
-    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/**
+ * How many pixels of a thumbnail are drawn (not transparent).
+ * @param url - The PNG data URL.
+ * @returns The count.
+ */
+async function coverage(url: string): Promise<number> {
+    const { data } = await pixelsOf(url);
     let drawn = 0;
     for (let at = 3; at < data.length; at += 4) {
         if (data[at] > 0) {
@@ -68,21 +77,12 @@ async function coverage(url: string): Promise<number> {
  * @returns The count.
  */
 async function edgePixels(url: string): Promise<number> {
-    const image = new Image();
-    image.src = url;
-    await image.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = image.width;
-    canvas.height = image.height;
-    const context = canvas.getContext("2d");
-    assert.isNotNull(context);
-    context.drawImage(image, 0, 0);
-    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    const { data, width, height } = await pixelsOf(url);
     let drawn = 0;
-    for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-            const ring = x === 0 || y === 0 || x === canvas.width - 1 || y === canvas.height - 1;
-            if (ring && data[(y * canvas.width + x) * 4 + 3] > 0) {
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const ring = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+            if (ring && data[(y * width + x) * 4 + 3] > 0) {
                 drawn++;
             }
         }

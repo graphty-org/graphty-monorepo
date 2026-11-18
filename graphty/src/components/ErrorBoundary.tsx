@@ -1,3 +1,4 @@
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import * as Sentry from "@sentry/react";
 import React from "react";
 
@@ -24,6 +25,10 @@ function renderFallback(props: FallbackProps): React.JSX.Element {
  * @param error - what was thrown.
  */
 function releaseLoadingScreen(error: unknown): void {
+    GraphtyLogger.getLogger(["graphty", "workspace"]).error(
+        "render crashed",
+        error instanceof Error ? error : new Error(String(error)),
+    );
     bootSignal({ line: `render crashed: ${String(error)}`, error: true, done: true });
 }
 

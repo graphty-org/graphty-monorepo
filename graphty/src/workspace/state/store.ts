@@ -10,6 +10,7 @@
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
 import type { AiPointing } from "@graphty/graphty-element/ai";
 import type { AiResultCode, AiResultParams, GeneratorParams } from "@graphty/graphty-element/catalog";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
@@ -672,6 +673,12 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
         get: () => state,
         set: (change) => {
             const given = typeof change === "function" ? change(state) : change;
+            if (given.notice !== undefined && given.notice !== null) {
+                GraphtyLogger.getLogger(["graphty", "workspace"]).info("notice", {
+                    message: given.notice.message,
+                    error: given.notice.error === true,
+                });
+            }
             // A notice that is not a failure is spoken once, politely, by the status line (its
             // toast is not an alert); a failure's toast is its own alert. A write that says its
             // own words keeps them.

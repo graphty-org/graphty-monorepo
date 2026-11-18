@@ -33,9 +33,24 @@ export type GraphtyErrorSource =
  * the session's. The ids are the element's ordinary opaque string ids.
  */
 export type GraphtyErrorTarget =
-    | { readonly kind: "layer"; readonly id: string }
-    | { readonly kind: "run"; readonly id: string }
-    | { readonly kind: "scope"; readonly id: string };
+    | {
+          /** The failure belongs to a style layer. */
+          readonly kind: "layer";
+          /** The layer's id. */
+          readonly id: string;
+      }
+    | {
+          /** The failure belongs to an algorithm run. */
+          readonly kind: "run";
+          /** The run's id. */
+          readonly id: string;
+      }
+    | {
+          /** The failure belongs to a scope. */
+          readonly kind: "scope";
+          /** The scope's id. */
+          readonly id: string;
+      };
 
 /**
  * Everything a `GraphtyError` is constructed from.
@@ -123,7 +138,12 @@ export interface GraphtyErrorDetailsMap {
         /** What `count` counts: `"nodes"`, `"edges"`, `"bytes"` and so on. */
         readonly of?: string;
         /** The nodes and edges the graph held when the limit was passed. */
-        readonly graph?: { readonly nodes: number; readonly edges: number };
+        readonly graph?: {
+            /** The node count. */
+            readonly nodes: number;
+            /** The edge count. */
+            readonly edges: number;
+        };
     };
     /** A file or source that cannot be read as its format. */
     E_PARSE_FAILED: {
@@ -174,7 +194,12 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
  * @since 3.38.0
  */
 export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode
-    ? GraphtyError & { readonly code: C; readonly details: GraphtyErrorDetails<C> }
+    ? GraphtyError & {
+          /** The machine-readable reason. */
+          readonly code: C;
+          /** The facts behind the failure, with the fields documented for `code`. */
+          readonly details: GraphtyErrorDetails<C>;
+      }
     : never;
 
 const EMPTY_DETAILS: Readonly<Record<string, unknown>> = Object.freeze({});

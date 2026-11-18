@@ -24,6 +24,7 @@ import type { HistoryCause } from "./session/types";
  * release (the assistant's among them), so a `switch` over it needs a `default`.
  */
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
+/** A listener that takes any graph, node, edge or AI event. */
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
 
 type AnyEvent = GraphEvent | NodeEvent | EdgeEvent | AiEvent;
@@ -41,8 +42,11 @@ export type EventOfType<K extends EventType> = AnyEvent extends infer E
         : never
     : never;
 
+/** The name of a graph event. */
 export type GraphEventType = GraphEvent["type"];
+/** The name of a node event. */
 export type NodeEventType = NodeEvent["type"];
+/** The name of an edge event. */
 export type EdgeEventType = EdgeEvent["type"];
 /** The name of an event the AI assistant emits. OPEN UNION: event names may be added in a minor release. */
 export type AiEventType = AiEvent["type"];
@@ -70,7 +74,7 @@ export type UndeclaredEventType =
 /** Every name the element's own emitter accepts: see `EventManager.emit`. */
 export type EmittableEventType = GraphEventType | AiEventType | UndeclaredEventType;
 
-// graph events
+/** Every event about the graph as a whole: its data, layout, camera, rendering and input. */
 export type GraphEvent =
     | GraphSettledEvent
     | GraphErrorEvent
@@ -156,24 +160,39 @@ export function isDomForwardableEvent(event: GraphEvent): boolean {
     return !INTERNAL_EVENT_TYPES.has(event.type);
 }
 
+/** Emitted when the layout stops moving. */
 export interface GraphSettledEvent {
+    /** The event's name. */
     type: "graph-settled";
+    /** The graph that settled. */
     graph: Graph;
 }
 
+/** Emitted when something the graph was doing failed. */
 export interface GraphErrorEvent {
+    /** The event's name. */
     type: "error";
+    /** The graph, or null when it failed before the graph existed. */
     graph: Graph | null;
+    /** The failure. */
     error: Error;
+    /** What the graph was doing when it failed. */
     context: "init" | "data-loading" | "layout" | "algorithm" | "xr" | "other";
+    /** Facts about the failure, when there are any. */
     details?: Record<string, unknown>;
 }
 
+/** Emitted when a load from a data source has finished adding its data. */
 export interface GraphDataLoadedEvent {
+    /** The event's name. */
     type: "data-loaded";
+    /** The graph the data went into. */
     graph: Graph;
+    /** What the load did. */
     details: {
+        /** How many chunks the source handed over. */
         chunksLoaded: number;
+        /** The data source's type, as it is registered. */
         dataSourceType: string;
         /** What the load did: the endpoint spelling it resolved, and the counts it produced. */
         report: ImportReport;
@@ -188,11 +207,17 @@ export interface GraphDataLoadedEvent {
     cause?: HistoryCause;
 }
 
+/** Emitted when nodes or edges were added to the graph. */
 export interface GraphDataAddedEvent {
+    /** The event's name. */
     type: "data-added";
+    /** Whether nodes or edges were added. */
     dataType: "nodes" | "edges";
+    /** How many were added. */
     count: number;
+    /** Whether the element starts the layout for them. */
     shouldStartLayout: boolean;
+    /** Whether the element frames the camera on the graph for them. */
     shouldZoomToFit: boolean;
     /**
      * What added the rows: a command, or undo, redo or a rollback bringing them back. Absent for a
@@ -214,6 +239,7 @@ export interface GraphDataAddedEvent {
  * `next` to freeze and is announced by {@link GraphSnapshotDroppedEvent} instead.
  */
 export interface GraphSnapshotReplacedEvent {
+    /** The event's name. */
     type: "snapshot-replaced";
     /** The graph whose data changed. */
     graph: Graph;
@@ -234,6 +260,7 @@ export interface GraphSnapshotReplacedEvent {
  * store is still usable, so a listener can still ask it for a derived view of what it is freeing.
  */
 export interface GraphSnapshotDroppedEvent {
+    /** The event's name. */
     type: "snapshot-dropped";
 }
 
@@ -243,22 +270,54 @@ export interface GraphSnapshotDroppedEvent {
  * structured cloning; a consumer that wants the new counts reads them.
  */
 export interface GraphDataClearedEvent {
+    /** The event's name. */
     type: "data-cleared";
 }
 
+/** Emitted when a layout is ready to run. */
 export interface GraphLayoutInitializedEvent {
+    /** The event's name. */
     type: "layout-initialized";
+    /** The layout type, as `setLayout` was given it. */
     layoutType: string;
+    /** Whether the element frames the camera once the layout has placed the nodes. */
     shouldZoomToFit: boolean;
 }
 
+/** Emitted when the camera moved, with where it is now. */
 export interface CameraStateChangedEvent {
+    /** The event's name. */
     type: "camera-state-changed";
+    /** The camera's state now. */
     state: {
-        position?: { x: number; y: number; z: number };
-        target?: { x: number; y: number; z: number };
+        /** Where the camera is, in world space. */
+        position?: {
+            /** The x coordinate. */
+            x: number;
+            /** The y coordinate. */
+            y: number;
+            /** The z coordinate. */
+            z: number;
+        };
+        /** The point the camera looks at, in world space. */
+        target?: {
+            /** The x coordinate. */
+            x: number;
+            /** The y coordinate. */
+            y: number;
+            /** The z coordinate. */
+            z: number;
+        };
+        /** The 2D camera's zoom. */
         zoom?: number;
-        pan?: { x: number; y: number };
+        /** The 2D camera's pan. */
+        pan?: {
+            /** Horizontal pan. */
+            x: number;
+            /** Vertical pan. */
+            y: number;
+        };
+        /** Further camera fields, by camera type. */
         [key: string]: unknown;
     };
 }
@@ -268,11 +327,16 @@ export interface CameraStateChangedEvent {
  * most once per drawn frame, never per node; read `getOverview()` in the listener.
  */
 export interface OverviewChangedEvent {
+    /** The event's name. */
     type: "overview-changed";
 }
 
-// Generic events for internal manager communication
+/**
+ * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their
+ * name; any facts they carry are extra properties.
+ */
 export interface GraphGenericEvent {
+    /** The event's name. */
     type:
         | "render-initialized"
         | "manager-initialized"
@@ -318,6 +382,7 @@ export interface GraphGenericEvent {
  * that wants the stack itself reads `session.styles.list()`.
  */
 export interface StyleChangedEvent {
+    /** The event's name. */
     type: "style-changed";
     /** Which style verb produced the change. */
     reason: StyleChange["reason"];
@@ -332,8 +397,11 @@ export interface StyleChangedEvent {
 }
 
 // Data loading events
+/** Emitted while a load runs, with how far it has got. */
 export interface DataLoadingProgressEvent {
+    /** The event's name. */
     type: "data-loading-progress";
+    /** The format being read. */
     format: string;
     /** Bytes of the file the source has read so far; 0 for a source that reads no file. */
     bytesProcessed: number;
@@ -365,6 +433,7 @@ export interface DataLoadingProgressEvent {
      * import report exists to end, repeated one level down.
      */
     edgeRecordsLoaded: number;
+    /** How many chunks the source has handed over so far. */
     chunksProcessed: number;
     /**
      * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
@@ -374,14 +443,23 @@ export interface DataLoadingProgressEvent {
     loadId?: number;
 }
 
+/** Emitted for each error a load meets. */
 export interface DataLoadingErrorEvent {
+    /** The event's name. */
     type: "data-loading-error";
+    /** The failure. */
     error: Error;
+    /** Which stage failed: telling the format, checking a record, or reading the source. */
     context: "detection" | "validation" | "parsing";
+    /** The format being read, when it is known. */
     format?: string;
+    /** The 1-based line the error is on, when the reader knows one. */
     line?: number;
+    /** The node the error is about, when it is about one. */
     nodeId?: unknown;
+    /** The edge the error is about, when it is about one. */
     edgeId?: string;
+    /** Whether the load carries on past the error. */
     canContinue: boolean;
     /**
      * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
@@ -396,7 +474,9 @@ export interface DataLoadingErrorEvent {
  * a reader writes its own message from `code`, `params` and `errors`.
  */
 export interface DataLoadingErrorSummaryEvent {
+    /** The event's name. */
     type: "data-loading-error-summary";
+    /** The format that was read. */
     format: string;
     /** What happened: `"load-errors"`, some records of the load were skipped. */
     code: "load-errors";
@@ -423,8 +503,11 @@ export interface DataLoadingErrorSummaryEvent {
     loadId?: number;
 }
 
+/** Emitted when a load has finished. */
 export interface DataLoadingCompleteEvent {
+    /** The event's name. */
     type: "data-loading-complete";
+    /** The format that was read. */
     format: string;
     /**
      * How many nodes the graph HOLDS after the load.
@@ -445,9 +528,13 @@ export interface DataLoadingCompleteEvent {
      * what it is, as `report.counts.edgeRecords`.
      */
     edgesLoaded: number;
+    /** How long the load took, in milliseconds. */
     duration: number; // milliseconds
+    /** How many errors the load recorded. */
     errors: number;
+    /** How many warnings the load recorded. */
     warnings: number;
+    /** Whether the load finished without failing. */
     success: boolean;
     /** What the load did: the endpoint spelling, the repeat policy, and every count. */
     report: ImportReport;
@@ -468,6 +555,7 @@ export interface DataLoadingCompleteEvent {
  * next load. The detail is ids only, so it survives structured cloning.
  */
 export interface ElementsRemovedEvent {
+    /** The event's name. */
     type: "elements-removed";
     /** The nodes the caller asked to remove, in the order they were removed. */
     nodes: NodeId[];
@@ -479,6 +567,7 @@ export interface ElementsRemovedEvent {
 
 /** Emitted once the render loop has started, after the element finished initializing. */
 export interface GraphStartedEvent {
+    /** The event's name. */
     type: "graph-started";
     /** When the loop started, in milliseconds since the epoch. */
     timestamp: number;
@@ -486,6 +575,7 @@ export interface GraphStartedEvent {
 
 /** Emitted when a new layout engine has been built and is now the running layout. */
 export interface LayoutChangedEvent {
+    /** The event's name. */
     type: "layout-changed";
     /** The layout type that is now running, as `setLayout` was given it. */
     layoutType: string;
@@ -500,6 +590,7 @@ export interface LayoutChangedEvent {
  * (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
  */
 export interface LayoutWarningEvent {
+    /** The event's name. */
     type: "layout-warning";
     /** The layout that reported it, as `setLayout` was given it. */
     layoutType: string;
@@ -517,6 +608,7 @@ export interface LayoutWarningEvent {
  * @experimental cosmograph
  */
 export interface LimitsWarningEvent {
+    /** The event's name. */
     type: "limits-warning";
     /** What happened: `W_LIMITS_IGNORED`. */
     code: GraphtyWarningCode;
@@ -536,11 +628,15 @@ export interface LimitsWarningEvent {
  * @since 3.53.0
  */
 export interface RenderLostEvent {
+    /** The event's name. */
     type: "render-lost";
     /** What happened: `E_RENDER_LOST`. */
     code: "E_RENDER_LOST";
     /** `renderer`: the renderer whose device was lost, `"webgl"` or `"webgpu"`. */
-    params: { readonly renderer: "webgl" | "webgpu" };
+    params: {
+        /** The renderer whose device was lost. */
+        readonly renderer: "webgl" | "webgpu";
+    };
 }
 
 /**
@@ -550,6 +646,7 @@ export interface RenderLostEvent {
  * @since 3.53.0
  */
 export interface RenderRestoredEvent {
+    /** The event's name. */
     type: "render-restored";
     /** The renderer drawing again, `"webgl"` or `"webgpu"`. */
     renderer: "webgl" | "webgpu";
@@ -564,6 +661,7 @@ export interface RenderRestoredEvent {
  * @since 3.31.0
  */
 export interface BasemapStatusEvent {
+    /** The event's name. */
     type: "basemap-status";
     /** The source drawn: its id, `tiles`, `image`, or `none`. */
     source: string;
@@ -573,13 +671,21 @@ export interface BasemapStatusEvent {
     attribution: readonly string[];
     /** Why the map fell back, when it did. */
     error?: {
+        /** Always `E_BASEMAP_UNREACHABLE`. */
         readonly code: "E_BASEMAP_UNREACHABLE";
-        readonly params: { readonly source: string; readonly status: number | null };
+        /** The facts behind the code. */
+        readonly params: {
+            /** The source whose tiles failed. */
+            readonly source: string;
+            /** The HTTP status when the browser reveals one, otherwise null. */
+            readonly status: number | null;
+        };
     };
 }
 
 /** Emitted when a queued operation is aborted before it finished. */
 export interface OperationCancelledEvent {
+    /** The event's name. */
     type: "operation-cancelled";
     /** The operation's id, as `operation-start` carried it. */
     id: string;
@@ -592,6 +698,7 @@ export interface OperationCancelledEvent {
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
 export interface StatsUpdateEvent {
+    /** The event's name. */
     type: "stats-update";
     /** How many graph updates have run since the counters were last reset. */
     totalUpdates: number;
@@ -601,6 +708,7 @@ export interface StatsUpdateEvent {
 
 /** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */
 export interface InputEnabledChangedEvent {
+    /** The event's name. */
     type: "input-enabled-changed";
     /** Whether the canvas now takes user input. */
     enabled: boolean;
@@ -608,6 +716,7 @@ export interface InputEnabledChangedEvent {
 
 /** Emitted when a VR or AR session has started and the graph is drawing into it. */
 export interface XRSessionStartedEvent {
+    /** The event's name. */
     type: "xr-session-started";
     /** Which kind of session: `"vr"` or `"ar"`, as `setViewMode` names them. */
     mode: "vr" | "ar";
@@ -622,6 +731,7 @@ export interface XRSessionStartedEvent {
 
 /** Emitted when a VR or AR session has ended and the graph is back in its 3D view. */
 export interface XRSessionEndedEvent {
+    /** The event's name. */
     type: "xr-session-ended";
     /** Which kind of session ended: `"vr"` or `"ar"`. */
     mode: "vr" | "ar";
@@ -639,6 +749,7 @@ export interface XRSessionEndedEvent {
  * Only the position is carried, not the button or the pointer id.
  */
 export interface InputPointerEvent {
+    /** The event's name. */
     type: "input:pointer-down" | "input:pointer-move" | "input:pointer-up";
     /** The DOM event's `clientX`. */
     x: number;
@@ -648,9 +759,13 @@ export interface InputPointerEvent {
 
 /** Emitted for each wheel turn over the canvas while input is enabled. */
 export interface InputWheelEvent {
+    /** The event's name. */
     type: "input:wheel";
+    /** The DOM event's `deltaX`. */
     deltaX: number;
+    /** The DOM event's `deltaY`. */
     deltaY: number;
+    /** The DOM event's `deltaZ`. */
     deltaZ: number;
     /** The DOM `WheelEvent.deltaMode`: 0 pixels, 1 lines, 2 pages. */
     deltaMode: number;
@@ -658,26 +773,43 @@ export interface InputWheelEvent {
 
 /** Emitted when touches start or move on the canvas while input is enabled. */
 export interface InputTouchEvent {
+    /** The event's name. */
     type: "input:touch-start" | "input:touch-move";
     /** One position per touch point: the touch's `clientX` and `clientY`. */
-    array: { x: number; y: number }[];
+    array: {
+        /** The touch's `clientX`. */
+        x: number;
+        /** The touch's `clientY`. */
+        y: number;
+    }[];
 }
 
 /** Emitted when touches end on the canvas while input is enabled. */
 export interface InputTouchEndEvent {
+    /** The event's name. */
     type: "input:touch-end";
     /** One entry per touch that ended, holding its touch id. */
-    array: { value: number }[];
+    array: {
+        /** The touch's id. */
+        value: number;
+    }[];
 }
 
 /** Emitted for each key press and release on the canvas while input is enabled. */
 export interface InputKeyEvent {
+    /** The event's name. */
     type: "input:key-down" | "input:key-up";
+    /** The DOM event's `key`. */
     key: string;
+    /** The DOM event's `code`. */
     code: string;
+    /** Whether Ctrl was held. */
     ctrlKey: boolean;
+    /** Whether Shift was held. */
     shiftKey: boolean;
+    /** Whether Alt was held. */
     altKey: boolean;
+    /** Whether Meta (Cmd on macOS) was held. */
     metaKey: boolean;
 }
 
@@ -687,29 +819,43 @@ export interface InputKeyEvent {
  * Undo is Ctrl+Z, redo Ctrl+Shift+Z or Ctrl+Y, select-all Ctrl+A; Cmd replaces Ctrl on macOS.
  */
 export interface InputShortcutEvent {
+    /** The event's name. */
     type: "input:undo" | "input:redo" | "input:select-all";
 }
 
+/** Emitted when the selected node changed. */
 export interface SelectionChangedEvent {
+    /** The event's name. */
     type: "selection-changed";
+    /** The node selected before, or null. */
     previousNode: Node | null;
+    /** The node selected now, or null. */
     currentNode: Node | null;
+    /** The id of the node selected before, or null. */
     previousNodeId: string | number | null;
+    /** The id of the node selected now, or null. */
     currentNodeId: string | number | null;
 }
 
-// node events
+/** Every event about one node. */
 export type NodeEvent =
     NodeGenericEvent | NodeAddEvent | NodeClickEvent | NodeHoverEvent | NodeDragStartEvent | NodeDragEndEvent;
 
+/** Emitted before and after a node is repainted. Element-internal; not forwarded to the DOM as a node event. */
 export interface NodeGenericEvent {
+    /** The event's name. */
     type: "node-update-after" | "node-update-before";
+    /** The node. */
     node: Node;
 }
 
+/** Emitted before a node is added. */
 export interface NodeAddEvent {
+    /** The event's name. */
     type: "node-add-before";
+    /** The new node's id. */
     nodeId: NodeIdType;
+    /** The node's record data. */
     metadata: object;
 }
 
@@ -718,9 +864,13 @@ export interface NodeAddEvent {
  * @since 1.5.0
  */
 export interface NodeClickEvent {
+    /** The event's name. */
     type: "node-click";
+    /** The node clicked. */
     node: Node;
+    /** The node's record data. */
     data: Record<string, unknown>;
+    /** The DOM pointer event of the click. */
     event: PointerEvent;
 }
 
@@ -729,8 +879,11 @@ export interface NodeClickEvent {
  * @since 1.5.0
  */
 export interface NodeHoverEvent {
+    /** The event's name. */
     type: "node-hover";
+    /** The node under the pointer. */
     node: Node;
+    /** The node's record data. */
     data: Record<string, unknown>;
 }
 
@@ -739,9 +892,19 @@ export interface NodeHoverEvent {
  * @since 1.5.0
  */
 export interface NodeDragStartEvent {
+    /** The event's name. */
     type: "node-drag-start";
+    /** The node being dragged. */
     node: Node;
-    position: { x: number; y: number; z: number };
+    /** Where the node is in world space. */
+    position: {
+        /** The x coordinate. */
+        x: number;
+        /** The y coordinate. */
+        y: number;
+        /** The z coordinate. */
+        z: number;
+    };
     /** Whether this node was already pinned when the drag began. */
     pinned: boolean;
 }
@@ -751,9 +914,19 @@ export interface NodeDragStartEvent {
  * @since 1.5.0
  */
 export interface NodeDragEndEvent {
+    /** The event's name. */
     type: "node-drag-end";
+    /** The node that was dragged. */
     node: Node;
-    position: { x: number; y: number; z: number };
+    /** Where the node is in world space. */
+    position: {
+        /** The x coordinate. */
+        x: number;
+        /** The y coordinate. */
+        y: number;
+        /** The z coordinate. */
+        z: number;
+    };
     /** Whether the node is pinned now the drag has finished, which `pinOnDrag` decides. */
     pinned: boolean;
 }
@@ -774,7 +947,14 @@ export interface NodeEventDetail {
     /** The node's own record data, as the importer supplied it. Absent on the drag events. */
     data?: Record<string, unknown>;
     /** Where the node is in world space. Present on the drag events only. */
-    position?: { x: number; y: number; z: number };
+    position?: {
+        /** The x coordinate. */
+        x: number;
+        /** The y coordinate. */
+        y: number;
+        /** The z coordinate. */
+        z: number;
+    };
     /**
      * Whether the node is pinned. On `graphty-node-drag-start` this is the pin as it was when the
      * drag began; on `graphty-node-drag-end` it is the pin after `pinOnDrag` has acted.
@@ -783,7 +963,16 @@ export interface NodeEventDetail {
     /** Which pointer button produced a click, in the DOM's own numbering. */
     button?: number;
     /** The modifier keys held during a click, for a consumer distinguishing shift-click. */
-    modifiers?: { shift: boolean; ctrl: boolean; alt: boolean; meta: boolean };
+    modifiers?: {
+        /** Whether Shift was held. */
+        shift: boolean;
+        /** Whether Ctrl was held. */
+        ctrl: boolean;
+        /** Whether Alt was held. */
+        alt: boolean;
+        /** Whether Meta (Cmd on macOS) was held. */
+        meta: boolean;
+    };
     /**
      * The words the node's tooltip draws, on `graphty-node-hover` only, and only when a style
      * layer gave the node a tooltip (`node.tooltip`). A consumer that draws its own tooltip in
@@ -847,17 +1036,26 @@ export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
 // published as something the element draws for the whole of 1.x and drawn by nothing. The
 // channel and the tooltip block on `EdgeStyle` are withdrawn, recorded in
 // `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`. Both come back together.
+/** Every event about one edge. */
 export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
 
+/** Emitted before and after an edge is repainted. */
 export interface EdgeGenericEvent {
+    /** The event's name. */
     type: "edge-update-after" | "edge-update-before";
+    /** The edge. */
     edge: Edge;
 }
 
+/** Emitted before an edge is added. */
 export interface EdgeAddEvent {
+    /** The event's name. */
     type: "edge-add-before";
+    /** The id of the node the edge starts at. */
     srcNodeId: NodeIdType;
+    /** The id of the node the edge ends at. */
     dstNodeId: NodeIdType;
+    /** The edge's record data. */
     metadata: object;
 }
 
@@ -894,36 +1092,51 @@ export type AiEvent =
 
 /** Main event for UI binding - single source of truth for AI status */
 export interface AiStatusChangeEvent {
+    /** The event's name. */
     type: "ai-status-change";
+    /** The assistant's status now. */
     status: AiStatus;
 }
 
 /** Emitted when an AI command starts processing */
 export interface AiCommandStartEvent {
+    /** The event's name. */
     type: "ai-command-start";
+    /** The command's text. */
     input: string;
+    /** When it started, in milliseconds since the epoch. */
     timestamp: number;
 }
 
 /** Emitted when an AI command completes successfully */
 export interface AiCommandCompleteEvent {
+    /** The event's name. */
     type: "ai-command-complete";
+    /** The command's result. */
     result: CommandResult;
+    /** How long it took, in milliseconds. */
     duration: number;
 }
 
 /** Emitted when an AI command encounters an error */
 export interface AiCommandErrorEvent {
+    /** The event's name. */
     type: "ai-command-error";
+    /** The failure. */
     error: Error;
+    /** The command's text. */
     input: string;
+    /** Whether running it again unchanged could succeed. */
     canRetry: boolean;
 }
 
 /** Emitted when an AI command is cancelled */
 interface AiCommandCancelledEvent {
+    /** The event's name. */
     type: "ai-command-cancelled";
+    /** The command's text. */
     input: string;
+    /** Whether the reader cancelled it or it ran out of time. */
     reason: "user" | "timeout";
 }
 
@@ -933,6 +1146,7 @@ interface AiCommandCancelledEvent {
  * OpenAI and Anthropic stream in small pieces, so one answer can send many.
  */
 export interface AiStreamChunkEvent {
+    /** The event's name. */
     type: "ai-stream-chunk";
     /** The piece of text that just arrived. */
     text: string;
@@ -942,21 +1156,29 @@ export interface AiStreamChunkEvent {
 
 /** Emitted when the LLM makes a tool call */
 interface AiStreamToolCallEvent {
+    /** The event's name. */
     type: "ai-stream-tool-call";
+    /** The tool called. */
     name: string;
+    /** The arguments the model passed. */
     params: unknown;
 }
 
 /** Emitted when a tool call completes */
 export interface AiStreamToolResultEvent {
+    /** The event's name. */
     type: "ai-stream-tool-result";
+    /** The tool that ran. */
     name: string;
+    /** What it returned. */
     result: unknown;
+    /** Whether it succeeded. */
     success: boolean;
 }
 
 /** Emitted when voice input starts */
 export interface AiVoiceStartEvent {
+    /** The event's name. */
     type: "ai-voice-start";
     /**
      * How the press reaches the model, when `AiVoiceOptions.mode` is set: `"live"`, or `"turns"`.
@@ -971,8 +1193,11 @@ export interface AiVoiceStartEvent {
 
 /** Emitted when voice transcript is available */
 export interface AiVoiceTranscriptEvent {
+    /** The event's name. */
     type: "ai-voice-transcript";
+    /** The words recognized so far. */
     transcript: string;
+    /** Whether this is the press's final transcript. */
     isFinal: boolean;
     /**
      * What the reader pointed at during the press, on a press's final transcript under
@@ -1022,7 +1247,12 @@ export interface AiApprovalRequest {
         | "paid"
         | (string & {}); // the open-union idiom
     /** The tool calls held, as the model made them. */
-    readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
+    readonly calls: readonly {
+        /** The tool the model called. */
+        readonly tool: string;
+        /** The arguments the model passed it. */
+        readonly arguments: Readonly<Record<string, unknown>>;
+    }[];
     /** What the reader is shown before approving; empty for a `"policy"` hold. */
     readonly preview: AiApprovalPreview;
     /** The saved conversation it belongs to, when the assistant keeps `history`. */
@@ -1079,7 +1309,12 @@ export interface AiAgentStartEvent {
      * The helpers before it in a sequence or a plan, and how each ended: it was told their answers
      * beside its task. Absent when there were none.
      */
-    after?: readonly { readonly agent: string; readonly code: AiResultCode }[];
+    after?: readonly {
+        /** The earlier helper's name. */
+        readonly agent: string;
+        /** How it ended. */
+        readonly code: AiResultCode;
+    }[];
 }
 
 /** A helper finished its task. */
@@ -1170,7 +1405,12 @@ export interface AiApprovalPreview {
     /** Attribute values the message would change in all. */
     readonly changedValues?: number;
     /** The first nodes it would change, at most ten, with their labels. */
-    readonly ids?: readonly { readonly id: string; readonly label: string }[];
+    readonly ids?: readonly {
+        /** The node's id. */
+        readonly id: string;
+        /** The node's label. */
+        readonly label: string;
+    }[];
     /** The algorithm a slow run or a cancel names, by its catalog key. */
     readonly algorithm?: string;
     /** How long a slow run is estimated to take, or `"unbounded"`. */
@@ -1237,7 +1477,9 @@ export interface AiConversationChangedEvent {
 
 /** Emitted when voice input ends */
 export interface AiVoiceEndEvent {
+    /** The event's name. */
     type: "ai-voice-end";
+    /** Whether the reader stopped it, it ran out of time, or it failed. */
     reason: "user" | "timeout" | "error";
     /**
      * How a press of `aiTalk` ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`,

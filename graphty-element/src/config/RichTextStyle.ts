@@ -37,8 +37,11 @@ export const DEFAULT_LABEL_GRADIENT_COLORS: readonly string[] = Object.freeze([
 
 // Position types
 const Position3D = z.strictObject({
+    /** The x coordinate, in the scene's units. */
     x: z.number(),
+    /** The y coordinate, in the scene's units. */
     y: z.number(),
+    /** The z coordinate, in the scene's units. */
     z: z.number(),
 });
 
@@ -82,128 +85,167 @@ const CanvasLineJoin = z.enum(["round", "bevel", "miter"]);
 
 // Border configuration
 const BorderConfig = z.strictObject({
+    /** The border's width, in texture pixels. */
     width: z.number(),
+    /** The border's color. */
     color: ColorStyle,
+    /** The gap between this border and the next one in, in texture pixels. */
     spacing: z.number(),
 });
 
-// Main RichTextStyle schema
+/** The style of one rich-text block: a node's label or tooltip, or an edge's label or a caption at one of its ends. */
 export const RichTextStyle = z.strictObject({
-    // Basic properties from original TextBlockStyle
+    /** Whether the block is drawn. Default false. */
     enabled: z.boolean().default(false).optional(),
+    /**
+     * A JMESPath expression read from the element's data to give the words, used when `text` is unset. Checked when
+     * the style is set: an expression that does not parse is refused.
+     */
     textPath: z.string().refine(compiles, { message: "textPath is not a JMESPath expression" }).optional(),
+    /** Where the block sits against its node or edge. Default "top". */
     location: TextLocation.default("top").optional(),
 
-    // Text content
+    /** The words drawn; set, it is used in place of `textPath`. */
     text: z.string().optional(),
 
-    // Font settings
+    /** The font family. Default "Verdana". */
     font: z.string().default("Verdana").optional(),
+    /** The font size, in pixels of the label's texture. Default 48. */
     fontSize: z.number().default(48).optional(),
-    // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
+    /** How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48. */
     size: z.number().positive().optional(),
-    // How tall the letters (one font size) are drawn in the scene; set, it decides the label's size over size.
+    /** How tall the letters (one font size) are drawn in the scene; set, it decides the label's size over `size`. */
     letterSize: z.number().min(0).optional(),
-    // How wide one line may be drawn in the scene before the words wrap onto the next; unset, a
-    // line is as long as its words.
+    /**
+     * How wide one line may be drawn in the scene before the words wrap onto the next; unset, a line is as long as
+     * its words.
+     */
     wrapWidth: z.number().min(0).optional(),
-    // Whether a space after each word counts toward wrapWidth; unset, only the words do.
+    /** Whether a space after each word counts toward `wrapWidth`; unset, only the words do. */
     wrapTrailingSpace: z.boolean().optional(),
-    // With wrapTrailingSpace, whether a line's last word is measured without a space after it; unset, with one.
+    /** With `wrapTrailingSpace`, whether a line's last word is measured without a space after it; unset, with one. */
     wrapSkipEndSpace: z.boolean().optional(),
-    // Whether a line wider than wrapWidth is cut to fit with an ellipsis after it, in place of wrapping.
+    /** Whether a line wider than `wrapWidth` is cut to fit with an ellipsis after it, in place of wrapping. */
     wrapEllipsis: z.boolean().optional(),
-    // Whether a line may break between any two letters, not only at its spaces.
+    /** Whether a line may break between any two letters, not only at its spaces. */
     wrapAnywhere: z.boolean().optional(),
-    // How many blanks a blank between two words counts as against wrapWidth; unset, one.
+    /** How many blanks a blank between two words counts as against `wrapWidth`; unset, one. */
     wrapSpaceCount: z.number().min(0).optional(),
-    // The most lines drawn; the last one kept ends in an ellipsis when more were cut. Unset, every line.
+    /** The most lines drawn; the last one kept ends in an ellipsis when more were cut. Unset, every line. */
     maxLines: z.number().int().min(1).optional(),
-    // Whether the last line maxLines keeps runs on, cut with an ellipsis; false, the rest is dropped. Unset, true.
+    /** Whether the last line `maxLines` keeps runs on, cut with an ellipsis; false, the rest is dropped. Unset, true. */
     maxLinesEllipsis: z.boolean().optional(),
-    // Whether a blank line before or between lines of words is one line tall; unset, it takes no height.
+    /** Whether a blank line before or between lines of words is one line tall; unset, it takes no height. */
     keepBlankLines: z.boolean().optional(),
-    // Where runs of different sizes in one line meet: their alphabetic baselines, hanging baselines or middles.
+    /** Where runs of different sizes in one line meet: their alphabetic baselines, hanging baselines or middles. */
     runAlign: z.enum(["baseline", "hanging", "middle"]).optional(),
-    // How far the label is turned, in degrees clockwise on screen, about its own center.
+    /** How far the label is turned, in degrees clockwise on screen, about its own center. */
     rotation: z.number().optional(),
+    /** The CSS font weight. Default "normal". */
     fontWeight: z.string().default("normal").optional(),
+    /** The font style. Default "normal". */
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
+    /** The height of one line, as a multiple of what `lineBox` measures. Default 1.2. */
     lineHeight: z.number().default(1.2).optional(),
-    // What one line is as tall as before lineHeight: its font's ascent plus descent, its font size, or its letters' ink.
+    /**
+     * What one line is as tall as before `lineHeight`: its font's ascent plus descent, its font size, or its letters'
+     * ink.
+     */
     lineBox: z.enum(["font", "size", "glyphs"]).optional(),
-    // Where the border is drawn: past the panel's edge, or centered on it.
+    /** Where the border is drawn: past the panel's edge, or centered on it. */
     borderAlign: z.enum(["outside", "center"]).optional(),
-    // The panel's shape: a rectangle, or a disc as wide as its shorter side.
+    /** The panel's shape: a rectangle, or a disc as wide as its shorter side. */
     backgroundShape: z.enum(["rectangle", "circle"]).optional(),
-    // Below how many screen pixels tall the letters are drawn the label is hidden; unset, never.
+    /** Below how many screen pixels tall the letters are drawn the label is hidden; unset, never. */
     minScreenSize: z.number().min(0).optional(),
-    // Whether this node label is hidden where it overlaps a label kept first, and which is kept
-    // first; unset, only the graph's `labels.declutter` behavior hides labels.
+    /**
+     * Whether this node label is hidden where it overlaps a label kept first, and which is kept first (the node of
+     * higher degree or larger size); unset, only the graph's `labels.declutter` behavior hides labels.
+     */
     declutter: z.enum(["degree", "size"]).optional(),
-    // Below how many screen pixels across its node is drawn this node label is hidden; unset, never.
+    /** Below how many screen pixels across its node is drawn this node label is hidden; unset, never. */
     minNodeScreenSize: z.number().min(0).optional(),
 
-    // Colors
+    /** The color of the words. Default "#000000". */
     textColor: ColorStyle.default("#000000").optional(),
-    // How opaque the words are, over their color's own alpha; unset, 1.
+    /** How opaque the words are, over their color's own alpha; unset, 1. */
     textOpacity: z.number().min(0).max(1).optional(),
+    /** The panel's color: a color string, or a solid color or gradient object. Unset, no panel. */
     backgroundColor: AdvancedColorStyle.or(ColorStyle).optional(),
-    // How opaque the background is, over its color's own alpha; unset, 1.
+    /** How opaque the background is, over its color's own alpha; unset, 1. */
     backgroundOpacity: z.number().min(0).max(1).optional(),
 
-    // Single border (legacy)
+    /** The width of a single border around the panel, in texture pixels. Default 0 (none). */
     borderWidth: z.number().default(0).optional(),
+    /** The color of the single border. Default "#000000". */
     borderColor: ColorStyle.default("#000000").optional(),
-    // How opaque the border is, over its color's own alpha; unset, 1.
+    /** How opaque the border is, over its color's own alpha; unset, 1. */
     borderOpacity: z.number().min(0).max(1).optional(),
 
-    // Multiple borders
+    /** Several borders drawn one inside the next, outermost first; set, used in place of `borderWidth`. */
     borders: z.array(BorderConfig).optional(),
 
-    // The label laid out as a table of cells, as JSON (the `node.labelTable` value: see the `edge.labelTable`
-    // channel). Set, the label is the table: its cells' fills, outlines, rules and lines are drawn in place of the
-    // words, the panel is the table's size with no margin or padding, and its border stands for the table's outline.
+    /**
+     * The label laid out as a table of cells, as JSON (the `node.labelTable` value: see the `edge.labelTable`
+     * channel). Set, the label is the table: its cells' fills, outlines, rules and lines are drawn in place of the
+     * words, the panel is the table's size with no margin or padding, and its border stands for the table's outline.
+     */
     table: z.string().optional(),
 
-    // Margins
+    /** Space above the words inside the panel, in texture pixels. Default 5. */
     marginTop: z.number().default(5).optional(),
+    /** Space below the words inside the panel, in texture pixels. Default 5. */
     marginBottom: z.number().default(5).optional(),
+    /** Space left of the words inside the panel, in texture pixels. Default 5. */
     marginLeft: z.number().default(5).optional(),
+    /** Space right of the words inside the panel, in texture pixels. Default 5. */
     marginRight: z.number().default(5).optional(),
 
-    // Layout
+    /** How lines of different widths are aligned. Default "center". */
     textAlign: TextAlign.default("center").optional(),
+    /** The radius of the panel's corners, in texture pixels. Default 0 (square). */
     cornerRadius: z.number().default(0).optional(),
+    /** Whether the label's texture is sized to its words; false, it is `resolution` pixels wide. Default true. */
     autoSize: z.boolean().default(true).optional(),
+    /** The texture's width in pixels when `autoSize` is false. Default 128. */
     resolution: z.number().default(128).optional(),
-    billboardMode: z.number().default(7).optional(), // BABYLON.Mesh.BILLBOARDMODE_ALL
+    /** The Babylon.js billboard mode the label's plane turns to the camera with. Default 7 (every axis). */
+    billboardMode: z.number().default(7).optional(),
 
-    // Position
+    /** A fixed position for the label in the scene, used in place of hanging it from its node or edge. */
     position: Position3D.optional(),
+    /** The side or corner of its target the label hangs against. */
     attachPosition: AttachPosition.optional(),
+    /** How far the label stands off its target, in the scene's units. Default 0. */
     attachOffset: z.number().default(0).optional(),
-    // How far the label is moved right and down of where attachPosition puts it, in the scene's units.
+    /** How far the label is moved right of where `attachPosition` puts it, in the scene's units. */
     offsetX: z.number().optional(),
+    /** How far the label is moved down of where `attachPosition` puts it, in the scene's units. */
     offsetY: z.number().optional(),
-    // How far it is moved right and down again, as fractions of its own width and height.
+    /** How far it is moved right again, as a fraction of its own width. */
     shiftX: z.number().optional(),
+    /** How far it is moved down again, as a fraction of its own height. */
     shiftY: z.number().optional(),
-    // What the shifts are fractions of: the whole box (margins and all) or the words alone.
+    /** What the shifts are fractions of: the whole box (margins and all) or the words alone. */
     shiftOf: z.enum(["box", "words"]).optional(),
-    // What a label outside its target is placed against it by: the whole box, or the words' own font box.
+    /** What a label outside its target is placed against it by: the whole box, or the words' own font box. */
     gapOf: z.enum(["box", "words"]).optional(),
-    // What its box is sized to, and whether a box larger than its target stays against the side it names.
+    /** What its box is sized to, and whether a box larger than its target stays against the side it names. */
     box: z.enum(["words", "words-at-side", "target-width"]).optional(),
 
-    // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
-    // exactly as before.
+    /**
+     * Whether the label's size is in the scene's units ("world") or held at a size on screen ("screen"); unset, as
+     * "world".
+     */
     sizeMode: z.enum(["world", "screen"]).optional(),
+    /** Whether the label is moved to stay inside the view; unset, false. */
     keepInView: z.boolean().optional(),
 
-    // Depth fading
+    /** Whether the label fades out with its distance from the camera. Default false. */
     depthFadeEnabled: z.boolean().default(false).optional(),
+    /** The camera distance at and under which a fading label is fully opaque. Default 10. */
     depthFadeNear: z.number().default(10).optional(),
+    /** The camera distance at and past which a fading label is fully transparent. Default 50. */
     depthFadeFar: z.number().default(50).optional(),
 
     /**
@@ -222,62 +264,92 @@ export const RichTextStyle = z.strictObject({
      */
     pickable: z.boolean().optional(),
 
-    // Text effects
+    /** Whether the words are outlined. Default false. */
     textOutline: z.boolean().default(false).optional(),
+    /** The outline's width, in texture pixels. Default 2. */
     textOutlineWidth: z.number().default(2).optional(),
+    /** The outline's color. Default "#000000". */
     textOutlineColor: ColorStyle.default("#000000").optional(),
-    // How opaque the outline is, over its color's own alpha; unset, 1.
+    /** How opaque the outline is, over its color's own alpha; unset, 1. */
     textOutlineOpacity: z.number().min(0).max(1).optional(),
+    /** How the outline's corners are joined. Default "round". */
     textOutlineJoin: CanvasLineJoin.default("round").optional(),
+    /** Whether the words cast a shadow. Default false. */
     textShadow: z.boolean().default(false).optional(),
+    /** The words' shadow color. Default "#000000". */
     textShadowColor: ColorStyle.default("#000000").optional(),
+    /** The words' shadow blur, in texture pixels. Default 4. */
     textShadowBlur: z.number().default(4).optional(),
+    /** How far right the words' shadow falls, in texture pixels. Default 2. */
     textShadowOffsetX: z.number().default(2).optional(),
+    /** How far down the words' shadow falls, in texture pixels. Default 2. */
     textShadowOffsetY: z.number().default(2).optional(),
 
-    // Background effects
+    /** Extra space between the margins and the panel's edge on every side, in texture pixels. Default 0. */
     backgroundPadding: z.number().default(0).optional(),
-    // How far the panel reaches past the words' line box on every side; set, it replaces the
-    // margins and backgroundPadding.
+    /**
+     * How far the panel reaches past the words' line box on every side; set, it replaces the margins and
+     * `backgroundPadding`.
+     */
     boxPadding: z.number().min(0).optional(),
+    /** Whether the panel casts a shadow. Default false. */
     panelShadow: z.boolean().default(false).optional(),
+    /** The panel's shadow color. Default "rgba(0, 0, 0, 0.3)". */
     panelShadowColor: ColorStyle.default("rgba(0, 0, 0, 0.3)").optional(),
+    /** The panel's shadow blur, in texture pixels. Default 16. */
     panelShadowBlur: z.number().min(0).default(16).optional(),
+    /** How far right the panel's shadow falls, in texture pixels. Default 0. */
     panelShadowOffsetX: z.number().default(0).optional(),
+    /** How far down the panel's shadow falls, in texture pixels. Default 6. */
     panelShadowOffsetY: z.number().default(6).optional(),
+    /** Whether the panel is filled with a gradient through `backgroundGradientColors`. Default false. */
     backgroundGradient: z.boolean().default(false).optional(),
+    /** The panel gradient's kind. Default "linear". */
     backgroundGradientType: GradientType.default("linear").optional(),
+    /** The colors the panel gradient runs through; unset, a dark gray pair. */
     backgroundGradientColors: z.array(ColorStyle).optional(),
+    /** The direction a linear panel gradient runs. Default "vertical". */
     backgroundGradientDirection: GradientDirection.default("vertical").optional(),
 
-    // Pointer/Arrow
+    /** Whether the panel has a speech-bubble pointer toward its target. Default false. */
     pointer: z.boolean().default(false).optional(),
+    /** The side the pointer leaves the panel from; "auto" picks the side facing the target. Default "auto". */
     pointerDirection: z.enum(["top", "bottom", "left", "right", "auto"]).default("auto").optional(),
+    /** The pointer's width at the panel, in texture pixels. Default 20. */
     pointerWidth: z.number().default(20).optional(),
+    /** How far the pointer reaches from the panel, in texture pixels. Default 10. */
     pointerHeight: z.number().default(10).optional(),
+    /** How far the pointer is moved along its side from the middle, in texture pixels. Default 0. */
     pointerOffset: z.number().default(0).optional(),
+    /** Whether the pointer's sides are curved. Default false. */
     pointerCurve: z.boolean().default(false).optional(),
 
-    // Animation
+    /** The label's animation. Default "none". */
     animation: AnimationType.default("none").optional(),
+    /** How fast the animation runs, as a multiple of its normal speed. Default 1. */
     animationSpeed: z.number().default(1).optional(),
 
-    // Badge
+    /** A preset badge look applied under the block's own settings. */
     badge: BadgeType.optional(),
+    /** Text (an emoji or a symbol) drawn beside the words, or in place of them when there are none. */
     icon: z.string().optional(),
+    /** Which side of the words `icon` is drawn on. Default "left". */
     iconPosition: z.enum(["left", "right"]).default("left").optional(),
+    /** How full the progress bar a "progress" badge draws is, from 0 to 1. */
     progress: z.number().min(0).max(1).optional(),
 
-    // Smart overflow
+    /** Whether a whole number above `maxNumber` is drawn as `maxNumber` followed by `overflowSuffix`. Default false. */
     smartOverflow: z.boolean().default(false).optional(),
+    /** The largest number `smartOverflow` draws in full. Default 999. */
     maxNumber: z.number().default(999).optional(),
+    /** What `smartOverflow` draws after a capped number. Default "+". */
     overflowSuffix: z.string().default("+").optional(),
 
-    // An x in the panel's top-right corner that clears the selection when clicked
+    /** Whether an x is drawn in the panel's top-right corner that clears the selection when clicked. Default false. */
     closeButton: z.boolean().default(false).optional(),
 });
 
-// Type export for convenience
+/** The parsed form of {@link RichTextStyle}: one label, tooltip or caption block's settings. */
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
 
 /**

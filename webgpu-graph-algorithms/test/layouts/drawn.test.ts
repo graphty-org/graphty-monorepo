@@ -10,6 +10,7 @@ import { type GpuContext } from "../../src/context.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
 import { type DrawnTransform, type GpuLayoutSimulation, type LayoutStatsBase } from "../../src/types/layout.js";
 import { readF32 } from "../helpers/device.js";
+import { pathEdges, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { storyGraph } from "../helpers/story-graph.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
@@ -168,23 +169,37 @@ describe("the drawn ring", () => {
     it("reuses its readback buffers across landings, each landing's host rows still the slot it landed (issue #8801)", async (t) => {
         requireGpu(t);
         const simulation = ringed(ctx, 2);
-        simulation.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
-        simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * n).fill(1), readBack: true });
-        simulation.setDrawnTransform(TRANSFORM);
-        const buffers = new Set<ArrayBufferLike>();
-        const landings = 10;
-        for (let batch = 0; batch < landings; batch++) {
-            // two in flight, as a frame loop keeps them
-            const first = simulation.step(1);
-            await simulation.step(1);
-            await first;
-            const host = simulation.landedDrawnRows;
-            const landed = simulation.landedDrawn;
-            assert.ok(host !== null && landed !== null);
-            buffers.add(host.buffer);
-            expectBitwiseEqual(host, await readF32(ctx, landed, 4 * n), `landing ${String(batch)}`);
-        }
-        assert.isAtMost(buffers.size, 4, "the readbacks come from a few reused buffers, not one per landing");
+        /**
+         * Ten landings with two batches in flight, as a frame loop keeps them, over a freshly loaded graph.
+         * @param graph - the graph to load
+         * @returns how many distinct buffers the landed rows came in
+         */
+        const landings = async (graph: GraphSnapshot): Promise<number> => {
+            const rows = graph.nodeCount;
+            simulation.load(graph, new Float32Array(3 * rows).fill(Number.NaN));
+            simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * rows).fill(1), readBack: true });
+            simulation.setDrawnTransform(TRANSFORM);
+            const buffers = new Set<ArrayBufferLike>();
+            for (let batch = 0; batch < 10; batch++) {
+                const first = simulation.step(1);
+                await simulation.step(1);
+                await first;
+                const host = simulation.landedDrawnRows;
+                const landed = simulation.landedDrawn;
+                assert.ok(host !== null && landed !== null);
+                buffers.add(host.buffer);
+                expectBitwiseEqual(host, await readF32(ctx, landed, 4 * rows), `landing ${String(batch)}`);
+            }
+            return buffers.size;
+        };
+        assert.isAtMost(
+            await landings(snapshot),
+            4,
+            "the readbacks come from a few reused buffers, not one per landing",
+        );
+        // a load with more rows: the smaller spares are dropped, not kept while every landing allocates anew
+        const grown = snapshotOf(pathEdges(4 * n + 50));
+        assert.isAtMost(await landings(grown), 4, "after the graph grows the readbacks are reused again");
         simulation.dispose();
     });
 

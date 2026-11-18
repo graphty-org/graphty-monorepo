@@ -112,7 +112,10 @@ export interface GpuLayoutSimulation<Options, Stats extends LayoutStatsBase> ext
     readonly landedDrawn?: GPUBuffer | null;
     /** The transform the batch of `landedDrawn` drew with, or null with it. */
     readonly landedDrawnTransform?: DrawnTransform | null;
-    /** The rows of `landedDrawn` read back to the host (stride 4), when `setDrawn` asked for `readBack`; else null. */
+    /**
+     * The rows of `landedDrawn` read back to the host (stride 4), when `setDrawn` asked for `readBack`; else null. Valid
+     * until the next landing, `setDrawn` or `load`, whose readback may reuse the buffer behind them: copy them to keep them.
+     */
     readonly landedDrawnRows?: Float32Array | null;
     /** The landed batch's envelope of the scene rows the owner holds, with a drawn ring; else null. */
     readonly landedEnvelope?: LandedEnvelope | null;

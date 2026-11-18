@@ -1593,7 +1593,9 @@ export class ForceSimulation<
     /**
      * The rows of {@link landedDrawn} as the batch's own readback brought them to the host (stride 4, x, y, z, w
      * per node), when {@link setDrawn} asked for `readBack`; else null. For a renderer on another device, which
-     * sends them to its texture as they are instead of copying the slot on the card.
+     * sends them to its texture as they are instead of copying the slot on the card. Valid until the next landing,
+     * {@link setDrawn} or {@link load}: the buffer behind them is reused for a later batch's readback, so a caller
+     * that keeps the rows past that copies them first.
      * @returns the rows, or null
      */
     get landedDrawnRows(): Float32Array<ArrayBuffer> | null {
@@ -1875,8 +1877,14 @@ export class ForceSimulation<
      * @returns the buffer
      */
     private takeSpare(byteLength: number): ArrayBuffer {
-        const at = this.spareBytes.findIndex((spare) => spare.byteLength >= byteLength);
-        return at < 0 ? new ArrayBuffer(byteLength) : this.spareBytes.splice(at, 1)[0];
+        // A spare too small for this batch is too small for every later one until the graph shrinks: drop it, so a
+        // load with more rows does not leave the pool full of buffers no batch can use.
+        for (let at = this.spareBytes.length - 1; at >= 0; at--) {
+            if (this.spareBytes[at].byteLength < byteLength) {
+                this.spareBytes.splice(at, 1);
+            }
+        }
+        return this.spareBytes.pop() ?? new ArrayBuffer(byteLength);
     }
 
     /**
@@ -1915,12 +1923,6 @@ export class ForceSimulation<
     }
 
     /**
-     * Copies the scene bytes of a landed batch into the owner's array, honouring the override list.
-     * @param owner - the owner's array
-     * @param bytes - the readback
-     * @param record - the batch
-     */
-    /**
      * Whether a write overrides a row of this batch's landing, so the owner keeps a row the batch did not compute.
      * @param record - the batch
      * @returns true when one does
@@ -1934,6 +1936,12 @@ export class ForceSimulation<
         return false;
     }
 
+    /**
+     * Copies the scene bytes of a landed batch into the owner's array, honouring the override list.
+     * @param owner - the owner's array
+     * @param bytes - the readback
+     * @param record - the batch
+     */
     private copyScene(owner: F32, bytes: ArrayBuffer, record: PendingBatch): void {
         const { n } = this;
         const scene = new Float32Array(bytes, record.sceneOffset, 3 * n);
@@ -2824,6 +2832,10 @@ export class ForceSimulation<
         }
         this.torndown = true;
         this.discardPending();
+        // the readbacks go with the simulation, not with whatever still references it
+        this.spareBytes.length = 0;
+        this.landedBytes = null;
+        this.landedDrawnRowsValue = null;
         this.destroyBuffers();
         this.afterInFlight(() => {
             this.ring.destroy();

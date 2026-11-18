@@ -4601,6 +4601,24 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. Pair it with a long `duration` to record until
+     * the reader stops.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * const recording = el.captureAnimation({ duration: 300_000, cameraMode: "stationary", download: true });
+     * stopButton.onclick = () => el.stopAnimationCapture();
+     * await recording; // the video so far, downloaded
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.#graph.stopAnimationCapture();
+    }
+
+    /**
      * Stop the camera's animated moves: the one under way stops where the camera is now, moves
      * still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
      * awaiting one of them resolves.

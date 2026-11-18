@@ -5,7 +5,13 @@
  * No React, so the rules are tested on their own.
  */
 
-import type { AnimationOptions, ExportResult, ExportScope, ScreenshotOptions } from "@graphty/graphty-element";
+import type {
+    AnimationOptions,
+    ExportResult,
+    ExportScope,
+    ScreenshotLegendPosition,
+    ScreenshotOptions,
+} from "@graphty/graphty-element";
 import {
     type FormatDescriptor,
     type OptionDescriptor,
@@ -27,8 +33,12 @@ export interface ImageChoices {
     readonly format: ImageFormat;
     readonly size: ImageSize;
     readonly background: ImageBackground;
-    /** "current" for the reader's camera, else a camera id from `session.catalog.cameras()`. */
-    readonly view: string;
+    /** Null for the reader's camera, else a view name: a camera view's id or a saved view's name. */
+    readonly view: string | null;
+    /** Whether the image carries the key; undefined follows whether the canvas shows the legend. */
+    readonly legend?: boolean;
+    /** The corner the key sits in. */
+    readonly corner: ScreenshotLegendPosition;
 }
 
 /**
@@ -245,7 +255,7 @@ const IMAGE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_TOO_LARGE: "The image is too large for this browser.",
     E_OUT_OF_MEMORY: "The browser ran out of memory for an image this size.",
     E_OPTION_RANGE: "The image size is not valid.",
-    E_BAD_COMMAND: "Only PNG keeps a transparent background.",
+    E_BAD_COMMAND: "Only PNG and WebP keep a transparent background.",
 };
 
 /**
@@ -301,7 +311,7 @@ export const PRESET_LABELS: Readonly<Record<PresetId, string>> = {
  * @param preset - one of `SCREENSHOT_PRESET_DESCRIPTORS`.
  * @returns its format, size and background.
  */
-export function presetChoices(preset: ScreenshotPreset): Omit<ImageChoices, "view"> {
+export function presetChoices(preset: ScreenshotPreset): Pick<ImageChoices, "format" | "size" | "background"> {
     return {
         format: preset.format,
         size: (preset.multiplier === undefined
@@ -316,7 +326,8 @@ export const CUSTOM = "Custom";
 
 export const DEFAULT_IMAGE: ImageChoices = {
     ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
-    view: "current",
+    view: null,
+    corner: "bottom-right",
 };
 
 /**
@@ -334,23 +345,13 @@ export function presetOf(choices: ImageChoices): ScreenshotPreset | undefined {
 }
 
 /**
- * Why a background cannot be used with a format, or null when it can.
- * @param format - the image format.
- * @param background - the background.
- * @returns the reason, or null.
- */
-export function backgroundRefusal(format: ImageFormat, background: ImageBackground): string | null {
-    return background === "transparent" && format !== "png" ? "Only PNG keeps a transparent background" : null;
-}
-
-/**
- * The camera a view choice asks for. "Whole graph" frames every node from the angle on screen,
- * not from the element's fixed diagonal, so the picture is the drawing the reader turned.
- * @param view - a camera id from `session.catalog.cameras()`.
+ * The camera a view choice asks for. Fit frames every node from the angle on screen, not from the
+ * element's fixed diagonal, so the picture is the drawing the reader turned.
+ * @param view - a camera view's id or a saved view's name.
  * @returns the screenshot's camera option.
  */
 function cameraOf(view: string): NonNullable<ScreenshotOptions["camera"]> {
-    return view === "fitToGraph" ? { preset: view, params: { keepAngle: true } } : { preset: view };
+    return view === "fitToGraph" ? { view, params: { keepAngle: true } } : { view };
 }
 
 /**
@@ -374,7 +375,7 @@ export function screenshotOptions(
         showSelection: false,
         ...(preset?.enhanceQuality === true ? { enhanceQuality: true } : {}),
         ...(preset?.quality === undefined ? {} : { quality: preset.quality }),
-        ...(choices.view === "current" ? {} : { camera: cameraOf(choices.view) }),
+        ...(choices.view === null ? {} : { camera: cameraOf(choices.view) }),
         destination,
         ...(downloadFilename === undefined ? {} : { downloadFilename }),
     };

@@ -4,7 +4,6 @@ import { assert, describe, it } from "vitest";
 
 import {
     animationOptions,
-    backgroundRefusal,
     dataExportOptions,
     DEFAULT_IMAGE,
     exportScope,
@@ -69,7 +68,7 @@ describe("the Export dialog's choices", () => {
         assert.equal(presetOf({ ...DEFAULT_IMAGE, size: "4x" })?.id, "print");
         assert.isUndefined(presetOf({ ...DEFAULT_IMAGE, format: "webp" }));
         for (const preset of SCREENSHOT_PRESET_DESCRIPTORS) {
-            assert.equal(presetOf({ ...presetChoices(preset), view: "current" }), preset);
+            assert.equal(presetOf({ ...DEFAULT_IMAGE, ...presetChoices(preset) }), preset);
         }
     });
 
@@ -83,25 +82,22 @@ describe("the Export dialog's choices", () => {
             downloadFilename: "a_b.png",
         });
         const thumbnail = screenshotOptions(
-            { format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
+            { format: "jpeg", size: "400x300", background: "canvas", view: "topView", corner: "bottom-right" },
             { blob: true },
         );
         assert.equal(thumbnail.width, 400);
         assert.equal(thumbnail.height, 300);
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
-        assert.deepEqual(thumbnail.camera, { preset: "topView" });
+        assert.deepEqual(thumbnail.camera, { view: "topView" });
+        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "Hub cluster" }, { blob: true }).camera, {
+            view: "Hub cluster",
+        });
         assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, { blob: true }).camera, {
-            preset: "fitToGraph",
+            view: "fitToGraph",
             params: { keepAngle: true },
         });
         assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, { blob: true }).enhanceQuality);
-    });
-
-    it("refuses a transparent background in a format that cannot keep it", () => {
-        assert.isNull(backgroundRefusal("png", "transparent"));
-        assert.isString(backgroundRefusal("jpeg", "transparent"));
-        assert.isNull(backgroundRefusal("jpeg", "canvas"));
     });
 
     it("names files <project>_<what>.<ext>", () => {

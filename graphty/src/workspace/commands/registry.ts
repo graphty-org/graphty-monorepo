@@ -62,6 +62,13 @@ export interface Command {
      * renames the project anywhere else).
      */
     readonly rowKeys?: readonly string[];
+    /**
+     * Keys it takes over from the command that holds them, only while `shown` holds: Stop tour
+     * takes Escape from Clear selection while a tour plays. They run before every other key, once
+     * an inner control (a field, an open list, a menu, a dialog) had its turn, and are not checked
+     * against other commands' keys.
+     */
+    readonly whileShownKeys?: readonly string[];
     /** Extra words Quick actions matches ("field", "column"). */
     readonly keywords?: readonly string[];
     /** A tooltip sentence, where the label alone is not enough. */
@@ -201,7 +208,14 @@ export function stubCommands(commands: readonly Omit<Command, "run" | "stub">[])
  * (tier1-design.md section 2.1). Drawn once, in the main menu, and left out of the start
  * screen's copy. Each is registered by the package that owns it.
  */
-export const FILE_LIST = ["project.save", "project.save-as", "project.save-copy", "file.export"] as const;
+export const FILE_LIST = [
+    "project.save",
+    "project.save-as",
+    "project.save-copy",
+    "file.export-image",
+    "file.export-video",
+    "file.export",
+] as const;
 
 /**
  * Every command id the tier 1 design needs, by owning package. A package that drops one fails
@@ -247,7 +261,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     style: ["style.add-label-line", "style.layer-from-selection", "shader.add"],
     table: ["table.toggle"],
-    export: ["file.export"],
+    export: ["file.export-image", "file.export-video", "file.export"],
     project: ["project.save", "project.save-as", "project.save-copy", "project.close"],
 };
 

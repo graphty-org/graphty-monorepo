@@ -185,6 +185,70 @@ export const CameraMenu3D: Story = {
     },
 };
 
+/**
+ * Saves two views in 3D and a tour through them, as a reader would have before.
+ * @param element - the story's element.
+ */
+async function saveViewsAndTour(element: GraphtyElement): Promise<void> {
+    await element.session.layout.setDimension("3d");
+    await element.waitForStableFrame();
+    await element.session.views.save([{ name: "Overview" }]);
+    await element.applyCameraView("topView");
+    await element.session.views.save([{ name: "From above" }]);
+    await element.applyCameraView("fitToGraph");
+    await element.session.tours.save([
+        {
+            name: "Walk",
+            tour: {
+                stops: [
+                    { view: "Overview", hold: 2000 },
+                    { view: "From above", hold: 2000 },
+                ],
+            },
+        },
+    ]);
+    await element.waitForStableFrame();
+}
+
+/** The Camera menu in 3D with two saved views and a tour: the view rows, Previous, Next, Save view (V), Play tour. */
+export const CameraMenuSavedViews: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadRings(canvasElement);
+        await saveViewsAndTour(element);
+        await press(canvasElement, "Camera");
+    },
+};
+
+/** The Camera menu in 2D with views saved in 3D: the 3D views and the saved views disabled with the element's reason. */
+export const CameraMenuSavedViews2D: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadRings(canvasElement);
+        await saveViewsAndTour(element);
+        await element.session.layout.setDimension("2d");
+        await element.waitForStableFrame();
+        await press(canvasElement, "Camera");
+    },
+};
+
+/** A tour holding on its first stop: the Stop tour button beside Camera, and the menu's Stop tour row (Esc). */
+export const TourPlaying: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadRings(canvasElement);
+        await saveViewsAndTour(element);
+        // A hold far past the capture, on a jump with no flight, so the camera stands still.
+        await element.session.tours.save([{ name: "Hold", tour: { stops: [{ view: "Overview", hold: 3_600_000 }] } }]);
+        void element.playTour("Hold");
+        const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" });
+        await within(toolbar).findByRole("button", { name: "Stop tour" });
+        await element.waitForStableFrame();
+        await press(canvasElement, "Camera");
+        await body().findByRole("menuitem", { name: /^Stop tour/ });
+    },
+};
+
 /** The Mode menu in 2D: the square face, 2D checked, 3D with key 5, VR and AR with their reason. */
 export const ModeMenu: Story = {
     args: { initialState: OPEN },

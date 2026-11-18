@@ -125,8 +125,8 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         await within(dialog).findByRole("img", {});
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_current-view.png", TOAST);
-        const picture = saved.find(({ name }) => name === "untitled_current-view.png");
+        await screen.findByText("Exported untitled_current-camera.png", TOAST);
+        const picture = saved.find(({ name }) => name === "untitled_current-camera.png");
         assert.isDefined(picture, "the picture was saved");
         assert.equal(picture?.blob.type, "image/png");
         assert.isAbove(picture?.blob.size ?? 0, 0);
@@ -282,6 +282,48 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.isNotNull(views);
         assert.include(views?.textContent, "From the front");
         assert.notInclude(views?.textContent, "frontView", "no camera id is shown");
+    });
+
+    it("opens Export image... on Image, and exports a PNG from a saved view", async () => {
+        const saved = catchDownloads();
+        const session = await openScoredGraph();
+        await session.views.save([{ name: "Overview" }]);
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Export image..." }));
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        assert.isNotNull(within(dialog).getByRole("heading", { name: "Image" }));
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Overview" }));
+        await within(dialog).findByRole("img", {});
+        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await screen.findByText("Exported untitled_overview.png", TOAST);
+        const picture = saved.find(({ name }) => name === "untitled_overview.png");
+        assert.equal(picture?.blob.type, "image/png");
+    });
+
+    it("opens Export video... on Video, and offers Transparent for PNG and WebP but not JPEG", async () => {
+        await openScoredGraph();
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Export video..." }));
+        let dialog = await screen.findByRole("dialog", { name: "Export" });
+        assert.isNotNull(within(dialog).getByRole("heading", { name: "Video" }));
+        await userEvent.keyboard("{Escape}");
+
+        dialog = await openExport();
+        const transparent = (): HTMLInputElement =>
+            within(dialog).getByRole<HTMLInputElement>("radio", { name: "Transparent" });
+        for (const [format, refused] of [
+            ["WebP", false],
+            ["JPEG", true],
+            ["PNG", false],
+        ] as const) {
+            await userEvent.click(within(dialog).getByText(format));
+            await waitFor(() => {
+                assert.equal(transparent().disabled, refused, format);
+            });
+        }
     });
 
     it("records a short tour of views, and lists it under Recent (flow 10)", async () => {

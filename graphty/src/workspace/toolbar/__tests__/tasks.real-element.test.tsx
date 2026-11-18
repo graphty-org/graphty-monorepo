@@ -415,12 +415,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         await session.layout.setDimension("2d");
         menu = await open();
-        // In 2D the 3D views and Auto-rotate stay, disabled with their reason; zoom is offered.
-        for (const name of [/^Front/, /^Side/, /^Top/, /^Isometric/]) {
+        // In 2D the views graphty-element draws only in 3D and Auto-rotate stay, disabled with
+        // their reason; Top, which the element also draws flat, stays usable; zoom is offered.
+        for (const name of [/^Front/, /^Side/, /^Isometric/]) {
             const row = within(menu).getByRole("menuitem", { name });
             assert.equal(row.getAttribute("aria-disabled"), "true");
             assert.include(row.textContent, "Only in 3D");
         }
+        assert.notEqual(within(menu).getByRole("menuitem", { name: /^Top/ }).getAttribute("aria-disabled"), "true");
         const flatRotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(flatRotate.getAttribute("aria-disabled"), "true");
         assert.include(flatRotate.textContent, "Only in 3D");

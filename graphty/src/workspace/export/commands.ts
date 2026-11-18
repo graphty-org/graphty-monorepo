@@ -1,4 +1,4 @@
-import { defineRegistration } from "../commands/registry";
+import { type CommandContext, defineRegistration } from "../commands/registry";
 import type { WorkspaceState } from "../state/store";
 
 /**
@@ -15,7 +15,21 @@ function exportTarget(state: Pick<WorkspaceState, "dockOpen" | "dockTab">): Work
 }
 
 /**
- * The Export dialog package's commands: Export... (the File list), which opens the dialog on Data
+ * Why the Export dialog cannot open: no project, or the graph is still loading.
+ * @param ctx - the command context.
+ * @returns the reason, or null.
+ */
+function exportDisabled(ctx: CommandContext): string | null {
+    const { workspace, element } = ctx;
+    if (workspace.get().project === null) {
+        return "No project is open";
+    }
+    return element === null ? "The graph is still loading" : null;
+}
+
+/**
+ * The Export dialog package's commands: Export image... and Export video..., which always open
+ * the dialog on that output, and Export... (the File list), which opens the dialog on Data
  * while a table is showing and on Image otherwise, and a Sources row's Export..., which opens it on
  * Data with that source's records.
  */
@@ -23,17 +37,32 @@ export const registration = defineRegistration({
     owner: "export",
     commands: [
         {
+            id: "file.export-image",
+            label: "Export image...",
+            group: "Project",
+            keywords: ["picture", "screenshot", "png", "jpeg", "webp", "download"],
+            disabled: exportDisabled,
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "export", exportOn: "image", exportSource: null });
+            },
+        },
+        {
+            id: "file.export-video",
+            label: "Export video...",
+            group: "Project",
+            keywords: ["record", "recording", "movie", "tour", "webm", "mp4", "download"],
+            disabled: exportDisabled,
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "export", exportOn: "video", exportSource: null });
+            },
+        },
+        {
             id: "file.export",
             label: "Export...",
             group: "Project",
             keys: ["Mod+E"],
             keywords: ["image", "picture", "screenshot", "png", "csv", "spreadsheet", "data", "download"],
-            disabled: ({ workspace, element }) => {
-                if (workspace.get().project === null) {
-                    return "No project is open";
-                }
-                return element === null ? "The graph is still loading" : null;
-            },
+            disabled: exportDisabled,
             run: ({ workspace }) => {
                 workspace.set({ dialog: "export", exportOn: exportTarget(workspace.get()), exportSource: null });
             },

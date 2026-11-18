@@ -1,11 +1,13 @@
 import "./toolbar.css";
 
 import { MenuCheckItem, MenuItemDescription, MenuShortcut, Toolbar, ToolButton } from "@graphty/compact-mantine";
+import type { TourProgressEvent } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Menu, Popover, Text } from "@mantine/core";
+import { ActionIcon, Menu, Popover, Text, Tooltip } from "@mantine/core";
 import React, { forwardRef, useEffect, useReducer, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
+import type { PaletteRow } from "../commands/registry";
 import { tabStops } from "../frame/focus";
 import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
@@ -13,9 +15,10 @@ import { focusPathValuesNext } from "../inspector/reads";
 import { xrRows } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
+import { errorWords } from "../project/words";
 import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { immersiveMode } from "./commands";
+import { immersiveMode, savedViewRows, tourRows } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
 
@@ -202,55 +205,95 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
     );
 }
 
+/** How many saved views the Camera menu lists; Quick actions lists them all. */
+const MENU_VIEWS = 10;
+
 /**
- * The reader's saved views on the Camera menu: a row each that moves the camera there, then a
- * Remove view submenu naming them. Nothing while none is saved.
+ * One Camera menu row for a saved view or a tour (a Quick actions row too): disabled with its
+ * reason, and a failure becomes a notice.
+ * @param props - Component props
+ * @param props.row - The row
+ * @returns The menu row
+ */
+function RowItem({ row }: Readonly<{ row: PaletteRow }>): React.JSX.Element {
+    const workspace = useWorkspace();
+    return (
+        <CommandMenuItem
+            label={row.label}
+            shortcut={undefined}
+            reason={row.disabled?.(workspace) ?? null}
+            onRun={() => {
+                const outcome = row.run(workspace);
+                if (outcome instanceof Promise) {
+                    outcome.catch((error: unknown) => {
+                        workspace.store.set({ notice: { message: errorWords(`${row.label} failed`, error) } });
+                    });
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * The reader's saved views and tours on the Camera menu: the first ten saved views, Previous view,
+ * Next view and Save view, a Play tour submenu (one row per tour), Stop tour while one plays, and a
+ * Remove view submenu naming the saved views. Rows for views and tours are not drawn while none
+ * is saved.
  * @param props - Component props
  * @param props.session - The element's session
  * @returns The rows
  */
-function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
+function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const workspace = useWorkspace();
+    const views = savedViewRows(workspace);
+    const tours = tourRows(workspace);
     const names = [...session.views.keys()];
-    if (names.length === 0) {
-        return null;
-    }
     return (
         <>
-            {names.map((name) => (
-                <Menu.Item
-                    key={name}
-                    onClick={() => {
-                        void session.execute({ op: "view.camera", preset: name, animate: true });
-                    }}
-                >
-                    {name}
-                </Menu.Item>
+            {views.slice(0, MENU_VIEWS).map((row) => (
+                <RowItem key={row.id} row={row} />
             ))}
-            <Menu.Sub>
-                <Menu.Sub.Target>
-                    <Menu.Sub.Item>Remove view</Menu.Sub.Item>
-                </Menu.Sub.Target>
-                <Menu.Sub.Dropdown>
-                    {names.map((name) => (
-                        <Menu.Item
-                            key={name}
-                            onClick={() => {
-                                void session.views.remove([name]);
-                            }}
-                        >
-                            {name}
-                        </Menu.Item>
-                    ))}
-                </Menu.Sub.Dropdown>
-            </Menu.Sub>
+            <Sections sections={[["view.previous", "view.next", "view.save"]]} />
+            {tours.length === 0 ? null : (
+                <Menu.Sub>
+                    <Menu.Sub.Target>
+                        <Menu.Sub.Item>Play tour</Menu.Sub.Item>
+                    </Menu.Sub.Target>
+                    <Menu.Sub.Dropdown>
+                        {tours.map((row) => (
+                            <RowItem key={row.id} row={row} />
+                        ))}
+                    </Menu.Sub.Dropdown>
+                </Menu.Sub>
+            )}
+            <Sections sections={[["tour.stop"]]} />
+            {names.length === 0 ? null : (
+                <Menu.Sub>
+                    <Menu.Sub.Target>
+                        <Menu.Sub.Item>Remove view</Menu.Sub.Item>
+                    </Menu.Sub.Target>
+                    <Menu.Sub.Dropdown>
+                        {names.map((name) => (
+                            <Menu.Item
+                                key={name}
+                                onClick={() => {
+                                    void session.views.remove([name]);
+                                }}
+                            >
+                                {name}
+                            </Menu.Item>
+                        ))}
+                    </Menu.Sub.Dropdown>
+                </Menu.Sub>
+            )}
         </>
     );
 }
 
 /**
- * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
- * 2D; the saved views and Save view; zoom in and out in 2D; then the Auto-rotate and Follow
- * selection switches.
+ * The Camera menu: Fit and Frame selection; the four standard views, disabled with the element's
+ * reason where they do not work; the saved views, Previous view, Next view, Save view and the
+ * tours; zoom in and out in 2D; then the Auto-rotate and Follow selection switches.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -260,12 +303,6 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const followSelection = useWorkspaceState((state) => state.followSelection);
     const { element } = useWorkspace();
-    // The element answers whether motion is reduced; read it again when that answer changes.
-    const [, motionChanged] = useReducer((n: number) => n + 1, 0);
-    useEffect(() => {
-        element?.addEventListener("reduced-motion-changed", motionChanged);
-        return () => element?.removeEventListener("reduced-motion-changed", motionChanged);
-    }, [element]);
     return (
         <>
             <Sections
@@ -276,7 +313,12 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
             />
             <Menu.Divider />
             {session === null ? null : <SavedViewRows session={session} />}
-            <Sections sections={[["view.save"], ...(flat ? [["view.zoom-in", "view.zoom-out"]] : [])]} />
+            {flat ? (
+                <>
+                    <Menu.Divider />
+                    <Sections sections={[["view.zoom-in", "view.zoom-out"]]} />
+                </>
+            ) : null}
             <Menu.Divider />
             <CheckItem
                 command="view.auto-rotate"
@@ -291,6 +333,65 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
                 radio={false}
             />
         </>
+    );
+}
+
+/**
+ * Follows graphty-element's camera facts the toolbar draws from: the tour playing (`tour-progress`,
+ * `tour-ended`, kept in the store for the Stop tour doors) and a redraw whenever what
+ * `viewProblem` and `planTour` read changes (`views-changed`) or motion is reduced or no longer.
+ * @param element - The element, or null.
+ */
+function useCameraFacts(element: ReturnType<typeof useWorkspace>["element"]): void {
+    const { store } = useWorkspace();
+    const [, redraw] = useReducer((n: number) => n + 1, 0);
+    useEffect(() => {
+        if (element === null) {
+            return undefined;
+        }
+        const progress = ({ detail: { tour, stop, stops } }: CustomEvent<TourProgressEvent>): void => {
+            store.set({ tourProgress: { tour, stop, stops } });
+        };
+        const ended = (): void => {
+            store.set({ tourProgress: null });
+        };
+        element.addEventListener("tour-progress", progress);
+        element.addEventListener("tour-ended", ended);
+        element.addEventListener("views-changed", redraw);
+        element.addEventListener("reduced-motion-changed", redraw);
+        return () => {
+            element.removeEventListener("tour-progress", progress);
+            element.removeEventListener("tour-ended", ended);
+            element.removeEventListener("views-changed", redraw);
+            element.removeEventListener("reduced-motion-changed", redraw);
+        };
+    }, [element, store]);
+}
+
+/**
+ * The Stop tour button beside the Camera tool, in a 24px slot held empty while no tour plays, so
+ * the toolbar never shifts.
+ * @returns The slot
+ */
+function StopTourSlot(): React.JSX.Element {
+    const door = useCommand("tour.stop");
+    const key = door?.command.whileShownKeys?.[0];
+    return (
+        <span className="ws-stop-tour-slot">
+            {door === null || key === undefined ? null : (
+                <Tooltip label={`${door.command.label} (${formatKey(key)})`}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={door.command.label}
+                        aria-keyshortcuts={ariaKey(key)}
+                        onClick={door.run}
+                    >
+                        <GLYPHS.stop size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            )}
+        </span>
     );
 }
 
@@ -333,8 +434,9 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
  * @returns The toolbar
  */
 export function WorkspaceToolbar(): React.JSX.Element {
-    const { session, store } = useWorkspace();
+    const { session, store, element } = useWorkspace();
     useSessionEvents(session, TOOLBAR_EVENTS);
+    useCameraFacts(element);
     const dialog = useWorkspaceState((state) => state.dialog);
     // Pressed while a key is drawn, or while the reader asked for one over nothing (the card then
     // says nothing is styled yet); a switch that is on by default over nothing reads as off.
@@ -472,6 +574,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     <CameraMenuRows session={session} />
                 </Menu.Dropdown>
             </Menu>
+            <StopTourSlot />
             <Menu {...popoverProps("view")}>
                 <Menu.Target>
                     <CommandTool

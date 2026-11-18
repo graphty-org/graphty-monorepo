@@ -69,3 +69,12 @@
 .ws-transition-added {
     scroll-margin-bottom: 44px;
 }
+
+/* The Stop tour button's place beside Camera, held while no tour plays so the toolbar never shifts. */
+.ws-stop-tour-slot {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+}

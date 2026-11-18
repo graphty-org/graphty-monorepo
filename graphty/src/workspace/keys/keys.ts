@@ -160,7 +160,7 @@ export function formatKey(combo: string): string {
 }
 
 /** Keys drawn shorter than their names, so a menu's "Delete" never reads "Delete Delete". */
-const DRAWN_KEYS: Readonly<Record<string, string>> = { Delete: "Del" };
+const DRAWN_KEYS: Readonly<Record<string, string>> = { Delete: "Del", Escape: "Esc" };
 
 /**
  * The key string in ARIA's spelling, for `aria-keyshortcuts`: "Mod" becomes "Meta" or "Control".
@@ -180,7 +180,9 @@ type KeyPress = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" |
 
 /**
  * Whether a key press is this key string. A punctuation key such as "?" matches whatever Shift
- * it took to type it; a letter's Shift must match.
+ * it took to type it; a letter's Shift must match. A punctuation key with no Mod and no Alt also
+ * matches when it arrives with Ctrl and Alt together: AltGr, which some keyboards need to type
+ * "[" or "]".
  * @param event - the key press.
  * @param combo - the key string.
  * @returns true when they match.
@@ -193,7 +195,8 @@ export function matchesKey(event: KeyPress, combo: string): boolean {
     // The space bar reports a space, and a key string names it Space.
     const key = event.key === " " ? "space" : event.key.toLowerCase();
     const letterOrNamed = /^[a-z0-9]$/.test(want.key) || want.key.length > 1;
-    if (key !== want.key || mod !== want.mod || otherMod || event.altKey !== want.alt) {
+    const altGr = !letterOrNamed && !want.mod && !want.alt && event.ctrlKey && event.altKey && !event.metaKey;
+    if (key !== want.key || (!altGr && (mod !== want.mod || otherMod || event.altKey !== want.alt))) {
         return false;
     }
     return letterOrNamed ? event.shiftKey === want.shift : true;

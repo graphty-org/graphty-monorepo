@@ -315,11 +315,18 @@ export interface WorkspaceState {
      */
     readonly followSelection: boolean;
     /**
-     * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
+     * Where the Export dialog opens (section T13): on Image or Video, or on Data with the nodes or the
      * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
      * showing whenever the dock is open (tier 4, R14).
      */
-    readonly exportOn: "image" | "nodes" | "edges";
+    readonly exportOn: "image" | "video" | "nodes" | "edges";
+    /**
+     * The saved view a Camera menu row, Previous view or Next view last went to, by name: where
+     * `[` and `]` step from. Null until one has been applied.
+     */
+    readonly lastView: string | null;
+    /** The tour playing now, from graphty-element's `tour-progress`; null once `tour-ended` fires. */
+    readonly tourProgress: { readonly tour: string | null; readonly stop: number; readonly stops: number } | null;
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
     /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
@@ -449,6 +456,8 @@ export const ON_RELOAD = {
     autoRotate: "kept",
     followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
+    lastView: "fresh: the camera itself is not kept across a reload",
+    tourProgress: "fresh: a tour ends when the page reloads",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
@@ -562,6 +571,8 @@ const INITIAL: WorkspaceState = {
     autoRotate: false,
     followSelection: true,
     exportOn: "image",
+    lastView: null,
+    tourProgress: null,
     exportSource: null,
     serverKind: null,
     analyzeOn: null,

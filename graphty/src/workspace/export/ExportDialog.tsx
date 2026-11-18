@@ -38,7 +38,7 @@ const RECENT_MAX = 5;
  * (`exportGraph` with a format, scope and columns), Styles (`styles.toFile`), Recipe
  * (`session.recipe`) and Project (`downloadProject`), with the files exported in this visit under
  * Recent, each opening its output again with the choices it was made with. Open while the
- * workspace dialog is "export"; it opens on Image, or on Data with CSV and the table the store's
+ * workspace dialog is "export"; it opens on Image or Video as the store's `exportOn` says, or on Data with CSV and the table the store's
  * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
  * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
  * @returns The dialog
@@ -62,8 +62,8 @@ export function ExportDialog(): React.JSX.Element {
         // that source's records for this opening only (when there is more than one to tell apart).
         const several = (session?.data.sources().length ?? 0) > 1;
         const scope: DataChoices["scope"] = exportSource !== null && several ? `source:${exportSource}` : "all";
-        if (exportOn === "image") {
-            setOutput("image");
+        if (exportOn === "image" || exportOn === "video") {
+            setOutput(exportOn);
             setData((choices) => ({ ...choices, scope }));
         } else {
             setOutput("data");

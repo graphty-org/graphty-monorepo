@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { waitFor } from "storybook/test";
+import { userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
 import type { WorkspaceState } from "../state/store";
@@ -76,6 +76,36 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
 
 /** Export > Image: the "To share" preset, the legend callout and the preview the element draws. */
 export const Image: Story = exportStory("image");
+
+/** Export > Image with a saved view chosen in View: the picture is taken from that view. */
+export const ImageSavedView: Story = {
+    ...freshStore({ project: { name: "Ring", id: 1 } }),
+    play: async (context) => {
+        const { canvasElement } = context;
+        const store = storeOf(context);
+        store.set({ dialog: null });
+        await loadRing(canvasElement);
+        const element = canvasElement.ownerDocument.querySelector("graphty-element");
+        await element?.session.views.save([{ name: "Overview" }]);
+        store.set({ dialog: "export", exportOn: "image" });
+        const body = within(canvasElement.ownerDocument.body);
+        const dialog = await body.findByRole("dialog", { name: "Export" });
+        const preview = (): HTMLImageElement | null =>
+            canvasElement.ownerDocument.querySelector<HTMLImageElement>(".ws-export-preview img");
+        // The first preview, from the current camera, then the one from the chosen view.
+        const first = await waitFor(() => preview()?.src ?? Promise.reject(new Error("no preview yet")));
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
+        await userEvent.click(await body.findByRole("option", { name: "Overview" }));
+        const img = await waitFor(() => {
+            const found = preview();
+            if (found === null || found.src === first) {
+                throw new Error("the preview from the saved view is not drawn yet");
+            }
+            return found;
+        });
+        await img.decode();
+    },
+};
 
 /** Export > Data, opened on the node table: CSV, what it cannot hold, and the first lines with the Degree columns. */
 export const Data: Story = exportStory("nodes");

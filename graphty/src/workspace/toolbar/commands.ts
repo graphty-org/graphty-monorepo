@@ -1,11 +1,12 @@
 import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty-element/session";
 
-import { type CommandContext, defineRegistration } from "../commands/registry";
+import { type CommandContext, defineRegistration, type PaletteRow } from "../commands/registry";
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { noGraph, nothingDrawn } from "./disabledReasons";
 import { togglePopover } from "./popover";
+import { cameraViewName, tourProblemWords, viewProblemWords } from "./viewWords";
 
 /**
  * Why Neighborhood cannot run: it acts on a selected node.
@@ -114,12 +115,131 @@ function nextViewName(saved: ReadonlyMap<string, unknown>): string {
     return `View ${String(n)}`;
 }
 
+/**
+ * Why a camera view cannot be applied now: nothing drawn, else the element's `viewProblem`, worded.
+ * @param ctx - the command context.
+ * @param id - the camera view id.
+ * @returns the reason, or null.
+ */
+function cameraViewReason(ctx: CommandContext, id: string): string | null {
+    const { session, element } = ctx;
+    return nothingDrawn(session) ?? viewProblemWords(element?.viewProblem(id) ?? null);
+}
+
+/**
+ * Why a saved view cannot be applied now: the element's judgment of the saved view itself, worded.
+ * @param ctx - the command context.
+ * @param name - the saved view's name.
+ * @returns the reason, or null.
+ */
+function savedViewReason(ctx: CommandContext, name: string): string | null {
+    const { session, element } = ctx;
+    return nothingDrawn(session) ?? viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, true);
+}
+
+/**
+ * Flies to a saved view and remembers it as where `[` and `]` step from.
+ * @param ctx - the command context.
+ * @param name - the saved view's name.
+ */
+async function goToSavedView(ctx: CommandContext, name: string): Promise<void> {
+    const { element, workspace } = ctx;
+    workspace.set({ lastView: name });
+    await element?.applyCameraView(name, { animate: true });
+}
+
+/**
+ * The saved view `[` (back) or `]` (on) goes to: the next usable one in project order after the
+ * last one applied, or the first (last, going back) when none was applied or it is gone. No wrap.
+ * @param ctx - the command context.
+ * @param back - true for Previous view.
+ * @returns the view's name, or why there is none.
+ */
+function stepView(ctx: CommandContext, back: boolean): { name: string } | { reason: string } {
+    const names = [...(ctx.session?.views.keys() ?? [])];
+    if (names.length === 0) {
+        return { reason: "No saved views" };
+    }
+    const at = names.indexOf(ctx.workspace.get().lastView ?? "");
+    const order = back ? names.slice(0, at === -1 ? names.length : at).reverse() : names.slice(at + 1);
+    const name = order.find((each) => savedViewReason(ctx, each) === null);
+    return name === undefined ? { reason: back ? "At the first view" : "At the last view" } : { name };
+}
+
+/**
+ * The Previous view and Next view commands.
+ * @param back - true for Previous view.
+ * @returns the command.
+ */
+function stepCommand(back: boolean): {
+    id: string;
+    label: string;
+    group: "View";
+    keys: string[];
+    disabled: (ctx: CommandContext) => string | null;
+    run: (ctx: CommandContext) => Promise<void>;
+} {
+    return {
+        id: back ? "view.previous" : "view.next",
+        label: back ? "Previous view" : "Next view",
+        group: "View",
+        keys: [back ? "[" : "]"],
+        disabled: (ctx) => {
+            const step = stepView(ctx, back);
+            return nothingDrawn(ctx.session) ?? ("reason" in step ? step.reason : null);
+        },
+        run: async (ctx) => {
+            const step = stepView(ctx, back);
+            if ("name" in step) {
+                await goToSavedView(ctx, step.name);
+            }
+        },
+    };
+}
+
+/**
+ * The reader's saved views as rows, project order: each flies there, disabled with the element's
+ * reason when it cannot be applied now. Quick actions lists them all; the Camera menu the first ten.
+ * @param ctx - the command context.
+ * @returns the rows.
+ */
+export function savedViewRows(ctx: CommandContext): PaletteRow[] {
+    return [...(ctx.session?.views.keys() ?? [])].map((name) => ({
+        id: `view.saved:${name}`,
+        label: name,
+        group: "Saved views",
+        keywords: ["view", "camera"],
+        disabled: (each) => savedViewReason(each, name),
+        run: (each) => goToSavedView(each, name),
+    }));
+}
+
+/**
+ * The project's tours as rows: each plays the tour and puts the camera back when it finishes,
+ * disabled with the element's reason (`planTour`) when it cannot play.
+ * @param ctx - the command context.
+ * @returns the rows.
+ */
+export function tourRows(ctx: CommandContext): PaletteRow[] {
+    return [...(ctx.session?.tours.keys() ?? [])].map((name) => ({
+        id: `tour.play:${name}`,
+        label: name,
+        group: "Play tour",
+        keywords: ["tour", "play"],
+        disabled: ({ session, element }) =>
+            nothingDrawn(session) ?? (element === null ? null : tourProblemWords(element.planTour(name))),
+        run: async ({ element }) => {
+            await element?.playTour(name, { restoreCamera: true });
+        },
+    }));
+}
+
 /** The element's standard 3D views the Camera menu offers, with their keys (tier1-design.md 2.3). */
 const STANDARD_VIEWS = [
-    { id: "view.front", label: "Front", camera: "frontView", key: "1" },
-    { id: "view.side", label: "Side", camera: "sideView", key: "3" },
-    { id: "view.top", label: "Top", camera: "topView", key: "7" },
-    { id: "view.isometric", label: "Isometric", camera: "isometric" },
+    { id: "view.front", camera: "frontView", key: "1" },
+    { id: "view.side", camera: "sideView", key: "3" },
+    { id: "view.top", camera: "topView", key: "7" },
+    { id: "view.isometric", camera: "isometric" },
 ] as const;
 
 /**
@@ -157,7 +277,9 @@ export const registration = defineRegistration({
             id: "view.auto-rotate",
             label: "Auto-rotate",
             group: "View",
-            // The element turns only the 3D view, and keeps it still while motion is reduced.
+            // graphty-element tells no caller whether auto-rotate turns the drawing now (it turns
+            // only the 3D view); the 2D check stays until it does (design/ui/camera-views-tours-
+            // and-capture.md, section 10). Reduced motion is the element's answer.
             disabled: ({ session, element }) =>
                 nothingDrawn(session) ??
                 (session?.layout.dimension === "2d" ? "Only in 3D" : null) ??
@@ -176,18 +298,38 @@ export const registration = defineRegistration({
             },
         },
         {
-            // Keeps the camera under a name; Camera lists it to go back to. One undoable step.
+            // Keeps the camera under a name; Camera lists it to go back to. One undoable step: the
+            // element saves the camera on screen.
             id: "view.save",
             label: "Save view",
             group: "View",
-            disabled: ({ session }) => nothingDrawn(session),
-            run: async ({ element, session, workspace }) => {
-                if (element === null || session === null) {
+            keys: ["V"],
+            // The element refuses to save while immersive: the headset's camera is no 2D or 3D state.
+            disabled: ({ session }) => {
+                const active = immersiveMode(session);
+                return nothingDrawn(session) ?? (active === null ? null : `Not in ${active.toUpperCase()}`);
+            },
+            run: async ({ session, workspace }) => {
+                if (session === null) {
                     return;
                 }
                 const name = nextViewName(session.views);
-                await session.views.save([{ name, camera: element.getCameraState() }]);
+                await session.views.save([{ name }]);
                 workspace.set({ announcement: `Saved ${name}` });
+            },
+        },
+        stepCommand(true),
+        stepCommand(false),
+        {
+            // Escape while a tour plays, taken from Clear selection, after inner controls had their
+            // turn (the key dispatcher gives it to a menu, a list, a dialog or a field first).
+            id: "tour.stop",
+            label: "Stop tour",
+            group: "View",
+            whileShownKeys: ["Escape"],
+            shown: ({ workspace }) => workspace.get().tourProgress !== null,
+            run: ({ element }) => {
+                element?.cancelCameraAnimation();
             },
         },
         {
@@ -207,10 +349,10 @@ export const registration = defineRegistration({
         },
         {
             id: "view.fit",
-            label: "Fit",
+            label: cameraViewName("fitToGraph"),
             group: "View",
             keys: ["0"],
-            disabled: ({ session }) => nothingDrawn(session),
+            disabled: (ctx) => cameraViewReason(ctx, "fitToGraph"),
             run: async ({ element }) => {
                 await element?.applyCameraView("fitToGraph", { animate: true });
             },
@@ -234,13 +376,12 @@ export const registration = defineRegistration({
                 }
             },
         },
-        ...STANDARD_VIEWS.map(({ id, label, camera, ...rest }) => ({
+        ...STANDARD_VIEWS.map(({ id, camera, ...rest }) => ({
             id,
-            label,
+            label: cameraViewName(camera),
             group: "View" as const,
             keys: "key" in rest ? [rest.key] : undefined,
-            disabled: ({ session }: CommandContext) =>
-                nothingDrawn(session) ?? (session?.layout.dimension === "2d" ? "Only in 3D" : null),
+            disabled: (ctx: CommandContext) => cameraViewReason(ctx, camera),
             run: async ({ element }: CommandContext) => {
                 await element?.applyCameraView(camera, { animate: true });
             },
@@ -376,4 +517,5 @@ export const registration = defineRegistration({
             },
         },
     ],
+    paletteRows: (ctx) => [...savedViewRows(ctx), ...tourRows(ctx)],
 });

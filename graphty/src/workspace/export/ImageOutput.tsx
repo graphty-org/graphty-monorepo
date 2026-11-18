@@ -1,14 +1,19 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotLegendSection } from "@graphty/graphty-element";
+import type {
+    Graphty as GraphtyElement,
+    ScreenshotLegendPosition,
+    ScreenshotLegendSection,
+    ScreenshotOptions,
+} from "@graphty/graphty-element";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
-import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
+import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
+import { Alert, Button, Checkbox, Input, Loader, Select, Stack, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { cameraViewName, viewProblemWords } from "../toolbar/viewWords";
 import {
-    backgroundRefusal,
     CUSTOM,
     failureWords,
     fileName,
@@ -23,20 +28,21 @@ import {
     screenshotOptions,
 } from "./choices";
 
-/** The app's words for the element's camera ids; another id shows as itself. */
-const VIEW_LABELS: Readonly<Record<string, string>> = {
-    current: "Current view",
-    fitToGraph: "Whole graph",
-    topView: "Top",
-    sideView: "Side",
-    frontView: "Front",
-    isometric: "Isometric",
-};
-
 const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
 
 /** The preview is captured this wide (height by the canvas's aspect), not at the canvas's size. */
 const PREVIEW_WIDTH = 480;
+
+/** The View list's entry for the reader's own camera. */
+const CURRENT = "current";
+
+/** The corners the key can sit in, in the app's words. */
+const CORNERS: readonly { value: ScreenshotLegendPosition; label: string }[] = [
+    { value: "top-left", label: "Top left" },
+    { value: "top-right", label: "Top right" },
+    { value: "bottom-left", label: "Bottom left" },
+    { value: "bottom-right", label: "Bottom right" },
+];
 
 /**
  * The key an image carries when the canvas shows the legend card: the card's sections, in the
@@ -46,6 +52,72 @@ const PREVIEW_WIDTH = 480;
  */
 function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
     return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
+}
+
+/**
+ * The capture's `legend` option: the legend card's sections in the chosen corner, or no key.
+ * @param on - whether the image carries the key.
+ * @param corner - the corner.
+ * @param session - the session, or null.
+ * @returns the option.
+ */
+function keyOption(
+    on: boolean,
+    corner: ScreenshotLegendPosition,
+    session: GraphSession | null,
+): ScreenshotOptions["legend"] {
+    return on ? { position: corner, sections: imageKey(session) } : false;
+}
+
+/** One entry of the View list: a value, its words, and why it cannot be used now. */
+interface ViewEntry {
+    readonly value: string;
+    readonly label: string;
+    readonly view: string | null;
+    readonly reason: string | null;
+}
+
+/**
+ * The View list: the current camera, then the camera views, then the saved views (the order the
+ * element resolves a name), each judged by the element's `viewProblem`.
+ * @param element - the element, or null.
+ * @param session - the session, or null.
+ * @returns the entries by group.
+ */
+function viewEntries(
+    element: GraphtyElement | null,
+    session: GraphSession | null,
+): { current: ViewEntry; cameras: ViewEntry[]; saved: ViewEntry[] } {
+    const cameras = (session?.catalog.cameras() ?? []).map(({ id, plainName }) => ({
+        value: `camera:${id}`,
+        label: cameraViewName(id, plainName),
+        view: id,
+        reason: viewProblemWords(element?.viewProblem(id) ?? null),
+    }));
+    const saved = [...(session?.views.keys() ?? [])].map((name) => ({
+        value: `saved:${name}`,
+        label: name,
+        view: name,
+        reason: viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, true),
+    }));
+    return { current: { value: CURRENT, label: "Current camera", view: null, reason: null }, cameras, saved };
+}
+
+/**
+ * A size's words with the pixels it makes: "2x 2560 x 1440".
+ * @param size - the size.
+ * @param canvas - the canvas's size in device pixels, or null before the element is up.
+ * @returns the label.
+ */
+function sizeLabel(size: ImageSize, canvas: { width: number; height: number } | null): string {
+    if (size === "400x300") {
+        return "400 x 300";
+    }
+    if (canvas === null) {
+        return size;
+    }
+    const times = Number.parseInt(size);
+    return `${size} ${String(canvas.width * times)} x ${String(canvas.height * times)}`;
 }
 
 /** Props for ImageOutput. */
@@ -66,9 +138,10 @@ type Status =
     | { kind: "failed"; words: string };
 
 /**
- * The Image output: preset, size, format, view and background, a preview the element draws, and
- * Cancel, Copy and Export. Every capture is graphty-element's `captureScreenshot`; a size its
- * `canCaptureScreenshot` refuses is disabled with the element's reason.
+ * The Image output: preset, view, size, format, background and legend, a preview the element
+ * draws, and Cancel, Copy and Export. Every capture is graphty-element's `captureScreenshot`; a
+ * view its `viewProblem` refuses, and a size or a transparent background its
+ * `canCaptureScreenshot` refuses, is disabled with the element's reason.
  * @param props - Component props
  * @param props.choices - The image choices
  * @param props.onChange - Called with new choices
@@ -83,11 +156,18 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const [preview, setPreview] = useState<string | null>(null);
     const [previewError, setPreviewError] = useState<string | null>(null);
     const [refused, setRefused] = useState<Partial<Record<ImageSize, string>>>({});
+    const [backgroundReason, setBackgroundReason] = useState<string | null>(null);
     const [status, setStatus] = useState<Status>({ kind: "idle" });
 
-    const cameras = session?.catalog.cameras().map((camera) => camera.id) ?? [];
+    const views = viewEntries(element, session);
+    const entries = [views.current, ...views.cameras, ...views.saved];
+    const chosen =
+        choices.view === null
+            ? views.current
+            : (views.cameras.find((entry) => entry.view === choices.view) ??
+              views.saved.find((entry) => entry.view === choices.view));
     const preset = presetOf(choices);
-    const backgroundReason = backgroundRefusal(choices.format, "transparent");
+    const legendOn = choices.legend ?? legendShown;
 
     // The preview: one small capture in the chosen format, drawn as the file will be drawn. The
     // object URL only shows it in an <img>; it is revoked when the preview changes or closes.
@@ -103,7 +183,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
             .captureScreenshot({
                 ...options,
                 width: PREVIEW_WIDTH,
-                legend: legendShown ? imageKey(session) : [],
+                legend: keyOption(legendOn, choices.corner, session),
                 timing: { waitForSettle: false },
             })
             .then((result) => {
@@ -125,7 +205,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 URL.revokeObjectURL(url);
             }
         };
-    }, [element, choices, session, legendShown]);
+    }, [element, choices, session, legendOn]);
 
     // The sizes the element refuses for this format, each with its reason.
     useEffect(() => {
@@ -140,9 +220,9 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 );
                 return [size, check.reason === undefined ? undefined : refusalWords(check.reason)] as const;
             }),
-        ).then((entries) => {
+        ).then((checks) => {
             if (live) {
-                setRefused(Object.fromEntries(entries.filter(([, reason]) => reason !== undefined)));
+                setRefused(Object.fromEntries(checks.filter(([, reason]) => reason !== undefined)));
             }
         });
         return () => {
@@ -150,13 +230,41 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         };
     }, [element, choices]);
 
+    // Whether this format keeps a transparent background: the element's rule, from its check.
+    useEffect(() => {
+        if (element === null) {
+            return undefined;
+        }
+        let live = true;
+        void element
+            .canCaptureScreenshot({ format: choices.format, transparentBackground: true })
+            .then(({ reason }) => {
+                if (live) {
+                    setBackgroundReason(
+                        reason?.code === "E_BAD_COMMAND"
+                            ? failureWords({ code: reason.code, details: reason.params }, true)
+                            : null,
+                    );
+                }
+            });
+        return () => {
+            live = false;
+        };
+    }, [element, choices.format]);
+
+    // A format that cannot keep transparency draws on the canvas color.
+    useEffect(() => {
+        if (backgroundReason !== null && choices.background === "transparent") {
+            onChange({ ...choices, background: "canvas" });
+        }
+    }, [backgroundReason, choices, onChange]);
+
     const set = (change: Partial<ImageChoices>): void => {
         setStatus({ kind: "idle" });
-        const next = { ...choices, ...change };
-        onChange(backgroundRefusal(next.format, next.background) === null ? next : { ...next, background: "canvas" });
+        onChange({ ...choices, ...change });
     };
 
-    const name = fileName(project, VIEW_LABELS[choices.view] ?? choices.view, IMAGE_EXTENSIONS[choices.format]);
+    const name = fileName(project, chosen?.label ?? choices.view ?? "", IMAGE_EXTENSIONS[choices.format]);
 
     const capture = async (destination: "download" | "clipboard", waitForSettle = true): Promise<void> => {
         if (element === null) {
@@ -166,7 +274,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         try {
             const result = await element.captureScreenshot({
                 ...screenshotOptions(choices, { [destination]: true }, name),
-                legend: legendShown ? imageKey(session) : [],
+                legend: keyOption(legendOn, choices.corner, session),
                 timing: { waitForSettle },
             });
             if (destination === "clipboard" && result.clipboardStatus !== "success") {
@@ -179,7 +287,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 onDone(`Exported ${name}`, name);
             }
         } catch (error) {
-            if (error instanceof Error && "code" in error && error.code === "E_NOT_SETTLED") {
+            if (isGraphtyError(error) && error.code === "E_NOT_SETTLED") {
                 setStatus({ kind: "settle-timeout", destination });
             } else {
                 setStatus({ kind: "failed", words: failureWords(error, true) });
@@ -187,9 +295,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         }
     };
 
-    // ponytail: multiples only; the element tells no caller the canvas's pixel size without a
-    // full-size capture (gap recorded with the Export dialog package).
-    const pixels = (size: ImageSize): string => (size === "400x300" ? "400 x 300" : size);
+    const canvas = element?.getCanvasSize() ?? null;
 
     const callout = (() => {
         switch (status.kind) {
@@ -236,11 +342,40 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                     />
                     <Select
                         label="View"
-                        data={["current", ...cameras].map((id) => ({ value: id, label: VIEW_LABELS[id] ?? id }))}
-                        value={choices.view}
+                        data={[
+                            { value: CURRENT, label: views.current.label },
+                            ...[
+                                { group: "Camera views", items: views.cameras },
+                                { group: "Saved views", items: views.saved },
+                            ]
+                                .filter(({ items }) => items.length > 0)
+                                .map(({ group, items }) => ({
+                                    group,
+                                    items: items.map((entry) => ({
+                                        value: entry.value,
+                                        label: entry.label,
+                                        disabled: entry.reason !== null,
+                                    })),
+                                })),
+                        ]}
+                        value={chosen?.value ?? CURRENT}
+                        error={chosen?.reason ?? undefined}
                         allowDeselect={false}
-                        onChange={(view) => {
-                            set({ view: view ?? "current" });
+                        renderOption={({ option }) => {
+                            const reason = entries.find((entry) => entry.value === option.value)?.reason;
+                            return reason === null || reason === undefined ? (
+                                option.label
+                            ) : (
+                                <Stack gap={0}>
+                                    <Text size="xs">{option.label}</Text>
+                                    <Text size="xs" c="dimmed">
+                                        {reason}
+                                    </Text>
+                                </Stack>
+                            );
+                        }}
+                        onChange={(value) => {
+                            set({ view: entries.find((entry) => entry.value === value)?.view ?? null });
                         }}
                     />
                     <Input.Wrapper
@@ -260,7 +395,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                             value={choices.size}
                             data={SIZES.map((size) => ({
                                 value: size,
-                                label: pixels(size),
+                                label: sizeLabel(size, canvas),
                                 disabled: refused[size] !== undefined,
                             }))}
                             onChange={(size) => {
@@ -295,6 +430,26 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                             }}
                         />
                     </Input.Wrapper>
+                    <Checkbox
+                        label="Legend"
+                        checked={legendOn}
+                        onChange={(event) => {
+                            set({ legend: event.currentTarget.checked });
+                        }}
+                    />
+                    <Select
+                        label="Corner"
+                        data={CORNERS}
+                        value={choices.corner}
+                        disabled={!legendOn}
+                        allowDeselect={false}
+                        onChange={(corner) => {
+                            const picked = CORNERS.find((entry) => entry.value === corner);
+                            if (picked !== undefined) {
+                                set({ corner: picked.value });
+                            }
+                        }}
+                    />
                 </div>
                 {callout}
                 <div className="ws-export-preview" data-transparent={choices.background === "transparent"}>

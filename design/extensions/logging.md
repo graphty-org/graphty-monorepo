@@ -1,6 +1,7 @@
 # Logging extension point
 
-Status: draft specification against graphty-element 2.6.1. Shared rules are in `README.md`.
+Status: specification, first written against graphty-element 2.6.1. `defineLogDestination`
+shipped in graphty-element 3.0.1. Shared rules are in `README.md`.
 
 Normative files: `logging.d.ts`, `descriptors.schema.json#/$defs/LogSinkDescriptor`, and this
 document.
@@ -47,8 +48,8 @@ once. It receives records at its own level whether or not the logger is globally
 section 12, item 34). The record's `error` is plain `{ name, message, stack }`, so
 `JSON.stringify(record)` keeps it. When `write` returns a promise, the element queues, orders,
 retries -- a rejection and a resolved `Response` that is not `ok` both count as failures --
-flushes on `pagehide` and drains on removal. Section 4 gives an advanced `Sink` the same. Nothing
-here runs in 2.6.1 (`simple-tier.md`, status). Move to the advanced tier for declared options, a custom `flush` or `dispose`, or the
+flushes on `pagehide` and drains on removal. Section 4 gives an advanced `Sink` the same.
+`defineLogDestination` is exported from `@graphty/graphty-element/extend` since 3.0.1. Move to the advanced tier for declared options, a custom `flush` or `dispose`, or the
 full `LogRecord`.
 
 **Sections 2 onwards specify the advanced tier.**

@@ -3,9 +3,9 @@ import { defineConfig } from "vitest/config";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
-// Standalone rather than vitest.shared.config.ts, like babylonjs-map: these tests read files and
-// bytes with no DOM. The Babylon.js half (src/load/, src/readers/, src/decoders/) draws in a
-// browser and is covered by graphty-element's browser tests, which load every model variant here.
+// Node environment: these tests read files and bytes with no DOM. The Babylon.js half (src/load/,
+// src/readers/, src/decoders/) draws in a browser and is covered by graphty-element's browser
+// tests, which load every model variant here.
 // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
 export default withTestGuards(
     defineConfig({

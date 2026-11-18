@@ -1,5 +1,5 @@
 /**
- * The `radixSort` primitive driver (spec 6 row 6; P4-T4, PD-5): a STABLE LSD key-value sort of u32 words, 8 bits per
+ * The `radixSort` primitive driver: a STABLE LSD key-value sort of u32 words, 8 bits per
  * pass, `bits / 8` passes. Every pass runs `radix-hist` (one 256-bin digit histogram per WG-wide block, stored
  * DIGIT-MAJOR `hist[digit * groups + group]`), `exclusiveScan` over that table (so each word becomes, per digit, the
  * offset of its workgroup in workgroup order) and `radix-scatter` (lane 0 ranks its block's keys serially in index
@@ -11,7 +11,7 @@
  * The scan cannot run in place: `Kernel.bind` (and WebGPU's usage-scope rule) rejects one buffer bound `storage-ro`
  * and `storage` in one dispatch, so the caller supplies TWO tables of `radixHistBytes`: `scratch.hist` (the raw
  * digit-major table `radix-hist` writes; the LAST pass's table stays there) and `scratch.offsets` (its exclusive
- * scan, what `radix-scatter` reads). Both are the caller's so a per-iteration sort (the grid, PD-11) binds the same
+ * scan, what `radix-scatter` reads). Both are the caller's so a per-iteration sort (the grid) binds the same
  * buffers every iteration and `Kernel.bind`'s identity cache holds.
  *
  * The driver owns no device objects and acquires no scratch of its own: the caller supplies a ReduceScope (the
@@ -53,7 +53,7 @@ export interface RadixSortResult {
     readonly vals: Binding;
 }
 
-/** A prepared radix sort (spec 6 row 6): records the pass dispatches of one sort into a pass. */
+/** A prepared radix sort: records the pass dispatches of one sort into a pass. */
 export interface RadixSortPlanner {
     /**
      * Records the stable sort of `count` (key, value) pairs by the low `bits` of the key; returns the pair holding the

@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright";
 
-import { type Proc, processTree } from "./processes";
+import { browserProcesses, type Proc, processTree } from "./processes";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -166,28 +166,46 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
     // Interrupted or failed, the run's browsers are reaped by profile (./processes).
     const exited = new Promise<void>((resolve) => child.on("exit", () => resolve()));
     let stderr = (): string => "";
-    const endpoint = await new Promise<string>((resolve, reject) => {
-        let text = "";
-        const read = (chunk: Buffer): void => {
-            text += chunk.toString();
-            const match = /DevTools listening on (ws:\S+)/.exec(text);
-            if (match) {
-                resolve(match[1]);
+    // A launch that fails after the spawn kills what it started: the caller has no browser to close.
+    const orKill = <T>(step: Promise<T>): Promise<T> =>
+        step.catch((error: unknown) => {
+            child.kill("SIGKILL");
+            for (const proc of browserProcesses(userDataDir)) {
+                try {
+                    process.kill(proc.pid, "SIGKILL");
+                } catch {
+                    // Gone with the browser.
+                }
             }
 
-            // Keep the end of the log, for a failure report.
-            text = text.slice(-20_000);
-        };
-        child.stderr?.on("data", read);
-        void exited.then(() => reject(new Error(`Chrome exited before listening: ${text.slice(-2000)}`)));
-        stderr = () => text;
-    });
+            throw error;
+        });
+    const endpoint = await orKill(
+        new Promise<string>((resolve, reject) => {
+            let text = "";
+            const read = (chunk: Buffer): void => {
+                text += chunk.toString();
+                const match = /DevTools listening on (ws:\S+)/.exec(text);
+                if (match) {
+                    resolve(match[1]);
+                }
+
+                // Keep the end of the log, for a failure report.
+                text = text.slice(-20_000);
+            };
+            child.stderr?.on("data", read);
+            void exited.then(() => reject(new Error(`Chrome exited before listening: ${text.slice(-2000)}`)));
+            stderr = () => text;
+        }),
+    );
 
     const socket = new WebSocket(endpoint);
-    await new Promise<void>((resolve, reject) => {
-        socket.addEventListener("open", () => resolve(), { once: true });
-        socket.addEventListener("error", () => reject(new Error("could not connect to Chrome")), { once: true });
-    });
+    await orKill(
+        new Promise<void>((resolve, reject) => {
+            socket.addEventListener("open", () => resolve(), { once: true });
+            socket.addEventListener("error", () => reject(new Error("could not connect to Chrome")), { once: true });
+        }),
+    );
 
     let nextId = 1;
     const pending = new Map<number, { resolve: (r: Record<string, unknown>) => void; reject: (e: Error) => void }>();
@@ -292,7 +310,7 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
         return targetInfos.filter((t) => t.type === "page" && t.url.includes(fragment));
     };
 
-    await send("Target.setDiscoverTargets", { discover: true });
+    await orKill(send("Target.setDiscoverTargets", { discover: true }));
     let workerSession: Promise<string> | undefined;
 
     const chrome: Chrome = {

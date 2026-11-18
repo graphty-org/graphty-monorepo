@@ -3,8 +3,8 @@
  *
  * One multi-entry vite library build (ES modules only) that emits, under dist/:
  * - graph-io.js, the root entry package.json "exports" ["."] points at
- * - <format>.js for every per-format subpath (gexf, graphml, gml, dot, pajek, csv, json, neo4j),
- *   so an application that imports only "@graphty/graph-io/csv" never loads the XML formats
+ * - <name>.js for every other entry in scripts/entries.js ENTRIES (each format, network source and
+ *   the styles and positions modules), so an application that imports only "@graphty/graph-io/csv" never loads the XML formats
  * - chunks/*.js, the code two or more entries share (the common helpers, the io types), emitted
  *   once so every entry sees one ImportError class and one LOSS table
  *

@@ -1,5 +1,9 @@
 # Graph Data Formats: Comprehensive Design Reference
 
+Status: historical record (2025). Importers and exporters now live in graph-io
+(`@graphty/graph-io`, 13 formats, one subpath per format); graphty-element reads files through it,
+for example `graphty-element/src/data/GraphMLDataSource.ts` imports `@graphty/graph-io/graphml`.
+
 **Version:** 1.0
 **Date:** 2025-11-11
 **Purpose:** Comprehensive reference for implementing graph data format support in Graphty

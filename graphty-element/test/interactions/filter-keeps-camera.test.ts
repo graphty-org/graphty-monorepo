@@ -202,7 +202,7 @@ describe("camera.pivotOnSelectionCauses", () => {
             const element = await mounted(["api"]);
             const { graph } = element;
             // Frames drawn by hand, so the test chooses the frame the hold lands on.
-            const pass = (graph as unknown as { updateManager: { update: (ms: number) => void } }).updateManager;
+            const pass = graph.getUpdateManager();
             graph.engine.stopRenderLoop();
             const state = (): string =>
                 JSON.stringify(graph.getCameraState(), (_, v: unknown) =>

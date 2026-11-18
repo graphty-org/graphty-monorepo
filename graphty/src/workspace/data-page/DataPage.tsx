@@ -58,7 +58,7 @@ import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
-import { showNotices, timelineOn } from "../time/timeActions";
+import { showNotices } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
@@ -1074,17 +1074,10 @@ function roleChoices(
  * @returns The list
  */
 function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
-    const { session } = useWorkspace();
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
-    // With the timeline off Time is no choice, but a role the element already reads stays shown.
-    const timeOffered =
-        timelineOn(session) ||
-        table.columns.some((column) => elementRole(draft, table, column.name, page.choices) === "time");
     const options: { value: string; label: string }[] = [
-        ...LOAD_ROLES[kind].takes
-            .filter((role) => role !== "time" || timeOffered)
-            .map((role) => ({ value: role, label: roleWords(role) })),
+        ...LOAD_ROLES[kind].takes.map((role) => ({ value: role, label: roleWords(role) })),
         { value: "attribute", label: roleWords("attribute") },
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
@@ -1144,9 +1137,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                             {marked ? `, ${TIMELINE_CANDIDATE}` : ""}
                         </Text>
                         {/* A number column holding times says how its numbers read: epoch or years. */}
-                        {timelineOn(session) &&
-                        (chosen ?? own) === "time" &&
-                        (column.type === "number" || column.type === "integer") ? (
+                        {(chosen ?? own) === "time" && (column.type === "number" || column.type === "integer") ? (
                             <Select
                                 size="xs"
                                 label="Unit"

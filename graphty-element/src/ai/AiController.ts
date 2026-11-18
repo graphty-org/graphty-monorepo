@@ -659,7 +659,7 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
-    /** Where `load_dataset` downloads datasets from; absent, it fails with `E_OPTION_RANGE`. */
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `AI_ARG_OUT_OF_RANGE`. */
     datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
@@ -896,7 +896,7 @@ export class AiController {
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
             STORE_OVERRIDE
         ];
-        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // NOSONAR(S7059): the store opens at construction on purpose; openHistory never rejects and ready() awaits it
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // eslint-disable-line sonarjs/no-async-constructor -- the store opens at construction on purpose; openHistory never rejects and ready() awaits it
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
         liveFactsOf.set(this, {

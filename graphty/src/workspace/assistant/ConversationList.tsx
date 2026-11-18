@@ -243,7 +243,7 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
             });
     };
     return (
-        <section // NOSONAR(S6847): only catches Esc bubbling from the list's own controls
+        <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches Esc bubbling from the list's own controls
             ref={list}
             id={id}
             className="ws-assistant-log"

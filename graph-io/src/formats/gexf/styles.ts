@@ -67,7 +67,7 @@ const DIRECTED_KEY = "directed";
 const AVOID_OVERLAP_KEY = "label-avoid-overlap";
 
 /** The style column marking the edges Gephi does not draw (dropped, or merged into a parallel edge). */
-const HIDDEN_KEY = "gephi-hidden";
+const HIDDEN_KEY = "hidden";
 
 /** The style column holding the mix of its end nodes' colors of each edge without a color of its own. */
 const MIXED_COLOR_KEY = "end-colors";
@@ -1175,7 +1175,7 @@ function edgeRules(
             hidden.map((h) => (h ? true : null)),
         );
         edge.rules.push({
-            id: "edge.tool.gephi-hidden",
+            id: "edge.tool.hidden",
             target: "edge",
             role: "group",
             origin: "tool",

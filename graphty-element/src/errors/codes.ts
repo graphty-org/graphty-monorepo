@@ -64,7 +64,7 @@ export type GraphtyErrorCode =
      * missing result (`missing: { value }`), which would ask the element to paint elements the run
      * never measured. Without `missing`, such a layer is accepted: an element with no result is
      * not painted. The caller scopes the layer to the
-     * elements that carry the run's result.
+     * elements that carry the run's result: the problem's `scope` is that selector.
      */
     | "E_UNSCOPED_RUN_ENCODING"
     /**
@@ -110,7 +110,6 @@ export type GraphtyErrorCode =
      * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
      * `stepBy` or `seek` with no attribute given. The caller designates one with
      * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-     * @experimental timeline
      * @beta
      */
     | "E_NO_TIME_FIELD"
@@ -237,10 +236,12 @@ export type GraphtyErrorCode =
      */
     | "E_AUTOSAVE_UNKNOWN_ENTRY"
     /**
-     * Autosave's kept work could not be listed: another tab holds the browser's database and did
-     * not let go within `details.afterMs` (a tab the browser suspended in the middle of a write).
-     * `details.step` is `"list"`. Nothing is known about the kept work; the caller offers none and
-     * asks again later.
+     * Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+     * holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+     * suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+     * `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+     * listing nothing is known about the kept work; the caller offers none and asks again later.
+     * A refused restore leaves the entry as it was; the caller may restore it again later.
      */
     | "E_AUTOSAVE_STALLED"
     /**
@@ -874,6 +875,12 @@ export type GraphtyWarningCode =
      * `params.requested` is the value given, `params.active` the one in use.
      */
     | "W_ANTIALIAS_LATE"
+    /**
+     * `preserveDrawingBuffer` was changed after the element built its engine, which reads it only
+     * then: the engine keeps the value it was built with. Raised as a `graphty-warning` event.
+     * `params.requested` is the value given, `params.active` the one in use.
+     */
+    | "W_PRESERVE_DRAWING_BUFFER_LATE"
     /**
      * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
      * `node.modelSourceUp` turns it.

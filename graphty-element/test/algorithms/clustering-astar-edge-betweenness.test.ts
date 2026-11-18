@@ -20,7 +20,17 @@ import { type AlgorithmOutput, type DeclaredAlgorithm, detachedRunContext } from
 import { SpectralClusteringAlgorithm } from "../../src/algorithms/SpectralClusteringAlgorithm";
 import { GraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
+import type { Caveats } from "../../src/session/runs/types";
 import { createMockGraph } from "../helpers/mockGraph";
+
+/**
+ * The facts an algorithm's caveats carry, empty when its output states none.
+ * @param caveats - The caveats.
+ * @returns The facts.
+ */
+function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
+    return "facts" in caveats ? caveats.facts : [];
+}
 
 const TWO_TRIANGLES = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }],
@@ -191,7 +201,10 @@ describe("clustering splits two triangles at the bridge", () => {
             ["A", "B"],
             ["C", "D", "E"],
         ]);
-        assert.include(output.caveats.notes, "1 clusters were asked for; the graph allows 2.");
+        assert.deepInclude(factsOf(output.caveats), {
+            code: "hierarchical.fewer-clusters",
+            params: { asked: 1, allowed: 2 },
+        });
     });
 
     it("publishes a group on every node and nothing on an edge", async () => {

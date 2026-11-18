@@ -1,0 +1,93 @@
+{
+  "bin/githerd-guard.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "lib/cli.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "lib/daemon.mjs": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "lib/flakes.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "lib/hook.mjs": {
+    "unicorn/prefer-array-some": {
+      "count": 1
+    }
+  },
+  "lib/jobs.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "lib/launcher.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "lib/notify.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "lib/proc.mjs": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "lib/prs.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "lib/selftest.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "lib/session-death.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "lib/session-tools.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "lib/stats.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "lib/tools.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "lib/waits.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "lib/worker-settings.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  }
+}

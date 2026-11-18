@@ -13,11 +13,8 @@
  * a slot are gone with them, and `indirect-finalize`'s own tests keep the split.
  */
 
-import { type TestContext } from "vitest";
-
 import { algorithmScope } from "../../src/algorithms/scope.js";
 import { MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
-import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
 import { FRONTIER_COUNTERS, FRONTIER_PARAMS } from "../../src/kernels.js";
 import { PATH, prepareFrontier, W } from "../../src/primitives/frontier.js";
@@ -25,7 +22,7 @@ import { readU32 } from "../helpers/device.js";
 import { type CounterWord, frontierReport, POISON, runBoundary } from "../helpers/frontier.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { sharedContext } from "../setup/gpu.js";
 
 /** The counters words in W order. */
 const WORDS = Object.keys(W) as CounterWord[];
@@ -44,14 +41,7 @@ function argumentOf(fn: () => unknown): string | null {
 }
 
 describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 7; P8-T4)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "frontier" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "frontier" });
 
     it("FRONTIER_COUNTERS is a 112-byte storage block of 28 u32 words (nextDegreeSum, then the two appended betweenness words stackTop and sigmaOverflow) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields; PATH names the path word's values", () => {
         expect(FRONTIER_COUNTERS.name).toBe("FrontierCounters");

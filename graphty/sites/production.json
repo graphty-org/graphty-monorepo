@@ -4,6 +4,8 @@
     "datasets": "https://graphty.app/data/graph-samples/v1/",
     "sentryEnvironment": "production",
     "analytics": {
-        "umamiWebsiteId": "687e28b9-e59e-4581-88f9-f067445c5be7"
+        "umamiWebsiteId": "687e28b9-e59e-4581-88f9-f067445c5be7",
+        "posthogKey": "phc_x9GDNQ6fTHuntvM6CKzYpsrJMToDxRR7Y2YKQuL7PZbx",
+        "posthogHost": "https://eu.i.posthog.com"
     }
 }

@@ -282,6 +282,25 @@ describe("fetching a model by URL", () => {
         assert.deepInclude(fewer.fact.params, { what: "count", item: "files", limit: 64 });
     });
 
+    it("sets no idle timer for a fetchTimeoutMs of Infinity, which setTimeout would fire at once", async () => {
+        serve({
+            [`${BASE}cube.gltf`]: { bytes: fixture("gltf-textured", "cube.gltf") },
+            [`${BASE}cube.bin`]: { bytes: fixture("gltf-textured", "cube.bin") },
+            [`${BASE}cube.png`]: { bytes: fixture("gltf-textured", "cube.png") },
+        });
+        const timers = vi.spyOn(globalThis, "setTimeout");
+        const fetched = await fetchModelSet(new URL(`${BASE}cube.gltf`), {
+            ...DEFAULT_MODEL_LIMITS,
+            fetchTimeoutMs: Number.POSITIVE_INFINITY,
+        });
+        assert.strictEqual(fetched.given.size, 3);
+        const delays = timers.mock.calls.map((call) => call[1] ?? 0);
+        assert.isTrue(
+            delays.every((d) => d <= 2_147_483_647),
+            `no delay setTimeout turns into 1 ms: ${delays.join(", ")}`,
+        );
+    });
+
     it("tries a missing picture in the usual folders, then reports it with the set fetched so far", async () => {
         const asked = serve({
             [`${BASE}cube.gltf`]: { bytes: fixture("gltf-textured", "cube.gltf") },

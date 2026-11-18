@@ -733,14 +733,30 @@ code, such as `E_MODEL_DIGEST_MISMATCH` for a file whose bytes were changed.
 
 ## Limits
 
-To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limits. The per-model
-defaults refuse only what a browser tab cannot hold or draw: 1 GB per model (a model fetched by URL
-counts its `.bin` and pictures too), 20,000,000 triangles, 1 GB of decoded pictures (a KTX2 picture
-counts a quarter of a PNG or JPEG of the same size), 10,000 files beside a model fetched by URL, and
-10,000 glTF nodes, materials, textures and animations. The session sets no limit on the models it
-holds together (`sessionBytes` is `Infinity`), since a model held but not drawn costs only memory;
-a page that wants a cap sets one. `documentBytes` (64 MB) caps the model files one project file
-embeds.
+To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limits. Every default
+refuses only what a browser tab cannot hold or draw; `Infinity` means no limit.
+
+| Limit                 | Default                 | What it counts                                                                     |
+| --------------------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| `maxBytes`            | 1 GB                    | Bytes per model; a model fetched by URL counts its `.bin` and pictures too         |
+| `maxTextBytes`        | 536,870,888 (2^29 - 24) | Bytes per OBJ, ASCII STL or ASCII PLY file: the longest string a browser holds     |
+| `maxTriangles`        | 20,000,000              | Triangles per model, counted per use                                               |
+| `maxTextureBytes`     | 1 GB                    | Decoded picture bytes per model (a KTX2 picture counts a quarter of a PNG or JPEG) |
+| `maxDecodedBytes`     | 1 GB                    | What every glTF accessor decodes to, together                                      |
+| `maxFiles`            | 10,000                  | Files beside a model fetched by URL                                                |
+| `maxNodes`            | 10,000                  | glTF nodes                                                                         |
+| `maxMeshes`           | `Infinity`              | glTF meshes                                                                        |
+| `maxMaterials`        | 10,000                  | glTF materials                                                                     |
+| `maxTextures`         | 10,000                  | glTF textures                                                                      |
+| `maxAnimations`       | 10,000                  | glTF animations                                                                    |
+| `maxMorphTargets`     | `Infinity`              | Morph targets on one glTF primitive                                                |
+| `maxJoints`           | `Infinity`              | Joints in one glTF skin                                                            |
+| `maxTextureSize`      | 2048                    | Pixels per picture side; a larger picture is drawn smaller, never refused          |
+| `fetchTimeoutMs`      | 30,000                  | Milliseconds a fetch may receive nothing; `Infinity` waits for ever                |
+| `sessionBytes`        | `Infinity`              | Model bytes the session holds, all models together                                 |
+| `documentBytes`       | 64 MB                   | Model file bytes one project file embeds, all models together                      |
+| `sceneTriangleBudget` | 2,000,000               | Triangles across the scene before `W_MODEL_BUDGET` (a warning, never a refusal)    |
+
 `params.what` names the limit; for a count it is `"count"`, with `params.item` saying what was
 counted (`"materials"`, `"textures"`, `"nodes"`, ...). Only your page's code can change the limits,
 lower or higher; a project file never can, and `assets.limits()` reads them:

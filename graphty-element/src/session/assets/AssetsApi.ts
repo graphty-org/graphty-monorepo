@@ -278,7 +278,10 @@ export interface ModelDefaultsPatch {
 export interface ModelLimits {
     /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
     readonly maxBytes: number;
-    /** Per OBJ, ASCII STL or ASCII PLY file, which parse on the main thread. Default 8 MB. */
+    /**
+     * Per OBJ, ASCII STL or ASCII PLY file, read as one string. Default 536,870,888 bytes (2^29 - 24),
+     * the longest string a browser holds: longer text cannot be read at all.
+     */
     readonly maxTextBytes: number;
     /** Per model, counted per use. Default 20,000,000. */
     readonly maxTriangles: number;
@@ -290,7 +293,7 @@ export interface ModelLimits {
     readonly maxFiles: number;
     /** glTF nodes. Default 10,000. */
     readonly maxNodes: number;
-    /** glTF meshes. Default 1,000. */
+    /** glTF meshes. Default `Infinity`: no limit. */
     readonly maxMeshes: number;
     /** glTF materials. Default 10,000. */
     readonly maxMaterials: number;
@@ -298,9 +301,9 @@ export interface ModelLimits {
     readonly maxTextures: number;
     /** glTF animations. Default 10,000. */
     readonly maxAnimations: number;
-    /** Morph targets on one glTF primitive. Default 64. */
+    /** Morph targets on one glTF primitive. Default `Infinity`: no limit. */
     readonly maxMorphTargets: number;
-    /** Joints in one glTF skin. Default 256. */
+    /** Joints in one glTF skin. Default `Infinity`: no limit. */
     readonly maxJoints: number;
     /** Pixels per texture side; larger textures are drawn smaller. Default 2048. */
     readonly maxTextureSize: number;
@@ -313,7 +316,10 @@ export interface ModelLimits {
     readonly documentBytes: number;
     /** Triangles across the scene before `W_MODEL_BUDGET`. Default 2,000,000. */
     readonly sceneTriangleBudget: number;
-    /** Default 30,000. */
+    /**
+     * A fetch that receives nothing for this many milliseconds is stopped. Default 30,000;
+     * `Infinity` (or anything past 2^31 - 1) waits for ever.
+     */
     readonly fetchTimeoutMs: number;
 }
 
@@ -322,18 +328,19 @@ const MB = 1024 * 1024;
 /** The limits a session starts with. */
 export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
     maxBytes: 1024 * MB,
-    maxTextBytes: 8 * MB,
+    // The longest string a browser holds (V8's 2^29 - 24 characters): longer text cannot be read.
+    maxTextBytes: 2 ** 29 - 24,
     maxTriangles: 20_000_000,
     maxTextureBytes: 1024 * MB,
     maxDecodedBytes: 1024 * MB,
     maxFiles: 10_000,
     maxNodes: 10_000,
-    maxMeshes: 1_000,
+    maxMeshes: Number.POSITIVE_INFINITY,
     maxMaterials: 10_000,
     maxTextures: 10_000,
     maxAnimations: 10_000,
-    maxMorphTargets: 64,
-    maxJoints: 256,
+    maxMorphTargets: Number.POSITIVE_INFINITY,
+    maxJoints: Number.POSITIVE_INFINITY,
     maxTextureSize: 2048,
     sessionBytes: Number.POSITIVE_INFINITY,
     documentBytes: 64 * MB,

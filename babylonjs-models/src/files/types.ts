@@ -170,7 +170,10 @@ export interface ModelSummary {
 export interface ModelLimits {
     /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
     readonly maxBytes: number;
-    /** Per OBJ, ASCII STL or ASCII PLY file, which parse on the main thread. Default 8 MB. */
+    /**
+     * Per OBJ, ASCII STL or ASCII PLY file, read as one string. Default 536,870,888 bytes (2^29 - 24),
+     * the longest string a browser holds: longer text cannot be read at all.
+     */
     readonly maxTextBytes: number;
     /** Per model, counted per use. Default 20,000,000. */
     readonly maxTriangles: number;
@@ -182,7 +185,7 @@ export interface ModelLimits {
     readonly maxFiles: number;
     /** glTF nodes. Default 10,000. */
     readonly maxNodes: number;
-    /** glTF meshes. Default 1,000. */
+    /** glTF meshes. Default `Infinity`: no limit. */
     readonly maxMeshes: number;
     /** glTF materials. Default 10,000. */
     readonly maxMaterials: number;
@@ -190,16 +193,16 @@ export interface ModelLimits {
     readonly maxTextures: number;
     /** glTF animations. Default 10,000. */
     readonly maxAnimations: number;
-    /** Morph targets on one glTF primitive. Default 64. */
+    /** Morph targets on one glTF primitive. Default `Infinity`: no limit. */
     readonly maxMorphTargets: number;
-    /** Joints in one glTF skin. Default 256. */
+    /** Joints in one glTF skin. Default `Infinity`: no limit. */
     readonly maxJoints: number;
     /** Pixels per texture side; larger textures earn `W_MODEL_TEXTURES_REDUCED`. Default 2048. */
     readonly maxTextureSize: number;
     /**
      * A fetch that receives nothing for this many milliseconds is stopped; every chunk that arrives
      * starts the wait again, so a large file on a slow but steady connection still loads.
-     * Default 30,000.
+     * Default 30,000; `Infinity` (or anything past 2^31 - 1) waits for ever.
      */
     readonly fetchTimeoutMs: number;
 }

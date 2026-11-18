@@ -197,6 +197,18 @@ describe("the glTF checks", () => {
             (await refusalOf(many, { ...DEFAULT_MODEL_LIMITS, maxTextures: 64 })).params.item,
             "textures",
         );
+        // Counts Babylon.js draws whatever their size are never refused by default (#8609).
+        const meshes = cubeWith((json) => {
+            const mesh = (json.meshes as Json[])[0];
+            json.meshes = Array.from({ length: 1001 }, () => mesh);
+        });
+        assert.strictEqual((await checkModelFiles(meshes, {}, DEFAULT_MODEL_LIMITS)).summary.meshes, 1001);
+        assert.deepInclude((await refusalOf(meshes, { ...DEFAULT_MODEL_LIMITS, maxMeshes: 1000 })).params, {
+            item: "meshes",
+            found: 1001,
+        });
+        assert.strictEqual(DEFAULT_MODEL_LIMITS.maxMorphTargets, Number.POSITIVE_INFINITY);
+        assert.strictEqual(DEFAULT_MODEL_LIMITS.maxJoints, Number.POSITIVE_INFINITY);
         // A Beautiful Game from the glTF samples draws 1,500,224 triangles.
         assert.isAbove(DEFAULT_MODEL_LIMITS.maxTriangles, 1_500_224);
     });

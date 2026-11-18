@@ -9,7 +9,8 @@ const MB = 1024 * 1024;
 /** The limits a check uses when the caller names none. */
 export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
     maxBytes: 1024 * MB,
-    maxTextBytes: 8 * MB,
+    // The longest string a browser holds (V8's 2^29 - 24 characters): longer text cannot be read.
+    maxTextBytes: 2 ** 29 - 24,
     maxTriangles: 20_000_000,
     maxTextureBytes: 1024 * MB,
     maxDecodedBytes: 1024 * MB,
@@ -17,10 +18,10 @@ export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
     fetchTimeoutMs: 30_000,
     maxFiles: 10_000,
     maxNodes: 10_000,
-    maxMeshes: 1_000,
+    maxMeshes: Number.POSITIVE_INFINITY,
     maxMaterials: 10_000,
     maxTextures: 10_000,
     maxAnimations: 10_000,
-    maxMorphTargets: 64,
-    maxJoints: 256,
+    maxMorphTargets: Number.POSITIVE_INFINITY,
+    maxJoints: Number.POSITIVE_INFINITY,
 });

@@ -515,6 +515,9 @@ function fetchedName(url: URL): string {
     return normalizePath(name) || BYTES_KEY;
 }
 
+/** The longest delay setTimeout honors; a longer one fires at once. */
+const MAX_TIMER_MS = 2_147_483_647;
+
 /**
  * Fetch a model with no credentials, no referrer, an idle time limit and a byte cap enforced while
  * the body streams.
@@ -537,10 +540,13 @@ export async function fetchModel(
     checkFetchable(url);
     const shown = shownUrl(url);
     const controller = new AbortController();
-    const idle = (): ReturnType<typeof setTimeout> =>
-        setTimeout(() => {
-            controller.abort();
-        }, limits.fetchTimeoutMs);
+    // setTimeout fires at once for a delay past 2^31 - 1 ms (Infinity too): such a wait is no wait.
+    const idle = (): ReturnType<typeof setTimeout> | undefined =>
+        limits.fetchTimeoutMs > MAX_TIMER_MS
+            ? undefined
+            : setTimeout(() => {
+                  controller.abort();
+              }, limits.fetchTimeoutMs);
     let timer = idle();
     const onAbort = (): void => {
         controller.abort();

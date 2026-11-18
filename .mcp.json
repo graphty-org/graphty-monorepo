@@ -3,6 +3,14 @@
         "pipeline-health": {
             "command": "node",
             "args": ["tools/pipeline-health/mcp/start.mjs"]
+        },
+        "posthog": {
+            "type": "http",
+            "url": "https://mcp-eu.posthog.com/mcp"
+        },
+        "umami": {
+            "command": "bash",
+            "args": ["tools/umami-mcp.sh"]
         }
     }
 }

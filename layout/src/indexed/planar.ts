@@ -309,7 +309,7 @@ class LeftRight {
     }
 
     private top(): ConflictPair | null {
-        return this.stack.length === 0 ? null : this.stack[this.stack.length - 1]; // eslint-disable-line unicorn/prefer-at -- the ES2020 lib has no Array.prototype.at
+        return this.stack.at(-1) ?? null;
     }
 
     /**
@@ -895,8 +895,7 @@ function embeddingToRows(embedding: Embedding): F64 {
         const [vk, contour] = order[k];
         const wp = contour[0];
         const wp1 = contour[1];
-        const wq = contour[contour.length - 1]; // eslint-disable-line unicorn/prefer-at -- the ES2020 lib has no Array.prototype.at
-        const wq1 = contour[contour.length - 2]; // eslint-disable-line unicorn/prefer-at -- the ES2020 lib has no Array.prototype.at
+        const [wq1, wq] = contour.slice(-2);
         const several = contour.length > 2;
         dx[wp1] += 1;
         dx[wq] += 1;

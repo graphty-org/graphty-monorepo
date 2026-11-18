@@ -1,15 +1,14 @@
 /**
  * The steppable CPU Fruchterman-Reingold simulation (design 9.3 `FruchtermanReingoldSimulation`, the element's
- * "spring" type): the loop body of `layout/src/layouts/force-directed/fruchterman-reingold.ts:70-151` made
- * index-based over a graph-format snapshot (design 7.20), stepped in batches over the owner's stride-3 scene-unit
+ * "spring" type): the loop body of the former array-based Fruchterman-Reingold layout (a port of NetworkX's
+ * `_fruchterman_reingold`) made index-based over a graph-format snapshot (design 7.20), stepped in batches over the owner's stride-3 scene-unit
  * array (design 7.18 / 7.19), with the settle rule of design 7.17 and the pin / drag semantics of design 7.12.
  *
  * The formulas are the legacy loop's, unchanged: `k = 1 / sqrt(n)` unless given, where a k of 0 or NaN counts as
- * not given (the loop's `if (!k)`, line 76-78) and a negative or infinite k is rejected; the temperature
- * starts at the CONSTANT `t = 0.1` (line 81) and drops by `dt = 0.1 / (iterations + 1)` per iteration (lines 83,
- * 154); the repulsion `k * k / d` between every pair (lines 94-115) and the attraction `d * d / k` per edge
- * (lines 118-134) along `delta / d` with the `|| 0.1` exact-zero guard (lines 103, 123); every free node moves
- * along its displacement by `min(|disp|, t)` (lines 137-151). The attraction runs over the CSR arcs (both arcs of
+ * not given (the loop's `if (!k)`) and a negative or infinite k is rejected; the temperature
+ * starts at the CONSTANT `t = 0.1` and drops by `dt = 0.1 / (iterations + 1)` per iteration; the repulsion
+ * `k * k / d` between every pair and the attraction `d * d / k` per edge along `delta / d` with the `|| 0.1`
+ * exact-zero guard; every free node moves along its displacement by `min(|disp|, t)`. The attraction runs over the CSR arcs (both arcs of
  * an undirected edge, each moving its own row: the same two contributions the edge loop makes), the repulsion over
  * every unordered pair; every accumulator is f64 and nothing is allocated per pair. The output is never rescaled
  * (design 7.20 "output"): positions are written back in scene units as `layout * scale + center`.
@@ -49,11 +48,11 @@ import { kickDir } from "./forceatlas2.js";
 import { seedPositions } from "./seed.js";
 import type { ClusterOptions, CollisionOptions, FruchtermanReingoldOptions, LayoutSimulation } from "./types.js";
 
-/** The legacy loop's starting temperature (fruchterman-reingold.ts line 81; design 7.20). */
+/** The legacy loop's starting temperature (design 7.20). */
 const FR_START_TEMPERATURE = 0.1;
-/** The legacy loop's default iteration count (fruchterman-reingold.ts line 29). */
+/** The legacy loop's default iteration count. */
 const FR_DEFAULT_ITERATIONS = 50;
-/** The `|| 0.1` exact-zero distance guard (fruchterman-reingold.ts lines 103, 123). */
+/** The `|| 0.1` exact-zero distance guard, used for both the repulsion and the attraction. */
 const FR_ZERO_DISTANCE = 0.1;
 /** The reheat point of design 7.20: the iteration index a reheat restarts at, as a fraction of the budget. */
 const FR_REHEAT_FRACTION = 0.7;
@@ -190,7 +189,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         this.scale = scale;
         this.center = resolveCenter(options.center);
         this.seed = options.seed ?? null;
-        // k: null, 0 and NaN mean the auto default 1 / sqrt(n) (the legacy loop's `if (!k)` at line 76, kept for
+        // k: null, 0 and NaN mean the auto default 1 / sqrt(n) (the legacy loop's `if (!k)`, kept for
         // parity); a negative or an infinite k is rejected, which the legacy loop did not do
         const k = options.k ?? null;
         if (k === null || Number.isNaN(k) || k === 0) {
@@ -343,7 +342,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             pos[3 * i + 2] = this.dim === 2 ? 0 : (positions[3 * i + 2] - cz) / scale;
         }
 
-        // Optimal distance between nodes (line 76-78) and the cooling schedule (lines 81-83)
+        // Optimal distance between nodes and the cooling schedule
         this.k = this.kOption ?? 1 / Math.sqrt(n);
         this.dt = FR_START_TEMPERATURE / (this.iterations + 1);
         this.t = FR_START_TEMPERATURE;
@@ -527,13 +526,13 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     // ---------------------------------------------------------------- the loop body
 
     /**
-     * One iteration of the legacy loop (fruchterman-reingold.ts lines 86-155) plus the settle fold of design 7.17.
+     * One iteration of the legacy loop plus the settle fold of design 7.17.
      */
     private iterate(): void {
         if (this.adaptive && this.pendingEnergy !== null) {
             this.updateAdaptive(this.pendingEnergy);
         }
-        // Calculate repulsive forces (lines 88-91): the displacement starts at 0
+        // Calculate repulsive forces: the displacement starts at 0
         this.displacement.fill(0);
         this.repulse();
         this.attract();
@@ -556,7 +555,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         return this.inert !== null && maskTest(this.inert, i);
     }
 
-    /** Repulsive forces between nodes (lines 94-115): every unordered pair, k^2 / d along delta / d. */
+    /** Repulsive forces between nodes: every unordered pair, k^2 / d along delta / d. */
     private repulse(): void {
         const { n, k, positions: pos, displacement: disp } = this;
         for (let u = 0; u < n; u++) {
@@ -570,7 +569,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 if (this.isInert(v)) {
                     continue;
                 }
-                // Difference vector (line 100)
+                // Difference vector
                 const dx = ux - pos[3 * v];
                 const dy = uy - pos[3 * v + 1];
                 const dz = uz - pos[3 * v + 2];
@@ -587,7 +586,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                     fy = kick[1] * magnitude;
                     fz = kick[2] * magnitude;
                 } else {
-                    // Distance (line 103), unclamped; Force (line 106); add force to displacement (lines 109-113)
+                    // Distance, unclamped; force k^2 / d; add the force to the displacement
                     const distance = Math.sqrt(d2);
                     const force = (k * k) / distance;
                     fx = (dx / distance) * force;
@@ -605,7 +604,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     }
 
     /**
-     * Attractive forces between connected nodes (lines 118-134): per arc, d^2 / k toward the neighbor; the two arcs
+     * Attractive forces between connected nodes: per arc, d^2 / k toward the neighbor; the two arcs
      * of an undirected edge are the edge loop's two contributions (source -= and target +=).
      */
     private attract(): void {
@@ -619,15 +618,15 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 if (this.isInert(v)) {
                     continue; // an inert neighbor pulls nothing
                 }
-                // Difference vector (line 120)
+                // Difference vector
                 const dx = ux - pos[3 * v];
                 const dy = uy - pos[3 * v + 1];
                 const dz = uz - pos[3 * v + 2];
-                // Distance (line 123)
+                // Distance
                 const distance = Math.sqrt(dx * dx + dy * dy + dz * dz) || FR_ZERO_DISTANCE;
-                // Force (line 126)
+                // Force d^2 / k
                 const force = (distance * distance) / k;
-                // Add force to displacement (lines 129-133), this row's side only
+                // Add force to displacement, this row's side only
                 disp[3 * u] -= (dx / distance) * force;
                 disp[3 * u + 1] -= (dy / distance) * force;
                 disp[3 * u + 2] -= (dz / distance) * force;
@@ -638,7 +637,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     /** Moves the free nodes, cools, and folds the settle statistics. */
     private moveAndFold(): void {
         const { n, t, positions: pos, displacement: disp, fixed } = this;
-        // Update positions (lines 137-151): every free node moves along its displacement by min(|disp|, t); the
+        // Update positions: every free node moves along its displacement by min(|disp|, t); the
         // settle fold of design 7.17 rides along: sum of positions (the next centroid), sum |p - c|^2 about the
         // start-of-iteration centroid (the RMS radius), sum of the free nodes' displacement magnitudes
         const [cx, cy, cz] = this.centroid;
@@ -654,14 +653,14 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 const mx = disp[3 * i];
                 const my = disp[3 * i + 1];
                 const mz = disp[3 * i + 2];
-                // Calculate displacement magnitude (line 141)
+                // Calculate displacement magnitude
                 const magnitudeSq = mx * mx + my * my + mz * mz;
                 const magnitude = Math.sqrt(magnitudeSq);
                 // The free force energy of adaptive cooling (the GPU's K5 `dot(f, f)`)
                 energy += magnitudeSq;
-                // Limit maximum displacement by temperature (line 144)
+                // Limit maximum displacement by temperature
                 const limitedMagnitude = Math.min(magnitude, t);
-                // Update position (lines 147-150)
+                // Update position
                 if (magnitude !== 0) {
                     pos[3 * i] += (mx / magnitude) * limitedMagnitude;
                     pos[3 * i + 1] += (my / magnitude) * limitedMagnitude;
@@ -685,7 +684,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             sumSq += qx * qx + qy * qy + qz * qz;
         }
 
-        // Cool temperature (line 154); adaptive cooling compares this iteration's energy at the start of the next one
+        // Cool temperature; adaptive cooling compares this iteration's energy at the start of the next one
         if (this.adaptive) {
             this.pendingEnergy = energy;
         } else {

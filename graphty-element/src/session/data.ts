@@ -1843,6 +1843,14 @@ export class SessionData implements SessionDataApi {
             this.loadFacts.set(key, facts);
         }
 
+        // The open published its graph before these choices came back: tell readers of `sources()`.
+        this.copyTick++;
+        for (const [key, facts] of read?.facts ?? []) {
+            if (facts.copy === "reference") {
+                this.writes.emit?.("source:copy", { source: key, copy: "reference" });
+            }
+        }
+
         // A member with no `waiting` list was written before the list existed: everything waits.
         const waiting = read?.waiting === undefined ? null : new Set(read.waiting);
         for (const record of this.ledger.loads()) {

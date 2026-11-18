@@ -374,20 +374,20 @@ function markUnchanged(
 }
 
 /**
- * Read each referenced load once and work out which of its rows the file can leave out.
+ * Read each referenced load once. Which of its rows the file can leave out is worked out by the
+ * returned function, from the graph as it is when it is called: the save calls it in the same tick
+ * it writes the file, so an edit made while the loads were read is written, never left out.
  * ponytail: reads every referenced load on every save (one fetch each); keep the rows read at
  * load or open if saves of large references get slow.
  * @param input - The session, its referenced loads and how to read them.
- * @returns What to leave out.
+ * @returns Works out what to leave out, given the loads still saved as references.
  */
-export async function planLeaveOut(input: LeaveOutInput): Promise<LeaveOut> {
+export async function planLeaveOut(
+    input: LeaveOutInput,
+): Promise<(stillReferenced: ReadonlySet<SourceKey>) => LeaveOut> {
     const { session, computed } = input;
-    const nodes = new Map<NodeId, SourceKey>();
-    const edges = new Map<EdgeId, SourceKey>();
-    const sha256 = new Map<SourceKey, string>();
+    const reads: { key: SourceKey; read: ReadRows }[] = [];
     const problems: ReferenceProblem[] = [];
-    const graphNodes = session.data.nodes({ scope: "graph" });
-    const graphEdges = session.data.edges({ scope: "graph" });
     for (const { key, how, ask } of input.loads) {
         const read = await readAsLoaded(how, input.scratch, ask ? input.network : undefined);
         if (typeof read === "string") {
@@ -395,11 +395,25 @@ export async function planLeaveOut(input: LeaveOutInput): Promise<LeaveOut> {
             continue;
         }
 
-        sha256.set(key, read.sha256);
-        markUnchanged({ session, key, read, computed, graphNodes, graphEdges }, nodes, edges);
+        reads.push({ key, read });
     }
 
-    return { nodes, edges, sha256, problems };
+    return (stillReferenced) => {
+        const nodes = new Map<NodeId, SourceKey>();
+        const edges = new Map<EdgeId, SourceKey>();
+        const sha256 = new Map<SourceKey, string>();
+        const graphNodes = session.data.nodes({ scope: "graph" });
+        const graphEdges = session.data.edges({ scope: "graph" });
+        for (const { key, read } of reads) {
+            if (stillReferenced.has(key)) {
+                sha256.set(key, read.sha256);
+                markUnchanged({ session, key, read, computed, graphNodes, graphEdges }, nodes, edges);
+            }
+        }
+
+        const kept = problems.filter((problem) => stillReferenced.has(problem.params.source as SourceKey));
+        return { nodes, edges, sha256, problems: kept };
+    };
 }
 
 /** The entries an open could not read: their rows stay in the graph as bare held rows. */

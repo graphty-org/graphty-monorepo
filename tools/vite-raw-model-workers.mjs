@@ -17,7 +17,7 @@ const WASM = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../baby
 
 /**
  * The plugin.
- * @returns {import("vite").Plugin} The plugin.
+ * @returns The plugin.
  */
 export function rawModelWorkers() {
     return {

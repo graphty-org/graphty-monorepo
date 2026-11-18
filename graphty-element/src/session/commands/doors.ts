@@ -2005,6 +2005,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             cancelAnimationCapture: CAPTURE,
             cancelCameraAnimation: IN_FLIGHT,
             playTour: CAMERA,
+            replaceTour: CAMERA,
+            applyCaptureCamera: CAMERA,
             planTour: READ,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,

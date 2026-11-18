@@ -258,6 +258,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         { root, members: ["nodeThumbnail", "modelThumbnail", "modelPreview"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
     ]),
+    // How a capture's camera ends a tour and is put back: the capture's own machinery.
+    { root: "Graph", members: ["replaceTour", "applyCaptureCamera"], reason: "internal-handle", kind: BY_DESIGN },
     // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
     { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },
     // The live handle modelPreview returns: it draws in a canvas of its own, which no tool can show.

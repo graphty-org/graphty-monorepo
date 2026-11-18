@@ -106,11 +106,12 @@
                 data the app sends, who receives it, and how to turn it off.
             </p>
             <p>
-                There are two levels. A few anonymous counts are sent for every visitor, whatever you answer. Everything
-                else is sent only after you choose <b>Share usage data</b>, and stops when you turn it off.
+                There are two levels. Until you choose <b>Share usage data</b>, or after No thanks, a few anonymous
+                counts are sent. Everything else is sent only after you choose Share usage data, and stops when you turn
+                it off; while it is on, the same counts are sent with your shared usage data instead, under its id.
             </p>
 
-            <h2 id="always">Always sent, whatever you answer</h2>
+            <h2 id="always">Anonymous counts, while Share usage data is off</h2>
             <p>
                 These counts go to PostHog (EU region), in its cookieless mode. PostHog stores nothing in your browser
                 for them (when it starts, its library writes one test value and removes it at once, to check that
@@ -205,8 +206,9 @@
                 (<code>graphty.visits.v1</code>): the day of your first visit and of your latest one. Only the
                 <code>days</code> bucket above leaves your computer, never the dates. A record older than about 13
                 months starts again. If your browser sends Do Not Track or Global Privacy Control, the app keeps no
-                visit record and sends no <code>first_visit</code>, <code>return_visit</code> or
-                <code>usage_data_shared</code>; the page view and the other counts are still sent.
+                visit record (it removes one kept from before) and sends no <code>first_visit</code>,
+                <code>return_visit</code> or <code>usage_data_shared</code>; the page view and the other counts are
+                still sent.
             </p>
             <h3>What PostHog receives with each anonymous count</h3>
             <p>
@@ -326,8 +328,9 @@
             <h2 id="where">Where it goes</h2>
             <ul>
                 <li>
-                    <b>PostHog, EU region</b> (<code>eu.i.posthog.com</code>): the anonymous counts for everyone and,
-                    only with Share usage data, everything listed under it, plus <code>eu-assets.i.posthog.com</code>
+                    <b>PostHog, EU region</b> (<code>eu.i.posthog.com</code>): the anonymous counts while Share usage
+                    data is off and, only with Share usage data, everything listed under it, plus
+                    <code>eu-assets.i.posthog.com</code>
                     for its settings. Every visitor's browser downloads PostHog's code after the page has loaded; until
                     you choose Share it sends only the anonymous counts.
                 </li>

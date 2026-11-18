@@ -11,7 +11,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { PostHog } from "posthog-js";
+import type { CaptureResult, PostHog } from "posthog-js";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
@@ -245,13 +245,28 @@ describe("a reader who never shares usage data", () => {
         });
         const client = postHog() as unknown as PostHog;
         assert.strictEqual(imports, 1, "Share reused the chunk loaded after first paint");
+        // Every event that reaches the shared instance's before_send, before the app's cleaning runs.
+        const sharedSeen: string[] = [];
+        const own = client.config.before_send;
+        client.config.before_send = [
+            (event: CaptureResult | null) => {
+                sharedSeen.push(event?.event ?? "");
+                return event;
+            },
+            ...[own ?? []].flat(),
+        ];
 
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
+        // Not vacuous: while Share is on, a real click reaches the shared instance's before_send.
+        await vi.waitFor(() => {
+            assert.include(sharedSeen, "$autocapture");
+        });
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         const toggle = within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" });
         assert.isTrue(toggle.checked, "Share is on");
         await userEvent.click(toggle);
         assert.isFalse(toggle.checked);
+        const seenAtSwitch = sharedSeen.length;
 
         assert.isTrue(client.has_opted_out_capturing());
         assert.isUndefined(postHog());
@@ -259,16 +274,20 @@ describe("a reader who never shares usage data", () => {
             Object.keys(localStorage).filter((key) => key.startsWith("ph_")),
             "no PostHog id is kept",
         );
-        // Counted work: every capture after the switch, the app's own counts included, is dropped
-        // before it is queued.
-        const capture = vi.spyOn(client, "capture");
+        // Real input after the switch: clicks, a panel opened, a measure run. The shared instance's
+        // own handlers (autocapture, heatmaps, dead clicks, web vitals) must hand it nothing.
         await userEvent.keyboard("{Escape}");
         await useTheApp();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        const [row] = await within(tree).findAllByRole("treeitem");
+        await userEvent.click(row);
+        await screen.findByRole("complementary", { name: "Inspector" });
         // The barrier: the run's count left in the anonymous mode.
         assert.include(await sentToPostHog("algorithm_run"), { $cookieless_mode: true, tracking: "anonymous" });
-        assert.isTrue(
-            capture.mock.results.every((result) => result.type === "return" && result.value === undefined),
-            "nothing was captured in the shared mode after Share was turned off",
+        assert.deepEqual(
+            sharedSeen.slice(seenAtSwitch),
+            [],
+            "the shared instance's before_send received nothing after Share was turned off",
         );
         const offOrigin = await watch.takeOffOriginRequests();
         assert.isEmpty(offOrigin.filter((url) => /posthog/i.test(url)));

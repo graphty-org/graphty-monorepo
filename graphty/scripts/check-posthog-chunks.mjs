@@ -5,7 +5,9 @@
  * (its ingest host, its opt-out marker or its cookieless id). PostHog is one lazy chunk, imported
  * after first paint for every visitor (src/lib/analytics.ts); a match here means something imports
  * posthog-js statically. It also fails when no landing file names that chunk in a dynamic
- * `import(`, so the after-first-paint load the anonymous counts need cannot be dropped by mistake.
+ * `import(`. That proves some lazy import exists, not which start makes it: the after-first-paint
+ * start and the Share start share one import, so the after-first-paint start itself is guarded by
+ * src/lib/analytics.test.ts (the case that holds the afterFirstPaint seam).
  * Run after `vite build`, from graphty/.
  */
 
@@ -45,7 +47,7 @@ const lazy = [...seen].some((file) => {
     return chunks.some((chunk) => importsLazily(text, chunk));
 });
 if (!lazy) {
-    console.error(`no first-paint file imports ${chunks.join(", ")} lazily: the after-first-paint load is gone`);
+    console.error(`no first-paint file imports ${chunks.join(", ")} lazily: no lazy load of PostHog is left`);
     process.exit(1);
 }
 console.log(

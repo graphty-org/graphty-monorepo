@@ -35,9 +35,11 @@ storage features only in a secure context).
 The sample datasets the app offers beyond the start screen's own are downloaded from graphty.app
 when a reader opens one.
 
-Usage data: every visitor sends a few anonymous counts to PostHog (EU region) in its cookieless mode,
-with no cookies and no stored id: visits, the site that sent them, and which sample, file format,
-layout, measure and export they use (ids only, never file names or contents). Masked session replays,
+Usage data: every visitor who has not turned on Share usage data sends a few anonymous counts to
+PostHog (EU region) in its cookieless mode, with no cookies and no stored id: visits, the site that
+sent them, and which sample, file format, layout, measure and export they use (ids only, never file
+names or contents). A reader who shares sends the same counts through PostHog's shared mode instead,
+with its stored id. Masked session replays,
 click, control-change and command events, page speed and survey answers (the same PostHog project) and
 error reports with a masked replay of the moments before an error (Sentry) are sent only after a reader
 turns on Share usage data in the app. The app's

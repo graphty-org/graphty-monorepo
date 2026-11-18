@@ -472,7 +472,7 @@ chooses.
 > experience. This data will only ever be used by the author of the application and his Claude
 > Code sessions.
 
-Below the owner's words: "Anonymous counts are sent whatever you answer: visits, the site that
+Below the owner's words: "Until you share, anonymous counts are sent: visits, the site that
 sent you, which sample, file format, layout, measure and export you use, and whether you share. No
 cookies, no names or contents." Buttons **Share usage data** and **No thanks**, equal weight, no
 default. A **What is collected** disclosure lists what Share adds: a replay of some sessions, with
@@ -499,7 +499,7 @@ One dialog, a section list down the left, closed with X or Esc, Mod+, (spec 12.3
   **Where your data goes**, read-only lines: files are read on this computer; the project is saved
   where you save it; usage data, masked, is sent only while Usage data is on (off: "Anonymous counts
   are still sent: visits, the site that sent you, and which sample, file format, layout, measure and
-  export you use."); anonymous counts: for everyone, with no cookies or stored id (PostHog); a **Privacy details**
+  export you use."); anonymous counts, shown only while Share is off: no cookies or stored id (PostHog); a **Privacy details**
   link to `/privacy.html`.
 - **Accessibility and input**: Single-key shortcuts (on/off, WCAG 2.1.4). Reduced motion is not
   drawn until graphty-element honors it (an unbuilt item is not drawn).

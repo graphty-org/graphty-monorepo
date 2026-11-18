@@ -81,7 +81,7 @@ export function UsageDataCard({
             <Stack gap={6}>
                 <UsageDataText />
                 <Text size="xs" c="dimmed">
-                    Anonymous counts are sent whatever you answer: visits, the site that sent you, which sample, file
+                    Until you share, anonymous counts are sent: visits, the site that sent you, which sample, file
                     format, layout, measure and export you use, and whether you share. No cookies, no stored id, no
                     names or contents.
                 </Text>

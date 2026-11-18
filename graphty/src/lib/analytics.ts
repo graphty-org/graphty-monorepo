@@ -561,6 +561,15 @@ export function visitBucket(
 }
 
 /** Sends `first_visit` or `return_visit` from the visit record, at most once a day. Only the bucket leaves the page. */
+/** Removes the visit record: under Do Not Track or GPC the app keeps none, even one written before. */
+function forgetVisits(): void {
+    try {
+        localStorage.removeItem(VISITS_KEY);
+    } catch {
+        // Storage blocked: nothing is stored.
+    }
+}
+
 function countVisit(): void {
     const today = calls.today();
     let record: { first: string; last: string } | null = null;
@@ -641,6 +650,8 @@ export function startPageCounts(config: SiteConfig): void {
         count("$pageview");
         if (visitsCounted()) {
             countVisit();
+        } else {
+            forgetVisits();
         }
     }
     removeChannelFromAddress();
@@ -751,6 +762,7 @@ export function count(name: string, props: UsageProps = {}): void {
         toMode("anonymous", name, { ...clean, first_on_page: true });
     }
     notify(name, clean);
+    retryFailedLoad();
 }
 
 /**
@@ -1183,6 +1195,9 @@ function anonymousOptions(host: string): Partial<PostHogConfig> {
         defaults: "2026-08-30",
         // No storage and no id from the page; $cookieless_mode on every event.
         cookieless_mode: "always",
+        // Explicit, so ?__posthog_debug=true in the address never writes ph_debug to localStorage
+        // (posthog-js reads the URL for its default and stores the flag when it is true).
+        debug: false,
         disable_persistence: true,
         // Both needed: without its own name and memory persistence, this init's disabled
         // persistence removes ph_<token>_posthog, the shared instance's stored id (section 5).
@@ -1264,10 +1279,38 @@ function startAnonymous(config: SiteConfig = siteConfig()): void {
             initAnonymous(posthog, target);
         },
         () => {
-            importing = undefined;
             anonymousStarted = false;
+            loadFailed(() => {
+                startAnonymous(config);
+            });
         },
     );
+}
+
+/** Starts to repeat after posthog-js failed to load, run on the next count or when the browser is back online. */
+const retries: (() => void)[] = [];
+
+/**
+ * Records a failed load of posthog-js, to be tried again (the buffered counts wait for it).
+ * @param retry - the start to repeat.
+ */
+function loadFailed(retry: () => void): void {
+    importing = undefined;
+    if (retries.length === 0) {
+        globalThis.addEventListener("online", retryFailedLoad);
+    }
+    retries.push(retry);
+}
+
+/** Tries every failed load again, once. */
+function retryFailedLoad(): void {
+    if (retries.length === 0) {
+        return;
+    }
+    globalThis.removeEventListener("online", retryFailedLoad);
+    for (const retry of retries.splice(0)) {
+        retry();
+    }
 }
 
 /**
@@ -1314,9 +1357,7 @@ function waitForStoredId(key: string): void {
             return;
         }
         stopWaitingForId();
-        if (wanted) {
-            startPostHog(false);
-        }
+        startPostHog(false);
     };
     globalThis.addEventListener("storage", waitingForId);
 }
@@ -1341,12 +1382,14 @@ export function startPostHog(fresh = true): void {
         return;
     }
     const { key, host } = target;
-    wanted = true;
     if (!fresh && !hasStoredId(key)) {
-        // Events wait in the buffer meanwhile; a No stops the wait (stopPostHog).
+        // Counts stay in the anonymous mode until the id arrives, so a Share tab that closes or
+        // fails before saving one loses nothing here; a No stops the wait (stopPostHog).
         waitForStoredId(key);
         return;
     }
+    stopWaitingForId();
+    wanted = true;
     if (client !== undefined) {
         try {
             // reset() first: in posthog-js 1.445 it also clears the stored consent, so opting in
@@ -1390,8 +1433,11 @@ export function startPostHog(fresh = true): void {
             flushBuffer("shared");
         },
         () => {
-            // The chunk failed to load; a later start tries again.
-            importing = undefined;
+            loadFailed(() => {
+                if (wanted) {
+                    startPostHog(fresh);
+                }
+            });
         },
     );
 }
@@ -1548,6 +1594,8 @@ export function resetAnalyticsForTests(): void {
     anonymousClient = undefined;
     anonymousStarted = false;
     importing = undefined;
+    retries.length = 0;
+    globalThis.removeEventListener("online", retryFailedLoad);
     stopWaitingForId();
     buffer.length = 0;
     commandAllowlist = new Set();

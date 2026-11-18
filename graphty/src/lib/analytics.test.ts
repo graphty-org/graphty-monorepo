@@ -219,7 +219,9 @@ describe("anonymous counts", () => {
         { dnt: true, gpc: false },
         { dnt: false, gpc: true },
     ]) {
-        it(`under ${signals.dnt ? "Do Not Track" : "GPC"} sends the page view and no visit event`, async () => {
+        it(`under ${signals.dnt ? "Do Not Track" : "GPC"} sends the page view and no visit event, and keeps no visit record`, async () => {
+            // A record written on a visit before the signal was switched on.
+            localStorage.setItem(VISITS, JSON.stringify({ first: dayFromToday(-3), last: dayFromToday(-1) }));
             installCalls({ privacySignals: () => signals });
             startPageCounts(await site(PH));
 
@@ -785,17 +787,22 @@ describe("PostHog", () => {
         assert.equal(anon[2].properties.sample, "karate");
     });
 
-    it("moves a count made while waiting for another tab's id to the anonymous mode on a No", async () => {
+    it("keeps counting in the anonymous mode while waiting for another tab's id, so a Share tab that closes loses nothing", async () => {
+        const { fake, imports } = serve();
         const config = await site(PH);
         startPageCounts(config);
-        // Another tab's Share, before that tab saved its id: this tab waits, its counts kept as shared.
+        // Another tab's Share, before that tab saved its id; that tab then closes and never saves one.
         startPostHog(false);
         count("sample_loaded", { sample: "karate" });
-        assert.deepEqual(anonNames(), ["$pageview", "first_visit"]);
-        stopPostHog();
+        count("layout_changed", { layout: "circular" });
 
-        assert.deepEqual(anonNames(), ["$pageview", "first_visit", "sample_loaded"]);
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit", "sample_loaded", "layout_changed"]);
         assert.include(anon[2].properties, { first_on_page: true, tracking: "anonymous" });
+        assert.equal(imports.mock.calls.length, 0, "no id of its own while it waits");
+        assert.deepEqual(capturedNames(fake.capture), []);
+        // A No meanwhile changes nothing already counted.
+        stopPostHog();
+        assert.equal(anon.length, 4);
     });
 
     it("keeps a page's first count while it loads even when other events filled the buffer", async () => {
@@ -837,6 +844,62 @@ describe("PostHog", () => {
             (fake.init.mock.calls as [string, unknown, string?][]).map((call) => call[2]),
             ["anonymous"],
         );
+    });
+
+    it("tries a failed posthog-js load again on the next count, and sends the kept page view", async () => {
+        resetAnalyticsForTests();
+        const anonymous = fakePostHog();
+        const fake = fakePostHog();
+        fake.init.mockImplementation((_key: string, _options: unknown, name?: string) =>
+            name === "anonymous" ? anonymous : fake,
+        );
+        let failed: Promise<never> | undefined;
+        let loaded: Promise<{ default: PostHog }> | undefined;
+        const imports = vi.fn(() => {
+            if (failed === undefined) {
+                failed = Promise.reject(new Error("network"));
+                return failed;
+            }
+            loaded = Promise.resolve({ default: fake as unknown as PostHog });
+            return loaded;
+        });
+        installCalls({ importPostHog: imports, afterFirstPaint: (run) => run() });
+        startAnalyticsAtBoot(await site(PH));
+        await failed?.catch(() => undefined);
+        assert.equal(imports.mock.calls.length, 1);
+        assert.deepEqual(capturedNames(anonymous.capture), []);
+
+        count("sample_loaded", { sample: "karate" });
+        assert.equal(imports.mock.calls.length, 2, "tried again");
+        await loaded;
+        assert.deepEqual(capturedNames(anonymous.capture), ["$pageview", "first_visit", "sample_loaded"]);
+    });
+
+    it("tries a failed load again when the browser is back online, for a reader who shares", async () => {
+        const fake = fakePostHog();
+        let attempt = 0;
+        let loaded: Promise<{ default: PostHog }> | undefined;
+        let failed: Promise<never> | undefined;
+        const imports = vi.fn(() => {
+            attempt++;
+            if (attempt === 1) {
+                failed = Promise.reject(new Error("network"));
+                return failed;
+            }
+            loaded = Promise.resolve({ default: fake as unknown as PostHog });
+            return loaded;
+        });
+        installCalls({ importPostHog: imports });
+        await site(PH);
+        startPostHog();
+        count("sample_loaded", { sample: "karate" });
+        await failed?.catch(() => undefined);
+        assert.deepEqual(capturedNames(fake.capture), []);
+
+        globalThis.dispatchEvent(new Event("online"));
+        await loaded;
+        assert.equal(imports.mock.calls.length, 2);
+        assert.include(capturedNames(fake.capture), "sample_loaded");
     });
 
     it("starts from boot for a reader who shared, and the first visit reaches the shared mode only", async () => {
@@ -900,6 +963,7 @@ describe("PostHog", () => {
                 api_host: HOST,
                 defaults: "2026-08-30",
                 cookieless_mode: "always",
+                debug: false,
                 disable_persistence: true,
                 persistence: "memory",
                 persistence_name: "graphty_anonymous",

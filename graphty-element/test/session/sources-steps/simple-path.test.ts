@@ -19,7 +19,11 @@ function simplePath(): Fixture {
 describe("simple path", () => {
     it("types an edge file's ends with `type`, so a scope by type reaches every transaction", () => {
         const r = simplePath().built();
-        const typed = new Set(nodesOf(r).filter((n) => n.type === "account" || n.type === "merchant").map((n) => n.id));
+        const typed = new Set(
+            nodesOf(r)
+                .filter((n) => n.type === "account" || n.type === "merchant")
+                .map((n) => n.id),
+        );
         assert.equal(edgesOf(r).filter((e) => typed.has(e.from) && typed.has(e.to)).length, 3);
     });
 
@@ -35,7 +39,10 @@ describe("simple path", () => {
 describe("supplied and named (3.1)", () => {
     it("credits a node only an edge list names to that edge source", () => {
         const f = new Fixture();
-        const id = f.import({ edges: csv("a,b\nn1,n2\n") }, { mapping: { edges: { source: "a", sourceSpace: "person", target: "b", targetSpace: "person" } } });
+        const id = f.import(
+            { edges: csv("a,b\nn1,n2\n") },
+            { mapping: { edges: { source: "a", sourceSpace: "person", target: "b", targetSpace: "person" } } },
+        );
         const nodes = nodesOf(f.built());
         assert.equal(nodes.length, 2);
         for (const n of nodes) {
@@ -55,7 +62,10 @@ describe("supplied and named (3.1)", () => {
             const f = new Fixture();
             const ids: Record<string, string> = {};
             for (const which of order) {
-                ids[which] = which === "people" ? f.import(people, { key: "person_id", type: "person" }) : f.import(visits, vOpts);
+                ids[which] =
+                    which === "people"
+                        ? f.import(people, { key: "person_id", type: "person" })
+                        : f.import(visits, vOpts);
             }
             const r = f.built();
             assert.equal(nodeIn(r, "person", "P1")?.loads[0], ids.people, order.join(" then "));
@@ -67,7 +77,9 @@ describe("supplied and named (3.1)", () => {
     it("credits an account to both edge files that reach it, whichever loads first", () => {
         const bankA = { edges: csv("account_id,merchant_id\nX1,M1\nX2,M1\n") };
         const bankB = { edges: csv("account_id,merchant_id\nX1,M2\nX3,M2\n") };
-        const eOpts = { edges: { from: { column: "account_id", type: "account" }, to: { column: "merchant_id", type: "merchant" } } };
+        const eOpts = {
+            edges: { from: { column: "account_id", type: "account" }, to: { column: "merchant_id", type: "merchant" } },
+        };
         for (const [first, second] of [
             [bankA, bankB],
             [bankB, bankA],
@@ -114,12 +126,20 @@ describe("supplied and named (3.1)", () => {
         const f = simplePath();
         const [first, ...rest] = f.steps;
         f.steps = [{ ...first, off: true }, ...rest];
-        assert.equal(nodeIn(f.built(), "merchant", "M2"), undefined, "the edge file's add is off, so its moved columns find no merchant");
+        assert.equal(
+            nodeIn(f.built(), "merchant", "M2"),
+            undefined,
+            "the edge file's add is off, so its moved columns find no merchant",
+        );
         const g = simplePath();
         const t = g.steps[0].source;
         g.sources[t] = { ...g.sources[t], held: true };
         const r = g.built();
         assert.equal(r.edges.size, 0);
-        assert.deepEqual(r.stats.map((x) => x.op), ["join.add"], "only the accounts file's add is built");
+        assert.deepEqual(
+            r.stats.map((x) => x.op),
+            ["join.add"],
+            "only the accounts file's add is built",
+        );
     });
 });

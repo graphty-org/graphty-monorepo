@@ -24,11 +24,20 @@ describe("repeats within one source (3.3)", () => {
     it("takes the first value when `repeated` is absent, and counts rows that differ", () => {
         const { f } = phase1([10000, 10001]);
         const v = f.stage({ nodes: csv("account_id,tier\nA-10000,gold\nA-10000,silver\n") }, {});
-        f.steps.push({ op: "join.node-values", source: v, read: { table: "nodes", key: "account_id", space: "account" }, columns: ["tier"] });
+        f.steps.push({
+            op: "join.node-values",
+            source: v,
+            read: { table: "nodes", key: "account_id", space: "account" },
+            columns: ["tier"],
+        });
         const r = f.built();
         assert.equal(nodeIn(r, "account", "A-10000")?.values.tier, "gold");
         assert.equal(r.stats.at(-1)?.rowsDiffer, 1);
-        assert.deepEqual(nodeIn(r, "account", "A-10000")?.loads.includes(v), true, "values a step writes supply the node");
+        assert.deepEqual(
+            nodeIn(r, "account", "A-10000")?.loads.includes(v),
+            true,
+            "values a step writes supply the node",
+        );
     });
 });
 
@@ -37,11 +46,19 @@ describe("join.merge (3.4, 3.6)", () => {
         const f = new Fixture();
         f.import(
             { edges: csv("txn_id,account_id,merchant_id\nT1,A1,M1\nT2,A2,M1\n") },
-            { edges: { from: { column: "account_id", type: "account" }, to: { column: "merchant_id", type: "merchant" } } },
+            {
+                edges: {
+                    from: { column: "account_id", type: "account" },
+                    to: { column: "merchant_id", type: "merchant" },
+                },
+            },
         );
         const merged = (repeated: "first" | "last"): unknown => {
             const g = f.fork();
-            const k = g.stage({ nodes: csv("alert_id,account_id,score\nK1,A1,1\nK2,A1,9\nK3,A2,4\n") }, { nodes: { key: "alert_id" } });
+            const k = g.stage(
+                { nodes: csv("alert_id,account_id,score\nK1,A1,1\nK2,A1,9\nK3,A2,4\n") },
+                { nodes: { key: "alert_id" } },
+            );
             g.merge({ from: { source: k, field: "account_id" }, into: { space: "account" }, repeated });
             const r = g.built();
             assert.equal(r.stats.at(-1)?.merged, 3);
@@ -58,7 +75,11 @@ describe("join.merge (3.4, 3.6)", () => {
         const { f, t } = phase1(keys);
         const a = f.stage({ nodes: accountsCsv(keys) }, { nodes: { key: "account_id", space: "account" } });
         f.rule("node", "account", { source: a });
-        f.merge({ from: { source: a, field: "account_id" }, into: { space: "account" }, ...(unmatchedFrom ? { unmatchedFrom } : {}) });
+        f.merge({
+            from: { source: a, field: "account_id" },
+            into: { space: "account" },
+            ...(unmatchedFrom ? { unmatchedFrom } : {}),
+        });
         return { f, t, a };
     }
 
@@ -67,18 +88,29 @@ describe("join.merge (3.4, 3.6)", () => {
         const r = f.built();
         assert.equal(nodesOf(r).filter((n) => n.space === "account").length, keys.length);
         assert.equal(nodeIn(r, "account", "A-10001")?.values.email, "u1@bank-a.test");
-        assert.equal(resolveNode(r, `source:${a}`, "A-10001")?.id, nodeId("account", "A-10001"), "node 2's key is an alias");
+        assert.equal(
+            resolveNode(r, `source:${a}`, "A-10001")?.id,
+            nodeId("account", "A-10001"),
+            "node 2's key is an alias",
+        );
     });
 
     it("looks a translated value up in source 1's space and resolves merge aliases (3.5)", () => {
         const { f, a } = phase6();
-        const kyc = f.stage({ nodes: csv("alert_id,account_id,email\nK-1,A-10001,u1@bank-a.test\nK-2,A-11200,u1200@bank-a.test\n") }, { nodes: { key: "alert_id" } });
+        const kyc = f.stage(
+            { nodes: csv("alert_id,account_id,email\nK-1,A-10001,u1@bank-a.test\nK-2,A-11200,u1200@bank-a.test\n") },
+            { nodes: { key: "alert_id" } },
+        );
         f.merge({ from: { source: kyc, field: "email" }, into: { source: a, field: "email" } });
         const step = f.steps.at(-1);
         assert.equal(step && "via" in step ? step.via : undefined, a);
         const r = f.built();
         assert.equal(r.stats.at(-1)?.merged, 2);
-        assert.equal(resolveNode(r, `source:${a}`, "A-10001")?.id, nodeId("account", "A-10001"), "source 1's own space reaches node 1 through the alias");
+        assert.equal(
+            resolveNode(r, `source:${a}`, "A-10001")?.id,
+            nodeId("account", "A-10001"),
+            "source 1's own space reaches node 1 through the alias",
+        );
         assert.isTrue(nodeIn(r, "account", "A-10001")?.loads.includes(kyc));
     });
 
@@ -101,7 +133,10 @@ describe("join.merge (3.4, 3.6)", () => {
         const s2 = f.stage({ nodes: csv("id,note\nA1,x\nA9,y\n") }, { nodes: { key: "id" } });
         const g = f.fork();
         f.merge({ from: { source: s2, field: "id" }, into: { space: "account" }, unmatchedFrom: "drop" });
-        assert.deepEqual(nodesOf(f.built()).map((n) => n.key), ["A1"]);
+        assert.deepEqual(
+            nodesOf(f.built()).map((n) => n.key),
+            ["A1"],
+        );
         g.merge({ from: { source: s2, field: "id" }, into: { space: "account" } });
         const r = g.built();
         assert.equal(nodeIn(r, "account", "A9")?.values.note, "y");

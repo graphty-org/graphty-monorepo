@@ -78,7 +78,12 @@ export class Fixture {
         const id = `src_${this.seq}`;
         const copy = `copy_${this.seq}`;
         this.copies.set(copy, tables);
-        this.sources[id] = { id, origin: { copy }, mapping: structuredClone(mapping), ...(settings ? { settings } : {}) };
+        this.sources[id] = {
+            id,
+            origin: { copy },
+            mapping: structuredClone(mapping),
+            ...(settings ? { settings } : {}),
+        };
         return id;
     }
 
@@ -162,13 +167,25 @@ export class Fixture {
             op: "join.edges",
             source: id,
             part,
-            read: { table: "edges", source: m.source, sourceSpace: m.sourceSpace ?? ownSpace(id), target: o.column, targetSpace: o.type, weight: null },
+            read: {
+                table: "edges",
+                source: m.source,
+                sourceSpace: m.sourceSpace ?? ownSpace(id),
+                target: o.column,
+                targetSpace: o.type,
+                weight: null,
+            },
             columns: [],
             repeated: "first",
         });
         this.rule("node", o.type, { source: id, part, end: "target" });
         if (o.columns) {
-            this.steps.push({ op: "join.node-values", source: id, read: { table: "edges", key: o.column, space: o.type }, columns: o.columns });
+            this.steps.push({
+                op: "join.node-values",
+                source: id,
+                read: { table: "edges", key: o.column, space: o.type },
+                columns: o.columns,
+            });
         }
         return part;
     }
@@ -229,7 +246,11 @@ export class Fixture {
     }
 
     /** Make an edge (3.6) from a node source's field into node 1's space; returns the minted part. */
-    connect(o: { from: { source: string; field: string }; into: { space: string }; direction?: "into-from" | "from-into" }): number {
+    connect(o: {
+        from: { source: string; field: string };
+        into: { space: string };
+        direction?: "into-from" | "from-into";
+    }): number {
         const s2 = this.sources[o.from.source];
         if (isStaged(this.input, o.from.source)) {
             this.addStaged(o.from.source, null);
@@ -243,7 +264,15 @@ export class Fixture {
             op: "join.edges",
             source: o.from.source,
             part,
-            read: { table: "nodes", source: a.col, sourceSpace: a.space, target: b.col, targetSpace: b.space, edgeId: k2, weight: null },
+            read: {
+                table: "nodes",
+                source: a.col,
+                sourceSpace: a.space,
+                target: b.col,
+                targetSpace: b.space,
+                edgeId: k2,
+                weight: null,
+            },
             unmatchedRows: "leave-out",
             columns: [],
         });
@@ -252,7 +281,7 @@ export class Fixture {
 
     /** Remove a source and every step that depends on it (3.2). */
     removeSource(id: string): void {
-        const {input} = this;
+        const { input } = this;
         this.steps = this.steps.filter((s) => !stepSources(s, input).includes(id));
         this.sources = Object.fromEntries(Object.entries(this.sources).filter(([k]) => k !== id));
     }
@@ -275,7 +304,9 @@ export const keyOf = (r: BuildResult, id: string): string | undefined => r.nodes
 
 /** A card-fraud scenario small enough to read: accounts A-10000.. with emails u<n>@bank-a.test. */
 export function accountsCsv(keys: number[]): Row[] {
-    return csv(["account_id,holder,email", ...keys.map((k) => `A-${k},Holder ${k},u${k - 10000}@bank-a.test`)].join("\n"));
+    return csv(
+        ["account_id,holder,email", ...keys.map((k) => `A-${k},Holder ${k},u${k - 10000}@bank-a.test`)].join("\n"),
+    );
 }
 
 /** Transactions, one per account, to merchants M-0 and M-1. */
@@ -283,7 +314,9 @@ export function transactionsCsv(keys: number[]): Row[] {
     return csv(
         [
             "txn_id,account_id,holder_name,merchant_id,merchant_name,device_id,os",
-            ...keys.map((k, i) => `T-${i},A-${k},Holder ${k},M-${i % 2},Shop ${i % 2},D-${i % 3},${i % 2 ? "ios" : "android"}`),
+            ...keys.map(
+                (k, i) => `T-${i},A-${k},Holder ${k},M-${i % 2},Shop ${i % 2},D-${i % 3},${i % 2 ? "ios" : "android"}`,
+            ),
         ].join("\n"),
     );
 }
@@ -293,7 +326,17 @@ export function phase1(keys: number[]): { f: Fixture; t: string } {
     const f = new Fixture();
     const t = f.import(
         { edges: transactionsCsv(keys) },
-        { mapping: { edges: { edgeId: "txn_id", source: "account_id", sourceSpace: "account", target: "merchant_id", targetSpace: "merchant" } } },
+        {
+            mapping: {
+                edges: {
+                    edgeId: "txn_id",
+                    source: "account_id",
+                    sourceSpace: "account",
+                    target: "merchant_id",
+                    targetSpace: "merchant",
+                },
+            },
+        },
     );
     f.rule("node", "account", { source: t, end: "source" });
     f.rule("node", "merchant", { source: t, end: "target" });

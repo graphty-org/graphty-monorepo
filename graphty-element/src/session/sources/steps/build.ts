@@ -131,7 +131,11 @@ export function stepSources(step: Step, input?: BuildInput): string[] {
     }
     if (input && step.op === "join.merge" && step.unmatchedFrom === "drop") {
         for (const a of input.steps.slice(0, input.steps.indexOf(step))) {
-            if (a.op === "join.add" && a.source !== step.source && suppliesSpace(input.sources[a.source], step.read.space)) {
+            if (
+                a.op === "join.add" &&
+                a.source !== step.source &&
+                suppliesSpace(input.sources[a.source], step.read.space)
+            ) {
                 out.push(a.source);
             }
         }
@@ -395,7 +399,12 @@ interface EdgeArgs {
 }
 
 // The weight, meaning and time column an edge row carries (3.8, 3.9).
-function edgeRoles(a: EdgeArgs): { w: CellValue | undefined; meaning: string | null; weightDefault: boolean; timeCol: string | null } {
+function edgeRoles(a: EdgeArgs): {
+    w: CellValue | undefined;
+    meaning: string | null;
+    weightDefault: boolean;
+    timeCol: string | null;
+} {
     const { read, roles, row } = a;
     const sourceWeight = roles.weight ?? null;
     let w: CellValue | undefined = null;
@@ -521,7 +530,14 @@ class Builder {
         return n;
     }
 
-    private node(space: string, key: string, ctx: TypeContext, row: Row, st: StepStats, how: "add" | "leave-out" = "add"): BuiltNode | null {
+    private node(
+        space: string,
+        key: string,
+        ctx: TypeContext,
+        row: Row,
+        st: StepStats,
+        how: "add" | "leave-out" = "add",
+    ): BuiltNode | null {
         const id = this.resolve(space, key);
         if (id !== undefined) {
             return this.nodes.get(id) ?? null;
@@ -629,7 +645,9 @@ class Builder {
                 return id === undefined ? [] : [id];
             }
             // a key and an alias reaching one node are one match
-            return [...new Set([...keys].map((k) => this.resolve(space, k)).filter((x): x is string => x !== undefined))];
+            return [
+                ...new Set([...keys].map((k) => this.resolve(space, k)).filter((x): x is string => x !== undefined)),
+            ];
         };
     }
 
@@ -769,7 +787,13 @@ class Builder {
         // columns another step of this source moves onto nodes stay off the edges (3.3)
         const moved = new Set(
             this.input.steps
-                .filter((o) => o !== s && o.source === s.source && o.op === "join.node-values" && (o.read.table ?? "nodes") === "edges")
+                .filter(
+                    (o) =>
+                        o !== s &&
+                        o.source === s.source &&
+                        o.op === "join.node-values" &&
+                        (o.read.table ?? "nodes") === "edges",
+                )
                 .flatMap((o) => o.columns ?? []),
         );
         const sSpace = m.sourceSpace ?? ownSpace(src.id);
@@ -797,7 +821,18 @@ class Builder {
             const id = m.edgeId === undefined ? undefined : r[m.edgeId];
             const key = isEmpty(id) ? `${src.origin.copy}#${i}` : text(id);
             const values = Object.entries(r).filter(([c]) => !moved.has(c) && (!s.columns || s.columns.includes(c)));
-            this.addEdge(s, si, st, { load: s.source, key, from: na, to: nb, row: r, index: i, values, ctx: { source: s.source }, roles: m, table: "edges" });
+            this.addEdge(s, si, st, {
+                load: s.source,
+                key,
+                from: na,
+                to: nb,
+                row: r,
+                index: i,
+                values,
+                ctx: { source: s.source },
+                roles: m,
+                table: "edges",
+            });
         });
     }
 
@@ -1039,7 +1074,9 @@ class Builder {
     private merge(s: MergeStep, si: number, st: StepStats): void {
         const { space } = s.read;
         const look = this.lookupIn(s, space);
-        const node2s = [...this.nodes.values()].filter((n) => n.touch.some((t) => t.source === s.source && t.table === "nodes" && t.step < si));
+        const node2s = [...this.nodes.values()].filter((n) =>
+            n.touch.some((t) => t.source === s.source && t.table === "nodes" && t.step < si),
+        );
         const groups = new Map<string, number>();
         const kept = new Map<string, BuiltNode[]>();
         const reached = new Set<string>();
@@ -1047,7 +1084,8 @@ class Builder {
         for (const n2 of node2s) {
             const rows = n2.touch.filter((t) => t.source === s.source && t.table === "nodes").map((t) => t.cells);
             const [r] = rows;
-            const excluded = (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
+            const excluded =
+                (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
             const v = r[s.read.key];
             const ids = excluded || isEmpty(v) ? [] : look(v).filter((id) => id !== n2.id);
             const n1 = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
@@ -1075,7 +1113,13 @@ class Builder {
     }
 
     // Only 2: Drop drops it; Keep, when field 1 is node 1's key, moves it into node 1's space later (3.6 item 3).
-    private unmatchedNode2(s: MergeStep, n2: BuiltNode, excluded: boolean, v: CellValue | undefined, kept: Map<string, BuiltNode[]>): void {
+    private unmatchedNode2(
+        s: MergeStep,
+        n2: BuiltNode,
+        excluded: boolean,
+        v: CellValue | undefined,
+        kept: Map<string, BuiltNode[]>,
+    ): void {
         if (s.unmatchedFrom === "drop") {
             this.dropNode(n2);
         } else if (s.via === undefined && !excluded && !isEmpty(v)) {
@@ -1110,9 +1154,15 @@ class Builder {
     // Node 2 folds into node 1 (3.4 join.merge): edges, sources, aliases, then values.
     private fold(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
         retarget(this.edges.values(), n2.id, n1.id);
-        n2.loads.forEach((l) => { supply(n1, l); });
-        n2.named.forEach((l) => { name(n1, l); });
-        (n2.ends ?? []).forEach((l) => { reach(n1, l); });
+        n2.loads.forEach((l) => {
+            supply(n1, l);
+        });
+        n2.named.forEach((l) => {
+            name(n1, l);
+        });
+        (n2.ends ?? []).forEach((l) => {
+            reach(n1, l);
+        });
         n1.touch.push(...n2.touch);
         n1.aliases.push({ space: n2.space, key: n2.key, type: n2.type }, ...n2.aliases);
         if (n2.type !== n1.type) {
@@ -1187,7 +1237,13 @@ function edgeStepKey(s: EdgesStep, src: Source, r: Row, i: number, from: BuiltNo
     return keyless;
 }
 
-function reduceWeight(twin: BuiltEdge, policy: string, w: CellValue | undefined, meaning: string | null, weightDefault: boolean): void {
+function reduceWeight(
+    twin: BuiltEdge,
+    policy: string,
+    w: CellValue | undefined,
+    meaning: string | null,
+    weightDefault: boolean,
+): void {
     const x = Number(w);
     if (policy === "sum") {
         twin.weight = (twin.weight ?? 0) + (Number.isFinite(x) ? x : 0);

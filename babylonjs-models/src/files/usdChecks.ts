@@ -61,6 +61,11 @@ const LAYER = /\.usd[acz]?$/i;
 const ROOT_LAYER = /\.usd[ac]?$/i;
 /** An asset path to a picture. */
 const PICTURE = /\.(?:png|jpe?g|webp|avif|bmp|gif|tga|tiff?|exr|hdr|ktx2?)$/i;
+/**
+ * A picture Babylon's USD loader never draws: OpenUSD's importer hands Babylon only PNG, JPEG, BMP
+ * and WebP pictures, so an OpenEXR or Radiance HDR one is left off and takes no GPU memory.
+ */
+const UNDRAWN_PICTURE = /\.(?:exr|hdr)$/i;
 /** A package-relative asset path, `pkg.usdz[geo.usda]`: a file inside a USDZ package (nestable). */
 const PACKAGED = /^(.+?\.usdz)\[(.+)\]$/i;
 
@@ -1109,6 +1114,16 @@ function instancesBox(box: Box, at: ArrayLike<number>): Box {
 }
 
 /**
+ * The GPU memory a picture of a stage takes: none for one OpenUSD leaves off ({@link UNDRAWN_PICTURE}).
+ * @param bytes - The picture.
+ * @param path - Its path in the set.
+ * @returns Its decoded bytes ({@link textureBytesOf}), or 0.
+ */
+function drawnBytesOf(bytes: Uint8Array, path: string): number {
+    return UNDRAWN_PICTURE.test(path) ? 0 : textureBytesOf(bytes, path);
+}
+
+/**
  * Every picture a stage's layers name, by its path in the set, with the materials that draw it.
  * @param stage - The stage.
  * @returns The pictures and their decoded bytes.
@@ -1129,7 +1144,7 @@ function stagePictures(stage: Stage): { pictures: ModelPicture[]; textureBytes: 
             const key = found.prefix + found.path;
             const entry = named.get(key) ?? { name: found.path, using: new Set<string>() };
             if (!named.has(key)) {
-                textureBytes += textureBytesOf(found.bytes, found.path);
+                textureBytes += drawnBytesOf(found.bytes, found.path);
                 named.set(key, entry);
             }
             for (const material of facts.pictures.get(ref) ?? []) {

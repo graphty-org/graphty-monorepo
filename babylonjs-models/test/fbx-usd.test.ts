@@ -24,7 +24,7 @@ import {
     readModelFiles,
     unpackZip,
 } from "../src/files/index.js";
-import { ModelError } from "../src/files/references.js";
+import { imageSize, ModelError } from "../src/files/references.js";
 
 const VARIANTS = join(dirname(fileURLToPath(import.meta.url)), "fixtures/variants");
 
@@ -510,6 +510,51 @@ describe("the USD checks", () => {
             code: "E_MODEL_STRUCTURE",
             params: { rule: "usd" },
         });
+    });
+
+    it("measure OpenEXR and Radiance HDR pictures, and count none of them: OpenUSD draws neither", async () => {
+        const ascii = (text: string): number[] => Array.from(text, (c) => c.codePointAt(0) ?? 0);
+        const int32 = (...values: number[]): number[] => [...new Uint8Array(Int32Array.from(values).buffer)];
+        // A long attribute first (an image history), then the data window, 8192 x 8192.
+        const history = ascii("x".repeat(70_000));
+        const exr = Uint8Array.from([
+            ...[0x76, 0x2f, 0x31, 0x01, 2, 0, 0, 0],
+            ...ascii("history\0string\0"),
+            ...int32(history.length),
+            ...history,
+            ...ascii("dataWindow\0box2i\0"),
+            ...int32(16, 0, 0, 8191, 8191),
+            0,
+        ]);
+        const hdr = new TextEncoder().encode("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 8192 +X 4096\n");
+        assert.deepStrictEqual(imageSize(exr), { width: 8192, height: 8192 });
+        assert.deepStrictEqual(imageSize(hdr), { width: 4096, height: 8192 });
+
+        // Counted as drawn, the two would be over the 1 GiB texture limit.
+        const layer = (file: string): string =>
+            `def Material "M_${file.replace(".", "_")}" {\n` +
+            `    token outputs:surface.connect = </M_${file.replace(".", "_")}/S.outputs:surface>\n` +
+            `    def Shader "S" { uniform token info:id = "UsdPreviewSurface"\n` +
+            `        color3f inputs:diffuseColor.connect = </M_${file.replace(".", "_")}/T.outputs:rgb>\n` +
+            `        token outputs:surface }\n` +
+            `    def Shader "T" { uniform token info:id = "UsdUVTexture"\n` +
+            `        asset inputs:file = @maps/${file}@\n        color3f outputs:rgb }\n}\n`;
+        const usda =
+            `#usda 1.0\n${layer("ground.exr")}${layer("sky.hdr")}` +
+            `def Mesh "Quad" { int[] faceVertexCounts = [4]\n    int[] faceVertexIndices = [0, 1, 2, 3]\n` +
+            `    point3f[] points = [(-1, -1, 0), (1, -1, 0), (1, 1, 0), (-1, 1, 0)] }\n`;
+        const { summary } = await check(
+            new Map([
+                ["scene.usda", new TextEncoder().encode(usda)],
+                ["maps/ground.exr", exr],
+                ["maps/sky.hdr", hdr],
+            ]),
+        );
+        assert.strictEqual(summary.textureBytes, 0);
+        assert.sameMembers(
+            (summary.pictures ?? []).map((p) => p.name),
+            ["maps/ground.exr", "maps/sky.hdr"],
+        );
     });
 });
 

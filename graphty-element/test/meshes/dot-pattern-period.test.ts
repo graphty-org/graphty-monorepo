@@ -26,7 +26,7 @@ describe("a dotted line's own period", () => {
         styleId: string,
         dashLength: number | undefined,
         dashGap: number,
-    ): { elementLength: number; gap?: number | undefined } => {
+    ): { kind: string; elementLength: number; gap?: number | undefined } => {
         const spy = vi.spyOn(CustomLineRenderer, "createJoinedLineMesh");
         EdgeMesh.lineBatch(
             new MeshCache(),
@@ -59,5 +59,17 @@ describe("a dotted line's own period", () => {
         const { elementLength, gap } = patternFor("plain", undefined, 2);
         assert.closeTo(elementLength, width, 1e-9);
         assert.closeTo(gap ?? 0, 2 * width, 1e-9);
+    });
+
+    test("Cytoscape.js's dotted 1 1 at width 4 is square-ended dashes a quarter width long, not merged round dots", () => {
+        const width = 1.5 / 40;
+        const { kind, elementLength, gap } = patternFor("cyjs", 0.25, 0.25);
+        assert.strictEqual(kind, "dash");
+        assert.closeTo(elementLength, 0.25 * width, 1e-9);
+        assert.closeTo(gap ?? 0, 0.25 * width, 1e-9);
+    });
+
+    test("dots a width or more apart stay round", () => {
+        assert.strictEqual(patternFor("gv-kind", 1 / 1.5, 5 / 1.5).kind, "dot");
     });
 });

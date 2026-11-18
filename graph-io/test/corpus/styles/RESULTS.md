@@ -52,8 +52,8 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 66000 | 0 |  |
 | cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 15 | 8 | 779 | 0% | 0% | 0 | 15031 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 1125 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2557 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2406 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2805 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2694 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 14 | 1 | 422 | 0% | 0% | 0 | 9214 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 215 | 0% | 0% | 0 | 9200 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 536 | 0% | 0% | 0 | 9203 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
@@ -97,9 +97,9 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 88 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 5 | 1 | 4 | 50% | 0% | 0 | 90 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 4 | 1 | 0 | - | - | 0 | 92 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2249 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2249 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 406 | 3% | 3% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3683 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
 | cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3451 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 2988 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
@@ -304,8 +304,8 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 66000 | 0 |  |
 | json/cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 15 | 8 | 779 | 0% | 0% | 0 | 15031 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 1125 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2557 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2406 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2805 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2694 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 14 | 1 | 422 | 0% | 0% | 0 | 9214 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 215 | 0% | 0% | 0 | 9200 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 536 | 0% | 0% | 0 | 9203 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
@@ -349,16 +349,16 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 88 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 5 | 1 | 4 | 50% | 0% | 0 | 90 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 4 | 1 | 0 | - | - | 0 | 92 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2249 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2249 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 406 | 3% | 3% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3683 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
 | json/cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3451 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 6 | 115 | 0% | 0% | 0 | 10068 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN |
+| json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 6 | 121 | 0% | 0% | 0 | 10068 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-perf.json.gz | ok | 500 | 1000 | 2 | 5 | 1959 | 0% | 0% | 0 | 35000 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 10 | 4 | 177 | 30% | 0% | 0 | 2184 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 64 | 13% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 64 | 13% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 66 | 15% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 66 | 15% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 227 | 11% | 8% | 0 | 2049 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 5 | 410 | 0% | 0% | 0 | 35034 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 7 | 5 | 2131 | 0% | 0% | 0 | 36564 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
@@ -384,7 +384,7 @@ Tool values are elements drawn with the writing program's default.
 | json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 71757 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json | ok | 44 | 44 | 5 | 4 | 30 | 0% | 0% | 0 | 1834 | 0 |  |
 | json/sciluna_cytoscape.js-sbgn-layout__9613829.json | ok | 52 | 53 | 10 | 4 | 177 | 30% | 0% | 0 | 2184 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz | ok | 211 | 271 | 4 | 6 | 115 | 0% | 0% | 0 | 10068 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN |
+| json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz | ok | 211 | 271 | 4 | 6 | 121 | 0% | 0% | 0 | 10068 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN |
 | json/sigma-website-airports.json.gz | ok | 3257 | 37042 | 1 | 1 | 0 | - | - | 0 | 335420 | 0 |  |
 | json/sigma-website-euroSIS.json.gz | ok | 1285 | 7524 | 2 | 1 | 0 | - | - | 0 | 75612 | 0 |  |
 | json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 25020 | 0 |  |

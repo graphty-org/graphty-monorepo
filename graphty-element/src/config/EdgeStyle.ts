@@ -232,7 +232,8 @@ const LineStyle = z.strictObject({
     /**
      * How long each dash of a "dash" line is, in the line's own width units. Unset, 3. On a "dot" line with a
      * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
-     * the dots repeat every `dashLength + dashGap` widths, as the program's do. Unset there, 1.
+     * the dots repeat every `dashLength + dashGap` widths, as the program's do; dots repeating within one width are
+     * drawn square-ended and `dashLength` long instead, so they do not merge into a solid line. Unset there, 1.
      * @experimental file-styles
      */
     dashLength: z.number().nonnegative().optional(),

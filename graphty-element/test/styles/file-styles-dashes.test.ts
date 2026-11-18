@@ -99,8 +99,8 @@ describe("a file's own dash lengths", () => {
         } finally {
             visSession.dispose();
         }
-        // Cytoscape.js draws dotted 1 px on and 1 off (its own pattern): drawn so at width 1, and a wider line's
-        // dots, which would merge, in the element's own spacing
+        // Cytoscape.js draws dotted 1 px on and 1 off (its own pattern) whatever the width: a wider line's dots too,
+        // which the element draws square-ended so they do not merge
         const cyjs = JSON.stringify({
             elements: {
                 nodes: ["a", "b", "c", "d"].map((id) => ({ data: { id } })),
@@ -113,7 +113,9 @@ describe("a file's own dash lengths", () => {
         const cyjsSession = await load("json", new TextEncoder().encode(cyjs));
         try {
             assert.deepEqual(dashOf(cyjsSession, "a", "b"), [1, 1]);
-            assert.deepEqual(dashOf(cyjsSession, "c", "d"), [undefined, undefined]);
+            const [dash, gap] = dashOf(cyjsSession, "c", "d");
+            assert.closeTo(Number(dash), 1 / 3, 1e-9);
+            assert.closeTo(Number(gap), 1 / 3, 1e-9);
         } finally {
             cyjsSession.dispose();
         }

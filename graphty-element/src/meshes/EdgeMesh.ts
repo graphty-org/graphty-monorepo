@@ -542,6 +542,17 @@ export class EdgeMesh {
         const own = kind === "dash" || kind === "dot";
         const dashLength = own ? style.line?.dashLength : undefined;
         const dashGap = own ? style.line?.dashGap : undefined;
+        // Dots of a program's own that repeat within one width (Cytoscape.js's square-ended 1 1 on a line 2 or more
+        // wide) are drawn as they are, square-ended dashes that long: round and one width across, they would overlap
+        // into a solid line.
+        if (kind === "dot" && dashLength !== undefined && dashGap !== undefined && dashLength + dashGap <= 1) {
+            return {
+                kind: "dash",
+                elementLength: width * dashLength,
+                count: style.line?.patternCount,
+                gap: width * dashGap,
+            };
+        }
         // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
         // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
         const dotShort = kind === "dot" ? (dashLength ?? 1) - 1 : 0;

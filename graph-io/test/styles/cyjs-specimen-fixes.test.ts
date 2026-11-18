@@ -509,14 +509,16 @@ describe("Cytoscape.js node borders, opacity and sizes to the label", () => {
         expect(edges({ "line-dash-pattern": [12, 4, 2, 4] })).toBe("dash-dot");
         // a round cap grows each dash by the width
         expect(edges({ "line-dash-pattern": [3, 6], "line-cap": "round" })).toBe("dashed");
-        // a dashed line's own pattern as the dash and gap it draws, in widths (3 without one), a round cap a width
-        // longer; without one, and for dots, Cytoscape.js's own (ToolDefaults.dashes)
+        // a dashed line's pattern (its own, else 6 3) as the dash and gap it draws, in widths (3 without one), a round
+        // cap a width longer; for dots, Cytoscape.js's own (ToolDefaults.dashes)
         const lengths = (edge: Record<string, unknown>): unknown => {
             const v = evaluateCytoscapeJs(doc({}, { "curve-style": "straight", ...edge })).edge.values;
             return [v.dashLength?.[0] ?? null, v.dashGap?.[0] ?? null];
         };
         expect(lengths({ "line-style": "dotted" })).toEqual([null, null]);
-        expect(lengths({ "line-style": "dashed" })).toEqual([null, null]);
+        expect(lengths({ "line-style": "dashed" })).toEqual([2, 1]);
+        // kept where the wide line's dashes read as dots, which are not Cytoscape.js's dotted 1 1
+        expect(lengths({ "line-style": "dashed", width: 6 })).toEqual([1, 0.5]);
         expect(lengths({ "line-style": "dashed", "line-dash-pattern": [10, 5] })).toEqual([3.33333, 1.66667]);
         expect(lengths({ "line-style": "dashed", width: 2, "line-dash-pattern": [3, 6], "line-cap": "round" })).toEqual(
             [2.5, 2],

@@ -33,7 +33,7 @@ ${Array.from({ length: 10 }, (_unused, i) => `<edge source="n${String(i)}" targe
 
 const RED = "#ff0000";
 /** The membership value the translation writes onto the elements rule r1 selects. */
-const MEMBERSHIP = "graphty.style.gexf.node.el.where.r1";
+const MEMBERSHIP = "data.el_where_r1";
 
 /**
  * The file read with its styles.
@@ -75,11 +75,8 @@ async function paintRed(
     const translation = translateFileStyles({
         extracted: styles,
         snapshot,
-        namespace: "gexf",
-        format: "gexf",
-        importId: "i1",
+        columnPath: (_kind, key) => `data.${key.replaceAll(/[^A-Za-z0-9_]/g, "_")}`,
         options: { toolDefaults: false },
-        base: { node: {}, edge: {} },
         dataPath: (_kind, column) => (readable.includes(column) ? `data.${column}` : null),
     });
     const layers = translation.layers.filter((layer) => layer.spec.name === rule.id);
@@ -146,7 +143,7 @@ describe("a file rule's selector", () => {
 
     it("reads a column a layer cannot reach at its data path from values kept per element", async () => {
         const { where, painted } = await paintRed("node", { eq: [group, "g5"] }, []);
-        assert.include(where ?? "", `graphty.style.gexf.node.el.data."0" == 'g5'`);
+        assert.include(where ?? "", "data.el_data_0 == 'g5'");
         assert.deepEqual(
             painted.flatMap((on, i) => (on ? [i] : [])),
             [5],

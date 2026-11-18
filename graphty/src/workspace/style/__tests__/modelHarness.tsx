@@ -21,7 +21,22 @@ type ChosenFile =
 declare module "vitest/browser" {
     interface BrowserCommands {
         chooseNextFiles: (files: ChosenFile[]) => Promise<void>;
+        lastFileChooser: () => Promise<{ accept: string | null; multiple: boolean } | null>;
     }
+}
+
+/**
+ * Files from the package's folder, read as the test server has them, for a drop.
+ * @param paths - each file's path from the package's folder.
+ * @returns the files.
+ */
+export async function filesAt(paths: readonly string[]): Promise<File[]> {
+    return Promise.all(
+        paths.map(async (at) => {
+            const bytes = Uint8Array.from(atob(await commands.readFile(at, "base64")), (c) => c.codePointAt(0) ?? 0);
+            return new File([bytes], at.slice(at.lastIndexOf("/") + 1));
+        }),
+    );
 }
 
 const NODES = [
@@ -194,7 +209,7 @@ async function base64(file: File): Promise<string> {
  * reader choosing them: each a File, or a path from the package's folder. A path to a folder, with
  * the button that opens the folder picker, chooses that folder.
  * @param scope - where the button is.
- * @param name - the button's accessible name, "Choose files".
+ * @param name - the button's accessible name, "Choose file".
  * @param files - the files.
  */
 export async function choose(
@@ -225,19 +240,18 @@ export async function openCustom(tab: HTMLElement): Promise<HTMLElement> {
 }
 
 /**
- * How many pixels of a picture are not fully transparent.
- * @param picture - the picture, loaded or loading.
+ * How many pixels of the preview's canvas are drawn (not fully transparent), as it shows now.
+ * @param canvas - the canvas graphty-element draws the preview in.
  * @returns the count of drawn pixels.
  */
-async function drawnPixels(picture: HTMLImageElement): Promise<number> {
-    await picture.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = picture.naturalWidth;
-    canvas.height = picture.naturalHeight;
-    const context = canvas.getContext("2d");
+function drawnPixels(canvas: HTMLCanvasElement): number {
+    const copy = document.createElement("canvas");
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const context = copy.getContext("2d");
     assert.isNotNull(context);
-    context.drawImage(picture, 0, 0);
-    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    context.drawImage(canvas, 0, 0);
+    const { data } = context.getImageData(0, 0, copy.width, copy.height);
     let drawn = 0;
     for (let at = 3; at < data.length; at += 4) {
         drawn += data[at] > 0 ? 1 : 0;
@@ -246,17 +260,39 @@ async function drawnPixels(picture: HTMLImageElement): Promise<number> {
 }
 
 /**
- * Waits until the dialog shows its model drawn by graphty-element: a PNG with the model on it,
- * not an empty picture.
+ * The preview's canvas, by its name.
  * @param dialog - the dialog.
  * @param name - the model's name.
- * @returns the preview picture.
+ * @returns the canvas, or null while there is none.
  */
-export async function previewOf(dialog: HTMLElement, name: string): Promise<HTMLImageElement> {
-    const picture = await within(dialog).findByRole<HTMLImageElement>("img", { name: `${name} preview` });
-    assert.match(picture.src, /^data:image\/png;base64,/);
-    assert.isAbove(await drawnPixels(picture), 0, `${name} is drawn in the preview`);
-    return picture;
+function previewCanvas(dialog: HTMLElement, name: string): HTMLCanvasElement | null {
+    return within(dialog).queryByRole<HTMLCanvasElement>("img", { name: new RegExp(`^${name} preview`) });
+}
+
+/**
+ * The preview's picture as it is now, to compare with a later one.
+ * @param dialog - the dialog.
+ * @param name - the model's name.
+ * @returns the picture as a data URL, or "" without a preview.
+ */
+export function previewPicture(dialog: HTMLElement, name: string): string {
+    return previewCanvas(dialog, name)?.toDataURL() ?? "";
+}
+
+/**
+ * Waits until the dialog shows its model drawn live by graphty-element: its canvas, with the model
+ * on it, not empty.
+ * @param dialog - the dialog.
+ * @param name - the model's name.
+ * @returns the preview's canvas.
+ */
+export async function previewOf(dialog: HTMLElement, name: string): Promise<HTMLCanvasElement> {
+    return waitFor(() => {
+        const canvas = previewCanvas(dialog, name);
+        assert.isNotNull(canvas, `${name} has a preview`);
+        assert.isAbove(drawnPixels(canvas), 0, `${name} is drawn in the preview`);
+        return canvas;
+    });
 }
 
 /**

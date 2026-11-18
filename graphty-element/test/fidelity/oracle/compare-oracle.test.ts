@@ -2326,6 +2326,18 @@ describe("shape classes of a curved outline", () => {
         corner(10, 10, Math.PI);
         corner(90, 10, (3 * Math.PI) / 2);
         assert.strictEqual(shapeOf(prim({ points: [...rounded, rounded[0]] })), "roundrect");
+        // a short pill, 31 x 22 rounded by 11 (vis-network's borderRadius 12 clamped to half its height), fills
+        // less of its box than 0.86 and is still a rounded rectangle
+        const pill: Pt[] = [];
+        const end = (cx: number, from: number): void => {
+            for (let k = 0; k <= 12; k++) {
+                const t = from + (k * Math.PI) / 12;
+                pill.push([cx + 11 * Math.cos(t), 11 + 11 * Math.sin(t)]);
+            }
+        };
+        end(20, -Math.PI / 2);
+        end(11, Math.PI / 2);
+        assert.strictEqual(shapeOf(prim({ points: [...pill, pill[0]] })), "roundrect");
         // a teardrop: curved, and neither
         const drop = Array.from({ length: 24 }, (_, i): Pt => {
             const t = (i * Math.PI) / 12;

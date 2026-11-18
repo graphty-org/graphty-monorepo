@@ -57,7 +57,7 @@ import {
 } from "./fa2-parity.js";
 import { fixture } from "./graphs.js";
 import { fieldRelError, flooredRelError } from "./matchers.js";
-import { noiseFloorFor, sampleStrided } from "./noise-floor.js";
+import { resolveTolerance, sampleStrided } from "./noise-floor.js";
 import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- options and tunings
@@ -92,8 +92,6 @@ export const UNBIASED_LADDER_FIRST = 32;
 /** The `nearMax` of the unbiasedness item: eight draws of a 20,000-entry cell (the plan's T11 item 3). */
 export const NEAR_MAX_SAMPLING = 8;
 
-/** True in a recording run: every grid parity test is then held to the spec cap, not to the derived value. */
-const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 /** The one-cell fixtures that take an anchor node inside the layout (the module comment). */
 const ONE_CELL_FIXTURES: readonly string[] = Object.freeze(["hubcell", "onecell1k", "onecell1025"]);
 /** Every 5th node of a per-node noise fixture (the unscaled random20k: 4,000 nodes, 12,000 values per file); odd, so every lane residue is sampled (issue #267). */
@@ -401,31 +399,12 @@ export const P4_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
     });
 
 /**
- * The tolerance a grid parity test uses: the derived value of benchmarks/results/noise-floor.json (noiseFloorFor),
- * asserted to sit under its spec cap with the basis row the caps table names (a floor above the cap is a finding,
- * spec 10.4, never a loosened cap), or the spec cap itself during a recording run (GRAPHTY_NOISE_FLOOR_WRITE=1),
- * when the derived values do not exist yet.
+ * The tolerance a grid parity test uses: resolveTolerance over P4_TOLERANCE_CAPS.
  * @param id - a P4 tolerance id
  * @returns the tolerance value and its basis row
  */
 export function gridTolerance(id: string): { readonly value: number; readonly basis: string } {
-    if (!(id in P4_TOLERANCE_CAPS)) {
-        throw new Error(`${id}: not a P4 grid tolerance id`);
-    }
-    const spec = P4_TOLERANCE_CAPS[id];
-    if (WRITE) {
-        return { value: spec.cap, basis: spec.basis };
-    }
-    const derived = noiseFloorFor(id);
-    if (derived.basis !== spec.basis) {
-        throw new Error(`${id}: the committed basis row ${derived.basis} is not ${spec.basis}`);
-    }
-    if (!(derived.value <= spec.cap)) {
-        throw new Error(
-            `${id}: the derived tolerance ${derived.value} is above the spec cap ${spec.cap} (a finding, spec 10.4)`,
-        );
-    }
-    return derived;
+    return resolveTolerance(P4_TOLERANCE_CAPS, id, "P4 grid");
 }
 
 // ---------------------------------------------------------------- the noise fixture samples

@@ -18,10 +18,20 @@ import type { ModelSummary } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
-import { screen, within } from "../../../test/test-utils";
+import { screen, waitFor, within } from "../../../test/test-utils";
 import { modelChip } from "../modelWords";
 import { CUSTOM_MODEL } from "../words";
-import { addModel, choose as chooseIn, openCustom, openShapes, previewOf, reaches, written } from "./modelHarness";
+import {
+    addModel,
+    choose as chooseIn,
+    dropOn,
+    filesAt,
+    openCustom,
+    openShapes,
+    previewOf,
+    reaches,
+    written,
+} from "./modelHarness";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -65,11 +75,10 @@ const CONTAINER = /\.(zip|sog)$/;
  * @param color - the color, or "any".
  * @returns both shares, 0 to 1.
  */
-async function shares(picture: HTMLImageElement, color: Variant["color"]): Promise<{ drawn: number; colored: number }> {
-    await picture.decode();
+function shares(picture: HTMLCanvasElement, color: Variant["color"]): { drawn: number; colored: number } {
     const canvas = document.createElement("canvas");
-    canvas.width = picture.naturalWidth;
-    canvas.height = picture.naturalHeight;
+    canvas.width = picture.width;
+    canvas.height = picture.height;
     const context = canvas.getContext("2d");
     assert.isNotNull(context);
     context.drawImage(picture, 0, 0);
@@ -98,7 +107,7 @@ async function shares(picture: HTMLImageElement, color: Variant["color"]): Promi
 async function assertPreview(dialog: HTMLElement, variant: Variant): Promise<void> {
     // The name graphty-element's record gives it, as the dialog's Name field shows it.
     const name = (await within(dialog).findByRole<HTMLInputElement>("textbox", { name: "Name" })).value;
-    const { drawn, colored } = await shares(await previewOf(dialog, name), variant.color);
+    const { drawn, colored } = shares(await previewOf(dialog, name), variant.color);
     assert.isAtLeast(drawn, 0.03, `${variant.id}: the preview is not blank`);
     if (variant.color !== "any") {
         assert.isAtLeast(colored, 0.01, `${variant.id}: the preview shows ${variant.color}`);
@@ -106,19 +115,21 @@ async function assertPreview(dialog: HTMLElement, variant: Variant): Promise<voi
 }
 
 /**
- * Chooses a variant's files, or its folder, in the dialog.
+ * Gives the dialog a variant's files: its folder by Choose folder, one file by Choose file, and
+ * several files by a drop, as the file chooser takes a model's own file only.
  * @param dialog - the dialog.
  * @param variant - the variant.
  */
 async function choose(dialog: HTMLElement, variant: Variant): Promise<void> {
     const folder = `${VARIANTS}/${variant.id}`;
-    await (variant.upload === "folder"
-        ? chooseIn(dialog, "Choose folder", [folder])
-        : chooseIn(
-              dialog,
-              "Choose files",
-              variant.files.map((f) => `${folder}/${f}`),
-          ));
+    const paths = variant.files.map((f) => `${folder}/${f}`);
+    if (variant.upload === "folder") {
+        await chooseIn(dialog, "Choose folder", [folder]);
+    } else if (paths.length === 1) {
+        await chooseIn(dialog, "Choose file", paths);
+    } else {
+        dropOn(within(dialog).getByTestId("custom-model"), await filesAt(paths));
+    }
 }
 
 /**
@@ -142,13 +153,12 @@ function serveAddresses(served: ReadonlyMap<string, Uint8Array<ArrayBuffer>>): s
 }
 
 /**
- * The closed Details line, with its chips.
+ * The Details line, with its chips.
  * @param dialog - the dialog.
  * @returns the line.
  */
 function detailsLine(dialog: HTMLElement): HTMLElement {
-    const advanced = within(dialog).getByRole("button", { name: "Details" });
-    return advanced.parentElement ?? dialog;
+    return within(dialog).getByTestId("model-details-line");
 }
 
 /**
@@ -177,9 +187,10 @@ describe("every model format and variant, through the Load custom model dialog",
         await choose(dialog, variant);
 
         if (variant.refused?.code === "E_MODEL_AMBIGUOUS") {
-            const files = await within(dialog).findByTestId("model-files");
-            assert.isNotNull(await within(files).findByRole("combobox", { name: "Which file is the model" }));
-            assert.isNull(within(dialog).queryByRole("img"), "no preview until the reader picks one");
+            // Several models in one drop are a set: each is offered, one preview at a time.
+            const position = await within(dialog).findByTestId("model-position");
+            assert.equal(position.textContent, "1 of 2");
+            assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
             return;
         }
         if (variant.refused !== null) {
@@ -191,7 +202,7 @@ describe("every model format and variant, through the Load custom model dialog",
         if (variant.drawFails !== undefined) {
             const preview = await within(dialog).findByTestId("model-preview");
             assert.isNotNull(await within(preview).findByText("Not loaded"));
-            assert.isNull(preview.querySelector("img"));
+            assert.isNull(preview.querySelector("img, canvas"));
             const addButton = within(dialog).getByRole("button", { name: "Add model" });
             assert.equal(addButton.getAttribute("aria-disabled"), "true");
             // The reader is told, as an intake refusal is told.
@@ -212,6 +223,12 @@ describe("every model format and variant, through the Load custom model dialog",
                 name: variant.needs,
             });
             await userEvent.click(within(row).getByRole("button", { name: `Load without ${variant.needs}` }));
+            // Load without is asynchronous, and the waiting model already has a preview (its part stood
+            // in): wait for its row to go, then for the caption that marks the model drawn without it.
+            await waitFor(() => {
+                assert.isFalse(row.isConnected, `${variant.needs} is no longer asked for`);
+            });
+            await within(dialog).findByTestId("model-variant");
         }
 
         await assertPreview(dialog, variant);
@@ -359,10 +376,10 @@ describe("every model format and variant, through the Load custom model dialog",
     it("lists a missing texture, takes it from its row's Choose, and draws the model with it", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await chooseIn(dialog, "Choose files", [
-            `${VARIANTS}/obj-mtl-missing-png/cube.obj`,
-            `${VARIANTS}/obj-mtl-missing-png/cube.mtl`,
-        ]);
+        dropOn(
+            within(dialog).getByTestId("custom-model"),
+            await filesAt([`${VARIANTS}/obj-mtl-missing-png/cube.obj`, `${VARIANTS}/obj-mtl-missing-png/cube.mtl`]),
+        );
         const files = await within(dialog).findByTestId("model-files");
         const row = await within(files).findByRole("group", { name: "cube.png" });
         assert.isNotNull(within(row).getByText("Texture"));

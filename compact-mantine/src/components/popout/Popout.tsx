@@ -56,6 +56,12 @@ function PopoutRoot({ children, opened, defaultOpened, onOpenChange }: PopoutPro
 }
 
 // Attach sub-components to the root component
+/**
+ * A floating panel that opens from a trigger and can be dragged, nested and dismissed without
+ * leaving the page: `Popout.Trigger` wraps the control that opens it, `Popout.Panel` is the panel,
+ * `Popout.Content` its padded body and `Popout.Anchor` a sidebar its panels line up with. Every
+ * pop-out must be inside a `PopoutManager`.
+ */
 export const Popout = Object.assign(PopoutRoot, {
     Trigger: PopoutTrigger,
     Panel: PopoutPanel,

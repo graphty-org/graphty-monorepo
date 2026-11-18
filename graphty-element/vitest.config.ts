@@ -1116,7 +1116,7 @@ const config = defineConfig({
             {
                 // The `"batched"` render path against `"objects"`, on SwiftShader with both engines
                 // (design/rendering/row-renderer.md 7). Neither this nor "forced-batched" joins a pull
-                // request or the full run: a stage runs the files it touches, and
+                // request; the full run runs "forced-batched" in twelve shards (tools/ci-test-matrix.mjs), and
                 // .github/workflows/render-proof.yml dispatches the whole of both.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
@@ -1180,7 +1180,12 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands, ...heldRequestCommands },
+                        commands: {
+                            ...mapTileCommands,
+                            ...samplePictureCommands,
+                            ...heldRequestCommands,
+                            emulateReducedMotion,
+                        },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -1497,6 +1502,8 @@ const config = defineConfig({
                     name: "llm-regression",
                     env: LLM_REGRESSION_ASKED ? loadEnv("", "..", LLM_REGRESSION_ENV) : {},
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],
+                    // The directory every file's Gemini transport shares its prompt caches in, and their deletion.
+                    globalSetup: ["./test/ai/llm-regression/global-setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -1509,10 +1516,11 @@ const config = defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Six files at a time, each in its own process (so no two share the transport's
-                    // caches or the harness's request recorder). One file at a time took about 50
-                    // minutes on the release job (#6549); six keep under ten requests in flight,
-                    // far below Gemini's per-minute limits, and the transport waits out any 429.
+                    // Six files at a time, each in its own process (so no two share the harness's request
+                    // recorder; the transport's caches they share through global-setup.ts's directory).
+                    // One file at a time took about 50 minutes on the release job (#6549); six keep under
+                    // ten requests in flight, far below Gemini's per-minute limits, and the transport
+                    // waits out any 429.
                     // Spend is the same: every case still runs once.
                     pool: "forks",
                     maxWorkers: 6,

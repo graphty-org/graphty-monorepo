@@ -78,7 +78,7 @@ describe("screen-reader names on the real element", () => {
         await session.styles.settled();
         const layer = session.styles.list().find((each) => each.name === "Kinds");
         const block = session.styles.legendOf(layer?.id ?? "").find((b) => b.channel === "node.color");
-        const agency = block?.swatches.find((swatch) => swatch.label === "agency");
+        const agency = block?.swatches.find((swatch) => swatch.value === "agency");
         assert.isDefined(agency?.color, "the element paints agency a color");
         const tab = await openStyle("Kinds");
         const box = await waitFor(() => within(tab).getByRole("button", { name: /^Node color: kind/ }));

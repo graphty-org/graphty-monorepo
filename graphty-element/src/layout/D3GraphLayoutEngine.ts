@@ -17,11 +17,12 @@ import { defineOptions, type OptionsSchema } from "../config";
 import type { ElementPositions } from "../data/positions";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import { wholeGraph } from "../session/working/graphs";
 import {
     clusterByOption,
     clusterCentroids,
     clusterStrengthOption,
-    readCommunities,
+    readBodyCommunities,
     sameCommunities,
 } from "./clusterForce";
 import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
@@ -78,10 +79,31 @@ const d3LayoutOptionsSchema = defineOptions({
     },
 });
 
+/**
+ * How far a node reaches, for `nodeGap`: its radius (`Node.layoutRadius`), and its drawn half extents when it is not
+ * round (null for a sphere).
+ */
+export interface RowExtent {
+    readonly radius: number;
+    readonly half: Readonly<{ x: number; y: number; z: number }> | null;
+}
+
 /** Where a row drawn with no `Node` finds its row, and the element's array its body publishes into. */
 export interface D3RowSource {
     getSnapshot(): GraphSnapshot;
     readonly positions: ElementPositions;
+    /** How far a node's row reaches as the row table measured it; null for no row, or before it is measured. */
+    extentOf?(id: NodeIdType): RowExtent | null;
+}
+
+/**
+ * The radius of a sphere holding the whole node, as `Node.spacingRadius` answers it.
+ * @param size - How far the node reaches.
+ * @param flat - Whether depth does not count.
+ * @returns The radius.
+ */
+export function spacingOf(size: RowExtent, flat: boolean): number {
+    return size.half === null ? size.radius : Math.hypot(size.half.x, size.half.y, flat ? 0 : size.half.z);
 }
 
 interface D3InputNode extends Partial<D3Node> {
@@ -226,6 +248,8 @@ export class D3GraphEngine extends LayoutEngine {
     private rowSource: D3RowSource | null = null;
     /** Rows were added since the last refresh. */
     private rowsAdded = false;
+    /** The ids of the follower nodes and rows, as the last hold read them. */
+    private followerIds: ReadonlySet<NodeIdType> = new Set();
     newEdgeMap = new Map<Edge, D3InputEdge>();
     /** The links of edges stored with no `Edge`, by edge id. See {@link D3GraphEngine.addEdgeRows}. */
     private readonly rowLinks = new Map<string, D3InputEdge>();
@@ -238,7 +262,7 @@ export class D3GraphEngine extends LayoutEngine {
     private readonly clusterBy: string | null;
     private readonly clusterStrength: number;
     /** The last read of `clusterBy`, and each member's d3 node and community, in the same order. */
-    private communities = new Map<Node, number>();
+    private communities = new Map<NodeIdType, number>();
     private clusterNodes: D3Node[] = [];
     private clusterOf: number[] = [];
     private clusterCount = 0;
@@ -372,9 +396,16 @@ export class D3GraphEngine extends LayoutEngine {
             return;
         }
 
+        const flat = this.dim === 2;
         const radii = new Map<NodeIdType, number>();
         for (const node of this.nodeMapping.keys()) {
-            radii.set(node.id, this.isFollower(node.index) ? 0 : node.spacingRadius(this.dim === 2) + nodeGap / 2);
+            radii.set(node.id, this.isFollower(node.index) ? 0 : node.spacingRadius(flat) + nodeGap / 2);
+        }
+
+        // A row drawn with no `Node` (renderPath "batched") is sized from the row table, as its `Node` would be.
+        for (const id of this.rowBodies.keys()) {
+            const size = this.followerIds.has(id) ? null : (this.rowSource?.extentOf?.(id) ?? null);
+            radii.set(id, size === null ? 0 : spacingOf(size, flat) + nodeGap / 2);
         }
 
         collideForce.radius((d) => radii.get((d as D3InputNode).id) ?? 0);
@@ -414,10 +445,15 @@ export class D3GraphEngine extends LayoutEngine {
      */
     private readClusters(): boolean {
         this.clustersStale = false;
-        const read = readCommunities(this.clusterBy as string, this.nodeMapping.keys(), this.clusterColumn, (row) =>
-            this.isFollower(row),
+        const read = readBodyCommunities(
+            this.clusterBy as string,
+            this.nodeMapping.keys(),
+            this.rowBodies.keys(),
+            this,
+            (row) => this.isFollower(row),
         );
-        const nodes = [...read.keys()].map((node) => this.nodeMapping.get(node) as D3Node);
+        const built = new Map([...this.nodeMapping].map(([node, body]) => [node.id, body]));
+        const nodes = [...read.keys()].map((id) => (built.get(id) ?? this.rowBodies.get(id)) as D3Node);
         const same = sameCommunities(read, this.communities);
         this.communities = read;
         this.clusterNodes = nodes;
@@ -534,7 +570,7 @@ export class D3GraphEngine extends LayoutEngine {
             return;
         }
 
-        const snapshot = source.getSnapshot();
+        const snapshot = wholeGraph(source);
         const { rows, coords } = this.publishScratch(this.rowBodies.size);
         let count = 0;
         for (const [id, body] of this.rowBodies as Map<NodeIdType, D3Node>) {
@@ -558,7 +594,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param followers - The follower ids, which this adds to.
      */
     private holdRowBodies(followers: Set<NodeIdType>): void {
-        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row === INVALID_INDEX) {
@@ -590,8 +626,8 @@ export class D3GraphEngine extends LayoutEngine {
 
     /**
      * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
-     * Such a row is unsized (no collision radius), in no `clusterBy` community and never pinned,
-     * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
+     * Such a row is sized for `nodeGap` from the row table and read for `clusterBy` by its row, and is never
+     * pinned, since that is read from a `Node`; a hold reaches it by its row. A third party's
      * engine is handed `Node`s only.
      * @param ids - The rows' node ids.
      * @param source - Where a body finds its row at publish, and the element's array it publishes into.
@@ -599,6 +635,7 @@ export class D3GraphEngine extends LayoutEngine {
      */
     addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
         this.rowSource = source;
+        this.clustersStale = true;
         for (const id of ids) {
             const fresh: D3InputNode = this.dim === 2 ? { id, z: 0, vz: 0 } : { id };
             const held = this.rowBodies.get(id);
@@ -851,7 +888,7 @@ export class D3GraphEngine extends LayoutEngine {
         this.refresh();
         super.loadArrangement();
         // and each row's body with no `Node`, which a `Node` built later takes where it is
-        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
@@ -939,33 +976,10 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         this.holdRowBodies(followers);
+        this.followerIds = followers;
+        this.radiiStale = true;
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
-        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
-        // `LayoutEngine.setLeftOut`).
-        const leftOut = new Set<NodeIdType>();
-        for (const node of this.nodeMapping.keys()) {
-            if (this.isLeftOut(node.index)) {
-                leftOut.add(node.id);
-            }
-        }
-
-        const hiddenLinks = new Set<unknown>();
-        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
-            if (this.isEdgeLeftOut(edge)) {
-                hiddenLinks.add(link);
-            }
-        }
-
-        const endId = (end: unknown): unknown =>
-            typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
-        this.linkForce.strength((l) =>
-            hiddenLinks.has(l) ||
-            leftOut.has(endId(l.source) as NodeIdType) ||
-            leftOut.has(endId(l.target) as NodeIdType)
-                ? 0
-                : LINK_STRENGTH,
-        );
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

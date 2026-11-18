@@ -452,6 +452,26 @@ const OFF_SHARDS = [
         // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
         local: "never",
     })),
+    // The whole forced-batched project: the browser and interaction suites again with "batched" as the default
+    // render path (graphty-element/vitest.config.ts; test/forced-batched/skipped.json lists the files it leaves out).
+    // The browser shards run them on the objects path only. With only its fidelity scorecard in the full run, a
+    // batched-path defect that turned 37 of 41 samples white (#8221) and a master change that broke 10 of its tests
+    // (#8483) went unseen until a local run (#8513). render-proof.yml ran the whole project in 98 minutes on
+    // ubuntu-24.04 without a GPU (run 42466940961, 2026-11-08, 542 files; 629 by 2026-11-16), about 6,300 s of tests
+    // now: split like the browser shards, about 525 s a part against the 900 s shard budget. No coverage (the browser
+    // shards measure it). Its oracle-scorecard.test.ts decodes oracle pictures, Git LFS objects.
+    ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
+        shard: `graphty-element-forced-batched-${n}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // every oracle's rasterized PNG (about 48 MB, the fidelity slices' cached pull), since a glob of the
+        // scorecard's 28 would mean reading its sample list when this file is imported
+        lfs: "graph-io/test/fidelity/oracles/*.png",
+        // An hour and a half of browser in all; tools/run-tests.sh graphty-element-forced-batched-<n> by hand.
+        local: "never",
+    })),
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.
@@ -635,8 +655,7 @@ export const GROUP_MEMBER_SECONDS = {
     "cytoscape-extensions-storybook": 54,
 };
 
-// Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
-// and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
+// Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls. The webgpu browser smoke never uploaded coverage (the node shards measure the
 // package); graphty-storybook, algorithms-storybook, layout-storybook and cytoscape-extensions-storybook write none (their packages' own shards measure them); nor does
 // graph-io-browser (the graph-io shard measures graph-io).
 // Nor do the On shards: coverage is judged on the Off run.

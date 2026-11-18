@@ -74,6 +74,7 @@ import {
     NodeModelUpAxes,
     NodeShapes,
     NodeSizeModes,
+    NodeSizeSpaces,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
 import {
@@ -259,6 +260,15 @@ type LabelWeightValue = "normal" | "bold";
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
+/** What one line of a label is as tall as (`labelLineBox`). */
+type LabelLineBoxValue = "font" | "size" | "glyphs";
+
+/** Where the line round a label's panel is drawn against the panel's edge (`labelBorderAlign`). */
+type LabelBorderAlignValue = "outside" | "center";
+
+/** The shape of the panel behind a label's words (`labelBackgroundShape`). */
+type LabelBackgroundShapeValue = "rectangle" | "circle";
+
 /**
  * What a label's shifts are fractions of (`labelShiftOf`), or what a label outside its node is placed against it by
  * (`labelGapOf`): its whole box, or its words alone.
@@ -273,6 +283,12 @@ type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["size
 
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
+
+/** How a node's drawn size follows the camera: with the scene, at the orbit pivot's depth, or held on screen. */
+type NodeSizeSpaceValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeSpace"]>;
+
+/** Every node size space, in schema order. */
+const NODE_SIZE_SPACE_VALUES: readonly NodeSizeSpaceValue[] = NodeSizeSpaces.options;
 
 /**
  * How finely a round node shape is drawn (`node.meshDetail`): "full", "low", or a segment count.
@@ -349,6 +365,7 @@ export interface ChannelValues {
     "node.color": ColorValue;
     "node.size": number;
     "node.sizeMode": NodeSizeModeValue;
+    "node.sizeSpace": NodeSizeSpaceValue;
     "node.shape": NodeShapeValue;
     "node.label": string;
     "node.labelStyle": LabelStyle;
@@ -362,9 +379,12 @@ export interface ChannelValues {
     "node.labelLocation": LabelLocation;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
+    "node.labelWrapSkipEndSpace": boolean;
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
+    "node.labelMaxLines": number;
+    "node.labelMaxLinesEllipsis": boolean;
     "node.labelRunAlign": LabelRunAlignValue;
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
@@ -383,6 +403,9 @@ export interface ChannelValues {
     "node.labelPadding": number;
     "node.labelCornerRadius": number;
     "node.labelLineHeight": number;
+    "node.labelLineBox": LabelLineBoxValue;
+    "node.labelBorderAlign": LabelBorderAlignValue;
+    "node.labelBackgroundShape": LabelBackgroundShapeValue;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
     "node.labelShiftX": number;
@@ -465,6 +488,7 @@ export interface ChannelValues {
     "node.labelFitQuantum": number;
     "node.labelFitImage": number;
     "node.labelFitImagePadding": number;
+    "node.imageAspect": boolean;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -688,9 +712,12 @@ export interface ChannelValues {
     "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
+    "edge.labelWrapSkipEndSpace": boolean;
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
+    "edge.labelMaxLines": number;
+    "edge.labelMaxLinesEllipsis": boolean;
     "edge.labelRunAlign": LabelRunAlignValue;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
@@ -706,6 +733,9 @@ export interface ChannelValues {
     "edge.labelPadding": number;
     "edge.labelCornerRadius": number;
     "edge.labelLineHeight": number;
+    "edge.labelLineBox": LabelLineBoxValue;
+    "edge.labelBorderAlign": LabelBorderAlignValue;
+    "edge.labelBackgroundShape": LabelBackgroundShapeValue;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
@@ -869,6 +899,12 @@ export interface ChannelDescriptor {
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
     /**
+     * Whether it takes whole numbers only, when `accepts` is "number": a line count. An encoding rounds
+     * what it computes for such a channel.
+     * @since 3.40.0
+     */
+    readonly integer?: boolean;
+    /**
      * How many of this channel's numbers make one world unit, on a channel that is a length in the
      * scene rather than on screen: 48 for a label size, so a label of size 48 draws one line,
      * margins included, one world unit tall -- the diameter of a sphere node of size 1 -- and its
@@ -962,7 +998,7 @@ export interface ChannelDescriptor {
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type ChannelCaveatCode = never; // NOSONAR(S6564): published; kept so imports still compile
+export type ChannelCaveatCode = never; // eslint-disable-line sonarjs/redundant-type-aliases -- published; kept so imports still compile
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
@@ -1536,7 +1572,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1548,9 +1584,12 @@ const LABEL_FIELD_OF_SUFFIX = {
     Italic: "italic",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapSkipEndSpace: "wrapSkipEndSpace",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
+    MaxLines: "maxLines",
+    MaxLinesEllipsis: "maxLinesEllipsis",
     RunAlign: "runAlign",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
@@ -1567,6 +1606,9 @@ const LABEL_FIELD_OF_SUFFIX = {
     Padding: "boxPadding",
     CornerRadius: "cornerRadius",
     LineHeight: "lineHeight",
+    LineBox: "lineBox",
+    BorderAlign: "borderAlign",
+    BackgroundShape: "backgroundShape",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
     ShiftX: "shiftX",
@@ -1728,6 +1770,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
         row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
+        row("WrapSkipEndSpace", "Wrap Skip End Space", { accepts: "boolean" }),
         row("WrapEllipsis", "Wrap Ellipsis", {
             accepts: "boolean",
             caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
@@ -1742,6 +1785,18 @@ function labelFieldChannels<Target extends "node" | "edge">(
             caveat:
                 "How many blanks one blank between two words counts as against the wrap width; it is still " +
                 "drawn once. Unset, one.",
+        }),
+        row("MaxLines", "Max Lines", {
+            accepts: "number",
+            min: 1,
+            integer: true,
+            caveat: "The most lines drawn; the lines past it are cut. Unset, every line.",
+        }),
+        row("MaxLinesEllipsis", "Max Lines Ellipsis", {
+            accepts: "boolean",
+            caveat:
+                "Whether the last line Max Lines keeps runs on with the rest of its line, cut with an ellipsis; " +
+                "off, the lines past it are dropped as they are. Unset, on.",
         }),
         row("RunAlign", "Run Align", {
             accepts: "enum",
@@ -1825,6 +1880,31 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "How tall one line of the label is, as a multiple of its font's ascent plus descent: 1 is a line " +
                 "box exactly as tall as the font. Unset, 1.2.",
         }),
+        row("LineBox", "Line Box", {
+            accepts: "enum",
+            values: LABEL_LINE_BOX_VALUES,
+            caveat:
+                'What one line of the label is as tall as, before Line Height multiplies it: "font", its font\'s ' +
+                'ascent plus descent; "size", its font size, as CSS and Cytoscape.js measure a line, the letters ' +
+                'reaching past it; "glyphs", its letters\' own ink, as Cytoscape.js `text-metrics: glyph` does. ' +
+                'Unset, "font".',
+        }),
+        row("BorderAlign", "Border Align", {
+            accepts: "enum",
+            values: LABEL_BORDER_ALIGN_VALUES,
+            caveat:
+                'Where the line round the panel behind the label\'s words is drawn: "outside", all of it past the ' +
+                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box. ' +
+                'Unset, "outside".',
+        }),
+        row("BackgroundShape", "Background Shape", {
+            accepts: "enum",
+            values: LABEL_BACKGROUND_SHAPE_VALUES,
+            caveat:
+                'The shape of the panel behind the label\'s words and its border: "rectangle" (rounded by Corner ' +
+                'Radius), or "circle", a disc as wide as the panel is tall, or as tall as it is wide, whichever is ' +
+                'less, centered on it. Unset, "rectangle".',
+        }),
         row("OffsetX", "Offset X", {
             accepts: "number",
             caveat: "How far the label is moved to the right of where its location puts it, in the scene's units.",
@@ -1878,40 +1958,16 @@ function labelFieldChannels<Target extends "node" | "edge">(
 
 /** Where each label field lands in a parsed style's label block, in the renderer's spelling. */
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
+    ...LABEL_FIELD_OF_SUFFIX,
     Color: "textColor",
     Size: "fontSize",
-    LetterSize: "letterSize",
-    Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
-    WrapWidth: "wrapWidth",
-    WrapTrailingSpace: "wrapTrailingSpace",
-    WrapEllipsis: "wrapEllipsis",
-    WrapAnywhere: "wrapAnywhere",
-    WrapSpaceCount: "wrapSpaceCount",
-    RunAlign: "runAlign",
-    MinScreenSize: "minScreenSize",
-    OnTop: "onTop",
-    Rotation: "rotation",
     Background: "backgroundColor",
     Outline: "textOutlineColor",
     OutlineWidth: "textOutlineWidth",
-    Border: "borderColor",
-    BorderWidth: "borderWidth",
     Opacity: "textOpacity",
-    BackgroundOpacity: "backgroundOpacity",
     OutlineOpacity: "textOutlineOpacity",
-    BorderOpacity: "borderOpacity",
-    Padding: "boxPadding",
-    CornerRadius: "cornerRadius",
-    LineHeight: "lineHeight",
-    OffsetX: "offsetX",
-    OffsetY: "offsetY",
-    ShiftX: "shiftX",
-    ShiftY: "shiftY",
-    ShiftOf: "shiftOf",
-    GapOf: "gapOf",
-    Box: "box",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1919,6 +1975,15 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 
 /** Every place the `labelRunAlign` channels take. */
 const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
+
+/** Every value the `labelLineBox` channels take. */
+const LABEL_LINE_BOX_VALUES: readonly LabelLineBoxValue[] = ["font", "size", "glyphs"];
+
+/** Every value the `labelBorderAlign` channels take. */
+const LABEL_BORDER_ALIGN_VALUES: readonly LabelBorderAlignValue[] = ["outside", "center"];
+
+/** Every value the `labelBackgroundShape` channels take. */
+const LABEL_BACKGROUND_SHAPE_VALUES: readonly LabelBackgroundShapeValue[] = ["rectangle", "circle"];
 
 /** Every value the `labelShiftOf` channels take. */
 const LABEL_SHIFT_OF_VALUES: readonly LabelShiftOfValue[] = ["box", "words"];
@@ -1971,7 +2036,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -2367,6 +2432,18 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "enum",
         values: NODE_SIZE_MODE_VALUES,
         stylePath: "shape.sizeMode",
+        renderable: true,
+    },
+    "node.sizeSpace": {
+        channel: "node.sizeSpace",
+        target: "node",
+        plainName: "Node Size Space",
+        shortName: "Size space",
+        group: "shape",
+        default: "scene",
+        accepts: "enum",
+        values: NODE_SIZE_SPACE_VALUES,
+        stylePath: "shape.sizeSpace",
         renderable: true,
     },
     "node.shape": {
@@ -4026,6 +4103,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The room on each side of a picture a node holds (`node.labelFitImage`), in the units of its size. " +
             "Without `node.labelFitImage` it changes nothing.",
     },
+    "node.imageAspect": {
+        channel: "node.imageAspect",
+        target: "node",
+        plainName: "Node Image Aspect",
+        shortName: "Image aspect",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.imageAspect",
+        renderable: true,
+        caveat:
+            "The node takes its picture's (`node.image`) proportions: its box grows the longer way until the " +
+            "picture, at its own proportions, covers the node's width and height, as vis-network sizes an image " +
+            "node to its picture. The node is fitted again once the picture is read; until then, and for a " +
+            "picture that cannot be read, it keeps its own box. A node that grows to hold its label " +
+            "(`node.labelFit`) is sized by that instead.",
+    },
     "node.gradientColor": {
         channel: "node.gradientColor",
         target: "node",
@@ -4186,7 +4280,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
             'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
             'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
-            "`node.color`. A part the file gives no material, no picture and no vertex colors takes " +
+            "`node.color`. A part the file gives no material (or one left at its defaults: white, with " +
+            "no picture, map or glow), no picture and no vertex colors takes " +
             '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
     },
     "node.modelAnimation": {
@@ -5311,6 +5406,22 @@ export function labelStyleFieldChannels(channel: Channel, value: unknown): reado
 
     return found;
 }
+
+/**
+ * The channels that paint a node's or an edge's own color and size: what coloring or sizing
+ * nodes or edges by a value sets, and what an algorithm's suggested style paints.
+ *
+ * ```ts
+ * import { PRIMARY_CHANNELS } from "@graphty/graphty-element/catalog";
+ *
+ * PRIMARY_CHANNELS.edge.size; // "edge.width"
+ * ```
+ * @since 3.40.0
+ */
+export const PRIMARY_CHANNELS = Object.freeze({
+    node: Object.freeze({ color: "node.color", size: "node.size" }),
+    edge: Object.freeze({ color: "edge.color", size: "edge.width" }),
+} as const) satisfies Readonly<Record<"node" | "edge", { readonly color: Channel; readonly size: Channel }>>;
 
 /** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(

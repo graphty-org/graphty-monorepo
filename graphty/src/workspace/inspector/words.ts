@@ -55,7 +55,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Time window",
+    "filter-step": "Filter",
     source: "Source",
 };
 
@@ -71,6 +71,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model",
@@ -93,6 +94,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapWidth": "Label",
     "node.labelLetterSize": "Label",
     "node.labelWrapTrailingSpace": "Label",
+    "node.labelWrapSkipEndSpace": "Label",
     "node.labelMinScreenSize": "Label",
     "node.labelOnTop": "Label",
     "node.labelDeclutter": "Label",
@@ -195,12 +197,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapWidth": "Label",
     "edge.labelLetterSize": "Label",
     "edge.labelWrapTrailingSpace": "Label",
+    "edge.labelWrapSkipEndSpace": "Label",
     "edge.labelMinScreenSize": "Label",
     "edge.labelOnTop": "Label",
     "edge.labelRotation": "Label",
     "node.labelWrapEllipsis": "Label",
     "node.labelWrapAnywhere": "Label",
     "node.labelWrapSpaceCount": "Label",
+    "node.labelMaxLines": "Label",
+    "node.labelMaxLinesEllipsis": "Label",
     "node.labelRunAlign": "Label",
     "node.labelOutline": "Label",
     "node.labelOutlineWidth": "Label",
@@ -213,6 +218,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPadding": "Label",
     "node.labelCornerRadius": "Label",
     "node.labelLineHeight": "Label",
+    "node.labelLineBox": "Label",
+    "node.labelBorderAlign": "Label",
+    "node.labelBackgroundShape": "Label",
     "node.labelOffsetX": "Label",
     "node.labelOffsetY": "Label",
     "node.labelShiftX": "Label",
@@ -274,6 +282,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",
@@ -409,6 +418,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapEllipsis": "Label",
     "edge.labelWrapAnywhere": "Label",
     "edge.labelWrapSpaceCount": "Label",
+    "edge.labelMaxLines": "Label",
+    "edge.labelMaxLinesEllipsis": "Label",
     "edge.labelRunAlign": "Label",
     "edge.labelOutline": "Label",
     "edge.labelOutlineWidth": "Label",
@@ -422,6 +433,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
+    "edge.labelLineBox": "Label",
+    "edge.labelBorderAlign": "Label",
+    "edge.labelBackgroundShape": "Label",
     "edge.labelOffsetX": "Label",
     "edge.labelOffsetY": "Label",
     "edge.labelShiftX": "Label",
@@ -572,6 +586,18 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 
 /** What a node's Degree row does: it changes the selection. */
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
+
+/**
+ * What a degree is called where it is read: among what is shown while a filter or the time window
+ * hides something ("Degree showing", as "Nodes showing"), else plain "Degree".
+ * @param session - the element's session.
+ * @param name - the degree's name ("Degree", "In-degree").
+ * @returns the label.
+ */
+export function degreeLabel(session: GraphSession, name = "Degree"): string {
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    return visibleNodes < totalNodes ? `${name} showing` : name;
+}
 
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";

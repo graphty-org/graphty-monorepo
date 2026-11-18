@@ -106,7 +106,7 @@ Recipe ........... a Cytoscape session with its styles, minus the data
 
 **Containment** is the test of `research/design-method.md` 3.7: deleting the container deletes its
 contents. It holds for **a graph and its parts**: its data versions, nodes, edges, filter steps,
-layout settings, sets, results, run-made layers, Overrides, Base style and positions all go with
+layout settings, sets, results, run-made layers and positions all go with
 the graph. It holds for **result > runs** and **run > items**. Everything else is a **reference
 that survives its target** and reads detached when the target goes (7.2): a layer's or a step's
 reference to a kept set, a note's targets, a set's Created from, a set's Used by. Where notes, saved
@@ -146,7 +146,7 @@ community task tests (Appendix A), and this ruling is provisional until it repor
 | Object | Holds | Related to |
 |---|---|---|
 | **Result** | kind, accumulation | n runs, 1 catalog entry |
-| **Style layer** | selector (an inline rule, 4.1), encodings, enabled, source (analyst, run, recipe, plugin, element), kind (ordinary, highlight, Overrides, Base style) | 0..1 kept set its selector references |
+| **Style layer** | selector (an inline rule, 4.1), encodings, enabled, source (analyst, run, recipe, plugin, element); there is one kind of layer | 0..1 kept set its selector references |
 | **Filter step** | rule (an inline rule, 4.1), outcome, input, enabled, labeled additions | ordered, one list per graph; 0..1 kept set |
 | **Layout settings** | layout, parameters, seed, dimension, encoded axes, scope | 1 per graph |
 | **Saved view** | title, caption, capture (5.3) | n graphs |
@@ -200,7 +200,7 @@ classDiagram
   Graph "1" *-- "*" FilterStep
   Graph "1" *-- "1" LayoutSettings
   Graph "1" *-- "*" Set
-  Graph "1" *-- "*" StyleLayer : run-made, Overrides, Base style
+  Graph "1" *-- "*" StyleLayer : run-made
   Graph "1" *-- "*" Result
   Node "1" *-- "*" Attribute
   Edge "1" *-- "*" Attribute
@@ -534,9 +534,12 @@ Appearance is applied only through **style layers**: a **selector** (a set defin
 **encodings**. The top layer wins each channel it writes; the channels are a closed list the
 element publishes.
 
-**The stack order, stated once.** Top to bottom: **Overrides** (hand edits, kept first once used),
-then authored and algorithm layers, then **Base style** (the bottom layer that gives every channel
-its default; door 31, Overrides, Base style and the stack order). "On top", where every new layer lands, means directly below Overrides.
+**The stack order, stated once.** There is one kind of layer and one order, the reader's: every
+new layer, a hand edit's included, lands on top, and any layer may be moved, hidden, edited or
+deleted. A new project is written once with default layers (Everything at the bottom, then Pinned,
+Selected and Hovered), which are ordinary data after that; an element that no shown layer paints is
+not drawn (`CLAUDE.md`, "There are no special layers"; `design/ui/unified-style-layers.md`; decided,
+`decided-doors.md`, "No built-in style layers").
 **The order is one list kept on the project**, whose entries may name the graph they belong to;
 each graph draws its own view of that list, so dragging a run-made layer above an authored one
 changes one order, not two (door 5, Project parts and graph parts).

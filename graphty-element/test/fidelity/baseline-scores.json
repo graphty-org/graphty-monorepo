@@ -248,7 +248,7 @@
             "edgeWidth": []
         },
         "cys-annotation-example": {
-            "edgePath": ["YPL248C->YML051W#1"],
+            "edgePath": [],
             "annotations": ["arrow#2","arrow#3","extra arrow#0","extra arrow#5"]
         },
         "gexf-miserables": {

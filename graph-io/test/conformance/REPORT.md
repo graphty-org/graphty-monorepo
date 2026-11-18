@@ -23,6 +23,7 @@ the expectation today; the reference points into
 | neo4j | 45 | 45 | 0 | 44 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
+| sif | 14 | 14 | 0 | 14 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
 
 ## networkx differential
@@ -215,6 +216,10 @@ No known failures.
 
 No known failures.
 
+## sif
+
+No known failures.
+
 ## xgmml
 
 No known failures.
@@ -246,6 +251,7 @@ announced an E_ code (a documented refusal).
 | obo | 300 | 300 | 0 | 0 | direction, duplicateEdges, edgeOrder, idText, lineEnds, propertyValue, qualifierText |
 | json obographs | 300 | 225 | 75 (E_ID_CHARSET) | 0 | direction, edgeMeta, idText, nonFiniteUnset, propertyValue |
 | cys | 300 | 300 | 0 | 0 | idText, unsetAsEmpty |
+| sif | 300 | 139 | 161 (E_SIF_TEXT) | 0 | attributesDropped, direction, idText, weightsDropped |
 
 The documented losses (a check() note code and the difference it allows):
 
@@ -274,6 +280,9 @@ The documented losses (a check() note code and the difference it allows):
 - `W_OBO_LINE_END`: lineEnds
 - `W_OBOGRAPHS_EDGE_COLUMN_AS_META`: edgeMeta
 - `W_CYS_UNSET_AS_EMPTY_STRING`: unsetAsEmpty
+- `W_SIF_UNDIRECTED_AS_DIRECTED`: direction
+- `W_COLUMN_DROPPED`: attributesDropped
+- `W_WEIGHTS_DROPPED`: weightsDropped
 
 Minimal cases (`fixtures/generative/cases.json`):
 
@@ -291,7 +300,7 @@ Minimal cases (`fixtures/generative/cases.json`):
 
 ## Schema validation
 
-Validated 1374 dot, 1413 gexf-1.2draft, 1413 gexf-1.3, 1414 graphml, 1423 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
+Validated 1388 dot, 1427 gexf-1.2draft, 1427 gexf-1.3, 1428 graphml, 1437 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
 797 documents have at least one error.
 
 | Class | Errors | Kind | Why |

@@ -192,15 +192,28 @@ describe("camera.autoRotate speed and resume", () => {
         });
         await drawnFrames(element.graph.getScene(), 2);
 
-        // Counted from before the wheel, so the count is never behind the element's own wait.
+        // Counted from the moment the wheel reaches the element, as the element counts its own wait:
+        // frames drawn while the wheel is still on its way to the page are not part of the wait.
         const elapsed = frameTime(element);
+        let wheelAt = Number.NaN;
+        element.addEventListener(
+            "wheel",
+            () => {
+                wheelAt = elapsed().raw;
+            },
+            { capture: true, once: true },
+        );
+        const sinceWheel = (): number => elapsed().raw - wheelAt;
         await wheel(element, EMPTY, 100);
+        while (Number.isNaN(wheelAt)) {
+            await drawnFrames(element.graph.getScene(), 1);
+        }
         await drawnFrames(element.graph.getScene(), 2);
         const held = camera(element);
         const samples: { ms: number; camera: string }[] = [];
-        while (elapsed().raw < 700) {
+        while (sinceWheel() < 700) {
             await drawnFrames(element.graph.getScene(), 1);
-            samples.push({ ms: elapsed().raw, camera: camera(element) });
+            samples.push({ ms: sinceWheel(), camera: camera(element) });
         }
 
         for (const sample of samples.filter((s) => s.ms < 300)) {

@@ -15,9 +15,15 @@ used_by_workflows:
     - W12
     - W13
     - W17
+    - W20
+    - W22
+    - W23
+    - W25
 implemented_by_components:
     - attribute-row
     - node-details-panel
+    - data-table-panel
+    - heatmap-panel
 requirements:
     - Display detail panel within 100ms of node selection
     - Show all node attributes as label-value pairs in detail panel

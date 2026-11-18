@@ -573,8 +573,8 @@ function raise(gh, number) {
 }
 
 /**
- * Files the priority:critical flaky issue of each test a pull request saw fail and pass, which it did not touch,
- * and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
+ * Files the priority:critical flaky issue of each test a pull request saw fail and pass, whose file it did not
+ * change (it may have changed the test's imports, #8795), and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
  * but it is still a bug. An open flaky issue naming the test gets a comment instead (raised to priority:critical).
  * A closed one is left closed, with nothing filed, when the base does not contain the commit that closed it: that
  * flake ran on code from before the fix. Otherwise it is reopened, unless it closed as not planned or a duplicate.
@@ -640,7 +640,7 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
         const seen = pr ? `pull request #${pr}` : "a pull request";
         const run = runUrl ? ` (${runUrl})` : "";
         const body = [
-            `\`${idOf(t)}\` (variant \`${variant}\`) failed and then passed on ${seen}, which did not touch it.`,
+            `\`${idOf(t)}\` (variant \`${variant}\`) failed and then passed on ${seen}, which did not change the test file.`,
             `Its base check then passed 5 times on master at ${base}${run}, so it is a rare`,
             "flake: not quarantined, since master did not reproduce it.",
             "Find the mechanism: timing or load is not an accepted cause without one.",

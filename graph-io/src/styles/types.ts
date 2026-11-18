@@ -926,7 +926,8 @@ export interface EdgeStyleValues {
     /**
      * How far from its node the source arrowhead is drawn, the line stopping there too, as a multiple of the
      * arrowhead's own length along its line: Cytoscape desktop draws its T bar 4 of its lengths off the node. Unset or
-     * 0, the arrowhead touches the node.
+     * 0, the arrowhead touches the node; below 0 it overlaps the node by that much (Pajek's part-way arrowhead on a
+     * short line, its tip past the target's outline).
      */
     readonly sourceArrowGap: number;
     /** How far from its node the target arrowhead is drawn, as `sourceArrowGap` says. */
@@ -1248,7 +1249,8 @@ export interface EdgeStyleValues {
     readonly targetLabelOpacity: number;
     /**
      * How long each dash of a dashed or dotted `lineStyle` is drawn, its caps included, as a multiple of the line's
-     * `width`. Unset, the reader's own pattern.
+     * `width`: a file's own pattern (vis-network's dash arrays, Cytoscape.js's `line-dash-pattern`), a pattern of
+     * several dashes as their mean, which keeps its period and the share of it drawn. Unset, the program's own pattern.
      */
     readonly dashLength: number;
     /** The clear gap after each dash, as a multiple of the line's `width`; see `dashLength`. */

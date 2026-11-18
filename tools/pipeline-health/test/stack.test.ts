@@ -31,7 +31,7 @@ describe("health stack", () => {
         });
     });
 
-    it("reserves concurrency 20 / 5 / 5 / 1 / 1 on arm64 Node 22 with the right timeouts", () => {
+    it("reserves concurrency 20 / 5 / 5 / 1 / 1 / 1 on arm64 Node 22 with the right timeouts", () => {
         const fns = Object.values(t.findResources("AWS::Lambda::Function")).map((r) => r.Properties);
         const shapes = fns
             .map((p) => [p.ReservedConcurrentExecutions, p.Timeout, p.Runtime, p.Architectures[0]])
@@ -42,12 +42,13 @@ describe("health stack", () => {
             [5, 28, "nodejs22.x", "arm64"],
             [1, 240, "nodejs22.x", "arm64"],
             [1, 900, "nodejs22.x", "arm64"],
+            [1, 30, "nodejs22.x", "arm64"],
         ]);
     });
 
     it("keeps logs 14 days", () => {
         const groups = Object.values(t.findResources("AWS::Logs::LogGroup"));
-        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14, 14, 14]);
+        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14, 14, 14, 14]);
     });
 
     it("checks CI writes with the GitHub OIDC issuer and audience", () => {
@@ -108,6 +109,17 @@ describe("health stack", () => {
         t.hasResourceProperties("AWS::Scheduler::Schedule", { ScheduleExpression: "rate(5 minutes)" });
     });
 
+    it("fires the release scheduler at the Worker's four UTC slots, in dry run, with the slot time (#3608)", () => {
+        t.hasResourceProperties("AWS::Scheduler::Schedule", {
+            ScheduleExpression: "cron(0 0,6,12,18 * * ? *)",
+            Target: Match.objectLike({ Input: JSON.stringify({ slot: "<aws.scheduler.scheduled-time>" }) }),
+        });
+        t.hasResourceProperties("AWS::Lambda::Function", {
+            Timeout: 30,
+            Environment: { Variables: Match.objectLike({ RELEASE_DISPATCH: "dry-run" }) },
+        });
+    });
+
     it("alarms when no collector run succeeded in 20 minutes, on ALARM and OK", () => {
         const found = t.findResources("AWS::CloudWatch::Alarm", {
             Properties: { AlarmName: "graphty-health-collector-dead-man" },
@@ -150,7 +162,7 @@ describe("health stack", () => {
         const action = Object.values(t.findResources("AWS::Budgets::BudgetsAction"))[0].Properties;
         expect(action.ActionType).toBe("APPLY_IAM_POLICY");
         expect(action.ActionThreshold).toEqual({ Type: "PERCENTAGE", Value: 100 });
-        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(5);
+        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(6);
         t.hasResourceProperties("AWS::IAM::ManagedPolicy", {
             PolicyDocument: { Statement: [{ Effect: "Deny", Action: "*", Resource: "*" }], Version: "2012-10-17" },
         });
@@ -210,7 +222,11 @@ describe("health stack", () => {
             ].sort(),
         });
         expect(ssm("Backfill")).toEqual({ actions: ["ssm:GetParameters"], params: Object.values(APP_PARAMS).sort() });
-        for (const fn of ["Ingest", "Collector", "Backfill"]) {
+        expect(ssm("ReleaseScheduler")).toEqual({
+            actions: ["ssm:GetParameters"],
+            params: Object.values(DISPATCH_APP_PARAMS).sort(),
+        });
+        for (const fn of ["Ingest", "Collector", "Backfill", "ReleaseScheduler"]) {
             expect(kms(fn)).toBe(true);
         }
         const decrypt = Object.values(t.findResources("AWS::IAM::Policy"))

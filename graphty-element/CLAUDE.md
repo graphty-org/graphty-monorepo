@@ -101,8 +101,8 @@ Consumer guide: `docs/guide/undo.md`; design: `design/undo/undo-design.md`.
   `MISSING_DATA_COLOR` `#ff00ff`); only an empty palette throws. Delete old try/catch or `undefined` pre-checks
   around them rather than copying them. Magenta on screen is a bug: fix the layer's selector so the unmeasured
   element is never visited; do not pick a prettier color.
-- **Manager pattern**: always use manager methods (`styleManager.addLayer(layer)`), never direct manipulation
-  (`graph.styles.layers.push(layer)` bypasses cache invalidation).
+- **Styles through the session**: add, change and remove layers with `session.styles` (`session.styles.add(spec)`),
+  a dispatched, undoable command; never push onto a layer list directly, which bypasses cache invalidation and undo.
 - **Algorithm registration**: every algorithm class calls `Algorithm.register(MyAlgorithm)` with a static
   `namespace` and `type`.
 
@@ -169,7 +169,7 @@ These apply to every consumer of graphty-element's styling, acceleration and API
 ### Graph Styling
 
 - Node and edge appearance MUST be applied through a style layer, as a layer handed to
-  graphty-element through the StyleManager
+  graphty-element through `session.styles`
 - It MUST NOT be applied manually under any circumstance -- never by mutating a mesh, a
   material, or a node or edge object
 - The failure mode: styling applied outside the layer system is invisible to the layer list,
@@ -180,10 +180,10 @@ These apply to every consumer of graphty-element's styling, acceleration and API
 - An algorithm's suggested style layers MUST write ONLY to the nodes and edges that are part of
   that algorithm's own result. Dijkstra styles the nodes and edges ON the path; every other node
   and edge MUST be left exactly as the layers beneath it painted them, UNMODIFIED
-- "Part of the result" means the element carries a value this algorithm produced. Degree colours
-  every node because every node HAS a degree; Dijkstra colours the path because only path
+- "Part of the result" means the element carries a value this algorithm produced. Degree colors
+  every node because every node HAS a degree; Dijkstra colors the path because only path
   elements have `isInPath == true`. An element the algorithm has nothing to say about is not
-  the algorithm's to paint -- not even to a default, a muted grey, or a full opacity
+  the algorithm's to paint -- not even to a default, a muted gray, or a full opacity
 - Two ways a layer breaks this, both silent:
     - an empty `selector: ""` matches EVERY node or edge, so the layer's `calculatedStyle` runs
       on the whole graph. Calculated values are last-writer-wins, so the write lands whatever the
@@ -226,9 +226,9 @@ A descriptor's English `description` is deprecated, not catalog data: describe a
 ### Module System
 
 - ES modules are the default format
-- Bundled distributions: `dist/{package}.js`
+- Bundled distributions: `dist/graphty.js` (the root entry) and `dist/graphty.bundle.js` (`./bundle`)
 - graphty-element is ESM-only. It publishes a map of entry points rather than one barrel, and
-  five of them -- `./session`, `./schema`, `./catalog`, `./extend` and `./format` -- must stay
+  the Node-safe entries listed under "Entry points and imports" above must stay
   free of Babylon.js, Lit and the DOM so they run in Node. A test fails the build if one of
   them stops being. A consumer with no bundler loads `./bundle`, a single self-contained file
   built by `vite.bundle.config.ts`; that replaced the UMD build, which is gone

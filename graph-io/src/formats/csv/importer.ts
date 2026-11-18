@@ -187,6 +187,13 @@ export interface CsvImportOptions extends CommonImportOptions {
      * @defaultValue false
      */
     rowNumberIds?: boolean | undefined;
+    /**
+     * Keep a node row whose id cell is blank, as a node whose id is this prefix followed by the
+     * row's number (0 for the first data row), instead of skipping it with E_MISSING_ID. Choose a
+     * prefix no id in the file starts with: a minted id that repeats one is merged like any repeated id.
+     * @defaultValue undefined (blank-id rows are skipped)
+     */
+    blankIdPrefix?: string | undefined;
 }
 
 /**
@@ -363,6 +370,7 @@ interface ResolvedCsvOptions {
     readonly labelColumn: CsvColumnRef | null;
     readonly nodes: ImportInput | null;
     readonly rowNumberIds: boolean;
+    readonly blankIdPrefix: string | null;
     /** The caller's explicit defaultDirected; null when it was left to its default. */
     readonly explicitDirected: boolean | null;
 }
@@ -533,6 +541,12 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
             found: o.rowNumberIds,
         });
     }
+    if (o.blankIdPrefix !== undefined && typeof o.blankIdPrefix !== "string") {
+        throw new GraphFormatError("E_UNSUPPORTED", "option blankIdPrefix: expected a string", {
+            option: "blankIdPrefix",
+            found: o.blankIdPrefix,
+        });
+    }
     return {
         delimiter: o.delimiter ?? null,
         decimalComma: o.decimal === ",",
@@ -545,6 +559,7 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         labelColumn: o.labelColumn ?? null,
         nodes: nodesInput(o.nodes),
         rowNumberIds: o.rowNumberIds ?? false,
+        blankIdPrefix: o.blankIdPrefix ?? null,
         explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
     };
 }
@@ -714,16 +729,23 @@ function uniqueNames(names: readonly string[], report: ImportReportBuilder, line
  * Whether a column holds a distinct, set value on every row (a row too short counts as unset).
  * @param rows - the data rows
  * @param column - the column index
+ * @param blankKept - whether a blank cell is kept under blankIdPrefix, and so does not disqualify it
  * @returns true when the column can key the rows
  */
-function isKey(rows: readonly PendingRow[], column: number): boolean {
+function isKey(rows: readonly PendingRow[], column: number, blankKept = false): boolean {
     const seen = new Set<string>();
     for (const { row, quoted } of rows) {
         if (column >= row.length) {
             return false;
         }
         const text = row[column];
-        if (isUnset(text, quoted[column]) || seen.has(text)) {
+        if (isUnset(text, quoted[column])) {
+            if (blankKept) {
+                continue;
+            }
+            return false;
+        }
+        if (seen.has(text)) {
             return false;
         }
         seen.add(text);
@@ -1682,7 +1704,7 @@ class TableReader {
         const chosen =
             rows === null || candidates.length === 0
                 ? findColumn(names, ID_NAMES)
-                : (candidates.find((column) => isKey(rows, column)) ?? null);
+                : (candidates.find((column) => isKey(rows, column, this.state.csv.blankIdPrefix !== null)) ?? null);
         if (chosen !== null) {
             if (chosen >= 0) {
                 this.state.report.resolve("idColumn", names[chosen]);
@@ -2062,13 +2084,15 @@ class TableReader {
             counts.skippedNodes++;
             return;
         }
-        const idText = plan.id >= 0 ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
-        if (plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id])) {
+        const { blankIdPrefix } = this.state.csv;
+        const blank = plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id]);
+        if (blank && blankIdPrefix === null) {
             report.error("missing-value", MISSING_ID_CODE, `blank id cell`, { line });
             counts.skippedNodes++;
             return;
         }
-        if (plan.id >= 0) {
+        const idText = plan.id >= 0 && !blank ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
+        if (plan.id >= 0 && !blank) {
             this.checkPadded(idText, quoted[plan.id], line);
         }
         const { where } = this;
@@ -2076,7 +2100,7 @@ class TableReader {
         where.element = idText;
         let index: number;
         try {
-            const id = plan.id >= 0 || plan.rowNumber ? this.coerce(idText) : ordinal;
+            const id = this.nodeIdOf(plan, blank, idText, ordinal);
             if (sink.indexOf(id) !== INVALID_INDEX) {
                 report.warning(
                     "merged",
@@ -2115,6 +2139,22 @@ class TableReader {
                 { line, element: text },
             );
         }
+    }
+
+    /**
+     * A node row's id: the prefix and row number for a kept blank-id row, else the coerced id
+     * cell or row number, else the raw ordinal.
+     * @param plan - the node plan
+     * @param blank - whether the id cell is blank (kept under blankIdPrefix)
+     * @param idText - the id cell text, or the row number as text
+     * @param ordinal - the row number
+     * @returns the id
+     */
+    private nodeIdOf(plan: NodePlan, blank: boolean, idText: string, ordinal: number): NodeId {
+        if (blank) {
+            return `${this.state.csv.blankIdPrefix ?? ""}${idText}`;
+        }
+        return plan.id >= 0 || plan.rowNumber ? this.coerce(idText) : ordinal;
     }
 
     /**
@@ -2490,6 +2530,7 @@ async function importCsv(
 export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     format: "csv",
     options: Object.freeze([
+        "blankIdPrefix",
         "decimal",
         "delimiter",
         "header",

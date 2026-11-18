@@ -478,9 +478,13 @@ interface ShaderBackground {
     readonly dome: PhotoDome | null;
 }
 
-/** The session events after which the group outlines may draw other groups or members. */
+/**
+ * The session events after which the group outlines may draw other groups or members. A branches
+ * view starting or ending changes the painted stack without a `style:changed` (issue #8922).
+ */
 const OUTLINE_EVENTS = [
     "style:changed",
+    "style:branches-shown-changed",
     "history:changed",
     "project:changed",
     "run:changed",

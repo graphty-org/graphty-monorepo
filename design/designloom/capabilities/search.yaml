@@ -3,7 +3,8 @@ name: Node Search
 category: interaction
 description: Find specific nodes by searching labels or attribute values. Navigate directly to search results in the
     visualization. Essential for locating known entities in large graphs.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/graph-place/FindBox.tsx (opened with /)."
 algorithms: []
 used_by_workflows:
     - W05

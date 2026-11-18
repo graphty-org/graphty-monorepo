@@ -81,6 +81,8 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `bfs.target-reached` -- the walk stopped at its target: `{ target }`.
  * - `bfs.target-unreached` -- the walk never reached its target, so it covered everything
  *   reachable: `{ target }`.
+ * - `bfs.depth-bounded` -- the walk stopped this many steps from its source, so a node further
+ *   away carries nothing, as if unreachable: `{ maxDepth }`.
  * - `dfs.walk` -- the walk's start and when it recorded a node: `{ source, order }`, `order`
  *   `"pre"` (as reached) or `"post"` (as left).
  * - `closeness.sampled` -- closeness was estimated from sampled sources, unscaled:
@@ -172,6 +174,7 @@ export type CaveatCode =
     | "bfs.origin"
     | "bfs.target-reached"
     | "bfs.target-unreached"
+    | "bfs.depth-bounded"
     | "dfs.walk"
     | "closeness.sampled"
     | "closeness.exact"

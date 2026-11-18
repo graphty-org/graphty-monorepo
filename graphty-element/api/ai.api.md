@@ -583,9 +583,7 @@ export type AiVoiceConversationMode = "turns" | "live";
 export interface AiVoiceEndEvent {
     code?: AiResultCode;
     params?: AiResultParams;
-    // (undocumented)
     reason: "user" | "timeout" | "error";
-    // (undocumented)
     type: "ai-voice-end";
 }
 
@@ -642,7 +640,6 @@ export interface AiVoiceStartEvent {
     code?: AiResultCode;
     mode?: AiVoiceConversationMode;
     params?: AiResultParams;
-    // (undocumented)
     type: "ai-voice-start";
 }
 
@@ -661,12 +658,9 @@ export interface AiVoiceSupportChangeEvent {
 
 // @public
 export interface AiVoiceTranscriptEvent {
-    // (undocumented)
     isFinal: boolean;
     pointing?: AiPointing;
-    // (undocumented)
     transcript: string;
-    // (undocumented)
     type: "ai-voice-transcript";
 }
 

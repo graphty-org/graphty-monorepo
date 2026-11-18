@@ -5,6 +5,7 @@ import { assert, describe, it, vi } from "vitest";
 import { modelChip } from "../modelWords";
 import {
     bindLabel,
+    channelPhrase,
     channelWord,
     clockWords,
     colorName,
@@ -12,6 +13,7 @@ import {
     enumWords,
     failureWords,
     hiddenByWords,
+    isShaderParam,
     logUnexpected,
     madeWords,
     matchesWordStart,
@@ -408,5 +410,16 @@ describe("model variant words", () => {
         }
         // The app keeps no list of splat formats: without the element's kind, it is any refused format.
         assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "spz" } }).word, "SPZ not read");
+    });
+});
+
+describe("a shader parameter's address in history words", () => {
+    it("tells an address from a channel and names it as the element does", () => {
+        assert.isTrue(isShaderParam("node.shaders.glass-marble.spin"));
+        assert.isFalse(isShaderParam("node.shaders"));
+        assert.isFalse(isShaderParam("node.color"));
+        assert.strictEqual(channelPhrase("node.color"), "node color");
+        // Several rows binding a parameter name the undo step by it, never by a channel word it lacks.
+        assert.match(channelPhrase("node.shaders.glass-marble.spin"), /^[a-z].* spin$/i);
     });
 });

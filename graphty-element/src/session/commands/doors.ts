@@ -2143,6 +2143,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             roundRadius: READ,
             drawnFill: READ,
             drawnOpacity: READ,
+            paintedOpacity: READ,
             drawnRadius: READ,
             layoutRadius: READ,
             spacingRadius: READ,

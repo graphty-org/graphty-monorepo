@@ -1,14 +1,17 @@
 # babylonjs-models
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fbabylonjs-models.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/babylonjs-models.md)
 [![npm version](https://img.shields.io/npm/v/babylonjs-models.svg)](https://www.npmjs.com/package/babylonjs-models)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/babylonjs-models/)
 
 Load 3D models into [Babylon.js](https://www.babylonjs.com/) scenes from a URL, a File, a folder, a
 `.zip` or bytes. Every file is checked before Babylon reads it, a model reads only its own files, and
 nothing is fetched from a CDN: the Draco decoder, the KTX2 transcoders and the OpenUSD importer ship
 inside the package.
+
+<!-- #region formats -->
 
 | Format           | Files                                                                                                     |
 | ---------------- | --------------------------------------------------------------------------------------------------------- |
@@ -34,6 +37,9 @@ table from its CDN), `EXT_lights_image_based` (it would replace your scene's env
 is your page's), `MSFT_audio_emitter` (sound) and `MSFT_lod` (it goes on loading after the load).
 An `EXT_lights_ies` light's profile in a file of its own is one of the model's parts.
 
+<!-- #endregion formats -->
+<!-- #region install -->
+
 ```bash
 npm install babylonjs-models @babylonjs/core @babylonjs/loaders
 ```
@@ -42,6 +48,9 @@ npm install babylonjs-models @babylonjs/core @babylonjs/loaders
 FBX loader first ships in 9.13 and the USD loader in 9.26; this package is built and tested against
 9.37): the main `babylonjs-models` entry needs them. `babylonjs-models/files` and `babylonjs-models/detect` never
 load Babylon.js, so they work in Node, a Web Worker or a server with only `npm install babylonjs-models`.
+
+<!-- #endregion install -->
+<!-- #region load -->
 
 ## Load a model
 
@@ -84,8 +93,11 @@ plugin, such as `{ gltf: { animationStartMode: 0 } }`) and `keepCamerasAndLights
 A material that drew its color from a picture loaded without (`skipped` or `withoutPictures`) has
 no look of its own left; `drawsWithoutPicture(material)` says so, so you can draw that part in a
 color of your own.
+<!-- #endregion load -->
 
 ## Check files without Babylon.js
+
+<!-- #region files -->
 
 ```ts
 import { checkModelFiles, DEFAULT_MODEL_LIMITS, detectModelFormat, readModelFiles } from "babylonjs-models/files";
@@ -104,7 +116,11 @@ holds (each `{ main, format, files }`) when a folder or `.zip` carries more than
 `loadModelFiles(scene, checked.files, checked.main, checked.format)`
 then loads a checked set.
 
+<!-- #endregion files -->
+
 ## Codes
+
+<!-- #region codes -->
 
 Every problem is a code with plain-value params, never a sentence, so an application words it in
 its own language.
@@ -124,7 +140,11 @@ its own language.
 | `E_MODEL_FETCH`, `E_MODEL_URL_BLOCKED`, `E_MODEL_WEB_PAGE`, `E_MODEL_ZIP` | A URL or zip could not be read                                                                                                                                                                                                 |
 | `W_MODEL_*`                                                               | Worth knowing about an accepted model: a part substituted or skipped, pictures reduced, points drawn as solids, an extension drawn without (`W_MODEL_EXTENSION_IGNORED`, `extension`: the transmission family is drawn opaque) |
 
+<!-- #endregion codes -->
+
 ## Decoders
+
+<!-- #region decoders -->
 
 The Draco decoder, the KTX2 transcoders and the OpenUSD importer are in `dist/wasm/`, found with
 `new URL("../wasm/<file>", import.meta.url)`, which Vite, webpack and Parcel copy into a build. Each
@@ -186,6 +206,8 @@ skinned mesh where its first joint draws it in the rest pose). A PLY file does n
 its `upAxis` is guessed from its extent, `"z"` when its Y extent is less than half of both its X
 and its Z extent, else `"y"`, with `W_MODEL_UP_GUESSED` saying which; an STL file's is `"z"`. When a set holds a USD layer and the `.usdz`
 it references, the layer is the main file.
+
+<!-- #endregion decoders -->
 
 ## License
 

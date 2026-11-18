@@ -8,6 +8,7 @@ import { aliases, elementSourcePlugins } from "./vite.aliases";
 import { bootFilesPlugin } from "./vite.boot-files";
 import { buildStampPlugin } from "./vite.build-stamp";
 import { sampleDataPlugin } from "./vite.sample-data";
+import { workspaceSourcePlugin } from "./vite.workspace-source";
 
 /**
  * Serves the dev server's unversioned pre-bundled chunks with `no-cache` instead of Vite's
@@ -89,6 +90,8 @@ export default defineConfig(({ mode }) => {
         ...elementSourcePlugins,
         unversionedDepsNotImmutable(),
         http1DevServer(),
+        // The workspace packages from source, so rebuilding one cannot break a running dev server.
+        workspaceSourcePlugin(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
         // The files each loading step waits for, so the loading screen's log can measure them.

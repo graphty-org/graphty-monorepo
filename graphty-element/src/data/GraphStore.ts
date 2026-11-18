@@ -12,6 +12,7 @@ import {
 } from "@graphty/graph-format";
 
 import { hashNodeId } from "../catalog/sets/hash";
+import type { EdgeId } from "../catalog/types";
 import { type InputCounters, inputCountersOf } from "../session/attributes";
 import { retainArray } from "../session/project/strict";
 import type { DirectionProvenance } from "../session/types";
@@ -19,11 +20,14 @@ import {
     completeLoad,
     createEdgeCounter,
     DEFERRED_HASH_COLUMN,
+    EDGE_ID_CEILING,
     EDGE_ID_COLUMN,
     type EdgeCounter,
+    edgeCounterOf,
     IDENTITY_COLUMNS,
     type IdentityGraph,
     PAIRS_ORDERED_ATTRIBUTE,
+    resumeEdgeCounter,
     sessionEdgeHash,
     withNodeHashes,
 } from "./edgeIdentity";
@@ -972,18 +976,45 @@ export class GraphStore {
     }
 
     /**
-     * Whether an edge may be given back an id the element assigned before: one the counter has
-     * handed out, that no live edge holds now.
-     * @param edgeId - the counter
-     * @returns true when it may
+     * The id for an edge being added: `wanted` when it is one no live edge holds -- an id given
+     * back to an edge removed earlier, or one a save file recorded -- else the next one from the
+     * counter. The counter continues past a wanted id it has not issued yet, so it never issues
+     * that id again.
+     * @param wanted - the counter asked for, if any
+     * @returns the id to stamp
+     * @throws Error when the store has been disposed
      */
-    mayReuseEdgeId(edgeId: number): boolean {
-        return (
-            Number.isSafeInteger(edgeId) &&
-            edgeId >= 0 &&
-            edgeId < this.counter.next &&
-            this.edgeIndexOf(edgeId) === INVALID_INDEX
-        );
+    takeEdgeId(wanted?: number): number {
+        if (
+            wanted === undefined ||
+            !Number.isSafeInteger(wanted) ||
+            wanted < 0 ||
+            wanted >= EDGE_ID_CEILING ||
+            this.edgeIndexOf(wanted) !== INVALID_INDEX
+        ) {
+            return this.nextEdgeId();
+        }
+
+        this.requireAlive("takeEdgeId");
+        resumeEdgeCounter(this.counter, wanted);
+        return wanted;
+    }
+
+    /**
+     * Continue the counter past every id named, so no edge added later is given one of them fresh:
+     * ids a save file names for edges not added yet, or for a source that could not be fetched.
+     * An id {@link takeEdgeId} would not take is skipped.
+     * @param ids - The edge ids.
+     * @throws Error when the store has been disposed
+     */
+    reserveEdgeIds(ids: readonly EdgeId[]): void {
+        this.requireAlive("reserveEdgeIds");
+        for (const id of ids) {
+            const counter = edgeCounterOf(id);
+            if (counter < EDGE_ID_CEILING) {
+                resumeEdgeCounter(this.counter, counter);
+            }
+        }
     }
 
     /**

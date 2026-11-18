@@ -2803,6 +2803,9 @@ export class UpdateManager implements Manager {
      *
      * Asked under the layer's render pass, because that is where the layer keeps the mesh's
      * shader -- which is what Babylon's own readiness check does before asking the same thing.
+     * A mesh with no geometry -- a model's root, an empty mesh -- has no submeshes and nothing to
+     * draw into the layer, so it is ready, as `Mesh.isReady` answers for it; one still loading was
+     * already answered not ready by `isReady` before the layers are asked.
      * @param layer - The layer drawing the mesh.
      * @param mesh - The mesh.
      * @param instanced - Whether the mesh is drawn through instances.

@@ -21,6 +21,8 @@ import {
     listModels,
     listParts,
     type ModelLimits,
+    readModelFiles,
+    unpackZip,
 } from "../src/files/index.js";
 import { ModelError } from "../src/files/references.js";
 
@@ -356,5 +358,28 @@ describe("the BVH checks", () => {
             code: "E_MODEL_TOO_LARGE",
             params: { what: "count", item: "joints", found: 5, limit: 2 },
         });
+    });
+});
+
+describe("FBX, USD and USDZ in a zip", () => {
+    it("are found and checked inside a .zip, a folder of layers and a .usdz alike", async () => {
+        const unzipped = async (entries: Record<string, Uint8Array>) => {
+            const { given } = await readModelFiles(
+                { files: new Map([["kit.zip", zipSync(entries)]]) },
+                DEFAULT_MODEL_LIMITS,
+            );
+            return await unpackZip(given, DEFAULT_MODEL_LIMITS);
+        };
+        const layers = Object.fromEntries(set("usd-layers", "cube.usda", "geo/cube.usdc", "textures/cube.png"));
+        const stage = await check(await unzipped(layers));
+        assert.strictEqual(stage.main, "cube.usda");
+        assert.strictEqual(stage.summary.triangles, 12);
+        // A .usdz inside a zip is a model of its own, not a nested zip.
+        const usdz = await check(await unzipped(Object.fromEntries(set("usdz", "cube.usdz"))));
+        assert.strictEqual(usdz.format, "usdz");
+        const fbx = await check(
+            await unzipped(Object.fromEntries(set("fbx-textured", "cube.fbx", "textures/cube.png"))),
+        );
+        assert.strictEqual(fbx.summary.textures, 1);
     });
 });

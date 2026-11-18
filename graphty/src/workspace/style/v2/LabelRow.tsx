@@ -185,12 +185,39 @@ export function LabelRow({
     const { store } = useWorkspace();
     const styleLine = lineIn(ctx, kind.style);
     const style = styleOf(styleLine);
-    const write = (patch: LabelPatch): void => {
+    const write = (patch: LabelPatch, drop: readonly Channel[] = []): void => {
         const next = Object.fromEntries(
             Object.entries({ ...style, ...patch }).filter(([, value]) => value !== undefined),
         ) as LabelStyle;
-        const done =
-            Object.keys(next).length === 0 ? unsetIn(ctx, [kind.style]) : writeIn(ctx, kind.style, { value: next });
+        const held = drop.filter((channel) => setOn(ctx, channel));
+        let done: Promise<unknown>;
+        if (Object.keys(next).length === 0) {
+            done = unsetIn(ctx, [kind.style, ...held]);
+        } else if (
+            held.length > 0 &&
+            ctx.many === undefined &&
+            styleLine !== undefined &&
+            !styleLine.layer.locked &&
+            held.every((channel) => lineIn(ctx, channel)?.layer.id === styleLine.layer.id)
+        ) {
+            // The style keeps other fields: write it and take the dropped channels off, one undo step.
+            const { id } = styleLine.layer;
+            done = ctx.session.transaction(`changing ${title.toLowerCase()}`, async (tx) => {
+                const own = tx.styles.get(id);
+                const keep = <T,>(
+                    record: Readonly<Partial<Record<Channel, T>>> | undefined,
+                ): Partial<Record<Channel, T>> =>
+                    Object.fromEntries(Object.entries(record ?? {}).filter(([c]) => !held.includes(c as Channel)));
+                await tx.styles.update(
+                    id,
+                    { set: { ...keep(own?.set), [kind.style]: next }, encode: keep(own?.encode) },
+                    { keepEmpty: true },
+                );
+            });
+        } else {
+            // ponytail: dropped channels on another layer, or several rows, go in a second undo step.
+            done = writeIn(ctx, kind.style, { value: next }).then(() => unsetIn(ctx, held));
+        }
         done.catch((error: unknown) => {
             store.set({ notice: { message: failureWords(title, "changed", error), error: true } });
         });
@@ -205,7 +232,13 @@ export function LabelRow({
     );
     // The thing's other set channels (a tooltip's size, an external label's offset): today's fields in Main.
     const others = channels.flatMap((channel): ChannelDescriptor[] => {
-        if (channel === kind.words || channel === kind.style || flats.has(channel) || !setOn(ctx, channel)) {
+        if (
+            channel === kind.words ||
+            channel === kind.style ||
+            channel === kind.distance ||
+            flats.has(channel) ||
+            !setOn(ctx, channel)
+        ) {
             return [];
         }
         const descriptor = shownChannel(ctx.session, ctx.side, channel, true);

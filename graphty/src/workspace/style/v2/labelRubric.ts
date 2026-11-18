@@ -71,13 +71,34 @@ export interface LabelRubric {
 export interface TextThing {
     readonly words: Channel;
     readonly style: Channel;
+    /** A caption's distance from its end, a channel of its own on the Position sub-group's last line. */
+    readonly distance?: Channel;
 }
 
-/** The node text things that edit a label style (Glyph and Record have channels of their own). */
-export const TEXT_THINGS: Readonly<Record<string, TextThing>> = {
-    label: { words: "node.label", style: "node.labelStyle" },
-    xlabel: { words: "node.xlabel", style: "node.xlabelStyle" },
-    tooltip: { words: "node.tooltip", style: "node.tooltipStyle" },
+/**
+ * Each kind's text things that edit a label style, by thing id (a node's Glyph and Record and an
+ * edge's Record have channels of their own).
+ */
+export const TEXT_THINGS: Readonly<Record<"node" | "edge", Readonly<Record<string, TextThing>>>> = {
+    node: {
+        label: { words: "node.label", style: "node.labelStyle" },
+        xlabel: { words: "node.xlabel", style: "node.xlabelStyle" },
+        tooltip: { words: "node.tooltip", style: "node.tooltipStyle" },
+    },
+    edge: {
+        label: { words: "edge.label", style: "edge.labelStyle" },
+        xlabel: { words: "edge.xlabel", style: "edge.xlabelStyle" },
+        targetCaption: {
+            words: "edge.arrowHeadText",
+            style: "edge.arrowHeadTextStyle",
+            distance: "edge.arrowHeadTextDistance",
+        },
+        sourceCaption: {
+            words: "edge.arrowTailText",
+            style: "edge.arrowTailTextStyle",
+            distance: "edge.arrowTailTextDistance",
+        },
+    },
 };
 
 /** A label's size: in graph units, in screen pixels, or as the letters' own size (design 5.2). */

@@ -74,14 +74,69 @@ const SHAPES: readonly ValueSection[] = [
     },
 ];
 
+/** An edge end's arrowheads: filled, open, bars and barbs, plain strokes, then the combined ones. */
+const ARROWS: readonly ValueSection[] = [
+    {
+        name: "Filled",
+        values: [
+            "normal",
+            "inverted",
+            "dot",
+            "sphere-dot",
+            "diamond",
+            "box",
+            "vee",
+            "half-circle",
+            "inverted-vee",
+            "kite",
+            "deltoid",
+        ],
+    },
+    {
+        name: "Open",
+        values: [
+            "open-normal",
+            "open-inverted",
+            "open-dot",
+            "open-diamond",
+            "open-box",
+            "open-half-circle",
+            "open-vee",
+        ],
+    },
+    {
+        name: "Bars and barbs",
+        values: ["tee", "cross", "slash", "half-open", "half-open-flipped", "half-barb", "half-barb-flipped"],
+    },
+    { name: "Strokes", values: ["none", "stem", "curve", "crow"] },
+    {
+        name: "Special",
+        values: ["triangle-tee", "triangle-cross", "circle-triangle", "cross-delta", "open-cross-delta", "image"],
+    },
+];
+
+/** An edge line's patterns. */
+const PATTERNS: readonly ValueSection[] = [
+    { name: "Lines", values: ["solid", "dash", "dot", "dash-dot", "double"] },
+    { name: "Shapes", values: ["star", "box", "diamond"] },
+    { name: "Waves", values: ["sinewave", "zigzag"] },
+    { name: "Slashes", values: ["forward-slash", "backward-slash", "vertical-slash"] },
+    { name: "Arrows", values: ["separate-arrow", "contiguous-arrow"] },
+];
+
 /**
  * Every sectioned list, by the channel whose values it lists. An underlay's and an overlay's shape
- * list is the node shape list, so it takes the same sections.
+ * list is the node shape list, so it takes the same sections; every edge end lists the same arrowheads.
  */
 export const VALUE_SECTIONS: Partial<Readonly<Record<Channel, readonly ValueSection[]>>> = {
     "node.shape": SHAPES,
     "node.underlayShape": SHAPES,
     "node.overlayShape": SHAPES,
+    "edge.arrowHead": ARROWS,
+    "edge.arrowTail": ARROWS,
+    "edge.arrowMiddleHead": ARROWS,
+    "edge.arrowMiddleTail": ARROWS,
+    "edge.style": PATTERNS,
 };
 
 /**

@@ -51,6 +51,7 @@ import {
     createLucideIcon,
     Database,
     Disc,
+    Earth,
     Eye,
     EyeOff,
     FilePlus,
@@ -103,12 +104,15 @@ import {
     Orbit,
     Paintbrush,
     Palette,
+    PanelLeft,
+    PanelRight,
     Pause,
     Pencil,
     Pin,
     PinOff,
     Play,
     Plus,
+    Rainbow,
     RectangleGoggles,
     Redo2,
     RefreshCw,
@@ -128,6 +132,7 @@ import {
     Share2,
     Shuffle,
     Sigma,
+    Slash,
     SlidersHorizontal,
     Spline,
     Square,
@@ -433,6 +438,13 @@ export const GLYPHS = {
     pointDown: ArrowDown,
     pointLeft: ArrowLeft,
     pointRight: ArrowRight,
+    // An edge's route: straight, an arc, or along a great circle of the globe.
+    routeStraight: Slash,
+    routeArc: Rainbow,
+    routeGreatCircle: Earth,
+    // Which side of its line a one-sided arrowhead sits on.
+    sideLeft: PanelLeft,
+    sideRight: PanelRight,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

@@ -47,7 +47,8 @@ export interface LabelLineContext {
     readonly title: string;
     /** The layer's label style object as written. */
     readonly style: Readonly<LabelStyle>;
-    readonly write: (patch: LabelPatch) => void;
+    /** Writes fields of the style; `drop` channels of the thing are taken off in the same step. */
+    readonly write: (patch: LabelPatch, drop?: readonly Channel[]) => void;
 }
 
 /**

@@ -1,6 +1,6 @@
 /**
  * Style panel v2's control rubric and option-name table (design/ui/style-panel-v2/design.md,
- * sections 6 and 7): for each node thing, the common lines under its row, its settings pop-over's
+ * sections 6 and 7): for each node and edge thing, the common lines under its row, its settings pop-over's
  * Main lines and the sub-groups its "+" adds, and for each line which control it draws. Keyed by
  * graphty-element channel ids; what a channel accepts, its limits and its own value names are
  * read from the element's descriptors and `channelValues`. The app's part is only presentation:
@@ -99,6 +99,20 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" } },
     "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
     "node.halo": { true: { name: "On" }, false: { name: "Off" } },
+    "edge.route": {
+        straight: { name: "Straight", glyph: "routeStraight" },
+        arc: { name: "Arc", glyph: "routeArc" },
+        "great-circle": { name: "Great circle", glyph: "routeGreatCircle" },
+    },
+    "edge.gradientKind": { linear: { name: "Linear" }, radial: { name: "Radial" }, none: { name: "None" } },
+    "edge.supportScale": { unit: { name: "Unit" }, drawing: { name: "Drawing" } },
+    "edge.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
+    ...Object.fromEntries(
+        (["arrowHead", "arrowTail", "arrowMiddleHead", "arrowMiddleTail"] as const).map((end) => [
+            `edge.${end}Side`,
+            { left: { name: "Left", glyph: "sideLeft" }, right: { name: "Right", glyph: "sideRight" } },
+        ]),
+    ),
 };
 
 /** A Unit line's options for a stroke width: in graph units, or in screen pixels. */
@@ -446,17 +460,223 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
 };
 
 /**
+ * An edge line's lines after its color or stops: thing-wide across Solid and Gradient (design 5).
+ * Solid's opacity is its color field's; a gradient's is a line of its own.
+ */
+const LINE_MAIN: readonly LineSpec[] = [
+    { channel: "edge.taper", name: "Taper" },
+    { channel: "edge.minScreenWidth", name: "Min width", glyph: "weight" },
+    { channel: "edge.blending" },
+];
+
+/** An edge line's sub-groups (design 7.2). */
+const LINE_GROUPS: readonly SubGroup[] = [
+    {
+        name: "Fade",
+        lines: [
+            { channel: "edge.fadeStart", name: "Fade", pair: "edge.fadeEnd", letters: ["S", "E"] },
+            { channel: "edge.fadeOpacity", name: "Opacity" },
+        ],
+    },
+    {
+        name: "3D",
+        lines: [
+            { channel: "edge.lift", name: "Lift" },
+            { channel: "edge.animationSpeed", name: "Flow speed" },
+        ],
+    },
+    {
+        name: "Pattern",
+        lines: [
+            { channel: "edge.style", name: "Pattern", rule: "R10" },
+            { channel: "edge.patternCount", name: "Count" },
+            { channel: "edge.dashLength", name: "Dash", pair: "edge.dashGap", letters: ["L", "G"] },
+            { channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod", letters: ["A", "P"] },
+        ],
+    },
+];
+
+/** An edge end's channels' stem. */
+type EdgeEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
+
+/**
+ * An edge end (Target, Source, Middle target, Middle source): its arrowhead on the row, Size under
+ * it; a middle end has no gap, stack or caption.
+ * @param end - which end.
+ * @returns its rubric.
+ */
+function edgeEnd(end: EdgeEnd): ThingRubric {
+    const at = (suffix: string): Channel => `edge.${end}${suffix}` as Channel;
+    const middle = end === "arrowMiddleHead" || end === "arrowMiddleTail";
+    return {
+        common: [{ channel: at("Size"), name: "Size" }],
+        main: [
+            { channel: at("Width"), name: "Width" },
+            { channel: at("Color"), name: null },
+            { channel: at("Opacity"), name: "Opacity" },
+            { channel: at("Side"), name: "Side", rule: "R8" },
+        ],
+        groups: [
+            {
+                name: "Open caps",
+                lines: [
+                    { channel: at("OutlineWidth"), name: "Outline", glyph: "weight" },
+                    { channel: at("FillColor"), name: null },
+                ],
+            },
+            {
+                name: "Place",
+                lines: [
+                    { channel: at("Position"), name: "Position" },
+                    ...(middle ? [] : [{ channel: at("Gap"), name: "Gap" }]),
+                ],
+            },
+            {
+                name: middle ? "Picture" : "Stack",
+                lines: [
+                    ...(middle ? [] : [{ channel: at("Stack"), name: "Stack", rule: "field" as const }]),
+                    { channel: at("Image"), name: "Image", rule: "field" },
+                ],
+            },
+        ],
+    };
+}
+
+/**
+ * Each edge thing's rubric (design 7.2), keyed as `NODE_RUBRIC` is. A label, an external label and
+ * a caption edit their label style field by field (`labelRubric.ts`); a Record is today's label
+ * table field.
+ */
+export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
+    line: {
+        common: [{ channel: "edge.width", name: "Width", glyph: "weight" }],
+        main: LINE_MAIN,
+        groups: LINE_GROUPS,
+    },
+    "line:edge.gradientColors": {
+        common: [{ channel: "edge.width", name: "Width", glyph: "weight" }],
+        main: [
+            { channel: "edge.gradientKind", name: null, rule: "R8f" },
+            { channel: "edge.gradientStops", name: "Stops", rule: "field" },
+            { channel: "edge.opacity", name: "Opacity" },
+            ...LINE_MAIN,
+        ],
+        groups: LINE_GROUPS,
+    },
+    band: {
+        main: [
+            { channel: "edge.bandWidth", name: "Width", glyph: "weight" },
+            { channel: "edge.bandOpacity", name: "Opacity" },
+        ],
+    },
+    outline: {
+        main: [
+            { channel: "edge.outlineWidth", name: "Width", glyph: "weight" },
+            { channel: "edge.outlineOpacity", name: "Opacity" },
+            { channel: "edge.outlineStyle", name: "Style", rule: "R10" },
+        ],
+    },
+    target: edgeEnd("arrowHead"),
+    source: edgeEnd("arrowTail"),
+    middleTarget: edgeEnd("arrowMiddleHead"),
+    middleSource: edgeEnd("arrowMiddleTail"),
+    route: {
+        row: { channel: "edge.route", name: "Route", rule: "R8" },
+        main: [],
+        groups: [
+            {
+                name: "Curve",
+                lines: [
+                    { channel: "edge.curvature", name: "Curved" },
+                    { channel: "edge.arcRadius", name: "Radius" },
+                    { channel: "edge.arcHeight", name: "Height" },
+                ],
+            },
+            {
+                name: "Fan",
+                lines: [
+                    { channel: "edge.fanned", name: "Fanned" },
+                    { channel: "edge.fanSpacing", name: "Spacing" },
+                ],
+            },
+            {
+                name: "Bends",
+                lines: [
+                    { channel: "edge.bends", name: "Bends", rule: "field" },
+                    { channel: "edge.bendCurve", name: "Curve", rule: "R9" },
+                ],
+            },
+            {
+                name: "Gaps",
+                lines: [
+                    { channel: "edge.nodeGap", name: "Gap" },
+                    { channel: "edge.sourceNodeGap", name: "Ends", pair: "edge.targetNodeGap", letters: ["S", "T"] },
+                ],
+            },
+            {
+                name: "Ports",
+                lines: [
+                    { channel: "edge.sourcePort", name: "Source", rule: "field" },
+                    { channel: "edge.targetPort", name: "Target", rule: "field" },
+                ],
+            },
+        ],
+    },
+    bundling: {
+        row: { channel: "edge.supportModel", name: "Bundling", rule: "R9" },
+        main: [],
+        groups: [
+            {
+                name: "Springs",
+                lines: [
+                    {
+                        channel: "edge.supportSpringLength",
+                        name: "Spring",
+                        pair: "edge.supportSpringConstant",
+                        letters: ["L", "K"],
+                    },
+                    {
+                        channel: "edge.supportRepulsion",
+                        name: "Forces",
+                        pair: "edge.supportCentralGravity",
+                        letters: ["R", "G"],
+                    },
+                ],
+            },
+            {
+                name: "Curve",
+                lines: [
+                    { channel: "edge.supportUnit", name: "Unit size" },
+                    { channel: "edge.supportScale", name: "Scale", rule: "R8" },
+                ],
+            },
+        ],
+    },
+    underlay: {
+        main: [
+            { channel: "edge.underlayPadding", name: "Padding" },
+            { channel: "edge.underlayOpacity", name: "Opacity" },
+        ],
+    },
+    overlay: {
+        main: [
+            { channel: "edge.overlayPadding", name: "Padding" },
+            { channel: "edge.overlayOpacity", name: "Opacity" },
+        ],
+    },
+    visibility: { row: { channel: "edge.visible", name: null, rule: "R8" }, main: [] },
+};
+
+/**
  * A thing's rubric for the member its row shows.
  * @param side - nodes or edges.
  * @param thing - the thing's id.
  * @param main - the channel its row's main control edits.
- * @returns the rubric, or undefined for a thing with none yet (text, every edge thing).
+ * @returns the rubric, or undefined for a thing with none (text, an edge's Record).
  */
 export function rubricOf(side: "node" | "edge", thing: string, main: Channel): ThingRubric | undefined {
-    if (side === "edge") {
-        return undefined;
-    }
-    return NODE_RUBRIC[`${thing}:${main}`] ?? NODE_RUBRIC[thing];
+    const rubrics = side === "edge" ? EDGE_RUBRIC : NODE_RUBRIC;
+    return rubrics[`${thing}:${main}`] ?? rubrics[thing];
 }
 
 /**

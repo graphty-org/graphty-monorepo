@@ -1,7 +1,8 @@
 /**
  * Style panel v2's rubric (style/v2/rubric.ts, design/ui/style-panel-v2/design.md section 6): every
  * segment line's options are the element's values, and its segments fit the width where it sits;
- * no sub-group passes 8 lines and no "+" menu 12 sub-groups; no name says "Scene" or "World". The
+ * no sub-group passes 8 lines and no "+" menu 12 sub-groups; no name says "Scene" or "World". Node
+ * and edge things alike. The
  * label rubric (style/v2/labelRubric.ts, design 7.3) is held to the same.
  */
 
@@ -9,10 +10,24 @@ import { channelDescriptor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/
 import { assert, describe, it } from "vitest";
 
 import { LABEL_OPTION_NAMES, LABEL_RUBRIC, labelFieldDescriptor, labelLineFields } from "../v2/labelRubric";
-import { LINE_WIDTHS, type LineSpec, NODE_RUBRIC, OPTION_NAMES, segmentOptions, segmentsWidth } from "../v2/rubric";
+import {
+    EDGE_RUBRIC,
+    LINE_WIDTHS,
+    type LineSpec,
+    NODE_RUBRIC,
+    OPTION_NAMES,
+    segmentOptions,
+    segmentsWidth,
+} from "../v2/rubric";
+
+/** Every node and edge thing's rubric, by "node:thing" or "edge:thing". */
+const RUBRICS = [
+    ...Object.entries(NODE_RUBRIC).map(([thing, rubric]) => [`node:${thing}`, rubric] as const),
+    ...Object.entries(EDGE_RUBRIC).map(([thing, rubric]) => [`edge:${thing}`, rubric] as const),
+];
 
 /** Every line of every rubric, with where it sits. */
-const LINES = Object.entries(NODE_RUBRIC).flatMap(([thing, rubric]) => [
+const LINES = RUBRICS.flatMap(([thing, rubric]) => [
     ...(rubric.row === undefined ? [] : [{ thing, line: rubric.row, place: "panel" as const }]),
     ...(rubric.common ?? []).map((line) => ({ thing, line, place: "panel" as const })),
     ...[...rubric.main, ...(rubric.groups ?? []).flatMap((group) => group.lines)].map((line) => ({
@@ -73,7 +88,7 @@ describe("Style panel v2's control rubric", () => {
     });
 
     it("no sub-group passes 8 lines and no '+' menu 12 sub-groups", () => {
-        for (const [thing, rubric] of Object.entries(NODE_RUBRIC)) {
+        for (const [thing, rubric] of RUBRICS) {
             assert.isAtMost(rubric.main.length, 8, `${thing} Main`);
             assert.isAtMost(rubric.common?.length ?? 0, 2, `${thing} common lines`);
             assert.isAtMost(rubric.groups?.length ?? 0, 12, `${thing} "+"`);
@@ -87,7 +102,7 @@ describe("Style panel v2's control rubric", () => {
         const names = [
             ...Object.values(OPTION_NAMES).flatMap((options) => Object.values(options ?? {}).map((o) => o.name)),
             ...LINES.flatMap(({ line }) => [line.name ?? "", ...(line.unit ?? []).map(([name]) => name)]),
-            ...Object.values(NODE_RUBRIC).flatMap((rubric) => (rubric.groups ?? []).map((group) => group.name)),
+            ...RUBRICS.flatMap(([, rubric]) => (rubric.groups ?? []).map((group) => group.name)),
         ];
         for (const name of names) {
             assert.notMatch(name, /\b(scene|world)\b/i, name);

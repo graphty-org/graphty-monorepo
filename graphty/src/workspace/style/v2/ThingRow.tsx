@@ -15,7 +15,7 @@ import { Field, type RowContext } from "../PropertyRow";
 import { layerWord, removeLine } from "../row";
 import { failureWords } from "../words";
 import { LabelRow } from "./LabelRow";
-import { TEXT_THINGS } from "./labelRubric";
+import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { rubricChannels, rubricOf } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ThingPopover } from "./ThingPopover";
@@ -121,7 +121,7 @@ export function ThingRow({
             });
     };
     const removeLabel = `Remove ${title.toLowerCase()}`;
-    const text = ctx.side === "node" ? TEXT_THINGS[thing.id] : undefined;
+    const text = TEXT_THINGS[ctx.side][thing.id] as TextThing | undefined;
     if (text !== undefined) {
         return (
             <div data-thing={thing.id}>

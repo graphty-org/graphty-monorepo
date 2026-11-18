@@ -147,6 +147,17 @@ function inputOf(command: { readonly input?: string }): { readonly input?: strin
 }
 
 /**
+ * The style choices a load was given, as its stored entry keeps them out of sight of the entry's
+ * type, so a version 2 save can name them among the options its file is read again with.
+ * @param command - The import.
+ * @returns `{ drawn }`, or nothing when the load was given no `styles`.
+ */
+function drawnOf(command: DataImportCommand): { readonly drawn?: Pick<DataImportCommand, "styles" | "styleOptions"> } {
+    const { styles, styleOptions } = command;
+    return styles === undefined ? {} : { drawn: { styles, ...(styleOptions === undefined ? {} : { styleOptions }) } };
+}
+
+/**
  * Whether a value may be used as a graph-format node id.
  *
  * graph-format accepts a string or a FINITE number and throws `E_INVALID_ID` for anything else
@@ -640,6 +651,7 @@ function tableFacts(
         ...(command.choices === undefined ? {} : { choices: command.choices }),
         ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
         ...inputOf(command),
+        ...drawnOf(command),
         tables: tablesOf(command),
         ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
     };

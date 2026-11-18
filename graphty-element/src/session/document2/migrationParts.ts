@@ -8,6 +8,7 @@
 import { sha256HexSync } from "@graphty/graph-io";
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { oldLookColumns } from "../styles/fileStyles/oldLooks";
 import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
 import type { DocumentProblem, EdgeRef, JsonObject, NodeRef } from "./types";
 
@@ -194,6 +195,8 @@ export interface MigratedData {
     readonly source: string;
     /** The version 1 `data.knownFields` names the mapping carries as roles (`edgeIdPath`, ...). */
     readonly carried: ReadonlySet<string>;
+    /** Each path an older layer read a load's look at, and the `data.` path of the column holding it now. */
+    readonly lookPaths: ReadonlyMap<string, string>;
 }
 
 /** One table row, by column name, and where it came from. */
@@ -629,6 +632,7 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const v1Links = Array.isArray(graph.links) ? (graph.links as unknown[]) : [];
     const nodeRows = v1Nodes.flatMap((node, at): Row[] => (isObject(node) ? [{ values: rowOf(node), at }] : []));
     const edgeRows = v1Links.flatMap((link, at): Row[] => (isObject(link) ? [{ values: rowOf(link), at }] : []));
+    const lookPaths = carryLooks(session, nodeRows, edgeRows, inputs.problems);
 
     const nodeTable = tableOf(nodeRows);
     const edgeTable = tableOf(edgeRows);
@@ -720,5 +724,44 @@ export function migrateData(inputs: DataInputs): MigratedData {
                 ["timePath", mapping.nodes.time ?? mapping.edges.time],
             ].flatMap(([name, column]) => (column === undefined ? [] : [String(name)])),
         ),
+        lookPaths,
     };
+}
+
+/**
+ * Write an older session's looks (`fileStyles`, kept beside its data) onto the rows as ordinary
+ * columns, named as a load names them, reporting what could not be carried over.
+ * @param session - The `graphty-session` member, if any.
+ * @param nodeRows - The node rows; written.
+ * @param edgeRows - The edge rows, by version 1 position; written.
+ * @param problems - Collects what is left out.
+ * @returns Each path an older layer read, and the `data.` path that reads its column now.
+ */
+function carryLooks(
+    session: JsonObject | undefined,
+    nodeRows: readonly Row[],
+    edgeRows: readonly Row[],
+    problems: DocumentProblem[],
+): ReadonlyMap<string, string> {
+    const byId = new Map(nodeRows.map((row) => [keyText(row.values.id), row]));
+    const byPosition = new Map(edgeRows.map((row) => [row.at, row]));
+    const namesOf = (rows: readonly Row[]): Set<string> => new Set(rows.flatMap((row) => Object.keys(row.values)));
+    const looks = oldLookColumns(session, {
+        node: (id) => byId.get(keyText(id)),
+        edge: (position) => (typeof position === "number" ? byPosition.get(position) : undefined),
+        taken: { node: namesOf(nodeRows), edge: namesOf(edgeRows) },
+    });
+    for (const columns of [looks.node, looks.edge]) {
+        for (const [name, cells] of columns) {
+            for (const [row, value] of cells) {
+                row.values[name] = value;
+            }
+        }
+    }
+
+    for (const pointer of looks.leftOut) {
+        problems.push({ code: "W_MEMBER_LEFT_OUT", params: { kind: "graphty-session", pointer } });
+    }
+
+    return looks.paths;
 }

@@ -38,6 +38,7 @@
  */
 
 import { ENGINE_VERSIONS } from "../runs/engine";
+import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
 import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
 import { asName } from "./codecs/recipeCommands";
 import { cameraJson } from "./codecs/viewParts";
@@ -437,7 +438,10 @@ function migrateStyle(
     const viewLayers: JsonObject[] = [];
     const order: string[] = [];
     const results = new Set<string>();
-    objectsOf(style.layers).forEach((layer, at) => {
+    // A layer that read an older load's looks reads the columns they are carried into.
+    const paths = data?.lookPaths ?? new Map<string, string>();
+    objectsOf(style.layers).forEach((read, at) => {
+        const layer = rewriteOldPaths(read, paths);
         let id = typeof layer.id === "string" && layer.id !== "" ? layer.id : `layer-${String(at + 1)}`;
         while (used.has(id)) {
             id = `${id}-${String(at + 1)}`;
@@ -1439,6 +1443,18 @@ function contextOf(
 }
 
 /**
+ * The looks an older session kept outside its data, with no data to carry them into: version 2
+ * holds them as the load's own columns (migrateData), so they are left out and reported.
+ * @param session - The `graphty-session` member, if any.
+ * @returns The reports.
+ */
+function looksWithoutData(session: JsonObject | undefined): DocumentProblem[] {
+    return ["fileStyles", "styleValues"]
+        .filter((member) => session?.[member] !== undefined)
+        .map((member) => leftOut("graphty-session", `/${member}`));
+}
+
+/**
  * Every section a version 1 file's members give.
  * @param members - The members by kind.
  * @param generator - The generator.
@@ -1496,9 +1512,8 @@ function sectionsOf(
             : undefined;
     }
 
-    // Version 1 kept a load's looks outside its data; version 2 holds them as the load's own columns.
-    if (session?.fileStyles !== undefined) {
-        problems.push(leftOut("graphty-session", "/fileStyles"));
+    if (data === undefined) {
+        problems.push(...looksWithoutData(session));
     }
 
     return sections;

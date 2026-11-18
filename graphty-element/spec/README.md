@@ -187,13 +187,13 @@ ending `Z` (`2026-11-14T18:00:00.000Z`).
 `dependencies` says what a section needs before it can work, so a reader can say what is missing
 instead of failing.
 
-| Member       | Allowed in              | Each entry                                             |
-| ------------ | ----------------------- | ------------------------------------------------------ |
-| `columns`    | style, recipe, settings | `{ "kind", "name", "schema" }`, and nothing else       |
-| `types`      | style, recipe, settings | a node or edge type name                               |
-| `sources`    | style, recipe, settings | a source role name                                     |
-| `results`    | style, recipe, settings | a run name (`as`) whose fields the section reads       |
-| `extensions` | every section           | `{ "name": "<reverse-domain>", "version": <integer> }` |
+| Member       | Allowed in                                                                                                                                                                                                              | Each entry                                             |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `columns`    | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; always for an embedded copy, and also for a referenced source, as what an open checks the rows it reads again against |
+| `types`      | style, recipe, settings                                                                                                                                                                                                 | a node or edge type name                               |
+| `sources`    | style, recipe, settings                                                                                                                                                                                                 | a source role name                                     |
+| `results`    | style, recipe, settings                                                                                                                                                                                                 | a run name (`as`) whose fields the section reads       |
+| `extensions` | every section                                                                                                                                                                                                           | `{ "name": "<reverse-domain>", "version": <integer> }` |
 
 1. A `columns` entry names a working column as graphty-element's `ColumnRef` does: `kind`
    (`"node"` or `"edge"`, REQUIRED) and `name`. The column mapping step matches it within that
@@ -295,7 +295,8 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    embedded. A `derived` source and the reader source are always embedded, and so is a `file`
    source whose `path` the writer does not know, since no reference can stand for it (8.1 rule 4).
 5. A referenced or refreshed source MUST be parsed again with exactly its `format` and `options`,
-   never a guessed one.
+   never a guessed one. `options` includes `styles` and `styleOptions` when the load drew the
+   file's styles: they decide which columns the read makes, and every format's reader reads them.
 6. A `file` source's `origin.path` is a POSIX path relative to the folder of the file being saved,
    never absolute and never above that folder, written only when the writer knows both locations.
    An `origin` member the writer does not know is left out, never invented.
@@ -303,6 +304,12 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    credential slot's name, never a secret), `etag`, `lastModified` and `ledger`, the request
    history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set to
    the source id.
+8. **A source is referenced only when its rows are its bytes alone.** Otherwise it is embedded,
+   whatever the saver asked, and the save reports why (`W_SOURCE_EMBEDDED`, params
+   `{ source, reason }`): `edited` (the reader edited, removed or merged its rows), `bytes` (the
+   writer kept no digest of the bytes it read), `rows` (another source also supplied one of its
+   nodes or edges) or `mapping` (its read has no spelling in 4.1.3: several tables read as one, or
+   ids scoped by kind).
 
 #### 4.1.3 The mapping
 
@@ -320,6 +327,11 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    key at load time; the chosen column is written to `key` like any other role.
 4. A `label` role is saved as a style layer reading that column; a save that cannot write that
    layer refuses the role and reports it.
+5. A referenced source's roles name the columns of its parsed rows; the rows it rebuilds are then
+   keyed by graphty-element's own read, as an embedded copy's are.
+6. A column a load made from the file's styles is named `<name> (<format>)` when another load took
+   `<name>` first, which a read into an empty graph does not repeat. Read again, such a column
+   takes the name `columns` saved it under.
 
 #### 4.1.4 The reader source
 
@@ -803,12 +815,23 @@ of the view section.
 
 ### 8.3 Referenced sources
 
-Opening fetches each referenced source again, through the usual network consent. A `file`
-source's `path` and a relative `url` resolve against the location of the file being opened, when
-the caller gives one. Otherwise the load plan lists the source as needing a file, with its saved
-name. A fetched or picked copy whose copy id differs is a refresh. A source still not found reports
-`W_SOURCE_UNAVAILABLE` (params `{ source }`), supplies no elements and leaves references to them
-unbound.
+Opening fetches each referenced `file` and `url` source again, through the usual network consent,
+before the data section is built, and parses it with its `format`, `options` and roles. A file the
+caller picked for a source is read in its place. A `file` source's `path` and a relative `url`
+resolve against the location of the file being opened (graphty-element's `location` open option),
+when the caller gives one. Otherwise the load plan lists the source as needing a file, with its
+saved name.
+
+1. The rows read again are built as an embedded copy's are. Each saved `columns` name the rows
+   lack is reported (`W_MEMBER_LEFT_OUT`, pointer `/sources/<i>/columns/<table>/<name>`).
+2. A fetched or picked copy whose copy id differs is a refresh: it is reported
+   (`W_SOURCE_CHANGED`, params `{ source, expected, found }`) and the build gets a new stamp
+   (4.1.1), so a run on the old copy reports `W_DATA_CHANGED`.
+3. A source still not found reports `W_SOURCE_UNAVAILABLE` (params `{ source, reason }`: `unreachable`
+   when its fetch failed, `needs-file` when nothing says where it is, `read` when its bytes could
+   not be parsed, `kind` for a kind this reader does not fetch), supplies no elements, keeps the
+   edge ids its `edgeIds` names, and leaves references to them unbound. Its record is written back
+   as read.
 
 ### 8.4 Skipped and held sections
 
@@ -865,9 +888,12 @@ kind) is opened through a migration into the sections above:
   `join.add`, its node ids as the key column in the space `source:<id>`, its types carried as a
   column under a type rule, and an empty reader source; its `metadata` holds the version 1
   `sources` member verbatim, and each node's original `_source.loads` is the copy column
-  `version-1-loads`; the per-element values a session member's `fileStyles` holds outside the
-  data are left out and reported (`W_MEMBER_LEFT_OUT`, pointer `/fileStyles`), since a version 2
-  load holds a file's looks as ordinary columns of its source;
+  `version-1-loads`; the per-element values a session member's `fileStyles` (or `styleValues`)
+  holds outside the data are carried into the derived copy as ordinary columns, named as a load
+  names them (`<key>`, or `<key> (<format>)` beside a column the data already holds), and every
+  layer path that read them (`graphty.style.<set>.<kind>.<key>`) reads that column; an element the
+  data lacks, or a malformed column, is left out and reported (`W_MEMBER_LEFT_OUT`, pointer
+  `/fileStyles/<i>/columns/<j>[/ids/<k>]`);
 - a timed file saved before what lies outside the time window had a state of its own (no
   `outsideByLayers` mark, a time field, and a playback or a window saved) reads `"outsideWindow"`
   where its layers and rule sets read `"ghosted"`, and its playback's `outside` is written to the
@@ -972,7 +998,9 @@ application words them.
 | `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`                      |
 | `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over             | `kind` or `section`, `field` or `pointer` |
 | `W_SOURCE_NO_PATH`            | a file source asked to be referenced was embedded: its `path` is not known   | `source`                                  |
-| `W_SOURCE_UNAVAILABLE`        | a referenced source could not be fetched or picked                           | `source`                                  |
+| `W_SOURCE_UNAVAILABLE`        | a referenced source could not be fetched or picked                           | `source`, `reason`                        |
+| `W_SOURCE_CHANGED`            | a referenced source read again has another copy id than saved                | `source`, `expected`, `found`             |
+| `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes     | `source`, `reason`                        |
 | `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds            | `source`, `space`, `count`                |
 | `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                           | `section`, `pointer`, `ref`               |
 | `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                           | `section`, `sources`                      |
@@ -998,3 +1026,4 @@ application words them.
 | `examples/card-fraud.graphty.json`                                                                                                                                               | a worked example holding all seven sections                                                    |
 | `examples/card-fraud.graphty-*.json`                                                                                                                                             | each of its sections as a section file                                                         |
 | `examples/minimal/`                                                                                                                                                              | the smallest valid file of each form                                                           |
+| `examples/minimal/minimal-referenced.graphty-data.json`                                                                                                                          | a data section holding one referenced source                                                   |

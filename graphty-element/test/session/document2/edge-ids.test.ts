@@ -4,7 +4,7 @@
  * section's `edgeIds` member (spec 6.2).
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { EdgeId } from "../../../src/catalog/types";
@@ -42,9 +42,17 @@ async function save(session: GraphSession): Promise<string> {
  * @param into - The session to open into; a new one when absent.
  * @returns The session and the codes of what the open reported, the kept recipe aside.
  */
-async function open(text: string, into?: GraphSession): Promise<{ session: GraphSession; problems: unknown[] }> {
+async function open(
+    text: string,
+    into?: GraphSession,
+    location?: string,
+): Promise<{ session: GraphSession; problems: unknown[] }> {
     const session = into ?? createGraphSession(ON);
-    const report = await session.project.open(text, { rerun: false, discard: true });
+    const report = await session.project.open(text, {
+        rerun: false,
+        discard: true,
+        ...(location === undefined ? {} : { location }),
+    });
     return {
         session,
         problems: report.problems.filter((problem) => problem.code !== "W_RECIPE_NOT_APPLIED"),
@@ -296,6 +304,10 @@ describe("edge ids in a version 2 save", () => {
         opened.dispose();
     });
 
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it("never gives a new edge an id a source that could not be fetched keeps", async () => {
         const session = await mixed();
         const text = withData(await save(session), (section) => {
@@ -309,11 +321,12 @@ describe("edge ids in a version 2 save", () => {
         });
         session.dispose();
 
-        const { session: opened, problems } = await open(text);
-        assert.include(
-            problems.map((problem) => (problem as { code: string }).code),
-            "W_SOURCE_UNAVAILABLE",
-        );
+        const fetched = vi.fn(() => Promise.reject(new TypeError("offline")));
+        vi.stubGlobal("fetch", fetched);
+        const { session: opened, problems } = await open(text, undefined, "https://example.test/p/x.graphty.json");
+        const unavailable = problems.find((problem) => (problem as { code: string }).code === "W_SOURCE_UNAVAILABLE");
+        assert.strictEqual((unavailable as { params: JsonObject } | undefined)?.params.reason, "unreachable");
+        assert.strictEqual(fetched.mock.calls.length, 1);
         await opened.data.addEdges([{ source: "a", target: "b" }]);
         const saved = Object.values(data(await save(opened)).edgeIds as Record<string, Record<string, EdgeId>>).flatMap(
             (keys) => Object.values(keys),

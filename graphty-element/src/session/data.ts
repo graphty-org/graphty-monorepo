@@ -2952,7 +2952,11 @@ export class SessionData implements SessionDataApi {
                 if (loadKey !== undefined) {
                     taken.add(loadKey);
                 }
-                const { input, ...entry } = each as LoadedSource & { readonly input?: string };
+                const {
+                    input,
+                    drawn: _drawn,
+                    ...entry
+                } = each as LoadedSource & { readonly input?: string; readonly drawn?: unknown };
                 return Object.freeze({
                     ...entry,
                     key,

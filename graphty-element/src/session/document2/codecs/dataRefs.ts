@@ -12,7 +12,7 @@
 import { sha256HexSync } from "@graphty/graph-io";
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
-import { COLUMNS_VALUE, type ColumnSettings } from "../../commands/data";
+import { COLUMNS_VALUE, type ColumnSettings, SOURCES_VALUE } from "../../commands/data";
 import { dispatcherOf } from "../../dispatchers";
 import { expandedGraph } from "../../groups";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
@@ -242,6 +242,11 @@ interface DataMemory {
     edgeIdColumn?: string;
     /** Each edge's saved id the last data section read, by load and then key (spec 6.2). */
     edgeIds: ReadonlyMap<string, ReadonlyMap<string, EdgeId>>;
+    /**
+     * The sources the last read rebuilt from their files, with the `mapping` each was read with, so
+     * a save that asks nothing keeps each referenced (spec 8.1 rule 5) and read the same way.
+     */
+    readonly referenced: Map<string, JsonObject>;
 }
 
 const MEMORY = projectMemory<DataMemory>();
@@ -266,6 +271,7 @@ function memoryOf(session: GraphSession): DataMemory {
             kinds: new Map(),
             folded: [],
             edgeIds: new Map(),
+            referenced: new Map(),
         };
         MEMORY.set(session, memory);
     }
@@ -313,6 +319,8 @@ export interface DataRead {
     readonly edgeIdColumn?: string;
     /** Each edge's saved id, by load and then key. */
     readonly edgeIds?: ReadonlyMap<string, ReadonlyMap<string, EdgeId>>;
+    /** The sources rebuilt from their files, with the `mapping` each was read with, by source id. */
+    readonly referenced?: readonly (readonly [string, JsonObject])[];
 }
 
 /**
@@ -347,6 +355,10 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
 
     for (const record of read.unavailable) {
         memory.unavailable.set(String(record.id), record);
+    }
+
+    for (const [id, mapping] of read.referenced ?? []) {
+        memory.referenced.set(id, mapping);
     }
 
     memory.types = read.types;
@@ -529,7 +541,7 @@ const PROVENANCE = new Set(["_source.loads", "_source.expansion", "_source.next"
  * @param name - The column.
  * @returns True when no working column may have it.
  */
-function isReserved(name: string): boolean {
+export function isReserved(name: string): boolean {
     return name.startsWith("graphty.") || name.startsWith("_source.");
 }
 
@@ -676,6 +688,35 @@ function kindOfSource(source: ModelSource, memory: DataMemory): string {
 }
 
 /**
+ * A copy's tables and their column declarations (spec 4.1.2 rule 3), from its rows as a copy writes
+ * them: a node's key cell `id`, an edge's ends `source` and `target`, every other key a column.
+ * @param nodeRows - The node rows.
+ * @param edgeRows - The edge rows.
+ * @returns The tables and the declarations.
+ */
+export function copyTables(
+    nodeRows: readonly Readonly<JsonObject>[],
+    edgeRows: readonly Readonly<JsonObject>[],
+): { tables: JsonObject; columns: JsonObject } {
+    const nodes = nodeRows.length > 0 ? tableOf(nodeRows, ["id"]) : undefined;
+    const edges = edgeRows.length > 0 ? tableOf(edgeRows, ["source", "target"]) : undefined;
+    const tables: JsonObject = {
+        ...(nodes === undefined ? {} : { nodes: nodes.table }),
+        ...(edges === undefined ? {} : { edges: edges.table }),
+    };
+    const columns: JsonObject = {
+        ...(nodes === undefined ? {} : { nodes: nodes.columns }),
+        ...(edges === undefined ? {} : { edges: edges.columns }),
+    };
+    if (nodes === undefined && edges === undefined) {
+        tables.nodes = { id: [] };
+        columns.nodes = { id: { name: "id", dtype: "string", nullable: false } };
+    }
+
+    return { tables, columns };
+}
+
+/**
  * A source's copy: its node and edge tables, with the copy id this writer gives it.
  * @param source - The source.
  * @param refs - The node references.
@@ -695,40 +736,17 @@ function copyOf(
     edgeIdColumn: string | undefined,
     keyless: ReadonlyMap<NodeId, unknown>,
 ): Copy {
-    const repeated = repeatedEdgeRows(source, edgeIdColumn);
+    const repeated = repeatedEdgeRows(source.edges, edgeIdColumn, source.load.choices?.duplicateIds === "merge");
     const cellOf = (id: NodeId): unknown => (keyless.has(id) ? keyless.get(id) : keyCellOf(refs.get(id), id));
-    const nodes =
-        source.nodes.length > 0
-            ? tableOf(
-                  source.nodes.map((node) => ({ ...node, id: cellOf(node.id) })),
-                  ["id"],
-              )
-            : undefined;
-    const edges =
-        source.edges.length > 0
-            ? tableOf(
-                  source.edges.map(({ id: _id, ...edge }, row) => ({
-                      ...edge,
-                      ...(repeated.has(row) && edgeIdColumn !== undefined ? { [edgeIdColumn]: undefined } : {}),
-                      source: keyCellOf(refs.get(edge.source), edge.source),
-                      target: keyCellOf(refs.get(edge.target), edge.target),
-                  })),
-                  ["source", "target"],
-              )
-            : undefined;
-    const tables: JsonObject = {
-        ...(nodes === undefined ? {} : { nodes: nodes.table }),
-        ...(edges === undefined ? {} : { edges: edges.table }),
-    };
-    const columns: JsonObject = {
-        ...(nodes === undefined ? {} : { nodes: nodes.columns }),
-        ...(edges === undefined ? {} : { edges: edges.columns }),
-    };
-    if (nodes === undefined && edges === undefined) {
-        tables.nodes = { id: [] };
-        columns.nodes = { id: { name: "id", dtype: "string", nullable: false } };
-    }
-
+    const { tables, columns } = copyTables(
+        source.nodes.map((node) => ({ ...node, id: cellOf(node.id) })),
+        source.edges.map(({ id: _id, ...edge }, row) => ({
+            ...edge,
+            ...(repeated.has(row) && edgeIdColumn !== undefined ? { [edgeIdColumn]: undefined } : {}),
+            source: keyCellOf(refs.get(edge.source), edge.source),
+            target: keyCellOf(refs.get(edge.target), edge.target),
+        })),
+    );
     const digest = digestOf(tables);
     const { copy, embedOnly } = copyIdOf(source, memory, { digest, facts, folded });
     memory.copies.set(source.id, { digest, copy });
@@ -773,18 +791,23 @@ function copyIdOf(
 /**
  * The rows of a source's edges whose edge id an earlier row already gave. Unless the source merges
  * repeats, each is written keyless (`<copy id>#<row>`), so no two edges share a key (spec 6.1).
- * @param source - The source.
+ * @param edges - The source's edge rows, in order.
  * @param edgeIdColumn - The edge-id column, if any.
+ * @param merges - Whether the source merges repeats (`duplicateIds: "merge"`).
  * @returns The rows.
  */
-function repeatedEdgeRows(source: ModelSource, edgeIdColumn: string | undefined): Set<number> {
+export function repeatedEdgeRows(
+    edges: readonly Readonly<JsonObject>[],
+    edgeIdColumn: string | undefined,
+    merges: boolean,
+): Set<number> {
     const rows = new Set<number>();
-    if (edgeIdColumn === undefined || source.load.choices?.duplicateIds === "merge") {
+    if (edgeIdColumn === undefined || merges) {
         return rows;
     }
 
     const seen = new Set<string>();
-    source.edges.forEach((edge, row) => {
+    edges.forEach((edge, row) => {
         const key = keyText(edge[edgeIdColumn]);
         if (key !== undefined && seen.has(key)) {
             rows.add(row);
@@ -1183,6 +1206,51 @@ function mappingOf(source: ModelSource, model: DataModel, copy: Copy): JsonObjec
 }
 
 /**
+ * A referenced source's `mapping` (spec 4.1.3): the roles its file's rows are read with. A graph
+ * file's format sets them, and names them as a copy does; a table's are the columns its load read
+ * as the key or the ends, which the one an open read keeps.
+ * @param source - The source.
+ * @param model - The model.
+ * @param copy - Its copy.
+ * @returns The mapping.
+ */
+function readMappingOf(source: ModelSource, model: DataModel, copy: Copy): JsonObject {
+    const read = memoryOf(model.session).referenced.get(source.id);
+    if (read !== undefined) {
+        return read;
+    }
+
+    const mapping = mappingOf(source, model, copy);
+    const [table] = Object.values(source.load.mapping?.tables ?? {});
+    if (table === undefined) {
+        return mapping;
+    }
+
+    const nodes = mapping.nodes as JsonObject | undefined;
+    const edges = mapping.edges as JsonObject | undefined;
+    return {
+        ...(nodes === undefined
+            ? {}
+            : { nodes: { ...nodes, ...(typeof table.key === "string" ? { key: table.key } : {}) } }),
+        ...(edges === undefined || table.source === undefined || table.target === undefined
+            ? {}
+            : { edges: { ...edges, source: table.source.column, target: table.target.column } }),
+    };
+}
+
+/**
+ * The style choices a load was given, kept on its stored entry, as source options.
+ * @param session - The session.
+ * @param key - The load's key.
+ * @returns `styles` and `styleOptions`, or nothing.
+ */
+function drawnOf(session: GraphSession, key: string): JsonObject {
+    const stored = dispatcherOf(session).state.graph.values.get(SOURCES_VALUE) as
+        readonly { readonly key?: string; readonly drawn?: JsonObject }[] | undefined;
+    return stored?.find((entry) => entry.key === key)?.drawn ?? {};
+}
+
+/**
  * A network source's closed `origin` (spec 4.1.2 rule 7): its address, credential slot, HTTP
  * validators and `ledger`, the session's record of the load (its request history) keyed by the
  * source id; the origin an open read while the session records no load of its own.
@@ -1256,7 +1324,9 @@ function sourceRecordOf(source: ModelSource, model: DataModel, storage: SourceSt
     const { load } = source;
     const copy = model.copies.get(source.id) as Copy;
     const kind = kindOfSource(source, memoryOf(model.session));
-    const options = redactedParams(load.config ?? {});
+    // The style choices decide which columns a read makes, so they are options the file is read
+    // again with (spec 4.1.2 rule 5).
+    const options = { ...redactedParams(load.config ?? {}), ...drawnOf(model.session, load.key) };
     delete options.url;
     const origin: JsonObject =
         kind === "network" ? networkOrigin(source, model, copy.copy) : originOf(source, model, kind, copy.copy);
@@ -1268,9 +1338,11 @@ function sourceRecordOf(source: ModelSource, model: DataModel, storage: SourceSt
         ...(load.type === undefined ? {} : { format: load.type }),
         ...(Object.keys(options).length === 0 ? {} : { options: jsonSafe(options) }),
         origin,
-        mapping: mappingOf(source, model, copy),
+        mapping: storage === "embedded" ? mappingOf(source, model, copy) : readMappingOf(source, model, copy),
         settings: { duplicateIds: choices?.duplicateIds ?? "first", unmatched: choices?.unmatched ?? "add" },
-        ...(storage === "embedded" ? { copy: copy.tables, columns: copy.columns } : {}),
+        // A referenced source keeps its columns too: what an open checks the rows it reads against.
+        ...(storage === "embedded" ? { copy: copy.tables } : {}),
+        columns: copy.columns,
         ...(load.loadedAt !== undefined && TIMESTAMP.test(load.loadedAt) ? { loaded: load.loadedAt } : {}),
     };
 }
@@ -1623,13 +1695,40 @@ interface WrittenBody {
 }
 
 /**
+ * Why a source asked to be referenced cannot be: its rows are not its bytes alone (spec 4.1.2).
+ * `edited`: the reader edited, removed or merged rows; `bytes`: the session kept no digest of the
+ * bytes it read; `rows`: another load also supplied one of its nodes or edges; `mapping`: its read
+ * has no spelling in a mapping (several tables, or ids scoped by kind).
+ * @param source - The source.
+ * @param model - The model.
+ * @returns The reason, or undefined when a reference can stand for it.
+ */
+function embedReason(source: ModelSource, model: DataModel): string | undefined {
+    if ((model.copies.get(source.id) as Copy).embedOnly) {
+        return foldedOperations(model.session).size > 0 ? "edited" : "bytes";
+    }
+
+    const shared = (loads: readonly string[] | undefined): boolean => (loads?.length ?? 0) > 1;
+    if (
+        source.nodes.some((node) => shared(model.nodeLoads.get(node.id))) ||
+        source.edges.some((edge) => shared(model.edgeLoads.get(edge.id)))
+    ) {
+        return "rows";
+    }
+
+    const tables = Object.keys(source.load.mapping?.tables ?? {}).length;
+    return tables > 1 || source.load.choices?.kindIds === "scoped" ? "mapping" : undefined;
+}
+
+/**
  * How a source is saved: as asked, except that one no reference can stand for is embedded (spec
- * 4.1.2 rules 4 and 6): a derived source, one holding the reader's edits, and a file source whose
- * `path` the session does not know, which the save reports.
+ * 4.1.2 rules 4 and 6): a derived source silently, as it has no bytes; a file source whose `path`
+ * the session does not know, reported `W_SOURCE_NO_PATH`; and one whose rows are not its bytes
+ * alone, reported `W_SOURCE_EMBEDDED` with the reason.
  * @param source - The source.
  * @param model - The model.
  * @param asked - What the caller asked for.
- * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @param problems - Collects `W_SOURCE_NO_PATH` and `W_SOURCE_EMBEDDED`.
  * @returns Embedded or referenced.
  */
 function storageOf(
@@ -1644,12 +1743,22 @@ function storageOf(
 
     const memory = memoryOf(model.session);
     const kind = kindOfSource(source, memory);
+    if (kind === "derived") {
+        return "embedded";
+    }
+
     if (kind === "file" && typeof memory.origins.get(source.id)?.path !== "string") {
         problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
         return "embedded";
     }
 
-    return kind === "derived" || (model.copies.get(source.id) as Copy).embedOnly ? "embedded" : asked;
+    const reason = embedReason(source, model);
+    if (reason !== undefined) {
+        problems.push({ code: "W_SOURCE_EMBEDDED", params: { source: source.id, reason } });
+        return "embedded";
+    }
+
+    return asked;
 }
 
 /**
@@ -1684,7 +1793,10 @@ function sourceRecordsOf(
             continue;
         }
 
-        const storage = storageOf(source, model, embed[source.id] ?? "embedded", problems);
+        // A source read by reference stays one unless the caller asks otherwise (spec 8.1 rule 5).
+        const read = memoryOf(model.session).referenced.has(source.id);
+        const asked = embed[source.id] ?? (read ? "referenced" : "embedded");
+        const storage = storageOf(source, model, asked, problems);
         if (storage === "embedded") {
             embedded.add(source.id);
         }

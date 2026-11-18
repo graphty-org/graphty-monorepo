@@ -858,6 +858,11 @@ class Session implements ElementSession {
             projectChanged: () => {
                 this.network.projectChanged();
             },
+            scratch: () =>
+                createGraphSession({
+                    features: [...this.features.enabled],
+                    config: { acceleration: { policy: "off" } },
+                }),
             sources: {
                 restore: (read, autosave) => {
                     this.sessionData.restoreSourceMember(read, autosave);

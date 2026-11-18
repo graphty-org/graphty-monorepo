@@ -51,6 +51,7 @@ import {
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
+import { refetchSources } from "./document2/codecs/dataFetch";
 import { openDocument2, saveDocument2 } from "./document2/document";
 import { assertIJson, isJsonObject, isVersion2, newDocumentId, parseDocument } from "./document2/framing";
 import { migrateDocument1 } from "./document2/migration";
@@ -83,6 +84,7 @@ import {
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import { computeFingerprint } from "./statistics";
+import { oldLookColumns, rewriteOldPaths } from "./styles/fileStyles/oldLooks";
 import type {
     DataSourceInput,
     GraphSession,
@@ -228,10 +230,12 @@ export interface ProjectSaveOptions {
      */
     readonly results?: boolean;
     /**
-     * Version 2 only: per source id, whether its rows are written into the file (`"embedded"`,
-     * the default) or only referenced (`"referenced"`). A referenced source cannot be fetched
-     * again on open yet, so `"referenced"` is refused with `E_UNSUPPORTED` (`params.option`
-     * `"embed"`, `params.source` the source id) until it can.
+     * Version 2 only: per source id, whether its rows are written into the file (`"embedded"`)
+     * or only referenced (`"referenced"`), its file or URL read again on open. Default: as the
+     * source was read, embedded for one never saved. A source whose rows are not its bytes alone
+     * (the reader edited them, another load also supplied them, or several tables were read as
+     * one) is embedded and reported `W_SOURCE_EMBEDDED` (`params.reason`); a file source whose
+     * path the session does not know, `W_SOURCE_NO_PATH`.
      * @since 3.40.0
      * @experimental save-files-v2
      * @beta
@@ -380,6 +384,32 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly migrate?: boolean;
+    /**
+     * Version 2 only: the URL of the file being opened, which a referenced source's relative
+     * `url` or `path` is resolved against. Without it, a referenced source with a relative
+     * address supplies nothing and is reported `W_SOURCE_UNAVAILABLE` (`reason: "needs-file"`).
+     * EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly location?: string;
+    /**
+     * Version 2 only: files the reader picked for referenced sources, by source id, read in place
+     * of fetching them. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly files?: Readonly<Record<string, Blob>>;
+    /**
+     * Version 2 only: aborts reading the referenced sources again; the open then rejects with
+     * the signal's reason and changes nothing. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly signal?: AbortSignal;
 }
 
 /** What `project.open` did. Frozen. */
@@ -2234,6 +2264,67 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
 }
 
 /**
+ * Carry the looks an older session member kept beside its data (`fileStyles`, `styleValues`) onto
+ * the opened nodes and edges as ordinary columns, named as a load names them, reporting what could
+ * not be carried over; the version 2 migration names the same columns.
+ * @param opening - The open.
+ * @param state - The `graphty-session` member.
+ * @param nodeIds - The opened graph's nodes.
+ * @param edgeIds - The opened graph's edge ids, by the file's edge position.
+ * @returns Each path an older layer read, and the `data.` path that reads its column now.
+ */
+async function readOldLooks(
+    opening: Opening,
+    state: Readonly<Record<string, unknown>>,
+    nodeIds: ReadonlySet<NodeId>,
+    edgeIds: readonly (EdgeId | undefined)[],
+): Promise<ReadonlyMap<string, string>> {
+    const { tx } = opening;
+    const nodes = tx.data.nodes({ scope: "graph" });
+    const edges = tx.data.edges({ scope: "graph" });
+    const namesOf = (records: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
+        new Set(records.flatMap((record) => Object.keys(record)));
+    const looks = oldLookColumns(state, {
+        node: (id) => {
+            if (typeof id !== "string" && typeof id !== "number") {
+                return undefined;
+            }
+
+            const other = otherIdSpelling(id);
+            return [id, other].find((each): each is NodeId => each !== undefined && nodeIds.has(each));
+        },
+        edge: (position) => (typeof position === "number" ? edgeIds[position] : undefined),
+        taken: { node: namesOf(nodes), edge: namesOf(edges) },
+    });
+    for (const [target, columns] of [
+        ["node", looks.node],
+        ["edge", looks.edge],
+    ] as const) {
+        const rows = new Map<NodeId | EdgeId, Record<string, unknown>>();
+        for (const [name, cells] of columns as Map<string, Map<NodeId | EdgeId, unknown>>) {
+            for (const [id, value] of cells) {
+                rows.set(id, { ...rows.get(id), [name]: value });
+            }
+        }
+
+        if (rows.size > 0) {
+            await attempt(opening, "graph", () =>
+                tx.execute({
+                    op: "data.apply",
+                    mutation: { kind: "update-rows", target, rows: [...rows].map(([id, values]) => ({ id, values })) },
+                }),
+            );
+        }
+    }
+
+    for (const pointer of looks.leftOut) {
+        opening.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { slice: "graph", pointer } });
+    }
+
+    return looks.paths;
+}
+
+/**
  * Read a project into the session, in place of what it holds.
  * @param opening - The open.
  * @param doc - The document.
@@ -2263,6 +2354,7 @@ async function readProject(
     const edgeIds = await importInto(tx, records, source, sources, provenance);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
+    const lookPaths = await readOldLooks(opening, state, nodeIds, edgeIds);
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
@@ -2363,7 +2455,8 @@ async function readProject(
         await restoreVisibility();
     }
 
-    await addStylesAndNotes(opening, doc.members, remap, name);
+    // A layer that read an older load's looks reads the columns they are carried into.
+    await addStylesAndNotes(opening, doc.members, (value) => rewriteOldPaths(remap(value), lookPaths), name);
     await addTimelineRowAfterTree(opening, doc);
     await attempt(opening, "styles", () =>
         outsideWindowLayers(tx, state.visibility as Readonly<Record<string, unknown>> | undefined),
@@ -2979,6 +3072,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
+ * @param hooks.scratch - A new session with this one's experiments, to read a referenced source in.
  * @returns The API.
  */
 export function projectOf(
@@ -2992,9 +3086,19 @@ export function projectOf(
         readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
+        /** A new session with this one's experiments, to read a referenced source in. */
+        readonly scratch: () => GraphSession;
     },
 ): ProjectApi {
-    const { announce, isDerived, restoreDerived, scopeCountOf, sources: networkSources, projectChanged } = hooks;
+    const {
+        announce,
+        isDerived,
+        restoreDerived,
+        scopeCountOf,
+        sources: networkSources,
+        projectChanged,
+        scratch,
+    } = hooks;
     let id = newDocumentId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -3294,18 +3398,6 @@ export function projectOf(
      * @returns The file and its report.
      */
     const saveVersion2 = async (options: ProjectSaveOptions): Promise<SavedProject> => {
-        const referenced = Object.entries(options.embed ?? {}).find(([, storage]) => storage === "referenced");
-        if (referenced !== undefined) {
-            // No open fetches a referenced source again yet, so a file holding one would reopen
-            // without its rows.
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: `The source ${referenced[0]} cannot be referenced yet; embed it.`,
-                source: "data",
-                details: { option: "embed", source: referenced[0] },
-            });
-        }
-
         const extensions = checkedExtensions(options.extensions ?? {});
         const { document, written, problems } = await saveDocument2(
             session,
@@ -3347,6 +3439,14 @@ export function projectOf(
         fileName: unknown,
         before: readonly DocumentProblem[],
     ): Promise<ProjectOpenReport> => {
+        // Fetched before the section is checked, which builds it synchronously; an abort rejects
+        // here, before anything is applied.
+        await refetchSources(value, {
+            ...(options.location === undefined ? {} : { location: options.location }),
+            ...(options.files === undefined ? {} : { files: options.files }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+            scratch,
+        });
         const parsed = parseDocument(value, SECTION_CODECS);
         const wrapperId = projectIdOf(parsed.wrapper.id);
         const wrapperName = typeof parsed.wrapper.name === "string" ? parsed.wrapper.name : null;

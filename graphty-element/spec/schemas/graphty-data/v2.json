@@ -318,7 +318,18 @@
                             "minLength": 1
                         },
                         "options": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "styles": {
+                                    "enum": ["file", "none"],
+                                    "description": "Whether the load drew the file's own styles, which decides the columns its read makes."
+                                },
+                                "styleOptions": {
+                                    "type": "object",
+                                    "description": "How the load turned the file's styles into columns and layers."
+                                }
+                            },
+                            "description": "The parser options the source is read with, the style choices included. Open: a reader holds the section when a key is one its parser does not read."
                         },
                         "origin": {
                             "type": "object",
@@ -587,7 +598,7 @@
                                     "description": "A graph-format ColumnDecl, keyed by working name, plus unset for a json column. Rebuild and re-export input only."
                                 }
                             },
-                            "description": "graph-format ColumnDecls grouped by table, { nodes: { <working name>: decl }, edges: { ... } }, as the copy is."
+                            "description": "graph-format ColumnDecls grouped by table, { nodes: { <working name>: decl }, edges: { ... } }: as the copy is for an embedded source; for a referenced one, what an open checks the rows it reads again against."
                         },
                         "loaded": {
                             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
@@ -595,8 +606,7 @@
                     },
                     "required": ["id", "label", "kind", "origin", "mapping"],
                     "dependentRequired": {
-                        "copy": ["columns"],
-                        "columns": ["copy"]
+                        "copy": ["columns"]
                     },
                     "allOf": [
                         {

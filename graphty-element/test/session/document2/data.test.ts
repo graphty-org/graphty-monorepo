@@ -14,6 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { dataCodec } from "../../../src/session/document2/codecs/data";
+import { refetchSources } from "../../../src/session/document2/codecs/dataFetch";
 import { canonicalJson, dataBindingOf, elementRefsOf } from "../../../src/session/document2/codecs/dataRefs";
 import { saveDocument2 } from "../../../src/session/document2/document";
 import { schemaUrl } from "../../../src/session/document2/framing";
@@ -307,8 +308,8 @@ describe("data section version 2", () => {
             EDIT_FOLDED,
         ]);
 
-        // A referenced source cannot be fetched again yet: it supplies nothing, the rest builds, and
-        // its record is written back as read.
+        // A referenced source no open read again (no location to resolve its path against) supplies
+        // nothing, the rest builds, and its record is written back as read.
         const referenced = structuredClone(full.document);
         const record = (referenced.sources as JsonObject[]).find((source) => source.id === friends) as JsonObject;
         delete record.copy;
@@ -318,7 +319,7 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(invalid(referenced), []);
         const reopened = createGraphSession(ON);
         const read = await readBody(reopened, referenced);
-        assert.deepInclude(read, { code: "W_SOURCE_UNAVAILABLE", params: { source: friends } });
+        assert.deepInclude(read, { code: "W_SOURCE_UNAVAILABLE", params: { source: friends, reason: "needs-file" } });
         assert.isTrue(reopened.data.nodes().some((node) => node.id === 7));
         assert.isFalse(reopened.data.nodes().some((node) => node.id === "Cara"));
         const { body } = await writeBody(reopened);
@@ -349,9 +350,12 @@ describe("data section version 2", () => {
         await opened.data.updateNodes([{ id: "Ava", values: { mood: "calm" } }]);
         const { body, problems } = await writeBody(opened, { [id]: "referenced" });
         assert.deepStrictEqual(invalid(asSection(body)), []);
-        assert.deepStrictEqual(problems, [EDIT_FOLDED]);
+        assert.deepStrictEqual(problems, [
+            { code: "W_SOURCE_EMBEDDED", params: { source: id, reason: "edited" } },
+            EDIT_FOLDED,
+        ]);
         const after = (body.sources as JsonObject[]).find((source) => source.id === id) as JsonObject;
-        assert.property(after, "copy", "an edited source is embedded whatever was asked");
+        assert.property(after, "copy", "an edited source is embedded whatever was asked, and said");
         assert.match(String((after.origin as JsonObject).copy), ULID);
 
         const reopened = createGraphSession(ON);
@@ -472,7 +476,9 @@ describe("data section version 2", () => {
         );
         const { body, problems } = await writeBody(session, { [sourceId]: "referenced" });
         assert.deepStrictEqual(invalid(asSection(body)), []);
-        assert.deepStrictEqual(problems, []);
+        assert.deepStrictEqual(problems, [
+            { code: "W_SOURCE_EMBEDDED", params: { source: sourceId, reason: "bytes" } },
+        ]);
         const sample = (body.sources as JsonObject[]).find((each) => each.id === sourceId) as JsonObject;
         assert.match(String((sample.origin as JsonObject).copy), ULID);
         assert.strictEqual((sample.origin as JsonObject).generator, "path");
@@ -1156,5 +1162,112 @@ describe("data section version 2", () => {
             assert.strictEqual(session.data.nodes().length, 0, "nothing applied");
             session.dispose();
         }
+    });
+});
+
+describe("a source saved by reference, read again", () => {
+    const LOCATION = "https://example.test/p/x.graphty.json";
+    const CSV = "source,target\nAva,Ben\n";
+    const scratch = (): GraphSession => createGraphSession(ON);
+
+    /**
+     * friends.csv saved by its path beside the file, as a data body.
+     * @returns The body, its source's id and the source's place in the body.
+     */
+    async function referencedFriends(): Promise<{ body: JsonObject; id: string; at: number }> {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { data: CSV }, name: "friends.csv" });
+        const { body } = await writeBody(session);
+        session.dispose();
+        const sources = body.sources as JsonObject[];
+        const at = sources.findIndex((source) => source.kind === "file");
+        delete sources[at].copy;
+        (sources[at].origin as JsonObject).path = "friends.csv";
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        return { body, id: String(sources[at].id), at };
+    }
+
+    it("publishes a referenced source the schema accepts, its columns without its copy", () => {
+        assert.deepStrictEqual(invalid(readJson("examples/minimal/minimal-referenced.graphty-data.json")), []);
+    });
+
+    it("fetches a path-only source beside the file it was saved in, and reads a file the reader picked instead", async () => {
+        const fetched = vi.fn((_url: string) => Promise.resolve(new Response(CSV)));
+        vi.stubGlobal("fetch", fetched);
+        const beside = await referencedFriends();
+        await refetchSources(beside.body, { location: LOCATION, scratch });
+        assert.deepStrictEqual(
+            fetched.mock.calls.map(([url]) => url),
+            ["https://example.test/p/friends.csv"],
+        );
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, beside.body), []);
+        assert.deepStrictEqual(
+            reopened.data.nodes().map((node) => node.id),
+            ["Ava", "Ben"],
+        );
+
+        fetched.mockClear();
+        const picked = await referencedFriends();
+        await refetchSources(picked.body, { files: { [picked.id]: new File([CSV], "friends.csv") }, scratch });
+        assert.strictEqual(fetched.mock.calls.length, 0);
+        const fromFile = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(fromFile, picked.body), []);
+        assert.strictEqual(fromFile.data.edges().length, 1);
+        reopened.dispose();
+        fromFile.dispose();
+    });
+
+    it("needs a file for a path with no location to resolve it against, and fetches nothing", async () => {
+        const fetched = vi.fn((_url: string) => Promise.resolve(new Response(CSV)));
+        vi.stubGlobal("fetch", fetched);
+        const { body, id } = await referencedFriends();
+        await refetchSources(body, { scratch });
+        const reopened = createGraphSession(ON);
+        assert.deepInclude(await readBody(reopened, body), {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: id, reason: "needs-file" },
+        });
+        assert.strictEqual(fetched.mock.calls.length, 0);
+        reopened.dispose();
+    });
+
+    it("reports a saved column the rows read again lack", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(CSV)));
+        const { body, at } = await referencedFriends();
+        const record = (body.sources as JsonObject[])[at];
+        ((record.columns as JsonObject).nodes as JsonObject).mood = { name: "mood", dtype: "string", nullable: true };
+        await refetchSources(body, { location: LOCATION, scratch });
+        const reopened = createGraphSession(ON);
+        assert.deepInclude(await readBody(reopened, body), {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { section: "data", pointer: `/sources/${String(at)}/columns/nodes/mood` },
+        });
+        reopened.dispose();
+    });
+
+    it("embeds a source another load also supplied rows to, and says why", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { data: CSV }, name: "friends.csv" });
+        await session.data.import(
+            {
+                type: "json",
+                config: { data: JSON.stringify({ nodes: [{ id: "Ava", kind: "person" }], edges: [] }) },
+                name: "pets.json",
+            },
+            { mode: "merge" },
+        );
+        const { body } = await writeBody(session);
+        for (const source of body.sources as JsonObject[]) {
+            (source.origin as JsonObject).path = String(source.label);
+        }
+
+        const opened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(opened, body), []);
+        const pets = String((body.sources as JsonObject[]).find((source) => source.label === "pets.json")?.id);
+        const { problems } = await writeBody(opened, { [pets]: "referenced" });
+        assert.deepStrictEqual(problems, [{ code: "W_SOURCE_EMBEDDED", params: { source: pets, reason: "rows" } }]);
+        session.dispose();
+        opened.dispose();
     });
 });

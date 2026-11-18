@@ -255,8 +255,9 @@ describe("a file's looks in a source saved as a reference", () => {
         await session.data.updateNodes([{ id: "n0", values: { [fill]: "#123456" } }]);
 
         const { body, problems } = await writeData(session, { [id]: "referenced" });
-        // An edited source is embedded whatever was asked, as any edited column makes it.
+        // An edited source is embedded whatever was asked, as any edited column makes it, and said.
         assert.property(ringSource(body), "copy");
+        assert.deepInclude(problems, { code: "W_SOURCE_EMBEDDED", params: { source: id, reason: "edited" } });
         assert.notDeepInclude(
             problems.map((problem) => problem.params.pointer),
             `/sources/${id}`,
@@ -269,4 +270,108 @@ describe("a file's looks in a source saved as a reference", () => {
         session.dispose();
         reopened.session.dispose();
     });
+
+    it("reads a referenced GEXF again on open with its style choices, its looks back under the same names", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(GEXF)));
+        const session = await ring("url");
+        const fill = fillColumn(session);
+        const before = drawn(session);
+        const { text, id } = await savedByReference(session);
+        const record = ringSource(dataOf(text));
+        assert.notProperty(record, "copy");
+        assert.strictEqual((record.options as JsonObject).styles, "file");
+
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(text, {
+            location: "https://example.org/projects/ring.graphty.json",
+        });
+        assert.deepEqual(
+            report.problems.filter((problem) => problem.code !== "W_RECIPE_NOT_APPLIED"),
+            [],
+        );
+        assert.strictEqual(reopened.data.node("n3")?.[fill], session.data.node("n3")?.[fill]);
+        assert.deepEqual(drawn(reopened), before);
+        assert.strictEqual(String(ringSource(dataOf((await reopened.project.save({ format: 2 })).text)).id), id);
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("keeps the name a look column was saved under when the load took a suffix beside other data", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(GEXF)));
+        const fill = fillColumn(await ring());
+        const session = createGraphSession(ON);
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ nodes: [{ id: "x", [fill]: "red" }], edges: [] }) },
+        });
+        await session.data.import({ type: "gexf", config: { url: URL_OF_RING } }, { styles: "file", mode: "merge" });
+        const suffixed = Object.keys(session.data.node("n0") ?? {}).find((key) => key.startsWith(`${fill} (`));
+        assert.isDefined(suffixed, "the load named its column beside the one the graph held");
+        const before = drawn(session);
+        const { text } = await savedByReference(session);
+
+        const reopened = createGraphSession(ON);
+        await reopened.project.open(text, { location: "https://example.org/projects/ring.graphty.json" });
+        assert.strictEqual(reopened.data.node("n0")?.[suffixed], session.data.node("n0")?.[suffixed]);
+        assert.notProperty(reopened.data.node("n0"), fill);
+        assert.deepEqual(drawn(reopened), before);
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("reports a referenced file that changed since the save, binds what it still holds and keeps the rest", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(GEXF)));
+        const session = await ring("url");
+        session.notes.add({ text: "the last one", targets: [{ node: "n5" }] });
+        const { text, id } = await savedByReference(session);
+        const data = dataOf(text);
+        const expected = String((ringSource(data).origin as JsonObject).copy);
+
+        // The file now lacks n5 and its edges.
+        const changed = GEXF.replace(/<node id="n5"[^\n]*\n/, "").replaceAll(/<edge [^>]*"n5"[^>]*\/>\n?/g, "");
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(changed)));
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(text, {
+            location: "https://example.org/projects/ring.graphty.json",
+        });
+        const found = report.problems.find((problem) => problem.code === "W_SOURCE_CHANGED");
+        assert.deepInclude(found?.params, { source: id, expected });
+        assert.notStrictEqual(found?.params.found, expected);
+        assert.include(
+            report.problems.map((problem) => problem.code),
+            "W_REFERENCE_UNBOUND",
+        );
+        assert.isUndefined(reopened.data.node("n5"));
+        assert.isDefined(reopened.data.node("n4"));
+
+        const again = dataOf((await reopened.project.save({ format: 2 })).text);
+        assert.notStrictEqual(again.build, data.build, "a changed source is a new build");
+        assert.strictEqual(reopened.notes.list().length, 1, "the note naming what the file lost is kept");
+        session.dispose();
+        reopened.dispose();
+    });
 });
+
+/**
+ * A saved file's data section.
+ * @param text - The file.
+ * @returns The section.
+ */
+function dataOf(text: string): JsonObject {
+    return (JSON.parse(text) as { sections: { data: JsonObject } }).sections.data;
+}
+
+/**
+ * Save a session with the GEXF's source referenced.
+ * @param session - The session.
+ * @returns The file and the source id.
+ */
+async function savedByReference(session: GraphSession): Promise<{ text: string; id: string }> {
+    const gexf = (dataOf((await session.project.save({ format: 2 })).text).sources as JsonObject[]).find(
+        (each) => each.kind === "url",
+    ) as JsonObject;
+    const id = String(gexf.id);
+    const saved = await session.project.save({ format: 2, embed: { [id]: "referenced" } });
+    assert.deepEqual(saved.report.leftOut, []);
+    return { text: saved.text, id };
+}

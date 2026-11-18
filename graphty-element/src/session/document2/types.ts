@@ -73,6 +73,8 @@ export type DocumentCode =
     | "W_ELEMENT_NAMING_LEFT_OUT"
     | "W_SOURCE_NO_PATH"
     | "W_SOURCE_UNAVAILABLE"
+    | "W_SOURCE_CHANGED"
+    | "W_SOURCE_EMBEDDED"
     | "W_REFERENCE_UNBOUND"
     | "W_DATA_CHANGED"
     | "W_DATA_MISMATCH"
@@ -314,6 +316,14 @@ export interface SectionCodec {
      * @returns True to hold the section.
      */
     holds?(section: ReadSection, problems: DocumentProblem[]): boolean;
+    /**
+     * Whether a save that finds the session unchanged since the open may write this section as
+     * read. Optional; true without it. False for a data section a referenced source changed under,
+     * whose copy ids as read no longer stand for the data.
+     * @param section - The section as read.
+     * @returns True when the section as read still stands for what the open made of it.
+     */
+    standsAsRead?(section: ReadSection): boolean;
 }
 
 /** The codecs an open or a save uses, by section. */

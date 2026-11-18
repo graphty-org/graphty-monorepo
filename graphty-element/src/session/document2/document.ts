@@ -193,7 +193,7 @@ async function rememberBaselines(
     const context = writeContextOf(session, state, new Set(sections.keys()), {}, isDerived, []);
     for (const [name, section] of sections) {
         const codec = codecs[name];
-        if (codec === undefined || (name === "results" && rerun)) {
+        if (codec === undefined || (name === "results" && rerun) || codec.standsAsRead?.(section) === false) {
             continue;
         }
 

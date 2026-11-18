@@ -27,8 +27,9 @@
  *   `annotations`, `metadata`, `license`, `citation`, `mediaType` and `path` are never written.
  * - On read: only `join.add` and `join.merge` build (both by key in the mapping's spaces); the
  *   other known shapes hold the section. `repeatedEdges` other than `keep` is built as `keep` and
- *   reported. A referenced source cannot be fetched again yet: it supplies nothing, is reported
- *   `W_SOURCE_UNAVAILABLE`, and its record is written back as read. Types are kept for the next
+ *   reported. A referenced `file` or `url` source is built from the rows an open read again
+ *   (dataFetch.ts); one it could not read supplies nothing, is reported `W_SOURCE_UNAVAILABLE` with
+ *   why, and its record is written back as read. Types are kept for the next
  *   save, not applied (today's `kind` column is not written from them). `date` and `category`
  *   conversions leave values as read.
  */
@@ -48,6 +49,7 @@ import type {
     SectionCodec,
     WriteContext,
 } from "../types";
+import { refetchedOf, type UnavailableReason } from "./dataFetch";
 import {
     canonicalJson,
     dataBodyOf,
@@ -64,6 +66,7 @@ import {
     SOURCE_ID,
     ULID,
 } from "./dataRefs";
+import { mintUlid } from "./viewParts";
 
 // ---------------------------------------------------------------------------------------------
 // Closed objects and vocabularies (spec 4.1, 10)
@@ -311,11 +314,18 @@ export function addedValues(operation: JsonObject): JsonObject {
 interface ReadSource {
     readonly record: JsonObject;
     readonly id: string;
+    /** Its pointer in the section. */
+    readonly pointer: string;
     readonly copyId: string;
-    /** Absent for a referenced source. */
+    /** Absent for a referenced source not read again. */
     readonly nodes?: Table;
     readonly edges?: Table;
+    /** Whether it has rows to build: an embedded copy, or a referenced source read again. */
     readonly embedded: boolean;
+    /** For a referenced source read again: the copy id its record names, and the roles its rows are built with. */
+    readonly rebuilt?: { readonly expected: string; readonly mapping: JsonObject };
+    /** For a referenced source not read again: why. */
+    readonly reason?: UnavailableReason | "kind";
 }
 
 /**
@@ -411,8 +421,8 @@ function checkSource(record: JsonObject, pointer: string): ReadSource {
     checkMapping(record.mapping ?? {}, `${pointer}/mapping`);
     closed(record.settings ?? {}, SETTINGS, `${pointer}/settings`);
     if (copy === undefined) {
-        need(kind !== "derived" && record.columns === undefined, pointer);
-        return { record, id, copyId: origin.copy, embedded: false };
+        need(kind !== "derived", pointer);
+        return referencedSource(record, pointer);
     }
 
     // Tables, or an unknown copy form.
@@ -421,11 +431,85 @@ function checkSource(record: JsonObject, pointer: string): ReadSource {
     return {
         record,
         id,
+        pointer,
         copyId: origin.copy,
         embedded: true,
         nodes: tableOf(copy.nodes, decls.nodes, `${pointer}/copy/nodes`),
         edges: tableOf(copy.edges, decls.edges, `${pointer}/copy/edges`),
     };
+}
+
+/**
+ * A referenced source (spec 8.3): the rows an open read again, built as an embedded copy's are with
+ * the roles a copy names (`id`, `source`, `target`) in the record's spaces; or, when the open could
+ * not read it, none, and why.
+ * @param record - The checked record.
+ * @param pointer - Its pointer.
+ * @returns The source.
+ */
+function referencedSource(record: JsonObject, pointer: string): ReadSource {
+    const id = String(record.id);
+    const expected = String((record.origin as JsonObject).copy);
+    const fetched = refetchedOf(record);
+    if (fetched === undefined || "unavailable" in fetched) {
+        const fetches = record.kind === "file" || record.kind === "url";
+        const reason = fetched?.unavailable ?? (fetches ? "needs-file" : "kind");
+        return { record, id, pointer, copyId: expected, embedded: false, reason };
+    }
+
+    const roles = isPlainObject(record.mapping) ? record.mapping : {};
+    const nodes = isPlainObject(roles.nodes) ? roles.nodes : undefined;
+    const edges = isPlainObject(roles.edges) ? roles.edges : undefined;
+    const space = nodes?.space ?? edges?.sourceSpace;
+    const mapping: JsonObject = {
+        ...(space === undefined ? {} : { nodes: { key: "id", space } }),
+        ...(edges === undefined ? {} : { edges: { ...edges, source: "source", target: "target" } }),
+    };
+    const { tables, columns } = fetched;
+    return {
+        record,
+        id,
+        pointer,
+        copyId: fetched.copyId,
+        embedded: true,
+        rebuilt: { expected, mapping },
+        nodes: tableOf(tables.nodes, columns.nodes, `${pointer}/copy/nodes`),
+        edges: tableOf(tables.edges, columns.edges, `${pointer}/copy/edges`),
+    };
+}
+
+/**
+ * Report each column a referenced source was saved with that the rows read again lack (spec 8.3),
+ * and a source whose bytes changed since the save (`W_SOURCE_CHANGED`).
+ * @param source - The source read again.
+ * @param problems - Collects the reports.
+ * @returns Whether its bytes changed.
+ */
+function checkRebuilt(source: ReadSource, problems: DocumentProblem[]): boolean {
+    const saved = isPlainObject(source.record.columns) ? source.record.columns : {};
+    for (const [table, read] of [
+        ["nodes", source.nodes],
+        ["edges", source.edges],
+    ] as const) {
+        const names = isPlainObject(saved[table]) ? Object.keys(saved[table]) : [];
+        for (const name of names.filter((each) => read === undefined || !(each in read.cells))) {
+            problems.push({
+                code: "W_MEMBER_LEFT_OUT",
+                params: { section: "data", pointer: `${source.pointer}/columns/${table}/${token(name)}` },
+            });
+        }
+    }
+
+    const expected = source.rebuilt?.expected;
+    if (expected === undefined || expected === source.copyId) {
+        return false;
+    }
+
+    problems.push({
+        code: "W_SOURCE_CHANGED",
+        params: { source: source.id, expected, found: source.copyId },
+    });
+    return true;
 }
 
 /** A data section, checked. */
@@ -568,6 +652,8 @@ interface Built {
     readonly folded: readonly string[];
     /** Each edge's saved element-assigned id, by its load and then its key (spec 6.2). */
     readonly edgeIds: SavedEdgeIds;
+    /** The referenced sources read again, with the `mapping` each record names. */
+    readonly referenced: readonly (readonly [string, JsonObject])[];
 }
 
 /** Saved edge ids, by load and then key. */
@@ -744,7 +830,7 @@ function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, cho
  */
 function buildSource(source: ReadSource, into: Building): void {
     const { record, id } = source;
-    const mapping = isPlainObject(record.mapping) ? record.mapping : {};
+    const mapping = source.rebuilt?.mapping ?? (isPlainObject(record.mapping) ? record.mapping : {});
     const settings = isPlainObject(record.settings) ? record.settings : {};
     const choices: Choices = {
         duplicates: typeof settings.duplicateIds === "string" ? settings.duplicateIds : "first",
@@ -1061,6 +1147,67 @@ function edgeIdPointer(load: string, key: string): string {
     return `/edgeIds/${token(load)}/${token(key)}`;
 }
 
+/** What building the join steps gives. */
+interface Joined {
+    readonly loads: LoadedSource[];
+    readonly unavailable: JsonObject[];
+    readonly copies: Record<string, string>;
+    readonly referenced: [string, JsonObject][];
+    /** Whether a referenced source read again has other bytes than saved. */
+    readonly changed: boolean;
+    readonly edgeIdColumn?: string;
+}
+
+/**
+ * Build each join step's source, in join order: an embedded or read-again source's rows, or, for a
+ * referenced source not read again, nothing, reported.
+ * @param section - The checked section.
+ * @param into - The build so far.
+ * @returns The loads and what each step gave.
+ */
+function buildJoins(section: Checked, into: Building): Joined {
+    const { problems } = into;
+    const joined: Joined & { changed: boolean; edgeIdColumn?: string } = {
+        loads: [],
+        unavailable: [],
+        copies: {},
+        referenced: [],
+        changed: false,
+    };
+    for (const step of section.joins) {
+        const source = section.sources.get(String(step.source)) as ReadSource;
+        const before = { nodes: into.nodes.size, edges: into.edges.size };
+        if (source.embedded) {
+            if (source.rebuilt !== undefined) {
+                joined.changed = checkRebuilt(source, problems) || joined.changed;
+                joined.referenced.push([source.id, source.record.mapping as JsonObject]);
+            }
+
+            buildSource(source, into);
+            joined.copies[source.id] = source.copyId;
+            const edges = (source.record.mapping as JsonObject | undefined)?.edges;
+            joined.edgeIdColumn ??= isPlainObject(edges) && typeof edges.edgeId === "string" ? edges.edgeId : undefined;
+        } else {
+            // Not read again: it supplies nothing, its edges' saved ids stay reserved, and its record
+            // is written back as read.
+            problems.push({
+                code: "W_SOURCE_UNAVAILABLE",
+                params: { source: source.id, ...(source.reason === undefined ? {} : { reason: source.reason }) },
+            });
+            joined.unavailable.push(source.record);
+        }
+
+        joined.loads.push(
+            loadOf(source.record, source.id, {
+                nodes: into.nodes.size - before.nodes,
+                edges: into.edges.size - before.edges,
+            }),
+        );
+    }
+
+    return joined;
+}
+
 /**
  * Build every node and edge the sources supply, in join order, then the conversions and the
  * reader's operations, without touching the session.
@@ -1072,10 +1219,6 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
     const section = checked(body);
     const before = problems.length;
     const into: Building = { nodes: new Map(), edges: new Map(), problems };
-    const loads: LoadedSource[] = [];
-    const unavailable: JsonObject[] = [];
-    const copies: Record<string, string> = {};
-    let edgeIdColumn: string | undefined;
     const named = new Set(section.joins.map((step) => String(step.source)));
     for (const [at, id] of [...section.sources.keys()].entries()) {
         if (!named.has(id)) {
@@ -1087,28 +1230,7 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         }
     }
 
-    for (const step of section.joins) {
-        const source = section.sources.get(String(step.source)) as ReadSource;
-        const before = { nodes: into.nodes.size, edges: into.edges.size };
-        if (source.embedded) {
-            buildSource(source, into);
-            copies[source.id] = source.copyId;
-            const edges = (source.record.mapping as JsonObject | undefined)?.edges;
-            edgeIdColumn ??= isPlainObject(edges) && typeof edges.edgeId === "string" ? edges.edgeId : undefined;
-        } else {
-            // Not fetched again yet: it supplies nothing, and its record is written back as read.
-            problems.push({ code: "W_SOURCE_UNAVAILABLE", params: { source: source.id } });
-            unavailable.push(source.record);
-        }
-
-        loads.push(
-            loadOf(source.record, source.id, {
-                nodes: into.nodes.size - before.nodes,
-                edges: into.edges.size - before.edges,
-            }),
-        );
-    }
-
+    const { loads, unavailable, copies, referenced, changed, edgeIdColumn } = buildJoins(section, into);
     if (body.repeatedEdges !== undefined && body.repeatedEdges !== "keep") {
         problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer: "/repeatedEdges" } });
     }
@@ -1122,7 +1244,9 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
     }
 
     return {
-        build: body.build as string,
+        // A source whose bytes changed is a new build input (spec 4.1.1).
+        build: changed ? mintUlid() : (body.build as string),
+        referenced,
         nodes: [...into.nodes.values()],
         edges: [...into.edges.values()],
         loads,
@@ -1320,6 +1444,7 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
         readerEdges,
         unavailable: built.unavailable,
         edgeIds: built.edgeIds,
+        referenced: built.referenced,
         ...(built.edgeIdColumn === undefined ? {} : { edgeIdColumn: built.edgeIdColumn }),
     });
     context.restored.add("graph");
@@ -1331,6 +1456,9 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
 
 /** Each body `holds` built, so the open that follows does not build it again. */
 const BUILT = new WeakMap<object, { readonly built: Built; readonly problems: DocumentProblem[] }>();
+
+/** The bodies a read built under a new build stamp, as a referenced source changed since the save. */
+const CHANGED = new WeakSet();
 
 /** The `graphty-data` section, version 2. */
 export const dataCodec: SectionCodec = {
@@ -1402,6 +1530,13 @@ export const dataCodec: SectionCodec = {
         }
 
         context.problems.push(...problems);
+        if (built.build !== section.body.build) {
+            CHANGED.add(section.body);
+        }
+
         await apply(built, context);
+    },
+    standsAsRead(section: ReadSection) {
+        return !CHANGED.has(section.body);
     },
 };

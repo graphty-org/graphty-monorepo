@@ -19,6 +19,7 @@ import { baseSession, sessionWithRuns } from "../../helpers/project-session";
 
 const SPEC = new URL("../../../spec/", import.meta.url);
 const readJson = (path: string): JsonObject => JSON.parse(readFileSync(new URL(path, SPEC), "utf8")) as JsonObject;
+const ON = { features: ["save-files-v2"] };
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 const addFormats = (addFormatsModule as unknown as { default?: typeof addFormatsModule }).default ?? addFormatsModule;
@@ -305,26 +306,104 @@ describe("a version 1 project file, migrated", () => {
     });
 });
 
-describe("version 1 file styles, migrated", () => {
-    it("leaves out and reports the look values version 1 kept outside the data", async () => {
-        const session = await busySession();
-        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
-        const sessionMember = (v1.members as JsonObject[]).find(
-            (each) => each.kind === "graphty-session",
-        ) as JsonObject;
-        sessionMember.fileStyles = [
-            { namespace: "gexf", columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }] },
+describe("version 1 file styles, carried over as columns", () => {
+    /**
+     * A version 1 file whose session kept a GEXF load's looks beside its data: a fill on `a`, a
+     * width on the second edge, and one id the data lacks; a layer paints the fill.
+     * @param clash - Give `b` a `color` column of its own first, so the look takes another name.
+     * @returns The file's text.
+     */
+    async function withLooks(clash = false): Promise<string> {
+        const session = await baseSession();
+        if (clash) {
+            await session.data.updateNodes([{ id: "b", values: { color: "blue" } }]);
+        }
+
+        await session.styles.add({
+            name: "File fill",
+            target: "node",
+            selector: { match: "has", path: "data.fillx" },
+            encode: { "node.color": { by: "data.fillx", scale: "passthrough" } },
+        });
+        const text = (await session.project.save({ format: 1 })).text.replaceAll(
+            "data.fillx",
+            "graphty.style.gexf.node.color",
+        );
+        session.dispose();
+        const v1 = JSON.parse(text) as { members: JsonObject[] };
+        const member = v1.members.find((each) => each.kind === "graphty-session") as JsonObject;
+        member.fileStyles = [
+            {
+                importId: "i1",
+                namespace: "gexf",
+                format: "gexf",
+                columns: [
+                    { kind: "node", key: "color", ids: ["a", "zz"], values: ["#ff0000", "#00ff00"] },
+                    { kind: "edge", key: "width", ids: [1], values: [4] },
+                ],
+            },
         ];
+        return JSON.stringify(v1);
+    }
+
+    /**
+     * What node `a` is drawn with.
+     * @param session - The session.
+     * @returns The color.
+     */
+    const fillOfA = (session: GraphSession): string | undefined =>
+        (session.styles.explain({ node: "a" }).merged["node.color"] as { hex?: string } | undefined)?.hex;
+
+    it("migrates the looks into the derived copy as columns a load would name, the layer reading them", async () => {
         const problems: DocumentProblem[] = [];
-        const v2 = migrateDocument1(v1, problems);
+        const v2 = migrateDocument1(JSON.parse(await withLooks()) as JsonObject, problems);
         assert.isDefined(v2);
         assert.deepStrictEqual(invalid(v2), []);
-        assert.deepInclude(problems, {
+        const sections = v2.sections as Record<string, JsonObject>;
+        const record = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived") as JsonObject;
+        const copy = record.copy as { nodes: Record<string, unknown[]>; edges: Record<string, unknown[]> };
+        assert.strictEqual(copy.nodes.color[copy.nodes.id.indexOf("a")], "#ff0000");
+        assert.deepStrictEqual(copy.edges.width, [null, 4]);
+        assert.include(JSON.stringify(sections.style.layers), "data.color");
+        assert.notInclude(JSON.stringify(v2.sections), "graphty.style.");
+        assert.notDeepInclude(problems, {
             code: "W_MEMBER_LEFT_OUT",
             params: { kind: "graphty-session", pointer: "/fileStyles" },
         });
-        assert.notInclude(JSON.stringify(v2.sections), "#ff0000");
-        session.dispose();
+        assert.deepInclude(problems, {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { kind: "graphty-session", pointer: "/fileStyles/0/columns/0/ids/1" },
+        });
+    });
+
+    it("names a look column beside a column the data already holds, as a load does", () => {
+        return withLooks(true).then((text) => {
+            const v2 = migrateDocument1(JSON.parse(text) as JsonObject, []) as JsonObject;
+            const { data } = v2.sections as Record<string, JsonObject>;
+            const record = (data.sources as JsonObject[]).find((each) => each.kind === "derived") as JsonObject;
+            const { nodes } = record.copy as { nodes: Record<string, unknown[]> };
+            assert.strictEqual(nodes["color (gexf)"][nodes.id.indexOf("a")], "#ff0000");
+            assert.strictEqual(nodes.color[nodes.id.indexOf("b")], "blue");
+        });
+    });
+
+    it("opens the same file as before and migrated with the same columns, painting the fill", async () => {
+        const text = await withLooks();
+        const before = createGraphSession();
+        const report = await before.project.open(text);
+        assert.deepInclude(report.problems, {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { slice: "graph", pointer: "/fileStyles/0/columns/0/ids/1" },
+        });
+        const migrated = createGraphSession(ON);
+        await migrated.project.open(text, { migrate: true });
+        assert.strictEqual(before.data.node("a")?.color, "#ff0000");
+        assert.deepStrictEqual(migrated.data.node("a"), before.data.node("a"));
+        assert.strictEqual(before.data.edges()[1].width, 4);
+        assert.strictEqual(fillOfA(before)?.toLowerCase(), "#ff0000");
+        assert.strictEqual(fillOfA(migrated)?.toLowerCase(), "#ff0000");
+        before.dispose();
+        migrated.dispose();
     });
 });
 

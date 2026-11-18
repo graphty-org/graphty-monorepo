@@ -29,6 +29,7 @@ import type { CompiledLayer, LayerProblem } from "../Layer";
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
+import { lookColumnName } from "./oldLooks";
 import {
     carriedColumnOf,
     type FileStyleNote,
@@ -570,14 +571,12 @@ function columnNamer(
         const names = takenOf(kind);
         const copied = carried(kind, key);
         const base = copied ?? key.replaceAll(/\W/g, "_");
-        let name = base;
-        let n = 1;
         // A copy of a data column is that column's own values as written: they go back into it.
-        while (copied === null && names.has(name) && !holds(kind, name, values)) {
-            const count = n === 1 ? "" : ` ${String(n)}`;
-            name = `${base} (${sourceId}${count})`.replaceAll(".", "_");
-            n++;
-        }
+        const name = lookColumnName(
+            base,
+            sourceId,
+            (each) => copied === null && names.has(each) && !holds(kind, each, values),
+        );
 
         const at = `${DATA_PREFIX}${name}`;
         names.add(name);

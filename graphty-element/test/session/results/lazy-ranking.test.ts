@@ -6,7 +6,7 @@
  */
 
 import { fromEdgeArrays } from "@graphty/graph-format";
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, type MockInstance, vi } from "vitest";
 
 import { createGraphSession } from "../../../session";
 import type { FieldDescriptor } from "../../../src/catalog/types";
@@ -71,7 +71,7 @@ function degreeOverSnapshot(): {
 }
 
 describe("building a run result", () => {
-    let mapSets: ReturnType<typeof vi.spyOn>;
+    let mapSets: MockInstance<Map<unknown, unknown>["set"]>;
 
     beforeEach(() => {
         vi.mocked(rankOrder).mockClear();

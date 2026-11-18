@@ -247,6 +247,20 @@ export function quoteCsvCell(text: string, delimiter = ",", quote = '"'): string
     return `${quote}${text.split(quote).join(quote + quote)}${quote}`;
 }
 
+const PLAIN_NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+
+/**
+ * Keep a spreadsheet from reading a CSV cell as a formula (CWE-1236): a text starting with `=`,
+ * `+`, `-`, `@`, a tab or a CR gets a leading `'`, which Excel and LibreOffice show as text. A plain
+ * number (`-5`, `+1.5e3`) is left alone, since a spreadsheet reads it as the number it is. Quoting
+ * does not help: a spreadsheet still evaluates a formula in a quoted cell.
+ * @param text - the cell text, unquoted
+ * @returns the text, prefixed with `'` when a spreadsheet would read it as a formula
+ */
+export function spreadsheetSafeText(text: string): string {
+    return /^[=+\-@\t\r]/.test(text) && !PLAIN_NUMBER.test(text) ? `'${text}` : text;
+}
+
 /**
  * Whether a text can be a Pajek label: Pajek has no escape mechanism inside its double-quoted
  * labels, so a text containing a double quote, a CR or an LF cannot be written.

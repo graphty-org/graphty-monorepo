@@ -339,9 +339,33 @@ export function update3DPositions(
 }
 
 /**
+ * Clean up the scene's controls and resources once the story's container is removed from the document.
+ */
+export function cleanup3DSceneOnUnmount(container: HTMLElement, scene3D: Scene3D): void {
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const removedNode of Array.from(mutation.removedNodes)) {
+                if (removedNode === container || (removedNode as Element).contains?.(container)) {
+                    cleanup3DScene(scene3D);
+                    observer.disconnect();
+                    return;
+                }
+            }
+        }
+    });
+
+    // Start observing parent changes after a tick to allow DOM insertion
+    setTimeout(() => {
+        if (container.parentElement) {
+            observer.observe(container.parentElement, { childList: true, subtree: true });
+        }
+    }, 0);
+}
+
+/**
  * Clean up the scene's controls and resources.
  */
-export function cleanup3DScene(scene3D: Scene3D): void {
+function cleanup3DScene(scene3D: Scene3D): void {
     scene3D.controls.dispose();
 
     // Dispose of geometries and materials

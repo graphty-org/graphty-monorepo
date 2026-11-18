@@ -23,7 +23,7 @@ interface DistributionFigures {
 export function DistributionRows({ figures }: Readonly<{ figures: DistributionFigures }>): React.JSX.Element {
     const { count, min, median, mean, max } = figures;
     return (
-        <div // NOSONAR(S6819): a named group of rows, not a form; a fieldset would draw a border and legend box
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a named group of rows, not a form; a fieldset would draw a border and legend box
             role="group"
             aria-label="Distribution"
             data-testid="values-spread"

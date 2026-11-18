@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Runs a command that launches a headless browser only when one of the machine's shared browser
-# slots is free, so this machine never runs more gated browsers at once than it has slots.
-# On 2026-10-01 a design round ran 23 browsers at once (49 GB), filled swap and set off an alert.
+# slots is free, so this machine never runs more gated browsers at once than it has slots (unbounded
+# parallel browsers fill memory and swap).
 #
 # This is the studio's door to the machine's one browser gate, tools/with-browser.sh: every wait goes
 # through that script, so the studio keeps the same slots (the main checkout's tmp/browser-slots), the
 # same first-come queue and the same low and high priority lanes as the pre-push gate's browser shards
 # and the screenshot previews. This wrapper adds only the studio's slot count, its try mode and its
-# pass-through of commands that launch no browser themselves (tool/README.md, "Browsers").
+# pass-through of commands that launch no browser themselves (tool/REFERENCE.md, "Browsers").
 #
 # Usage: with-browser.sh <command> [args...].
 #
@@ -21,9 +21,8 @@
 # slot while anyone waits for one or one of the four shared slots: the warm pool (real.mjs --warm)
 # fills only spare slots above 4, so a waiting start or a test shard never waits behind it.
 # BROWSER_SLOT_ALSO=<pool folder>: a planted pool (BROWSER_SLOT_DIR) whose commands start real browsers
-# takes a slot of that pool too, after its own, so a self-test's planted pool never runs a browser
-# beside the machine's slots: real.mjs --prove's warm-pool and bounded-start checks each started GPU
-# browsers in a pool of their own, and next to 8 sessions the machine ran 9 (tier 5's tool dry run).
+# takes a slot of that pool too, after its own, so a self-test's planted pool (real.mjs --prove's
+# warm-pool and bounded-start checks) never runs a browser beyond the machine's slots.
 set -u
 if [[ "${BROWSER_GPU:-}" == 1 ]]; then SLOTS=${BROWSER_SLOTS:-8}; else SLOTS=${BROWSER_SLOTS:-4}; fi
 if ! [[ "$SLOTS" =~ ^([1-9]|1[0-6])$ ]]; then
@@ -31,19 +30,16 @@ if ! [[ "$SLOTS" =~ ^([1-9]|1[0-6])$ ]]; then
     exit 2
 fi
 here=$(cd "$(dirname "$0")" && pwd)
-# real.mjs --step, --end and --brief launch no browser: a step talks to a session that already holds
-# its slot. Wrapped, it waited for a second slot while its own session held one (r1-s04, void).
-# real.mjs --start takes its own slot (it runs its session process through this gate), so wrapped
-# it held one slot with no browser while that process waited for a second. real.mjs --prove runs
-# the gate itself for every browser it starts, so wrapped it waited forever when the other three
-# slots were busy.
-# real.mjs --replay and --rewalk start their sessions through the gate as --start does.
+# Passed through without a slot, since wrapping them would hold a slot while waiting for a second:
+# real.mjs --step, --end and --brief launch no browser (a step talks to a session that already holds
+# its slot); --start, --replay and --rewalk run their session process through this gate themselves;
+# --prove runs the gate for every browser it starts.
 if [[ "$*" =~ real\.mjs\ --(start|step|end|brief|prove|replay|rewalk)( |$) ]]; then
     exec "$@"
 fi
 # bars.mjs launches no browser itself: its tier 2 and tier 3 walks are real.mjs sessions, each
 # taking its own slot, and its tier 1 screens run as "bars.mjs ... --inner", which it wraps in this
-# gate itself. Wrapped, it held one slot with no browser for its whole run (round 1's tool dry run 2).
+# gate itself; wrapped, it would hold an idle slot for its whole run.
 if [[ "$*" =~ bars\.mjs( |$) && ! "$*" =~ (^| )--inner( |$) ]]; then
     exec "$@"
 fi
@@ -69,7 +65,7 @@ if [[ "${BROWSER_SLOT_TRY:-}" == 1 ]]; then
     done
     exit 75
 fi
-# A start looks for a free slot every second, as it did before it went through the shared gate.
+# A start looks for a free slot every second.
 export BROWSER_SLOT_POLL=${BROWSER_SLOT_POLL:-1}
 # With BROWSER_SLOT_ALSO the command, holding its slot of the planted pool, waits again for one of
 # the other pool.

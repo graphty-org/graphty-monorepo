@@ -388,12 +388,13 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
   Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
   three times the room between neighbors. The camera still opens framed on the whole map. With
-  `nodeScale: "screen"`, a flat map's nodes are drawn `mapScale` times smaller on screen, which
-  gives the same room; a globe's keep their size on screen.
-- **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
-  so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
-  (`flatNodeScale / (size * mapScale)` on a flat map, where `flatNodeScale` defaults to 1) whatever
-  the zoom, measured at the map's surface, with its arrowheads in proportion.
+  nodes sized on screen (below), a flat map's nodes are drawn `mapScale` times smaller on screen,
+  which gives the same room; a globe's keep their size on screen.
+- **Node size.** The map supplies the screen reference for the `node.sizeSpace: "screen"` style
+  option (see [Node size and the camera](./styling.md#node-size-and-the-camera)): a node of size 1
+  is drawn at `1 / size` of the view's height on a globe and at `flatNodeScale / (size * mapScale)`
+  on a flat map (`flatNodeScale` defaults to 1), whatever the zoom, with its arrowheads in
+  proportion.
 - **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
   draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
   and lights one side from where the sun is overhead. Each part is off unless set; a view
@@ -718,8 +719,9 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 - **The layout runs again when a filter changes what is shown**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
-- **The time window never moves it.** A [time window](./timeline) hides what it leaves out by
-  drawing, so a window step, a play and its pause lay nothing out: every node keeps its place.
+- **The [time window](./timeline) never moves it.** The window hides what lies outside it with a
+  style, so stepping or playing time lays nothing out and no node moves. The layout follows the
+  filters only.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
   those still push and pull on its members unless the filter hides them.
 

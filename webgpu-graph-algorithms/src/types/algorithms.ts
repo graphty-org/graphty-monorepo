@@ -1,8 +1,6 @@
 /**
- * The result and option records of the P7 algorithms (spec 3.3 lines 815-828, 9.7). The `Gpu*Result` shapes are the
- * design's verbatim; the option records are this package's own, spelled MEMBER FOR MEMBER as the CPU seam spells
- * them so one object literal satisfies both sides (the D27 mirror rule src/types/options.ts followed for the
- * layout options until W1b, when those became `import type` re-exports of `@graphty/layout`'s declarations).
+ * The result and option records of the GPU scoring and component algorithms. The option records are this
+ * package's own, spelled MEMBER FOR MEMBER as the CPU seam spells them so one object literal satisfies both sides.
  * Types only: this file imports nothing at runtime.
  *
  * The CPU counterparts, in `@graphty/algorithms`' `indexed/accelerator.ts` since the seam landed:
@@ -11,13 +9,12 @@
  * `HitsOptionsLike` there (`{ maxIterations?, tolerance?, weighted? }`), which is why every one of them carries
  * those three members and `KatzOptions` adds `alpha` / `beta` on top; `ComponentsOptions` has no CPU counterpart at
  * all, because `AlgorithmAccelerator.connectedComponents?(s: GraphSnapshot): Promise<LabelResultLike>` declares no
- * options parameter. `weighted`, never `weight`: that is the member name graph-format design 14.2 fixes at
- * `design/graph-format/graph-format-design.md:3892` and the one M8a ports.
+ * options parameter. `weighted`, never `weight`: that is the member name `@graphty/algorithms` uses.
  */
 
 import type { F32, U32 } from "@graphty/graph-format";
 
-/** Spec 3.3 line 815: every score result carries `precision` so a consumer can label GPU scores (Q-24). */
+/** Every score result carries `precision` so a consumer can label GPU scores. */
 export interface GpuScoresResult {
     readonly scores: F32;
     readonly iterations: number;
@@ -30,12 +27,12 @@ export interface GpuClosenessResult extends GpuScoresResult {
     readonly sourcesUsed: number;
 }
 
-/** Spec 3.3 line 816: `iterations` is the first iteration whose L1 delta fell below the tolerance (8.2), not the batch boundary. */
+/** `iterations` is the first iteration whose L1 delta fell below the tolerance, not the batch boundary. */
 export interface GpuPageRankResult extends GpuScoresResult {
     readonly danglingMass: number;
 }
 
-/** Spec 3.3 line 817. */
+/** HITS hub and authority scores. */
 export interface GpuHitsResult {
     readonly hubs: F32;
     readonly authorities: F32;
@@ -44,14 +41,14 @@ export interface GpuHitsResult {
     readonly precision: "f32";
 }
 
-/** Spec 3.3 line 818: labels dense 0..count-1 in first-seen order (renumberPartition); groups() is index-aligned. */
+/** Component labels, dense 0..count-1 in first-seen order (renumberPartition); groups() is index-aligned. */
 export interface GpuLabelResult {
     readonly labels: U32;
     readonly count: number;
     groups(): U32[];
 }
 
-/** The CPU seam's PageRankOptionsLike, member for member (M8a Task M8a-T8; graph-format design 14.2 :3892). */
+/** The CPU seam's PageRankOptionsLike, member for member. */
 export interface PageRankOptions {
     readonly dampingFactor?: number | undefined;
     readonly maxIterations?: number | undefined;
@@ -59,7 +56,7 @@ export interface PageRankOptions {
     readonly weighted?: boolean | undefined;
 }
 
-/** The CPU seam's HitsOptionsLike, member for member (M8a Task M8a-T8). */
+/** The CPU seam's HitsOptionsLike, member for member. */
 export interface HitsOptions {
     readonly maxIterations?: number | undefined;
     readonly tolerance?: number | undefined;
@@ -82,7 +79,7 @@ export interface KatzOptions {
     readonly weighted?: boolean | undefined;
 }
 
-/** GPU-only (spec 3.3 line 797: `renumber: true` by default, Q-12); the CPU seam's connectedComponents takes none. */
+/** GPU-only (`renumber: true` by default: labels dense 0..count-1); the CPU seam's connectedComponents takes none. */
 export interface ComponentsOptions {
     readonly renumber?: boolean | undefined;
 }

@@ -201,7 +201,7 @@ export function attachNodeShader(
         const { extendSize } = source.getBoundingInfo().boundingBox;
         const radius = Math.max(extendSize.x, extendSize.y, extendSize.z, 1e-6);
         // Constructed for its side effect on the material, which is how a Babylon plugin attaches.
-        new NodeShaderPlugin(material, shader, data, runtime, radius); // NOSONAR(S1848): a Babylon material plugin attaches itself in its constructor
+        new NodeShaderPlugin(material, shader, data, runtime, radius); // eslint-disable-line sonarjs/constructor-for-side-effects -- a Babylon material plugin attaches itself in its constructor
         for (const name of MESH_ATTRIBUTES) {
             source.registerInstancedBuffer(name, 4);
             source.instancedBuffers[name] = new Vector4(0, 0, 0, 0);

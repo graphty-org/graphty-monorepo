@@ -82,7 +82,7 @@
             "cache": true
         },
         "test": {
-            "inputs": ["default", "^production", "{workspaceRoot}/vitest.shared.config.ts"],
+            "inputs": ["default", "^production"],
             "cache": true
         },
         "build-storybook": {
@@ -150,15 +150,12 @@
             "!{projectRoot}/**/*.stories.*",
             "!{projectRoot}/benchmarks/**/*",
             "!{workspaceRoot}/eslint.config.js",
-            "!{workspaceRoot}/vitest.shared.config.ts",
             "!{workspaceRoot}/vitest.browser-coverage-setup.ts",
             "{workspaceRoot}/vitest.ci-junit.d.mts"
         ],
         "sharedGlobals": [
             "{workspaceRoot}/tsconfig.base.json",
             "{workspaceRoot}/eslint.config.js",
-            "{workspaceRoot}/vite.shared.config.ts",
-            "{workspaceRoot}/vitest.shared.config.ts",
             "{workspaceRoot}/vitest.base.mjs",
             "{workspaceRoot}/vitest.ci-junit.mjs",
             "{workspaceRoot}/vite.anthropic-sdk-stub.mjs",

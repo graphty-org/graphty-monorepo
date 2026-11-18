@@ -18,7 +18,7 @@ import type { Graphty } from "../../../../index.js";
 import { registerShader, shaderDescriptor } from "../../../../src/catalog/shaderRegistry";
 import { drawingOf, type ShaderDescriptor, type ShaderParams } from "../../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../../src/catalog/types";
-import { operationQueueOf } from "../../../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../../src/managers/everyFrameAnimations";
 import type { RenderManager } from "../../../../src/managers/RenderManager";
 import { FLASH_GRID, FlashCounter } from "../../../../src/managers/ShaderGuard";
@@ -118,7 +118,7 @@ async function mounted(
  * @returns It.
  */
 function passesOf(element: Graphty): ReturnType<RenderManager["shaderPasses"]> {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.shaderPasses();
+    return renderManagerOf(element.graph).shaderPasses();
 }
 
 /**
@@ -186,8 +186,7 @@ async function showing(
  * @returns How many of them drew a frame.
  */
 async function loopChances(element: Graphty, chances: number): Promise<number> {
-    const { ticks } = (element.graph as unknown as { renderManager: { ticks: { drawn: number; rested: number } } })
-        .renderManager;
+    const { ticks } = renderManagerOf(element.graph);
     const start = ticks.drawn + ticks.rested;
     const drawnBefore = ticks.drawn;
     while (ticks.drawn + ticks.rested - start < chances) {

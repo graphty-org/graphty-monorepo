@@ -1,24 +1,23 @@
 /**
- * The `bfs-fused` kernel body (design 8.4 "the fused variant", 6 row 8 "the workgroup-per-row tier", 8.10 "BFS
- * fused expand-contract"; P8-T7, the P8 plan's PD-23 / PD-24): the expansion and the contraction of one level in
+ * The `bfs-fused` kernel body (the fused variant: the workgroup-per-row tier): the expansion and the contraction of one level in
  * ONE dispatch, chosen by `frontier-finalize` for a frontier below `P.fusedMax` entries (`path` 2) and for the retry
- * of a level whose edge queue overflowed (`path` 4, PD-23). One WORKGROUP per frontier entry, the workgroups striding
+ * of a level whose edge queue overflowed (`path` 4). One WORKGROUP per frontier entry, the workgroups striding
  * the entries by the dispatch's group count (`P.stride`): lane 0 reads the entry's row clipped
  * to the bound arc window, adds its degree to `frontierDegreeSum` (so the inspect seam's per-level expansion count
  * covers fused levels too), and every lane strips the row `WG` arcs at a time, applying `bfs-contract`'s claim
- * inline -- `atomicMin(&depth[v], level + 1)`, the invocation that observes `INVALID_INDEX` the unique winner (PD-6) -- and
+ * inline -- `atomicMin(&depth[v], level + 1)`, the invocation that observes `INVALID_INDEX` the unique winner -- and
  * packing the strip's winners into the output vertex queue by the same Hillis-Steele scan and one `atomicAdd` per
  * strip on `nextFrontierCount`. No edge queue is written or read, which is the whole win for a tiny frontier
  * (Merrill's fleeting iterations) and what makes the overflow retry exact: the partial edge queue is never consulted.
  * On a retry level `advance-expand` has already added the frontier's degree to `frontierDegreeSum`, so that word
  * holds twice the level's expanded degree; since issue #391 no decision reads it (Beamer's m_f is `nextDegreeSum`
  * and the boundary subtracts that), so the doubling only reaches the inspect seam's `prevDegreeSum`. Nothing here
- * writes a parent (PD-24: the post-pass does), which is what keeps the kernel at the eight-storage-buffer budget
- * with the four graph slots. Uniformity (spec 3.5 rule 1): the strip loop's bound and the row start are
+ * writes a parent (the post-pass does), which is what keeps the kernel at the eight-storage-buffer budget
+ * with the four graph slots. Uniformity: the strip loop's bound and the row start are
  * `workgroupUniformLoad`s, so every barrier of the per-strip append is in uniform control flow; the guarded claim
  * writes locals; a trailing barrier protects `sh` and `base` before the next strip reuses them. The claim line and
  * the scan are `bfs-contract`'s verbatim so a reader can diff the two bodies; the scan's comment differs on purpose
- * (the sabotage rows need distinct find strings). Body only (spec 3.5, D9); the text is normative: the sabotage rows
+ * (the sabotage rows need distinct find strings). Body only; the text is normative: the sabotage rows
  * of test/helpers/sabotage.ts are textual edits of it.
  */
 export const bfsFusedWgsl = /* wgsl */ `
@@ -32,7 +31,7 @@ var<workgroup> wcount: u32;                                          // the fron
 fn bfs_fused(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
     let claim = atomicLoad(&counters[11]) + 1u;
     if (lid.x == 0u) {
-        let path = atomicLoad(&counters[24]);                        // 2 the fused level, 4 the overflow retry (PD-23)
+        let path = atomicLoad(&counters[24]);                        // 2 the fused level, 4 the overflow retry
         wcount = select(0u, atomicLoad(&counters[0]), path == 2u || path == 4u);
     }
     let count = workgroupUniformLoad(&wcount);                       // uniform: the entry loop below holds barriers

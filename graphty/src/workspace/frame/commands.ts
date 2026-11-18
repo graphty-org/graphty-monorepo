@@ -1,11 +1,24 @@
+import { KEYMAP_DESCRIPTORS, type KeymapAction } from "@graphty/graphty-element/catalog";
+
 import { defineRegistration } from "../commands/registry";
 import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
 import { panelsInView } from "../time/timeActions";
-import { nothingDrawn } from "../toolbar/useSessionVersion";
+import { nothingDrawn } from "../toolbar/disabledReasons";
 import { cyclePanel } from "./focus";
 import { historyTip, undoOrRedo } from "./historyWords";
+
+/**
+ * The keys graphty-element publishes for one of its graph keys, so Undo, Redo and Clear selection
+ * show exactly the keys the element's keymap answers. The keys themselves are answered by that
+ * keymap (`attachKeymap`, attached by `useCommandKeys`), never dispatched as these commands.
+ * @param action - The keymap action.
+ * @returns Its keys.
+ */
+function graphKeys(action: KeymapAction): readonly string[] {
+    return KEYMAP_DESCRIPTORS.find((entry) => entry.action === action)?.keys ?? [];
+}
 
 /** Where Help > Documentation goes. */
 const DOCUMENTATION_URL = "https://graphty.app/docs/";
@@ -47,7 +60,7 @@ export const registration = defineRegistration({
             id: "history.undo",
             label: "Undo",
             group: "Project",
-            keys: ["Mod+Z"],
+            keys: graphKeys("undo"),
             disabled: ({ session }) => (session?.canUndo === true ? null : "Nothing to undo"),
             tooltip: ({ session }) => historyTip(session, true),
             run: async ({ session, workspace }) => {
@@ -61,7 +74,7 @@ export const registration = defineRegistration({
             id: "history.redo",
             label: "Redo",
             group: "Project",
-            keys: ["Shift+Mod+Z", "Mod+Y"],
+            keys: graphKeys("redo"),
             disabled: ({ session }) => (session?.canRedo === true ? null : "Nothing to redo"),
             tooltip: ({ session }) => historyTip(session, false),
             run: async ({ session, workspace }) => {
@@ -120,11 +133,12 @@ export const registration = defineRegistration({
         },
         {
             // Esc closes the innermost open thing first (each menu and dialog takes its own Esc),
-            // then clears the selection, leaving the graph's panel open (tier1-design.md 2.3).
+            // then clears the selection, leaving the graph's panel open (tier1-design.md 2.3):
+            // graphty-element's keymap answers it, and this command is the menus' Clear selection.
             id: "selection.clear",
             label: "Clear selection",
             group: "Selection",
-            keys: ["Escape"],
+            keys: graphKeys("deselect"),
             disabled: ({ session }) => {
                 if (session === null) {
                     return "Nothing is drawn";

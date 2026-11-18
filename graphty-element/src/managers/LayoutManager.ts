@@ -27,7 +27,7 @@ import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
-import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
+import { D3GraphEngine, type D3RowSource, type RowExtent, spacingOf } from "../layout/D3GraphLayoutEngine";
 import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { laidGroupMargins } from "../layout/groupMargins";
@@ -520,6 +520,8 @@ export const layoutManagerInternals = {} as {
     setLayout(manager: LayoutManager, type: string, opts?: object, scope?: ScopeInput): Promise<void>;
     /** Take the members a scoped layout built over an empty graph owes; see `LayoutManager.takeOwedMembers`. */
     takeOwedMembers(manager: LayoutManager): void;
+    /** The styles the manager reads now; see `LayoutManager.updateStyles`. */
+    styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
     setEngine(manager: LayoutManager, engine: LayoutEngine | undefined): void;
 };
@@ -695,6 +697,7 @@ export class LayoutManager implements Manager {
 
     static {
         layoutManagerInternals.apply = (manager, choice, options) => manager.apply(choice, options);
+        layoutManagerInternals.styles = (manager) => manager.styles;
         layoutManagerInternals.setLayout = (manager, type, opts, scope) => manager.setLayout(type, opts, scope);
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();
@@ -947,6 +950,10 @@ export class LayoutManager implements Manager {
             this.onRest?.();
         }
 
+        if (this.layoutEngine) {
+            layoutEngineInternals.rest(this.layoutEngine, !next);
+        }
+
         // The bridge closes its work span once a stopped layout's batches have landed, so a status
         // chip does not read "active" while nothing is being submitted.
         if (this.layoutEngine instanceof SimulationLayoutEngine) {
@@ -978,6 +985,13 @@ export class LayoutManager implements Manager {
     setPaused(paused: boolean): void {
         this._paused = paused;
         this.running = !paused;
+        // A static layout held back the re-run a removal asked for while paused; it lands now, in
+        // the array both render paths draw from (a batched row has no Node whose update would read
+        // it). After `running`, so a re-run that throws leaves the layout resumed.
+        const engine = this.layoutEngine;
+        if (!paused && engine instanceof StaticLayoutEngine && simpleLayoutInternals.resume(engine)) {
+            engine.publishPositions();
+        }
     }
 
     // GraphContext for error reporting
@@ -1643,17 +1657,8 @@ export class LayoutManager implements Manager {
                             ? dataManagerInternals.builtNodes(this.dataManager)
                             : this.dataManager.nodes.values(),
                     rowSpacingRadius: (row, flat) => {
-                        if (this.dataManager.renderLimits?.batched() !== true) {
-                            return null;
-                        }
-
-                        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-                        if (extent === undefined || extent.scale <= 0) {
-                            return null;
-                        }
-
-                        const { half } = extent;
-                        return extent.round ?? Math.hypot(half.x, half.y, flat ? 0 : half.z);
+                        const size = this.rowExtent(row);
+                        return size === null ? null : spacingOf(size, flat);
                     },
                     fromSeed: how.fromSeed,
                     weightMeaning: this.weightMeaningFor(type),
@@ -1686,14 +1691,15 @@ export class LayoutManager implements Manager {
             );
         }
 
+        simpleLayoutInternals.whilePaused(engine, () => this._paused);
+
         if (engine) {
             // What the engine reads the graph through: the working graph, never the store.
             layoutEngineInternals.setWorkingSource(engine, () => this.scopeSource?.input?.() ?? null);
             engine.clusterColumn = (path, graph = wholeGraph(this.dataManager)) =>
                 this.scopeSource?.nodeValues?.(graph, path) ?? null;
-            if (engine instanceof SimulationLayoutEngine) {
-                engine.rowRecord = (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row);
-            }
+            engine.rowRecord = (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row);
+            engine.storeRowOf = (id) => dataManagerInternals.rowOf(this.dataManager, id);
         }
 
         if (!engine) {
@@ -1735,6 +1741,7 @@ export class LayoutManager implements Manager {
             },
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             knownFields: () => this.graphContext?.getStyles().config.data.knownFields,
+            rankSets: () => this.dataManager.rankSets,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },
@@ -1783,6 +1790,28 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * How far a row drawn with no `Node` reaches, as the row table measured it, for `nodeGap`: what its `Node` would
+     * answer for `layoutRadius` and `drawnHalfExtents`.
+     * @param row - The row; INVALID_INDEX for none.
+     * @returns The reach; null off renderPath "batched", for no row, or before the row is measured.
+     */
+    private rowExtent(row: number): RowExtent | null {
+        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+            return null;
+        }
+
+        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+        if (extent === undefined || extent.scale <= 0) {
+            return null;
+        }
+
+        const { half } = extent;
+        return extent.round === null
+            ? { radius: Math.max(half.x, half.y, half.z), half }
+            : { radius: extent.round, half: null };
+    }
+
+    /**
      * How an engine is handed a row stored with no `Node` after it started: d3 and ngraph take a
      * body for it, a static engine or a simulation reads it from the snapshot, and any other
      * engine lays out only `Node`s, so every row stored under it gets one.
@@ -1795,6 +1824,7 @@ export class LayoutManager implements Manager {
                 engine.addRows(ids, {
                     getSnapshot: () => wholeGraph(this.dataManager),
                     positions: this.dataManager[WRITABLE_LANE],
+                    extentOf: (id) => this.rowExtent(wholeGraph(this.dataManager).ids.indexOf(id)),
                 });
             };
         }
@@ -1913,9 +1943,10 @@ export class LayoutManager implements Manager {
         }
 
         const snapshot = wholeGraph(this.dataManager);
-        const source = {
+        const source: D3RowSource = {
             getSnapshot: () => wholeGraph(this.dataManager),
             positions: this.dataManager[WRITABLE_LANE],
+            extentOf: (id) => this.rowExtent(wholeGraph(this.dataManager).ids.indexOf(id)),
         };
         const byRow = new Map<number, Node>();
         const later: Node[] = [];
@@ -2169,8 +2200,7 @@ export class LayoutManager implements Manager {
      * or `E_BAD_COMMAND` for a scope that is malformed or names a removed set.
      */
     private async setLayout(type: string, opts: object = {}, scope?: ScopeInput): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the old spelling still means 2D
-        const twoD = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
+        const twoD = this.graphContext?.is2D() === true;
         // Built outside the `layout` slice, so no slice value describes it any more.
         this.#built = null;
         this.#building++;
@@ -2653,6 +2683,9 @@ export class LayoutManager implements Manager {
                 remaining -= chunk;
             }
         } else {
+            // An engine stepped here publishes on every step, and a resting one lets its publish
+            // scratch go after each publish; so it is held through the loop and let go once, below.
+            layoutEngineInternals.rest(engine, false);
             for (let i = 0; i < preSteps; i++) {
                 // Stop if layout has settled
                 if (engine.isSettled) {
@@ -2668,6 +2701,7 @@ export class LayoutManager implements Manager {
         // publish the arrangement of the frame before for an accelerated simulation, and one that
         // published in a `then` would publish a frame late for every other engine.
         engine.publishPositions();
+        layoutEngineInternals.rest(engine, !this._running);
         return true;
     }
 
@@ -2977,9 +3011,11 @@ export class LayoutManager implements Manager {
             return;
         }
 
+        // The store's row, building no `Node`: under renderPath "batched" one built here, while a layout being tried
+        // holds the data manager, would belong to that layout alone, and a refused one would take it away with it.
         const rowOf = (id: NodeIdType): number | undefined => {
-            const index = this.dataManager.nodes.get(id)?.index;
-            return index !== undefined && validRow(index) ? index : undefined;
+            const index = dataManagerInternals.rowOf(this.dataManager, id);
+            return validRow(index) ? index : undefined;
         };
         const groups = new Map<number, number[]>();
         for (const { group, members } of this.followingGroups()) {

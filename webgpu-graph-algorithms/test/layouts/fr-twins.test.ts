@@ -25,11 +25,12 @@ import {
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotage.js";
+import { noSubgroupsPass } from "../setup/env.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const GRAPHS: readonly ParityGraph[] = ["karate", "random1k"];
 /** Spec 12.2's second pass: acquire() then defaults to subgroups: false, so both contexts are the workgroup twin and the twin axis is vacuous here (a policy skip, not a wrong-result skip). */
-const NO_SUBGROUPS_PASS = process.env.GRAPHTY_GPU_NO_SUBGROUPS === "1";
+const NO_SUBGROUPS_PASS = noSubgroupsPass();
 /** The tolerance each stage's twin comparison is held to (file header). */
 const TWIN_TOLERANCE: Readonly<Record<FrStageKey, string>> = {
     attraction: "fr-twins.force",

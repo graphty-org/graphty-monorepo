@@ -54,6 +54,7 @@ import { MetricAlgorithm } from "../../../src/algorithms/metrics/MetricAlgorithm
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
+import { RemovalImpactAlgorithm } from "../../../src/algorithms/RemovalImpactAlgorithm";
 import { type DeclaredAlgorithm, detachedRunContext } from "../../../src/algorithms/results";
 import { SpectralClusteringAlgorithm } from "../../../src/algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/StronglyConnectedComponentsAlgorithm";
@@ -174,6 +175,7 @@ const CASES: readonly Case[] = [
     declared("hierarchical clustering", "hierarchical-clustering", (g) => new HierarchicalClusteringAlgorithm(g)),
     declared("a-star", "astar", (g) => new AStarAlgorithm(g, { source: "A", target: "F" })),
     declared("edge betweenness", "edge-betweenness", (g) => new EdgeBetweennessCentralityAlgorithm(g)),
+    declared("removal impact", "removal-impact", (g) => new RemovalImpactAlgorithm(g, { nodes: ["C"] })),
 ];
 
 /**

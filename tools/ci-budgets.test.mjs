@@ -195,15 +195,18 @@ describe("report", () => {
         // POST /v1/durations's trend answer: store keys, the queue row as its job's (queue) step
         const answer = (alarm) => [
             { key: "job:ci.yml:Build", kind: "full", recent: 300, earlier: 290, alarm: false, range: null },
-            { key: "step:ci.yml:Build:(queue)", kind: "full", recent: 400, earlier: 40, alarm, range: "aaa..bbb" },
+            alarm
+                ? { key: "step:ci.yml:Build:(queue)", kind: "full", recent: 400, earlier: 40, alarm, range: "aaa..bbb" }
+                : { key: "step:ci.yml:Build:(queue)", kind: "full", recent: 42, earlier: 40, alarm, range: null },
         ];
         assert.deepEqual(await applyTrend(gh, run, rows, answer(true), FILE), [
             { action: "file", key: "queue:ci.yml:Build", kind: "full", number: 81 },
         ]);
         assert.equal(calls.filter(([m, p]) => m === "POST" && p === "/issues").length, 1);
-        assert.equal(calls[1][2].title, "CI budget: queue:ci.yml:Build (full) 40s -> 6m40s");
+        const filed = calls.find(([m, p]) => m === "POST" && p === "/issues")[2];
+        assert.equal(filed.title, "CI budget: queue:ci.yml:Build (full) 40s -> 6m40s");
 
-        open.push({ number: 81, title: calls[1][2].title });
+        open.push({ number: 81, title: filed.title });
         assert.deepEqual(await applyTrend(gh, run, rows, answer(false), FILE), [
             { action: "close", key: "queue:ci.yml:Build", kind: "full", number: 81 },
         ]);
@@ -470,7 +473,7 @@ describe("trend", () => {
         assert.deepEqual(await syncIssues(gh, alarm), [
             { action: "file", key: "task:graphty:build", kind: "master", number: 77 },
         ]);
-        const filed = calls[1][2];
+        const filed = calls.find(([m, p]) => m === "POST" && p === "/issues")[2];
         assert.equal(filed.title, "CI budget: task:graphty:build (master) 1m00s -> 3m20s");
         assert.deepEqual(filed.labels, ["bug", "ci-budget", "priority:high", "effort:medium"]);
 
@@ -482,5 +485,106 @@ describe("trend", () => {
             { action: "close", key: "task:graphty:build", kind: "master", number: 77 },
         ]);
         assert.deepEqual(calls.at(-1).slice(0, 2), ["PATCH", "/issues/77"]);
+    });
+
+    // a fake gh: open and closed ci-budget issues, every call recorded
+    const fakeGh = (open, closed = []) => {
+        const calls = [];
+        const gh = async (path, init) => {
+            calls.push([init?.method ?? "GET", path, init && JSON.parse(init.body)]);
+            if (path.startsWith("/issues?state=open")) return open;
+            if (path.startsWith("/issues?state=closed")) return closed;
+            return path === "/issues" ? { number: 90 } : {};
+        };
+        return { gh, calls, posts: () => calls.filter(([m, p]) => m === "POST" && p === "/issues") };
+    };
+    const lint = (s) => rows([300, 300, 300, 300, 300, 300, 300, 300, 300, 300, s, s, s, s, s], "job:ci.yml:Lint");
+
+    it("opens at 1.3 x earlier, stays open between the lines, closes under 1.1 x earlier", async () => {
+        const open = [];
+        const { gh, calls, posts } = fakeGh(open);
+        assert.equal((await syncIssues(gh, trend(lint(500), FILE)))[0].action, "file");
+        open.push({ number: 90, title: posts()[0][2].title });
+
+        // 360 s: under the 390 s opening line, over the 330 s closing line and 60 s slower
+        const between = trend(lint(360), FILE);
+        assert.equal(between[0].alarm, false);
+        const before = calls.length;
+        assert.deepEqual(await syncIssues(gh, between), []);
+        assert.equal(calls.length, before + 1, "only the open-issue read: no comment, no close");
+
+        assert.deepEqual(await syncIssues(gh, trend(lint(320), FILE)), [
+            { action: "close", key: "job:ci.yml:Lint", kind: "master", number: 90 },
+        ]);
+    });
+
+    it("files one issue for a step, its job and its run alarming together, on the step", async () => {
+        const { gh, calls, posts } = fakeGh([]);
+        const slow = (key) =>
+            rows([100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 300, 300, 300, 300, 300], key, "full");
+        const history = [...slow("run:ci.yml:full"), ...slow("job:ci.yml:Lint"), ...slow("step:ci.yml:Lint:Lint all")];
+        const done = await syncIssues(gh, trend(history, { budgets: {} }));
+        assert.equal(posts().length, 1);
+        assert.match(posts()[0][2].title, /^CI budget: step:ci\.yml:Lint:Lint all \(full\) /);
+        assert.deepEqual(
+            done.map((a) => [a.action, a.key, a.number]),
+            [
+                ["file", "step:ci.yml:Lint:Lint all", 90],
+                ["fold", "run:ci.yml:full", 90],
+                ["fold", "job:ci.yml:Lint", 90],
+            ],
+        );
+        assert.equal(calls.filter(([m, p]) => m === "POST" && p === "/issues/90/comments").length, 2);
+    });
+
+    it("reopens an alarm closed in the last 7 days instead of filing it again", async () => {
+        const closedAt = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
+        const closed = [
+            { number: 55, title: "CI budget: job:ci.yml:Lint (master) 5m00s -> 8m20s", closed_at: closedAt(2) },
+            { number: 54, title: "CI budget: job:ci.yml:Lint (pr) 5m00s -> 8m20s", closed_at: closedAt(1) },
+        ];
+        const { gh, calls, posts } = fakeGh([], closed);
+        assert.deepEqual(await syncIssues(gh, trend(lint(500), FILE)), [
+            { action: "reopen", key: "job:ci.yml:Lint", kind: "master", number: 55 },
+        ]);
+        assert.equal(posts().length, 0);
+        assert.deepEqual(
+            calls.filter(([m]) => m === "PATCH").map(([, p, b]) => [p, b.state]),
+            [["/issues/55", "open"]],
+        );
+        assert.ok(calls.some(([m, p]) => m === "POST" && p === "/issues/55/comments"));
+
+        closed[0].closed_at = closedAt(8);
+        assert.equal((await syncIssues(fakeGh([], closed).gh, trend(lint(500), FILE)))[0].action, "file");
+    });
+
+    it("files a new alarm instead of reopening one closed as not planned or duplicate", async () => {
+        const closed = [
+            { number: 56, title: "CI budget: job:ci.yml:Lint (master) a", closed_at: new Date().toISOString() },
+        ];
+        for (const reason of ["not_planned", "duplicate"]) {
+            closed[0].state_reason = reason;
+            const { gh, calls } = fakeGh([], closed);
+            assert.equal((await syncIssues(gh, trend(lint(500), FILE)))[0].action, "file", reason);
+            assert.ok(!calls.some(([m]) => m === "PATCH"), reason);
+        }
+    });
+
+    it("folds a job and its run into the step's issue opened in an earlier run", async () => {
+        const slow = (key) =>
+            rows([100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 300, 300, 300, 300, 300], key, "full");
+        const history = [...slow("run:ci.yml:full"), ...slow("job:ci.yml:Lint"), ...slow("step:ci.yml:Lint:Lint all")];
+        const step = { number: 61, title: "CI budget: step:ci.yml:Lint:Lint all (full) 1m40s -> 5m00s" };
+        const { gh, posts } = fakeGh([step]);
+        const done = await syncIssues(gh, trend(history, { budgets: {} }));
+        assert.equal(posts().length, 0);
+        assert.deepEqual(
+            done.map((a) => [a.action, a.key, a.number]),
+            [
+                ["comment", "step:ci.yml:Lint:Lint all", 61],
+                ["fold", "run:ci.yml:full", 61],
+                ["fold", "job:ci.yml:Lint", 61],
+            ],
+        );
     });
 });

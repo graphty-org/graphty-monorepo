@@ -1,0 +1,96 @@
+{
+  "benchmarks/node/algorithms-benchmark.ts": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "benchmarks/utils/benchmark-runner.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 1
+    }
+  },
+  "benchmarks/utils/system-info.ts": {
+    "sonarjs/no-os-command-from-path": {
+      "count": 2
+    }
+  },
+  "scripts/build-bundle.js": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "scripts/build-gh-pages.js": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "scripts/generate-performance-report.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 7
+    }
+  },
+  "src/indexed/all-pairs.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/indexed/dijkstra.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/indexed/flow.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/indexed/grsbm.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/indexed/hierarchical.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/indexed/label-propagation.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/indexed/leiden.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/indexed/markov.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 4
+    }
+  },
+  "src/indexed/min-cut.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/indexed/spectral.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/utils/math-utilities.ts": {
+    "unicorn/prefer-math-trunc": {
+      "count": 1
+    }
+  }
+}

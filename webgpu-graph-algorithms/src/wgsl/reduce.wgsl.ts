@@ -1,5 +1,5 @@
 /**
- * The `reduce` kernel body (contract 4.5; spec 6 row 1): one level of the 2-3 level reduction. Overrides: OP
+ * The `reduce` kernel body: one level of the 2-3 level reduction. Overrides: OP
  * 0 sum / 1 min / 2 max, DTYPE 0 f32 / 1 u32 / 2 vec4f (four words per element, loaded through bitcast from the
  * u32 storage view), FINAL true for the one-workgroup level that folds the partials sequentially per lane in
  * index order (deterministic) and writes one element at `out[P.outOffset]`; the level-1 form writes
@@ -9,7 +9,7 @@
 export const reduceWgsl = /* wgsl */ `
 // DTYPE 0 = f32, 1 = u32, 2 = vec4f (4 words per element); OP 0 = sum, 1 = min, 2 = max; FINAL = the one-workgroup level
 fn identity_f() -> f32 { if (OP == 1u) { return F32_MAX; } if (OP == 2u) { return -F32_MAX; } return 0.0; }
-fn identity_u() -> u32 { if (OP == 1u) { return U32_MAX; } return 0u; }        // U32_MAX from the prelude: the literal is forbidden in bodies (4.1)
+fn identity_u() -> u32 { if (OP == 1u) { return U32_MAX; } return 0u; }        // U32_MAX from the prelude: the literal is forbidden in bodies
 fn comb_f(a: f32, b: f32) -> f32 { if (OP == 1u) { return min(a, b); } if (OP == 2u) { return max(a, b); } return a + b; }
 fn comb_u(a: u32, b: u32) -> u32 { if (OP == 1u) { return min(a, b); } if (OP == 2u) { return max(a, b); } return a + b; }
 fn comb_v(a: vec4f, b: vec4f) -> vec4f { if (OP == 1u) { return min(a, b); } if (OP == 2u) { return max(a, b); } return a + b; }

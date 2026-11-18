@@ -110,8 +110,11 @@ export type StylePatchCommand =
           /** Where it goes; the top of the unpinned top-level rows when absent. */
           readonly at?: StyleRowPlace;
       }
-    /** Write the default rows once, as plain data (the project setting `startingRows` turning on). */
-    | { readonly op: "style.patch"; readonly action: "addDefaultRows" }
+    /**
+     * Write the default rows once, as plain data (the project setting `startingRows` turning on);
+     * with `timelineHidden`, only the timeline's Timeline Hidden row (the timeline turning on).
+     */
+    | { readonly op: "style.patch"; readonly action: "addDefaultRows"; readonly timelineHidden?: true }
     | { readonly op: "style.patch"; readonly action: "renameRow"; readonly id: StyleRowId; readonly name: string }
     | { readonly op: "style.patch"; readonly action: "moveRow"; readonly id: StyleRowId; readonly to: StyleRowPlace }
     | { readonly op: "style.patch"; readonly action: "pinRow"; readonly id: StyleRowId; readonly pin: StyleRowPin }

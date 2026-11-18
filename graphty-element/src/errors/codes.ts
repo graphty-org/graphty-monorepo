@@ -64,7 +64,7 @@ export type GraphtyErrorCode =
      * missing result (`missing: { value }`), which would ask the element to paint elements the run
      * never measured. Without `missing`, such a layer is accepted: an element with no result is
      * not painted. The caller scopes the layer to the
-     * elements that carry the run's result.
+     * elements that carry the run's result: the problem's `scope` is that selector.
      */
     | "E_UNSCOPED_RUN_ENCODING"
     /**
@@ -110,7 +110,6 @@ export type GraphtyErrorCode =
      * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
      * `stepBy` or `seek` with no attribute given. The caller designates one with
      * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-     * @experimental timeline
      * @beta
      */
     | "E_NO_TIME_FIELD"
@@ -876,6 +875,12 @@ export type GraphtyWarningCode =
      * `params.requested` is the value given, `params.active` the one in use.
      */
     | "W_ANTIALIAS_LATE"
+    /**
+     * `preserveDrawingBuffer` was changed after the element built its engine, which reads it only
+     * then: the engine keeps the value it was built with. Raised as a `graphty-warning` event.
+     * `params.requested` is the value given, `params.active` the one in use.
+     */
+    | "W_PRESERVE_DRAWING_BUFFER_LATE"
     /**
      * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
      * `node.modelSourceUp` turns it.

@@ -223,6 +223,18 @@ No CPU change moves a fill-bound frame. Two picture changes do, so both are opt-
 With the default picture the frame stays at 72-90 ms (71.5 ms of GPU, 89.6 ms measured), about 2.5-3.2x cosmos.gl. G1's Proof checks whether the flush also
 recovers part of the 18 ms between the harness's 89.6 ms and the GPU's 71.5 ms.
 
+As built (issue #8235): `antialias: "at-rest"` keeps the default picture without paying for it while anything moves.
+The engine is built multisampled, as under `true`; a moving frame is drawn through a pass post-process with no
+multisampling (`RenderManager.drawFast`) and copied to the canvas, with every straight pulled batch, 2D and 3D (#8428), switched to
+`EDGE_PULLED_LEAN` by a define and a vertex count (`drawLinesLean`, no piece moved); the first tick that would rest
+draws one frame straight to the canvas with the join template, which is the `true` frame by construction, and the
+loop then rests on it (at-rest turns drawing on demand on). A pointer held on the canvas counts as motion. Because the
+canvas stays multisampled, an element built with `true` switches to `"at-rest"` and back at any time
+(`Graph.setAntialias`), which the app needs: the edge count is known only after the load. Measured on the RTX at
+100k + 1M, 4 interleaved runs: a fast frame of the still view 30.4 ms serial and 28.2 ms of GPU against `false`'s 30.1
+and 28.2; the layout frame 20.5 ms against 21.0 (`true`: 41.3); the smooth frame 73.2 ms of GPU, on screen 75.3 ms
+after the last moving frame; the held 1200x900 picture equal to `true`'s in every pixel (`false`: 176,639 differ).
+
 ### 3.5 What is kept out on purpose
 
 - **Drawing batches outside Babylon.** Under `"batched"` the scene is 4 meshes at 100k nodes, Babylon's share of a frame is

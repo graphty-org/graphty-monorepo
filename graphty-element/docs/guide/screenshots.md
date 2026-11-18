@@ -23,18 +23,31 @@ const dataUrl = await graph.captureScreenshot({
 
 ## Screenshot Options
 
-| Option        | Type              | Default       | Description             |
-| ------------- | ----------------- | ------------- | ----------------------- |
-| `width`       | `number`          | canvas width  | Output width in pixels  |
-| `height`      | `number`          | canvas height | Output height in pixels |
-| `format`      | `'png' \| 'jpeg'` | `'png'`       | Image format            |
-| `quality`     | `number`          | `0.9`         | JPEG quality (0-1)      |
-| `transparent` | `boolean`         | `false`       | Transparent background  |
+| Option                  | Type                        | Default       | Description                                       |
+| ----------------------- | --------------------------- | ------------- | ------------------------------------------------- |
+| `width`                 | `number`                    | canvas width  | Output width in pixels                            |
+| `height`                | `number`                    | canvas height | Output height in pixels                           |
+| `format`                | `'png' \| 'jpeg' \| 'webp'` | `'png'`       | Image format                                      |
+| `quality`               | `number`                    | `0.9`         | JPEG quality (0-1)                                |
+| `transparentBackground` | `boolean`                   | `false`       | Transparent background (PNG and WebP)             |
+| `backgroundColor`       | `string`                    | canvas color  | A solid background in any CSS color, every format |
+| `signal`                | `AbortSignal`               | none          | Cancels a capture that is still waiting           |
 
 Before capturing, a screenshot waits for queued operations and for a moving layout to come to
 rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle: false }` skips a
 wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
 before the capture fails with the `E_NOT_SETTLED` error code.
+
+A capture that is waiting can be cancelled, or told to stop waiting and take the frame on screen:
+
+```typescript
+const cancel = new AbortController();
+const now = new AbortController();
+const shot = graph.captureScreenshot({
+    signal: cancel.signal, // cancel.abort() rejects with the signal's reason, an AbortError
+    timing: { captureNow: now.signal }, // now.abort() captures the current frame at once
+});
+```
 
 ### Examples
 
@@ -54,8 +67,14 @@ const compressed = await graph.captureScreenshot({
 
 // Transparent background
 const transparent = await graph.captureScreenshot({
-    transparent: true,
+    transparentBackground: true,
     format: "png",
+});
+
+// White background, whatever the canvas color
+const white = await graph.captureScreenshot({
+    backgroundColor: "#ffffff",
+    format: "jpeg",
 });
 ```
 
@@ -134,11 +153,13 @@ without arrowheads; curved edges, arrowheads, borders and label backgrounds are 
 
 ## Checking Capabilities
 
-Before capturing, verify support:
+Before capturing, check that the options can be captured and how large the image will be:
 
 ```typescript
-const check = await graph.canCaptureScreenshot({ width: 7680, height: 4320 });
-if (!check.supported) {
+const check = await graph.canCaptureScreenshot({ multiplier: 2 });
+if (check.supported) {
+    console.log(`${check.width} x ${check.height} pixels`);
+} else {
     // A code and its values, such as { code: "E_TOO_LARGE", params: { of: "pixels", limit: 33177600, ... } }
     console.log(check.reason?.code, check.reason?.params);
 }
@@ -156,15 +177,15 @@ A screenshot, a video or a clipboard copy that fails throws (or, for a copy, rep
 `clipboardError`) a `GraphtyError` like every other failure of the element. Switch on its `code`
 and read its `details`:
 
-| Code               | When                                                                                       | `details`                                                                                                                                    |
-| ------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_TOO_LARGE`      | The image is past the browser's limit on one side or on its pixel count                    | `of` (`"dimension"` or `"pixels"`), `width`, `height`, `limit`, `count`                                                                      |
-| `E_OPTION_RANGE`   | A size that is not a positive number, a `strictAspectRatio` mismatch, or an unknown preset | `option` (`"size"`, `"strictAspectRatio"` or `"preset"`) and the values                                                                      |
-| `E_BAD_COMMAND`    | `transparentBackground` with a format that cannot hold it (JPEG)                           | `fields`, `format`                                                                                                                           |
-| `E_UNSUPPORTED`    | The browser cannot do it                                                                   | `reason`: `"format"` (with `format`), `"preserve-drawing-buffer"`, `"clipboard"`, `"clipboard-insecure-context"` or `"clipboard-permission"` |
-| `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                          | `of: "canvas"`                                                                                                                               |
-| `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                   | `timeoutMs`                                                                                                                                  |
-| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                               | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`                                                                          |
+| Code               | When                                                                                                                                | `details`                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `E_TOO_LARGE`      | The image is past the browser's limit on one side or on its pixel count                                                             | `of` (`"dimension"` or `"pixels"`), `width`, `height`, `limit`, `count`                                         |
+| `E_OPTION_RANGE`   | A size that is not a positive number, a `strictAspectRatio` mismatch, an unknown preset, or a `backgroundColor` that is not a color | `option` (`"size"`, `"strictAspectRatio"`, `"preset"` or `"backgroundColor"`) and the values                    |
+| `E_BAD_COMMAND`    | `transparentBackground` with a format that cannot hold it (JPEG)                                                                    | `fields`, `format`                                                                                              |
+| `E_UNSUPPORTED`    | The browser cannot do it                                                                                                            | `reason`: `"format"` (with `format`), `"clipboard"`, `"clipboard-insecure-context"` or `"clipboard-permission"` |
+| `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                                                                   | `of: "canvas"`                                                                                                  |
+| `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                                                            | `timeoutMs`                                                                                                     |
+| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                                                                        | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`                                             |
 
 ## Downloading Screenshots
 

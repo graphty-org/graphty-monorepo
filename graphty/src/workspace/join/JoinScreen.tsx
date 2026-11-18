@@ -1,19 +1,19 @@
 import "./join.css";
 
-import { DataTable, type DataTableColumn, EntityChip } from "@graphty/compact-mantine";
+import { DataTable, type DataTableColumn, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, JoinChoices, JoinReport, JoinRowFate } from "@graphty/graphty-element/session";
-import { Badge, Button, Checkbox, HoverCard, Menu, SegmentedControl } from "@mantine/core";
+import { Badge, Button, Checkbox, HoverCard, Menu } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { errorWords } from "../project/words";
+import { TABLE_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { columnChoices, headerIconsLabel, type RecordKind, type TableColumnChoice } from "../table/columns";
 import { HeaderIcons } from "../table/HeaderCell";
 import { RecordTable } from "../table/RecordTable";
-import { useSessionVersion } from "../table/useSessionVersion";
 import {
     closeJoin,
     draftSubject,
@@ -327,7 +327,7 @@ function IncomingTable({
                     {clashes.has(column) && brought.has(column) ? (
                         <HoverCard openDelay={100} closeDelay={250} position="bottom-end" shadow="md">
                             <HoverCard.Target>
-                                <span // NOSONAR(S6819): a glyph inside a hover target, named by aria-label; an <img> cannot hold the icon component
+                                <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a glyph inside a hover target, named by aria-label; an <img> cannot hold the icon component
                                     className="jn-clash"
                                     role="img"
                                     aria-label={`${column} is in the graph`}
@@ -523,7 +523,7 @@ function GraphTable({ session, kind, choices, onChange, only, height }: Readonly
  */
 function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session: GraphSession }>): React.JSX.Element {
     const workspace = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, TABLE_EVENTS);
     const [choices, setChoices] = useState<JoinChoices>(subject.initial);
     const [how, setHow] = useState<JoinHow>(subject.how);
     const [chosenShow, setShow] = useState<JoinShow>(null);
@@ -610,7 +610,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     const matchedIds = show === "matched" ? [...new Set(counts?.rowMatches.flat() ?? [])] : null;
     const hows = howChoices(workspace, subject);
     return (
-        <section // NOSONAR(S6847): the screen's own keys, caught as they bubble from its controls; it takes focus (tabIndex -1)
+        <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- the screen's own keys, caught as they bubble from its controls; it takes focus (tabIndex -1)
             className="jn-screen"
             aria-label={`Join ${subject.name}`}
             aria-describedby={how === "join" ? chipsId : undefined}
@@ -682,7 +682,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         }}
                     />
                     {counts === null ? (
-                        <p // NOSONAR(S6819): a live announcement of why the join was refused; <output> is for a form's computed result
+                        <p // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a live announcement of why the join was refused; <output> is for a form's computed result
                             id={chipsId}
                             className="jn-refused"
                             role="status"

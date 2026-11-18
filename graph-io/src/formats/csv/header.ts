@@ -60,6 +60,44 @@ export const TARGET_NAMES: readonly string[] = Object.freeze([
 export const ID_NAMES: readonly string[] = Object.freeze(["id", "node", "name", "key"]);
 
 /**
+ * Whether a header name ends in an `id` word: `person_id`, `person-id`, `personId`, `PersonID`,
+ * never `paid` or `valid`.
+ * @param name - the header name
+ * @returns true for an id word
+ */
+function isIdWord(name: string): boolean {
+    return /[_\-\s.]id$/i.test(name) || /[a-z]I[dD]$/.test(name);
+}
+
+/**
+ * The id column candidates of a node table header, best first: a column named `id`, then every
+ * column whose name ends in an `id` word (`person_id`, `person-id`, `personId`, `PersonID`, never
+ * `paid` or `valid`) in header order, then `node`, `key` and `name`. The importer keys the table by
+ * the first candidate whose values are all present and distinct.
+ * @param names - the header names
+ * @returns the column indices, best first
+ * @category Plugin helpers
+ */
+export function idCandidates(names: readonly string[]): number[] {
+    const out: number[] = [];
+    const add = (index: number): void => {
+        if (index >= 0 && !out.includes(index)) {
+            out.push(index);
+        }
+    };
+    add(findColumn(names, ["id"]));
+    names.forEach((name, i) => {
+        if (isIdWord(name)) {
+            add(i);
+        }
+    });
+    for (const name of ["node", "key", "name"]) {
+        add(findColumn(names, [name]));
+    }
+    return out;
+}
+
+/**
  * Header candidates of a label column (node or edge).
  * @category Plugin helpers
  */
@@ -145,7 +183,8 @@ export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, op
 
 /**
  * Decide whether the first row of a file is a header when the caller left it to the importer: it
- * is when any cell is a known column name (source, target, id, label, weight, type...), or when
+ * is when any cell is a known column name (source, target, id, label, weight, type...) or ends in
+ * an id word (`person_id`, `personId`), or when
  * every cell is non-numeric text while the second row has a numeric cell (`u,v` over `1,2`);
  * a first row with a numeric cell is data, and so is one that looks exactly like the rows below it.
  * A two-column row holding a known name is still data when its second cell is the second row's
@@ -161,7 +200,7 @@ export function looksLikeHeader(first: readonly string[], second: readonly strin
     let marker = false;
     for (const cell of first) {
         const text = cell.trim();
-        if (HEADER_MARKERS.has(text.toLowerCase())) {
+        if (HEADER_MARKERS.has(text.toLowerCase()) || isIdWord(text)) {
             marker = true;
         }
         if (text.length === 0 || inferTextDtype(text) !== "string") {

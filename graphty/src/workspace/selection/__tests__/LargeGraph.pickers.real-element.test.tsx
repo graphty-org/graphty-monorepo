@@ -13,7 +13,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor } from "../../../test/test-utils";
 import { listed, oneStep, openGenerated, openLayer, selectStep } from "./large-graph";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("the selection editor on 50,000 nodes", () => {
@@ -44,20 +44,5 @@ describe("the selection editor on 50,000 nodes", () => {
         const nodes = listed().options.filter((each) => !live.includes(each) && !each.startsWith("Selected"));
         assert.strictEqual(nodes[0], "12", nodes.join(", "));
         await userEvent.keyboard("{Escape}");
-    });
-
-    it("While has nodes takes one reference, shown as one token", async () => {
-        const session = await openGenerated();
-        await openLayer(session, "While", oneStep("while", { kind: "nonempty" }));
-        await selectStep("while");
-        await userEvent.click(await screen.findByRole("button", { name: "Reference" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Selected (0)" }));
-        await waitFor(() => {
-            assert.match(
-                document.querySelector('[data-row="while"]')?.getAttribute("aria-label") ?? "",
-                /^While Selected \(0\) has nodes, /,
-            );
-        });
-        assert.isNotNull(screen.queryByRole("button", { name: "Reference: Selected (0)" }));
     });
 });

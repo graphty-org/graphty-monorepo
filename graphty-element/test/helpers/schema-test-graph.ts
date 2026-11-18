@@ -4,7 +4,7 @@
  */
 
 import type { Graph } from "../../src/Graph";
-import type { DataManager } from "../../src/managers";
+import { createMockGraphContext } from "./mock-graph-context";
 
 /**
  * Options for creating a schema test graph.
@@ -24,27 +24,18 @@ export interface SchemaTestGraphOptions {
     edgeCount?: number;
 }
 
-/**
- * Mock node data for schema testing.
- */
-interface SchemaTestNodeData {
-    id: string;
-    data: Record<string, unknown>;
-    algorithmResults?: Record<string, unknown>;
-}
+const NODE_TYPES = ["server", "client", "router"];
+const TAGS = [
+    ["web", "production"],
+    ["database", "staging"],
+    ["api", "development"],
+];
+const RELATIONS = ["connects", "depends", "owns"];
 
 /**
- * Mock edge data for schema testing.
- */
-interface SchemaTestEdgeData {
-    id: string;
-    srcId: string;
-    dstId: string;
-    data: Record<string, unknown>;
-}
-
-/**
- * Create a mock graph with rich data for schema extraction testing.
+ * Create a mock graph with rich data for schema extraction testing: the mock graph context, with
+ * node and edge fields of every type a schema reads. Every value is derived from its index, so a
+ * failure reproduces.
  *
  * @param options - Configuration options
  * @returns A mock graph for testing
@@ -60,98 +51,33 @@ export function createSchemaTestGraph(options: SchemaTestGraphOptions = {}): Gra
         edgeCount = 15,
     } = options;
 
-    // Create mock nodes with various property types
-    const mockNodes = new Map<string, SchemaTestNodeData>();
-    const mockEdges = new Map<string, SchemaTestEdgeData>();
-
-    if (!empty) {
-        const nodeTypes = ["server", "client", "router"];
-        const tags = [
-            ["web", "production"],
-            ["database", "staging"],
-            ["api", "development"],
-        ];
-
-        for (let i = 0; i < nodeCount; i++) {
-            const id = `node-${i}`;
-            const nodeData: Record<string, unknown> = {
-                id,
-                label: `Node ${i}`,
-                // String property with limited values (enum-like)
-                type: nodeTypes[i % nodeTypes.length],
-                // Number property
-                age: 20 + i * 3,
-                // Boolean property
-                active: i % 2 === 0,
-                // Array property
-                tags: tags[i % tags.length],
-                // Nested object property
-                metadata: {
-                    createdBy: i % 2 === 0 ? "admin" : "user",
-                    version: 1 + (i % 5),
-                },
-            };
-
-            // Add mixed type property if requested
-            if (mixedTypes) {
-                nodeData.value = i % 2 === 0 ? i * 10 : `value-${i}`;
-            }
-
-            // Add many unique strings if requested
-            if (manyUniqueStrings) {
-                nodeData.uniqueName = `unique-string-value-${i}-${Date.now()}-${Math.random()}`;
-            }
-
-            // Add nullable property if requested
-            if (nullValues) {
-                nodeData.optional = i % 3 === 0 ? null : `optional-${i}`;
-            }
-
-            mockNodes.set(id, {
-                id,
-                data: nodeData,
-            });
-        }
-
-        // Create edges with properties
-        const nodeIds = Array.from(mockNodes.keys());
-        const relations = ["connects", "depends", "owns"];
-
-        for (let i = 0; i < edgeCount && nodeIds.length > 1; i++) {
-            const id = `edge-${i}`;
-            const srcIdx = i % nodeIds.length;
-            const dstIdx = (i + 1) % nodeIds.length;
-
-            mockEdges.set(id, {
-                id,
-                srcId: nodeIds[srcIdx],
-                dstId: nodeIds[dstIdx],
-                data: {
-                    id,
-                    weight: Math.random() * 100,
-                    relation: relations[i % relations.length],
-                    bidirectional: i % 2 === 0,
-                },
-            });
-        }
-    }
-
-    // Create mock data manager
-    const mockDataManager = {
-        nodes: mockNodes,
-        edges: mockEdges,
-        getNode: (id: string | number) => mockNodes.get(String(id)),
-        getEdge: (id: string) => mockEdges.get(id),
-    } as unknown as DataManager;
-
-    // Create minimal mock graph
-    const mockGraph = {
-        getNodeCount: () => mockNodes.size,
-        getEdgeCount: () => mockEdges.size,
-        getDataManager: () => mockDataManager,
-        // A session that reads the whole graph, so the schema covers every node and edge above.
-        getSession: () => ({ workingGraph: false }),
-    } as unknown as Graph;
-
-    return mockGraph;
+    return createMockGraphContext({
+        nodeCount: empty ? 0 : nodeCount,
+        edgeCount: empty ? 0 : edgeCount,
+        nodeData: (i) => ({
+            label: `Node ${i}`,
+            // String property with limited values (enum-like)
+            type: NODE_TYPES[i % NODE_TYPES.length],
+            // Number property
+            age: 20 + i * 3,
+            // Boolean property
+            active: i % 2 === 0,
+            // Array property
+            tags: TAGS[i % TAGS.length],
+            // Nested object property
+            metadata: {
+                createdBy: i % 2 === 0 ? "admin" : "user",
+                version: 1 + (i % 5),
+            },
+            ...(mixedTypes && { value: i % 2 === 0 ? i * 10 : `value-${i}` }),
+            ...(manyUniqueStrings && { uniqueName: `unique-string-value-${i}` }),
+            ...(nullValues && { optional: i % 3 === 0 ? null : `optional-${i}` }),
+        }),
+        edgeData: (i) => ({
+            // Fractional, so the schema reads it as a number rather than an integer
+            weight: (i % 10) * 10 + 0.5,
+            relation: RELATIONS[i % RELATIONS.length],
+            bidirectional: i % 2 === 0,
+        }),
+    });
 }

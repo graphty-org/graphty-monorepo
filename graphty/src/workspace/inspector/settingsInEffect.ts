@@ -3,7 +3,7 @@ import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/ses
 /** The graph settings this panel draws a row for, by the element's key, with each row's name. */
 export const SHOWN_SETTINGS: Readonly<Partial<Record<GraphSettingKey, string>>> = {
     lighting: "Lighting",
-    "node.depthIndependentSize": "Same size at any depth",
+    "node.sizeSpace": "Same size at any depth",
 };
 
 /**

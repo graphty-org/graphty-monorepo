@@ -179,8 +179,8 @@ async function written(result: ReturnType<typeof exportSession>, format: string)
     return out;
 }
 
-/** A load's scope on its own elements: `graphty.style.<namespace>.<kind>.el.load`. */
-const SCOPE = String.raw`graphty\.style\.[a-z0-9_-]+\.(?:node|edge)\.el\.load`;
+/** A load's scope on its own elements: the data column `el_load`, or `el_load (<source>)` when that name was taken. */
+const SCOPE = String.raw`data\.(?:"el_load[^"]*"|el_load(?: \([^)]*\))?)`;
 
 /**
  * A layer as its spec, with what a load adds set aside: the scope on the load's own elements.
@@ -339,6 +339,7 @@ describe("what an export cannot keep", () => {
         const unwritten = result.losses
             .filter((loss) => loss.code === "W_STYLE_NOT_WRITTEN")
             .map((loss) => `${String(loss.params.target)} ${String(loss.params.property)}`);
+        // The writers spell a node outline as the borderColor a program draws it with.
         for (const property of ["node fill", "node width", "node opacity", "node borderColor", "edge color"]) {
             assert.include(unwritten, property);
         }

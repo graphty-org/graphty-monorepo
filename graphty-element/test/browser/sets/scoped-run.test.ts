@@ -6,7 +6,6 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { WHOLE_GRAPH_CAVEAT } from "../../../src/algorithms/input/maskBack";
 import { isGraphtyError } from "../../../src/errors";
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import type { ElementSession } from "../../../src/session/types";
@@ -52,7 +51,10 @@ describe("a run over a set", () => {
             code: "scope.induced-subgraph",
             params: { nodes: 20 },
         });
-        assert.notInclude(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
+        assert.notInclude(
+            run.record.caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
+        );
         assert.strictEqual(run.record.scope.nodes, 20);
         assert.strictEqual(run.record.scope.reading, "induced");
         assert.deepStrictEqual(run.record.scope.set, { id, revision: session.sets.get(id)?.revision });
@@ -66,7 +68,10 @@ describe("a run over a set", () => {
         const result = await run;
 
         assert.strictEqual(result.column("value").length, 40);
-        assert.notInclude(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
+        assert.notInclude(
+            run.record.caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
+        );
     });
 
     it("connected components over what is visible after an edge-weight filter: each isolate is its own component", async () => {
@@ -88,7 +93,10 @@ describe("a run over a set", () => {
 
         assert.strictEqual(groups[0], groups[1], "w0 and w1 share the heavy edge");
         assert.strictEqual(new Set(groups).size, 3, "w2 and w3 are each alone");
-        assert.notInclude(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
+        assert.notInclude(
+            run.record.caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
+        );
     });
 
     it("a source outside the set is refused E_OPTION_RANGE with outside-scope", async () => {

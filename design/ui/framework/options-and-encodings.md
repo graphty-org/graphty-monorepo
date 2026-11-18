@@ -106,9 +106,8 @@ this line, is authoritative; recount when it changes.
 **A property row exists only when the layer writes that channel.** A new layer shows its selector
 and the section headers; a section with nothing written is its header with "+", as Figma's Effects
 and Export sections are. A layer that writes two channels is two rows; a typical layer rests at one
-to three. The **Base style** editor is the exception: it gives every channel its default, except
-channels that inherit from another (the arrow colors follow their line), which it leaves unset; it
-shows the channels whose values differ from the element's defaults, and "+" reaches the rest.
+to three. A default layer such as Everything is edited in the same editor and follows the same
+rule; it leaves unset the channels that inherit from another (the arrow colors follow their line).
 **Until the element publishes channel defaults** (`element-needs.md`, "`default` and `description`
 on `ChannelDescriptor`"), it lists the channels the base layer writes, and "+" reaches the rest,
 each showing the placeholder "element default".
@@ -140,11 +139,11 @@ parallel-edges problem (`element-needs.md`, "parallel edges separated by `parall
 **Glow strength is not a layer row**: the element draws one glow strength for the whole scene
 (`node.glowStrength`'s caveat, `channels.ts`), so a per-layer row would show values that are not
 drawn. It is a graph-level row beside Look and Background in the graph's inspector, shown only
-while some layer writes `node.glow` (`interface-specification.md` 4.1); it writes Base style's
-`node.glowStrength`, so a higher layer that sets it wins and the row says so. That is an interim
+while some layer writes `node.glow` (`interface-specification.md` 4.1); it writes
+`node.glowStrength` on the Everything layer a new project is written with, so a higher layer that sets it wins and the row says so. That is an interim
 the element's defect forces, deleted when the need lands, and it returns to
 Effects when the element draws a strength per layer (`element-needs.md`, "glow strength per
-style"). The same sections appear on the style-layer editor, the Base style editor and
+style"). The same sections appear on the style-layer editor and
 Appearance; how Ends lays out head and tail is `interface-templates.md` 10.
 
 The grouping is a proposal for data on the channel descriptor (`element-needs.md`, "`group` and
@@ -172,7 +171,7 @@ ledger row: the type fields other than size in a popover rather than on panel ro
 nested in a popover. Figma's own structure, a label as
 a child object stepped into from the node with the standard sections in the panel, was rejected:
 it adds a sub-selection model the element lacks, and costs a step on the commonest edit.
-**Inside the style-layer and Base style editors** the label record folds in place as a
+**Inside the style-layer editor** the label record folds in place as a
 `ControlSubGroup` with the same groups, and its color picker is the one nested picker, as Figma's
 edit-text-style popover shows typography inline; the separate label popover opens only from an
 inspector Appearance row, so the depth cap of `interaction-pattern-entries.md` 6.2 holds.
@@ -202,17 +201,18 @@ On one layer a channel row is **unset** (absent, reached through "+"), **constan
 this data does not carry, as after loading someone else's style or recipe, is **unbound**: it
 names the attribute it needs (`message-catalog.md`, `style.unbound`) and opens the binding step
 (section 10). In the
-inspector a row may also be **overridden**, written by the Overrides layer
-(`interface-specification.md` 3.1), and across a selection it shows the shared value or **Mixed**.
+inspector a row names the layer that wins it (`interface-specification.md` 3.1), and across a selection it shows the shared value or **Mixed**.
 Mixed means the values differ, as in Figma; when the values agree but different layers paint them,
 the row shows the value with "painted by 2 layers" as secondary text. Mixed over a large selection
 comes from the element reading layer selectors (`element-needs.md`, "the winning layers per
 channel across a selection").
 
-**Emphasizing a few elements** (hubs) is an Override once door 31, Overrides, Base style and the stack order lands; **until then**, Create set and
-then its Appearance, which writes the set's own layer (`interaction-patterns.md` 3.2), using
-outline color, glow or size. Door 31 makes Figma's commonest edit, "make these red", one step, so
-it is built before saving and recipes, which would otherwise record the two-step workaround.
+**Emphasizing a few elements** (hubs) is an Override once the element publishes it
+(`element-needs.md`, "Override as one element command"): an ordinary layer on top whose selector
+names them; **until then**, Create set and then its Appearance, which writes the set's own layer
+(`interaction-patterns.md` 3.2), using outline color, glow or size. Override makes Figma's
+commonest edit, "make these red", one step, so it is built before saving and recipes, which would
+otherwise record the two-step workaround.
 
 **Binding enters where Figma's does** (`interaction-pattern-entries.md` 6.6). A section header's
 four-dot "Apply styles and variables" button opens one picker with two groups, as Figma's does: the
@@ -682,7 +682,7 @@ depends on one states its interim, which decides nothing in the app. First to la
 prerequisites of the color slice: one scale default on both write paths, a default range per
 numeric channel, and encoding a data attribute keyed by source and channel (sections 4 and 5),
 which unblock the encoding verbs on data. The doors
-these rules rest on are 19, 20, 31, 42, 58, 84 and 85 (`one-way-doors.md`); the default palettes, the size scale and named text styles are decided (`decided-doors.md`).
+these rules rest on are 19, 20, 42, 58, 84 and 85 (`one-way-doors.md`); the default palettes, the size scale and named text styles are decided (`decided-doors.md`).
 
 ## 13. Validation
 

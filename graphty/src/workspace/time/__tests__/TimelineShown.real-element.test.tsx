@@ -11,7 +11,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { columnVerb, openColumnMenu } from "../../../test/column-header";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { openDataPage } from "../../data-page/request";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -125,7 +125,7 @@ async function openTimelineSettings(): Promise<void> {
  * The Data place.
  * @returns queries inside it.
  */
-function dataPlace(): ReturnType<typeof within> {
+function dataPlace(): Within {
     return within(screen.getByRole("region", { name: "Data place" }));
 }
 

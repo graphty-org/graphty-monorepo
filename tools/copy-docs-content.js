@@ -61,9 +61,21 @@ const contentMap = [
         dest: "graph-samples",
         exclude: [".vitepress", "decisions"],
     },
+    // The guide pages include the tested examples under examples/ (`<<< ../examples/<name>.tsx`).
+    {
+        src: "compact-mantine/docs",
+        dest: "compact-mantine",
+        exclude: [".vitepress", "decisions"],
+    },
     {
         src: "remote-logger/docs",
         dest: "remote-logger",
+        exclude: [".vitepress", "decisions"],
+    },
+    // The guide pages include sections of babylonjs-map/README.md (its `<!-- #region -->` markers) when the site is built.
+    {
+        src: "babylonjs-map/docs",
+        dest: "babylonjs-map",
         exclude: [".vitepress", "decisions"],
     },
     // The overview, guide/ and reference/: the guide pages include sections of visual-review/README.md (its

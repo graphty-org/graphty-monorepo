@@ -10,7 +10,7 @@ import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
-import type { PulledLineBatch } from "./PulledLineBatch";
+import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
 
 /** Style keys a row line may set: any other needs an `Edge` (a cap, a label or a band is drawn by one). */
 const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
@@ -106,7 +106,7 @@ export interface EdgeRowLinesHost {
     readonly cache: MeshCache;
     readonly rows: RowTable;
     /** Whether lines take the lean program (`GraphContext.leansLines`). */
-    readonly lean: () => boolean;
+    readonly lean: () => LeanLines;
     /** Ask for a frame, so a row painted or unpainted shows. */
     readonly requestFrame: () => void;
 }

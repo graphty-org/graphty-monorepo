@@ -15,7 +15,6 @@
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
 import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
-import type { StyleTool } from "@graphty/graph-io/styles";
 import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import type { z } from "zod";
 
@@ -63,6 +62,7 @@ import type {
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
+import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { GroupsApi } from "./groups";
@@ -1021,8 +1021,29 @@ export interface DerivedColumn {
     readonly kind: "node" | "edge";
     /** The column's name. */
     readonly name: string;
-    /** The expression its values are read with, such as `data.nickname || data.name`. */
+    /**
+     * The expression its values are read with, such as `data.nickname || data.name`. For a score
+     * ({@link SessionDataApi.deriveScore}) it is the weighted sum of the raw values, before each
+     * is rescaled; the values are worked out from `score`.
+     */
     readonly expression: Query;
+    /**
+     * The terms of a score made by {@link SessionDataApi.deriveScore}; absent for a column made
+     * by {@link SessionDataApi.derive}.
+     * @since 3.57.0
+     */
+    readonly score?: readonly ScoreTerm[];
+}
+
+/**
+ * One term of a score ({@link SessionDataApi.deriveScore}): a numeric column, and how much it counts.
+ * @since 3.57.0
+ */
+export interface ScoreTerm {
+    /** The column's path, such as `resultPath(run.id, "value")` or `data.age`. */
+    readonly path: Path;
+    /** How much the term counts; any finite number, negative to count against. Default 1. */
+    readonly weight?: number;
 }
 
 /** Options for `session.data.derive`. */
@@ -1797,6 +1818,34 @@ export interface SessionDataApi {
      */
     derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
     /**
+     * Add a score: a computed column that combines numeric columns, such as two runs' results,
+     * into one number per node (or edge). Each term's values are rescaled to 0..1 (the smallest
+     * value becomes 0, the largest 1; a column whose values are all the same counts 0) and the
+     * score is the sum of each rescaled value times its weight. A node missing a number for any
+     * term scores `null`. Like {@link SessionDataApi.derive} it is one undoable step, the values
+     * follow their inputs (a run run again rescales), and it reads at `data.<name>`, so a style
+     * layer, a filter or a table shows it like any column.
+     *
+     * ```ts
+     * const degree = await session.runs.run("degree");
+     * const between = await session.runs.run("betweenness");
+     * await session.data.deriveScore("importance", [
+     *     { path: resultPath(degree.id, "value"), weight: 0.4 },
+     *     { path: resultPath(between.id, "value"), weight: 0.6 },
+     * ]);
+     * ```
+     * Deriving a computed column's name again replaces it.
+     * @param name - the column's name; not a name one of the kind's other columns has
+     * @param terms - the columns and their weights; at least one
+     * @param options - nodes or edges; nodes by default
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (`details.paths`) for a path nothing
+     *     answers, and `E_BAD_COMMAND` (`details.reason` `"empty-name"`, `"name-taken"`,
+     *     `"reads-itself"`, `"no-terms"` or `"bad-weight"`) for a name or terms it cannot take.
+     * @since 3.57.0
+     */
+    deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
+    /**
      * Every computed column, in the order {@link SessionDataApi.derive} added them.
      * @returns the columns
      */
@@ -2444,7 +2493,7 @@ export interface LoadDraft {
 }
 
 /**
- * How many rules a file's styles hold, and the program whose defaults fill in the rest.
+ * How many rules a file's styles hold.
  * @experimental file-styles
  */
 export interface FileStyleSummary {
@@ -2452,18 +2501,7 @@ export interface FileStyleSummary {
     readonly nodeRules: number;
     /** The rules for edges. */
     readonly edgeRules: number;
-    /**
-     * The program that wrote the file, whose defaults fill in what it leaves unset (`gephi`,
-     * `cytoscape`, `graphviz`, ...), or null when it is not known. Open union.
-     */
-    readonly tool: FileStyleTool | null;
 }
-
-/**
- * The program whose defaults a file's styles take: graph-io's tool ids. Open union.
- * @experimental file-styles
- */
-export type FileStyleTool = StyleTool;
 
 /** One table of a draft. */
 export interface DraftTable {
@@ -3511,9 +3549,11 @@ export interface ProjectConfig {
      * settings' colors and sizes, a blue ring and band by default) and Hovered (pinned to the
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
-     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; a Timeline Hidden row
+     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too. A Timeline Hidden row
      * (the elements outside the time window, the state `"outsideWindow"`, hidden or ghosted as
-     * {@link ProjectConfig.timelineHiddenLook} says) always does. The rows
+     * {@link ProjectConfig.timelineHiddenLook} says) comes only with the timeline: the first time
+     * the project has a time field (`session.time.setField`, or turning this on while it has one),
+     * once, recorded in {@link ProjectConfig.timelineHiddenAdded}. The rows
      * are ordinary data: a reader may delete or change any of them, and no later setting adds,
      * removes or rewrites one.
      * @since 3.26.0
@@ -3533,15 +3573,29 @@ export interface ProjectConfig {
     /**
      * How the Timeline Hidden starting row starts: `"hidden"` (the default) sets `visible: false`,
      * so what lies outside the time window is not drawn at all; `"ghost"` draws it grey at low
-     * opacity. Read only when the default rows are written, which is when
-     * {@link ProjectConfig.startingRows} turns on; changing it never rewrites a row already there.
+     * opacity. Read only when the row is written: the first time a project with
+     * {@link ProjectConfig.startingRows} on has a time field. Changing it never rewrites a row
+     * already there.
      *
      * ```ts
      * await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+     * await session.time.setField({ edges: { start: "year" } }); // adds the Timeline Hidden row
      * ```
      * @since 3.40.0
      */
     readonly timelineHiddenLook: "hidden" | "ghost";
+    /**
+     * Whether the project has had its Timeline Hidden starting row written: false until the first
+     * time a project with {@link ProjectConfig.startingRows} on has a time field, when the row is
+     * written and this turns true in the same step. Saved with the project, so the row is written
+     * once: turning the timeline off and on, or deleting the row, never adds it again. Setting it
+     * true before the timeline turns on means the row is never written. Setting it false asks for
+     * the row again: it is written the next time a project with the starting rows has a time field
+     * (at once when it already has one), beside any copy already there, since a row is the reader's
+     * and is never looked for by name.
+     * @since 3.57.0
+     */
+    readonly timelineHiddenAdded: boolean;
     /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
@@ -3651,6 +3705,8 @@ export interface ProjectConfigPatch {
     readonly editableBase?: boolean;
     /** See {@link ProjectConfig.timelineHiddenLook}. */
     readonly timelineHiddenLook?: "hidden" | "ghost";
+    /** See {@link ProjectConfig.timelineHiddenAdded}. */
+    readonly timelineHiddenAdded?: boolean;
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
@@ -4215,7 +4271,6 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
- * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
@@ -4249,6 +4304,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `note.add`, `note.update`, `note.remove` | none |
  * | `note.merge` | `source`: the merged document's name, or null |
  * | `view.save`, `view.remove` | `names`: the views |
+ * | `annotations.set` | `count`: how many annotations are kept |
+ * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
  * | `view.immersive` | `mode`: `"vr"` or `"ar"` (a switch to 3D on the way in) |
  * | `config.set` | `keys`: the setting paths changed |
@@ -4308,7 +4365,8 @@ export type HistoryCode =
     | "data.show-columns"
     | "data.columns"
     | "data.derive"
-    | "data.set-file-styles"
+    | "annotations.set"
+    | "annotations.patch"
     | "style.add-layer"
     | "style.update-layer"
     | "style.remove-layer"
@@ -4385,12 +4443,6 @@ export interface HistoryStep {
     /** Stable for the life of the step. */
     readonly id: HistoryStepId;
     /**
-     * What a history list shows, such as "Changed colour of Hubs".
-     * @deprecated English written by the element. Word {@link HistoryStep.fact} instead; removed in
-     * the next major release.
-     */
-    readonly label: string;
-    /**
      * What the step did, as a code and its values, for the application to word. A step merged
      * from several (a drag, a transaction) carries the fact of the whole.
      */
@@ -4411,12 +4463,6 @@ export interface HistoryStep {
 export interface PendingStep {
     /** Pass it to `history.cancel`. */
     readonly id: PendingId;
-    /**
-     * The label the step will have.
-     * @deprecated English written by the element. Word {@link PendingStep.fact} instead; removed in
-     * the next major release.
-     */
-    readonly label: string;
     /** The fact the step will have: see {@link HistoryStep.fact}. */
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
@@ -4572,8 +4618,6 @@ export interface CommandOutcomeMap {
     "data.columns": Promise<void>;
     /** Settles once the computed columns and their values are recorded. */
     "data.derive": Promise<void>;
-    /** Settles once the style values are recorded. */
-    "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -4622,6 +4666,10 @@ export interface CommandOutcomeMap {
     "note.merge": Promise<void>;
     /** Settles once the views are recorded. */
     "view.save": Promise<void>;
+    /** Settles once the annotations are recorded. */
+    "annotations.set": Promise<void>;
+    /** Settles once the change is recorded. */
+    "annotations.patch": Promise<void>;
     /** Settles once the removal is recorded. */
     "view.remove": Promise<void>;
     /** Settles once the camera has arrived. */
@@ -5030,6 +5078,53 @@ export interface LocationUnused {
 }
 
 /**
+ * The annotations drawn beside the graph: shapes, texts, arrows and pictures, in the graph's own
+ * convention (y up). Every change is one undoable step, and a project file saves them. A load
+ * that reads a file's annotations writes them through these same steps.
+ *
+ * ```ts
+ * await session.annotations.add({ id: "note-1", kind: "text", layer: "foreground", z: 0, ... });
+ * session.annotations.list(); // [{ id: "note-1", kind: "text", ... }]
+ * ```
+ */
+export interface SessionAnnotations {
+    /** Scene units per annotation unit: 1 unless whatever wrote the annotations said otherwise. */
+    readonly scale: number;
+    /**
+     * Every annotation, in drawing order.
+     * @returns The annotations; empty when there are none.
+     */
+    list(): readonly DrawnAnnotation[];
+    /**
+     * Add an annotation, drawn over the others. One step.
+     * @param annotation - The annotation; its `id` must be one no other annotation holds.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a malformed annotation or a repeated id.
+     */
+    add(annotation: DrawnAnnotation): Promise<void>;
+    /**
+     * Change an annotation, one key deep; its `id` and `kind` stay. One step.
+     * @param id - The annotation's id.
+     * @param patch - The keys to change.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when no annotation has that id.
+     */
+    update(id: string, patch: Readonly<Record<string, unknown>>): Promise<void>;
+    /**
+     * Remove an annotation. One step.
+     * @param id - The annotation's id.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when no annotation has that id.
+     */
+    remove(id: string): Promise<void>;
+    /**
+     * Remove every annotation. One step.
+     * @returns Settles once the step is recorded.
+     */
+    clear(): Promise<void>;
+}
+
+/**
  * The saved camera views, read as a map from name to camera state.
  *
  * A saved view is a fixed position, not a rule: it does not recompute itself for a different
@@ -5180,6 +5275,8 @@ export interface GraphSession {
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
     readonly views: SessionViews;
+    /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
+    readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
     readonly layout: SessionLayout;
     /**

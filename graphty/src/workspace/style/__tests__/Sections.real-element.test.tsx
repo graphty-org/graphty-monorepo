@@ -331,8 +331,8 @@ describe("the Style tab's sections", () => {
         const { session } = await openScene();
         await openStyle("Everything");
         await showKind("edge");
-        const note = within(section("edge", "ends")).getByTestId("edge-ends-note");
-        assert.equal(note.textContent, "Not available: undirected graph");
+        // Said by the disabled '+', never as a line in the sidebar (#8739).
+        assert.isNull(within(section("edge", "ends")).queryByText("Not available: undirected graph"));
         const plus = within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" });
         assert.equal(plus.getAttribute("aria-disabled"), "true");
         assert.equal(plus.getAttribute("aria-description"), "Not available: undirected graph");
@@ -492,14 +492,12 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
         await within(section("edge", "text")).findByRole("textbox", { name: /text$/ });
         await userEvent.keyboard("End{Enter}");
-        // Les Miserables draws no arrowheads, so the element draws the end text on no edge.
+        // Les Miserables draws no arrowheads, so the element draws the end text on no edge; the
+        // sidebar says nothing about it (#8739).
         await waitFor(() => {
-            assert.include(
-                section("edge", "text").textContent,
-                "Not drawn on 254 edges: it shows beside a target arrowhead, and they have none.",
-            );
+            assert.equal(written(session, "Everything", "edge.arrowHeadText"), "End");
         });
-        assert.equal(written(session, "Everything", "edge.arrowHeadText"), "End");
+        assert.notInclude(section("edge", "text").textContent, "Not drawn on");
     });
 
     it("names a grouping's field after its method, and a covered bound row carries no caption", async () => {
@@ -655,10 +653,13 @@ describe("the Style tab's sections", () => {
         await user.keyboard("{/Control}");
         await waitFor(() => {
             const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
-            assert.equal(color?.querySelector("[data-breakdown]")?.textContent, "1 layer sets color; not set: Big");
+            assert.equal(
+                color?.querySelector("[data-notes]")?.getAttribute("data-notes"),
+                "1 layer sets color; not set: Big",
+            );
             const size = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.equal(
-                size?.querySelector("[data-breakdown]")?.textContent,
+                size?.querySelector("[data-notes]")?.getAttribute("data-notes"),
                 "1 layer sets size; not set: Key people",
             );
             assert.equal(

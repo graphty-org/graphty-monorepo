@@ -398,7 +398,8 @@ export function pickSections(
                   item("self-loop", "Self-loops", GLYPHS.edge, { kind: "self-loop" }),
                   item("repeated", "Repeated edges", GLYPHS.edge, { kind: "repeated-edge" }),
               ];
-    const directed = session.data.statistics().directedness === "directed";
+    // Some edge has a direction to follow: a directed graph, or one mixing both kinds.
+    const directed = session.data.statistics().directedness !== "undirected";
     const relative =
         side === "node"
             ? [

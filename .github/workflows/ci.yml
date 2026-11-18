@@ -1736,6 +1736,10 @@ jobs:
 
         # test-2 runs these same steps (*test-steps)
         steps: &test-steps
+            # A hang guard on a network step: the checkout's fetch sometimes stalls before the pack arrives, even
+            # with the low-speed limit in env, and held the job until its 30-minute limit cancelled it (runs
+            # 44125048943 and 44146383151, #8743). A healthy checkout takes under a minute; after 5 the step
+            # stops and the next one checks out again into the same directory.
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -1743,6 +1747,17 @@ jobs:
                   # the job may write issues; the token is not left in .git/config for a pull request's code
                   # (the repository is public, so the Git LFS pull below needs no credential)
                   persist-credentials: false
+              id: checkout
+              timeout-minutes: 5
+              continue-on-error: true
+
+            - uses: actions/checkout@v7
+              if: steps.checkout.outcome == 'failure'
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 0
+                  persist-credentials: false
+              timeout-minutes: 5
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -2000,7 +2015,8 @@ jobs:
 
             # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
             # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
-            # on the full path, where tools/test-quarantine.json stands.
+            # on the full path, where each group reads its quarantine from the store itself (RESULTS_STORE_QUARANTINE
+            # below), and tools/test-quarantine.json stands only when the store does not answer.
             - name: Download the results plan
               if: github.event_name == 'pull_request'
               continue-on-error: true
@@ -2019,6 +2035,8 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  # the full path (no plan file): each group asks the store for its quarantine (#3454)
+                  RESULTS_STORE_QUARANTINE: ${{ github.event_name != 'pull_request' && '1' || '' }}
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}

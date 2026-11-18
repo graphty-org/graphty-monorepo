@@ -30,7 +30,7 @@ fn advance_expand(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocati
         let i = b0 + lid.x;                                          // this lane's frontier entry
         var deg = 0u;
         var start = 0u;
-        if (i < count) {                                                 // guarded loads into locals (3.5 rule 1)
+        if (i < count) {                                                 // guarded loads into locals
             let v = frontierIn[i];
             let lo = max(rowPtr[v], P.arcBase);                          // the row clipped to the bound window
             let hi = min(rowPtr[v + 1u], P.arcEnd);

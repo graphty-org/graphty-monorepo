@@ -5,7 +5,7 @@
  * neutral about presentation"; the owner dropped `catalog.channelGroups` on 2026-10-03).
  */
 
-import { type AlignmentMatrixValue, colorWord } from "@graphty/compact-mantine";
+import { colorWord } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     EDGE_ARROW_DESCRIPTORS,
@@ -406,6 +406,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapWidth": "Label wrap width",
     "node.labelLetterSize": "Label letter size",
     "node.labelWrapTrailingSpace": "Label wraps with a trailing space",
+    "node.labelWrapSkipEndSpace": "Label wraps without an end space",
     "node.labelMinScreenSize": "Label smallest size on screen",
     "node.labelOnTop": "Label drawn on top",
     "node.labelDeclutter": "Label overlap order",
@@ -508,12 +509,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapWidth": "Label wrap width",
     "edge.labelLetterSize": "Label letter size",
     "edge.labelWrapTrailingSpace": "Label wraps with a trailing space",
+    "edge.labelWrapSkipEndSpace": "Label wraps without an end space",
     "edge.labelMinScreenSize": "Label smallest size on screen",
     "edge.labelOnTop": "Label drawn on top",
     "edge.labelRotation": "Label rotation",
     "node.labelWrapEllipsis": "Label wrap ellipsis",
     "node.labelWrapAnywhere": "Label wrap anywhere",
     "node.labelWrapSpaceCount": "Label wrap space count",
+    "node.labelMaxLines": "Label max lines",
+    "node.labelMaxLinesEllipsis": "Label max lines ellipsis",
     "node.labelRunAlign": "Label run align",
     "node.labelOutline": "Label outline",
     "node.labelOutlineWidth": "Label outline width",
@@ -526,6 +530,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPadding": "Label padding",
     "node.labelCornerRadius": "Label corner radius",
     "node.labelLineHeight": "Label line height",
+    "node.labelLineBox": "Label line box",
+    "node.labelBorderAlign": "Label border align",
+    "node.labelBackgroundShape": "Label background shape",
     "node.labelOffsetX": "Label offset x",
     "node.labelOffsetY": "Label offset y",
     "node.labelShiftX": "Label shift x",
@@ -587,6 +594,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Size to image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",
@@ -722,6 +730,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapEllipsis": "Label wrap ellipsis",
     "edge.labelWrapAnywhere": "Label wrap anywhere",
     "edge.labelWrapSpaceCount": "Label wrap space count",
+    "edge.labelMaxLines": "Label max lines",
+    "edge.labelMaxLinesEllipsis": "Label max lines ellipsis",
     "edge.labelRunAlign": "Label run align",
     "edge.labelOutline": "Label outline",
     "edge.labelOutlineWidth": "Label outline width",
@@ -735,6 +745,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
+    "edge.labelLineBox": "Label line box",
+    "edge.labelBorderAlign": "Label border align",
+    "edge.labelBackgroundShape": "Label background shape",
     "edge.labelOffsetX": "Label offset x",
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
@@ -958,38 +971,6 @@ export function refusalWords(refusal: CodedFact): string {
         }
     }
     return "Cannot be drawn here";
-}
-
-/** The label positions a line can take, as the alignment grid's cells. */
-const LOCATION_BY_CELL: Readonly<Record<AlignmentMatrixValue, LabelLocation>> = {
-    "top-left": "top-left",
-    "top-center": "top",
-    "top-right": "top-right",
-    "middle-left": "left",
-    "middle-center": "center",
-    "middle-right": "right",
-    "bottom-left": "bottom-left",
-    "bottom-center": "bottom",
-    "bottom-right": "bottom-right",
-};
-
-/**
- * The element's label location for an alignment grid cell.
- * @param cell - the grid cell.
- * @returns the location.
- */
-export function locationOfCell(cell: AlignmentMatrixValue): LabelLocation {
-    return LOCATION_BY_CELL[cell];
-}
-
-/**
- * The alignment grid cell for a label location.
- * @param location - the element's location, or undefined for its default (above).
- * @returns the cell.
- */
-export function cellOfLocation(location: LabelLocation | undefined): AlignmentMatrixValue {
-    const cells = Object.keys(LOCATION_BY_CELL) as AlignmentMatrixValue[];
-    return cells.find((cell) => LOCATION_BY_CELL[cell] === location) ?? "top-center";
 }
 
 /** A position's word on the label line. */

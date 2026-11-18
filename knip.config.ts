@@ -19,8 +19,6 @@ const config: KnipConfig = {
         // Root workspace - shared configs and docs
         ".": {
             entry: [
-                "vite.shared.config.ts",
-                "vitest.shared.config.ts",
                 // First setup file of the packages' browser test projects (named in their vitest configs)
                 "vitest.browser-coverage-setup.ts",
                 // Every package's wait guard setup file (named in their vitest configs)
@@ -440,10 +438,6 @@ const config: KnipConfig = {
             // The plugin finds nothing else that run reads.
             ...(production ? { vite: false } : {}),
             ignoreDependencies: [
-                // The engine @storybook/addon-a11y ships (a devDependency here), imported by
-                // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
-                // Declaring it would change pnpm-lock.yaml.
-                "axe-core",
                 // The types of the `react` peer, which the published declaration files (dist/index.d.ts)
                 // import and --production follows into the build
                 ...(production ? ["@types/react"] : []),

@@ -167,6 +167,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.minMarkSize": "not the graph",
     // A computed column: defining one writes, and the list is the definitions, not their values.
     "data.derive()": "writes",
+    "data.deriveScore()": "writes",
     "data.derivedColumns()": "not the graph",
     // A collapse or an expand edits the original graph, hidden members included, so nothing is lost.
     "groups.collapse()": "writes",
@@ -175,6 +176,12 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "groups.list()": "state",
     // The colours the drawing paints: the drawing already leaves out what a filter hides.
     "styles.grayCollisions()": "not the graph",
+    "annotations.add()": "writes",
+    "annotations.clear()": "writes",
+    "annotations.list()": "not the graph",
+    "annotations.remove()": "writes",
+    "annotations.scale": "not the graph",
+    "annotations.update()": "writes",
     "assets.add()": "writes",
     "assets.addEach()": "writes",
     "assets.allowHosts()": "writes",
@@ -209,6 +216,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.selectionStyle": "not the graph",
     "config.startingRows": "not the graph",
     "config.timelineHiddenLook": "not the graph",
+    "config.timelineHiddenAdded": "not the graph",
     "config.viewRotation": "not the graph",
     "config.acceleration": "not the graph",
     "config.backgroundColor": "not the graph",

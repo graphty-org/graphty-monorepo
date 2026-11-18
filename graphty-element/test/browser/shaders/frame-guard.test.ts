@@ -19,9 +19,8 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
-import type { RenderManager } from "../../../src/managers/RenderManager";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { type RenderQualityChange, shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
@@ -172,15 +171,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 }
 
 /**
- * The element's render manager.
- * @param element - The element.
- * @returns It.
- */
-function renderManagerOf(element: Graphty): RenderManager {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager;
-}
-
-/**
  * The element's shader host, its runtime loaded.
  * @param element - The element.
  * @returns The host.
@@ -285,7 +275,7 @@ describe("the frame guard", () => {
         cleanups.unshift(() => {
             scene.onBeforeRenderObservable.remove(timing);
         });
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         let sprites = 3;
         for (let round = 0; round < 12 && seen.length === 0; round++) {
             if (round > 0) {
@@ -331,7 +321,7 @@ describe("the frame guard", () => {
             scene.onBeforeRenderObservable.remove(busy);
         });
 
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         const from = ticks.drawn;
         await until(element, "40 slow frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);
@@ -385,7 +375,7 @@ describe("the frame guard", () => {
         await until(element, "the loop sprite holds its frame claim", () => everyFrameAnimationsOn(scene) > 0);
         const seen = qualityEvents(element);
         slowGpu(element, () => 80);
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         const from = ticks.drawn;
         await until(element, "40 GPU-bound frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);

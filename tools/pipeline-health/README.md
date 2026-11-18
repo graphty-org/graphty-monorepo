@@ -177,18 +177,39 @@ targets, never judged into a page's state or alerted.
 ### CI
 
 CI posts test results through [`tools/results/client.mjs`](../results/client.mjs): when the repository
-variable `HEALTH_API_URL` is set, every record it sends to the results service is also sent to the
-health API, fire and forget (2 seconds at most; a failed post never fails a job). The routes are
-`POST /v1/invocations`, `/v1/failures`, `/v1/durations` and `/v1/verdicts`, with the results service's
-own bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 lane) post their numbers to
+variable `HEALTH_API_URL` is set, every write it sends to the results service (POST, PUT and DELETE) is also
+sent to the health API, fire and forget (2 seconds at most; a failed post never fails a job), with the results
+service's own paths and bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 lane) post their numbers to
 `POST /v1/benchmarks` through [`tools/results/post-benchmarks.mjs`](../results/post-benchmarks.mjs), which the
 API takes only from master's workflows.
 
+### The results service's copy
+
+The health API also keeps the results service's own records (issue #3607), in `RS#` items of the same table, so
+CI's `RESULTS_URL` can later name this API instead of the Cloudflare Worker. The ingest Lambda stores them from the
+same requests, under the Worker's claim rules, and answers CI's writes as the Worker does: `POST /v1/invocations`
+(`{ stored, kind, flaky, tracked }`), `/v1/failures`, `/v1/durations` (with `trend` and `lastSeen`), `/v1/sites`,
+`/v1/verdicts`, and the routes only the results service has: `POST /v1/issues`, `/v1/channel-moves`, `/v1/hold`,
+`/v1/base-checks` (and `DELETE`), `/v1/story-captures`, `/v1/story-reach` and `PUT /v1/durations/tests/<name>`. The
+Results Lambda answers the reads, `GET /v1/plan`, `/v1/site`, `/v1/quarantine`, `/v1/candidate`,
+`/v1/release-state`, `/v1/failures`, `/v1/durations/medians`, `/v1/durations/tests/<name>`, `/v1/story-captures`
+and `/v1/story-reach`, with the Worker's query strings, answers and `{ "error": "..." }` refusals (see
+[`tools/results-service/README.md`](../results-service/README.md)). Like every read here, they are public.
+
+Where they differ from the Worker: records are kept 90 days (duration samples 31 days, story captures 7 days besides
+each story's newest); a quarantine entry's `passes` are counted as master's runs are stored, not on read;
+`passedWithInputs` looks only at the variant's newest 1,000 runs; duration samples are kept only for master's push
+build and the full run (kinds `master` and `full`, the only ones whose trend files issues and whose medians are
+read), so another kind's `trend` is empty; and a test duration history is one item, refused past 350 KB gzipped.
+The failure signatures come from `tools/results-service/src/signature.js`, so a change there reaches AWS with the
+next deploy of this directory. Local tokens (kind `local`) are not taken here yet.
+
 Each post carries a GitHub OIDC token with audience `graphty-health`, so the job needs
 `permissions: id-token: write`. The API's JWT authorizer checks the token's signature, issuer
-(`https://token.actions.githubusercontent.com`), audience and expiry; the ingest Lambda then checks
+(`https://token.actions.githubusercontent.com`), audience (`graphty-health`, or the results service's
+`graphty-results`) and expiry; the ingest Lambda then checks
 the `repository`, `repository_id`, `job_workflow_ref` and `ref` claims against what that workflow may
-write (pull request runs, or the listed workflows on master). A body is at most 1 MB.
+write (pull request runs, or the listed workflows on master). A body is at most 1 MB (a test duration history 2 MB).
 
 ### The local collector
 

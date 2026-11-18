@@ -52,6 +52,8 @@
  * -- but the constraint a reader feels has moved from the heap to the frame. Measured on a quiet
  * box, 60 fps holds to 40,000 edges and 30 fps to 80,000, which is the range `largeGraphThreshold`
  * exists to describe; it is 10,000 NODES today and nothing measured it. That is the next number.
+ * Past it a node no layer gives a `node.meshDetail` is drawn `"low"` (`StylePainter`), so a sphere
+ * is 80 triangles rather than Babylon's default thousands; a layer that sets one keeps it.
  *
  * WHAT THESE NUMBERS DO NOT COVER, and it is the same exclusion as before: a patterned line style
  * gives every dot and dash a mesh and a ShaderMaterial of its own (`PatternedLineRenderer`), and
@@ -59,9 +61,10 @@
  *
  * THE NAMES CARRY THEIR UNITS. Two used to collide with `CostGateLimits` and mean different
  * things on each side: `exactComputationCap` was a node count here and seconds there, and
- * `memoryBudgetBytes` was one graph's memory here and one run's published columns there. They are
- * now `approximateAboveNodes` and `graphMemoryBudgetBytes` here, `exactComputationSeconds` and
- * `runColumnBudgetBytes` on the gate.
+ * `memoryBudgetBytes` was one graph's memory here and one run's published columns there. The
+ * memory one is `graphMemoryBudgetBytes` here and `runColumnBudgetBytes` on the gate. The node
+ * count, later `approximateAboveNodes`, is gone (issue #302): nothing read it, and size alone never
+ * swaps a method -- the gate approximates a run when its estimate passes `exactComputationSeconds`.
  *
  * `graphMemoryBudgetBytes` IS DERIVED, NOT MEASURED. Its anchor is the 49 % row above: the
  * largest graph the ceilings allow held about 2 GB of heap ({@link GRAPH_MEMORY_BUDGET_CAP_BYTES}),
@@ -106,7 +109,10 @@ export function graphMemoryBudgetFor(deviceMemoryGb: number | undefined): number
  * in step, and the element is the party that knows what its own renderer and its own passes cost.
  */
 export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
-    /** Above this node count the element draws less visual detail. A shipped default, not measured. */
+    /**
+     * Above this node count a node no layer gives a detail is drawn at low detail, and the layout
+     * recommendation scatters at random. A shipped default, not measured.
+     */
     largeGraphThreshold: 10_000,
     /**
      * The most nodes the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
@@ -127,12 +133,6 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
      * Measured (see the file comment), on one machine; not this machine's figure.
      */
     edgesDrawn: 1_000_000,
-    /**
-     * Above this NODE COUNT an approximable algorithm is approximated rather than computed
-     * exactly. A shipped default, not measured. Not to be confused with the cost gate's
-     * `exactComputationSeconds`, which is a duration and answers a different question.
-     */
-    approximateAboveNodes: 2_000,
     /**
      * The most nodes drawn as objects of their own on `render-path="batched"`; past it a row whose
      * look no batch draws is drawn as a plain body. The default ceiling, so it cannot bind at the

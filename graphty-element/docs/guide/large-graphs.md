@@ -61,6 +61,25 @@ On `"objects"` the `limits` are ignored and the element fires `limits-warning` w
 `W_LIMITS_IGNORED`. See [Renderer](./renderer.md#loading-past-the-size-caps) for the caps on
 how many object rows a batched graph may hold.
 
+## Less detail past 10,000 nodes
+
+Past `DEFAULT_LIMITS.largeGraphThreshold` nodes (10,000) the element draws round node shapes at
+low detail: a node whose style layers set no `node.meshDetail` is drawn as if they set `"low"` (a
+sphere becomes an 80-triangle icosphere), and drops back to full detail when the graph shrinks
+below the threshold. To keep full detail on a large graph, set it in a layer:
+
+```js
+await graph.session.styles.add({
+    name: "Full detail",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.meshDetail": "full" },
+});
+```
+
+The same threshold makes `session.recommendLayout()` suggest a random layout rather than a force
+simulation.
+
 ## Loading the fastest way
 
 If your graph is already arrays (edge endpoints as row numbers), hand them over with

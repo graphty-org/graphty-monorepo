@@ -208,6 +208,8 @@ export type {
 // The project file: the whole session as one graphty document, as `element.session.project`
 export type {
     AssetStorage,
+    DocumentCode,
+    DocumentSection,
     ProjectApi,
     ProjectAssetChoice,
     ProjectOpenOptions,
@@ -218,6 +220,7 @@ export type {
     ProjectSource,
     ProjectStatus,
     SavedProject,
+    SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // What autosave reports: its status, its codes, its entries and what a restore found.

@@ -993,6 +993,8 @@ export class Graph implements GraphContext {
 
     /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
     #passRepainted = false;
+    /** Whether the last whole-graph paint drew a graph past `largeGraphThreshold` (low node detail). */
+    #paintedLarge = false;
 
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
@@ -1200,6 +1202,7 @@ export class Graph implements GraphContext {
         this.stylePainter = new StylePainter(
             (row) => this.dataManager.edgeDirected(row),
             () => this.session.config.minMarkSize,
+            () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
         );
 
         // get the element that we are going to use for placing our canvas
@@ -1526,6 +1529,7 @@ export class Graph implements GraphContext {
                         : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
                 ),
+            state: () => this.getCameraState(),
         };
 
         // What a file whose positions are fitted to the viewer is fitted to (sigma.js labels).
@@ -5122,7 +5126,11 @@ export class Graph implements GraphContext {
         if (paintsWhole) {
             // A forward add over a picture that is current names what it changed; undo, redo
             // and a paint an earlier write left owed have no such list.
-            const changed = cause === "command" && !dispatcher.paintOwed ? dirty : null;
+            // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
+            const large = this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold;
+            const flipped = large !== this.#paintedLarge;
+            this.#paintedLarge = large;
+            const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
             dispatcher.paintOwed = false;
             this.#passRepainted = true;
             await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
@@ -5823,7 +5831,7 @@ export class Graph implements GraphContext {
                 const duration = pointerEventTime(pointerInfo.event) - clickStartTime;
                 const dx = this.scene.pointerX - clickStartPos.x;
                 const dy = this.scene.pointerY - clickStartPos.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                const distance = Math.hypot(dx, dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     this.handleBackgroundClick(pointerInfo.event);
@@ -8745,7 +8753,7 @@ export class Graph implements GraphContext {
             const dx = state.position.x - state.target.x;
             const dy = state.position.y - state.target.y;
             const dz = state.position.z - state.target.z;
-            orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
+            orbitController.cameraDistance = orbitController.clampDistance(Math.hypot(dx, dy, dz));
         }
 
         // Update the pivot's world matrix and camera position
@@ -9528,7 +9536,7 @@ export class Graph implements GraphContext {
         // Each id is looked up the way getNode looks it up, so either spelling of an integer id
         // frames the node, and the scope is handed the ids the graph itself holds.
         // A lone id is not iterated: a string is iterable, and its characters name no node.
-        const ids = Array.isArray(nodeIds) ? nodeIds : [nodeIds as string | number];
+        const ids = typeof nodeIds === "string" || typeof nodeIds === "number" ? [nodeIds] : nodeIds;
         const nodes = ids.flatMap((id) => this.getNode(id)?.id ?? []);
         if (nodes.length === 0) {
             return undefined;
@@ -11091,8 +11099,9 @@ export class Graph implements GraphContext {
         }
 
         // Remove render loop observer
-        if (this.scene.metadata?.xrUpdateObserver) {
-            this.scene.onBeforeRenderObservable.remove(this.scene.metadata.xrUpdateObserver);
+        const xrUpdateObserver = this.scene.metadata?.xrUpdateObserver as Nullable<Observer<Scene>> | undefined;
+        if (xrUpdateObserver) {
+            this.scene.onBeforeRenderObservable.remove(xrUpdateObserver);
             this.scene.metadata.xrUpdateObserver = null;
         }
 

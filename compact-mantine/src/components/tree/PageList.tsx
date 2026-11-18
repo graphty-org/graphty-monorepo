@@ -2,7 +2,7 @@ import { useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 
 import { useCompactStyles } from "../../theme/useCompactStyles";
-import { InlineRename } from "./InlineRename";
+import { InlineRename, useRenaming } from "./InlineRename";
 
 /**
  * Props for the PageRow component.
@@ -286,11 +286,7 @@ export function PageList({
         },
     });
     const [focusedId, setFocusedId] = useState<string | null>(null);
-    const [renaming, setRenaming] = useUncontrolled<string | null>({
-        value: renamingProp,
-        finalValue: null,
-        onChange: onRenamingChange,
-    });
+    const [renaming, setRenaming] = useRenaming(renamingProp, onRenamingChange);
     const cells = useRef(new Map<string, HTMLDivElement>());
     const grid = useRef<HTMLDivElement>(null);
     // A row menu is reached with ArrowRight, never with Tab: keep its controls out of the Tab

@@ -155,6 +155,29 @@ function coveredBy(root: string, byAction: Readonly<Record<string, readonly stri
     }));
 }
 
+/** The session's namespaces (`session.data`, `session.views`, ...): each has its own members. */
+const SESSION_NAMESPACES = [
+    "data",
+    "runs",
+    "results",
+    "scope",
+    "sets",
+    "notes",
+    "journal",
+    "selection",
+    "visibility",
+    "styles",
+    "views",
+    "tours",
+    "layout",
+    "positions",
+    "hidden",
+    "config",
+    "capabilities",
+    "history",
+    "project",
+];
+
 /**
  * What the assistant does not reach. The graph's and the element's own members are the session's
  * capabilities a second time, so most of their rows say which tool covers the same op.
@@ -522,32 +545,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionStylesApi", members: ["modelUrlFromCode"], reason: "reader-trust", kind: BY_DESIGN },
 
     // The session.
-    {
-        root: "GraphSession",
-        members: [
-            "data",
-            "runs",
-            "results",
-            "scope",
-            "sets",
-            "notes",
-            "journal",
-            "selection",
-            "visibility",
-            "styles",
-            "views",
-            "tours",
-            "layout",
-            "positions",
-            "hidden",
-            "config",
-            "capabilities",
-            "history",
-            "project",
-        ],
-        reason: "namespace",
-        kind: BY_DESIGN,
-    },
+    { root: "GraphSession", members: SESSION_NAMESPACES, reason: "namespace", kind: BY_DESIGN },
     {
         root: "GraphSession",
         members: ["acceleration", "setAccelerator"],
@@ -559,32 +557,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "GraphSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
     { root: "GraphSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "ElementSession", members: ["paint"], reason: "internal-handle", kind: BY_DESIGN },
-    {
-        root: "ElementSession",
-        members: [
-            "data",
-            "runs",
-            "results",
-            "scope",
-            "sets",
-            "notes",
-            "journal",
-            "selection",
-            "visibility",
-            "styles",
-            "views",
-            "tours",
-            "layout",
-            "positions",
-            "hidden",
-            "config",
-            "capabilities",
-            "history",
-            "project",
-        ],
-        reason: "namespace",
-        kind: BY_DESIGN,
-    },
+    { root: "ElementSession", members: SESSION_NAMESPACES, reason: "namespace", kind: BY_DESIGN },
     {
         root: "ElementSession",
         members: ["acceleration", "setAccelerator"],

@@ -4,7 +4,8 @@
  * one order -- edit, view, remove.
  */
 
-import { Menu } from "@mantine/core";
+import { TargetTooltip } from "@graphty/compact-mantine";
+import { ActionIcon, Menu } from "@mantine/core";
 import React from "react";
 
 import { CommandMenuItem } from "../frame/menus";
@@ -57,5 +58,51 @@ export function SelectionMenuItems({ items }: Readonly<{ items: readonly Selecti
                 </React.Fragment>
             ))}
         </>
+    );
+}
+
+/**
+ * A row's "..." menu; closing it gives focus back to its button.
+ * @param props - Component props
+ * @param props.name - what the row is, for the button's name
+ * @param props.items - the menu's items
+ * @param props.tabIndex - the button's place in the list's roving focus
+ * @param props.children - more rows after the items (a submenu)
+ * @param props.onKeyDown - the row's own keys, pressed on the button
+ * @returns The menu
+ */
+export function RowMore({
+    name,
+    items,
+    tabIndex,
+    children,
+    onKeyDown,
+}: Readonly<{
+    name: string;
+    items: readonly SelectionMenuItem[];
+    tabIndex?: number;
+    children?: React.ReactNode;
+    onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
+}>): React.JSX.Element {
+    return (
+        <Menu position="bottom-end" withinPortal>
+            <Menu.Target>
+                <TargetTooltip label="More">
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={`More for ${name}`}
+                        tabIndex={tabIndex}
+                        onKeyDown={onKeyDown}
+                    >
+                        <GLYPHS.more size={14} aria-hidden />
+                    </ActionIcon>
+                </TargetTooltip>
+            </Menu.Target>
+            <Menu.Dropdown data-portal="">
+                <SelectionMenuItems items={items} />
+                {children}
+            </Menu.Dropdown>
+        </Menu>
     );
 }

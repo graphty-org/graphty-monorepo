@@ -23,7 +23,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey, matchesKey } from "../keys/keys";
 import { errorWords } from "../project/words";
-import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { RowMore, type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { goToSavedView, nextName, savedViewReason } from "../toolbar/commands";
@@ -31,7 +31,7 @@ import { nothingDrawn } from "../toolbar/disabledReasons";
 import { useViewsChanged } from "../toolbar/useViewsChanged";
 import { lengthWords, tourProblemWords } from "../toolbar/viewWords";
 import { orRefusal } from "./actions";
-import { RowMore, TourStops } from "./TourStops";
+import { TourStops } from "./TourStops";
 
 /** A new stop's hold, and every stop's flight but the first, in milliseconds. */
 const STOP_MS = 2000;

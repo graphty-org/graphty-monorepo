@@ -15,7 +15,7 @@ import type {
     AutosaveStatus,
 } from "./autosave/types";
 import type { GraphOverview, OverviewOptions } from "./camera/overview";
-import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets";
+import type { SkippedPreset } from "./camera/presets";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -4946,7 +4946,8 @@ export class Graphty extends LitElement {
      * @deprecated Use `session.views.save([{ name, camera }])`.
      */
     saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): Promise<void> {
-        return this.session.views.save([{ name, ...(camera === undefined ? {} : { camera }) }]);
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.saveCameraPreset(name, camera);
     }
 
     /**
@@ -4957,7 +4958,8 @@ export class Graphty extends LitElement {
      * @deprecated Use `session.views.remove([name])`.
      */
     removeCameraPreset(name: string): Promise<void> {
-        return this.session.views.remove([name]);
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.removeCameraPreset(name);
     }
 
     /**
@@ -4967,11 +4969,9 @@ export class Graphty extends LitElement {
      * @returns Promise that resolves when preset is loaded
      * @deprecated Use `applyCameraView(name, options)`.
      */
-    async loadCameraPreset(
-        name: string,
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
-    ): Promise<void> {
-        return this.#graph.setCameraState({ preset: name }, options);
+    loadCameraPreset(name: string, options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.loadCameraPreset(name, options);
     }
 
     /**
@@ -4981,7 +4981,8 @@ export class Graphty extends LitElement {
      *     the saved ones.
      */
     getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
-        return presetsOf(this.session.views);
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.getCameraPresets();
     }
 
     /**
@@ -4990,7 +4991,8 @@ export class Graphty extends LitElement {
      * @deprecated Read `session.views`, a map in project order.
      */
     exportCameraPresets(): Record<string, import("./screenshot/types.js").CameraState> {
-        return Object.fromEntries(this.session.views);
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.exportCameraPresets();
     }
 
     /**
@@ -5003,15 +5005,8 @@ export class Graphty extends LitElement {
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): {
         skipped: SkippedPreset[];
     } {
-        const { views, skipped } = splitPresetImport(presets);
-        if (views.length > 0) {
-            // Every name was checked above; a refusal from here on would be a defect, reported.
-            void this.session.views.save(views).catch((error: unknown) => {
-                elementLogger.error("the imported camera presets were refused.", asError(error));
-            });
-        }
-
-        return { skipped };
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.importCameraPresets(presets);
     }
 
     /**

@@ -3213,9 +3213,7 @@ export class Graph implements GraphContext {
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
-    waitForStableFrame(options?: {
-        timeoutMs?: number;
-    }): Promise<void>;
+    waitForStableFrame(options?: StableFrameOptions): Promise<void>;
     worldToScreen(worldPos: {
         x: number;
         y: number;
@@ -3836,9 +3834,7 @@ export class Graphty extends LitElement {
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
-    waitForStableFrame(options?: {
-        timeoutMs?: number;
-    }): Promise<void>;
+    waitForStableFrame(options?: StableFrameOptions): Promise<void>;
     get workingGraph(): boolean;
     set workingGraph(value: boolean);
     worldToScreen(worldPos: {
@@ -8535,6 +8531,12 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 };
 
 export { SourceValidators }
+
+// @public
+export interface StableFrameOptions {
+    // @deprecated
+    timeoutMs?: number;
+}
 
 // @public
 export class StatsManager implements Manager {

@@ -4017,7 +4017,10 @@ function judgeLabelDress(j: Judge, kind: string, id: string, o: PText, g: PText,
     if ((of !== null || os !== null) && (gf !== null || gs !== null) && ob !== null && gb !== null) {
         const shapeMiss = ob.shape !== null && gb.shape !== null && ob.shape !== gb.shape ? 1 : 0;
         const [ow, oh] = [ob.box.x1 - ob.box.x0, ob.box.y1 - ob.box.y0];
-        const [gw, gh] = [(gb.box.x1 - gb.box.x0) * scale, (gb.box.y1 - gb.box.y0) * scale];
+        // measured along its border's middle, as the oracle's box is the path its border is stroked along: graphty's
+        // box is the panel's outer edge, its border's whole width inside it
+        const mid = gs === null ? 0 : gs.width;
+        const [gw, gh] = [(gb.box.x1 - gb.box.x0 - mid) * scale, (gb.box.y1 - gb.box.y0 - mid) * scale];
         const miss =
             shapeMiss +
             Math.max(ratioMiss(gw / Math.max(ow, 1e-9), T.sizeRatio), ratioMiss(gh / Math.max(oh, 1e-9), T.sizeRatio));

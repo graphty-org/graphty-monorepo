@@ -260,6 +260,15 @@ type LabelWeightValue = "normal" | "bold";
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
+/** What one line of a label is as tall as (`labelLineBox`). */
+type LabelLineBoxValue = "font" | "size" | "glyphs";
+
+/** Where the line round a label's panel is drawn against the panel's edge (`labelBorderAlign`). */
+type LabelBorderAlignValue = "outside" | "center";
+
+/** The shape of the panel behind a label's words (`labelBackgroundShape`). */
+type LabelBackgroundShapeValue = "rectangle" | "circle";
+
 /**
  * What a label's shifts are fractions of (`labelShiftOf`), or what a label outside its node is placed against it by
  * (`labelGapOf`): its whole box, or its words alone.
@@ -394,6 +403,9 @@ export interface ChannelValues {
     "node.labelPadding": number;
     "node.labelCornerRadius": number;
     "node.labelLineHeight": number;
+    "node.labelLineBox": LabelLineBoxValue;
+    "node.labelBorderAlign": LabelBorderAlignValue;
+    "node.labelBackgroundShape": LabelBackgroundShapeValue;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
     "node.labelShiftX": number;
@@ -721,6 +733,9 @@ export interface ChannelValues {
     "edge.labelPadding": number;
     "edge.labelCornerRadius": number;
     "edge.labelLineHeight": number;
+    "edge.labelLineBox": LabelLineBoxValue;
+    "edge.labelBorderAlign": LabelBorderAlignValue;
+    "edge.labelBackgroundShape": LabelBackgroundShapeValue;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
@@ -1557,7 +1572,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1591,6 +1606,9 @@ const LABEL_FIELD_OF_SUFFIX = {
     Padding: "boxPadding",
     CornerRadius: "cornerRadius",
     LineHeight: "lineHeight",
+    LineBox: "lineBox",
+    BorderAlign: "borderAlign",
+    BackgroundShape: "backgroundShape",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
     ShiftX: "shiftX",
@@ -1862,6 +1880,31 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "How tall one line of the label is, as a multiple of its font's ascent plus descent: 1 is a line " +
                 "box exactly as tall as the font. Unset, 1.2.",
         }),
+        row("LineBox", "Line Box", {
+            accepts: "enum",
+            values: LABEL_LINE_BOX_VALUES,
+            caveat:
+                'What one line of the label is as tall as, before Line Height multiplies it: "font", its font\'s ' +
+                'ascent plus descent; "size", its font size, as CSS and Cytoscape.js measure a line, the letters ' +
+                'reaching past it; "glyphs", its letters\' own ink, as Cytoscape.js `text-metrics: glyph` does. ' +
+                'Unset, "font".',
+        }),
+        row("BorderAlign", "Border Align", {
+            accepts: "enum",
+            values: LABEL_BORDER_ALIGN_VALUES,
+            caveat:
+                'Where the line round the panel behind the label\'s words is drawn: "outside", all of it past the ' +
+                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box. ' +
+                'Unset, "outside".',
+        }),
+        row("BackgroundShape", "Background Shape", {
+            accepts: "enum",
+            values: LABEL_BACKGROUND_SHAPE_VALUES,
+            caveat:
+                'The shape of the panel behind the label\'s words and its border: "rectangle" (rounded by Corner ' +
+                'Radius), or "circle", a disc as wide as the panel is tall, or as tall as it is wide, whichever is ' +
+                'less, centered on it. Unset, "rectangle".',
+        }),
         row("OffsetX", "Offset X", {
             accepts: "number",
             caveat: "How far the label is moved to the right of where its location puts it, in the scene's units.",
@@ -1933,6 +1976,15 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 /** Every place the `labelRunAlign` channels take. */
 const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
 
+/** Every value the `labelLineBox` channels take. */
+const LABEL_LINE_BOX_VALUES: readonly LabelLineBoxValue[] = ["font", "size", "glyphs"];
+
+/** Every value the `labelBorderAlign` channels take. */
+const LABEL_BORDER_ALIGN_VALUES: readonly LabelBorderAlignValue[] = ["outside", "center"];
+
+/** Every value the `labelBackgroundShape` channels take. */
+const LABEL_BACKGROUND_SHAPE_VALUES: readonly LabelBackgroundShapeValue[] = ["rectangle", "circle"];
+
 /** Every value the `labelShiftOf` channels take. */
 const LABEL_SHIFT_OF_VALUES: readonly LabelShiftOfValue[] = ["box", "words"];
 
@@ -1984,7 +2036,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 

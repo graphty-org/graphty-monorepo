@@ -877,6 +877,9 @@ function channelPlans(
             ...labelBox,
             ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
             ["labelLineHeight", [label("labelLineHeight")]],
+            ["labelLineBox", [label("labelLineBox")]],
+            ["labelBorderAlign", [label("labelBorderAlign")]],
+            ["labelBackgroundShape", [label("labelBackgroundShape")]],
             ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
@@ -1084,6 +1087,9 @@ function channelPlans(
         ],
         ["labelCornerRadius", [labelLength("edge.labelCornerRadius", false)]],
         ["labelLineHeight", [label("labelLineHeight")]],
+        ["labelLineBox", [label("labelLineBox")]],
+        ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBackgroundShape", [label("labelBackgroundShape")]],
         // moved in the scene's units, as a wrap width is
         ["labelOffsetX", [length("edge.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
         ["labelOffsetY", [length("edge.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],

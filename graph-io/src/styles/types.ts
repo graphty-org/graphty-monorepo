@@ -601,6 +601,23 @@ export interface NodeStyleValues {
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
     /**
+     * What one line of the label is as tall as, before `labelLineHeight` multiplies it: `font`, its font's ascent plus
+     * descent; `size`, its font size, as CSS and Cytoscape.js measure a line (the letters reach past it); `glyphs`, its
+     * letters' own ink (Cytoscape.js `text-metrics: glyph`). Unset, `font`.
+     */
+    readonly labelLineBox: string;
+    /**
+     * Where the line round the box behind the label's words is drawn: `outside`, all of it past the box's edge;
+     * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
+     */
+    readonly labelBorderAlign: string;
+    /**
+     * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
+     * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js
+     * `text-background-shape: circle`). Unset, `rectangle`.
+     */
+    readonly labelBackgroundShape: string;
+    /**
      * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
      * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
      * `target-width`, as `words-at-side` and at least as wide as the node, a band across it (yEd's group header),
@@ -1148,6 +1165,23 @@ export interface EdgeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * What one line of the label is as tall as, before `labelLineHeight` multiplies it: `font`, its font's ascent plus
+     * descent; `size`, its font size, as CSS and Cytoscape.js measure a line (the letters reach past it); `glyphs`, its
+     * letters' own ink (Cytoscape.js `text-metrics: glyph`). Unset, `font`.
+     */
+    readonly labelLineBox: string;
+    /**
+     * Where the line round the box behind the label's words is drawn: `outside`, all of it past the box's edge;
+     * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
+     */
+    readonly labelBorderAlign: string;
+    /**
+     * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
+     * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js
+     * `text-background-shape: circle`). Unset, `rectangle`.
+     */
+    readonly labelBackgroundShape: string;
     /**
      * A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` on an
      * edge that also has a label). Unset a place of its own, up and left of the line's middle, its lower right corner

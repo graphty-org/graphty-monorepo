@@ -208,6 +208,22 @@ export interface LabelStyle {
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
     /**
+     * What one line is as tall as, before `lineHeight` multiplies it: "font", its font's ascent plus descent; "size",
+     * its font size, as CSS and Cytoscape.js measure a line (the letters reach past it); "glyphs", its letters' own
+     * ink. Unset, "font".
+     */
+    lineBox?: "font" | "size" | "glyphs";
+    /**
+     * Where the border round the panel is drawn: "outside", all of it past the panel's edge; "center", centered on
+     * that edge, as a canvas strokes a box. Unset, "outside".
+     */
+    borderAlign?: "outside" | "center";
+    /**
+     * The shape of the panel and its border: "rectangle" (rounded by `cornerRadius`), or "circle", a disc whose
+     * diameter is the panel's shorter side, centered on it. Unset, "rectangle".
+     */
+    backgroundShape?: "rectangle" | "circle";
+    /**
      * The label is not drawn while its letters are drawn smaller than this many pixels on screen,
      * as a program that hides labels too small to read does. Decided again whenever the camera
      * moves. Unset or 0, the label is drawn at any size.
@@ -468,6 +484,9 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     runAlign: 0,
     rotation: 0,
     lineHeight: 0,
+    lineBox: 0,
+    borderAlign: 0,
+    backgroundShape: 0,
     minScreenSize: 0,
     declutter: 0,
     minNodeScreenSize: 0,
@@ -566,6 +585,9 @@ export const RICH_TEXT_KEYS = {
     rotation: "rotation",
     color: "textColor",
     lineHeight: "lineHeight",
+    lineBox: "lineBox",
+    borderAlign: "borderAlign",
+    backgroundShape: "backgroundShape",
     minScreenSize: "minScreenSize",
     minNodeScreenSize: "minNodeScreenSize",
     declutter: "declutter",
@@ -730,6 +752,9 @@ const FIELD_ROWS = {
     runAlign: choice("Run Align", ["baseline", "hanging", "middle"]),
     rotation: num("Rotation"),
     lineHeight: num("Line Height"),
+    lineBox: choice("Line Box", ["font", "size", "glyphs"]),
+    borderAlign: choice("Border Align", ["outside", "center"]),
+    backgroundShape: choice("Background Shape", ["rectangle", "circle"]),
     minScreenSize: num("Min Screen Size", { min: 0 }),
     declutter: choice("Declutter", ["degree", "size"] satisfies readonly LabelDeclutterOrder[]),
     minNodeScreenSize: num("Min Node Screen Size", { min: 0 }),

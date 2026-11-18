@@ -11493,8 +11493,8 @@
             "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
-            "label.background": 0.98,
-            "label.backgroundBox": 0.6,
+            "label.background": 1,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -11505,7 +11505,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.993,
+            "edge.arrow": 1,
             "edge.label": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -11546,8 +11546,8 @@
             "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
-            "label.background": 0.98,
-            "label.backgroundBox": 0.6,
+            "label.background": 1,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -11558,7 +11558,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.993,
+            "edge.arrow": 1,
             "edge.label": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -11621,7 +11621,7 @@
             "node.strokeDash": 1,
             "label.present": 1,
             "edge.present": 1,
-            "edge.extra": 0.977,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -11660,7 +11660,7 @@
             "node.strokeDash": 1,
             "label.present": 1,
             "edge.present": 1,
-            "edge.extra": 0.977,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -11946,8 +11946,8 @@
             "label.align": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.978,
-            "label.backgroundBox": 0.467,
+            "label.background": 1,
+            "label.backgroundBox": 0.938,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -11956,7 +11956,7 @@
             "background": 1,
             "raster.canvas": 0.98,
             "raster.label": 0.9,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.97
         },
         "cytoscapejs-specimen-labels-p2@matched": {
@@ -11988,8 +11988,8 @@
             "label.align": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.978,
-            "label.backgroundBox": 0.467,
+            "label.background": 1,
+            "label.backgroundBox": 0.938,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -28237,7 +28237,7 @@
             "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.974,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -28272,7 +28272,7 @@
             "background": 1,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.arrowhead": 0.95,
             "raster.label": 0.95,
             "raster.canvas": 0.98,
@@ -28311,7 +28311,7 @@
             "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.974,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -28642,8 +28642,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.981,
-            "edge.extra": 0.981,
+            "edge.present": 1,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -28714,8 +28714,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.981,
-            "edge.extra": 0.981,
+            "edge.present": 1,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -29726,12 +29726,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.88,
+            "raster.arrowhead": 0.89,
             "raster.canvas": 0.99,
             "raster.edge": 0.92,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.88,
-            "raster.nodeOutline": 0.89,
+            "raster.nodeBody": 0.89,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "json-cyjs-graphmaker@matched": {
@@ -30316,7 +30316,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 1,
             "frame.mirror": 1,
@@ -30359,7 +30359,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 1,
             "frame.mirror": 1,
@@ -56353,6 +56353,86 @@
                 "to": 0.9,
                 "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
                 "date": "2026-11-04"
+            }
+        },
+        "gexf-specimen-labels-p11": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p11@matched": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p12": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p12@matched": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p13": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p13@matched": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p20": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p20@matched": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p21": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
+            }
+        },
+        "gexf-specimen-labels-p21@matched": {
+            "label.backgroundBox": {
+                "floor": 1,
+                "to": 0.917,
+                "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                "date": "2026-11-18"
             }
         },
         "gml-specimen-arrows-p4": {

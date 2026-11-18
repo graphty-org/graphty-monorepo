@@ -1754,13 +1754,16 @@ export class Edge {
      */
     private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
         const gap = this.gapAt(end);
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        // a node drawn at opacity 0 hides nothing: the line ends at its outline, where a drawn node's hides the rest
+        // (Cytoscape.js `visibility: hidden` keeps the node's place and its edges, trimmed at its shape)
+        const invisible = node.drawnOpacity <= 0;
         // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node
-        if (gap <= 0 && !this.endBehindEdges(end)) {
+        if (gap <= 0 && !invisible && !this.endBehindEdges(end)) {
             return centre;
         }
 
-        const node = end === "source" ? this.srcNode : this.dstNode;
-        return gap > 0 ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
+        return gap > 0 || invisible ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
     }
 
     /**

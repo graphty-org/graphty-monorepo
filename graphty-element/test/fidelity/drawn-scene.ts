@@ -486,6 +486,8 @@ export interface DrawnLabel {
         color: string | null;
         opacity: number;
         rounded: boolean;
+        /** Whether it is a disc (`backgroundShape: "circle"`). */
+        circle: boolean;
         border: { color: string; opacity: number; width: number } | null;
     } | null;
 }
@@ -563,6 +565,28 @@ function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [numbe
     const half = (line: readonly TextSegment[]): number =>
         (measureLine(ctx, [...line], options).lineBox * (1 - 1 / lineHeight)) / 2;
     return [half(lines[0]), half(lines[lines.length - 1])];
+}
+
+/**
+ * The panel behind a label's words on screen: its canvas without the room round it for a shadow and an outline, or
+ * for a disc, the square its circle fills, as wide as the panel's shorter side and centered on it.
+ * @param margin - the room round the panel, in label units
+ * @param dims - the label's canvas, in label units
+ * @param dims.width - its width
+ * @param dims.height - its height
+ * @param circle - whether the panel is a disc
+ * @param onScreen - a box in label units on screen
+ * @returns the box
+ */
+function panelBox<B>(
+    margin: number,
+    dims: { width: number; height: number },
+    circle: boolean,
+    onScreen: (x: number, y: number, w: number, h: number) => B,
+): B {
+    const [w, h] = [dims.width - margin * 2, dims.height - margin * 2];
+    const d = circle ? Math.min(w, h) : 0;
+    return circle ? onScreen(margin + (w - d) / 2, margin + (h - d) / 2, d, d) : onScreen(margin, margin, w, h);
 }
 
 /**
@@ -676,16 +700,13 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
             !known || ((bgCss === null || bgCss.alpha <= 0) && borderCss === null)
                 ? null
                 : {
-                      // the panel, without the room round it for its shadow and the words' outline (#8746)
-                      box: onScreen(
-                          inner.shadowMargin,
-                          inner.shadowMargin,
-                          dims.width - inner.shadowMargin * 2,
-                          dims.height - inner.shadowMargin * 2,
-                      ),
+                      // the panel, without the room round it for its shadow and the words' outline (#8746); a disc
+                      // as wide as its shorter side
+                      box: panelBox(inner.shadowMargin, dims, opt.backgroundShape === "circle", onScreen),
                       color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
                       opacity: (bgCss?.alpha ?? 0) * planeAlpha,
                       rounded: (opt.cornerRadius ?? 0) > 0,
+                      circle: opt.backgroundShape === "circle",
                       border:
                           border === undefined || borderCss === null
                               ? null

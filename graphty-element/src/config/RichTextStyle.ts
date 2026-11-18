@@ -130,6 +130,12 @@ export const RichTextStyle = z.strictObject({
     fontWeight: z.string().default("normal").optional(),
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),
+    // What one line is as tall as before lineHeight: its font's ascent plus descent, its font size, or its letters' ink.
+    lineBox: z.enum(["font", "size", "glyphs"]).optional(),
+    // Where the border is drawn: past the panel's edge, or centered on it.
+    borderAlign: z.enum(["outside", "center"]).optional(),
+    // The panel's shape: a rectangle, or a disc as wide as its shorter side.
+    backgroundShape: z.enum(["rectangle", "circle"]).optional(),
     // Below how many screen pixels tall the letters are drawn the label is hidden; unset, never.
     minScreenSize: z.number().min(0).optional(),
     // Whether this node label is hidden where it overlaps a label kept first, and which is kept

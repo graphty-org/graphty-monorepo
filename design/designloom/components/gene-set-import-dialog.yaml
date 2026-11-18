@@ -1,0 +1,15 @@
+id: gene-set-import-dialog
+name: Gene Set Import Dialog
+category: dialog
+description: "Dialog for importing gene sets and enrichment results that become the nodes of a pathway similarity network."
+status: planned
+implements_capabilities:
+    - data-import
+used_in_workflows:
+    - W22
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T00:00:00.000Z
+updated_at: 2026-11-18T00:00:00.000Z

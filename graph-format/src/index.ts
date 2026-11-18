@@ -17,7 +17,7 @@ export { NodeIdMap } from "./ids/node-id-map.js";
 export { GraphSnapshot } from "./snapshot/graph-snapshot.js";
 
 // ============================================================ functions
-export { gpuEligibility } from "./columns/column.js";
+export { coordinateSystemOf, gpuEligibility } from "./columns/column.js";
 export { inferTextDtype } from "./columns/infer.js";
 export { gatherArray, gatherColumn, remapArray, remapColumn, scatterArray, withComponents } from "./columns/remap.js";
 export { fromCsr } from "./populate/from-csr.js";
@@ -75,6 +75,10 @@ export type {
     ColumnOriginInput,
     ColumnReducer,
     ColumnRole,
+    CoordinateKind,
+    CoordinateSystem,
+    CoordinateSystemInput,
+    CoordinateUnits,
     DictColumn,
     Dtype,
     DtypeValue,

@@ -1,14 +1,16 @@
 /**
- * `@graphty/graph-io/sources/s3`: the Amazon S3 source, a `file-host` source (design section 2.2), for
- * buckets the public may read. Experimental.
+ * `@graphty/graph-io/sources/s3`: the Amazon S3 source, a `file-host` source (design section 2.2).
+ * Experimental.
  *
  * - load: one object, read from the bucket's own address and handed to graph-io's format detection
  *   (by its key's file name and its first bytes).
  * - list: the bucket's objects (S3's ListObjectsV2), under a folder, narrowed by a search text, paged
  *   by S3's continuation token.
  *
- * Requests are unsigned: a bucket that is not public answers 403, E_SOURCE_FORBIDDEN. A browser
- * also needs the bucket's CORS configuration to allow the page's origin, else E_SOURCE_BLOCKED.
+ * Requests are unsigned unless the load carries `credentials.awsSigV4({ service: "s3", ... })`
+ * bound to the bucket's address (`s3BucketUrl`); an unsigned request to a bucket that is not public
+ * answers 403, E_SOURCE_FORBIDDEN. A browser also needs the bucket's CORS configuration to allow
+ * the page's origin, else E_SOURCE_BLOCKED.
  * @module @graphty/graph-io/sources/s3
  */
 
@@ -22,10 +24,17 @@ import { S3_DESCRIPTOR, type S3Params } from "./descriptor.js";
 
 export { S3_DESCRIPTOR, type S3Params } from "./descriptor.js";
 
-// ponytail: no dots, so the bucket is always one label of a virtual-hosted address and its TLS
-// certificate matches; a dotted (legacy) bucket needs a path-style address.
-/** A bucket name S3 accepts for new buckets: 3 to 63 lowercase letters, digits and dashes. */
-const BUCKET = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+/** A bucket name: 3 to 63 lowercase letters, digits, dashes and dots, a letter or digit at each end. */
+const BUCKET = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+
+/**
+ * Whether a name is an S3 bucket name (no two dots in a row, not an IP address).
+ * @param name - the name
+ * @returns true for a bucket name
+ */
+function isBucket(name: string): boolean {
+    return BUCKET.test(name) && !name.includes("..") && !/^\d+\.\d+\.\d+\.\d+$/.test(name);
+}
 
 /** An AWS Region code ("us-east-2", "eu-north-1", "us-gov-west-1"). */
 const REGION = /^[a-z]{2}(-[a-z]+)+-\d+$/;
@@ -37,11 +46,11 @@ const DEFAULT_PAGE = 100;
  * The bucket's address, from its name and Region.
  * @param params - the params (bucket, region)
  * @param ctx - the context
- * @returns `https://<bucket>.s3[.<region>].amazonaws.com/`
+ * @returns the address, as `s3BucketUrl` gives it
  */
 function bucketUrl(params: Partial<S3Params>, ctx: SourceContext): string {
     const bucket = typeof params.bucket === "string" ? params.bucket : "";
-    if (!BUCKET.test(bucket)) {
+    if (!isBucket(bucket)) {
         failOn(ctx.report, "E_SOURCE_PARAM", "the bucket is not an S3 bucket name", {
             name: "bucket",
             reason: "format",
@@ -51,8 +60,38 @@ function bucketUrl(params: Partial<S3Params>, ctx: SourceContext): string {
     if (region !== "" && !REGION.test(region)) {
         failOn(ctx.report, "E_SOURCE_PARAM", "the region is not an AWS Region", { name: "region", reason: "format" });
     }
-    const host = region === "" ? "s3" : `s3.${region}`;
-    return `https://${bucket}.${host}.amazonaws.com/`;
+    return s3BucketUrl({ bucket, region });
+}
+
+/**
+ * The address a bucket's objects are read from: `https://<bucket>.s3.<region>.amazonaws.com/`
+ * (without the Region, `https://<bucket>.s3.amazonaws.com/`), or for a bucket whose name holds a dot,
+ * whose TLS certificate would not match that host, `https://s3.<region>.amazonaws.com/<bucket>/`.
+ * Bind a signing credential to its origin to read a private bucket. Experimental.
+ * @param bucket - the bucket's name and, optionally, its Region
+ * @param bucket.bucket - the bucket's name
+ * @param bucket.region - the bucket's AWS Region
+ * @returns the address, ending in `/`
+ * @example
+ * ```ts
+ * const params = { bucket: "my-graphs", key: "data/network.graphml", region: "us-east-2" };
+ * const credential = credentials.awsSigV4(
+ *     { region: "us-east-2", service: "s3", credentials: { accessKeyId, secretAccessKey, sessionToken } },
+ *     { origins: [s3BucketUrl(params)] },
+ * );
+ * const { snapshot } = await loadFromSource(s3Source, params, { credential });
+ * ```
+ * @category Network sources
+ */
+export function s3BucketUrl({
+    bucket,
+    region,
+}: {
+    readonly bucket: string;
+    readonly region?: string | undefined;
+}): string {
+    const host = region === undefined || region === "" ? "s3.amazonaws.com" : `s3.${region}.amazonaws.com`;
+    return bucket.includes(".") ? `https://${host}/${bucket}/` : `https://${bucket}.${host}/`;
 }
 
 /**
@@ -162,7 +201,7 @@ export interface S3Link {
  */
 export function parseS3Url(url: string | URL): S3Link {
     const { protocol, host, path } = readLink(url, "S3", S3_SOURCE_ID);
-    const m = /^(?:([^.]+)\.)?s3(?:[.-]([a-z0-9-]+))?\.amazonaws\.com$/.exec(host);
+    const m = /^(?:([a-z0-9.-]+)\.)?s3(?:[.-]([a-z0-9-]+))?\.amazonaws\.com$/.exec(host);
     let bucket = host;
     let key = path;
     let region: string | undefined;
@@ -174,7 +213,7 @@ export function parseS3Url(url: string | URL): S3Link {
         // a path-style link holds the bucket as its first path part
         [bucket, key] = m.at(1) === undefined ? splitFirst(path) : [m[1], path];
     }
-    return BUCKET.test(bucket) && (region === undefined || REGION.test(region))
+    return isBucket(bucket) && (region === undefined || REGION.test(region))
         ? { bucket, region, key: key === "" ? undefined : key }
         : refuseLink("S3", S3_SOURCE_ID, "format");
 }

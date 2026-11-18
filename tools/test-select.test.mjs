@@ -2615,15 +2615,15 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
 
     it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
         const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
-        const perFile = 13 * STORY_MS["graph-io-fidelity"];
+        const perFile = 23 * STORY_MS["graph-io-fidelity"];
         const bins = storyBins(
             [entry("graph-io-fidelity", "files", files)],
             projects,
             list,
             { "graph-io-storybook": { [files[0]]: 1_000 } },
-            () => 13,
+            () => 23,
         );
-        // 13 stories a file: four files fit in a bin, a fifth starts the next one
+        // 23 stories a file: four files fit in a bin, a fifth starts the next one
         assert.ok(4 * perFile <= LIGHT_STORY_BIN_LIMIT_MS && 5 * perFile > LIGHT_STORY_BIN_LIMIT_MS);
         assert.deepEqual(
             bins.map((b) => [b.name, b.files.length, b.ms]),
@@ -2671,7 +2671,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("packs a change's stories into at most the job budget, growing every bin's limit only as needed (#3448)", () => {
-        const ids = Array.from({ length: 4000 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 6000 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins(
             [
                 entry("graph-io-fidelity", "all", [], ids),
@@ -2682,7 +2682,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             list,
         );
         assert.ok(
-            4000 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * LIGHT_STORY_BIN_LIMIT_MS,
+            6000 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * LIGHT_STORY_BIN_LIMIT_MS,
             "over budget at the starting limit",
         );
         assert.ok(bins.length <= STORY_JOB_BUDGET, `${bins.length} bins`);
@@ -2695,7 +2695,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("never stretches a bin past LIGHT_STORY_BIN_LIMIT_MS with jobBudget Infinity", () => {
-        const ids = Array.from({ length: 4000 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 6000 }, (_, i) => `gexf-specimens--s${i}`);
         const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
         const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
         assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);

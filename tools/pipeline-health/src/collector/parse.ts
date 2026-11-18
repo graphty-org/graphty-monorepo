@@ -569,6 +569,8 @@ export interface GqlPr {
     mergedAt: string | null;
     closedAt: string | null;
     autoMergeRequest: { enabledAt: string } | null;
+    /** MERGEABLE, CONFLICTING or UNKNOWN (only on the open list). */
+    mergeable?: string;
     /** Null for a deleted account. */
     author?: { login: string } | null;
     labels: { nodes: { name: string }[] };
@@ -792,7 +794,10 @@ export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined 
 export interface PrStocks {
     open: number;
     oldestOpenMs: number;
-    /** Armed, green and still unmerged 2 h after arming. */
+    /**
+     * Armed, green, not in conflict with its base and still unmerged 2 h after arming. A conflicting one needs its
+     * base merged in, its own state: automerge_armed_long counts it once armed 24 h.
+     */
     autoMergeGreenStuck: number;
     /** Armed 24 h or more, green or not. */
     autoMergeArmedLong: number;
@@ -850,7 +855,7 @@ export function prStocks(open: GqlPr[], nowMs: number, masterFailing?: ReadonlyS
         }
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
-        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") {
+        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS" && p.mergeable !== "CONFLICTING") {
             s.autoMergeGreenStuck++;
             s.prs.greenStuck.push(p.number);
         }

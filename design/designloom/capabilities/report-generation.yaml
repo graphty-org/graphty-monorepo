@@ -7,6 +7,8 @@ status: planned
 algorithms: []
 used_by_workflows:
     - W15
+    - W22
+    - W25
 implemented_by_components:
     - report-generator-dialog
 requirements:

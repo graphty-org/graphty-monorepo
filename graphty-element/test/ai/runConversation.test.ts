@@ -12,7 +12,9 @@ import { AiStatusManager } from "../../src/ai/AiStatus";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext } from "../../src/ai/commands/types";
 import { FakeEngine } from "../../src/ai/engine/FakeEngine";
+import { LlmProviderEngine } from "../../src/ai/engine/LlmProviderEngine";
 import { type AiEngine, NO_HOSTED_TOOLS, type TurnEvent } from "../../src/ai/engine/types";
+import type { LlmProvider, LlmResponse } from "../../src/ai/providers/types";
 import { type Conversation, runConversation, TurnFailed } from "../../src/ai/runConversation";
 import type { AiEvent } from "../../src/events";
 import { createMessageGraph } from "../helpers/message-graph";
@@ -125,6 +127,42 @@ describe("runConversation", () => {
         assert.strictEqual(last?.messages.at(-2)?.role, "tool");
         assert.strictEqual(last?.messages.at(-1)?.parts[0].type, "text");
         assert.strictEqual(result.params?.toolCalls, 8);
+    });
+
+    it("gives each call its own id when the provider numbers calls per response, as WebLLM does", async () => {
+        const registry = new CommandRegistry();
+        registry.register({
+            name: "look",
+            description: "look",
+            parameters: z.object({ at: z.string() }),
+            examples: [],
+            execute: (_graph, params) => Promise.resolve({ success: true, message: `saw ${String(params.at)}` }),
+        });
+        // Two turns that both call "0", then an answer.
+        const responses: LlmResponse[] = [
+            { text: "", toolCalls: [{ id: "0", name: "look", arguments: { at: "first" } }] },
+            { text: "", toolCalls: [{ id: "0", name: "look", arguments: { at: "second" } }] },
+            { text: "Done.", toolCalls: [] },
+        ];
+        const provider: LlmProvider = {
+            name: "numbering",
+            supportsStreaming: false,
+            supportsTools: true,
+            configure: () => undefined,
+            generate: () => Promise.resolve(responses.shift() ?? { text: "", toolCalls: [] }),
+            generateStream: () => Promise.resolve(),
+            validateApiKey: () => Promise.resolve(true),
+        };
+        const { conv } = await run(new LlmProviderEngine(provider), "look twice", registry);
+        const parts = conv.messages.flatMap((m) => m.parts);
+        const calls = parts.flatMap((p) => (p.type === "tool-call" ? [p] : []));
+        const results = parts.flatMap((p) => (p.type === "tool-result" ? [p] : []));
+        assert.strictEqual(calls.length, 2);
+        assert.notStrictEqual(calls[0].callId, calls[1].callId);
+        // Each result answers its own call.
+        const answers = calls.map((call) => results.find((r) => r.callId === call.callId)?.content ?? "");
+        assert.include(answers[0], "saw first");
+        assert.include(answers[1], "saw second");
     });
 
     it("keeps a call's provider state with it, so the next turn can send it back", async () => {

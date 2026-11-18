@@ -200,6 +200,78 @@ describe("github: errors", () => {
     });
 });
 
+const RELEASE: Recording = {
+    url: `${API}/repos/${REPO}/releases/tags/v1.0`,
+    body: {
+        tag_name: "v1.0",
+        assets: [
+            {
+                name: "got.graphml",
+                browser_download_url: `https://github.com/${REPO}/releases/download/v1.0/got.graphml`,
+            },
+            { name: "notes.txt", browser_download_url: `https://github.com/${REPO}/releases/download/v1.0/notes.txt` },
+        ],
+    },
+};
+const ASSET: Recording = {
+    url: `https://github.com/${REPO}/releases/download/v1.0/got.graphml`,
+    headers: { "content-type": "application/octet-stream" },
+    body: GRAPHML,
+};
+
+describe("github: releases", () => {
+    it("loads a release asset from its download address, with the token sent only to the API", async () => {
+        const fetch = replayFetch([{ ...RELEASE, credential: true }, ASSET]);
+        const { format } = await loadFromSource(
+            githubSource,
+            { repository: REPO, release: "v1.0", path: "got.graphml" },
+            { fetch, credential: credentials.bearer("ghp_example") },
+        );
+        expect(format).toBe("graphml");
+        expect(fetch.calls.map((call) => call.credential)).toEqual([true, false]);
+    });
+
+    it('reads the latest release for "latest"', async () => {
+        const fetch = replayFetch([{ ...RELEASE, url: `${API}/repos/${REPO}/releases/latest` }, ASSET]);
+        const params = { repository: REPO, release: "latest", path: "got.graphml" };
+        expect((await loadFromSource(githubSource, params, { fetch })).format).toBe("graphml");
+    });
+
+    it("a missing release or asset is E_SOURCE_NOT_FOUND", async () => {
+        const noRelease = replayFetch([{ url: RELEASE.url, status: 404, body: { message: "Not Found" } }]);
+        const params = { repository: REPO, release: "v1.0", path: "got.graphml" };
+        const err = await rejection(loadFromSource(githubSource, params, { fetch: noRelease }));
+        expect(err.issue?.params).toMatchObject({ what: "release", value: `${REPO}@v1.0` });
+        const noAsset = await rejection(
+            loadFromSource(githubSource, { ...params, path: "nope.gml" }, { fetch: replayFetch([RELEASE]) }),
+        );
+        expect(noAsset.issue?.params).toMatchObject({ what: "file", value: `${REPO}@v1.0/nope.gml` });
+    });
+
+    it("lists a release's assets, and an item's params load the asset", async () => {
+        const fetch = replayFetch([RELEASE, RELEASE, ASSET]);
+        const listing = await listFromSource(
+            githubSource,
+            { params: { repository: REPO, release: "v1.0" }, search: "GOT" },
+            { fetch },
+        );
+        expect(listing.items).toEqual([
+            { params: { repository: REPO, release: "v1.0", path: "got.graphml" }, name: "got.graphml" },
+        ]);
+        expect([listing.total, listing.next]).toEqual([1, null]);
+        const { format } = await loadFromSource(githubSource, listing.items[0].params as never, { fetch });
+        expect(format).toBe("graphml");
+    });
+
+    it("a release answer without assets is E_SOURCE_RESPONSE", async () => {
+        const fetch = replayFetch([{ ...RELEASE, body: { tag_name: "v1.0" } }]);
+        const err = await rejection(
+            listFromSource(githubSource, { params: { repository: REPO, release: "v1.0" } }, { fetch }),
+        );
+        expect(err.issue?.code).toBe("E_SOURCE_RESPONSE");
+    });
+});
+
 describe("github: list", () => {
     it("lists every file at the default branch, in pages of the caller's size", async () => {
         const fetch = replayFetch([REPOSITORY, TREE, REPOSITORY, TREE]);
@@ -284,6 +356,22 @@ describe("parseGithubUrl", () => {
         });
     });
 
+    it("reads release and release asset links", () => {
+        const base = "https://github.com/graphty-org/samples/releases";
+        expect(parseGithubUrl(`${base}/tag/v1.0`)).toEqual({ repository: REPO, release: "v1.0" });
+        expect(parseGithubUrl(`${base}/latest`)).toEqual({ repository: REPO, release: "latest" });
+        expect(parseGithubUrl(`${base}/download/v1.0/got.graphml`)).toEqual({
+            repository: REPO,
+            release: "v1.0",
+            path: "got.graphml",
+        });
+        expect(parseGithubUrl(`${base}/latest/download/got.graphml`)).toEqual({
+            repository: REPO,
+            release: "latest",
+            path: "got.graphml",
+        });
+    });
+
     it("refuses other links, and credentials in the link", () => {
         for (const url of [
             "not a url",
@@ -291,6 +379,9 @@ describe("parseGithubUrl", () => {
             "https://gitlab.com/graphty-org/samples",
             "https://github.com/graphty-org",
             "https://github.com/graphty-org/samples/issues/1",
+            "https://github.com/graphty-org/samples/releases",
+            "https://github.com/graphty-org/samples/releases/download/v1.0",
+            "https://github.com/graphty-org/samples/releases/latest/x",
         ]) {
             expect(refusal(url)).toEqual({ name: "url", reason: "format" });
         }

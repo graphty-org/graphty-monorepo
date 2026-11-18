@@ -12,6 +12,7 @@ used_by_workflows:
     - W01
     - W11
     - W13
+    - W20
 implemented_by_components:
     - algorithm-panel
 requirements:

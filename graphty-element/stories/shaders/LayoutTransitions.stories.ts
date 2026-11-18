@@ -16,9 +16,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { registerTransition, type TransitionRegistration } from "../../extend";
-import { operationQueueOf } from "../../src/Graph";
 import type { Graphty } from "../../src/graphty-element";
-import { transitionsOf } from "../../src/transitions/LayoutTransitionRunner";
 import { assertGraphLoaded, drawn } from "../assertions";
 import { eventWaitingDecorator, isUnderRunner, waitForGraphSettled } from "../helpers";
 
@@ -157,18 +155,8 @@ async function switchAndLand(canvasElement: HTMLElement, story: string): Promise
 
     element.layout = "grid";
     await element.updateComplete;
-    await operationQueueOf(element.graph).waitForCompletion();
-    const scene = element.graph.getScene();
-    const runner = transitionsOf(element.graph.getLayoutManager());
-    // The new layout is built, so the move has begun; it ends on the frame it lands.
-    while (runner?.active === true) {
-        await new Promise<void>((resolve) => {
-            scene.onAfterRenderObservable.addOnce(() => {
-                resolve();
-            });
-        });
-    }
-
+    await element.waitForSettled();
+    // The new layout is built, so the move has begun; a stable frame waits for it to land.
     await waitForGraphSettled(canvasElement);
     await assertGraphLoaded(await drawn(canvasElement, story), { nodes: NODES.length, edges: EDGES.length });
 }

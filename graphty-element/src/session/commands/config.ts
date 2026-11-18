@@ -22,9 +22,10 @@ import {
 } from "../../config/GraphStyle";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { CONFIG_KEYS } from "../configKeys";
-import type { UndoableDefinition } from "../project/Dispatcher";
+import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
+import type { TimelineHiddenLook } from "../styles/rows";
 import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
 import { dropUnusedShaderCopies, namedShaders, settleShaderCopies, shaderIdsIn } from "./shaderCopies";
 
@@ -206,8 +207,29 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
         if (addDefaultRows) {
             ctx.services.styles?.execute({ op: "style.patch", action: "addDefaultRows" }, ctx.draft);
         }
+
+        addTimelineRowOnce(ctx);
     },
 };
+
+/**
+ * The timeline's row arrives the first time a project with the starting rows has a time field,
+ * once: `timelineHiddenAdded` records that it came, in the same step, so turning the timeline off
+ * and on again, or deleting the row, never brings it back. Written after the other default rows,
+ * it lands at the bottom of the top-pinned rows, beneath Selected.
+ * @param ctx - The `config.set` being executed, its keys already written.
+ */
+function addTimelineRowOnce(ctx: UndoableContext): void {
+    const after = ctx.services.config?.();
+    const known = after?.data.knownFields;
+    const timed = (known?.nodeTimePath ?? known?.edgeTimePath ?? null) !== null;
+    if (after?.startingRows !== true || after.timelineHiddenAdded || !timed) {
+        return;
+    }
+
+    ctx.draft.config.set("timelineHiddenAdded", true);
+    ctx.services.styles?.execute({ op: "style.patch", action: "addDefaultRows", timelineHidden: true }, ctx.draft);
+}
 
 /**
  * An object's keys whose values are set, so an unset setting is absent rather than `undefined`.
@@ -256,6 +278,8 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         ...(pinned === undefined ? {} : { pinnedStyle: pinned }),
         startingRows: read("startingRows") as boolean,
         editableBase: read("editableBase") as boolean,
+        timelineHiddenLook: read("timelineHiddenLook") as TimelineHiddenLook,
+        timelineHiddenAdded: read("timelineHiddenAdded") as boolean,
         runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,

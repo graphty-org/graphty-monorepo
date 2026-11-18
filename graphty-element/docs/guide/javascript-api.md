@@ -283,6 +283,21 @@ columns.find((a) => a.roles?.includes("weight")); // edge weights were read from
 
 The roles are `"key"`, `"label"`, `"weight"`, `"source"`, `"target"`, `"time"` and `"edgeId"`, read
 from `data.knownFields` and the last load, and `roles` is absent on a column that plays none.
+To offer a role before the reader picks a column for it, ask which column the element would read
+it from. `session.data.roleCandidate(kind, role)` names it when one is obvious, and is null
+otherwise:
+
+```typescript
+const column = session.data.roleCandidate("edge", "time"); // "released": its values read as time
+if (column !== null) {
+    await session.data.setRole({ kind: "edge", name: column }, "time");
+}
+```
+
+It offers only a column with no role yet. `time` is the column whose values read as time best; `label` the first of `label`, `name` or `title` holding text; an edge's
+`weight` a number column named `confidence`, `score` or `strength`, else the only number column.
+Every other role, and a node's weight, answers null.
+
 `usedBy` says what reads a column now: each style layer whose selector or bindings read it
 (`{ kind: "layer", id }`), then each finished run that weighed its edges by it
 (`{ kind: "run", id }`). It is absent when nothing does. A table that opens on "the attributes in
@@ -589,7 +604,7 @@ if (!check.valid) {
 
 `AI_STATES`, `AI_STAGES` and `AI_TOOL_CALL_STATUSES` list every value `status.state`,
 `status.stage` and a tool call's `status` can take, for a status display keyed by value. The
-catalogue holds no labels and no order: choose your own.
+catalog holds no labels and no order: choose your own.
 
 Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
 from a cancelled command or a failed tool without reading `result.message`, which is English
@@ -936,8 +951,7 @@ await session.transaction("Recolor", async (tx) => {
 await session.execute({ op: "visibility.context", show: false });
 ```
 
-Each step's `fact` is a code and its values, for your application to word; `step.label`, an
-English sentence, is deprecated. See [Undo and History](./undo) for the codes, what is and is not
+Each step's `fact` is a code and its values, for your application to word. See [Undo and History](./undo) for the codes, what is and is not
 undoable, transactions, work still running, events and the memory budget.
 
 ## Event Handling

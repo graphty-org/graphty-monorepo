@@ -11,7 +11,7 @@ import { CreateScreenshotAsync } from "@babylonjs/core/Misc/screenshotTools.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 import type { Antialias } from "../../src/meshes/PulledLineBatch";
 import type { CodedFact } from "../../src/session/shared";
@@ -58,7 +58,7 @@ interface FrameLog {
  * @returns Its render manager.
  */
 function loopOf(element: Graphty): RenderManager {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager;
+    return renderManagerOf(element.graph);
 }
 
 /**

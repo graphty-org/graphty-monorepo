@@ -1,6 +1,7 @@
 # All-pairs shortest paths over graph-format snapshots -- design
 
-Status: proposed, 2026-09-27. Branch `feat/algorithms-indexed-floyd-warshall`.
+Status: implemented in algorithms 2.2.0 (`algorithms/src/indexed/all-pairs.ts`). Proposed 2026-09-27
+on branch `feat/algorithms-indexed-floyd-warshall`.
 Implementation steps: `design/algorithms/floyd-warshall-indexed-port-plan.md`.
 
 ## 1. The problem

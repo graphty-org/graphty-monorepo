@@ -32,8 +32,9 @@ import { isWritableDotText } from "../../common/escape.js";
 import { inferTextDtype, itemAt } from "../../common/text.js";
 import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
-import { canonEnum } from "../../styles/canon/enums.js";
+import { canonEnum, isBoldWeight, isNumericWeight } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
+import { graphvizFontName } from "../../styles/canon/postscript-font.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import {
     type DotEscapeNames,
@@ -44,6 +45,7 @@ import {
     recordLabelText,
 } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
@@ -62,13 +64,11 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
     type GlyphPoint,
     GRAPHVIZ_GLYPH_SHAPES,
     GRAPHVIZ_POLYGON_SHAPES,
     graphvizFont,
-    graphvizFontName,
     type GraphvizGlyph,
     graphvizGlyph,
     graphvizPolygonCorners,
@@ -77,7 +77,7 @@ import {
 import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, DOT_META_KEY, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
-import { fontWidths, layoutRecord } from "./record.js";
+import { fontWidths, layoutRecord, MAX_RECORD_DEPTH, recordDepth } from "./record.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -1013,9 +1013,16 @@ function readNodeSize(
 ): void {
     const { get, put, at, shape } = n;
     readSize(get, shape, n.point, put, at);
-    if (RECORD.has(shape) && label !== null && !htmlLabel) {
+    const record = RECORD.has(shape) && label !== null && !htmlLabel;
+    if (record && recordDepth(label) <= MAX_RECORD_DEPTH) {
         readRecord(n, label, names);
-    } else if (!n.point) {
+        return;
+    }
+    if (record) {
+        // too deep to lay out: the node keeps its plain label
+        noteAt(at("label"), STYLE_ISSUE.NESTING, `record fields nested deeper than ${MAX_RECORD_DEPTH}`);
+    }
+    if (!n.point) {
         readLabelFit(get, shape, label, shown, n.table, put);
         readQuantum(n, label);
     }
@@ -3085,20 +3092,22 @@ function writeCommon(get: Get, approximate: Approximate, out: Map<string, Writte
         out.set("fontsize", size);
     }
     const font = get("labelFont");
-    const bold = get("labelWeight") === "bold";
+    const weight = get("labelWeight");
+    const bold = isBoldWeight(weight);
     const italic = get("labelItalic") === true;
     if (typeof font === "string") {
         const name = graphvizFontName(font, bold, italic);
         out.set("fontname", name);
         const drawn = graphvizFont(name);
-        if (drawn.bold !== bold) {
+        // Graphviz's PostScript faces are plain or bold: a numeric weight is drawn as the nearer of the two
+        if (drawn.bold !== bold || isNumericWeight(weight)) {
             approximate("labelWeight", get("labelWeight") ?? "normal");
         }
         if (drawn.italic !== italic) {
             approximate("labelItalic", italic);
         }
     } else if (bold || italic) {
-        approximate(bold ? "labelWeight" : "labelItalic", bold ? "bold" : true);
+        approximate(bold ? "labelWeight" : "labelItalic", bold ? (weight ?? "bold") : true);
     }
     const tip = get("tooltip");
     if (typeof tip === "string") {

@@ -2,7 +2,8 @@ id: progress-bar
 name: Progress Bar
 category: display
 description: Visual indicator of progress for long-running operations. Supports determinate and indeterminate modes.
-status: planned
+status: implemented
+notes: "Ships: Mantine Progress, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities:
     - algorithm-progress
 used_in_workflows:

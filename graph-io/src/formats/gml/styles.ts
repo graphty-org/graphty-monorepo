@@ -25,18 +25,22 @@ import {
     nodeOffsetsToPoints,
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
-import { canonEnum } from "../../styles/canon/enums.js";
+import { canonEnum, isBoldWeight } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { putYedRamp, yedGradientAngle } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
+    YED_LABEL_BOX_PADDING,
+    YED_LABEL_CHARACTER,
+    YED_LABEL_LINE,
     YED_OUTSIDE_DISTANCE,
     yedLabelBox,
     yedLabelFillsNodeHeight,
 } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { arrowGap, arrowProportion, CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
@@ -81,12 +85,7 @@ import {
     putYedEdgeLabel,
     routeMiddle,
     typeOutline,
-    type ValueColumns,
-    valueColumns,
     YED_ARROWS,
-    YED_LABEL_BOX_PADDING,
-    YED_LABEL_CHARACTER,
-    YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
     yedArcControl,
@@ -1965,7 +1964,8 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     return {
         canonical: true,
         dialect: writer.dialect,
-        tool: writer.tool,
+        // the draft's graphics are drawn as the Tk canvas draws them (its arrowheads: TOOL_DEFAULTS "tk")
+        tool: drawnByDraft(writer) ? "tk" : writer.tool,
         units: writer.units,
         node: { values: values.node, ...gephi.node },
         edge: { values: values.edge, ...gephi.edge },
@@ -2189,7 +2189,7 @@ function labelGraphics(get: Get): Rec | null {
     const weight = get("labelWeight");
     const italic = get("labelItalic");
     if (weight !== null || italic !== null) {
-        const style = (weight === "bold" ? "bold" : "") + (italic === true ? "italic" : "");
+        const style = (isBoldWeight(weight) ? "bold" : "") + (italic === true ? "italic" : "");
         lg.fontStyle = style.length === 0 ? "plain" : style;
     }
     // a node label's place

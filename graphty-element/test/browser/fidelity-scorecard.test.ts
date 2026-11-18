@@ -22,6 +22,7 @@ import { CORPUS_SAMPLES } from "../../../graph-io/test/fidelity/corpus-samples";
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import { PROPERTIES } from "../../../graph-io/test/fidelity/scene";
 import { drawnScene, mountSample, nodeKeys, readJson, referenceScenes, unmount } from "../fidelity/mount";
+import { floorsFileText } from "../fidelity/oracle/floors";
 
 const FLOORS = "test/fidelity/drawn-floors.json";
 const RECORD = (import.meta.env.GRAPHTY_FIDELITY_RECORD as string | undefined) === "1";
@@ -148,7 +149,7 @@ describe("style fidelity scorecard: what graphty-element draws", () => {
 
     afterAll(async () => {
         if (RECORD) {
-            await commands.writeFile(FLOORS, `${JSON.stringify({ ...stored, floors: recorded }, null, 4)}\n`);
+            await commands.writeFile(FLOORS, floorsFileText({ ...stored, floors: recorded }));
         }
     });
 });

@@ -1,8 +1,13 @@
 # XR 3D Object Manipulation: Research and Analysis
 
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
 **Date**: 2025-11-21
 **Context**: VR controller-based node dragging implementation for graphty-element
-**Status**: Research complete, implementation pending
 
 ---
 

@@ -22,6 +22,9 @@ import {
 } from "../../../src/session/styles/index";
 import { CAVEATS, ENGINE, FakeGraph, finishAtOnce } from "../runs/harness";
 
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = EncodingRun & { readonly label: string };
+
 /** One published field, spelled out so a test can say exactly what a run offers. */
 function field(
     name: string,
@@ -39,7 +42,7 @@ function field(
  * @param fields - What it published.
  * @returns The run.
  */
-function runOf(id: RunId, shape: ResultShape, fields: readonly FieldDescriptor[]): EncodingRun {
+function runOf(id: RunId, shape: ResultShape, fields: readonly FieldDescriptor[]): NamedRun {
     return {
         id,
         label: `The ${id} run`,
@@ -89,12 +92,13 @@ const BRIDGES = runOf("bridges", "edge-set", [field("in", "edge", "boolean", "br
 const PREDICTIONS = runOf("predictions", "pair-list", [field("pairs", "graph", "table", "predictions")]);
 
 /** Every run these tests look up, for the plan that turns a suggestion into a layer. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, EDGE_BETWEENNESS, LOUVAIN, ROUTE, INFLUENCERS, BRIDGES];
+const RUNS: readonly NamedRun[] = [BETWEENNESS, EDGE_BETWEENNESS, LOUVAIN, ROUTE, INFLUENCERS, BRIDGES];
 
 /** Where a suggestion's run is looked up when it is planned into a layer. */
 const RUN_SOURCE: EncodingSource = {
     run: (ref: RunRef): EncodingRun | undefined => RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => RUNS.find((entry) => entry.id === id)?.label,
 };
 
 /**

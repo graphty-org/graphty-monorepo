@@ -471,6 +471,10 @@ export interface CompactMantineLabels {
     fileLoading: string;
     /** The text of `FileSource`'s button that stops a load under way (`onCancel`). */
     fileCancel: string;
+    /** What `FileSource`'s row says over its field while a file is dragged over it (`dropLabel`, `dropping`). */
+    fileDrop: string;
+    /** The word before the file's name in the accessible name of the x that clears `FileSource`'s loaded file (`loaded`). */
+    fileRemove: string;
 }
 
 /**
@@ -605,6 +609,8 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     fileChooseFolder: "Choose folder",
     fileLoading: "Loading",
     fileCancel: "Cancel",
+    fileDrop: "Drop to load",
+    fileRemove: "Remove",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

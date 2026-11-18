@@ -1,19 +1,19 @@
 import "./join.css";
 
-import { DataTable, type DataTableColumn, EntityChip } from "@graphty/compact-mantine";
+import { DataTable, type DataTableColumn, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, JoinChoices, JoinReport, JoinRowFate } from "@graphty/graphty-element/session";
-import { Badge, Button, Checkbox, HoverCard, Menu, SegmentedControl } from "@mantine/core";
+import { Badge, Button, Checkbox, HoverCard, Menu } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { errorWords } from "../project/words";
+import { TABLE_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { columnChoices, headerIconsLabel, type RecordKind, type TableColumnChoice } from "../table/columns";
 import { HeaderIcons } from "../table/HeaderCell";
 import { RecordTable } from "../table/RecordTable";
-import { useSessionVersion } from "../table/useSessionVersion";
 import {
     closeJoin,
     draftSubject,
@@ -523,7 +523,7 @@ function GraphTable({ session, kind, choices, onChange, only, height }: Readonly
  */
 function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session: GraphSession }>): React.JSX.Element {
     const workspace = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, TABLE_EVENTS);
     const [choices, setChoices] = useState<JoinChoices>(subject.initial);
     const [how, setHow] = useState<JoinHow>(subject.how);
     const [chosenShow, setShow] = useState<JoinShow>(null);

@@ -8,7 +8,6 @@
 import { assert, describe, it } from "vitest";
 
 import type { UnionLeaf } from "../../../src/catalog/types";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createGraphSession } from "../../../src/session";
 import { workingGraphOfSession } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
@@ -245,7 +244,6 @@ describe("time ghosts and the working graph", () => {
      * @returns The session.
      */
     async function ghostTrace(workingGraph: boolean): Promise<ElementSession> {
-        setDefaultFeatures(["timeline"]);
         const session = createGraphSession({ workingGraph }) as ElementSession;
         const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `s${String(i)}`, step: i }));
         await session.data.import({
@@ -262,7 +260,12 @@ describe("time ghosts and the working graph", () => {
         "draws the nodes outside the window as ghosts with the option %s, and keeps them in the view",
         async (workingGraph) => {
             const session = await ghostTrace(workingGraph);
-            assert.isTrue(session.visibility.ghosting);
+            // Outside the window is a state the style layers draw, never a ghost of a held condition.
+            const outside = session.visibility.outsideWindowBytes();
+            assert.strictEqual(
+                outside?.node.reduce((sum, byte) => sum + byte, 0),
+                7,
+            );
             assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
             assert.deepStrictEqual(asked(session.visibility.notDrawn), []);
             // The window is not part of the working graph: every node stays in the view.

@@ -155,6 +155,12 @@ export interface LabelStyle {
      */
     wrapTrailingSpace?: boolean;
     /**
+     * With `wrapTrailingSpace`, whether the last word of a line of the text is measured without a space after
+     * it, as Cytoscape.js measures a line (the space after every other word still counts). Unset or false, the
+     * last word's space counts too, as Cytoscape desktop measures one.
+     */
+    wrapSkipEndSpace?: boolean;
+    /**
      * Whether a line wider than `wrapWidth` is cut to fit, with an ellipsis after the letters kept, in place of
      * wrapping onto more lines (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */
@@ -177,6 +183,12 @@ export interface LabelStyle {
      */
     maxLines?: number;
     /**
+     * Whether the last line `maxLines` keeps runs on with the rest of its line, cut to `wrapWidth` with an ellipsis
+     * after it ("Wrap" / "this t..."). False, the lines past `maxLines` are dropped as they are, with no ellipsis.
+     * Unset, true.
+     */
+    maxLinesEllipsis?: boolean;
+    /**
      * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
      * layout sets it (yEd draws "\nCS" two lines tall). Unset or false, a blank line takes no height. A blank line
      * after the last words takes none either way.
@@ -195,6 +207,22 @@ export interface LabelStyle {
     rotation?: number;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
+    /**
+     * What one line is as tall as, before `lineHeight` multiplies it: "font", its font's ascent plus descent; "size",
+     * its font size, as CSS and Cytoscape.js measure a line (the letters reach past it); "glyphs", its letters' own
+     * ink. Unset, "font".
+     */
+    lineBox?: "font" | "size" | "glyphs";
+    /**
+     * Where the border round the panel is drawn: "outside", all of it past the panel's edge; "center", centered on
+     * that edge, as a canvas strokes a box. Unset, "outside".
+     */
+    borderAlign?: "outside" | "center";
+    /**
+     * The shape of the panel and its border: "rectangle" (rounded by `cornerRadius`), or "circle", a disc whose
+     * diameter is the panel's shorter side, centered on it. Unset, "rectangle".
+     */
+    backgroundShape?: "rectangle" | "circle";
     /**
      * The label is not drawn while its letters are drawn smaller than this many pixels on screen,
      * as a program that hides labels too small to read does. Decided again whenever the camera
@@ -446,14 +474,19 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     italic: 0,
     wrapWidth: 0,
     wrapTrailingSpace: 0,
+    wrapSkipEndSpace: 0,
     wrapEllipsis: 0,
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
     maxLines: 0,
+    maxLinesEllipsis: 0,
     keepBlankLines: 0,
     runAlign: 0,
     rotation: 0,
     lineHeight: 0,
+    lineBox: 0,
+    borderAlign: 0,
+    backgroundShape: 0,
     minScreenSize: 0,
     declutter: 0,
     minNodeScreenSize: 0,
@@ -541,15 +574,20 @@ export const RICH_TEXT_KEYS = {
     letterSize: "letterSize",
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
+    wrapSkipEndSpace: "wrapSkipEndSpace",
     wrapEllipsis: "wrapEllipsis",
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
     maxLines: "maxLines",
+    maxLinesEllipsis: "maxLinesEllipsis",
     keepBlankLines: "keepBlankLines",
     runAlign: "runAlign",
     rotation: "rotation",
     color: "textColor",
     lineHeight: "lineHeight",
+    lineBox: "lineBox",
+    borderAlign: "borderAlign",
+    backgroundShape: "backgroundShape",
     minScreenSize: "minScreenSize",
     minNodeScreenSize: "minNodeScreenSize",
     declutter: "declutter",
@@ -695,7 +733,7 @@ const FIELD_ROWS = {
     look: choice("Look", ["default", "card", "dark", "pill", "callout"] satisfies readonly LabelLookId[]),
     enabled: flag("Enabled"),
     font: text("Font"),
-    sizePx: num("Font Size"),
+    sizePx: num("Font Size", { min: 1 }),
     sizeMode: choice("Size Mode", ["world", "screen"] satisfies readonly LabelSizeMode[]),
     size: num("Size", { min: 0, exclusiveMin: true }),
     letterSize: num("Letter Size", { min: 0 }),
@@ -704,14 +742,19 @@ const FIELD_ROWS = {
     italic: flag("Italic"),
     wrapWidth: num("Wrap Width", { min: 0 }),
     wrapTrailingSpace: flag("Wrap Trailing Space"),
+    wrapSkipEndSpace: flag("Wrap Skip End Space"),
     wrapEllipsis: flag("Wrap Ellipsis"),
     wrapAnywhere: flag("Wrap Anywhere"),
     wrapSpaceCount: num("Wrap Space Count", { min: 0 }),
     maxLines: num("Max Lines", { min: 1, integer: true }),
+    maxLinesEllipsis: flag("Max Lines Ellipsis"),
     keepBlankLines: flag("Keep Blank Lines"),
     runAlign: choice("Run Align", ["baseline", "hanging", "middle"]),
     rotation: num("Rotation"),
     lineHeight: num("Line Height"),
+    lineBox: choice("Line Box", ["font", "size", "glyphs"]),
+    borderAlign: choice("Border Align", ["outside", "center"]),
+    backgroundShape: choice("Background Shape", ["rectangle", "circle"]),
     minScreenSize: num("Min Screen Size", { min: 0 }),
     declutter: choice("Declutter", ["degree", "size"] satisfies readonly LabelDeclutterOrder[]),
     minNodeScreenSize: num("Min Node Screen Size", { min: 0 }),

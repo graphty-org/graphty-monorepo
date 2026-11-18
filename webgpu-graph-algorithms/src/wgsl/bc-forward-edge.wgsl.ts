@@ -1,6 +1,5 @@
 /**
- * The `bc-forward-edge` kernel body (design 8.4 "the McLaughlin-Bader online switch to the edge-parallel form", 8.8
- * row 7): one level of a betweenness batch's forward pass, edge-parallel -- every logical edge of the `edgeList` view
+ * The `bc-forward-edge` kernel body (the McLaughlin-Bader online switch to the edge-parallel form): one level of a betweenness batch's forward pass, edge-parallel -- every logical edge of the `edgeList` view
  * for every source of the batch, grid-striding over the edges inside a loop over the k sources. For the edge `(u, x)`
  * and source `s`, when `depth[s][u]` is the level the edge is relaxed toward `x` with EXACTLY the claim and the count
  * of `bc-forward` (the pre-check, `atomicMin`, the winner appends `s * n + x` to the same claim log, every arc on a
@@ -17,7 +16,7 @@ var<workgroup> wwon: atomic<u32>;                 // the strip's winners
 var<workgroup> wbase: u32;                        // where the strip's winners go in the log
 
 fn claim(x: u32, next: u32) -> bool {
-    if (atomicLoad(&depthK[x]) != INVALID_INDEX) { return false; }   // the pre-check of design 16.1
+    if (atomicLoad(&depthK[x]) != INVALID_INDEX) { return false; }   // the pre-check: a stale read costs one redundant atomic
     return atomicMin(&depthK[x], next) == INVALID_INDEX;
 }
 

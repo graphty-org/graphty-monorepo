@@ -1,26 +1,26 @@
 /**
- * Fruchterman-Reingold on the exact or the grid repulsion tier (spec 7.20, 7.8; contract 3.13): the ForceModel that
+ * Fruchterman-Reingold on the exact or the grid repulsion tier: the ForceModel that
  * ForceSimulation drives -- the K1 K2 K3 K5 sequence per iteration on the exact tier (K1 K2 G1..G7 K5 on the grid
- * tier, P4-T13) and toScene per batch (no K4: no speed controller), the constant override set (`LAW` 1 on K2 / K3
- * and on G6 / G7, `APPLY` 1 on K5, `STATS_MODE` 1 on K1, PD-1), the per-iteration Fa2Params values
- * with the cooling schedule's temperature (PD-5), the controller resets and the stats decoder -- plus the option
+ * tier) and toScene per batch (no K4: no speed controller), the constant override set (`LAW` 1 on K2 / K3
+ * and on G6 / G7, `APPLY` 1 on K5, `STATS_MODE` 1 on K1), the per-iteration Fa2Params values
+ * with the cooling schedule's temperature, the controller resets and the stats decoder -- plus the option
  * resolver and `createFruchtermanReingold`. The model shares FA2's four kernels, buffers and blocks: `oldForce` is
- * allocated, bound and never read (K5 compiles `SWING_MODE = 1`, PD-2 / PD-20); the mass lane is 1 for every node
- * and weights are ignored (PD-11); the `fixed` option resolves at load through ModelInputs.fixed (PD-6); a
- * `setParams({ fixed })` patch is E_INVALID_ARGUMENT (PD-16).
+ * allocated, bound and never read (K5 compiles `SWING_MODE = 1`); the mass lane is 1 for every node
+ * and weights are ignored; the `fixed` option resolves at load through ModelInputs.fixed; a
+ * `setParams({ fixed })` patch is E_INVALID_ARGUMENT.
  *
- * The temperature index (PD-5): the simulation hands paramsFor the GLOBAL iteration index, which load() restarts at 0
+ * The temperature index: the simulation hands paramsFor the GLOBAL iteration index, which load() restarts at 0
  * and reheat() does not touch. The model keeps `tempOrigin` (the global index at which the temperature index is 0):
  * onLoad sets it to 0; onReheat arms `pendingReheat`; the first paramsFor(global) after it sets
  * `tempOrigin = global - floor(0.7 * iterations)`, so the temperature restarts at floor(0.7 * iterations) exactly as
  * the CPU's reheat() does. The temperature is `max(0, 0.1 - dt * (global - tempOrigin))`, dt = 0.1 / (iterations + 1);
- * at 0 nothing moves and the settle window closes the run (DEP-P5-C: the budget restarts at 0, the temperature does
+ * at 0 nothing moves and the settle window closes the run (the budget restarts at 0, the temperature does
  * not).
  *
- * The grid tier (P4-T13, PD-22) is FA2's: `RepulsionGrid` with `LAW` 1 when `tierFor(tuning, n)` says so (PD-18),
- * the grid buffers from `buffers()`, K1's grid block under `gridMax > 0` (PD-14) over the model's own `hubCounters`,
- * the three passes `fr-k1` / `fr-attraction` / `fr-grid` before `fa2-to-scene` (PD-16), and the union stage list
- * (PD-17: `upTo` stops after the last stage recorded at or before its position; K4 is never recorded).
+ * The grid tier is FA2's: `RepulsionGrid` with `LAW` 1 when `tierFor(tuning, n)` says so,
+ * the grid buffers from `buffers()`, K1's grid block under `gridMax > 0` over the model's own `hubCounters`,
+ * the three passes `fr-k1` / `fr-attraction` / `fr-grid` before `fa2-to-scene`, and the union stage list
+ * (`upTo` stops after the last stage recorded at or before its position; K4 is never recorded).
  */
 
 import { type GraphSnapshot, type NodeMask } from "@graphty/graph-format";
@@ -80,7 +80,7 @@ import { RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js"
 
 // ============================================================ constants
 
-/** The model's override set, constant for every option record (PD-1, PD-20). */
+/** The model's override set, constant for every option record. */
 const FR_OVERRIDES: Overrides = Object.freeze({
     LINLOG: false,
     DISTRIBUTED: false,
@@ -93,7 +93,7 @@ const FR_OVERRIDES: Overrides = Object.freeze({
     STATS_MODE: 1,
 });
 
-/** The grid stage's override set (G6 / G7 / K4; P4-T13, PD-22): K3's constant three and the FR law. */
+/** The grid stage's override set (G6 / G7 / K4): K3's constant three and the FR law. */
 const FR_GRID_OVERRIDES: RepulsionGridOverrides = Object.freeze({
     SWING_MODE: 1,
     STRONG_GRAVITY: false,
@@ -144,7 +144,7 @@ function pickCooling(given: unknown, fallback: "linear" | "adaptive"): "linear" 
 }
 
 /**
- * Applies FR_DEFAULTS to the option record and validates every range (spec 7.20, 9.3). `k`: null, 0 and NaN mean the
+ * Applies FR_DEFAULTS to the option record and validates every range. `k`: null, 0 and NaN mean the
  * auto default `1 / sqrt(n)` (the CPU's `if (!k)`, `layout/src/simulation/fruchterman-reingold.ts:140-152`); a
  * negative or infinite k is E_INVALID_ARGUMENT. `iterations` is an integer >= 0 (0: settled at load); under
  * `cooling: "adaptive"` it is only the run's cap and a fresh record without one gets FR_ADAPTIVE_MAX_ITERATIONS. `fixed` is a
@@ -188,7 +188,7 @@ export function resolveFruchtermanReingoldOptions(
 }
 
 /**
- * The fixed mask of a load (spec 7.12; the rule of `layout/src/simulation/fruchterman-reingold.ts:576-606` minus its
+ * The fixed mask of a load (the rule of `layout/src/simulation/fruchterman-reingold.ts:576-606` minus its
  * "previous pins" clause, which ForceSimulation.load() implements by keeping the words on a same-size reload): a
  * string names a bool node column (E_INVALID_ARGUMENT when absent or not bool); a mask is copied; null takes the
  * role-"fixed" bool column when present, else null (leave the words as they are).
@@ -227,23 +227,23 @@ function resolveFixed(s: GraphSnapshot, spec: NodeMask | string | null): NodeMas
 
 // ============================================================ the model
 
-/** The Fruchterman-Reingold model (spec 7.20: K1 K2 K3 K5 per iteration on the exact tier, K1 K2 G1..G7 K5 on the grid tier; toScene once per batch). Stages: the union list of PD-17. */
+/** The Fruchterman-Reingold model (K1 K2 K3 K5 per iteration on the exact tier, K1 K2 G1..G7 K5 on the grid tier; toScene once per batch). Stages: the union list of both tiers. */
 export class FruchtermanReingoldModel
     extends ForceModelBase<LawRepulsion>
     implements ForceModel<FruchtermanReingoldOptions, FruchtermanReingoldStats>
 {
-    /** The model kind of spec 7.19. */
+    /** The model kind, "fruchtermanReingold". */
     readonly kind = "fruchtermanReingold";
 
     /** The option record the model holds: the constructor's record, replaced by onSetParams() ONLY (as FA2's). */
     private current: ResolvedFruchtermanReingoldOptions;
-    /** The global iteration index at which the temperature index is 0 (PD-5). */
+    /** The global iteration index at which the temperature index is 0. */
     private tempOrigin = 0;
-    /** Armed by onReheat(); consumed by the next paramsFor(), which re-anchors tempOrigin (PD-5). */
+    /** Armed by onReheat(); consumed by the next paramsFor(), which re-anchors tempOrigin. */
     private pendingReheat = false;
 
     /**
-     * Creates the model for one simulation. `oldForce` is allocated, bound and never read (PD-2); the toScene pass
+     * Creates the model for one simulation. `oldForce` is allocated, bound and never read; the toScene pass
      * keeps FA2's label.
      * @param tuning - the resolved GPU-only tuning (the tier rule; compat has no effect on this model)
      * @param resolved - the resolved option record at creation
@@ -254,8 +254,8 @@ export class FruchtermanReingoldModel
     }
 
     /**
-     * Mass 1 for every node and no weights (PD-11: FR has no mass and ignores weights), the fixed mask of the
-     * `fixed` option applied at load (PD-6). Also remembers the grid of this load (`tierFor(tuning, n)`, spec 7.8)
+     * Mass 1 for every node and no weights (FR has no mass and ignores weights), the fixed mask of the
+     * `fixed` option applied at load. Also remembers the grid of this load (`tierFor(tuning, n)`)
      * for onLoad() and specs(): the simulation calls inputs() first, then onLoad() before bind().
      * @param s - the snapshot being loaded
      * @param options - the simulation's current option record
@@ -275,7 +275,7 @@ export class FruchtermanReingoldModel
     }
 
     /**
-     * The constant FR override set (PD-1): no option changes a law, so setParams never recompiles.
+     * The constant FR override set: no option changes a law, so setParams never recompiles.
      * @param _options - an option record (unused: the set is constant)
      * @returns the model's own override set
      */
@@ -308,7 +308,7 @@ export class FruchtermanReingoldModel
     /**
      * Compiles the pipelines of one load, one after another: K1, K2 over the degree tiers through compileAttraction
      * (none when arcCount === 0), K3 on the exact tier, K5, toScene, fill, then G1-G7 through RepulsionGrid on the
-     * grid tier (PD-18). The K2 TIER 1 / 2 pipelines compile on the first load whose degrees need them (P4 PD-7).
+     * grid tier. The K2 TIER 1 / 2 pipelines compile on the first load whose degrees need them.
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
      * @returns the pipelines
@@ -342,7 +342,7 @@ export class FruchtermanReingoldModel
 
     /**
      * The Fa2Params values of one iteration: the shared fields, the FA2 fields at their neutral values (scalingRatio,
-     * gravity and jitterTolerance 0), `frK` = k or 1 / sqrt(n), and this iteration's temperature (PD-5 anchors here).
+     * gravity and jitterTolerance 0), `frK` = k or 1 / sqrt(n), and this iteration's temperature (a pending reheat re-anchors it here).
      * Under `cooling: "adaptive"` the flags carry FA2_FLAG_ADAPTIVE and the kernels take the temperature from the
      * state block instead (K1 updates it, K5 reads it); the uniform's value is then the start temperature and unused.
      * The simulation overwrites the shared fields with the same values and OR-s in its own flags.
@@ -370,7 +370,7 @@ export class FruchtermanReingoldModel
 
     /**
      * temperature = 0.1 (what stats reads before the first batch lands), kineticEnergy = 0; the temperature index
-     * restarts at 0 (PD-5). On a grid load the frame of the first build (K1 folds nothing on the first iteration).
+     * restarts at 0. On a grid load the frame of the first build (K1 folds nothing on the first iteration).
      * @param state - the state writer of the simulation
      */
     onLoad(state: StateWriter): void {
@@ -396,7 +396,7 @@ export class FruchtermanReingoldModel
     }
 
     /**
-     * Arms the re-anchoring of the temperature index at floor(0.7 * iterations), placed by the next paramsFor (PD-5);
+     * Arms the re-anchoring of the temperature index at floor(0.7 * iterations), placed by the next paramsFor;
      * under `cooling: "adaptive"` restarts the controller at the start temperature instead.
      * @param state - the state writer of the simulation
      */
@@ -409,7 +409,7 @@ export class FruchtermanReingoldModel
 
     /**
      * Replaces the record (a new k or budget takes effect at the next paramsFor: a new dt, a new frK; no recompile).
-     * The PD-16 `fixed` check already ran in the simulation's resolve callback.
+     * The `fixed` check already ran in the simulation's resolve callback.
      * @param patch - the setParams patch
      * @param _state - the state writer of the simulation (nothing to write)
      */
@@ -444,7 +444,7 @@ export class FruchtermanReingoldModel
     }
 
     /**
-     * The temperature of a global iteration (PD-5): a pending reheat re-anchors tempOrigin so this iteration's
+     * The temperature of a global iteration: a pending reheat re-anchors tempOrigin so this iteration's
      * temperature index is floor(0.7 * iterations); then max(0, 0.1 - dt * index), dt = 0.1 / (iterations + 1).
      * @param global - the global iteration index
      * @param resolved - the current record
@@ -463,7 +463,7 @@ export class FruchtermanReingoldModel
 // ============================================================ the factory
 
 /**
- * The resolve callback of the simulation's setParams: the PD-16 `fixed` check first (fixed is applied at load; a
+ * The resolve callback of the simulation's setParams: the `fixed` check first (fixed is applied at load; a
  * rejected patch leaves the simulation unchanged because ForceSimulation.setParams runs this before any state moves),
  * then the patch over the current record, re-validated.
  * @param patch - the setParams patch
@@ -475,7 +475,7 @@ function resolvePatch(
     current: FruchtermanReingoldOptions,
 ): FruchtermanReingoldOptions {
     if ("fixed" in patch) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", "setParams({ fixed }) is not a live option (spec 7.12)", {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", "setParams({ fixed }) is not a live option", {
             argument: "fixed",
             value: patch.fixed,
             expected: "absent",
@@ -486,8 +486,8 @@ function resolvePatch(
 }
 
 /**
- * Spec 3.3 createFruchtermanReingold, verbatim: a GpuLayoutSimulation running Fruchterman-Reingold on the exact or
- * the grid repulsion tier (spec 7.8) with the option defaults of spec 7.20 and the GPU-only tuning of GpuLayoutTuning.
+ * Creates a GpuLayoutSimulation running Fruchterman-Reingold on the exact or
+ * the grid repulsion tier with the option defaults of FR_DEFAULTS and the GPU-only tuning of GpuLayoutTuning.
  * @param ctx - the context (E_DISPOSED / E_DEVICE_LOST through assertReady)
  * @param options - the Fruchterman-Reingold options and the GPU-only tuning knobs in one record
  * @returns the simulation in state "created"; load() next

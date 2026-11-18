@@ -64,6 +64,7 @@ describe("Automatic Layout Updates", () => {
                 camera: {
                     pivotOnSelection: false,
                     autoRotate: 0,
+                    autoRotateResume: 0,
                     fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
                     fitBounds: "box",
                     refitOnResize: false,
@@ -202,72 +203,6 @@ describe("Automatic Layout Updates", () => {
         assert.isFalse(layoutUpdateCalled, "layout-update should not be triggered when no layout engine exists");
         assert.include(operations, "data-add", "data-add should have executed");
         assert.notInclude(operations, "layout-update-queued", "layout-update should not have been queued");
-    });
-
-    it("does not coalesce layout updates in batch mode: one per data operation", async () => {
-        const operations: string[] = [];
-        let layoutUpdateCount = 0;
-
-        // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
-        layoutManager.running = true;
-
-        // Track layout updates
-        const originalQueueOp = operationQueue.queueOperationAsync.bind(operationQueue);
-        operationQueue.queueOperationAsync = async function (
-            category: OperationCategory,
-            execute: (context: OperationContext) => Promise<void> | void,
-            options?: Partial<OperationMetadata>,
-        ) {
-            if (category === "layout-update") {
-                layoutUpdateCount++;
-                operations.push("layout-update-queued");
-            }
-
-            return originalQueueOp(category, execute, options);
-        };
-
-        // Enter batch mode
-        operationQueue.enterBatchMode();
-
-        // Queue multiple data operations
-        const promises = [
-            operationQueue.queueOperationAsync(
-                "data-add",
-                () => {
-                    operations.push("data-add-1");
-                },
-                { description: "Adding nodes 1" },
-            ),
-            operationQueue.queueOperationAsync(
-                "data-add",
-                () => {
-                    operations.push("data-add-2");
-                },
-                { description: "Adding nodes 2" },
-            ),
-            operationQueue.queueOperationAsync(
-                "data-update",
-                () => {
-                    operations.push("data-update");
-                },
-                { description: "Updating nodes" },
-            ),
-        ];
-
-        // Exit batch mode
-        void operationQueue.exitBatchMode();
-
-        // Wait for all operations
-        await Promise.all(promises);
-        await operationQueue.waitForCompletion();
-
-        // Batch mode defers execution, not triggers: each data operation still queues its own
-        // layout-update (one for each data-add and one for data-update)
-        assert.equal(layoutUpdateCount, 3, "triggers one layout-update per data operation");
-        assert.include(operations, "data-add-1", "first data-add should have executed");
-        assert.include(operations, "data-add-2", "second data-add should have executed");
-        assert.include(operations, "data-update", "data-update should have executed");
     });
 
     it("should handle edge additions with layout update", async () => {

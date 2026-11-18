@@ -372,7 +372,8 @@ const ROWS: readonly Row[] = [
     },
     // Eigenvector's model charges every pass of its 1,000-pass bound, so it is held to both bounds
     // where the graph runs them all: a small grid and a sparse random graph, whose many small
-    // components keep it from converging (both throw).
+    // components keep it from converging (both throw). The grid stays in a core's cache and the
+    // random graph does not, so between them they hold both ends of the model's cache term.
     { key: "eigenvector", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
     {
         key: "eigenvector",
@@ -728,6 +729,8 @@ describe.runIf(process.env.COST_GUARD === "1")(
 
                 once(0); // warm-up, untimed
 
+                // A slow memory reading skips only its own size; the row is skipped when every size read slow.
+                const slowSizes: string[] = [];
                 for (const [index, nodes] of row.sizes.entries()) {
                     const { edges, maxDegree, transitivity } = graphs[index];
                     const memoryBefore = memorySpeed();
@@ -741,7 +744,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                         statistics: statistics(nodes, edges, maxDegree, transitivity),
                         calibration,
                     });
-                    assert.isTrue(estimate.available, estimate.reason);
+                    assert.isTrue(estimate.available, estimate.refusal?.code);
 
                     const ratio = estimate.seconds / measured;
                     const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;
@@ -754,13 +757,18 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     if (memory < MIN_MEMORY_SPEED) {
                         const note = `not timed: another tenant is loading this machine's memory (${memory.toFixed(2)}x the reference, under ${MIN_MEMORY_SPEED}). ${facts}`;
                         process.stdout.write(`::warning title=Cost Estimate Accuracy::${note}\n`);
-                        context.skip(note);
+                        slowSizes.push(note);
+                        continue;
                     }
 
                     assert.isAtLeast(ratio, MAX_OPTIMISM, `too optimistic. ${facts}`);
                     if (row.optimismOnly === undefined) {
                         assert.isAtMost(ratio, MAX_PESSIMISM, `too pessimistic. ${facts}`);
                     }
+                }
+
+                if (slowSizes.length === row.sizes.length) {
+                    context.skip(slowSizes.join(" "));
                 }
             });
         }

@@ -438,7 +438,6 @@ describe("a masked edge stored with no Edge", () => {
                 { src: 1, dst: 2, t: 1 },
             ],
             true,
-            { features: ["timeline"] },
         );
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);
@@ -451,6 +450,37 @@ describe("a masked edge stored with no Edge", () => {
         await settled(element);
         assert.equal(lines.count, 0, "a row line carries no age");
         assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
+    });
+
+    it("hides and shows the row lines a time window slides over by style, building no Edge", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1, t: 0 },
+                { src: 1, dst: 2, t: 5 },
+            ],
+            true,
+        );
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const { time } = element.session;
+        await time.setField({ edges: { start: "t", unit: "ordinal" } });
+        await time.ready;
+        // A window hides by style: a layer selecting what lies outside it hides it.
+        await element.session.styles.add({
+            name: "Outside the window",
+            target: "edge",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "edge.visible": false },
+        });
+        // A row line draws a row while it holds it unhidden; one the style hides it lets go of.
+        const shown = (row: number): boolean => lines.rows().includes(row) && !lines.isHidden(row);
+        await time.window({ from: 0, to: 1, step: 1, nodes: "all" });
+        await settled(element);
+        assert.deepEqual([shown(0), shown(1)], [true, false], "the window shows the first row");
+        await time.seek(5, { commit: false });
+        await settled(element);
+        assert.deepEqual([shown(0), shown(1)], [false, true], "the slide swaps the rows");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0, "no Edge is built");
     });
 });
 

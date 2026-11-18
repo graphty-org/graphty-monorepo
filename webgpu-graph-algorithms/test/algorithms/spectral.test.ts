@@ -8,7 +8,6 @@
  */
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { coreOf, reverseOf, runPowerIteration } from "../../src/algorithms/power-iteration.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../../src/algorithms/spectral.js";
@@ -21,7 +20,7 @@ import { fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from ".
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectAllClose, expectBitwiseEqual, maxRelError } from "../helpers/matchers.js";
 import { eigenvectorOracle, hitsOracle, katzOracle, type SpectralOracleOptions } from "../oracle/spectral.js";
-import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
+import { acquireRaw, gpuScale, requireGpu, sharedContext } from "../setup/gpu.js";
 
 /** The defaults of the three entry points, spelled for the oracles. */
 const OPTS: SpectralOracleOptions = { maxIterations: 100, tolerance: 1e-6, weighted: true };
@@ -186,14 +185,7 @@ describe("spectral oracles (pure)", () => {
 });
 
 describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "spectral" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "spectral" });
 
     for (const leg of LEGS) {
         for (const name of FIXTURE_NAMES) {
@@ -445,7 +437,9 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
     it("HITS whose two chains stop after a different number of iterations (an odd maxIterations, one chain converging in the first batch) returns the latest hub vector AND the latest authority vector, never two of one kind", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(randomEdges(60, 200, 11), { directed: true, label: "odd-chains" });
-        const options = { maxIterations: 9, tolerance: 3.2e-3 };
+        // the middle of the band (0.0413 to 0.0455 relative) where the hub-seeded chain settles in the first batch and
+        // the authority-seeded one does not
+        const options = { maxIterations: 9, tolerance: 0.0434 };
         // the two chains as hits() runs them, to learn where each stopped: a multiple of 8, or maxIterations
         const shared = { normMode: 1 as const, alpha: 1, beta: 0, uniformP: 0, ...options, weights: undefined };
         const forward = coreOf(ctx, s, "hits");

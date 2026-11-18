@@ -7,7 +7,7 @@ import { assert, describe, it } from "vitest";
 
 import type { SceneNode } from "../../../graph-io/test/fidelity/scene";
 import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "../../schema";
-import { FILE_STYLE_SHAPES } from "../../src/session/styles/fileStyles/shapes";
+import { NODE_SHAPES } from "../../src/session/styles/fileStyles/shapes";
 import type { DrawnLabel, DrawnNode } from "./drawn-scene";
 import {
     arrowClassOf,
@@ -341,27 +341,25 @@ describe("the graphty scene extractor's vocabulary", () => {
             polygon: "other",
             // a node with no body, and Pajek's cross, house and figures, have no 2D class of their own
             none: "other",
-            "other:cross": "other",
-            "other:house": "other",
-            "other:man": "other",
-            "other:woman": "other",
-            // Cytoscape.js's rounded polygons are curved shapes of no class; its barrel, vis-network's database and
-            // Graphviz's cylinder (drawn as a database) read as rounded boxes, as the programs' own do
-            "other:round-triangle": "other",
-            "other:round-diamond": "other",
-            "other:round-pentagon": "other",
-            "other:round-hexagon": "other",
-            "other:round-octagon": "other",
-            "other:round-polygon": "other",
-            "other:barrel": "roundrect",
+            cross: "other",
+            house: "other",
+            man: "other",
+            woman: "other",
+            // the rounded polygons are curved shapes of no class; the barrel and the database read as rounded boxes,
+            // as the programs' own do
+            "round-triangle": "other",
+            "round-diamond": "other",
+            "round-pentagon": "other",
+            "round-hexagon": "other",
+            "round-octagon": "other",
+            "round-polygon": "other",
+            barrel: "roundrect",
             // two square corners and two curved ones: no class, as the programs' own read
-            "other:top-round-rectangle": "other",
-            "other:bottom-round-rectangle": "other",
-            "other:database": "roundrect",
-            "other:cylinder": "roundrect",
-            "other:icon": "other",
+            "top-round-rectangle": "other",
+            "bottom-round-rectangle": "other",
+            database: "roundrect",
         };
-        for (const [fileShape, mesh] of Object.entries(FILE_STYLE_SHAPES)) {
+        for (const [fileShape, mesh] of NODE_SHAPES) {
             assert.strictEqual(shapeClassOf(mesh), expected[fileShape], `${fileShape} -> ${mesh}`);
         }
     });

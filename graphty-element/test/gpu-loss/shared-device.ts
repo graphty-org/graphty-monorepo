@@ -7,25 +7,16 @@
 import "../../src/graphty-element";
 import "../../webgpu";
 
-import { Logger } from "@babylonjs/core";
 import { afterEach, assert, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
-import type { RecoveringWebGPUEngine } from "../../src/managers/RecoveringWebGPUEngine";
+import { mounted, unmount } from "./device-helpers";
+
+export { countUncaptured, deviceOf, mounted, unmount } from "./device-helpers";
 
 const NODES = Array.from({ length: 200 }, (_, i) => ({ id: `n${String(i)}` }));
 const EDGES = NODES.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i * 7 + 1) % 200)}` }));
-
-export const mounted: { graph: Graph; container: HTMLElement }[] = [];
-
-/** Disposes every graph the test built. */
-export function unmount(): void {
-    for (const { graph, container } of mounted.splice(0)) {
-        graph.dispose();
-        container.remove();
-    }
-}
 
 afterEach(() => {
     unmount();
@@ -65,22 +56,26 @@ export function countDevices(): () => number {
 /**
  * Opens a graph on WebGPU with its accelerator ready for a graph of any size.
  * @param policy - The acceleration policy.
+ * @param renderer - The renderer; WebGL draws on no device the accelerator can share.
  * @returns The graph.
  */
-export async function open(policy: "auto" | "required" = "auto"): Promise<Graph> {
+export async function open(
+    policy: "auto" | "required" = "auto",
+    renderer: "webgpu" | "webgl" = "webgpu",
+): Promise<Graph> {
     const container = document.createElement("div");
     container.style.width = "480px";
     container.style.height = "360px";
     document.body.appendChild(container);
     const graph = new Graph(container);
     mounted.push({ graph, container });
-    graph.setRenderer("webgpu");
+    graph.setRenderer(renderer);
     graph.acceleration.setPolicy(policy);
     graph.acceleration.setMinNodes(0);
     const initialized = graph.init();
     void graph.acceleration.start();
     await initialized;
-    assert.strictEqual(graph.rendererStatus?.active, "webgpu", graph.rendererStatus?.reason ?? "");
+    assert.strictEqual(graph.rendererStatus?.active, renderer, graph.rendererStatus?.reason ?? "");
     await graph.acceleration.ready();
     return graph;
 }
@@ -174,24 +169,6 @@ export async function copied(graph: Graph): Promise<void> {
 }
 
 /**
- * Counts Babylon's reports of an uncaptured device error from now on.
- * @returns The number so far.
- */
-export function countUncaptured(): () => number {
-    const warn = vi.spyOn(Logger, "Warn");
-    return () => warn.mock.calls.filter(([message]) => String(message).includes("uncaptured error")).length;
-}
-
-/**
- * The device the graph draws on.
- * @param graph - The graph.
- * @returns The device.
- */
-export function deviceOf(graph: Graph): Promise<GPUDevice> {
-    return (graph.engine as RecoveringWebGPUEngine).drawingDevice();
-}
-
-/**
  * Collects the layout's errors from now on.
  * @param graph - The graph.
  * @returns The errors so far.
@@ -208,14 +185,19 @@ export function errorsOf(graph: Graph): Error[] {
  * Opens a graph on the given path with a running layout.
  * @param path - The render path.
  * @param maxIter - Iterations before the layout rests; by default more than any test waits for.
+ * @param renderer - The renderer: WebGPU shares the layout's device, WebGL does not.
  * @returns The graph.
  */
-export async function running(path: "objects" | "batched", maxIter?: number): Promise<Graph> {
+export async function running(
+    path: "objects" | "batched",
+    maxIter?: number,
+    renderer: "webgpu" | "webgl" = "webgpu",
+): Promise<Graph> {
     adapterSays("test-hardware");
-    const graph = await open();
+    const graph = await open("auto", renderer);
     graph.setRenderPath(path);
     await startLayout(graph, maxIter);
-    assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
+    assert.strictEqual(graph.rendererStatus?.layoutDevice, renderer === "webgpu" ? "shared" : "separate");
     return graph;
 }
 

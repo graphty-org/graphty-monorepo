@@ -129,3 +129,19 @@ describe("a network load's total", () => {
         assert.strictEqual(counted.session.data.sources()[0].total, GENES);
     });
 });
+
+describe("data.more called twice before its page arrives", () => {
+    it("reads the page once and counts it once (issue #7110)", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        const { fetch, asked } = server();
+        const options = { endpoint: ENDPOINT, fetch, limits: { maxNodes: 100 } };
+        await session.data.import({ source: "neo4j", config: { mode: "all", labels: ["Gene"] } }, options);
+        const pagesRead = (): number => asked.filter((q) => q.startsWith("MATCH (n)")).length;
+        const before = pagesRead();
+        await Promise.all([session.data.more({ fetch }), session.data.more({ fetch })]);
+        assert.strictEqual(pagesRead() - before, 1);
+        assert.strictEqual(session.data.nodes().length, 200);
+        assert.strictEqual(session.data.loads()[0].pages, 2);
+    });
+});

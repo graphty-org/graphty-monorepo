@@ -26,7 +26,7 @@ export function listenToEveryPrefixedEvent(log: (...values: unknown[]) => void):
 
     element.addEventListener("graphty-run-change", (e) => {
         const { run, phase }: GraphtyRunChangeDetail = e.detail;
-        log(run.label, phase, run.status);
+        log(run.id, phase, run.status);
     });
     element.addEventListener("graphty-progress-change", (e) => {
         const { task, phase, fraction } = e.detail;
@@ -219,6 +219,7 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         "lifecycle-initialized",
         "lifecycle-disposed",
         "skybox-loaded",
+        "skybox-failed",
         "operation-queue-active",
         "operation-queue-idle",
         "operation-batch-complete",

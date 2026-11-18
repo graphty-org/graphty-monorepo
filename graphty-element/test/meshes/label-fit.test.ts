@@ -4,7 +4,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { labelFitExtent } from "../../src/meshes/labelFit";
+import { imageAspectExtent, labelFitExtent } from "../../src/meshes/labelFit";
 
 const box = { width: 10, height: 2 };
 
@@ -152,5 +152,22 @@ describe("labelFitExtent", () => {
             width: 54,
             height: 36,
         });
+    });
+});
+
+describe("imageAspectExtent", () => {
+    it("grows the node the longer way to its picture's proportions, as vis-network sizes an image node", () => {
+        const shape = { type: "rectangle" as const, size: 36, imageAspect: true };
+        assert.deepEqual(imageAspectExtent(shape, { width: 48, height: 24 }), { width: 72, height: 36 });
+        assert.deepEqual(imageAspectExtent(shape, { width: 10, height: 30 }), { width: 36, height: 108 });
+        assert.deepEqual(imageAspectExtent({ ...shape, width: 20 }, { width: 10, height: 10 }), {
+            width: 36,
+            height: 36,
+        });
+    });
+
+    it("keeps the node's own box without the option or before the picture is read", () => {
+        assert.isNull(imageAspectExtent({ type: "rectangle", size: 36 }, { width: 48, height: 24 }));
+        assert.isNull(imageAspectExtent({ type: "rectangle", size: 36, imageAspect: true }, null));
     });
 });

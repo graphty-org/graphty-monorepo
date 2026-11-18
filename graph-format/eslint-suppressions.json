@@ -1,0 +1,86 @@
+{
+  "benchmarks/harness.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "scripts/build-bundle.js": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "src/builder/compact.ts": {
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/builder/freeze.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/builder/graph-builder.ts": {
+    "prefer-object-has-own": {
+      "count": 1
+    }
+  },
+  "src/columns/column.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "sonarjs/no-identical-functions": {
+      "count": 1
+    },
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/columns/dictionary.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    }
+  },
+  "src/ids/edge-id-index.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    }
+  },
+  "src/ids/string-store.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 7
+    }
+  },
+  "src/populate/from-elements.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/populate/from-records.ts": {
+    "prefer-object-has-own": {
+      "count": 1
+    }
+  },
+  "src/snapshot/hash.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/snapshot/validate.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/types/columns.ts": {
+    "sonarjs/redundant-type-aliases": {
+      "count": 5
+    }
+  },
+  "src/util/typed-array.ts": {
+    "new-cap": {
+      "count": 2
+    }
+  }
+}

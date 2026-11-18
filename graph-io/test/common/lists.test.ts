@@ -17,6 +17,9 @@ describe("splitListText", () => {
         expect(splitListText("  [ a , b ]  ", "gexf")).toEqual(["a", "b"]);
         expect(splitListText("['unterminated, b]", "gexf")).toEqual(["unterminated, b"]);
         expect(splitListText("['q' tail, b]", "gexf")).toEqual(["qtail", "b"]);
+        // a backslash escapes the item's quote or a backslash; elsewhere it is literal
+        expect(splitListText("['a', '\\'b\\'', 'c']", "gexf")).toEqual(["a", "'b'", "c"]);
+        expect(splitListText('["x\\\\", "C:\\dir"]', "gexf")).toEqual(["x\\", "C:\\dir"]);
     });
 
     it("applies the GEXF 1.2 separator rule: pipe, then comma, then semicolon", () => {
@@ -46,9 +49,9 @@ describe("splitListText", () => {
 
 describe("joinListText", () => {
     it("writes bracket lists that split back to the same items", () => {
-        const items = ["plain", "with, comma", 'with "quote"', "", " padded ", "[bracket]"];
+        const items = ["plain", "with, comma", 'with "quote"', "", " padded ", "[bracket]", 'a\\"', "b,\\"];
         const text = joinListText(items, "gexf");
-        expect(text).toBe('[plain, "with, comma", "with ""quote""", "", " padded ", "[bracket]"]');
+        expect(text).toBe('[plain, "with, comma", "with ""quote""", "", " padded ", "[bracket]", "a\\\\""", "b,\\\\"]');
         expect(splitListText(text, "gexf")).toEqual(items);
         expect(joinListText([], "brackets")).toBe("[]");
         expect(splitListText(joinListText(["1", "2"], "brackets"), "brackets")).toEqual(["1", "2"]);

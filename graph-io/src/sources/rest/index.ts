@@ -6,8 +6,11 @@
  */
 
 export { OPENALEX_DESCRIPTOR, REST_DESCRIPTOR } from "./descriptor.js";
+export { CROSSREF_MAPPING } from "./examples/crossref.js";
 export { DEPS_DEV_MAPPING } from "./examples/deps-dev.js";
+export { REACTOME_MAPPING } from "./examples/reactome.js";
 export { STRING_MAPPING } from "./examples/string.js";
+export { WIKIPEDIA_MAPPING } from "./examples/wikipedia.js";
 export { checkRestMapping, type RestMappingIssue, type RestMappingIssueCode } from "./mapping.js";
 export { OPENALEX_MAPPING, openalexSource } from "./openalex.js";
 export {

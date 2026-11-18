@@ -60,6 +60,107 @@ function snapToEnds(value: number, min: number, max: number, step: number): numb
     return value - min < near ? min : value;
 }
 
+/** The element Mantine measures a pointer against: the track's container. */
+const TRACK = ".mantine-Slider-trackContainer, .mantine-RangeSlider-trackContainer";
+
+/** A slider's scale, as the pointer is read on it. */
+interface Scale {
+    min: number;
+    max: number;
+    step: number;
+    minRange: number;
+}
+
+/**
+ * A pointer gesture ends on the value under the pointer where it was let go. Mantine's `useMove`
+ * applies each move one animation frame later, and a release on the track drops a move still
+ * waiting for its frame (RangeSlider forgets the dragged thumb on mouseup), while the end is
+ * reported with the last value drawn. When the release comes before that frame -- WebKit's frames
+ * often run behind its events, a quick flick or click anywhere -- the end carried an earlier value
+ * (often the one the gesture started from) and a late move could still draw the thumb elsewhere
+ * after it (issue #8309). So the release is read here, from the pointer, and the end carries it;
+ * a move Mantine applies after the release is dropped.
+ * @param root - The slider's root element.
+ * @param scale - The scale.
+ * @param current - The value the slider holds now.
+ * @param onChange - The caller's change handler, given the released value.
+ * @returns A root `onPointerDownCapture` and `onKeyDownCapture`, a filter for Mantine's `onChange` (false
+ * drops the call) and the value an end reports.
+ */
+function useRelease<T extends number | [number, number]>(
+    root: React.RefObject<HTMLDivElement | null>,
+    scale: Scale,
+    current: () => T,
+    onChange: ((value: T) => void) | undefined,
+): {
+    onPointerDownCapture: (event: React.PointerEvent) => void;
+    onKeyDownCapture: () => void;
+    keep: () => boolean;
+    end: (value: T) => T;
+} {
+    const { min, max, step, minRange } = scale;
+    // The released value, from the release until the next press or key.
+    const released = useRef<T | null>(null);
+    const at = (clientX: number): number | null => {
+        const rect = root.current?.querySelector(TRACK)?.getBoundingClientRect();
+        if (rect === undefined || rect.width === 0) {
+            return null;
+        }
+        // Mantine's own reading (getChangeValue), left to right.
+        const dx = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * (max - min);
+        const value = Math.max(min, (dx === 0 ? 0 : Math.round(dx / step) * step) + min);
+        return snapToEnds(Number(value.toFixed(stepPrecision(step))), min, max, step);
+    };
+    return {
+        onPointerDownCapture: (event) => {
+            released.current = null;
+            // Mantine moves a thumb only for a primary press on its track (thumbs included).
+            const track = root.current?.querySelector(TRACK);
+            if (event.button !== 0 || track?.contains(event.target as Node) !== true) {
+                return;
+            }
+            const start = current();
+            let thumb = 0;
+            if (Array.isArray(start)) {
+                // The thumb pressed, else the nearer one, as Mantine picks it.
+                const thumbs = [...(root.current?.querySelectorAll('[role="slider"]') ?? [])];
+                const hit = (event.target as Element).closest('[role="slider"]');
+                const there = at(event.clientX) ?? start[0];
+                thumb =
+                    hit !== null && thumbs.includes(hit)
+                        ? thumbs.indexOf(hit)
+                        : Number(Math.abs(start[0] - there) > Math.abs(start[1] - there));
+            }
+            const stop = new AbortController();
+            const finish = (up: PointerEvent): void => {
+                stop.abort();
+                const value = up.type === "pointerup" ? at(up.clientX) : null;
+                if (value === null) {
+                    return;
+                }
+                const now = current();
+                let next: number | [number, number] = value;
+                if (Array.isArray(now)) {
+                    next = [now[0], now[1]];
+                    next[thumb] =
+                        thumb === 0
+                            ? Math.max(min, Math.min(value, now[1] - minRange))
+                            : Math.min(max, Math.max(value, now[0] + minRange));
+                }
+                released.current = next as T;
+                onChange?.(next as T);
+            };
+            document.addEventListener("pointerup", finish, { capture: true, signal: stop.signal });
+            document.addEventListener("pointercancel", finish, { capture: true, signal: stop.signal });
+        },
+        onKeyDownCapture: () => {
+            released.current = null;
+        },
+        keep: () => released.current === null,
+        end: (value) => released.current ?? value,
+    };
+}
+
 /** Mantine's defaults, which the ends are read from when a prop is not given. */
 const DEFAULTS = { min: 0, max: 100, step: 1 };
 
@@ -91,14 +192,32 @@ export const RangeSlider = forwardRef<HTMLDivElement, React.ComponentProps<typeo
             snapToEnds(value[0], min, max, step),
             snapToEnds(value[1], min, max, step),
         ];
+        const shown = useRef<[number, number]>([min, max]);
+        shown.current = props.value ?? shown.current;
+        const release = useRelease(root, { min, max, step, minRange }, () => shown.current, props.onChange);
 
         return (
             <MantineRangeSlider
                 precision={stepPrecision(step)}
                 {...props}
                 ref={merged}
-                onChange={(value) => props.onChange?.(ends(value))}
-                onChangeEnd={(value) => props.onChangeEnd?.(ends(value))}
+                onPointerDownCapture={(event) => {
+                    props.onPointerDownCapture?.(event);
+                    if (props.disabled !== true) {
+                        release.onPointerDownCapture(event);
+                    }
+                }}
+                onKeyDownCapture={(event) => {
+                    props.onKeyDownCapture?.(event);
+                    release.onKeyDownCapture();
+                }}
+                onChange={(value) => {
+                    shown.current = ends(value);
+                    if (release.keep()) {
+                        props.onChange?.(ends(value));
+                    }
+                }}
+                onChangeEnd={(value) => props.onChangeEnd?.(release.end(ends(value)))}
                 onKeyDown={(event) => {
                     props.onKeyDown?.(event);
                     const current = props.value;
@@ -138,14 +257,32 @@ export const Slider = forwardRef<HTMLDivElement, React.ComponentProps<typeof Man
             applyValueText(root.current, props.thumbProps);
         });
         const { min = DEFAULTS.min, max = DEFAULTS.max, step = DEFAULTS.step } = props;
+        const shown = useRef(min);
+        shown.current = props.value ?? shown.current;
+        const release = useRelease(root, { min, max, step, minRange: 0 }, () => shown.current, props.onChange);
 
         return (
             <MantineSlider
                 precision={stepPrecision(step)}
                 {...props}
                 ref={merged}
-                onChange={(value) => props.onChange?.(snapToEnds(value, min, max, step))}
-                onChangeEnd={(value) => props.onChangeEnd?.(snapToEnds(value, min, max, step))}
+                onPointerDownCapture={(event) => {
+                    props.onPointerDownCapture?.(event);
+                    if (props.disabled !== true) {
+                        release.onPointerDownCapture(event);
+                    }
+                }}
+                onKeyDownCapture={(event) => {
+                    props.onKeyDownCapture?.(event);
+                    release.onKeyDownCapture();
+                }}
+                onChange={(value) => {
+                    shown.current = snapToEnds(value, min, max, step);
+                    if (release.keep()) {
+                        props.onChange?.(snapToEnds(value, min, max, step));
+                    }
+                }}
+                onChangeEnd={(value) => props.onChangeEnd?.(release.end(snapToEnds(value, min, max, step)))}
             />
         );
     },

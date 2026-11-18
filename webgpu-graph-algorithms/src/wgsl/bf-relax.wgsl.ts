@@ -1,13 +1,13 @@
 /**
- * The `bf-relax` kernel body (design 8.4 "Bellman-Ford"; P8-T10, the P8 plan's PD-12 / PD-22 / PD-27 / DEP-P8-E):
+ * The `bf-relax` kernel body of Bellman-Ford:
  * one edge-parallel relaxation round over the `edgeList()` view -- every logical edge once, in declared orientation,
  * and under `UNDIRECTED` the other direction too, because an undirected edge has ONE weight (read through its
  * forward arc, `weights[edgeToArc[e]]`, from the run's arc-indexed vector: the snapshot's column or the uploaded
  * override). `dist` is `array<atomic<u32>>` holding the f32 bit patterns (`F32_INF_BITS` = unreached, tested as the
  * pattern: `bitcast<f32>(F32_INF_BITS)` is a const-expression Tint rejects). `atomicMin` on the patterns is `min` on
- * the values for NON-NEGATIVE floats only (PD-9); with a negative distance the bit-pattern order reverses, so the
+ * the values for NON-NEGATIVE floats only; with a negative distance the bit-pattern order reverses, so the
  * claim is a compare-exchange loop on the pattern: read, compute, compare as floats, try to exchange. WGSL lets
- * `atomicCompareExchangeWeak` fail spuriously, so the loop is BOUNDED (PD-12: `P.maxRetries`, the driver's
+ * `atomicCompareExchangeWeak` fail spuriously, so the loop is BOUNDED (`P.maxRetries`, the driver's
  * `MAX_RETRIES`) -- on SPURIOUS failures only (`old_value == cur`). A failure that returns another value lost to
  * another lane's successful exchange, which strictly lowered `dist[v]`; that happens at most once per edge into
  * `v` per round, so those iterations are bounded by the in-degree and never counted (issue #470: counted, 32
@@ -18,7 +18,7 @@
  * change in the round after `n - 1` is the negative cycle. `P.cutoffBits` is the CPU port's `dv <= cutoff` guard
  * (`+Inf` when absent; with negative weights a negative cutoff legitimately relaxes). Grid-strided over
  * `planGridStride(edgeCount)` with `P.stride` the plan's stride; no barrier anywhere, so the loops may be per lane.
- * The whole arc array is bound (never windowed, DEP-P8-E). Body only (spec 3.5, D9); the text is normative: the
+ * The whole arc array is bound (never windowed). Body only; the text is normative: the
  * sabotage rows of test/helpers/sabotage.ts are textual edits of it.
  */
 export const bfRelaxWgsl = /* wgsl */ `
@@ -31,7 +31,7 @@ fn relax(v: u32, nd: f32) {
         if (r.exchanged) { atomicStore(&flags[0], 1u); break; }        // changed
         if (r.old_value == cur) {                                      // a spurious failure: the only kind the bound counts
             tries = tries + 1u;
-            if (tries >= P.maxRetries) { atomicStore(&flags[1], 1u); break; }   // retryExhausted (PD-12)
+            if (tries >= P.maxRetries) { atomicStore(&flags[1], 1u); break; }   // retryExhausted
         }
         cur = r.old_value;                                             // else another lane's improvement won (issue #470)
     }

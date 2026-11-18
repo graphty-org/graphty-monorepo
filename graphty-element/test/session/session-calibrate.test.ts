@@ -58,7 +58,7 @@ describe("session.calibrate()", () => {
         assert.strictEqual(capabilities.calibration?.basis, "probe");
         const after = session.estimate({ op: "algo.run", algorithm: "degree" });
         assert.strictEqual(after.confidence, "calibrated");
-        assert.include(after.basis, "calibrated");
+        assert.strictEqual(after.basisFacts.provenance.code, "cost.calibrated");
     });
 
     it("reports the calibration through capabilities:changed", async () => {

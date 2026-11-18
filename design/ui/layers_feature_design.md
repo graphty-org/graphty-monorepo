@@ -1,5 +1,11 @@
 # Feature Design: Interactive Style Layers Management
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+Its recommendation of an undeletable default layer is overruled: no layer is special, and any layer
+may be deleted (CLAUDE.md, "Styling and algorithms").
+
 ## Overview
 
 - **User Value**: Users can organize and control graph visualization styles through named layers, providing intuitive control over how different groups of nodes and edges are displayed. This enables users to build complex visualizations incrementally, with the ability to toggle visibility, adjust properties, and reorder layer precedence.

@@ -15,6 +15,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { sha256HexSync } from "@graphty/graph-io";
+
 import REVOKED_SHADER_HASHES from "../catalog/revoked-shader-hashes.json";
 import {
     addPastedShaderSource,
@@ -47,7 +49,6 @@ import {
 import SHIPPED_SHADER_HASHES from "../catalog/shipped-shader-hashes.json";
 import type { LayerId, LayerSpec } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import { sha256Hex } from "../utils/sha256";
 import type { Dispatcher } from "./project/Dispatcher";
 import type { ProjectState } from "./project/state";
 import { placeOfUse } from "./styles/channels";
@@ -74,7 +75,7 @@ const REVOKED = new Set<string>(REVOKED_SHADER_HASHES);
 export function shaderContentHash(text: string): string {
     const { body } = splitShaderText(text);
     const head = text.slice(0, text.length - body.length);
-    return sha256Hex(head.replace(/("id"\s*:\s*)"[^"]*"/, '$1""') + body);
+    return sha256HexSync(head.replace(/("id"\s*:\s*)"[^"]*"/, '$1""') + body);
 }
 
 /** The side of a drawn thumbnail, in pixels. */
@@ -934,7 +935,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         return (
             (runAll && settings.untrusted === "run") ||
             remembered.includes(hash) ||
-            (text !== undefined && remembered.includes(sha256Hex(text)))
+            (text !== undefined && remembered.includes(sha256HexSync(text)))
         );
     };
 

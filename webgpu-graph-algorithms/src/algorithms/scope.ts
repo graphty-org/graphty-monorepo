@@ -1,8 +1,8 @@
 /**
- * The ReduceScope an algorithm driver hands the primitives (contract 3.11), built over a GpuContext: `scratch` comes
- * from ONE Lease (released by `dispose()` in the algorithm's `finally`, spec 4.4) and `params` from a UniformRing
+ * The ReduceScope an algorithm driver hands the primitives, built over a GpuContext: `scratch` comes
+ * from ONE Lease (released by `dispose()` in the algorithm's `finally`) and `params` from a UniformRing
  * slot, so a batch of k iterations writes k parameter blocks into one buffer and dispatches with dynamic offsets
- * instead of allocating a uniform buffer per dispatch (spec 5.3). The src/ twin of the tests' testReduceScope
+ * instead of allocating a uniform buffer per dispatch. The src/ twin of the tests' testReduceScope
  * (test/helpers/segmented-reduce.ts). `slots` sizes the ring for the LARGEST batch the caller records: reserve()
  * wraps, so a ring too small silently reuses a slot another dispatch of the same batch still reads.
  */
@@ -17,7 +17,7 @@ export interface AlgorithmScope extends ReduceScope {
     flush(): void;
     /** Destroys the ring and releases every scratch buffer of the lease; idempotent. */
     dispose(): void;
-    /** The ring's `overruns` so far: reservations that wrapped over a record the batch being recorded still reads (0 on a correctly sized ring; P8-T12). */
+    /** The ring's `overruns` so far: reservations that wrapped over a record the batch being recorded still reads (0 on a correctly sized ring). */
     ringOverruns(): number;
 }
 

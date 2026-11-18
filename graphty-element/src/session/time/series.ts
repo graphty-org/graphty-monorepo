@@ -23,7 +23,6 @@ const MEASURES: ReadonlySet<string> = new Set<TimeMeasure>(["nodes", "edges", "d
 /**
  * What a series can measure in each window: the visible nodes, the visible edges, and the density
  * of the visible graph (null under two nodes).
- * @experimental timeline
  * @beta
  */
 export type TimeMeasure = "nodes" | "edges" | "density";
@@ -31,7 +30,6 @@ export type TimeMeasure = "nodes" | "edges" | "density";
 /**
  * What `time.series` takes. `step`, `mode` and `timeZone` left out come from the window in force,
  * else the settings.
- * @experimental timeline
  * @beta
  */
 export interface TimeSeriesOptions {
@@ -56,7 +54,6 @@ export interface TimeSeriesOptions {
 /**
  * One window of a series. `entered` and `left` compare it with the row before; the first row's
  * `entered` is everything it shows.
- * @experimental timeline
  * @beta
  */
 export interface TimeSeriesRow {
@@ -71,7 +68,6 @@ export interface TimeSeriesRow {
 
 /**
  * What `time.series` resolves to.
- * @experimental timeline
  * @beta
  */
 export interface TimeSeries {

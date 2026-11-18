@@ -13,6 +13,9 @@ used_in_workflows:
     - W04
     - W05
     - W11
+    - W20
+    - W22
+    - W25
 dependencies:
     - legend-item
     - divider

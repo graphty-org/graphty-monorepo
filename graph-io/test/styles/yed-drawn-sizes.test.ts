@@ -217,7 +217,9 @@ describe("yEd's fractional widths", () => {
 describe("yEd's skewed dash", () => {
     it("reads as its own stroke, not a square, 12 long on its line in GraphML", async () => {
         const graphml = await specimen("graphml", "yed-graphml/specimen-arrows.graphml");
-        expect(graphml.edge("targetArrow", "target-skewed-dash")).toBe("other:skewed-dash");
+        // a stem 4 of yEd's 12 pixels long at the end, and a slash 8 long behind it
+        expect(graphml.edge("targetArrow", "target-skewed-dash")).toBe("stem");
+        expect(graphml.edge("targetArrowParts", "target-skewed-dash")).toMatch(/^slash\*[0-9.]+$/);
     });
 });
 

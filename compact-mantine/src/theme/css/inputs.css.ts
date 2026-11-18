@@ -769,6 +769,61 @@ const css = `
     flex: 1;
     min-width: 0;
 }
+/* dropping / dropLabel: the row's drop cue, drawn over its field in the drop target's own drag-over colors. */
+.cm-file-source[data-dropping] {
+    position: relative;
+}
+.cm-file-drop-cue {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px dashed var(--cm-border-selected);
+    border-radius: 5px;
+    background-color: var(--cm-bg-selected);
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    pointer-events: none;
+}
+/* loaded: one line naming what was loaded, filled so it reads as a value held, not a field to type in. */
+.cm-file-loaded {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    min-width: 0;
+    padding-left: 4px;
+    border: 1px solid var(--cm-border);
+    border-radius: 5px;
+    background-color: var(--cm-bg-secondary);
+    color: var(--cm-icon-secondary);
+}
+.cm-file-loaded-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--cm-text);
+    white-space: nowrap;
+}
+.cm-file-loaded-head {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-file-source[data-disabled] .cm-file-loaded {
+    border-color: var(--cm-border-disabled);
+    color: var(--cm-icon-disabled);
+}
+.cm-file-source[data-disabled] .cm-file-loaded-name {
+    color: var(--cm-text-disabled);
+}
 `;
 
 export default css;

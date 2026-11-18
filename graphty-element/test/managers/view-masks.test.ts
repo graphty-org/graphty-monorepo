@@ -171,7 +171,7 @@ describe("UpdateManager view masks", () => {
         const dataManager = {
             nodes,
             edges,
-            nodeMap: { built: () => nodes.values() },
+            nodeMap: { built: () => nodes.values(), builtOf: (id: string) => nodes.get(id) },
             edgeMap: { builtView: () => edges },
         } as unknown as DataManager;
         const observable = { add: () => null, remove: () => true };

@@ -416,9 +416,10 @@ describe("Traversal & Path Algorithm Options", () => {
                 // Which two nodes the flow ran between is part of what qualifies the numbers, so
                 // the run says so once in its caveats rather than flagging every node with two
                 // booleans that are false for all but two of them.
-                assert.ok(
-                    algo.result?.summary().caveats.notes.some((note: string) => note.includes("Flow from A to C")),
-                );
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "flow.ends",
+                    params: { source: "A", sink: "C" },
+                });
             });
         });
 
@@ -473,9 +474,10 @@ describe("Traversal & Path Algorithm Options", () => {
                 const algo = new MaxFlowAlgorithm(graph, { source: "B", sink: "C" });
                 await algo.run();
 
-                assert.ok(
-                    algo.result?.summary().caveats.notes.some((note: string) => note.includes("Flow from B to C")),
-                );
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "flow.ends",
+                    params: { source: "B", sink: "C" },
+                });
             });
         });
 
@@ -493,9 +495,10 @@ describe("Traversal & Path Algorithm Options", () => {
                 algo.configure({ source: "B", sink: "C" });
                 await algo.run();
 
-                assert.ok(
-                    algo.result?.summary().caveats.notes.some((note: string) => note.includes("Flow from B to C")),
-                );
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "flow.ends",
+                    params: { source: "B", sink: "C" },
+                });
             });
         });
 

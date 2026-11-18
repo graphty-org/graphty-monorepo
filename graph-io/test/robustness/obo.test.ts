@@ -15,6 +15,7 @@ import { OBO_ISSUE, oboImporter, type OboImportOptions } from "../../src/formats
 import { importGraph } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
 import { charactersExamined } from "../helpers/work-meter.js";
+import { codes, ids } from "./helpers.js";
 
 type Options = OboImportOptions & CommonImportOptions;
 
@@ -38,20 +39,12 @@ async function fails(input: ImportInput, options?: Options): Promise<ImportError
     throw new Error("expected the import to throw ImportError");
 }
 
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
-}
-
 function issue(report: ImportReport, code: string): ImportReport["issues"][number] {
     const found = report.issues.find((i) => i.code === code);
     if (found === undefined) {
         throw new Error(`no ${code} in ${codes(report).join(", ")}`);
     }
     return found;
-}
-
-function ids(snapshot: GraphSnapshot): unknown[] {
-    return Array.from({ length: snapshot.nodeCount }, (_, i) => snapshot.ids.idOf(i));
 }
 
 function cell(snapshot: GraphSnapshot, column: string, id: string): unknown {

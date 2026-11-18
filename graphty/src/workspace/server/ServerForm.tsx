@@ -18,8 +18,9 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
-import { useSessionVersion } from "../inspector/hooks";
 import { replaceWith } from "../replace/commands";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
+import { addSource, urlSource } from "../start/open";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     EXPAND_DEFAULTS,
@@ -254,7 +255,7 @@ function isRare(param: SourceParamDescriptor): boolean {
 function shownParams(entry: SourceCatalogEntry, mode: unknown, rare: boolean): readonly SourceParamDescriptor[] {
     const hasMode = entry.descriptor.params.some((p) => p.name === "mode");
     return entry.descriptor.params.filter((param) => {
-        if (OWN_ROWS.has(param.name) || isRare(param) !== rare) {
+        if (OWN_ROWS.has(param.name) || param.name === entry.descriptor.endpointParam || isRare(param) !== rare) {
             return false;
         }
         if (hasMode && param.type === "query") {
@@ -400,6 +401,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     };
 
     const ready = formReady(entry, form);
+    const addressParam = descriptor.params.find((p) => p.name === descriptor.endpointParam);
     const advanced = shownParams(entry, form.params.mode, true);
     const test = (): void => {
         if (session === null || busy !== null || !ready) {
@@ -439,7 +441,19 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                 await element.credentials.remember({ source: entry.id, endpoint }, credential);
             }
             const edited = session.data.sources().find((each) => each.key === editing);
-            if (edited === undefined) {
+            const address = input.config[descriptor.endpointParam ?? ""];
+            if (
+                edited === undefined &&
+                descriptor.kind === "file-host" &&
+                typeof address === "string" &&
+                session.data.sources().length > 0
+            ) {
+                // A file at an address into a graph that holds data is a second file, as Paste
+                // takes it: a copy of a loaded source replaces it, anything else opens the join screen.
+                // ponytail: the form's CSV options and sign-in do not reach that read; pass them
+                // once the join screen reads a network source.
+                addSource({ workspace: store, session, element }, urlSource(address));
+            } else if (edited === undefined) {
                 await session.data.import(input, {
                     ...options,
                     signal: loading.current.signal,
@@ -473,7 +487,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     };
 
     return (
-        <form // NOSONAR(S6847): the handler only marks an Escape the dropdown inside already used
+        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- the handler only marks an Escape the dropdown inside already used
             aria-label="Network data"
             onSubmit={(event) => {
                 event.preventDefault();
@@ -506,16 +520,27 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             }}
                         />
                     </FieldRow>
-                    <FieldRow>
-                        <PanelField
-                            label="Endpoint"
-                            placeholder={descriptor.defaultEndpoint ?? "https://"}
-                            value={form.endpoint}
-                            onChange={(endpoint) => {
-                                change({ endpoint: String(endpoint) });
+                    {addressParam === undefined ? (
+                        <FieldRow>
+                            <PanelField
+                                label="Endpoint"
+                                placeholder={descriptor.defaultEndpoint ?? "https://"}
+                                value={form.endpoint}
+                                onChange={(endpoint) => {
+                                    change({ endpoint: String(endpoint) });
+                                }}
+                            />
+                        </FieldRow>
+                    ) : (
+                        // A source whose address is a param (Load from URL) asks for it in place of an Endpoint.
+                        <ParamRow
+                            param={addressParam}
+                            value={form.params[addressParam.name]}
+                            onChange={(value) => {
+                                setParam(addressParam.name, value);
                             }}
                         />
-                    </FieldRow>
+                    )}
                     <SignInRow
                         entry={entry}
                         user={form.user}
@@ -645,7 +670,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
  */
 function WaitingLoads(): React.JSX.Element | null {
     const { session } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const [failed, setFailed] = useState<Readonly<Record<string, CodedFact>>>({});
     const waiting = session?.data.pendingSourceLoads() ?? [];
     if (session === null || waiting.length === 0) {
@@ -653,7 +678,7 @@ function WaitingLoads(): React.JSX.Element | null {
     }
     const names = new Map(serverKinds().map((each) => [each.id, kindName(each)]));
     return (
-        <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
             role="list"
             aria-label="Waiting loads"
             className="sv-waiting"
@@ -663,7 +688,7 @@ function WaitingLoads(): React.JSX.Element | null {
                 const name = `${names.get(load.source) ?? load.source} ${host}`.trim();
                 const fact = failed[load.id];
                 return (
-                    <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
                         key={load.id}
                         role="listitem"
                         aria-label={name}

@@ -7,27 +7,31 @@ package layout or the conformance suite's fixtures, oracles and generative layer
 
 ## Project Overview
 
-@graphty/graph-io is the importer / exporter companion of @graphty/graph-format. It parses GEXF,
-GraphML, GML, DOT, Pajek, CSV, JSON and Neo4j into a `GraphSink` (`GraphBuilder` or a caller's sink)
-and writes the same formats back out from a `GraphSnapshot`. The core format stays zero-dependency
-and so does this package at runtime: every format is parsed by a hand-written streaming tokeniser
-(one shared XML tokenizer for GEXF and GraphML, one shared RFC 4180 record reader for CSV and
-Neo4j, line and token readers for Pajek, GML and DOT). It also owns the io contract types that need
-the DOM lib (`ReadableStream`, `AbortSignal`).
+@graphty/graph-io is the importer / exporter companion of @graphty/graph-format. It parses 13
+formats (`src/formats/`: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO
+and Cytoscape sessions `cys`) into a `GraphSink` (`GraphBuilder` or a caller's sink) and writes
+them back out from a `GraphSnapshot`. The core format stays zero-dependency and so does this
+package at runtime: every format is parsed by a hand-written streaming tokeniser (one shared XML
+tokenizer, `src/common/xml.ts`, for GEXF, GraphML, XGMML and Cytoscape sessions; one shared RFC
+4180 record reader for CSV and Neo4j; line and token readers for Pajek, GML and DOT). It also owns
+the io contract types that need the DOM lib (`ReadableStream`, `AbortSignal`).
+
+It also reads graphs from the network: the sources in `src/sources/` (ndex, cypher, rest,
+gremlin, sparql, github, s3 and zenodo, each its own `@graphty/graph-io/sources/<name>` subpath,
+plus the built-in url source); `design/graph-io/network-sources-design.md` is their design.
 
 The normative design is `design/graph-format/graph-format-design.md` in the monorepo: section 8
 (populating the format: 8.2 package split, 8.3 sink contract, 8.4 importer shape and direction
 rules, 8.5 exporter shape and loss notes, 8.6 report and error aggregation), section 5.1 (declared
 types to dtypes, temporal values), section 4 (ids and the canonical coercion rule), section 12.4
-(io contract types, normative) and section 13 (package layout). The per-format requirements are in
-research note 07 (`tmp/graph-format-design/07-file-format-requirements.md`).
+(io contract types, normative) and section 13 (package layout).
 
 ## Essential Commands
 
 ```bash
 pnpm run build:all       # tsc -p tsconfig.build.json, then the multi-entry vite bundle and the d.ts shims
 pnpm run test:run        # run all tests once (pnpm exec vitest run test/formats/<fmt> for one format)
-pnpm run coverage        # v8 coverage, thresholds 80/80/75/80
+pnpm run coverage        # v8 coverage, thresholds 90/90/90/90 (vitest.config.ts)
 pnpm run coverage:preview # serve coverage report (start it through servherd with PORT={{port}})
 pnpm run lint            # eslint (root flat config) + tsc --noEmit
 pnpm run typecheck       # tsc --noEmit only

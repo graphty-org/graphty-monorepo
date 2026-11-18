@@ -268,7 +268,7 @@ export function DataRow({
     // name and the drawn one cannot drift apart. It sits on the outer row so it holds
     // the row's button too.
     return (
-        <div // NOSONAR(S6819): a stat's name and value are text, not form controls, and the role applies only to a stat row
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a stat's name and value are text, not form controls, and the role applies only to a stat row
             data-testid="data-row"
             className="cm-data-row"
             role={stat ? "group" : undefined}
@@ -308,7 +308,7 @@ export function DataRow({
                 end of the row's pill and the grid's trailing column. */}
             {hasTrailing && (
                 // Presentational: the pointer's extra target. The keyboard's stop is the row's button.
-                <div // NOSONAR(S6819): no image here; a pointer-only extra target, while the keyboard uses the row's button
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- no image here; a pointer-only extra target, while the keyboard uses the row's button
                     role="presentation"
                     style={{ display: "contents" }}
                     onClick={handleTrailingClick}
@@ -512,7 +512,7 @@ export function DataRowHeader({
     const describesSort = inRow && (sortable || sorted);
 
     return (
-        <div // NOSONAR(S6819): the same element is a plain header outside a row; the role is set only inside a row, where th would also need a table
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- the same element is a plain header outside a row; the role is set only inside a row, where th would also need a table
             ref={self}
             data-testid="data-row-header"
             className="cm-data-row-header"

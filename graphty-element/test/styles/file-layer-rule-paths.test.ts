@@ -1,6 +1,5 @@
 /**
- * @file A layer a file's styles made reads the file's values at `graphty.style.<namespace>.<kind>.<key>`, a path
- * graphty-element gives a meaning to, so the rule form an editor reads it in (`selectorRule`) is a rule the element
+ * @file A layer a file's styles made reads the file's values from ordinary data columns, so the rule form an editor reads it in (`selectorRule`) is a rule the element
  * takes back: written back, it matches the same elements (#6630). A path under `graphty.` that names nothing is still
  * refused, so a stored rule never changes meaning when a later release gives that path one.
  */
@@ -41,7 +40,7 @@ describe("a file layer's rule form", () => {
 
         const ruled = session.styles
             .list()
-            .filter((layer) => layer.selector.match === "has" && layer.selector.path.startsWith("graphty.style."));
+            .filter((layer) => layer.selector.match === "has" && layer.selector.path.startsWith("data."));
         assert.isAbove(ruled.length, 0, "the file made layers on its own values");
 
         for (const layer of ruled) {
@@ -55,7 +54,7 @@ describe("a file layer's rule form", () => {
     });
 
     it("refuses a graphty. path that names nothing, with reason reserved-root", () => {
-        for (const reads of ["graphty.style.graphml", "graphty.styles.graphml.node.x", "graphty.later"]) {
+        for (const reads of ["graphty.style.values.node.el.load", "graphty.styles.graphml.node.x", "graphty.later"]) {
             let thrown: unknown;
             try {
                 parseSetDefinition({
@@ -69,7 +68,7 @@ describe("a file layer's rule form", () => {
             assert.ok(isGraphtyError(thrown), reads);
             assert.strictEqual(thrown.details.reason, "reserved-root", reads);
         }
-        for (const reads of ["graphty.style.graphml.node.el.load", "graphty.notes.count"]) {
+        for (const reads of ["data.el_load", "graphty.notes.count"]) {
             assert.doesNotThrow(() =>
                 parseSetDefinition({
                     kind: "rule",

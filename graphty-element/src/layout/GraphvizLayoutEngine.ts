@@ -373,7 +373,10 @@ function edgeLabelsAt(
  * What the graph's data says about the layout besides node sizes: the edges in the order they arrived with their
  * Graphviz attributes, each group's cluster attributes, and the file's rank subgraphs.
  * @param input - the run's input
- * @param nodes - the layout's nodes
+ * @param rows - each row's data, by row of `input.stored` (a row drawn with no `Node` included), and the data
+ *     manager's rank subgraphs
+ * @param rows.records - each row's data
+ * @param rows.ranks - the rank subgraphs
  * @param edges - the layout's edges, in the order they arrived
  * @param followers - the groups drawn round their members, by row: handed over as clusters
  * @param withOutlines - also hand over each node's outline (its `shape`), for a run that routes edges between
@@ -384,7 +387,10 @@ function edgeLabelsAt(
  */
 export function layoutStructure(
     input: SnapshotLayoutInput,
-    nodes: readonly Node[],
+    rows: {
+        readonly records: readonly (Readonly<Record<string | number, unknown>> | undefined)[];
+        readonly ranks: readonly RankSet[];
+    },
     edges: readonly Edge[],
     followers: ReadonlyMap<number, readonly number[]>,
     withOutlines = false,
@@ -393,29 +399,24 @@ export function layoutStructure(
     const { ids } = input.stored;
     const groups = new Map<number, Readonly<Record<string, unknown>>>();
     const data = new Map<number, Readonly<Record<string, unknown>>>();
-    for (const node of nodes) {
-        const row = ids.indexOf(node.id);
-        // A node the run leaves out (hidden under `layout.visibleOnly`) has no row in its graph.
-        if (row === INVALID_INDEX) {
-            continue;
+    // A row the run leaves out (hidden under `layout.visibleOnly`) is not in its graph, so has no record.
+    rows.records.forEach((record, row) => {
+        if (record === undefined) {
+            return;
         }
 
         if (followers.has(row)) {
-            groups.set(row, node.data);
+            groups.set(row, record);
         } else if (withOutlines || labelSized) {
-            data.set(row, node.data);
+            data.set(row, record);
         }
-    }
+    });
 
-    // An engine driven without an element has nodes whose parent holds no data manager.
-    const host: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
-        nodes[0]?.parentGraph;
-    const ranks = host?.getDataManager?.().rankSets ?? [];
     return graphvizStructure(
         (id) => ids.indexOf(id),
         edges,
         groups,
-        ranks,
+        rows.ranks,
         withOutlines || labelSized ? data : undefined,
         labelSized ? { idOf: (row) => ids.idOf(row) } : undefined,
     );
@@ -540,7 +541,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             // handed over as a cluster of its members, not as a node with room of its own.
             const structure = layoutStructure(
                 input,
-                this._nodes,
+                { records: this.rowRecords(input.stored.nodeCount), ranks: this.rankSets() },
                 this._edges,
                 this.followerGroups,
                 false,

@@ -71,10 +71,6 @@ const config: StorybookConfig = {
             };
         }
 
-        if (configType === "DEVELOPMENT") {
-            // Your development configuration goes here
-        }
-
         // Rolldown (Vite 8) does not keep module execution order across chunks by default. Storybook's
         // preview entry imports storybook/internal/preview/runtime first, which defines the
         // __STORYBOOK_MODULE_*__ globals; Rolldown kept that module in the entry chunk but moved the

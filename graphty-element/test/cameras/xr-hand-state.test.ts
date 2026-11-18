@@ -7,8 +7,7 @@
  * source each hand came from and when the gesture state was reset.
  */
 import { NullEngine, Scene, TransformNode, Vector3, type WebXRDefaultExperience } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { PivotController } from "../../src/cameras/PivotController";
 import { twoHandGestureDelta } from "../../src/cameras/twoHandGesture";

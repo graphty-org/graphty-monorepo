@@ -1,20 +1,18 @@
 /**
- * ForceAtlas2 on the exact repulsion tier (spec 7.1-7.18; contract 3.13): the ForceModel that ForceSimulation
- * drives -- the K1 K2 K3 K4 K5 sequence per iteration and toScene per batch (spec 7.4), the override set of the option
- * record (spec 7.2 with the 4.6 NetworkX corrections), the per-iteration Fa2Params values, the controller resets of
- * spec 7.17 and the stats decoder -- plus the two option resolvers and `createForceAtlas2`. Positions are vec4f
- * (xyz + mass) in layout units on the device (D23, 7.18); the speed controller runs on the device (D15); no
- * displacement clamp (D25); K2 runs the degree tiers over `degreeOrder()` (P4 PD-7).
+ * ForceAtlas2 on the GPU: the ForceModel that ForceSimulation drives -- the K1 K2 K3 K4 K5 sequence per iteration
+ * and toScene per batch, the override set of the option record (ForceAtlas2 as published, with the NetworkX
+ * corrections), the per-iteration Fa2Params values, the speed-controller resets and the stats decoder -- plus the two
+ * option resolvers and `createForceAtlas2`. Positions are vec4f (xyz + mass) in layout units on the device; the speed
+ * controller runs on the device; there is no displacement clamp; K2 runs the degree tiers over `degreeOrder()`.
  *
- * Model decisions this file fixes (the plan of P3-T2 lists the reasons): recordIteration with no `upTo` records every
- * stage including toScene; on the exact tier the K1-K5 dispatches of every iteration of one batch share ONE compute
- * pass (opened by the batch's first recordIteration and remembered by batch id) and toScene runs in a second pass
- * that ends it (contract 4.4); the fill kernel takes its FillParams from a model-owned 256-byte uniform buffer
- * ("fillParams"); the first iteration after every load() zeroes oldForce with a fill (paper mode). The grid tier
- * (P4-T10) is reached through `RepulsionGrid` when `tierFor(tuning, n)` says so (PD-18): `buffers()` adds the grid
- * buffers, K1 derives the frame under `gridMax > 0` (PD-14), the iteration is recorded as the three passes `fa2-k1`
- * / `fa2-attraction` / `fa2-grid` before `fa2-to-scene` (PD-16), and `stages` is the union list of both tiers
- * (PD-17: `upTo` stops after the last stage recorded at or before its position).
+ * recordIteration with no `upTo` records every stage including toScene. On the exact tier the K1-K5 dispatches of
+ * every iteration of one batch share ONE compute pass (opened by the batch's first recordIteration and remembered by
+ * batch id) and toScene runs in a second pass that ends it; the fill kernel takes its FillParams from a model-owned
+ * 256-byte uniform buffer ("fillParams"); the first iteration after every load() zeroes oldForce with a fill (paper
+ * mode). The grid tier is reached through `RepulsionGrid` when `tierFor(tuning, n)` says so: `buffers()` adds the
+ * grid buffers, K1 derives the frame when `gridMax > 0`, the iteration is recorded as the three passes `fa2-k1` /
+ * `fa2-attraction` / `fa2-grid` before `fa2-to-scene`, and `stages` is the union list of both tiers (`upTo` stops
+ * after the last stage recorded at or before its position).
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -69,13 +67,20 @@ import { RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js"
 
 // ============================================================ constants and small helpers
 
-/** Every override K2 accepts, with its default (contract 3.10.1 plus the two standard graph overrides). */
-const K2_DEFAULTS: Overrides = { LINLOG: false, DISTRIBUTED: false, TIER: 0, USE_PERM: false, HAS_WEIGHTS: false };
+/** Every override K2 accepts, with its default (plus the two standard graph overrides). */
+const K2_DEFAULTS: Overrides = {
+    LINLOG: false,
+    DISTRIBUTED: false,
+    DISSUADE_HUBS: false,
+    TIER: 0,
+    USE_PERM: false,
+    HAS_WEIGHTS: false,
+};
 
 /** Every override K5 accepts, with its default. */
 const K5_DEFAULTS: Overrides = { SWING_MODE: 0 };
 
-/** The resolved record with no option given: FA2_DEFAULTS plus the null / origin defaults of spec 7.14. */
+/** The resolved record with no option given: FA2_DEFAULTS plus the null / origin defaults of the per-node and center options. */
 const DEFAULT_RESOLVED: ResolvedForceAtlas2Options = Object.freeze<ResolvedForceAtlas2Options>({
     ...FA2_DEFAULTS,
     nodeMass: null,
@@ -99,7 +104,7 @@ function repulsionOverrides(merged: Overrides): RepulsionExactOverrides {
 }
 
 /**
- * The G6 / G7 / K4 override values of a merged set (typed for RepulsionGrid): K3's three and the FA2 law (P4-T13).
+ * The G6 / G7 / K4 override values of a merged set (typed for RepulsionGrid): K3's three and the FA2 law.
  * @param merged - the merged override set
  * @returns the grid stage's overrides
  */
@@ -110,10 +115,10 @@ function gridOverrides(merged: Overrides): RepulsionGridOverrides {
 // ============================================================ the resolvers
 
 /**
- * Applies FA2_DEFAULTS to the option record; validates ranges (spec 7.14; contract 3.13). With `previous` the record
+ * Applies FA2_DEFAULTS to the option record; validates ranges. With `previous` the record
  * is a PATCH over it (an absent or explicitly undefined field keeps the previous value) and `maxInFlight` may not
  * change (the uniform ring is sized by it at construction). `nodeSize` is E_UNSUPPORTED { option: "nodeSize" } (the
- * adjustSizes correction is deferred); `dissuadeHubs` is kept and ignored, exactly like the CPU.
+ * adjustSizes correction is deferred); `dissuadeHubs` divides each node's attraction by its degree + 1, as the CPU does.
  * @param options - the caller's options (or a setParams patch)
  * @param previous - the current resolved record when resolving a patch
  * @returns the frozen resolved record
@@ -129,8 +134,8 @@ export function resolveForceAtlas2Options(
     if (nodeSize !== null) {
         throw new WebGpuGraphError(
             "E_UNSUPPORTED",
-            "nodeSize (the adjustSizes correction) is not supported by the GPU ForceAtlas2 yet (spec 7.14)",
-            { option: "nodeSize", hint: "pass nodeSize: null; the size-aware repulsion is deferred (spec 7.2, Q-25)" },
+            "nodeSize (the adjustSizes correction) is not supported by the GPU ForceAtlas2 yet",
+            { option: "nodeSize", hint: "pass nodeSize: null; the size-aware repulsion is not implemented yet" },
         );
     }
     const resolved: ResolvedForceAtlas2Options = {
@@ -151,7 +156,7 @@ export function resolveForceAtlas2Options(
 }
 
 /**
- * Applies LAYOUT_TUNING_DEFAULTS (spec 7.14; contract 3.3). `nearMax` is an integer >= 2 (P4 DEP-P4-M: the
+ * Applies LAYOUT_TUNING_DEFAULTS. `nearMax` is an integer >= 2 (the
  * near-field estimator needs at least one sampled entry besides the node itself).
  * @param tuning - the GPU-only knobs given (any object carrying them, e.g. the createForceAtlas2 options)
  * @returns the frozen resolved tuning
@@ -211,24 +216,24 @@ export function resolveLayoutTuning(tuning: GpuLayoutTuning | undefined): Resolv
 
 // ============================================================ the model
 
-/** The ForceAtlas2 model (spec 7.4: K1 K2 K3 K4 K5 per iteration on the exact tier, K1 K2 G1..G7 K4 K5 on the grid tier; toScene once per batch). Stages: the union list of PD-17. */
+/** The ForceAtlas2 model: K1 K2 K3 K4 K5 per iteration on the exact tier, K1 K2 G1..G7 K4 K5 on the grid tier, toScene once per batch. Stages: the union list of both tiers. */
 export class ForceAtlas2Model
     extends ForceModelBase<RepulsionExact>
     implements ForceModel<ForceAtlas2Options, ForceAtlas2Stats>
 {
-    /** The model kind of spec 7.19. */
+    /** The model kind, "forceatlas2". */
     readonly kind = "forceatlas2";
 
     /**
      * The option record the model holds: the constructor's record, replaced by onSetParams() ONLY. The query hooks
      * (inputs, overrides, paramsFor) never assign it: the simulation calls overrides(next) BEFORE onSetParams(patch)
-     * (3.13 setParams: the recompile decision precedes the controller reset), so a hook that tracked the record would
-     * hide every law change from onSetParams (PLAN DECISION 12).
+     * (the recompile decision precedes the controller reset), so a hook that tracked the record would
+     * hide every law change from onSetParams.
      */
     private current: ResolvedForceAtlas2Options;
 
     /**
-     * Creates the model for one simulation. oldForce is allocated in BOTH swing modes (3.10.1: a writable slot is
+     * Creates the model for one simulation. oldForce is allocated in BOTH swing modes (a writable slot is
      * never aliased; mode 1 leaves it unread and unwritten).
      * @param tuning - the resolved GPU-only tuning (compat selects SWING_MODE / GRAVITY_CENTER; repulsion and
      *   exactMaxNodes the tier rule)
@@ -248,8 +253,8 @@ export class ForceAtlas2Model
     }
 
     /**
-     * { mass: resolveNodeMass(s, resolved.nodeMass), weights: resolveWeights(s, resolved.weight) } (3.13 inputs.ts).
-     * Also remembers the grid of this load (`tierFor(tuning, n)`, spec 7.8) for onLoad() and specs(): the simulation
+     * { mass: resolveNodeMass(s, resolved.nodeMass), weights: resolveWeights(s, resolved.weight) } (see inputs.ts).
+     * Also remembers the grid of this load (`tierFor(tuning, n)`) for onLoad() and specs(): the simulation
      * calls inputs() first, then onLoad() before bind().
      * @param s - the snapshot being loaded
      * @param options - the simulation's current option record
@@ -265,10 +270,10 @@ export class ForceAtlas2Model
     }
 
     /**
-     * { LINLOG, DISTRIBUTED, TIER: 0, SWING_MODE: compat === "networkx" ? 1 : 0, STRONG_GRAVITY, GRAVITY_CENTER:
+     * { LINLOG, DISTRIBUTED, DISSUADE_HUBS, TIER: 0, SWING_MODE: compat === "networkx" ? 1 : 0, STRONG_GRAVITY, GRAVITY_CENTER:
      * compat === "networkx" ? 1 : 0 }; USE_PERM / HAS_WEIGHTS are merged in by the simulation from ModelResources
-     * (3.10, never from core.hasWeights). A pure query: the simulation calls it with the current AND the next record
-     * inside setParams() to decide the recompile, so it never touches the model's record (PLAN DECISION 12).
+     * (never from core.hasWeights). A pure query: the simulation calls it with the current AND the next record
+     * inside setParams() to decide the recompile, so it never touches the model's record.
      * @param options - an option record (the simulation's current one, or the next one of a setParams patch)
      * @returns the model's own override set
      */
@@ -278,6 +283,7 @@ export class ForceAtlas2Model
         return {
             LINLOG: resolved.linlog,
             DISTRIBUTED: resolved.distributedAction,
+            DISSUADE_HUBS: resolved.dissuadeHubs,
             TIER: 0,
             SWING_MODE: mode,
             STRONG_GRAVITY: resolved.strongGravity,
@@ -292,7 +298,7 @@ export class ForceAtlas2Model
      * (the pipeline key carries no geometry, so the spec's size is immaterial).
      * @param overrides - the merged override set (the model's plus USE_PERM / HAS_WEIGHTS)
      * @param _subgroups - accepted for the ForceModel interface and unused: every reducing FA2 body carries
-     *   needs: ["subgroups"] in its registry entry and the composer picks the twin from caps.features (contract 4.3)
+     *   needs: ["subgroups"] in its registry entry and the composer picks the twin from caps.features
      * @returns the specs
      */
     specs(overrides: Overrides, _subgroups: boolean): readonly WgslModuleSpec[] {
@@ -316,8 +322,8 @@ export class ForceAtlas2Model
     /**
      * Compiles the pipelines of one load: K1, K5, toScene and fill together, then K3 + K4 through RepulsionExact on
      * the exact tier, K2 over the degree tiers through compileAttraction (none when arcCount === 0), and G1-G7 + K4
-     * through RepulsionGrid on the grid tier (PD-18). The K2 TIER 1 / 2 pipelines compile on the first load whose
-     * degrees need them (P4 PD-7), a one-time cost at that load.
+     * through RepulsionGrid on the grid tier. The K2 TIER 1 / 2 pipelines compile on the first load whose
+     * degrees need them, a one-time cost at that load.
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
      * @returns the pipelines
@@ -417,7 +423,7 @@ export class ForceAtlas2Model
     }
 
     /**
-     * Mode 0: nothing (D8). Mode 1 (networkx): swing = traction = 1 (spec 7.2 "load() and reheat() reset them to 1").
+     * Mode 0: nothing. Mode 1 (networkx): swing = traction = 1, as load() also sets them.
      * @param state - the state writer of the simulation
      */
     onReheat(state: StateWriter): void {
@@ -428,10 +434,10 @@ export class ForceAtlas2Model
     }
 
     /**
-     * Resets speed / speedEfficiency to 1 only when linlog, strongGravity or distributedAction changed (spec 7.17);
+     * Resets speed / speedEfficiency to 1 only when linlog, strongGravity or distributedAction changed;
      * a numeric tweak leaves the controller alone. The patch is validated by the same resolver the simulation uses
-     * and applied over the record of the constructor / the previous onSetParams -- the only place `current` moves
-     * (PLAN DECISION 12), so the comparison sees the record from BEFORE this setParams even though the simulation
+     * and applied over the record of the constructor / the previous onSetParams -- the only place `current` moves,
+     * so the comparison sees the record from BEFORE this setParams even though the simulation
      * already queried overrides(next).
      * @param patch - the setParams patch
      * @param state - the state writer of the simulation
@@ -484,11 +490,11 @@ export class ForceAtlas2Model
 }
 
 /**
- * The grid frame of the first build after load() (spec 7.7 geometry table; PD-10): K1's text in f32 with the same
+ * The grid frame of the first build after load(): K1's text in f32 with the same
  * order of operations -- `box = (max - min) * GRID_BBOX_MARGIN`, `extent = max(min(max(box), extentFactor *
  * rmsRadius), GRID_EXTENT_FLOOR)`, `cellSize = extent / G`, `gridMin = centroid - extent / 2` (cellSize in `.w`),
  * `invCellSize = 1 / cellSize`, `eps = 0.25 cellSize` -- plus zero counts. Shared with the FR and spring-electrical
- * models' onLoad (P4-T13).
+ * models' onLoad.
  * @param state - the state writer (min / max / centroid / rmsRadius already written by the simulation)
  * @param spec - the grid of the load
  * @param extentFactor - the tuning's extent factor
@@ -530,9 +536,9 @@ function resolvePatch(patch: Partial<ForceAtlas2Options>, current: ForceAtlas2Op
 }
 
 /**
- * Spec 3.3 createForceAtlas2, verbatim: a GpuLayoutSimulation running ForceAtlas2 on the exact or the grid repulsion
- * tier (spec 7.8) with the option defaults of spec 7.14 and the GPU-only tuning of GpuLayoutTuning (contract 3.13
- * "Contracts").
+ * Creates a GpuLayoutSimulation running ForceAtlas2 on the exact or the grid repulsion tier (chosen by
+ * `repulsion` and `exactMaxNodes`), with the option defaults of FA2_DEFAULTS and the GPU-only tuning of
+ * GpuLayoutTuning.
  * @param ctx - the context (E_DISPOSED / E_DEVICE_LOST through assertReady)
  * @param options - the ForceAtlas2 options and the GPU-only tuning knobs in one record
  * @returns the simulation in state "created"; load() next

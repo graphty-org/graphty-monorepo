@@ -1,13 +1,11 @@
 /**
  * The app words a run's name from the facts graphty-element publishes (`algorithm`,
- * `distinguishedBy`, `siblingsDifferBy`), and the words are the ones the element's deprecated
- * `label` reads (#866), with the algorithm's catalog name in the app's own words. A real headless
- * session, so the facts are the element's own.
+ * `distinguishedBy`, `siblingsDifferBy`), with the algorithm's catalog name in the app's own words
+ * (#866). A real headless session, so the facts are the element's own.
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { wordsFor } from "../analyze/words";
 import { runName } from "../runWords";
 
 const sessions: GraphSession[] = [];
@@ -36,20 +34,12 @@ async function sessionWithGraph(): Promise<GraphSession> {
 }
 
 /**
- * Every listed run's app name beside the element's own label, its catalog name put in the app's
- * words.
+ * Every listed run's app name.
  * @param session - the session.
- * @returns [app name, element label in the app's words] per run.
+ * @returns the names, in the order the runs were started.
  */
-function names(session: GraphSession): [string, string][] {
-    return session.runs.list().map((run) => {
-        const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
-        const label =
-            descriptor !== undefined && run.label.startsWith(descriptor.plainName)
-                ? wordsFor(descriptor).name + run.label.slice(descriptor.plainName.length)
-                : run.label;
-        return [runName(session, run), label];
-    });
+function names(session: GraphSession): string[] {
+    return session.runs.list().map((run) => runName(session, run));
 }
 
 describe("runName", () => {
@@ -60,13 +50,7 @@ describe("runName", () => {
         session.runs.start("pagerank", { dampingFactor: 0.9 }, { style: false });
         session.runs.start("eigenvector", { mode: "out" }, { style: false });
 
-        for (const [name, label] of names(session)) {
-            assert.strictEqual(name, label);
-        }
-        assert.include(
-            names(session).map(([name]) => name),
-            "PageRank (damping 0.9)",
-        );
+        assert.include(names(session), "PageRank (damping 0.9)");
     });
 
     it("adds the options that tell siblings apart, or the scope when only the scope does", async () => {
@@ -77,14 +61,8 @@ describe("runName", () => {
         session.runs.start("degree", {}, { scope: "largest-component", style: false });
 
         const named = names(session);
-        for (const [name, label] of named) {
-            assert.strictEqual(name, label);
-        }
-        assert.include(
-            named.map(([name]) => name),
-            "PageRank (maxIterations 60, useDelta off)",
-        );
-        assert.isTrue(named.some(([name]) => name.endsWith("(largest component)")));
+        assert.include(named, "PageRank (maxIterations 60, useDelta off)");
+        assert.isTrue(named.some((name) => name.endsWith("(largest component)")));
     });
 
     it("names a sibling over a kept set by the set's name", async () => {
@@ -93,10 +71,7 @@ describe("runName", () => {
         session.runs.start("degree", {}, { style: false });
         session.runs.start("degree", {}, { scope: { set: team }, style: false });
 
-        for (const [name, label] of names(session)) {
-            assert.strictEqual(name, label);
-        }
-        assert.isTrue(names(session).some(([name]) => name.endsWith("(Team)")));
+        assert.isTrue(names(session).some((name) => name.endsWith("(Team)")));
     });
 
     it("names a batch by the label it was given", async () => {
@@ -104,8 +79,8 @@ describe("runName", () => {
         const named = session.runs.batch([{ algorithm: "degree" }], { label: "Rankings" });
         const unnamed = session.runs.batch([{ algorithm: "degree" }]);
 
-        assert.strictEqual(runName(session, named), named.label);
-        assert.strictEqual(runName(session, unnamed), unnamed.label);
+        assert.strictEqual(runName(session, named), "Rankings");
+        assert.strictEqual(runName(session, unnamed), "Batch");
         await Promise.allSettled([named, unnamed]);
     });
 });

@@ -16,19 +16,13 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import type { Edge } from "../../src/Edge";
 import { isGraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
-import type { DataManager } from "../../src/managers/DataManager";
 import { nextFrame } from "../helpers/real-input";
 
-// Type helper to access private Graph members in tests
-interface TestGraph {
-    dataManager: DataManager;
-}
-
 /**
- * Helper to get all edges from a graph (using internal API for testing)
+ * Helper to get all edges from a graph
  */
 function getEdges(graph: Graph): Edge[] {
-    return Array.from((graph as unknown as TestGraph).dataManager.edges.values());
+    return graph.getEdges();
 }
 
 describe("ViewMode Switching Regression Tests", () => {

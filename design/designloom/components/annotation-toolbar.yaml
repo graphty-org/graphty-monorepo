@@ -9,6 +9,8 @@ used_in_workflows:
     - W15
     - W06
     - W09
+    - W21
+    - W22
 dependencies:
     - icon-button
     - color-picker

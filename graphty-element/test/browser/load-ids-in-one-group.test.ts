@@ -6,6 +6,7 @@
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graph } from "../../src/Graph.js";
+import { dataManagerInternals } from "../../src/managers/DataManager.js";
 import { dispatcherOf } from "../../src/session/GraphSession.js";
 
 /** The graphs the running test made, disposed after it. */
@@ -51,7 +52,7 @@ function twoLoads(graph: Graph): { first: { data: string }; second: { data: stri
 
     const first = { data: JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [] }) };
     const second = { data: JSON.stringify({ nodes: [{ id: "c" }], edges: [] }) };
-    const ids = (graph.getDataManager() as unknown as { loadIds: WeakMap<object, number> }).loadIds;
+    const ids = dataManagerInternals.loadIds(graph.getDataManager());
     ids.set(first, 7);
     ids.set(second, 8);
     return { first, second, heard };
@@ -99,13 +100,12 @@ describe("two imports in one group", () => {
     test("started together in one batch, each keeps its own load id and announcement", async () => {
         const graph = await emptyGraph();
         const { first, second, heard } = twoLoads(graph);
-        const layout = (graph as unknown as { layoutManager: { updatePositions(...args: unknown[]): Promise<void> } })
-            .layoutManager;
+        const layout = graph.getLayoutManager();
         const updatePositions = layout.updatePositions.bind(layout);
         let placements = 0;
-        layout.updatePositions = async (...args: unknown[]) => {
+        layout.updatePositions = async (nodes) => {
             placements++;
-            await updatePositions(...args);
+            await updatePositions(nodes);
         };
 
         await dispatcherOf(graph.getSession()).dispatchNow({

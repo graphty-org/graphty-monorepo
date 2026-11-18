@@ -13,8 +13,8 @@
  * - Selectors are short (at most 8 terms). A wider group, or one the element's expression
  *   language would read differently, is written onto the elements as a membership value and
  *   selected with `has`.
- * - Values the layers read live in the load's file-style namespace,
- *   `graphty.style.<namespace>.<kind>.<key>`, never in the data records.
+ * - Values the layers read that the records do not already hold are ordinary data columns: the
+ *   translation names each by a key and the caller says which `data.` path it lands at.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -29,18 +29,16 @@ import {
     type Predicate,
     resolveRule,
     resolveStyles,
-    type StyleArrowShape,
     type StyleNote,
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
-    type StyleTool,
     type StyleValue,
-    type ToolArrowhead,
-    toolDefaults,
 } from "@graphty/graph-io/styles";
 
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
+import { defaultEdgeStyle } from "../../../config/EdgeStyle";
+import { defaultNodeStyle } from "../../../config/NodeStyle";
 import { NGRAPH_SETTLED_SPACING } from "../../../constants/layoutConstants";
 import { EDGE_CONSTANTS } from "../../../constants/meshConstants";
 import type { CodedFactParam } from "../../shared";
@@ -48,34 +46,40 @@ import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColor
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
-import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
-import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
-import {
-    ARROW_RUNS,
-    ARROW_SHAPES,
-    ARROW_SHAPES_NEAREST,
-    type ArrowRunPart,
-    arrowShapesOf,
-    BORDER_STYLES,
-    BORDER_STYLES_NEAREST,
-    FILE_STYLE_SHAPES,
-    type FileStyleShapeTable,
-    LINE_STYLES,
-    LINE_STYLES_NEAREST,
-    OUTLINE_STYLES,
-} from "./shapes";
-import type { FileStyleScalar } from "./store";
+import { computedPath, parseWrittenStylePath } from "./path";
+import { ARROW_SHAPES, BORDER_STYLES, LINE_STYLES, LINE_STYLES_NEAREST, NODE_SHAPES, OUTLINE_STYLES } from "./shapes";
+
+/** One value a kept column holds for an element. */
+export type StyleScalar = string | number | boolean;
 
 /** The most terms a selector made from a file holds; a wider group is written onto the elements. */
 const MAX_TERMS = 8;
 
 /** The key of the copy graph-io writes of a data column a format cannot keep, and the column it copies. */
 const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
+/** The same key for any property, a dotted one among them (`input.graphty:node.size.data.<column>`). */
+const CARRIED_ANY_INPUT = /^input\.(?:(?!data\.)[^.]+\.)*?data\.(.+)$/;
+
+/**
+ * The data column a style column copies, when the column is the copy graph-io writes of a data column a format
+ * cannot keep (`input.data.<column>`, `input.<property>.data.<column>`, the property dotted or not).
+ * @param key - The style column's key.
+ * @returns The copied column's name, or null for any other key.
+ */
+export function carriedColumnOf(key: string): string | null {
+    return CARRIED_ANY_INPUT.exec(key)?.[1] ?? null;
+}
 
 /** A length added to a shape point's fraction (`-1+24`): the digit before it, and the signed length. */
 const SHAPE_POINT_LENGTH = /([\d.])([+-](?:\d+\.?\d*|\.\d+))/g;
 /** A mapping table with more keys present than this is kept as values per element. */
 const MAX_TABLE_KEYS = 256;
+/**
+ * The format id a replan of already-settled values is filed under: graph-io keeps it only in the report-only
+ * `source`, so the same values plan the same way whatever file they came from.
+ */
+const REPLANNED = "values";
+
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
@@ -89,10 +93,10 @@ export interface FileStyleOptions {
      * file's median node size (by its larger side) is the element's default node size and node sizes, borders, edge
      * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
      * proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales every length by one factor too,
-     * chosen so the spacing the writing program's own layout leaves between nodes once it settles (graph-io's
-     * `layoutSpacing`) is drawn at the spacing the element's force layout settles at, so a file that stores no
-     * positions is laid out with its nodes as large beside the gaps as the program draws them. A file that stores
-     * positions, or one from a program with no stated spacing, is scaled as `"median"` is.
+     * chosen so the node spacing the styles state (graph-io's `lengths.spacing`: how far apart the nodes of a file
+     * that stores no positions are meant to be laid out) is drawn at the spacing the element's force layout settles
+     * at. A file that stores positions, or whose styles state no spacing, is scaled as `"median"` is. Lengths the
+     * styles state are already in the drawing's units (`lengths.units: "scene"`) are kept as they are.
      */
     readonly lengths?: "median" | "file" | "spacing";
     /**
@@ -103,15 +107,10 @@ export interface FileStyleOptions {
     readonly labelSizes?: "proportional" | "file";
     /**
      * How a load that replaces the graph frames it: `"element"` (the default) leaves the project setting `framing`
-     * as it is; `"file"` sets it to how the program that draws the file frames it, when graph-io states that (sigma.js
-     * fits node centers 30 px in from the canvas's shorter side), and back to the element's own framing when not.
+     * as it is; `"file"` frames the node centers the padding the read file states in from the canvas's shorter side,
+     * when it states one, and returns to the element's own framing when not.
      */
     readonly framing?: "element" | "file";
-    /**
-     * The element shape each 2D node shape of the file is drawn as; `FILE_STYLE_SHAPES` by default.
-     * A shape the table leaves out is not drawn from the file, and the load notes it.
-     */
-    readonly shapes?: FileStyleShapeTable;
     /**
      * How many layers label positions may take when the file sets them per element. Label positions are
      * drawn by one layer whatever their number (`node.labelLocation`), so this caps nothing.
@@ -119,9 +118,9 @@ export interface FileStyleOptions {
      */
     readonly labelLayers?: number;
     /**
-     * Whether a property the file leaves to the program that wrote it gets that program's default
-     * (Cytoscape's for CX and sessions, Graphviz's for DOT, Gephi's for GEXF ...), so the graph
-     * looks as it does there. True by default.
+     * Passed to graph-io as it reads the file's styles: whether a property the file leaves unset gets
+     * the default its reader knows for it, so the graph looks as the file's own viewer draws it. True by
+     * default. The layers are made the same way either way.
      */
     readonly toolDefaults?: boolean;
     /**
@@ -172,24 +171,20 @@ export interface TranslateInput {
     readonly extracted: ExtractedStyles;
     /** The graph the import built, which the styles' element indexes refer to. */
     readonly snapshot: GraphSnapshot;
-    /** The load's file-style namespace. */
-    readonly namespace: string;
-    /** The graph-io format id or JSON dialect the file was read as. */
-    readonly format: string;
-    /** The load, as its layers' facts name it. */
-    readonly importId: string;
+    /**
+     * The `data.` path a column of values the translation keeps lands at, as an ordinary data column of the load's
+     * elements, given the values by element index. The caller writes the values there. Asked once per kind and key.
+     */
+    readonly columnPath: (kind: StyleTarget, key: string, values: readonly (StyleScalar | null)[]) => Path;
     /** The load's choices. */
     readonly options: FileStyleOptions;
-    /** What the element's own base layers paint, per kind, for a file graphty wrote. */
-    readonly base: Readonly<Record<StyleTarget, Readonly<Partial<Record<Channel, unknown>>>>>;
     /** The path a layer reads one of the file's data columns at, or null when it cannot. */
     readonly dataPath: (kind: StyleTarget, column: string) => Path | null;
     /**
-     * How many px of the file's label sizes one unit of its positions is, when its labels are drawn
-     * in canvas px over positions fitted to the canvas (sigma.js); absent when its label sizes are in
-     * the unit of its other lengths.
+     * What the element paints every node and edge with before any loaded layer, per kind and channel: a value a rule
+     * of defaults gives every element that the element already paints needs no layer. Absent, every value is drawn.
      */
-    readonly labelPxPerUnit?: number;
+    readonly elementDefaults?: Readonly<Record<StyleTarget, Readonly<Partial<Record<Channel, unknown>>>>>;
     /** Whether the file stored a usable position for any node, so no program's own layout placed it. */
     readonly positionsStored?: boolean;
 }
@@ -198,6 +193,8 @@ export interface TranslateInput {
 interface TranslatedLayer {
     /** The layer. */
     readonly spec: LayerSpec;
+    /** The id of the file's rule it was made from, for this translation's ordering only; never on the layer. */
+    readonly ruleId?: string;
     /**
      * The neutral layers to use instead when the element refuses this one: set for a layer
      * rebuilt from a layer graphty wrote into the file.
@@ -210,7 +207,7 @@ export interface Translation {
     /** The layers, bottom first, in the order of the rules they stand for. */
     readonly layers: readonly TranslatedLayer[];
     /** The values the layers read, per kind and key, by the import's element index. */
-    readonly columns: Readonly<Record<StyleTarget, ReadonlyMap<string, readonly (FileStyleScalar | null)[]>>>;
+    readonly columns: Readonly<Record<StyleTarget, ReadonlyMap<string, readonly (StyleScalar | null)[]>>>;
     /** Per kind, the key of the column marking the elements the file hides, and how many; null when it hides none. */
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
@@ -245,18 +242,6 @@ const GLYPH_WEIGHTS: ReadonlyMap<string, number> = new Map([
     ["bold", 700],
 ]);
 
-/**
- * The rule property `withCornerCap` writes the program's default cap under: drawn on `node.cornerRadius` alone, so
- * the corners stay capped at a quarter of the shorter side, where a radius the file gives is drawn as given.
- */
-const CORNER_CAP = "graphty-internal:cornerRadiusCap";
-
-/**
- * The rule property `withCornerCap` writes the program's share of the shorter side under (graph-io's
- * `roundedCornerFraction`), drawn on `node.cornerFraction`: Cytoscape desktop's eighth, Graphviz's third.
- */
-const CORNER_FRACTION = "graphty-internal:cornerFraction";
-
 interface ChannelPlan {
     readonly channel: Channel;
     readonly convert: Convert;
@@ -274,6 +259,8 @@ interface ChannelPlan {
 /** A layer being built, with what it paints. */
 interface Building extends FoldableLayer {
     readonly bucket: number;
+    /** The id of the file's rule the layer was made from, kept for this translation only. */
+    readonly ruleId?: string;
     readonly spec: LayerSpec & { set: Record<string, unknown>; encode: Record<string, Binding> };
     readonly paint: Map<Channel, unknown[]> | null;
     /** What it paints per channel, kept even where `paint` is null to stop the fold; absent for a rebuilt layer. */
@@ -293,10 +280,16 @@ interface Building extends FoldableLayer {
 const END_LABEL_FACE: ReadonlySet<string> = new Set([
     "sourceLabelSize",
     "targetLabelSize",
+    "sourceLabelScreenSize",
+    "targetLabelScreenSize",
     "sourceLabelColor",
     "targetLabelColor",
     "sourceLabelFont",
     "targetLabelFont",
+    "sourceLabelWeight",
+    "targetLabelWeight",
+    "sourceLabelOpacity",
+    "targetLabelOpacity",
 ]);
 
 /** Notes, one per code, kind and property. */
@@ -498,7 +491,7 @@ function termsOf(where: Predicate): number {
     }
 
     const list = listOf(where);
-    if (!Array.isArray(list)) {
+    if (list === null) {
         return Infinity;
     }
 
@@ -551,26 +544,17 @@ function closingQuote(where: string, from: number, quote: string): number {
  * The neutral property each channel of a kind is drawn from, and how.
  * @param kind - Nodes or edges.
  * @param factors - What the file's lengths are multiplied by.
- * @param shapes - The 2D-to-3D shape table.
- * @param tool - The program that wrote the file, or null.
- * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
- * @param onScreen - Whether the writing program draws a node's border width, and its label sizes, in screen pixels.
- * @param onScreen.border - A node's border width.
- * @param onScreen.label - Every label size, node and edge.
+ * @param screenLabels - Whether the kind's styles fix any label size on screen (`labelScreenSize` and its kin).
  * @param imageBase - The URL a picture's relative path is resolved against, or undefined.
  * @returns The plans per property.
  */
 function channelPlans(
     kind: StyleTarget,
     factors: LengthFactors,
-    shapes: FileStyleShapeTable,
-    tool: StyleTool | null,
-    arrowsSized: boolean,
-    onScreen: { readonly border: boolean; readonly label: boolean },
+    screenLabels: boolean,
     imageBase?: string,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
-    const graphty = tool === "graphty";
-    const arrows = arrowShapesOf(tool);
+    const arrows = ARROW_SHAPES;
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const picture = (channel: Channel): ChannelPlan => ({
         channel,
@@ -609,15 +593,12 @@ function channelPlans(
         convert: (value) => (typeof value === "boolean" ? { keepBlankLines: value } : null),
         identity: false,
     });
+    // a row's pieces, each sized in the file's lengths where its word says so, drawn as the element's caps
     const stack = (channel: Channel): ChannelPlan => ({
         channel,
-        convert: (value) => arrowStackOf(value),
+        convert: (value) => arrowStackOf(value, factors.scene ?? 1),
         identity: false,
     });
-    // an edge's end captions are drawn in its label's face, color, weight and opacity, as every program draws its
-    // source and target labels (Cytoscape.js, Graphviz's headlabel and taillabel); graphty writes its own captions
-    const captions = (field: "Color" | "Font" | "Weight" | "Opacity"): ChannelPlan[] =>
-        graphty ? [] : [id(`edge.arrowHeadText${field}`), id(`edge.arrowTailText${field}`)];
     // a label's place, one field of its label style, so each element keeps its own however many places the file uses
     const location = (target: StyleTarget): ChannelPlan => ({
         channel: `${target}.labelLocation`,
@@ -629,21 +610,24 @@ function channelPlans(
         convert: (value) => (typeof value === "number" ? round(value * factor) : null),
         identity: factor === 1,
     });
+    // A label size fixed on screen, as the screen size it is, with its label style's `sizeMode: "screen"` beside it,
+    // never scaled by the lengths.
+    const screenSize = (channel: Channel): ChannelPlan[] => [
+        id(channel),
+        {
+            channel: channel.replace(/Size$/, "Style") as Channel,
+            convert: (value) => (typeof value === "number" ? { sizeMode: "screen" } : null),
+            identity: false,
+        },
+    ];
     // Each size converted on its own: a label's letters are not in proportion to its `sizePx` (see LABEL).
     // The letters' height in the scene, besides the canvas size: `sizePx / 48` scene units is a line of the font's own
     // line height, which differs from one font to the next.
-    // Where the program draws them in screen pixels (sigma), as the screen size they are, with its label style's
-    // `sizeMode: "screen"` beside them, never scaled by the lengths.
+    // Labels whose styles fix their size on screen are never sized in the scene, which would override the screen size:
+    // every label size of the kind is then drawn as the screen size it is.
     const labelSize = (channel: Channel, letters: Channel): ChannelPlan[] => {
-        if (onScreen.label) {
-            return [
-                id(channel),
-                {
-                    channel: channel.replace(/Size$/, "Style") as Channel,
-                    convert: (value) => (typeof value === "number" ? { sizeMode: "screen" } : null),
-                    identity: false,
-                },
-            ];
+        if (screenLabels) {
+            return screenSize(channel);
         }
 
         const px = factors.label;
@@ -668,7 +652,7 @@ function channelPlans(
     // sizes need it
     // A label box's border width is a whole stroke's width, so it is not halved.
     // label units per file length, as a label's padding and border are drawn
-    const labelScale = onScreen.label || factors.label === null ? 1 : factors.label(14) / 14;
+    const labelScale = screenLabels || factors.label === null ? 1 : factors.label(14) / 14;
     const labelLength = (channel: Channel, half = true): ChannelPlan => {
         const ratio = labelScale / (half ? 2 : 1);
         return {
@@ -677,9 +661,30 @@ function channelPlans(
             identity: ratio === 1,
         };
     };
+    // a label's box, outline and turn, read alike for a node and an edge
+    const labelBox: [string, ChannelPlan[]][] = [
+        ["labelRotation", [label("labelRotation")]],
+        ["labelBackground", [label("labelBackground")]],
+        ["labelOutlineColor", [label("labelOutline")]],
+        ["labelOutlineWidth", [labelLength(`${kind}.labelOutlineWidth`)]],
+        ["labelBorderColor", [label("labelBorder")]],
+        ["labelBorderWidth", [labelLength(`${kind}.labelBorderWidth`, false)]],
+        ["labelOpacity", [label("labelOpacity")]],
+        ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
+        ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
+        ["labelBorderOpacity", [label("labelBorderOpacity")]],
+        ["labelPadding", [labelLength(`${kind}.labelPadding`, false)]],
+    ];
+    // how a label box's corners, lines, border and shape are drawn, the same for nodes and edges
+    const labelBoxShape: [string, ChannelPlan[]][] = [
+        ["labelCornerRadius", [labelLength(`${kind}.labelCornerRadius`, false)]],
+        ["labelLineHeight", [label("labelLineHeight")]],
+        ["labelLineBox", [label("labelLineBox")]],
+        ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBackgroundShape", [label("labelBackgroundShape")]],
+    ];
     if (kind === "node") {
-        const shapeTable = new Map(Object.entries(shapes));
-        const nearShapes = new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from));
+        const shapeTable = NODE_SHAPES;
         return new Map<string, readonly ChannelPlan[]>([
             ["fill", [id("node.color")]],
             ["fillGradient", [id("node.gradientColor")]],
@@ -690,20 +695,14 @@ function channelPlans(
             ["fillGradientCenterX", [id("node.gradientCenterX")]],
             ["fillGradientCenterY", [id("node.gradientCenterY")]],
             ["fillGradientRadius", [id("node.gradientRadius")]],
-            // graphty writes a consumer's `node.outline` as `borderColor`, so its own file reads it
-            // back there. Another program's border is a ring sized with the node: drawn as the
-            // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
-            ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
-            // Where the program draws it in screen pixels (vis-network), also as a screen width, never
-            // scaled by the lengths, which is drawn in place of the length.
-            [
-                "borderWidth",
-                onScreen.border
-                    ? [length("node.borderWidth"), id("node.borderScreenWidth")]
-                    : [length("node.borderWidth")],
-            ],
+            // A border is a ring sized with the node: drawn as the outline's screen-space glow it covers the fill
+            // once the graph is framed (issue #2252).
+            ["borderColor", [id("node.borderColor")]],
+            ["borderWidth", [length("node.borderWidth")]],
+            // A screen width, never scaled by the lengths, drawn in place of the length.
+            ["borderScreenWidth", [id("node.borderScreenWidth")]],
             ["borderOpacity", [id("node.borderOpacity")]],
-            // A radius the file gives is drawn as given; the writing program's default cap (`withCornerCap`) is a cap.
+            // A radius the file gives is drawn as given; `cornerRadiusCap` is a cap on the rounding.
             [
                 "cornerRadius",
                 [
@@ -715,8 +714,10 @@ function channelPlans(
                     },
                 ],
             ],
-            [CORNER_CAP, [length("node.cornerRadius")]],
-            [CORNER_FRACTION, [id("node.cornerFraction")]],
+            ["cornerRadiusCap", [length("node.cornerRadius")]],
+            ["cornerFraction", [id("node.cornerFraction")]],
+            ["sizeMode", [id("node.sizeMode")]],
+            ["drawOrder", [id("node.drawOrder")]],
             ["shapePoints", [points("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
             ["shapeRotation", [id("node.shapeRotation")]],
@@ -757,6 +758,7 @@ function channelPlans(
             ["imageSmoothing", [id("node.imageSmoothing")]],
             ["imageAutoSize", [id("node.imageAutoSize")]],
             ["imageOpacity", [id("node.imageOpacity")]],
+            ["imageAspect", [id("node.imageAspect")]],
             ["glyph", [id("node.glyph")]],
             ["glyphFont", [id("node.glyphFont")]],
             ["glyphSize", [length("node.glyphSize")]],
@@ -815,14 +817,14 @@ function channelPlans(
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],
-            ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
+            ["borderStyle", [table("node.borderStyle", BORDER_STYLES)]],
             ["borderPosition", [id("node.borderPosition")]],
             ["borderWaveAmplitude", [length("node.borderWaveAmplitude")]],
             ["borderWavePeriod", [length("node.borderWavePeriod")]],
             ["outerBorderColor", [id("node.outerBorderColor")]],
             ["outerBorderWidth", [length("node.outerBorderWidth")]],
             ["outerBorderOpacity", [id("node.outerBorderOpacity")]],
-            ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
+            ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES)]],
             ["outerBorderOffset", [length("node.outerBorderOffset")]],
             ["outerBorderCount", [id("node.outerBorderCount")]],
             ["raisedBorderWidth", [length("node.raisedBorderWidth")]],
@@ -836,12 +838,12 @@ function channelPlans(
             ["underlayColor", [id("node.underlayColor")]],
             ["underlayOpacity", [id("node.underlayOpacity")]],
             ["underlayPadding", [length("node.underlayPadding")]],
-            ["underlayShape", [table("node.underlayShape", shapeTable, nearShapes)]],
+            ["underlayShape", [table("node.underlayShape", shapeTable)]],
             ["underlayCornerRadius", [length("node.underlayCornerRadius")]],
             ["overlayColor", [id("node.overlayColor")]],
             ["overlayOpacity", [id("node.overlayOpacity")]],
             ["overlayPadding", [length("node.overlayPadding")]],
-            ["overlayShape", [table("node.overlayShape", shapeTable, nearShapes)]],
+            ["overlayShape", [table("node.overlayShape", shapeTable)]],
             ["overlayCornerRadius", [length("node.overlayCornerRadius")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
@@ -860,41 +862,36 @@ function channelPlans(
                 ],
             ],
             ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
-            ["shape", [table("node.shape", shapeTable, nearShapes)]],
+            ["shape", [table("node.shape", shapeTable)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
+            ["labelScreenSize", screenSize("node.labelSize")],
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
+            ["labelWrapSkipEndSpace", [id("node.labelWrapSkipEndSpace")]],
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
             ["labelKeepBlankLines", [keepBlankLines("node")]],
+            ["labelMaxLines", [id("node.labelMaxLines")]],
+            ["labelMaxLinesEllipsis", [id("node.labelMaxLinesEllipsis")]],
             ["labelRunAlign", [id("node.labelRunAlign")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelTextAlign", [label("labelTextAlign")]],
             ["labelPosition", [location("node")]],
             ["labelItalic", [label("labelItalic")]],
-            ["labelRotation", [label("labelRotation")]],
-            ["labelBackground", [label("labelBackground")]],
-            ["labelOutlineColor", [label("labelOutline")]],
-            ["labelOutlineWidth", [labelLength("node.labelOutlineWidth")]],
-            ["labelBorderColor", [label("labelBorder")]],
-            ["labelBorderWidth", [labelLength("node.labelBorderWidth", false)]],
-            ["labelOpacity", [label("labelOpacity")]],
-            ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
-            ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
-            ["labelBorderOpacity", [label("labelBorderOpacity")]],
-            ["labelPadding", [labelLength("node.labelPadding", false)]],
-            ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
-            ["labelLineHeight", [label("labelLineHeight")]],
+            ...labelBox,
+            ...labelBoxShape,
             ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
             ["labelOffsetY", [length("node.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
             ["labelShiftX", [label("labelShiftX")]],
             ["labelShiftY", [label("labelShiftY")]],
+            ["labelShiftOf", [label("labelShiftOf")]],
+            ["labelGapOf", [label("labelGapOf")]],
             ["labelFit", [id("node.labelFit")]],
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
@@ -942,17 +939,22 @@ function channelPlans(
         ["gradientStops", [id("edge.gradientStops")]],
         ["gradientKind", [table("edge.gradientKind", GRADIENT_KINDS)]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
+        // in the line's own widths, as the element draws a dash pattern
+        ["dashLength", [id("edge.dashLength")]],
+        ["dashGap", [id("edge.dashGap")]],
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
-        ["targetArrow", [table("edge.arrowHead", arrows, ARROW_SHAPES_NEAREST)]],
-        ["sourceArrow", [table("edge.arrowTail", arrows, ARROW_SHAPES_NEAREST)]],
+        // a ratio of two widths: no unit to convert
+        ["taper", [id("edge.taper")]],
+        ["targetArrow", [table("edge.arrowHead", arrows)]],
+        ["sourceArrow", [table("edge.arrowTail", arrows)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
         ["targetArrowFillColor", [id("edge.arrowHeadFillColor")]],
         ["sourceArrowFillColor", [id("edge.arrowTailFillColor")]],
-        ["midTargetArrow", [table("edge.arrowMiddleHead", arrows, ARROW_SHAPES_NEAREST)]],
-        ["midSourceArrow", [table("edge.arrowMiddleTail", arrows, ARROW_SHAPES_NEAREST)]],
+        ["midTargetArrow", [table("edge.arrowMiddleHead", arrows)]],
+        ["midSourceArrow", [table("edge.arrowMiddleTail", arrows)]],
         ["midTargetArrowColor", [id("edge.arrowMiddleHeadColor")]],
         ["midSourceArrowColor", [id("edge.arrowMiddleTailColor")]],
         ["targetArrowImage", [id("edge.arrowHeadImage")]],
@@ -960,16 +962,29 @@ function channelPlans(
         ["midTargetArrowImage", [id("edge.arrowMiddleHeadImage")]],
         [
             "arrowSize",
-            arrowsSized
-                ? []
-                : [
-                      id("edge.arrowHeadSize"),
-                      id("edge.arrowTailSize"),
-                      id("edge.arrowMiddleHeadSize"),
-                      id("edge.arrowMiddleTailSize"),
-                  ],
+            [
+                id("edge.arrowHeadSize"),
+                id("edge.arrowTailSize"),
+                id("edge.arrowMiddleHeadSize"),
+                id("edge.arrowMiddleTailSize"),
+            ],
         ],
-        // Drawn only in the writing program's proportions, by the arrow size pass
+        // An arrowhead's settled length and width along and across its line, drawn by the arrow size pass, which
+        // reads each edge's arrow shape beside them
+        ["sourceArrowExtent", []],
+        ["targetArrowExtent", []],
+        ["midSourceArrowExtent", []],
+        ["midTargetArrowExtent", []],
+        ["sourceArrowBreadth", []],
+        ["targetArrowBreadth", []],
+        ["midSourceArrowBreadth", []],
+        ["midTargetArrowBreadth", []],
+        // an open cap's outline, in the line's own width units, as its width is
+        ["targetArrowOutlineWidth", [length("edge.arrowHeadOutlineWidth")]],
+        ["sourceArrowOutlineWidth", [length("edge.arrowTailOutlineWidth")]],
+        ["midTargetArrowOutlineWidth", [length("edge.arrowMiddleHeadOutlineWidth")]],
+        ["midSourceArrowOutlineWidth", [length("edge.arrowMiddleTailOutlineWidth")]],
+        // Not drawn on their own: graph-io folds them into an arrowhead's extent and breadth
         ["sourceArrowSize", []],
         ["sourceArrowLength", []],
         ["targetArrowLength", []],
@@ -986,7 +1001,7 @@ function channelPlans(
         ["sourceArrowGap", [id("edge.arrowTailGap")]],
         ["targetArrowSide", [id("edge.arrowHeadSide")]],
         ["sourceArrowSide", [id("edge.arrowTailSide")]],
-        // each part drawn at its own size in the writing program's proportions by the arrow size pass, where it knows them
+        // each part drawn at the size its word gives, where it gives one
         ["targetArrowParts", [stack("edge.arrowHeadStack")]],
         ["sourceArrowParts", [stack("edge.arrowTailStack")]],
         ["curved", [id("edge.curvature")]],
@@ -1032,31 +1047,24 @@ function channelPlans(
         ["sourceLabelOffsetY", [length("edge.arrowTailTextOffsetY", factors.node * SCENE_PER_UNIT.node)]],
         ["targetLabelRotation", [id("edge.arrowHeadTextRotation")]],
         ["sourceLabelRotation", [id("edge.arrowTailTextRotation")]],
-        // an end label's own face, where the file gives it one apart from the label's (Graphviz's labelfontsize,
-        // labelfontcolor, labelfontname); written after the label's own, so it wins at that end
+        // an end label's own face, apart from the label's; written after the label's own, so it wins at that end
         ["targetLabelSize", labelSize("edge.arrowHeadTextSize", "edge.arrowHeadTextLetterSize")],
         ["sourceLabelSize", labelSize("edge.arrowTailTextSize", "edge.arrowTailTextLetterSize")],
+        ["targetLabelScreenSize", screenSize("edge.arrowHeadTextSize")],
+        ["sourceLabelScreenSize", screenSize("edge.arrowTailTextSize")],
         ["targetLabelColor", [id("edge.arrowHeadTextColor")]],
         ["sourceLabelColor", [id("edge.arrowTailTextColor")]],
         ["targetLabelFont", [id("edge.arrowHeadTextFont")]],
         ["sourceLabelFont", [id("edge.arrowTailTextFont")]],
-        ["labelColor", [label("labelColor"), ...captions("Color")]],
-        // Another program draws an edge's end labels in its label's font size (Cytoscape.js, Graphviz); graphty
-        // writes its own captions' sizes apart.
-        [
-            "labelSize",
-            [
-                ...labelSize("edge.labelSize", "edge.labelLetterSize"),
-                ...(graphty
-                    ? []
-                    : [
-                          ...labelSize("edge.arrowHeadTextSize", "edge.arrowHeadTextLetterSize"),
-                          ...labelSize("edge.arrowTailTextSize", "edge.arrowTailTextLetterSize"),
-                      ]),
-            ],
-        ],
-        ["labelFont", [label("labelFont"), ...captions("Font")]],
-        ["labelWeight", [label("labelWeight"), ...captions("Weight")]],
+        ["targetLabelWeight", [id("edge.arrowHeadTextWeight")]],
+        ["sourceLabelWeight", [id("edge.arrowTailTextWeight")]],
+        ["targetLabelOpacity", [id("edge.arrowHeadTextOpacity")]],
+        ["sourceLabelOpacity", [id("edge.arrowTailTextOpacity")]],
+        ["labelColor", [label("labelColor")]],
+        ["labelSize", labelSize("edge.labelSize", "edge.labelLetterSize")],
+        ["labelScreenSize", screenSize("edge.labelSize")],
+        ["labelFont", [label("labelFont")]],
+        ["labelWeight", [label("labelWeight")]],
         ["labelTextAlign", [label("labelTextAlign")]],
         ["labelPosition", [location("edge")]],
         ["labelItalic", [label("labelItalic")]],
@@ -1066,18 +1074,10 @@ function channelPlans(
         ["labelWrapAnywhere", [id("edge.labelWrapAnywhere")]],
         ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
         ["labelKeepBlankLines", [keepBlankLines("edge")]],
+        ["labelMaxLines", [id("edge.labelMaxLines")]],
+        ["labelMaxLinesEllipsis", [id("edge.labelMaxLinesEllipsis")]],
         ["labelRunAlign", [id("edge.labelRunAlign")]],
-        ["labelRotation", [label("labelRotation")]],
-        ["labelBackground", [label("labelBackground")]],
-        ["labelOutlineColor", [label("labelOutline")]],
-        ["labelOutlineWidth", [labelLength("edge.labelOutlineWidth")]],
-        ["labelBorderColor", [label("labelBorder")]],
-        ["labelBorderWidth", [labelLength("edge.labelBorderWidth", false)]],
-        ["labelOpacity", [label("labelOpacity"), ...captions("Opacity")]],
-        ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
-        ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
-        ["labelBorderOpacity", [label("labelBorderOpacity")]],
-        ["labelPadding", [labelLength("edge.labelPadding", false)]],
+        ...labelBox,
         // its lengths in label units, as its padding is
         [
             "labelTable",
@@ -1089,49 +1089,16 @@ function channelPlans(
                 },
             ],
         ],
-        ["labelCornerRadius", [labelLength("edge.labelCornerRadius", false)]],
-        ["labelLineHeight", [label("labelLineHeight")]],
+        ...labelBoxShape,
         // moved in the scene's units, as a wrap width is
         ["labelOffsetX", [length("edge.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
         ["labelOffsetY", [length("edge.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
         ["labelShiftX", [label("labelShiftX")]],
         ["labelShiftY", [label("labelShiftY")]],
+        ["labelShiftOf", [label("labelShiftOf")]],
         ["labelMinScreenSize", [id("edge.labelMinScreenSize")]],
         ["labelOnTop", [id("edge.labelOnTop")]],
     ]);
-}
-
-/**
- * A node rule of the writing program's defaults with how it rounds a rounded rectangle when the
- * file gives no radius: the share of the shorter side (graph-io's `roundedCornerFraction`) and the
- * largest radius (`roundedCornerRadius`, in the file's units), so a 513 x 453 Graphviz cluster
- * keeps small corners and a Cytoscape desktop group an eighth of its side. Every other rule, and a
- * file whose program states neither, is unchanged.
- * @param rule - The rule.
- * @param tool - The program that wrote the file.
- * @returns The rule.
- */
-function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
-    const defaults = tool === null ? undefined : toolDefaults(tool);
-    const cap = defaults?.roundedCornerRadius?.value;
-    const fraction = defaults?.roundedCornerFraction?.value;
-    if (
-        rule.origin !== "tool" ||
-        rule.target !== "node" ||
-        (cap === undefined && fraction === undefined) ||
-        rule.set?.cornerRadius !== undefined
-    ) {
-        return rule;
-    }
-    // the keys are the translation's own, not neutral properties: no other reader of the rule sees them
-    const set: Record<string, unknown> = { ...rule.set };
-    if (cap !== undefined) {
-        set[CORNER_CAP] = cap;
-    }
-    if (fraction !== undefined) {
-        set[CORNER_FRACTION] = fraction;
-    }
-    return { ...rule, set: set as StyleRule["set"] };
 }
 
 /** The element's curve through bends for each neutral one. */
@@ -1191,188 +1158,76 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["circle-open", 1],
     // one arm of a vee, to one side of its line
     ["half", 0.4],
-    ["other:half-bottom", 0.4],
-    ["other:open-square", 1],
+    ["half-open-flipped", 0.4],
+    ["half-barb", 0.4],
+    ["half-barb-flipped", 0.4],
+    ["inverted-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["open-box", 1],
     // a half disc or its arc, twice as wide as it is deep
-    ["other:half-circle", 2],
-    ["other:open-half-circle", 2],
-    ["other:curve", 2],
-    ["other:inv-curve", 2],
-    ["other:triangle-tee", 0.6],
-    ["other:triangle-cross", 0.75],
-    ["other:circle-triangle", 0.5],
+    ["half-circle", 2],
+    ["open-half-circle", 2],
+    ["curve", 2],
+    ["triangle-tee", 0.6],
+    ["triangle-cross", 0.75],
+    ["circle-triangle", 0.5],
     // a delta and a bar 1.5 across, 3 long
-    ["other:cross-delta", 0.5],
-    ["other:cross-open-delta", 0.5],
-    ["other:chevron", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["cross-delta", 0.5],
+    ["open-cross-delta", 0.5],
     // a picture on a square, stretched to its own width and length
-    ["other:image", 1],
-    // yEd's own arrows, as wide as the element cap each is drawn as
-    ["other:open-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
-    ["other:white_delta_bar", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
-    ["other:crows_foot_many_mandatory", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
-    ["other:crows_foot_many_optional", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
-]);
-const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
-    "triangle",
-    "triangle-open",
-    "vee",
-    // the triangle turned round (Graphviz inv, vis-network inv_triangle)
-    "inverted",
-    "diamond",
-    "diamond-open",
+    ["image", 1],
+    ["open-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
 ]);
 
-/** One end's arrow values per edge, as the arrow size pass reads them. */
-interface ArrowEnd {
-    readonly shapes: readonly (StyleValue | null)[];
-    /** Its size factor at an edge. */
-    readonly size: (i: number) => number;
-    /** The edge's source arrow shapes, which some programs size every arrow of an edge by. */
-    readonly sources: readonly (StyleValue | null)[];
-    /** Its length and width against its shape's, per edge. */
-    readonly length: readonly (StyleValue | null)[];
-    readonly breadth: readonly (StyleValue | null)[];
-    /** An image arrow's size across and along its line, in the program's units, where the file gives it. */
-    readonly imageWidth: readonly (StyleValue | null)[];
-    readonly imageHeight: readonly (StyleValue | null)[];
-}
-
 /**
- * A number of a column, or a fallback.
- * @param values - The column.
- * @param i - The element.
- * @param fallback - The value where it holds none.
- * @returns The number.
+ * An arrowhead's size and width as the element's: its settled length along the line and width across it, in the
+ * file's lengths, as multiples of the element cap's own length and proportions.
+ * @param shape - The neutral arrow shape.
+ * @param extent - Its length along the line, in the file's lengths.
+ * @param breadth - Its width across the line, in the file's lengths, or null for the cap's own proportions.
+ * @param scene - The scene units one unit of the file's lengths is drawn as.
+ * @returns The size and the width (null for the cap's own), or null where the element draws no cap.
  */
-function factor(values: readonly (StyleValue | null)[], i: number, fallback = 1): number {
-    const value = values[i];
-    return typeof value === "number" ? value : fallback;
-}
-
-/**
- * The size an image arrow is drawn at, where the file gives one: its width across the line and its
- * height along it, a side the file leaves out taken as the other (a square picture).
- * @param end - The end.
- * @param i - The edge.
- * @returns The size in the program's units, or null for an arrow that is not a sized picture.
- */
-function imageSizeOf(end: ArrowEnd, i: number): { width: number; height: number } | null {
-    const w = end.imageWidth[i];
-    const h = end.imageHeight[i];
-    if (end.shapes[i] !== "other:image" || (typeof w !== "number" && typeof h !== "number")) {
+function capSizeOf(
+    shape: string,
+    extent: number,
+    breadth: number | null,
+    scene: number,
+): { size: number; width: number | null } | null {
+    if ((ARROW_SHAPES.get(shape) ?? "none") === "none" || Number.isNaN(extent) || extent <= 0) {
         return null;
     }
 
-    const width = typeof w === "number" ? w : (h as number);
-    const height = typeof h === "number" ? h : width;
-    return width > 0 && height > 0 ? { width, height } : null;
+    const size = round((extent * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
+    const width = breadth === null ? null : round(breadth / extent / (CAP_ASPECT.get(shape) ?? 1));
+    return { size, width: width === 1 ? null : width };
 }
 
 /**
- * An edge's source arrow shape, as the program's arrowhead sizing reads it.
- * @param value - The edge's source arrow value.
- * @returns The shape, or undefined where it holds none.
+ * A stacked cap's length along its line and width across it, in scene units, from the element's size and width: the
+ * inverse of {@link capSizeOf} at one scene unit per file unit, so an export writes the row's proportions as read.
+ * @param shape - The neutral arrow shape.
+ * @param size - The element cap's size.
+ * @param width - The element cap's width, or undefined for the cap's own proportions.
+ * @returns The length, and the width (null for the cap's own proportions).
  */
-function sourceShapeOf(value: StyleValue | null | undefined): StyleArrowShape | undefined {
-    return typeof value === "string" ? (value as StyleArrowShape) : undefined;
-}
-
-/**
- * An end's arrow size in the program's proportions, as the element's size factor.
- * @param geometry - How the program sizes its arrowheads.
- * @param scene - Scene units per program unit.
- * @param end - The end.
- * @param width - The edge's line width.
- * @param i - The edge.
- * @returns The size, or null where the element draws no cap.
- */
-function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, width: number, i: number): number | null {
-    const shape = end.shapes[i];
-    // An end the element draws no cap at (none, or a shape it has no arrow for) is left unsized.
-    if (typeof shape !== "string" || (ARROW_SHAPES.get(shape) ?? "none") === "none") {
-        return null;
-    }
-
-    // a picture is drawn at the size the file gives it, whatever the arrow size
-    const picture = imageSizeOf(end, i);
-    const lead = ARROW_RUNS.get(shape)?.lead;
-    const length =
-        picture?.height ??
-        headLengthOf(geometry, end, width, i) *
-            (lead === undefined ? (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) : lead / YED_HEAD_LENGTH);
-    return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
-}
-
-/** How long yEd draws its standard head at line width 1, the pixels `ARROW_RUNS` measures in. */
-const YED_HEAD_LENGTH = 12;
-
-/**
- * How long a program draws its plain head at an edge's end, in the program's units.
- * @param geometry - How the program sizes its arrowheads.
- * @param end - The end.
- * @param width - The line's width.
- * @param i - The edge.
- * @returns The length.
- */
-function headLengthOf(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: number): number {
-    return geometry.length(end.size(i), width, sourceShapeOf(end.sources[i])) * factor(end.length, i);
-}
-
-/**
- * An end cap's `stack` for one of yEd's arrows of several pieces.
- * @param parts - The pieces behind the end cap, nearest first.
- * @param pixel - One of yEd's pixels (`ARROW_RUNS`) as an element cap's length, at this edge's line width.
- * @returns The `stack` value.
- */
-export function arrowRunStack(parts: readonly ArrowRunPart[], pixel: number): string {
-    return parts
-        .map(({ type, along, across }) => {
-            const size = round((along * pixel) / (CAP_DEPTH.get(type) ?? 1));
-            const breadth = across === undefined ? null : round(across / along / (CAP_ASPECT.get(type) ?? 1));
-            const wide = breadth === null ? "" : `x${String(breadth)}`;
-            return `${type}*${String(size)}${wide}`;
-        })
-        .join(" ");
-}
-
-/**
- * An end's arrow width as a multiple of the element cap's own: the program's caps may be narrower or
- * wider than the element's (Cytoscape's DELTA is half as wide as it is long, the element's 0.8), and
- * one of its arrows narrower or wider than its shape.
- * @param geometry - How the program sizes its arrowheads.
- * @param end - The end.
- * @param i - The edge.
- * @returns The multiple, or null for the cap's own.
- */
-function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, i: number): number | null {
-    const picture = imageSizeOf(end, i);
-    if (picture !== null) {
-        const across = round(picture.width / picture.height);
-        return across === 1 ? null : across;
-    }
-
-    const shape = end.shapes[i];
-    const own = typeof shape === "string" ? CAP_ASPECT.get(shape) : undefined;
-    const theirs =
-        geometry.shapes?.[shape as StyleArrowShape]?.aspect ??
-        (typeof shape === "string" && TRIANGLE_PROPORTIONS.has(shape) ? geometry.aspect : undefined);
-    const aspect = own === undefined || theirs === undefined ? 1 : theirs / own;
-    const breadth = round((aspect * factor(end.breadth, i)) / factor(end.length, i));
-    return breadth === 1 ? null : breadth;
+export function capLengthOf(
+    shape: string,
+    size: number,
+    width: number | undefined,
+): { along: number; across: number | null } {
+    const along = round(size * EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1));
+    return { along, across: width === undefined ? null : round(width * along * (CAP_ASPECT.get(shape) ?? 1)) };
 }
 
 /**
  * An end cap's `stack` from a neutral `targetArrowParts` value: each arrow shape the element draws as its cap type,
- * its side kept, and its size and width where the arrow size pass knows them.
- * @param value - The parts, shapes separated by spaces, each optionally followed by `:left` or `:right`.
- * @param sized - A part's size and width as the element's, or null for the end cap's own.
+ * its side kept, and its size and width where the word gives them (`triangle:left*12x8`, in the file's lengths).
+ * @param value - The parts, separated by spaces, each a shape optionally followed by `:left` or `:right` and by
+ *     `*length` and `xwidth`.
+ * @param scene - The scene units one unit of the file's lengths is drawn as.
  * @returns The `stack` value, or null for no part the element draws.
  */
-function arrowStackOf(
-    value: StyleValue | null,
-    sized?: (shape: string) => { size: number | null; width: number | null },
-): string | null {
+function arrowStackOf(value: StyleValue | null, scene: number): string | null {
     if (typeof value !== "string") {
         return null;
     }
@@ -1381,28 +1236,31 @@ function arrowStackOf(
         .trim()
         .split(/\s+/)
         .flatMap((word) => {
-            // a shape may hold a colon of its own (`other:open-square`)
-            const [, shape, side] = /^(.+?)(?::(left|right))?$/.exec(word) ?? [];
+            const [, shape, side, along, across] =
+                /^(.+?)(?::(left|right))?(?:\*([\d.e+-]+)(?:x([\d.e+-]+))?)?$/.exec(word) ?? [];
             const type = ARROW_SHAPES.get(shape);
             if (type === undefined || type === "none") {
                 return [];
             }
 
-            const sizes = sized?.(shape);
             const kept = side === undefined ? "" : `:${side}`;
-            const size = typeof sizes?.size === "number" ? `*${String(sizes.size)}` : "";
-            const width = typeof sizes?.width === "number" ? `x${String(sizes.width)}` : "";
-            return [`${type}${kept}${size}${width}`];
+            const breadth = across === undefined ? null : Number(across);
+            const sized = capSizeOf(shape, Number(along), Number.isFinite(breadth) ? breadth : null, scene);
+            if (sized === null) {
+                return [`${type}${kept}`];
+            }
+            const width = sized.width === null ? "" : `x${String(sized.width)}`;
+            return [`${type}${kept}*${String(sized.size)}${width}`];
         });
     return words.length === 0 ? null : words.join(" ");
 }
 
-/**
- * The programs that stroke an open arrowhead (Graphviz's obox, odiamond, odot, onormal, oinv; Cytoscape.js's hollow
- * shapes) with the edge's own pen, so its outline is as thick as the line (#5800). The element's own open caps keep
- * their thin frame unless `outlineWidth` is set.
- */
-const OPEN_ARROWS_STROKED: ReadonlySet<string> = new Set(["graphviz", "cytoscape-js"]);
+/** The neutral properties that fix a label's size on screen. */
+const SCREEN_LABEL_SIZES: readonly StyleProperty[] = [
+    "labelScreenSize",
+    "sourceLabelScreenSize",
+    "targetLabelScreenSize",
+] as StyleProperty[];
 
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
@@ -1609,7 +1467,7 @@ export function translateFileStyles(input: TranslateInput): Translation {
         notes.keep(note);
     }
 
-    const columns: Record<StyleTarget, Map<string, (FileStyleScalar | null)[]>> = { node: new Map(), edge: new Map() };
+    const columns: Record<StyleTarget, Map<string, (StyleScalar | null)[]>> = { node: new Map(), edge: new Map() };
     const hidden: Record<StyleTarget, { key: string; count: number } | null> = { node: null, edge: null };
     const byKind: Record<StyleTarget, TranslatedLayer[]> = { node: [], edge: [] };
     const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
@@ -1652,7 +1510,7 @@ function inRuleOrder(
     const ranks = (kind: StyleTarget): number[] => {
         let last = -1;
         return byKind[kind].map((layer) => {
-            const key = layer.spec.fileStyle?.ruleId;
+            const key = layer.ruleId;
             last = (typeof key === "string" ? at.get(`${kind}\u0000${key}`) : undefined) ?? last;
             return last;
         });
@@ -1715,88 +1573,6 @@ function labelSizePx(em: number): number {
     return (a + Math.sqrt(a * a + 4 * LABEL.perScene * LABEL.margin * em)) / 2;
 }
 
-/** The channels that decide how big a node of a file is drawn. */
-const NODE_EXTENT_CHANNELS: readonly Channel[] = ["node.size", "node.shape", "node.width", "node.height"];
-
-/**
- * Make a node layer of another program's file draw every shape at one size the same extent across,
- * as the program drew it (`sizeMode: "uniform"`). The element's own default, "scale",
- * keeps each shape's own proportions (a box of size 1 is 1 across, an octahedron 2.8), which
- * would draw a file's diamond nearly three times the size of its ellipse beside it (#2495).
- *
- * The mode is set, so it reaches every element the layer selects: those its set channels paint,
- * or, for a layer that only binds columns, every element of the load when it selects them all.
- * @param layer - A node layer the translation built.
- * @param scope - The path of the column marking the load's own elements, if any.
- */
-function sizeUniformly(layer: Building, scope: Path | null): void {
-    const { set, encode, selector } = layer.spec;
-    if (!NODE_EXTENT_CHANNELS.some((channel) => channel in set || channel in encode)) {
-        return;
-    }
-
-    const all = scope !== null && selector.match === "has" && selector.path === scope;
-    const setChannels = Object.keys(set) as Channel[];
-    set["node.sizeMode"] = "uniform";
-    for (const map of [layer.paint, layer.drawn]) {
-        if (map === null || map === undefined) {
-            continue;
-        }
-
-        const columns = [...(all ? [] : setChannels), ...NODE_EXTENT_CHANNELS].map((channel) => map.get(channel));
-        const length = columns.find((column) => column !== undefined)?.length;
-        if (length !== undefined) {
-            map.set(
-                "node.sizeMode",
-                Array.from({ length }, (_unused, i) =>
-                    all || columns.some((column) => column?.[i] !== null && column?.[i] !== undefined)
-                        ? "uniform"
-                        : null,
-                ),
-            );
-        }
-    }
-}
-
-/**
- * Make a layer of another program's file place its labels by their words (`"words"` in `words`) wherever it paints one
- * of `from`, and set it where the layer paints, so it adds no layer.
- *
- * A layer that shifts its labels shifts their words (`labelShiftOf`): a program that pins a label's text by one of its
- * points (Pajek's `text-anchor: start`) pins the text's own box, where the element's own shift moves the label's whole
- * box, margins round its words and all, a margin further. Graphviz is left on the whole box: it pins an xlabel by the
- * corner of the label's box, padding (and an HTML table's cells and borders) included.
- *
- * A Cytoscape.js layer that places its node labels places them by their words (`labelGapOf`): Cytoscape.js puts the
- * bottom of a top label's words on the node's outline (see RichTextLabel's gapToWords). Only Cytoscape.js: the other
- * programs' outside labels are not measured against their words, so they keep the element's default.
- * @param layer - A layer the translation built.
- * @param from - The channels whose painting places a label by its words.
- * @param words - The channel that says so.
- */
-function placeByWords(layer: Building, from: readonly Channel[], words: Channel): void {
-    const { set, encode } = layer.spec;
-    if (!from.some((channel) => channel in set || channel in encode)) {
-        return;
-    }
-
-    set[words] = "words";
-    // `set` paints every element the layer paints anything on, shifted or not (a file's bypass that shifts only
-    // some of them, xgmml-syn-bypass): that is where the words shift is drawn, and where it is predicted
-    for (const map of [layer.paint, layer.drawn]) {
-        const columns = map === null || map === undefined ? [] : [...map.values()];
-        const length = columns[0]?.length;
-        if (map !== null && map !== undefined && length !== undefined) {
-            map.set(
-                words,
-                Array.from({ length }, (_unused, i) =>
-                    columns.some((column) => column[i] !== null && column[i] !== undefined) ? "words" : null,
-                ),
-            );
-        }
-    }
-}
-
 /** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
 interface LengthFactors {
     /** Node sizes, widths, heights and border widths. */
@@ -1830,8 +1606,8 @@ const KEPT: LengthFactors = { node: 1, edge: 1, label: null, letter: null, scene
  * @returns The factors: all 1 when lengths are kept as the file has them.
  */
 function lengthFactors(input: TranslateInput): LengthFactors {
-    // A file graphty wrote is in graphty's own units already.
-    if (input.options.lengths === "file" || input.extracted.styles.source.tool === "graphty") {
+    // Lengths already in the drawing's own units are kept.
+    if (input.options.lengths === "file" || input.extracted.styles.lengths?.units === "scene") {
         return KEPT;
     }
 
@@ -1841,14 +1617,12 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         return KEPT;
     }
 
-    // Labels in canvas px over fitted positions are that many px per unit of the positions.
-    const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
     const keptLabels = input.options.labelSizes === "file";
     return {
         node: scene / SCENE_PER_UNIT.node,
         edge: scene / SCENE_PER_UNIT.edge,
-        label: keptLabels ? null : (size) => labelSizePx(perLabelUnit * size),
-        letter: keptLabels ? null : perLabelUnit,
+        label: keptLabels ? null : (size) => labelSizePx(scene * size),
+        letter: keptLabels ? null : scene,
         scene,
     };
 }
@@ -1856,12 +1630,12 @@ function lengthFactors(input: TranslateInput): LengthFactors {
 /**
  * The scene units one file unit is drawn as, before it is checked: the file's median node at the element's node size,
  * else its median label at the element's label size, else its median edge at the element's edge width (or, with
- * `lengths: "spacing"`, the writing program's settled spacing at the force layout's).
+ * `lengths: "spacing"`, the node spacing the styles state at the force layout's).
  * @param input - The translation's input.
  * @returns The scale, NaN when the file gives no length to scale by.
  */
 function sceneScaleOf(input: TranslateInput): number {
-    const { extracted, snapshot, base } = input;
+    const { extracted, snapshot } = input;
     const resolved = (kind: StyleTarget, property: StyleProperty): readonly unknown[] =>
         extracted.styles.rules.some(
             (rule) =>
@@ -1878,17 +1652,18 @@ function sceneScaleOf(input: TranslateInput): number {
         return sizes.length === 0 ? null : Math.max(...sizes);
     });
     const nodeMedian = median(sides);
-    const nodeBase = typeof base.node["node.size"] === "number" ? base.node["node.size"] : 1;
-    const edgeBase = typeof base.edge["edge.width"] === "number" ? base.edge["edge.width"] : 1;
+    const nodeBase = defaultNodeStyle.shape?.size ?? 1;
+    const edgeBase = defaultEdgeStyle.line?.width ?? 1;
     // Nodes sized by their labels alone (vis-network's box, ellipse and circle; Cytoscape.js's width: label) give
     // no side: their median label is drawn at the element's own label size, so such a node comes out about the
     // size of the element's own node with its label, as a file that sizes its nodes does.
     const labelMedian = nodeMedian === null ? median(resolved("node", "labelSize")) : null;
-    const labelBase = typeof base.node["node.labelSize"] === "number" ? base.node["node.labelSize"] : DEFAULT_LABEL_PX;
-    // The program's layout spacing says nothing about a file that stores its own positions: it is drawn as "median"
+    const labelBase = DEFAULT_LABEL_PX;
+    // The stated spacing says nothing about a file that stores its own positions: it is drawn as "median"
+    const stated = extracted.styles.lengths?.spacing;
     const spacing =
-        input.options.lengths === "spacing" && input.positionsStored !== true
-            ? programSpacing(extracted.styles.source.tool, snapshot.nodeCount)
+        input.options.lengths === "spacing" && input.positionsStored !== true && stated !== undefined && stated > 0
+            ? stated
             : null;
     if (spacing !== null) {
         return NGRAPH_SETTLED_SPACING / spacing;
@@ -1902,23 +1677,6 @@ function sceneScaleOf(input: TranslateInput): number {
     return (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN);
 }
 
-/**
- * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units:
- * its stated settled spacing, or, for a program that scatters the nodes over a square at random (Gephi), the median
- * nearest-node distance of that many uniform points, side * sqrt(ln 2 / (pi n)).
- * @param tool - The program.
- * @param nodes - How many nodes the file has.
- * @returns The spacing, or null when the program states none.
- */
-function programSpacing(tool: StyleTool | null, nodes: number): number | null {
-    const defaults = tool === null ? undefined : toolDefaults(tool);
-    const side = defaults?.layoutScatterSide?.value;
-    const spacing =
-        defaults?.layoutSpacing?.value ??
-        (side === undefined || nodes < 2 ? undefined : side * Math.sqrt(Math.LN2 / (Math.PI * nodes)));
-    return spacing !== undefined && spacing > 0 ? spacing : null;
-}
-
 /** The translation of one kind's rules. */
 class KindTranslation {
     readonly #input: TranslateInput;
@@ -1926,10 +1684,10 @@ class KindTranslation {
     readonly #notes: Notes;
     /** Per code and property, the elements a conversion note already counted, so an element counts once. */
     readonly #counted = new Map<string, Set<number>>();
-    readonly #columns: Map<string, (FileStyleScalar | null)[]>;
+    readonly #columns: Map<string, (StyleScalar | null)[]>;
     readonly #factor: number;
-    /** How the writing program sizes its arrowheads, when they are drawn in its proportions; else null. */
-    readonly #arrowhead: { readonly geometry: ToolArrowhead; readonly scene: number } | null;
+    /** The scene units one unit of the file's lengths is drawn as. */
+    readonly #scene: number;
     readonly #n: number;
     readonly #rules: readonly StyleRule[];
     readonly #plans: ReadonlyMap<string, readonly ChannelPlan[]>;
@@ -1941,8 +1699,6 @@ class KindTranslation {
     /** The kind a layer graphty wrote had, by rule id, where its rule is drawn by the neutral rule. */
     readonly #kinds = new Map<string, LayerKind>();
     #scopeKey: string | null = null;
-    /** The path of the column marking the load's own elements, once a layer is scoped to it. */
-    #scopePath: Path | null = null;
     /** The column marking the elements the file hides, once the visibility pass has run. */
     hidden: { key: string; count: number } | null = null;
     /** The `data.` paths the reader put a column of the file at; undefined until first asked. */
@@ -1965,7 +1721,7 @@ class KindTranslation {
         kind: StyleTarget,
         factors: LengthFactors,
         notes: Notes,
-        columns: Map<string, (FileStyleScalar | null)[]>,
+        columns: Map<string, (StyleScalar | null)[]>,
     ) {
         this.#input = input;
         this.#kind = kind;
@@ -1973,25 +1729,14 @@ class KindTranslation {
         this.#notes = notes;
         this.#columns = columns;
         this.#n = kind === "node" ? input.snapshot.nodeCount : input.snapshot.edgeCount;
-        const { tool } = input.extracted.styles.source;
-        const geometry = tool === null || kind !== "edge" ? undefined : toolDefaults(tool)?.arrowhead;
-        this.#arrowhead = geometry === undefined || factors.scene === null ? null : { geometry, scene: factors.scene };
-        this.#plans = channelPlans(
-            kind,
-            factors,
-            input.options.shapes ?? FILE_STYLE_SHAPES,
-            tool,
-            this.#arrowhead !== null,
-            {
-                border: tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,
-                label: tool !== null && toolDefaults(tool)?.labelSizeOnScreen?.value === true,
-            },
-            input.options.imageBaseUrl,
-        );
+        this.#scene = factors.scene ?? 1;
         this.#keys = new Set(input.extracted.columns[kind].keys());
-        this.#rules = input.extracted.styles.rules
-            .filter((rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"))
-            .map((rule) => withCornerCap(rule, input.extracted.styles.source.tool));
+        const rules = input.extracted.styles.rules.filter((rule) => rule.target === kind);
+        const screenLabels = rules.some((rule) =>
+            SCREEN_LABEL_SIZES.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined),
+        );
+        this.#plans = channelPlans(kind, factors, screenLabels, input.options.imageBaseUrl);
+        this.#rules = rules.filter((rule, at) => !this.#drawnByDefault(rule, rules.slice(0, at)));
     }
 
     /**
@@ -2005,30 +1750,12 @@ class KindTranslation {
         this.#composites();
         this.#visibility();
         this.#nesting();
-        this.#drawOrder();
 
         const ordered = [...this.#built].filter(
             (layer) => Object.keys(layer.spec.set).length + Object.keys(layer.spec.encode).length > 0,
         );
         // Stable by bucket: a later pass's layer of rule i still sits below every layer of rule i+1.
         ordered.sort((a, b) => a.bucket - b.bucket);
-        if (this.#kind === "node" && this.#input.extracted.styles.source.tool !== "graphty") {
-            ordered.forEach((layer) => {
-                sizeUniformly(layer, this.#scopePath);
-            });
-        }
-        const { tool } = this.#input.extracted.styles.source;
-        const kind = this.#kind;
-        if (tool !== "graphty" && tool !== "graphviz") {
-            ordered.forEach((layer) => {
-                placeByWords(layer, [`${kind}.labelShiftX`, `${kind}.labelShiftY`], `${kind}.labelShiftOf`);
-            });
-        }
-        if (tool === "cytoscape-js" && kind === "node") {
-            ordered.forEach((layer) => {
-                placeByWords(layer, ["node.labelLocation"], "node.labelGapOf");
-            });
-        }
 
         const { layers, folded } = foldToCap(ordered, this.#n, (run, paint) => this.#folded(run, paint));
         if (folded > 0) {
@@ -2047,8 +1774,12 @@ class KindTranslation {
                 delete out.encode;
             }
 
-            const { fallback } = layer as Building;
-            return { spec: out as unknown as LayerSpec, ...(fallback === undefined ? {} : { fallback }) };
+            const { fallback, ruleId } = layer as Building;
+            return {
+                spec: out as unknown as LayerSpec,
+                ...(ruleId === undefined ? {} : { ruleId }),
+                ...(fallback === undefined ? {} : { fallback }),
+            };
         });
     }
 
@@ -2127,19 +1858,18 @@ class KindTranslation {
      * @returns The path.
      */
     #keep(key: string, values: readonly unknown[]): Path {
-        if (!this.#columns.has(key)) {
-            this.#columns.set(
-                key,
-                Array.from({ length: this.#n }, (_unused, i) => {
-                    const value = values[i];
-                    return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-                        ? value
-                        : null;
-                }),
-            );
+        let column = this.#columns.get(key);
+        if (column === undefined) {
+            column = Array.from({ length: this.#n }, (_unused, i) => {
+                const value = values[i];
+                return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+                    ? value
+                    : null;
+            });
+            this.#columns.set(key, column);
         }
 
-        return fileStylePath(this.#input.namespace, this.#kind, key);
+        return this.#input.columnPath(this.#kind, key, column);
     }
 
     /**
@@ -2381,7 +2111,6 @@ class KindTranslation {
     #scoped(selector: Selector): Selector {
         this.#scopeKey ??= this.#freshKey("load");
         const scope = this.#keep(this.#scopeKey, new Array<boolean>(this.#n).fill(true));
-        this.#scopePath = scope;
         if (selector.match === "everything") {
             return { match: "has", path: scope };
         }
@@ -2414,10 +2143,7 @@ class KindTranslation {
         const key = JSON.stringify(selector);
         // A layer rebuilt from one graphty wrote is never painted into by a later pass.
         const same = this.#built.filter(
-            (layer) =>
-                layer.bucket === bucket &&
-                layer.spec.fileStyle?.ruleId === rule.id &&
-                this.#rebuilt.get(rule) !== layer,
+            (layer) => layer.bucket === bucket && layer.ruleId === rule.id && this.#rebuilt.get(rule) !== layer,
         );
         const found = same.find(
             (layer) => JSON.stringify(layer.spec.selector) === key && (layer.ends ?? false) === ends,
@@ -2427,24 +2153,16 @@ class KindTranslation {
         }
 
         const kind = this.#kinds.get(rule.id) ?? layerKindOf(rule);
-        const origin: FileStyleOrigin = {
-            format: this.#input.format,
-            importId: this.#input.importId,
-            ruleId: rule.id,
-            role: rule.role,
-            origin: rule.origin,
-            ...factsOf(rule),
-        };
         const layer: Building = {
             bucket,
+            ruleId: rule.id,
             spec: {
-                name: same.length === 0 ? rule.id : `${rule.id}#${String(same.length + 1)}`,
+                name: same.length === 0 ? layerNameOf(rule) : `${layerNameOf(rule)}#${String(same.length + 1)}`,
                 target: this.#kind,
                 kind,
                 selector,
                 set: {},
                 encode: {},
-                fileStyle: origin,
             },
             paint: new Map(),
             worth: kind === "custom" ? 0 : 1000,
@@ -2473,21 +2191,13 @@ class KindTranslation {
         const before = this.#built.length;
         neutral();
         const made = this.#built.splice(before);
-        const origin: FileStyleOrigin = {
-            format: this.#input.format,
-            importId: this.#input.importId,
-            ruleId: rule.id,
-            role: rule.role,
-            origin: rule.origin,
-            ...factsOf(rule),
-        };
         const rebuilt: Building = {
             bucket,
+            ruleId: rule.id,
             spec: {
                 ...spec,
                 set: { ...spec.set },
                 encode: { ...spec.encode },
-                fileStyle: origin,
             },
             paint: null,
             worth: 1000,
@@ -2527,7 +2237,14 @@ class KindTranslation {
         }
 
         const ignored = (reason: string): null => {
-            this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED, this.#kind, rule.id, 1, undefined, reason);
+            this.#notes.add(
+                FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED,
+                this.#kind,
+                layerNameOf(rule),
+                1,
+                undefined,
+                reason,
+            );
             return null;
         };
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -2547,11 +2264,11 @@ class KindTranslation {
         const held = this.#input.extracted.columns[this.#kind];
         let missing = false;
         const move = (path: unknown): unknown => {
-            if (typeof path !== "string" || !isFileStylePath(path)) {
+            const parts = typeof path === "string" ? parseWrittenStylePath(path) : undefined;
+            if (parts === null) {
                 return path;
             }
 
-            const parts = parseFileStylePath(path);
             const values = parts?.kind === this.#kind ? held.get(parts.key) : undefined;
             if (parts === undefined || values === undefined) {
                 missing = true;
@@ -2588,7 +2305,7 @@ class KindTranslation {
         }
 
         return {
-            name: typeof given.name === "string" ? given.name : rule.id,
+            name: typeof given.name === "string" ? given.name : layerNameOf(rule),
             target: this.#kind,
             ...(given.kind === undefined ? {} : { kind: given.kind }),
             selector: this.#scoped(moved),
@@ -2748,32 +2465,83 @@ class KindTranslation {
             }
 
             for (const plan of this.#plansOf(property)) {
-                if (!this.#drawnByBase(rule, property, plan)) {
-                    this.#emit(rule, bucket, property, plan, source);
-                }
+                this.#emit(rule, bucket, property, plan, source);
             }
         }
     }
 
     /**
-     * Whether a default graphty recorded in a file it wrote is what the element's own base layers
-     * already draw, so it needs no layer.
+     * Whether a rule of defaults gives every element only values the element already paints by default, so it adds
+     * nothing a layer would draw: a file that recorded its viewer's own defaults (graphty's export does) is drawn
+     * without them. A rule that gives any other value, maps any, or covers a property a rule beneath it gives, is
+     * drawn whole.
      * @param rule - The rule.
-     * @param property - The property.
-     * @param plan - The channel it is drawn on.
-     * @returns True for a graphty default the base layers draw.
+     * @param beneath - The rules of its kind beneath it.
+     * @returns True for a rule the element already draws.
      */
-    #drawnByBase(rule: StyleRule, property: string, plan: ChannelPlan): boolean {
-        const set = rule.set?.[property as StyleProperty];
-        return (
-            rule.origin === "tool" &&
-            this.#input.extracted.styles.source.tool === "graphty" &&
-            set !== undefined &&
-            same(
-                drawnAs(plan.channel, plan.convert(set)),
-                drawnAs(plan.channel, this.#input.base[this.#kind][plan.channel]),
+    #drawnByDefault(rule: StyleRule, beneath: readonly StyleRule[]): boolean {
+        const defaults = this.#input.elementDefaults?.[this.#kind];
+        if (
+            defaults === undefined ||
+            rule.role !== "defaults" ||
+            !("all" in rule.where && rule.where.all) ||
+            rule.map !== undefined ||
+            rule.set === undefined
+        ) {
+            return false;
+        }
+
+        const own = Object.keys(rule.set);
+        if (
+            beneath.some((under) =>
+                [...Object.keys(under.set ?? {}), ...Object.keys(under.map ?? {})].some((p) => own.includes(p)),
             )
-        );
+        ) {
+            return false;
+        }
+
+        return Object.entries(rule.set).every(([property, value]) => {
+            const plans = this.#defaultPlansOf(property);
+            return (
+                value !== undefined &&
+                (plans?.every((plan) => {
+                    const own = defaults[plan.channel];
+                    return (
+                        own !== undefined &&
+                        same(drawnAs(plan.channel, plan.convert(value)), drawnAs(plan.channel, own))
+                    );
+                }) ??
+                    false)
+            );
+        });
+    }
+
+    /**
+     * The channels a property of a rule of defaults is drawn on, as `#drawnByDefault` compares them: a node's width
+     * and height on its size, its opacities on its opacity, a `graphty:` property on the channel it names.
+     * @param property - The property.
+     * @returns The plans, or null for a property with none.
+     */
+    #defaultPlansOf(property: string): readonly ChannelPlan[] | null {
+        if (this.#kind === "node" && (property === "width" || property === "height")) {
+            return [
+                {
+                    channel: "node.size",
+                    convert: (v) => (typeof v === "number" ? round(v * this.#factor) : null),
+                    identity: false,
+                },
+            ];
+        }
+        if (this.#kind === "node" && (property === "opacity" || property === "fillOpacity")) {
+            return [{ channel: "node.opacity", convert: (v) => v, identity: true }];
+        }
+        const plans = this.#plans.get(property);
+        if (plans !== undefined) {
+            return plans;
+        }
+        return property.startsWith("graphty:")
+            ? [{ channel: property.slice("graphty:".length) as Channel, convert: (v) => v, identity: true }]
+            : null;
     }
 
     /**
@@ -2882,7 +2650,7 @@ class KindTranslation {
             // elements reads a column the file does not hold.
             const empty = !truth.some((value) => value !== null);
             if (empty && this.#matches(rule.where, source).some(Boolean)) {
-                this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.COLUMN_ABSENT, this.#kind, rule.id, 1, property);
+                this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.COLUMN_ABSENT, this.#kind, layerNameOf(rule), 1, property);
             }
 
             return;
@@ -2905,7 +2673,6 @@ class KindTranslation {
         if (binding !== null) {
             layer.spec.encode[plan.channel] = binding.binding;
             layer.worth += binding.worth;
-            setFacts(layer, binding.facts);
             return;
         }
 
@@ -2913,11 +2680,6 @@ class KindTranslation {
         const path = this.#keepNew(`${property}.${rule.id}`, drawn);
         layer.spec.encode[plan.channel] = { by: path, scale: "passthrough" };
         layer.worth = 0;
-        setFacts(layer, {
-            column: path,
-            mapping: "passthrough",
-            distinctValues: new Set(drawn.filter((value) => value !== null)).size,
-        });
     }
 
     /**
@@ -2994,7 +2756,7 @@ class KindTranslation {
         drawn: readonly unknown[],
         source: ExtractedStyles,
         rule: StyleRule,
-    ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
+    ): { binding: Binding; worth: number } | null {
         const raw = this.#values(mapping.by, source);
         if (raw === null) {
             return null;
@@ -3013,16 +2775,11 @@ class KindTranslation {
                 : {
                       binding: { by: at, scale: "passthrough" },
                       worth: 0,
-                      facts: {
-                          column: at,
-                          mapping: "passthrough",
-                          distinctValues: new Set(raw.filter((value) => value !== null)).size,
-                      },
                   };
         }
 
         if (mapping.kind === "discrete") {
-            return this.#discrete(plan, raw, drawn, match, path, mapping.table.length);
+            return this.#discrete(plan, raw, drawn, match, path);
         }
 
         if (mapping.kind === "continuous") {
@@ -3040,7 +2797,6 @@ class KindTranslation {
      * @param drawn - The channel's values.
      * @param match - Which elements the rule selects.
      * @param path - Gives the column's path.
-     * @param entries - How many entries the file's table holds.
      * @returns The binding, or null.
      */
     #discrete(
@@ -3049,8 +2805,7 @@ class KindTranslation {
         drawn: readonly unknown[],
         match: readonly boolean[],
         path: () => Path | null,
-        entries: number,
-    ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
+    ): { binding: Binding; worth: number } | null {
         const read = discreteTable(raw, drawn, match);
         if (read === null) {
             return null;
@@ -3084,7 +2839,6 @@ class KindTranslation {
         return {
             binding: { by: at, scale: "passthrough", map: table, unmapped: "skip" },
             worth: map.size,
-            facts: { column: at, mapping: "discrete", entries: Math.max(entries, map.size) },
         };
     }
 
@@ -3101,7 +2855,7 @@ class KindTranslation {
         mapping: Extract<Mapping, { kind: "continuous" }>,
         plan: ChannelPlan,
         path: () => Path | null,
-    ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
+    ): { binding: Binding; worth: number } | null {
         const descriptor = channelDescriptor(plan.channel);
         // a stops binding interpolates without rounding, so a mapping the tool rounds (step) is kept per element
         if ((descriptor?.accepts !== "number" && descriptor?.accepts !== "color") || mapping.step !== undefined) {
@@ -3130,7 +2884,6 @@ class KindTranslation {
             : {
                   binding: { by: at, stops },
                   worth: stops.length,
-                  facts: { column: at, mapping: "continuous", entries: stops.length },
               };
     }
 
@@ -3143,7 +2896,6 @@ class KindTranslation {
         this.#labelRuns();
         if (this.#kind !== "node") {
             this.#arrowSizes();
-            this.#dashes();
             return;
         }
 
@@ -3198,7 +2950,7 @@ class KindTranslation {
         const values = labels.map((label, i) => labelRunsMarkup(runs[i], sizes[i]) ?? label);
         const sub = planStyles(
             {
-                format: extracted.styles.source.format,
+                format: REPLANNED,
                 units: "px",
                 [this.#kind]: { values: { label: values } },
                 fingerprint: extracted.fingerprint,
@@ -3207,7 +2959,6 @@ class KindTranslation {
                 node: this.#kind === "node" ? extracted.features.node : [],
                 edge: this.#kind === "edge" ? extracted.features.edge : [],
             },
-            { toolDefaults: false },
         );
         const channel: Channel = this.#kind === "node" ? "node.label" : "edge.label";
         const identity: ChannelPlan = { channel, convert: (value) => value, identity: true };
@@ -3220,184 +2971,49 @@ class KindTranslation {
     }
 
     /**
-     * Dash patterns in the writing program's own: each program draws its dashed and dotted lines in dashes and gaps of
-     * its own lengths, some in proportion to the line's width and some the same at any width (graph-io's
-     * `ToolDefaults.dashes`), so each edge's dash length and gap are worked out from its line style and width, in line
-     * widths, and drawn above the topmost rule that writes either.
-     */
-    #dashes(): void {
-        const { extracted, snapshot } = this.#input;
-        const { tool } = extracted.styles.source;
-        const dashes = tool === null ? undefined : toolDefaults(tool)?.dashes;
-        if (dashes === undefined) {
-            return;
-        }
-
-        const props = ["width", "lineStyle"] as const;
-        const writers = this.#rules
-            .map((rule, bucket) => ({ rule, bucket }))
-            .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
-        const last = writers.at(-1);
-        if (last === undefined || writers.every(({ rule }) => this.#rebuilt.has(rule))) {
-            return;
-        }
-
-        const [width, style] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
-        // each edge's dash and gap in its own line's widths, where its program draws its style in dashes
-        const pattern = style.map((value, i) => {
-            const w = width[i];
-            const dash = typeof value === "string" ? dashes[value as keyof typeof dashes]?.value : undefined;
-            return dash === undefined || typeof w !== "number" || Number.isNaN(w) || w <= 0 ? null : dash(w);
-        });
-        if (pattern.every((value) => value === null)) {
-            return;
-        }
-
-        const { rule, bucket } = last;
-        const layer = this.#layerFor(
-            { ...rule, id: `${rule.id}.dashes` },
-            bucket,
-            this.#scoped({ match: "everything" }),
-        );
-        layer.spec.name = `${rule.id}.dashes`;
-        layer.worth = 0;
-        const encode = (channel: Channel, part: "dash" | "gap"): void => {
-            const values = pattern.map((value, i) =>
-                value === null ? null : round(value[part] / (width[i] as number)),
-            );
-            const path = this.#keepNew(`${channel.slice(5)}.sized`, values);
-            layer.spec.encode[channel] = { by: path, scale: "passthrough" };
-            recordPaint(layer, channel, values);
-        };
-        encode("edge.dashLength", "dash");
-        encode("edge.dashGap", "gap");
-    }
-
-    /**
-     * Arrow sizes in the writing program's proportions: each program sizes its arrowheads from the
-     * line width and its own size setting (graph-io's `ToolDefaults.arrowhead`), so each end's size
-     * is worked out per edge from its width, `arrowSize` and arrow shape, in the scene's units, and
-     * drawn above the topmost rule that writes any of them.
+     * Arrowhead sizes from the settled lengths and widths the rules give (`targetArrowExtent`,
+     * `targetArrowBreadth`, ...): each is in the file's lengths and is drawn as the element cap's size and width for
+     * that edge's arrow shape, which sets how long and how wide the element's cap is. Each edge's own value is kept,
+     * in the layer of the topmost rule that gives one.
      */
     #arrowSizes(): void {
-        if (this.#arrowhead === null) {
-            return;
-        }
-
-        const { geometry, scene } = this.#arrowhead;
-        const props = [
-            "width",
-            "arrowSize",
-            "targetArrow",
-            "sourceArrow",
-            "sourceArrowSize",
-            "targetArrowLength",
-            "sourceArrowLength",
-            "targetArrowWidth",
-            "sourceArrowWidth",
-            "midTargetArrow",
-            "midSourceArrow",
-            "targetArrowImageWidth",
-            "targetArrowImageHeight",
-            "sourceArrowImageWidth",
-            "sourceArrowImageHeight",
-            "midTargetArrowImageWidth",
-            "midTargetArrowImageHeight",
-            "targetArrowParts",
-            "sourceArrowParts",
+        const ends = [
+            ["target", "Head"],
+            ["source", "Tail"],
+            ["midTarget", "MiddleHead"],
+            ["midSource", "MiddleTail"],
         ] as const;
+        const writes = (rule: StyleRule, property: string): boolean =>
+            rule.set?.[property as StyleProperty] !== undefined || rule.map?.[property as StyleProperty] !== undefined;
         const writers = this.#rules
             .map((rule, bucket) => ({ rule, bucket }))
-            .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
+            .filter(({ rule }) =>
+                ends.some(([end]) => writes(rule, `${end}ArrowExtent`) || writes(rule, `${end}ArrowBreadth`)),
+            );
         const last = writers.at(-1);
         if (last === undefined || writers.every(({ rule }) => this.#rebuilt.has(rule))) {
             return;
         }
 
         const { extracted, snapshot } = this.#input;
-        const [
-            width,
-            size,
-            head,
-            tail,
-            tailSize,
-            headLength,
-            tailLength,
-            headWidth,
-            tailWidth,
-            midHead,
-            midTail,
-            headImageWidth,
-            headImageHeight,
-            tailImageWidth,
-            tailImageHeight,
-            midImageWidth,
-            midImageHeight,
-            headParts,
-            tailParts,
-        ] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
-        const parts: Record<"Head" | "Tail", readonly (StyleValue | null)[]> = { Head: headParts, Tail: tailParts };
-        const none: readonly (StyleValue | null)[] = [];
-        // a middle arrow is sized as the target's is, in its own shape's proportions
-        const ends: Record<"Head" | "Tail" | "MiddleHead" | "MiddleTail", ArrowEnd> = {
-            Head: {
-                shapes: head,
-                size: (i) => factor(size, i),
-                sources: tail,
-                length: headLength,
-                breadth: headWidth,
-                imageWidth: headImageWidth,
-                imageHeight: headImageHeight,
-            },
-            Tail: {
-                shapes: tail,
-                size: (i) => factor(tailSize, i, factor(size, i)),
-                sources: tail,
-                length: tailLength,
-                breadth: tailWidth,
-                imageWidth: tailImageWidth,
-                imageHeight: tailImageHeight,
-            },
-            MiddleHead: {
-                shapes: midHead,
-                size: (i) => factor(size, i),
-                sources: tail,
-                length: none,
-                breadth: none,
-                imageWidth: midImageWidth,
-                imageHeight: midImageHeight,
-            },
-            MiddleTail: {
-                shapes: midTail,
-                size: (i) => factor(size, i),
-                sources: tail,
-                length: none,
-                breadth: none,
-                imageWidth: none,
-                imageHeight: none,
-            },
-        };
-        const { tool } = extracted.styles.source;
-        const stroked = tool !== null && OPEN_ARROWS_STROKED.has(tool);
-        // the line's width as the element draws it (the `width` plan), where the file gives one
-        const lineWidth = (i: number): number | null => {
-            const w = width[i];
-            return typeof w === "number" && w > 0 ? round(w * this.#factor) : null;
-        };
+        const read = (property: string): readonly (StyleValue | null)[] =>
+            resolveStyles(extracted, "edge", property as StyleProperty, snapshot);
         const { rule, bucket } = last;
-        const layer = this.#layerFor(
-            { ...rule, id: `${rule.id}.arrowSizes` },
-            bucket,
-            this.#scoped({ match: "everything" }),
-        );
-        layer.spec.name = `${rule.id}.arrowSizes`;
+        const layer = this.#layerFor(rule, bucket, this.#scoped({ match: "everything" }));
         layer.worth = 0;
-        for (const [end, sides] of Object.entries(ends) as [
-            "Head" | "Tail" | "MiddleHead" | "MiddleTail",
-            ArrowEnd,
-        ][]) {
+        for (const [end, cap] of ends) {
+            const shapes = read(`${end}Arrow`);
+            const extents = read(`${end}ArrowExtent`);
+            const breadths = read(`${end}ArrowBreadth`);
+            const sized = shapes.map((shape, i) => {
+                const extent = extents[i];
+                const breadth = typeof breadths[i] === "number" ? breadths[i] : null;
+                return typeof shape === "string" && typeof extent === "number"
+                    ? capSizeOf(shape, extent, breadth, this.#scene)
+                    : null;
+            });
             // Each edge's own value, read back per element: exact whatever the widths are.
-            const encode = (channel: Channel, values: readonly (number | string | null)[]): void => {
+            const encode = (channel: Channel, values: readonly (number | null)[]): void => {
                 if (values.some((value) => value !== null)) {
                     const path = this.#keepNew(`${channel.slice(5)}.sized`, values);
                     layer.spec.encode[channel] = { by: path, scale: "passthrough" };
@@ -3405,48 +3021,13 @@ class KindTranslation {
                 }
             };
             encode(
-                `edge.arrow${end}Size`,
-                sides.shapes.map((_shape, i) => arrowLengthOf(geometry, scene, sides, factor(width, i, 0), i)),
+                `edge.arrow${cap}Size`,
+                sized.map((s) => s?.size ?? null),
             );
             encode(
-                `edge.arrow${end}Width`,
-                sides.shapes.map((_shape, i) => arrowBreadthOf(geometry, sides, i)),
+                `edge.arrow${cap}Width`,
+                sized.map((s) => s?.width ?? null),
             );
-            // an open cap stroked with the line's pen, as thick as the line; a part of a row behind it takes its outline
-            if (stroked) {
-                encode(
-                    `edge.arrow${end}OutlineWidth`,
-                    sides.shapes.map((shape, i) =>
-                        typeof shape === "string" && (ARROW_SHAPES.get(shape) ?? "none") !== "none"
-                            ? lineWidth(i)
-                            : null,
-                    ),
-                );
-            }
-            // each part of a row behind the end cap at its own size and width, measured as the end cap is
-            if (end === "Head" || end === "Tail") {
-                encode(
-                    `edge.arrow${end}Stack`,
-                    parts[end].map((value, i) => {
-                        const run = ARROW_RUNS.get(sides.shapes[i] as string);
-                        if ((value ?? null) === null && run !== undefined) {
-                            const head = headLengthOf(geometry, sides, factor(width, i, 0), i);
-                            const pixel = (head * scene) / (YED_HEAD_LENGTH * EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH);
-                            return arrowRunStack(run.parts, pixel);
-                        }
-                        return arrowStackOf(value, (shape) => {
-                            const part: ArrowEnd = {
-                                ...sides,
-                                shapes: sides.shapes.map((_own, j) => (j === i ? shape : null)),
-                            };
-                            return {
-                                size: arrowLengthOf(geometry, scene, part, factor(width, i, 0), i),
-                                width: arrowBreadthOf(geometry, part, i),
-                            };
-                        });
-                    }),
-                );
-            }
         }
     }
 
@@ -3539,7 +3120,7 @@ class KindTranslation {
             const written =
                 rule.set?.[property as StyleProperty] !== undefined ||
                 rule.map?.[property as StyleProperty] !== undefined;
-            if (written && !this.#drawnByBase(rule, property, plan)) {
+            if (written) {
                 this.#emitFor(rule, () => {
                     this.#emit(rule, bucket, property, plan, extracted);
                 });
@@ -3583,13 +3164,12 @@ class KindTranslation {
         // Planned in the element's own units, so each rule of the plan is drawn as it is.
         const sub = planStyles(
             {
-                format: extracted.styles.source.format,
+                format: REPLANNED,
                 units: "px",
                 node: { values: { [planned]: values } },
                 fingerprint: extracted.fingerprint,
             },
             { node: extracted.features.node, edge: [] },
-            { toolDefaults: false },
         );
         const identity: ChannelPlan = { channel, convert: (value) => value, identity: true };
         // The replanned rules are named apart from the file's: under the file's own id
@@ -3688,6 +3268,7 @@ class KindTranslation {
         const path = this.#keepNew("zIndex", values);
         this.#built.push({
             bucket: this.#rules.length,
+            ruleId: "node.groups",
             spec: {
                 name: "node.groups",
                 target: "node",
@@ -3695,58 +3276,8 @@ class KindTranslation {
                 selector: this.#scoped({ match: "has", path }),
                 set: {},
                 encode: { "node.zIndex": { by: path, scale: "passthrough" } },
-                fileStyle: {
-                    format: this.#input.format,
-                    importId: this.#input.importId,
-                    ruleId: "node.groups",
-                    role: "group",
-                    origin: "inferred",
-                    column: path,
-                    mapping: "passthrough",
-                    elements: children.size,
-                },
             },
             paint: new Map([["node.zIndex", values]]),
-            worth: 0,
-        });
-    }
-
-    /**
-     * Overlapping nodes in the file's own order, as every program that draws them does
-     * (Cytoscape, Pajek, yEd, Graphviz): a node later in the file is drawn on top of one before
-     * it. Each node gets a `node.drawOrder` level from its place in the file, 0 for the first and
-     * 100 for the last. A file graphty wrote is left alone: graphty drew it with no order, and its
-     * own layers come back as they were.
-     */
-    #drawOrder(): void {
-        if (this.#kind !== "node" || this.#n < 2 || this.#input.extracted.styles.source.tool === "graphty") {
-            return;
-        }
-
-        const last = this.#n - 1;
-        const values = Array.from({ length: this.#n }, (_unused, i) => Math.round((i * 100) / last));
-        const path = this.#keepNew("drawOrder", values);
-        this.#built.push({
-            bucket: this.#rules.length,
-            spec: {
-                name: "node.drawOrder",
-                target: "node",
-                kind: "encoding",
-                selector: this.#scoped({ match: "has", path }),
-                set: {},
-                encode: { "node.drawOrder": { by: path, scale: "passthrough" } },
-                fileStyle: {
-                    format: this.#input.format,
-                    importId: this.#input.importId,
-                    ruleId: "node.drawOrder",
-                    role: "passthrough",
-                    origin: "inferred",
-                    column: path,
-                    mapping: "passthrough",
-                    elements: this.#n,
-                },
-            },
-            paint: new Map([["node.drawOrder", values]]),
             worth: 0,
         });
     }
@@ -3763,17 +3294,9 @@ class KindTranslation {
             encode[channel] = { by: this.#keepNew(`fold.${channel}`, values), scale: "passthrough" };
         }
 
-        const origin: FileStyleOrigin = {
-            format: this.#input.format,
-            importId: this.#input.importId,
-            ruleId: `${this.#kind}.folded`,
-            role: "passthrough",
-            origin: "inferred",
-            reason: "LAYER_CAP",
-            elements: this.#n,
-        };
         return {
             bucket: 0,
+            ruleId: `${this.#kind}.folded`,
             spec: {
                 name: `${this.#kind}.folded`,
                 target: this.#kind,
@@ -3781,7 +3304,6 @@ class KindTranslation {
                 selector: this.#scoped({ match: "everything" }),
                 set: {},
                 encode,
-                fileStyle: origin,
             },
             paint: new Map(paint as Map<Channel, unknown[]>),
             worth: 0,
@@ -4022,41 +3544,21 @@ function listOf(where: Predicate): readonly Predicate[] | null {
 }
 
 /**
- * The kind of layer a rule makes: its defaults are a base, a mapping or a group an encoding, and
- * per-element copies custom.
+ * The name of the layers a rule makes: the rule's own default name, which says what it does, or its id when it has none.
+ * @param rule - The rule.
+ * @returns The name.
+ */
+function layerNameOf(rule: StyleRule): string {
+    return rule.name ?? rule.id;
+}
+
+/**
+ * The kind of layer a rule makes: a mapping or a group is an encoding, and its defaults and
+ * per-element copies are custom. A file's defaults are never kind `base`, which only the element's
+ * own base layers are: they are the file's styling, drawn like any other layer (issue #7495).
  * @param rule - The rule.
  * @returns The kind.
  */
 function layerKindOf(rule: StyleRule): LayerKind {
-    if (rule.role === "defaults") {
-        return "base";
-    }
-
     return rule.role === "mapping" || rule.role === "group" ? "encoding" : "custom";
-}
-
-/**
- * The facts of a rule a layer carries.
- * @param rule - The rule.
- * @returns The facts.
- */
-function factsOf(rule: StyleRule): Partial<FileStyleOrigin> {
-    const facts = rule.facts ?? {};
-    const meanings: FileStyleMeaning[] | undefined = facts.names?.map(([value, name]) => ({ value, name }));
-    return {
-        ...(facts.elements === undefined ? {} : { elements: facts.elements }),
-        ...(facts.classes === undefined ? {} : { classes: facts.classes }),
-        ...(facts.distinctValues === undefined ? {} : { distinctValues: facts.distinctValues }),
-        ...(facts.reason === undefined ? {} : { reason: facts.reason }),
-        ...(meanings === undefined ? {} : { meanings }),
-    };
-}
-
-/**
- * Add facts to a layer's origin.
- * @param layer - The layer.
- * @param facts - The facts.
- */
-function setFacts(layer: Building, facts: Partial<FileStyleOrigin>): void {
-    layer.spec.fileStyle = { ...(layer.spec.fileStyle as FileStyleOrigin), ...facts };
 }

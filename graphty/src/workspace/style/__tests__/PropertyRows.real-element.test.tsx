@@ -16,11 +16,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** The scene's run rows, by the name the tree draws for each. */
 interface Scene {
@@ -148,6 +153,20 @@ describe("the Style tab's property rows", () => {
         assert.equal(historyTip(session, true), "Undo removing node size from Key people");
     });
 
+    it("names the Everything row in Undo after a removal, and keeps the row", async () => {
+        const { session } = await openScene();
+        const tab = await openStyle("Everything");
+        field(tab, "node.color");
+        await userEvent.click(within(tab).getByRole("button", { name: "Remove node color" }));
+        await waitFor(() => {
+            assert.isNull(tab.querySelector('.ws-row[data-line="node.color"]'));
+        });
+        // Every layer is named by its row, the Everything row like any other (issue #6973).
+        assert.equal(historyTip(session, true), "Undo removing node color from Everything");
+        const tree = screen.getByRole("tree", { name: "Style layers" });
+        assert.isNotNull(within(tree).queryByRole("treeitem", { name: /^Everything, / }), "the row stays");
+    });
+
     it("draws the vary glyph at rest on Shape, Color, Size, Width and Glow, and '=' in Size opens it", async () => {
         const { runs } = await openScene();
         let tab = await openStyle("Key people");
@@ -203,14 +222,12 @@ describe("the Style tab's property rows", () => {
         }
     });
 
-    it("gives a varied field its second line: a community's chits and the scale it is read on", async () => {
+    it("gives a varied field no second line, and says the scale it is read on in its pill's description", async () => {
         const { session, runs } = await openScene();
         const louvain = await openStyle(runs.louvain);
-        await waitFor(() => {
-            const chits = louvain.querySelectorAll("[data-varied-line] .ws-varied-chit");
-            assert.isAbove(chits.length, 0, "the groups' colors");
-            assert.isAtMost(chits.length, 8, "at most 8, then +N");
-        });
+        // Only the pill: its groups and notes are in its tooltip and description (#8739).
+        await within(louvain).findByRole("button", { name: /^Node color: / });
+        assert.isNull(louvain.querySelector("[data-varied-line]"), "no line under the pill");
 
         const degree = session.styles.list().find((l) => l.name === runs.degree);
         const bound = Object.entries(degree?.encode ?? {}).find(([, b]) => "by" in b);
@@ -221,7 +238,11 @@ describe("the Style tab's property rows", () => {
         });
         await session.styles.settled();
         const tab = await openStyle(runs.degree);
-        await within(tab).findByText("Logarithmic scale", {});
+        await waitFor(() => {
+            const pill = within(tab).getAllByRole("button", { name: /^Node (color|size): / })[0];
+            const described = document.getElementById(pill.getAttribute("aria-describedby") ?? "");
+            assert.include(described?.textContent, "Logarithmic scale");
+        });
     });
 
     it("shows the Which picker on every layer, run or not, and draws no reset 'x' in the fields", async () => {

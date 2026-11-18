@@ -168,29 +168,86 @@ function pairDistance(g: Aggregates, x: number, y: number): number {
 }
 
 /**
- * The closest linked pair of active clusters, ties broken by the legacy id ranks.
+ * Each active cluster's nearest partner of higher id rank: its distance and the partner, the first in `active` order
+ * at that distance (-1 and Infinity when none is linked).
+ */
+interface Nearest {
+    readonly dist: Float64Array;
+    readonly to: Int32Array;
+}
+
+/**
+ * Recompute cluster x's nearest partner by scanning every active cluster of higher id rank.
  * @param g - The aggregates
  * @param active - The active clusters in the legacy Set's order
+ * @param nn - The nearest-partner cache
+ * @param x - The cluster
+ */
+function findNearest(g: Aggregates, active: readonly number[], nn: Nearest, x: number): void {
+    let best = Infinity;
+    let to = -1;
+    for (const y of active) {
+        if (g.rank[x] < g.rank[y]) {
+            const d = pairDistance(g, x, y);
+            if (d < best) {
+                best = d;
+                to = y;
+            }
+        }
+    }
+    nn.dist[x] = best;
+    nn.to[x] = to;
+}
+
+/**
+ * The closest linked pair of active clusters, ties broken by the legacy id ranks: the first cluster in `active`
+ * order whose cached nearest distance is the smallest, and that partner. This is the first minimum of a scan over
+ * every pair, in O(active) instead of O(active^2).
+ * @param active - The active clusters in the legacy Set's order
+ * @param nn - The nearest-partner cache
  * @returns The pair and its distance; `a` is -1 when no pair is linked
  */
-function closestPair(g: Aggregates, active: readonly number[]): { best: number; a: number; b: number } {
+function closestPair(active: readonly number[], nn: Nearest): { best: number; a: number; b: number } {
     let best = Infinity;
     let a = -1;
     let b = -1;
     for (const x of active) {
-        for (const y of active) {
-            if (g.rank[x] >= g.rank[y]) {
-                continue;
-            }
-            const d = pairDistance(g, x, y);
-            if (d < best) {
-                best = d;
-                a = x;
-                b = y;
-            }
+        if (nn.dist[x] < best) {
+            best = nn.dist[x];
+            a = x;
+            b = nn.to[x];
         }
     }
     return { best, a, b };
+}
+
+/**
+ * Bring the cache up to date after a and b merged into `created`, the last of `active`. Only pairs involving the
+ * merged clusters changed, so a cluster rescans only when its nearest partner was a or b; any other takes `created`
+ * when it is strictly closer (being last in order, it loses ties).
+ * @param g - The aggregates
+ * @param active - The active clusters, `created` last
+ * @param nn - The nearest-partner cache
+ * @param a - The first merged cluster
+ * @param b - The second merged cluster
+ */
+function updateNearest(g: Aggregates, active: readonly number[], nn: Nearest, a: number, b: number): void {
+    const created = active.at(-1) ?? -1;
+    for (const x of active) {
+        if (x === created) {
+            continue;
+        }
+        if (nn.to[x] === a || nn.to[x] === b) {
+            findNearest(g, active, nn, x);
+        } else if (g.rank[x] < g.rank[created]) {
+            const d = pairDistance(g, x, created);
+            if (d < nn.dist[x]) {
+                nn.dist[x] = d;
+                nn.to[x] = created;
+            }
+        }
+    }
+    findNearest(g, active, nn, created);
 }
 
 /**
@@ -373,8 +430,9 @@ function dendrogram(
  * snapshot, where the legacy `clusters` map lists all nodes as one cluster at every height (its
  * forest node has no children, so its cut never splits it).
  *
- * O(n^2) memory for the distance aggregates and O(n^3) time for the pair search; the legacy
- * function is the same order with Map and Set per step.
+ * O(n^2) memory for the distance aggregates. Each cluster caches its nearest partner, so a merge rescans only the
+ * clusters whose partner it consumed: O(n^2) time on typical graphs, O(n^3) at worst (when most clusters keep
+ * pointing at the cluster that merges next).
  * @param s - Any snapshot or adjacency view
  * @param options - The linkage
  * @returns The dendrogram
@@ -433,8 +491,12 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
 
     // Active clusters in the legacy Set's insertion order: the nodes, then each merge appended.
     let active: number[] = Array.from({ length: n }, (_, i) => i);
+    const nn: Nearest = { dist: new Float64Array(total), to: new Int32Array(total) };
+    for (const x of active) {
+        findNearest(g, active, nn, x);
+    }
     while (active.length > 1) {
-        const { best, a, b } = closestPair(g, active);
+        const { best, a, b } = closestPair(active, nn);
         if (a < 0) {
             break; // no linked pair left: the rest stay separate roots
         }
@@ -448,6 +510,7 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
         g.slot[created] = g.slot[a];
         active = active.filter((x) => x !== a && x !== b);
         active.push(created);
+        updateNearest(g, active, nn, a, b);
     }
     return dendrogram(
         n,

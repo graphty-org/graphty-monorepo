@@ -40,6 +40,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_DIGEST_MISMATCH",
     // a node picture that cannot be loaded (issue #4515)
     "E_IMAGE_LOAD",
+    // a picture the browser cannot decode (issue #6818)
+    "E_IMAGE_DECODE",
     // a screenshot or video that could not be made (issue #6826)
     "E_CAPTURE_FAILED",
     "E_NOT_SETTLED",
@@ -91,11 +93,13 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
     "E_UNKNOWN_ELEMENT",
+    "E_HOST_NOT_FOUND",
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
     "E_AUTOSAVE_ENTRY_TAKEN",
     "E_AUTOSAVE_UNKNOWN_ENTRY",
+    "E_AUTOSAVE_STALLED",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -132,6 +136,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOFTWARE_ONLY",
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
+    "E_RENDER_LOST",
     "E_NO_WEBGL",
     "E_SHADER_REFUSED",
     // an immersive session the browser or headset would not start (issue #7236)
@@ -183,6 +188,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
         case "E_UNKNOWN_ELEMENT":
+        case "E_HOST_NOT_FOUND":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
@@ -193,6 +199,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSAVED_CHANGES":
         case "E_AUTOSAVE_ENTRY_TAKEN":
         case "E_AUTOSAVE_UNKNOWN_ENTRY":
+        case "E_AUTOSAVE_STALLED":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":
@@ -220,6 +227,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOFTWARE_ONLY":
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
+        case "E_RENDER_LOST":
         case "E_NO_WEBGL":
         case "E_SHADER_REFUSED":
         case "E_XR_SESSION_FAILED":
@@ -257,6 +265,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MODEL_UNKNOWN_ASSET":
         case "E_MODEL_DIGEST_MISMATCH":
         case "E_IMAGE_LOAD":
+        case "E_IMAGE_DECODE":
             return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":

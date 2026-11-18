@@ -1,11 +1,9 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotLegendSection } from "@graphty/graphty-element";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
+import { imageKey } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     backgroundRefusal,
@@ -37,16 +35,6 @@ const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
 
 /** The preview is captured this wide (height by the canvas's aspect), not at the canvas's size. */
 const PREVIEW_WIDTH = 480;
-
-/**
- * The key an image carries when the canvas shows the legend card: the card's sections, in the
- * same words.
- * @param session - the session, or null.
- * @returns the sections; none without a session.
- */
-function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
-    return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
-}
 
 /** Props for ImageOutput. */
 interface ImageOutputProps {

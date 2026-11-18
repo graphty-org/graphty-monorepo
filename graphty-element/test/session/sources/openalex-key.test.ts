@@ -51,7 +51,7 @@ const sessions: GraphSession[] = [];
  */
 function work(id: string, refs: readonly string[] = []): Record<string, unknown> {
     // OpenAlex's own snake_case field names
-    return Object.fromEntries([
+    return Object.fromEntries<unknown>([
         ["id", `https://openalex.org/${id}`],
         ["display_name", `Work ${id}`],
         ["updated_date", "2026-10-01T00:00:00"],

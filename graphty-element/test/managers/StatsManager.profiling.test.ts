@@ -1,6 +1,9 @@
 import type { EngineInstrumentation, SceneInstrumentation } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { GraphtyLogger } from "../../src/logging/GraphtyLogger";
+import { resetLoggingConfig } from "../../src/logging/LoggerConfig";
+import { LogLevel } from "../../src/logging/types";
 import type { EventManager } from "../../src/managers/EventManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 
@@ -215,17 +218,53 @@ describe("StatsManager - Profiling", () => {
             assert.equal(snapshot.cpu.length, 2);
         });
 
-        it("should warn on mismatched end", () => {
-            statsManager.enableProfiling();
-            const warnSpy = vi.spyOn(console, "warn");
+        it("should warn through the stats logger on an end with no matching start", async () => {
+            await GraphtyLogger.configure({ enabled: true, level: LogLevel.WARN, modules: ["stats"] });
+            const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+            try {
+                statsManager.enableProfiling();
 
-            statsManager.startMeasurement("test-a");
-            statsManager.endMeasurement("test-b"); // Wrong label
+                statsManager.startMeasurement("test-a");
+                statsManager.endMeasurement("test-b"); // Wrong label
 
-            assert.equal(warnSpy.mock.calls.length, 1);
-            const warning = warnSpy.mock.calls[0][0];
-            assert.include(warning, "Mismatched");
-            warnSpy.mockRestore();
+                assert.isTrue(warnSpy.mock.calls.some((call) => call.join(" ").includes("Mismatched")));
+                // The open measurement is still there, and its own end records it.
+                statsManager.endMeasurement("test-a");
+                assert.equal(statsManager.getSnapshot().cpu.find((m) => m.label === "test-a")?.count, 1);
+            } finally {
+                resetLoggingConfig();
+            }
+        });
+
+        it("should record the outer measurement when an inner one never ended (#7223)", async () => {
+            await GraphtyLogger.configure({ enabled: true, level: LogLevel.WARN, modules: ["stats"] });
+            const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+            try {
+                statsManager.enableProfiling();
+
+                // The inner measured code threw, so its end never ran.
+                statsManager.startMeasurement("outer");
+                spend(3);
+                statsManager.startMeasurement("inner");
+                spend(2);
+                statsManager.endMeasurement("outer");
+
+                const outer = statsManager.getSnapshot().cpu.find((m) => m.label === "outer");
+                assert.equal(outer?.count, 1);
+                assert.equal(outer?.total, 5);
+                assert.isUndefined(statsManager.getSnapshot().cpu.find((m) => m.label === "inner"));
+                assert.isTrue(warnSpy.mock.calls.some((call) => call.join(" ").includes("never ended")));
+
+                // Nothing was left behind: a later pair records normally and alone.
+                statsManager.startMeasurement("outer");
+                spend(4);
+                statsManager.endMeasurement("outer");
+                const again = statsManager.getSnapshot().cpu.find((m) => m.label === "outer");
+                assert.equal(again?.count, 2);
+                assert.equal(again?.total, 9);
+            } finally {
+                resetLoggingConfig();
+            }
         });
 
         it("should not measure when disabled", () => {
@@ -686,7 +725,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify GPU metrics group was created
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "GPU Metrics (BabylonJS EngineInstrumentation)");
             assert.include(groupCalls, "GPU Frame Time (ms)");
             assert.include(groupCalls, "Shader Compilation (ms)");
@@ -782,7 +821,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify Scene metrics group was created
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "Scene Metrics (BabylonJS SceneInstrumentation)");
             assert.include(groupCalls, "Frame Time");
             assert.include(groupCalls, "Render Time");
@@ -810,7 +849,7 @@ describe("StatsManager - Profiling", () => {
 
             statsManager.reportDetailed();
 
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.notInclude(groupCalls, "GPU Metrics (BabylonJS EngineInstrumentation)");
             assert.notInclude(groupCalls, "Scene Metrics (BabylonJS SceneInstrumentation)");
 
@@ -1097,7 +1136,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify blocking correlation section exists
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "Blocking Correlation Analysis");
 
             // Verify table was generated
@@ -1301,8 +1340,9 @@ describe("StatsManager - Profiling", () => {
                 // Verify derived metrics are calculated
                 assert.isDefined(tableData);
 
-                const hitsRow = tableData.find((row: any) => row.Label === "cache.hits");
-                assert.equal(hitsRow.Value, 90);
+                const rows = tableData as { Label?: unknown; Value?: unknown }[];
+                const hitsRow = rows.find((row) => row.Label === "cache.hits");
+                assert.equal(hitsRow?.Value, 90);
 
                 tableSpy.mockRestore();
             });

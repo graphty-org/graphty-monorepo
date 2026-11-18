@@ -386,6 +386,14 @@ export class DerivationLane {
     }
 
     /**
+     * Whether the lane is closed: its session is gone, and nothing it settles is told any more.
+     * @returns True once closed.
+     */
+    get isClosed(): boolean {
+        return this.closed;
+    }
+
+    /**
      * Stop deriving, for a session's `dispose()`: no pass starts after this, the pass running
      * calls no further hook, and whatever awaits a pass is released. A hook run after its
      * session was disposed would read a store that is already gone.

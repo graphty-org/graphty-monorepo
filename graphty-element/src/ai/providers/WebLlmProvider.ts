@@ -18,6 +18,7 @@ import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { toolJsonSchema } from "../engine/jsonSchema";
 import { missingPackage } from "../missingPackage";
+import { uniqueId } from "../uniqueId";
 import type {
     LlmProvider,
     LlmResponse,
@@ -174,7 +175,8 @@ function emitToolCalls(
     for (const tc of toolCallsArray) {
         if (tc.function?.name) {
             const toolCall: ToolCall = {
-                id: tc.id ?? `call_${Date.now()}`,
+                // WebLLM numbers calls per response ("0" every turn) and gives streamed calls none: mint one.
+                id: uniqueId("call_"),
                 name: tc.function.name,
                 ...parseArguments(tc.function.arguments),
             };
@@ -702,7 +704,8 @@ export class WebLlmProvider implements LlmProvider {
         // OpenAI API uses snake_case
         for (const tc of message?.tool_calls ?? []) {
             toolCalls.push({
-                id: tc.id,
+                // WebLLM numbers calls per response ("0" every turn): mint one.
+                id: uniqueId("call_"),
                 name: tc.function.name,
                 ...parseArguments(tc.function.arguments),
             });

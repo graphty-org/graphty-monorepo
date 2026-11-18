@@ -12,8 +12,7 @@
  */
 
 import { Quaternion, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { PivotController } from "../../../src/cameras/PivotController";
 import { twoHandGestureDelta } from "../../../src/cameras/twoHandGesture";

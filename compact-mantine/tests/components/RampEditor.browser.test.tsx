@@ -342,3 +342,130 @@ describe("RampEditor for a screen reader", () => {
         expect(notes).toContain("Edit discarded; this stays 20.");
     });
 });
+
+describe("RampEditor: clamp, midpoint, no-value and palette controls", () => {
+    const PALETTES = [
+        { value: "viridis", label: "Viridis", stops: ["#440154", "#21918c", "#fde725"] },
+        { value: "magma", label: "Magma", stops: ["#000004", "#b73779", "#fcfdbf"] },
+    ];
+    const SCALES = [
+        { value: "linear", label: "Linear" },
+        { value: "log", label: "Log" },
+    ];
+
+    /**
+     * The editor with every optional control on.
+     * @param props - Component props, passed through
+     */
+    function renderFull(props: Partial<React.ComponentProps<typeof RampEditor>> = {}): void {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <div style={{ width: 240 }}>
+                    <RampEditor
+                        label="Node color by degree"
+                        bins={BINS}
+                        domain={[20, 80]}
+                        clamp={{ low: 10, high: 90, below: 14, above: 3 }}
+                        midpoint={50}
+                        steps={[25, 75]}
+                        describe={describeHandle}
+                        scales={SCALES}
+                        defaultScale="linear"
+                        palettes={PALETTES}
+                        defaultPalette="viridis"
+                        noValue={{ count: 4, paint: null }}
+                        {...props}
+                    />
+                </div>
+            </MantineProvider>,
+        );
+    }
+
+    it("reports each clamp handle's arrow step, never past the other clamp", async () => {
+        const onClampChange = vi.fn();
+        renderFull({ onClampChange });
+        await userEvent.click(screen.getByRole("slider", { name: "Lower clamp" }));
+        await userEvent.keyboard("{ArrowRight}");
+        expect(onClampChange).toHaveBeenLastCalledWith([20, 90]);
+        await userEvent.click(screen.getByRole("slider", { name: "Upper clamp" }));
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(onClampChange).toHaveBeenLastCalledWith([10, 80]);
+    });
+
+    it("steps the midpoint handle and takes a midpoint typed into its field", async () => {
+        const onMidpointChange = vi.fn();
+        renderFull({ onMidpointChange });
+        await userEvent.click(screen.getByRole("slider", { name: "Midpoint" }));
+        await userEvent.keyboard("{ArrowRight}");
+        expect(onMidpointChange).toHaveBeenLastCalledWith(60);
+        await userEvent.click(screen.getByRole("textbox", { name: "Midpoint" }));
+        await userEvent.keyboard("{Control>}a{/Control}45{Enter}");
+        expect(onMidpointChange).toHaveBeenLastCalledWith(45);
+    });
+
+    it("reports a start typed into its field on Enter", async () => {
+        const onDomainChange = vi.fn();
+        renderFull({ onDomainChange });
+        await userEvent.click(screen.getByRole("textbox", { name: "Starts at" }));
+        await userEvent.keyboard("{Control>}a{/Control}15{Enter}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([15, 80]);
+    });
+
+    it("refuses a domain handle step that would meet the other handle", async () => {
+        const onDomainChange = vi.fn();
+        renderFull({ onDomainChange, domain: [40, 50], midpoint: undefined });
+        await userEvent.click(screen.getByRole("slider", { name: "Ramp start" }));
+        await userEvent.keyboard("{ArrowRight}");
+        await userEvent.click(screen.getByRole("slider", { name: "Ramp end" }));
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(onDomainChange).not.toHaveBeenCalled();
+    });
+
+    it("draws a dashed line at each step it is given", () => {
+        renderFull();
+        expect(screen.getAllByTestId("ramp-editor-step")).toHaveLength(2);
+    });
+
+    it("turns the no-value color on from its button, and offers nothing without onNoValueChange", async () => {
+        const onNoValueChange = vi.fn();
+        renderFull({ onNoValueChange });
+        const button = screen.getByRole("button", { name: "No value: 4" });
+        expect(button).toHaveAttribute("aria-pressed", "false");
+        await userEvent.click(button);
+        expect(onNoValueChange).toHaveBeenCalledWith(true);
+    });
+
+    it("turns a painted no-value color off", async () => {
+        const onNoValueChange = vi.fn();
+        renderFull({ onNoValueChange, noValue: { count: 2, paint: "#cccccc" } });
+        const button = screen.getByRole("button", { name: "No value: 2" });
+        expect(button).toHaveAttribute("aria-pressed", "true");
+        await userEvent.click(button);
+        expect(onNoValueChange).toHaveBeenCalledWith(false);
+    });
+
+    it("picks a palette from its list and resets a set one", async () => {
+        const onPaletteChange = vi.fn();
+        renderFull({ onPaletteChange, palette: "magma" });
+        await userEvent.click(screen.getByRole("button", { name: "Reset Palette to default" }));
+        expect(onPaletteChange).toHaveBeenLastCalledWith(undefined);
+        await userEvent.click(screen.getByRole("combobox", { name: "Palette" }));
+        await userEvent.click(screen.getByRole("option", { name: "Viridis" }));
+        expect(onPaletteChange).toHaveBeenLastCalledWith("viridis");
+    });
+
+    it("shows the unset text in place of the defaults, and reverses the palette from its toggle", async () => {
+        const onReverseChange = vi.fn();
+        renderFull({
+            unsetText: "Not set",
+            defaultScale: undefined,
+            defaultPalette: undefined,
+            reverse: true,
+            onReverseChange,
+        });
+        expect(screen.getByRole("combobox", { name: "Scale" })).toHaveAttribute("placeholder", "Not set");
+        expect(screen.getByRole("combobox", { name: "Palette" })).toHaveAttribute("placeholder", "Not set");
+        await userEvent.click(screen.getByRole("button", { name: "Reverse palette" }));
+        expect(onReverseChange).toHaveBeenCalledWith(false);
+    });
+});

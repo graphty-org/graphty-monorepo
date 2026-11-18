@@ -7,19 +7,23 @@
  * the `"batched"` path a row the batches draw comes back with none, so the speed was 0 and every
  * batch was the floor, a 32nd of the graph: a 100,000-node load took 32 frames, half of each idle.
  *
- * The count decides the second batch, not this machine's speed: with the speed counted, the second
- * batch is the floor (128 rows) only if 128 rows took longer than a whole 48 ms budget, a hundred
- * times slower than any machine paints them; with the defect it is the floor every time.
+ * The count decides the second batch, not this machine's speed. On the real clock the first batch
+ * also builds the batched meshes and materials, and under load it took 90 ms for 128 rows (the next
+ * 128 took 2 ms), longer than the whole 48 ms budget, so the second batch was the floor anyway
+ * (issue #8336). While the frames are pumped the clock is a stated one, a microsecond a reading, so
+ * the first batch's speed is many rows a millisecond and the second batch is past the floor; with the
+ * defect the speed is 0 whatever the clock says, and the second batch is the floor every time.
  */
 
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 const COUNT = 4096;
 const FLOOR = COUNT / 32;
+/** How far the stated clock moves at each reading, so a batch's time is how many readings it made. */
+const CLOCK_STEP_MS = 0.001;
 
 describe("a held batched load's node batches", () => {
     let container: HTMLElement;
@@ -59,12 +63,15 @@ describe("a held batched load's node batches", () => {
         await operationQueueOf(graph).waitForCompletion();
         await dispatcherOf(graph.getSession()).lane.settled();
 
-        const manager = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+        const manager = graph.getUpdateManager();
+        let now = Math.ceil(performance.now());
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => (now += CLOCK_STEP_MS));
         let frames = 0;
         while (painter.hasPending && frames < COUNT) {
             manager.update(16);
             frames++;
         }
+        clock.mockRestore();
         assert.isFalse(painter.hasPending, "the whole repaint was applied");
 
         assert.isAtLeast(limits.length, 2, "the paint took more than one batch");

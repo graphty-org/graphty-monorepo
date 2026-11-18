@@ -203,8 +203,8 @@ export function gateContext(root, gateRoot = GATE_ROOT) {
 const CHECKED_BASES = new Set(["origin/master", "origin/golden", "origin/golden-cut"]);
 
 /**
- * What a gate run measures "this push's changes" from (the affected packages, SonarQube's changed
- * lines): "checked" for a base the gate has already checked (CHECKED_BASES), else the base ref and its
+ * What a gate run measures "this push's changes" from (the affected packages, the duplicate code
+ * check): "checked" for a base the gate has already checked (CHECKED_BASES), else the base ref and its
  * merge base with HEAD. A branch stacked on an unlanded branch tests only its own commits, so its pass
  * must not cover a push measured from master or golden, which also holds the parent's commits.
  * @param root the checkout

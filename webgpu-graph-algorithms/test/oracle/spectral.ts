@@ -7,8 +7,8 @@
  * device runs it: two chains that alternate the reverse and the forward pull, one seeded as hubs and one as
  * authorities. The oracle runs exactly `maxIterations` iterations, as the device runs a whole batch, and records
  * the first iteration i whose L1 delta sum |x(i) - x(i-p)| (p = 1, or 2 for an alternating chain, whose previous
- * iterate of the same kind is two back) fell below n * tolerance (tolerance times the L1 size of x(i) for
- * eigenvector, whose undirected passes add the identity shift), iteration maxIterations included: the device
+ * iterate of the same kind is two back) fell below tolerance times the L1 size of x(i) (a zero delta also counts),
+ * iteration maxIterations included: the device
  * records that delta one iteration late (PD-9: `pr-scale` at iteration i + 1 compares x(i) with the iterate it is
  * about to overwrite), so after the last pull it runs one more scale and finalize, without a pull, to measure it. The final
  * vector is normalised ONCE at the end (sum for HITS, L2 for eigenvector and Katz). The reverse adjacency is walked
@@ -57,9 +57,7 @@ interface Adjacency {
 
 /**
  * The recurrence's coefficients: the per-iteration normaliser (null for Katz), alpha and beta; `shifted` makes beta
- * multiply the normalised iterate (eigenvector's `(A + beta I)`), `seed` is x(0) (1 / n everywhere when absent) and
- * `relative` holds the delta to tolerance times the iterate's L1 size (a zero delta also counts) instead of n *
- * tolerance.
+ * multiply the normalised iterate (eigenvector's `(A + beta I)`) and `seed` is x(0) (1 / n everywhere when absent).
  */
 interface Recurrence {
     readonly norm: "sum" | "l2" | null;
@@ -67,7 +65,6 @@ interface Recurrence {
     readonly beta: number;
     readonly shifted?: boolean;
     readonly seed?: Float64Array;
-    readonly relative?: boolean;
 }
 
 /**
@@ -159,9 +156,7 @@ function iterate(
         }
         recent.shift();
         recent.push(next);
-        const settled =
-            recurrence.relative === true ? err < options.tolerance * size || err === 0 : err < n * options.tolerance;
-        if (first === 0 && settled) {
+        if (first === 0 && (err < options.tolerance * size || err === 0)) {
             first = iteration;
         }
     }
@@ -230,7 +225,7 @@ export function hitsOracle(s: GraphSnapshot, options: SpectralOracleOptions): Hi
 export function eigenvectorOracle(s: GraphSnapshot, options: SpectralOracleOptions): SpectralOracleResult {
     const forward = forwardOf(s, options.weighted);
     if (s.directed) {
-        return run([forward], { norm: "l2", alpha: 1, beta: 0, relative: true }, "l2", options);
+        return run([forward], { norm: "l2", alpha: 1, beta: 0 }, "l2", options);
     }
     let most = 0;
     const seed = new Float64Array(s.nodeCount);
@@ -244,7 +239,7 @@ export function eigenvectorOracle(s: GraphSnapshot, options: SpectralOracleOptio
         seed[v] = s.rowPtr[v + 1] > s.rowPtr[v] ? 1 / s.nodeCount : 0;
     }
     const shift = Math.max(1, Math.sqrt(most) / 2);
-    return run([forward], { norm: "l2", alpha: 1, beta: shift, shifted: true, seed, relative: true }, "l2", options);
+    return run([forward], { norm: "l2", alpha: 1, beta: shift, shifted: true, seed }, "l2", options);
 }
 
 /**

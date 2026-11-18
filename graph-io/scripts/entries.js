@@ -1,8 +1,8 @@
 /**
- * The bundle entries of @graphty/graph-io: the root barrel and one entry per format subpath
- * (design section 8.2: `@graphty/graph-io/gexf`, `/graphml`, `/gml`, `/dot`, `/pajek`, `/csv`,
- * `/json`, `/neo4j`), plus `@graphty/graph-io/styles`, the format-independent style
- * module. Shared by scripts/build-bundle.js (which emits dist/<name>.js for each) and
+ * The bundle entries of @graphty/graph-io: the root barrel, one entry per format subpath
+ * (`@graphty/graph-io/<format>`), one per network source (`@graphty/graph-io/sources/<name>`),
+ * and the format-independent `@graphty/graph-io/styles` and `/positions` modules; ENTRIES
+ * below is the list. Shared by scripts/build-bundle.js (which emits dist/<name>.js for each) and
  * tools/build-bundle.mjs (which writes the matching dist/<name>.d.ts shim); package.json
  * "exports" must list the same names, which test/build-output.test.ts checks.
  *
@@ -24,11 +24,18 @@ export const ENTRIES = Object.freeze({
     cx: "src/formats/cx/index.ts",
     obo: "src/formats/obo/index.ts",
     cys: "src/formats/cys/index.ts",
+    // the default source list, without any importer (@graphty/graph-io/sources)
+    sources: "src/sources/index.ts",
     // the network sources, each loaded on first use (@graphty/graph-io/sources/<name>)
     "sources-ndex": "src/sources/ndex/index.ts",
     "sources-cypher": "src/sources/cypher/index.ts",
     "sources-rest": "src/sources/rest/index.ts",
     "sources-sparql": "src/sources/sparql/index.ts",
+    "sources-github": "src/sources/github/index.ts",
+    "sources-s3": "src/sources/s3/index.ts",
+    "sources-zenodo": "src/sources/zenodo/index.ts",
+    "sources-figshare": "src/sources/figshare/index.ts",
+    "sources-gremlin": "src/sources/gremlin/index.ts",
     styles: "src/styles/index.ts",
     positions: "src/positions/index.ts",
 });

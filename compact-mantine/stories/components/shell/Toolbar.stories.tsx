@@ -1,9 +1,9 @@
-import { SegmentedControl, Stack, Text, VisuallyHidden } from "@mantine/core";
+import { Stack, Text, VisuallyHidden } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { Toolbar, type ToolbarProps, ToolButton, ToolGroup } from "../../../src";
+import { SegmentedControl, Toolbar, type ToolbarProps, ToolButton, ToolGroup } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures";
@@ -22,7 +22,7 @@ import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures"
  * | `ToolButton` | One tool (`selected` makes it the current tool) or, with `selected` left undefined, one action |
  * | `ToolGroup` | A tool plus a chevron that opens a flyout of related tools; the face shows the last one picked |
  * | `Toolbar.Divider` | A full-height rule between groups |
- * | `SegmentedControl variant="toolbar"` | The mode switch at the end (Mantine's, themed) |
+ * | `SegmentedControl variant="toolbar"` | The mode switch at the end |
  *
  * Reach for `SecondaryToolbar` for the smaller bar of a mode that is active (vector editing, an
  * image crop), and for a Mantine `Group` of `ActionIcon`s for a few actions in a panel header,
@@ -31,8 +31,7 @@ import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures"
  * ## Usage
  *
  * ```tsx
- * import { SegmentedControl } from "@mantine/core";
- * import { Toolbar, ToolButton, ToolGroup } from "@graphty/compact-mantine";
+ * import { SegmentedControl, Toolbar, ToolButton, ToolGroup } from "@graphty/compact-mantine";
  *
  * const [tool, setTool] = useState("move");
  *

@@ -7,6 +7,7 @@
 
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup.js";
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
+import type { Bone } from "@babylonjs/core/Bones/bone.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
@@ -38,6 +39,26 @@ function sidesOf(along: Vector3): [Vector3, Vector3] {
     const helper = Math.abs(along.y) < 0.9 ? Vector3.Up() : Vector3.Right();
     const u = Vector3.Cross(along, helper).normalize();
     return [u, Vector3.Cross(along, u).normalize()];
+}
+
+/**
+ * Move a root bone's motion so it starts where the figure stands at rest. A BVH file's root
+ * channels give the hips' place in the capture room (often a meter up and off to one side), while
+ * its rest pose stands them at the origin: played as written, the figure jumped out of the box it is
+ * framed and drawn in. Each position key keeps its distance from the first.
+ * @param root - The root bone.
+ */
+function startAtRest(root: Bone | undefined): void {
+    const motion = root?.animations.find((animation) => animation.targetProperty === "position");
+    const keys = motion?.getKeys() ?? [];
+    const first = keys[0]?.value as Vector3 | undefined;
+    if (motion === undefined || first === undefined) {
+        return;
+    }
+
+    const rest = (root as Bone).position.clone();
+    const shift = rest.subtract(first);
+    motion.setKeys(keys.map((key) => ({ ...key, value: (key.value as Vector3).add(shift) })));
 }
 
 /**
@@ -105,6 +126,7 @@ export function bvhFigure(container: AssetContainer): void {
     container.meshes.push(figure);
     container.materials.push(material);
 
+    startAtRest(skeleton.bones.find((bone) => bone.getParent() === null));
     const group = new AnimationGroup(BVH_CLIP, scene);
     scene.removeAnimationGroup(group);
     for (const bone of skeleton.bones) {

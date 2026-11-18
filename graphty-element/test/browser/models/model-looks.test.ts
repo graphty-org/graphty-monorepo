@@ -293,6 +293,26 @@ describe("a picture taken back out while it downloads", () => {
 });
 
 describe("model colors", () => {
+    it("draws a gold metal gold, not olive, under the element's own lights (ChronographWatch's bezel)", async () => {
+        const element = await mount();
+        // The ChronographWatch's gold: a metal reflects only light, so in a dim, uniform
+        // environment and lights with no specular it read flat olive.
+        const gold = await filesOf("gltf-bin");
+        const text = new TextDecoder().decode(gold.get("cube.gltf"));
+        gold.set(
+            "cube.gltf",
+            new TextEncoder().encode(
+                text
+                    .replace('"baseColorFactor": [0, 0, 1, 1]', '"baseColorFactor": [1, 0.72, 0.315, 1]')
+                    .replace('"metallicFactor": 0', '"metallicFactor": 1')
+                    .replace('"roughnessFactor": 1', '"roughnessFactor": 0.3'),
+            ),
+        );
+        await drawModel(element, gold, [{ id: "a", x: 0 }]);
+        const GOLD = (r: number, g: number, b: number): boolean => r > 160 && g > 120 && r - b > 50;
+        assert.isAbove(count(await readFrame(element), GOLD), 300, "the metal is drawn bright gold");
+    });
+
     it("draws a model whose file gives it no material in the node's color, with no tint asked (tree.obj)", async () => {
         const element = await mount();
         const { problems } = await drawModel(element, "obj-alone", [{ id: "a", x: 0 }], { "node.color": "#ff0000" });

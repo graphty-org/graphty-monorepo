@@ -58,8 +58,9 @@ export function pinPbrShaders(): void {
 const environments = new WeakMap<Scene, BaseTexture>();
 
 /**
- * The small neutral environment bundled with this chunk: a uniform dark gray in every direction,
- * prefiltered, for PBR materials to reflect when the scene has no `environmentTexture` of its
+ * The small neutral environment bundled with this chunk: a dim uniform gray to light diffuse color,
+ * and a soft gray gradient, bright above and dark below, to reflect (the scene's lights reflect
+ * nothing, so a metal shows only this), prefiltered, for PBR materials to reflect when the scene has no `environmentTexture` of its
  * own. It is read from bytes inside the chunk, so it makes no request.
  * @param scene - The scene the texture belongs to.
  * @returns The scene's copy of the neutral environment, created on first use.

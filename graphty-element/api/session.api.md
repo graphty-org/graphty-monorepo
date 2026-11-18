@@ -1253,7 +1253,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "source-references";
 
 // @public
 export interface FieldBand {
@@ -2814,6 +2814,23 @@ export type GraphtyWarningCode =
 */
 | "W_SOURCE_URL_REDACTED"
 /**
+* A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+* copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+* `network`, `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+*/
+| "W_SOURCE_NO_PATH"
+/**
+* A load saved as a reference could not be read again: the project opened without its rows
+* (a save writes the reference back as it was), or a save kept it as a copy. `params.source`
+* is the load's key and `params.reason` is `not-found`, `denied` or `unreadable`.
+*/
+| "W_SOURCE_UNAVAILABLE"
+/**
+* A load saved as a reference was read again and is no longer what the project was saved
+* with: its rows hold the new values. `params.source` is the load's key.
+*/
+| "W_SOURCE_CHANGED"
+/**
 * A `graphty-sources` entry of an opened project names a network source this release has not
 * registered: its elements are there and the entry is written back, but it is not offered to
 * run. `params.id` is the entry's id and `params.source` the source id.
@@ -3627,6 +3644,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly edges: number;
     };
     readonly choices?: LoadChoices;
+    readonly copy?: "reference";
     readonly counts: {
         readonly nodes: number;
         readonly edges: number;
@@ -4014,7 +4032,7 @@ export interface NetworkRequest {
 export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied";
 
 // @public
-export type NetworkRequestKind = "model" | "texture" | "source";
+export type NetworkRequestKind = "model" | "texture" | "source" | "data";
 
 // @public
 export function newCondition<F extends ConditionField>(field: F): Exclude<Condition<F>, {
@@ -6183,6 +6201,7 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
+    copies(): readonly SourceCopy[];
     count(options?: {
         readonly scope?: "graph" | "visible";
     }): {
@@ -6279,6 +6298,7 @@ export interface SessionDataApi {
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
+    setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
     setType(column: ColumnRef, type: ValueType): Promise<void>;
@@ -6379,6 +6399,10 @@ export interface SessionEventMap {
     "shader:status": {
         readonly id: string;
     } & ShaderStatus;
+    "source:copy": {
+        readonly source: SourceKey;
+        readonly copy: SourceCopyChoice;
+    };
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
@@ -6894,6 +6918,22 @@ export interface SourceCheck {
 export { SourceContext }
 
 // @public
+export interface SourceCopy {
+    readonly copy: SourceCopyChoice;
+    readonly refused?: {
+        readonly code: "W_SOURCE_NO_PATH";
+        readonly params: {
+            readonly source: SourceKey;
+            readonly reason: SourceNoPathReason;
+        };
+    };
+    readonly source: SourceKey;
+}
+
+// @public
+export type SourceCopyChoice = "copy" | "reference";
+
+// @public
 export interface SourceCounts {
     readonly edges: number;
     readonly nodes: number;
@@ -7029,6 +7069,9 @@ export interface SourceMoreOptions extends SourceLoadOptions {
 }
 
 export { SourceNodeRecord }
+
+// @public
+export type SourceNoPathReason = "file" | "inline" | "join" | "network" | "secret-url" | "relative-url" | "no-seed";
 
 export { SourceParamDescriptor }
 

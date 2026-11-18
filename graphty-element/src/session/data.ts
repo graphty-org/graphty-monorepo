@@ -179,6 +179,7 @@ import {
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
+import { type LoadHow, refusalOf } from "./sources/references";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -260,6 +261,8 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    SourceCopy,
+    SourceCopyChoice,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
@@ -403,6 +406,11 @@ interface PageSources {
      * @returns true when it is
      */
     fileStyles?(): boolean;
+    /**
+     * Whether the source references experiment is on; absent reads off.
+     * @returns true when it is
+     */
+    sourceReferences?(): boolean;
     /**
      * Whether the element draws on the `"batched"` render path; absent reads false.
      * @returns true when it does
@@ -902,8 +910,11 @@ export class SessionData implements SessionDataApi {
         readonly provenance: Provenance | undefined;
         readonly snapshot: GraphSnapshot;
         readonly ledger: object;
+        readonly copyTick: number;
         readonly result: readonly LoadedSource[];
     } | null = null;
+    /** Moves whenever a load's copy choice does, so `sources()` lists it again. */
+    private copyTick = 0;
     /**
      * What each file load this session read was read from, by the token its `data.import`
      * command and its `sources()` entry carry (`input`), for `reloadSource`. Memory only: a file is
@@ -1788,15 +1799,17 @@ export class SessionData implements SessionDataApi {
      * What a project file writes about the loads: the `graphty-sources` member (null when the graph
      * holds no load), what the save left out, and how each record's `_source.loads` is written.
      * Internal: the project file writes it.
+     * @param references - The digests of the referenced loads whose rows the save leaves out.
      * @returns the member and its ids
      */
-    sourceFile(): SourcesWrite {
+    sourceFile(references?: ReadonlyMap<SourceKey, string>): SourcesWrite {
         const write = writeSourcesMember({
             sources: this.sources(),
             loads: this.loads(),
             facts: this.loadFacts,
             waiting: [...this.pendingLoads],
             provenance: this.provenance(),
+            ...(references === undefined || references.size === 0 ? {} : { references }),
         });
         const skipped = this.skippedMember;
         // A member the file held and this release skipped goes back in place while the loads are
@@ -2889,7 +2902,8 @@ export class SessionData implements SessionDataApi {
             memo?.stored === stored &&
             memo.provenance === provenance &&
             memo.snapshot === snapshot &&
-            memo.ledger === ledger
+            memo.ledger === ledger &&
+            memo.copyTick === this.copyTick
         ) {
             return memo.result;
         }
@@ -2923,6 +2937,7 @@ export class SessionData implements SessionDataApi {
                     key,
                     kind,
                     ...(input !== undefined && this.kept.has(input) ? { reloadable: true as const } : {}),
+                    ...(this.loadFacts.get(key)?.copy === "reference" ? { copy: "reference" as const } : {}),
                     ...(loadKey === undefined ? {} : { loadKey }),
                     ...loadFacts(records.get(loadKey ?? ""), catalog),
                     ...addressOf(kind, each.config, records.get(loadKey ?? "")),
@@ -2937,7 +2952,7 @@ export class SessionData implements SessionDataApi {
                 });
             }),
         );
-        this.sourcesMemo = { stored, provenance, snapshot, ledger, result };
+        this.sourcesMemo = { stored, provenance, snapshot, ledger, copyTick: this.copyTick, result };
         return result;
     }
 
@@ -3896,6 +3911,96 @@ export class SessionData implements SessionDataApi {
 
             return await this.reloadSourceNow(key, { mapping });
         });
+    }
+
+    /**
+     * The loads a save keeps as references, and how to read each again. Internal: the project
+     * file reads it.
+     * @returns One entry per referenced load that can be one and is not kept as a file held it.
+     */
+    referenceLoads(): readonly { readonly key: SourceKey; readonly how: LoadHow; readonly ask: boolean }[] {
+        return this.sources().flatMap((load) => {
+            const facts = this.loadFacts.get(load.key);
+            if (facts?.copy !== "reference" || facts.kept !== undefined || refusalOf(load, facts) !== undefined) {
+                return [];
+            }
+
+            const how: LoadHow = {
+                kind: load.kind,
+                ...(load.type === undefined ? {} : { type: load.type }),
+                ...(load.name === undefined ? {} : { name: load.name }),
+                config: load.config ?? {},
+                ...(load.choices === undefined ? {} : { choices: load.choices }),
+                ...(facts.sample === undefined ? {} : { sample: facts.sample }),
+            };
+            return [{ key: load.key, how, ask: facts.opened === true }];
+        });
+    }
+
+    /**
+     * How a project save keeps each load: a copy or a reference.
+     * @returns One entry per load, in `sources()` order.
+     */
+    copies(): readonly SourceCopy[] {
+        this.requireLive("copies");
+        return Object.freeze(
+            this.sources().map((load) => {
+                const facts = this.loadFacts.get(load.key);
+                const reason = refusalOf(load, facts);
+                return Object.freeze({
+                    source: load.key,
+                    copy:
+                        facts?.copy === "reference" && reason === undefined
+                            ? ("reference" as const)
+                            : ("copy" as const),
+                    ...(reason === undefined
+                        ? {}
+                        : { refused: { code: "W_SOURCE_NO_PATH" as const, params: { source: load.key, reason } } }),
+                });
+            }),
+        );
+    }
+
+    /**
+     * Choose how a project save keeps one load.
+     * @param source - The load's key.
+     * @param copy - `"copy"` or `"reference"`.
+     * @returns The load's entry after the choice.
+     */
+    setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy {
+        this.requireLive("setCopy");
+        if (this.pages.sourceReferences?.() !== true) {
+            throw featureOff("source-references", "setCopy");
+        }
+
+        const at = this.sources().findIndex((each) => each.key === source);
+        if (at < 0) {
+            throw new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No load still in the graph has key ${JSON.stringify(source)}.`,
+                source: "data",
+                details: { key: source, known: this.sources().map((each) => each.key) },
+            });
+        }
+
+        const before = this.copies()[at];
+        const wanted = copy === "reference" && before.refused === undefined ? "reference" : "copy";
+        if (wanted !== before.copy) {
+            // A save choice, as `save({ assets })` is: kept with the load's facts, never a step.
+            const { copy: _was, ...facts } = this.loadFacts.get(source) ?? {
+                loadedAt: new Date().toISOString(),
+                mode: at === 0 ? ("replace" as const) : ("merge" as const),
+            };
+            this.loadFacts.set(source, wanted === "reference" ? { ...facts, copy: "reference" } : facts);
+            this.copyTick++;
+            this.writes.emit?.("source:copy", { source, copy: wanted });
+            // The autosave writes the sources part again, and the project is unsaved.
+            for (const listener of this.ledger.changed) {
+                listener();
+            }
+        }
+
+        return this.copies()[at];
     }
 
     /**

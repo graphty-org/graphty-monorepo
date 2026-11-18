@@ -362,6 +362,15 @@ supplied lists both; an element no load supplied (added by hand, by an AI comman
    member applies, and the report carries `W_SOURCE_STEPS_IGNORED` with `{ graph }`, the data
    member's id (`null` for the file's one graph).
 4. Autosave always embeds: a recovered session must never depend on the network.
+5. **References (experimental).** `data: "references"` means some entries carry `copy:
+"reference"` and `rowsSha256`, and the data member holds a placeholder in place of each row
+   only such a load supplied and that the load reads unchanged: `{ id, "_source.ref": <entry> }`
+   for a node, `{ source, target, "_source.ref": <entry> }` for an edge, so every position stays.
+   An open reads each such entry again (after the page allows its host), puts the records it gives
+   in the placeholders' places, reports `W_SOURCE_CHANGED { source }` when the rows' digest
+   differs, and `W_SOURCE_UNAVAILABLE { source, reason }` when it cannot read them; then the entry
+   and its placeholders are written back unchanged by the next save. An element that does not read
+   references refuses the member (`E_BAD_DOCUMENT` at `/data`).
 
 ## Reopening
 

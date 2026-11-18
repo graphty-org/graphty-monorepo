@@ -1002,6 +1002,23 @@ export type GraphtyWarningCode =
      */
     | "W_SOURCE_URL_REDACTED"
     /**
+     * A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+     * copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+     * `network`, `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+     */
+    | "W_SOURCE_NO_PATH"
+    /**
+     * A load saved as a reference could not be read again: the project opened without its rows
+     * (a save writes the reference back as it was), or a save kept it as a copy. `params.source`
+     * is the load's key and `params.reason` is `not-found`, `denied` or `unreadable`.
+     */
+    | "W_SOURCE_UNAVAILABLE"
+    /**
+     * A load saved as a reference was read again and is no longer what the project was saved
+     * with: its rows hold the new values. `params.source` is the load's key.
+     */
+    | "W_SOURCE_CHANGED"
+    /**
      * A `graphty-sources` entry of an opened project names a network source this release has not
      * registered: its elements are there and the entry is written back, but it is not offered to
      * run. `params.id` is the entry's id and `params.source` the source id.

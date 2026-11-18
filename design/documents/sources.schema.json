@@ -13,8 +13,8 @@
             "const": 2
         },
         "data": {
-            "enum": ["embedded", "steps"],
-            "description": "embedded (the default): the graph is in the file's data member. steps: the file holds no data member for it and the graph is rebuilt by running the loads again; a writer then lists graphty-sources in the document's requires."
+            "enum": ["embedded", "steps", "references"],
+            "description": "embedded (the default): the graph is in the file's data member. steps: the file holds no data member for it and the graph is rebuilt by running the loads again; a writer then lists graphty-sources in the document's requires. references (experimental): the data member holds placeholders for the rows of the entries with rowsSha256, which an open reads again."
         },
         "loads": {
             "type": "array",
@@ -339,6 +339,15 @@
                     "type": "array",
                     "items": { "type": ["string", "number"] },
                     "description": "The ids of the nodes the load's rows named that the graph already held and no load supplied (a node addNodes made): removing the load leaves them."
+                },
+                "copy": {
+                    "enum": ["copy", "reference"],
+                    "description": "Experimental. How a save keeps the load: reference means the file says where to read it again (session.data.setCopy). Absent: copy."
+                },
+                "rowsSha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "Experimental. Present when the save left this load's rows out of the data member as placeholders ({ id, _source.ref } for a node, { source, target, _source.ref } for an edge): the SHA-256 of the rows as read, which an open compares to report W_SOURCE_CHANGED."
                 },
                 "total": {
                     "type": "object",

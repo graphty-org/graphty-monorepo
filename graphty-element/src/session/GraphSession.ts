@@ -858,6 +858,8 @@ class Session implements ElementSession {
             projectChanged: () => {
                 this.network.projectChanged();
             },
+            // An empty session to read a load saved as a reference in, away from this one's graph.
+            scratch: () => createGraphSession({ config: { acceleration: { policy: "off" } } }),
             sources: {
                 restore: (read, autosave) => {
                     this.sessionData.restoreSourceMember(read, autosave);
@@ -3234,6 +3236,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
+            sourceReferences: () =>
+                (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-references"),
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.

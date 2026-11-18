@@ -118,6 +118,10 @@ export interface LoadFacts {
     readonly credentialSlot?: string;
     /** An entry read from a file that cannot run: written back exactly as read. */
     readonly kept?: Readonly<Record<string, unknown>>;
+    /** `"reference"` when a save keeps the load as a reference (`session.data.setCopy`). */
+    readonly copy?: "reference";
+    /** Read from a file: its URL came from the file, so a fetch of it asks the network gate. */
+    readonly opened?: true;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -256,6 +260,11 @@ export interface SourcesWriteInput {
     readonly waiting?: readonly string[];
     /** The `provenance` graph value, for each load's `foundNodes` (the nodes it found already held). */
     readonly provenance?: Provenance;
+    /**
+     * The loads whose rows this save left out of the data member, by key: the SHA-256 of the rows
+     * as read, written as the entry's `rowsSha256` (an open compares it to tell a changed source).
+     */
+    readonly references?: ReadonlyMap<SourceKey, string>;
 }
 
 /** What a save writes about the loads. */
@@ -614,6 +623,7 @@ function localPart(
  * @param record - Its network record, for a network load.
  * @param rename - Collects each network key and the id it is written as.
  * @param found - The nodes its rows named that the graph already held (its provenance's `held`).
+ * @param rowsSha256 - For a reference whose rows the save left out: their digest as read.
  * @returns The entry and the parameters its URL left out.
  */
 function entryOf(
@@ -622,6 +632,7 @@ function entryOf(
     record: SourceLoadRecord | undefined,
     rename: Map<string, string>,
     found: readonly NodeId[] | undefined,
+    rowsSha256?: string,
 ): Written {
     const network = record !== undefined;
     if (network) {
@@ -656,6 +667,8 @@ function entryOf(
             record?.total === undefined && record?.totalEdges === undefined
                 ? undefined
                 : defined({ nodes: record.total, edges: record.totalEdges }),
+        copy: facts.copy,
+        rowsSha256,
     });
     return { entry, dropped: local?.dropped ?? [...secrets] };
 }
@@ -732,7 +745,14 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
             return jsonOf(facts.kept) as Record<string, unknown>;
         }
 
-        const { entry, dropped } = entryOf(load, facts, record, rename, input.provenance?.[load.key]?.held);
+        const { entry, dropped } = entryOf(
+            load,
+            facts,
+            record,
+            rename,
+            input.provenance?.[load.key]?.held,
+            input.references?.get(load.key),
+        );
         if (dropped.length > 0) {
             problems.push({ code: "W_SOURCE_URL_REDACTED", params: { id: load.key, names: [...dropped] } });
         }
@@ -752,6 +772,9 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
                 : {
                       kind: KIND,
                       version: SOURCES_MEMBER_VERSION,
+                      // An entry whose rows the data member left out: an element that does not
+                      // read them back refuses the member rather than open part of the graph.
+                      ...(loads.some((entry) => entry.rowsSha256 !== undefined) ? { data: "references" } : {}),
                       loads,
                       ...(input.waiting === undefined ? {} : { waiting }),
                   },
@@ -996,6 +1019,8 @@ const ENTRY: Shape = {
         foundNodes: (value) =>
             Array.isArray(value) && value.every((id) => typeof id === "string" || typeof id === "number"),
         total: COUNTS,
+        copy: oneOf("copy", "reference"),
+        rowsSha256: pattern(SHA256),
         file: PART_SHAPES.file,
         url: PART_SHAPES.url,
         source: PART_SHAPES.source,
@@ -1251,6 +1276,8 @@ function readFacts(raw: Record<string, unknown>, now: string): LoadFacts {
         url: isObject(url) ? defined({ ...url, address: undefined }) : undefined,
         sample: isObject(raw.sample) ? raw.sample : undefined,
         credentialSlot: typeof source?.credentialSlot === "string" ? source.credentialSlot : undefined,
+        copy: raw.copy === "reference" ? "reference" : undefined,
+        opened: true,
     }) as unknown as LoadFacts;
 }
 
@@ -1432,7 +1459,12 @@ function memberProblem(member: Record<string, unknown>, pointer: string): Source
         return problem("E_BAD_DOCUMENT", "/loads");
     }
 
-    if (member.data !== undefined && member.data !== "embedded" && member.data !== "steps") {
+    if (
+        member.data !== undefined &&
+        member.data !== "embedded" &&
+        member.data !== "steps" &&
+        member.data !== "references"
+    ) {
         return problem("E_BAD_DOCUMENT", "/data");
     }
 

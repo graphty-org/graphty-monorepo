@@ -391,6 +391,10 @@ export const READ_ONLY: readonly string[] = [
     "NetworkApi.pending",
     "NetworkApi.setPolicy",
     "NetworkApi.setProjectHosts",
+    // A load's save choice: its cost grows with the loads listed, not with the graph; the save
+    // that reads a reference again is project.save's cost.
+    "SessionDataApi.copies",
+    "SessionDataApi.setCopy",
     "AcceleratorRegistry.clear",
     "AcceleratorRegistry.has",
     "AcceleratorRegistry.list",

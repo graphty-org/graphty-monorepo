@@ -1616,6 +1616,42 @@ export interface SessionDataApi {
      */
     sourceInput(key: SourceKey): DataSourceInput | undefined;
     /**
+     * How a project save keeps each load: as a copy (its rows inside the file, the default) or as
+     * a reference (where to read it again; an open reads the rows again). One entry per load, in
+     * {@link SessionDataApi.sources} order. A load that cannot be a reference carries `refused`.
+     * @example
+     * ```ts
+     * for (const each of session.data.copies()) {
+     *     console.log(each.source, each.copy, each.refused?.params.reason);
+     * }
+     * ```
+     * @returns The entries; empty when no load is in the graph.
+     * @since 3.58.0
+     */
+    copies(): readonly SourceCopy[];
+    /**
+     * Choose how a project save keeps one load. Not a step: like `save({ assets })`, it is a save
+     * choice, kept with the project (autosave included), and it marks the project unsaved.
+     * Reference on a load that cannot be one keeps it a copy and returns the entry with
+     * `refused`; nothing is thrown. Publishes `source:copy` when the choice changes.
+     * Experimental: needs the `source-references` experiment.
+     * @example
+     * ```ts
+     * const session = createGraphSession({ features: ["source-references"] });
+     * await session.data.import({ type: "json", config: { url: "https://example.com/graph.json" } });
+     * const [load] = session.data.sources();
+     * session.data.setCopy(load.key, "reference");
+     * const saved = await session.project.save(); // the rows are read again on open
+     * ```
+     * @param source - The load's key, from {@link SessionDataApi.sources}.
+     * @param copy - `"copy"` or `"reference"`.
+     * @returns The load's entry after the choice.
+     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key no load has, and `E_FEATURE_OFF`
+     *     (`{ feature: "source-references", key: "setCopy" }`) while the experiment is off.
+     * @since 3.58.0
+     */
+    setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy;
+    /**
      * The load whose rows carry the same columns as a file's header (in any order), newest
      * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
      * @param source - The file, as `import` takes it.
@@ -2926,6 +2962,12 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly reloadable?: true;
     /**
+     * `"reference"` when a project save keeps this load as a reference, read again on open
+     * ({@link SessionDataApi.setCopy}); absent when it is kept as a copy.
+     * @since 3.58.0
+     */
+    readonly copy?: "reference";
+    /**
      * For a network source's load: its record's key in {@link SessionDataApi.loads}. `data.more`,
      * `data.refresh` and `data.checkSource` take it or {@link LoadedSource.key}; keep `key`, which a
      * save and reopen never changes.
@@ -3365,6 +3407,31 @@ export interface JoinRecord {
  * may be added.
  */
 export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
+
+/** How a project save keeps a load: its rows in the file, or where to read them again. */
+export type SourceCopyChoice = "copy" | "reference";
+
+/**
+ * Why a load cannot be saved as a reference: a file the page holds no path to (`file`), rows
+ * handed over inline (`inline`), a joined table (`join`), a network source's load, which an open
+ * already runs again (`network`), a URL whose secret query parameters a save drops
+ * (`secret-url`), a URL that is not an absolute http(s) address (`relative-url`), or a generated
+ * graph or dataset with nothing recorded to make it again (`no-seed`). OPEN UNION: later releases add values.
+ */
+export type SourceNoPathReason = "file" | "inline" | "join" | "network" | "secret-url" | "relative-url" | "no-seed";
+
+/** How a project save keeps one load: one entry of {@link SessionDataApi.copies}. */
+export interface SourceCopy {
+    /** The load's key. */
+    readonly source: SourceKey;
+    /** How a save keeps it. */
+    readonly copy: SourceCopyChoice;
+    /** Present when the load cannot be a reference: `W_SOURCE_NO_PATH` with `{ source, reason }`. */
+    readonly refused?: {
+        readonly code: "W_SOURCE_NO_PATH";
+        readonly params: { readonly source: SourceKey; readonly reason: SourceNoPathReason };
+    };
+}
 
 /**
  * What `session.data.removeSource(key)` did.
@@ -4095,6 +4162,8 @@ export interface SessionEventMap {
     "source:expand-failed": SourceExpandFailed;
     /** A network load read its source again (More or Refresh), so its `loadedAt` moved. Experimental. */
     "source:refreshed": { readonly load: string };
+    /** How a project save keeps a load changed ({@link SessionDataApi.setCopy}). Experimental. */
+    "source:copy": { readonly source: SourceKey; readonly copy: SourceCopyChoice };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.

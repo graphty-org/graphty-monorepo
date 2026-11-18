@@ -1248,7 +1248,8 @@ export interface EdgeStyleValues {
     readonly targetLabelOpacity: number;
     /**
      * How long each dash of a dashed or dotted `lineStyle` is drawn, its caps included, as a multiple of the line's
-     * `width`. Unset, the reader's own pattern.
+     * `width`: a file's own pattern (vis-network's dash arrays, Cytoscape.js's `line-dash-pattern`), a pattern of
+     * several dashes as their mean, which keeps its period and the share of it drawn. Unset, the program's own pattern.
      */
     readonly dashLength: number;
     /** The clear gap after each dash, as a multiple of the line's `width`; see `dashLength`. */

@@ -24,7 +24,7 @@ import { itemAt } from "../../common/text.js";
 import { flipY } from "../../positions/convert.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
+import { canonBoolean, canonNumber, canonOpacity, num6 } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -35,7 +35,7 @@ import {
     type CytoscapeStylesheetRule,
     toCytoscapeStylesheet,
 } from "../../styles/cyjs/emit.js";
-import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES } from "../../styles/cyjs/mappers.js";
+import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES, drawnDash } from "../../styles/cyjs/mappers.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
@@ -1739,6 +1739,57 @@ function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: 
 }
 
 /**
+ * A dashed vis.js edge's dash array as the dash and gap it draws with vis-network's round caps.
+ * @param dashes - the dash array
+ * @param width - the line's width
+ * @param put - the row's setter
+ */
+function visDashLengths(dashes: unknown, width: number, put: PutRow): void {
+    const lengths = Array.isArray(dashes) ? dashes.filter((d): d is number => typeof d === "number") : [];
+    const pair = lengths.every((d) => Number.isFinite(d)) && width > 0 ? drawnDash(lengths, width) : null;
+    if (pair !== null) {
+        // in the line's widths
+        put("dashLength", num6(pair.dash / width));
+        put("dashGap", num6(pair.gap / width));
+    }
+}
+
+/**
+ * The line style of a vis.js edge layer that sets `dashes`, with its dash and gap lengths when it is dashed.
+ * @param layer - the layer
+ * @param put - the row's setter
+ */
+function visEdgeLineStyle(layer: VisLayer, put: PutRow): void {
+    // vis-network's default dashes are [5, 5]
+    const width = typeof layer.width === "number" ? layer.width : 1;
+    const dashes = layer.dashes === true ? [5, 5] : layer.dashes;
+    // vis-network draws an edge with round caps (EdgeBase: lineCap "round"), each dash a width longer
+    const style = layer.dashes === "false" ? "solid" : visDashStyle(dashes, width, true);
+    put("lineStyle", style);
+    if (style !== "solid") {
+        visDashLengths(dashes, width, put);
+    }
+}
+
+/**
+ * A vis.js edge's dashes read again at the width vis-network draws it, where that is not its own `width` (once any edge
+ * has a `value`, `visEdgeWidth`).
+ * @param vals - the edge's values; changed in place
+ * @param merged - the edge's merged layer
+ * @param width - the width drawn, or undefined when the edge's own holds
+ */
+function visDashesAtDrawnWidth(vals: Row, merged: VisLayer, width: number | undefined): void {
+    if (width === undefined || merged.dashes === undefined) {
+        return;
+    }
+    delete vals.dashLength;
+    delete vals.dashGap;
+    visEdgeLineStyle({ ...merged, width }, (p, v) => {
+        vals[p] = v;
+    });
+}
+
+/**
  * The edge values of a vis.js layer besides its color.
  * @param layer - the layer
  * @param put - the row's setter
@@ -1755,11 +1806,7 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
         put("width", canonNumber(layer.width, site("width")));
     }
     if (layer.dashes !== undefined) {
-        // vis-network's default dashes are [5, 5]
-        const width = typeof layer.width === "number" ? layer.width : 1;
-        const dashes = layer.dashes === true ? [5, 5] : layer.dashes;
-        // vis-network draws an edge with round caps (EdgeBase: lineCap "round"), each dash a width longer
-        put("lineStyle", layer.dashes === "false" ? "solid" : visDashStyle(dashes, width, true));
+        visEdgeLineStyle(layer, put);
     }
     if (layer.arrows !== undefined) {
         const [to, from, middle] = visArrows(layer.arrows, site);
@@ -1988,6 +2035,29 @@ function visMergedNode(nodeDefaults: VisLayer, group: VisLayer, own: VisLayer, o
 }
 
 /**
+ * vis.js: a node's label offsets, the shape's own label place with font.vadjust below it, merged into its row. A
+ * derived offset is canonical (6 significant digits) like every value read from a file, so a file graphty writes
+ * holds the same number in its native slot and its block.
+ * @param row - the node's values, offsets included
+ * @param shaped - its shape's own values
+ */
+function addShapeOffsets(row: Row, shaped: Row): void {
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const [a, b] = [row[p], shaped[p]];
+        if (typeof a === "number" && typeof b === "number") {
+            shaped[p] = a + b;
+        }
+    }
+    Object.assign(row, shaped);
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const v = row[p];
+        if (typeof v === "number") {
+            row[p] = num6(v);
+        }
+    }
+}
+
+/**
  * vis.js: the values one node draws, from its merged layer: its colors and label, then its shape's own.
  * @param merged - the node's merged layer
  * @param shape - its vis-network shape
@@ -2014,14 +2084,7 @@ function visNodeRow(
         const below = typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0;
         row.labelOffsetY = below + drop + visBelowGap(size);
     }
-    // the shape's own label place, then font.vadjust below it
-    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
-        const [a, b] = [row[p], shaped[p]];
-        if (typeof a === "number" && typeof b === "number") {
-            shaped[p] = a + b;
-        }
-    }
-    Object.assign(row, shaped);
+    addShapeOffsets(row, shaped);
     const labelSize = visLabelScaled(merged, range);
     if (labelSize !== null) {
         row.labelSize = labelSize;
@@ -2459,12 +2522,14 @@ function visEdges(
             budget: context.budget,
         });
         const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+        const drawn = visEdgeWidth(merged, edgeDefaults, range, site);
         const vals: Row = {
             ...visValues(merged, "edge", site, true),
-            ...visEdgeWidth(merged, edgeDefaults, range, site),
+            ...drawn,
             ...visRoute(edgeDefaults, own, s, t, geometry),
             ...visEdgeLabel(merged, range, geometry.at(s), geometry.at(t)),
         };
+        visDashesAtDrawnWidth(vals, merged, drawn.width);
         // a dashed edge sets them before it draws its own band (BezierEdgeBase._bezierCurve draws the band first)
         roundCaps ||= merged.hidden !== true && ![undefined, false, "false"].includes(merged.dashes as never);
         const band = roundCaps && isJsonObject(merged.background) ? visBandStyle(merged.background, true) : null;
@@ -3263,6 +3328,56 @@ function visArrowType(arrow: string): readonly [string | null, boolean] {
     return arrow.startsWith("other:") ? [arrow.slice(6), true] : ["arrow", false];
 }
 
+/**
+ * The width an edge is written with, vis-network's 1 when it has none.
+ * @param want - the edge's neutral values
+ * @returns the width
+ */
+function visWidthOut(want: (property: string) => StyleValue | null): number {
+    const width = want("width");
+    return typeof width === "number" ? width : 1;
+}
+
+/**
+ * The vis.js `dashes` an edge's line style and its dash and gap are written as: the array that draws that dash and gap
+ * with vis-network's round caps (each dash a width longer, each gap a width shorter), true (vis-network's own [5, 5])
+ * for a dashed line without them, false for a solid line.
+ * @param want - the edge's neutral values
+ * @returns the dashes, or null for no line style
+ */
+function visDashesOut(want: (property: string) => StyleValue | null): boolean | number[] | null {
+    const style = want("lineStyle");
+    if (typeof style !== "string") {
+        return null;
+    }
+    if (style === "solid") {
+        return false;
+    }
+    const [dash, gap] = [want("dashLength"), want("dashGap")];
+    if (typeof dash !== "number" || typeof gap !== "number") {
+        return true;
+    }
+    // in widths: a round cap draws each dash a width longer and each gap a width shorter
+    const width = visWidthOut(want);
+    return [num6(Math.max(0, dash - 1) * width), num6((gap + 1) * width)];
+}
+
+/**
+ * The dash and gap a written edge reads back as.
+ * @param want - the edge's neutral values
+ * @returns the dash and gap, or null for a solid line or none
+ */
+function visDashBack(want: (property: string) => StyleValue | null): { dash: number; gap: number } | null {
+    const dashes = visDashesOut(want);
+    if (dashes === null || dashes === false) {
+        return null;
+    }
+    const array = dashes === true ? [5, 5] : dashes;
+    const width = visWidthOut(want);
+    const pair = visDashStyle(array, width, true) === "solid" ? null : drawnDash(array, width);
+    return pair === null ? null : { dash: num6(pair.dash / width), gap: num6(pair.gap / width) };
+}
+
 /** What reading a written vis.js file gives back for the values vis.js holds only approximately. */
 /**
  * A node size as a written vis.js file gives it back: one size for both, and none for a shape vis-network sizes by
@@ -3391,17 +3506,15 @@ const VIS_WRITTEN: Written = {
     },
     edge: {
         lineStyle: (want) => {
-            const s = want("lineStyle");
-            if (s === null) {
+            const dashes = visDashesOut(want);
+            // written as `dashes: true`, vis-network's [5, 5], or its own array, which a wide edge's round caps close up
+            if (dashes === null) {
                 return null;
             }
-            // written as `dashes: true`, vis-network's [5, 5], which a wide edge's round caps close up
-            if (s === "solid") {
-                return "solid";
-            }
-            const width = want("width");
-            return visDashStyle([5, 5], typeof width === "number" ? width : 1, true);
+            return visDashStyle(dashes === true ? [5, 5] : dashes, visWidthOut(want), true);
         },
+        dashLength: (want) => visDashBack(want)?.dash ?? null,
+        dashGap: (want) => visDashBack(want)?.gap ?? null,
         targetArrow: (want) => arrowBack(want("targetArrow")),
         sourceArrow: (want) => arrowBack(want("sourceArrow")),
     },
@@ -3478,6 +3591,8 @@ export const NATIVE: Readonly<
             "opacity",
             "width",
             "lineStyle",
+            "dashLength",
+            "dashGap",
             "targetArrow",
             "sourceArrow",
             "label",
@@ -4045,6 +4160,39 @@ function keepScaled(table: Table, sizes: readonly (StyleValue | null)[], replace
     writeKey(table, "scaling", scaling, replaced);
 }
 
+/**
+ * vis.js: each edge's written `dashes`, noting the line styles and dash lengths vis-network draws only approximately.
+ * @param p - the picture of a target's property
+ * @param widths - each edge's written width
+ * @param approximated - where approximations are counted
+ * @returns each edge's dashes, or null
+ */
+function visEdgeDashes(
+    p: (target: StyleTarget, property: string) => readonly (StyleValue | null)[],
+    widths: readonly (StyleValue | null)[],
+    approximated: StyleApproximations,
+): (boolean | number[] | null)[] {
+    const [dashLengths, dashGaps] = [p("edge", "dashLength"), p("edge", "dashGap")];
+    return p("edge", "lineStyle").map((s, e) => {
+        if (typeof s === "string" && s !== "solid" && s !== "dashed") {
+            approximated.add("edge", "lineStyle", s);
+        }
+        const values: Record<string, StyleValue | null> = {
+            lineStyle: s,
+            width: widths[e],
+            dashLength: dashLengths[e],
+            dashGap: dashGaps[e],
+        };
+        const dashes = visDashesOut((property) => values[property] ?? null);
+        const dash = dashLengths[e];
+        if (Array.isArray(dashes) && typeof dash === "number" && dash < 1) {
+            // a round-capped dash is at least as long as the line is wide
+            approximated.add("edge", "dashLength", dash);
+        }
+        return dashes;
+    });
+}
+
 function writeVis(
     out: ReturnType<GraphSnapshot["withColumns"]>,
     input: ExporterStyleInput,
@@ -4147,20 +4295,7 @@ function writeVis(
     writeKey(out.edges, "width", widths, replaced);
     // an edge's `value` would scale its width again on reading: a scaling range of its own width keeps it
     keepScaled(out.edges, widths, replaced);
-    writeKey(
-        out.edges,
-        "dashes",
-        p("edge", "lineStyle").map((s) => {
-            if (typeof s !== "string") {
-                return null;
-            }
-            if (s !== "solid" && s !== "dashed") {
-                approximated.add("edge", "lineStyle", s);
-            }
-            return s !== "solid";
-        }),
-        replaced,
-    );
+    writeKey(out.edges, "dashes", visEdgeDashes(p, widths, approximated), replaced);
     const to = p("edge", "targetArrow");
     const from = p("edge", "sourceArrow");
     writeKey(

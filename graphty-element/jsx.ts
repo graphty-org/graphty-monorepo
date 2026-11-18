@@ -613,6 +613,9 @@ export interface GraphtyElementJSXProps {
      */
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
+    /**
+     * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour recording follows the tour's own clock, so it reaches 100 only with the tour.
+     */
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     /**
      * Emitted when the map under the location map layout changes state: drawn, loading, or fallen back to the bundled world image because its tiles failed (`error` then carries `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the browser reveals one and null otherwise; an image load never does). The fields are those of `basemapStatus`. A code and facts, never a sentence.

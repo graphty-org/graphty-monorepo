@@ -82,7 +82,7 @@ describe("Video Capture - 2D Orthographic Camera", () => {
 
         graph.on("animation-progress", (event) => {
             assert.isNumber(event.progress);
-            progressEvents.push(Number(event.progress));
+            progressEvents.push(event.progress);
         });
 
         await graph.captureAnimation({
@@ -185,7 +185,7 @@ describe("Video Capture - 2D Animated Camera", () => {
 
         graph.on("animation-progress", (event) => {
             assert.isNumber(event.progress);
-            progressEvents.push(Number(event.progress));
+            progressEvents.push(event.progress);
         });
 
         const cameraPath: ViewWaypoint[] = [

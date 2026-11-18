@@ -300,6 +300,7 @@ export { defineShader } from "./src/simple/defineShader";
 // =============================================================================
 export type {
     AiEventType,
+    AnimationProgressEvent,
     BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,

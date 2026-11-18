@@ -143,7 +143,6 @@ export interface GraphtyElementJSXProps {
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
     // (undocumented)
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
-    // (undocumented)
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
     // (undocumented)

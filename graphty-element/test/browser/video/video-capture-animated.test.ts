@@ -112,7 +112,7 @@ describe("Video Capture - Animated Camera Mode", () => {
 
         graph.on("animation-progress", (event) => {
             assert.isNumber(event.progress);
-            progressEvents.push(Number(event.progress));
+            progressEvents.push(event.progress);
         });
 
         const cameraPath: CameraWaypoint[] = [

@@ -102,6 +102,7 @@ export type GraphEvent =
     | StatsUpdateEvent
     | InputEnabledChangedEvent
     | ReducedMotionChangedEvent
+    | AnimationProgressEvent
     | TourProgressEvent
     | TourEndedEvent
     | ViewsChangedEvent
@@ -296,7 +297,6 @@ export interface GraphGenericEvent {
         // null when the layout cannot say) and an optional `message`, as the layout reported them.
         | "layout-progress"
         | "operation-obsoleted"
-        | "animation-progress"
         | "animation-cancelled"
         | "screenshot-enhancing"
         | "screenshot-ready"
@@ -614,6 +614,17 @@ export interface ReducedMotionChangedEvent {
     type: "reduced-motion-changed";
     /** Whether motion is reduced now. */
     reduced: boolean;
+}
+
+/**
+ * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour
+ * recording follows the tour's own clock, so it reaches 100 only with the tour.
+ * @since 3.58.0
+ */
+export interface AnimationProgressEvent {
+    type: "animation-progress";
+    /** How far the recording has got, from 0 to 100. */
+    progress: number;
 }
 
 /**

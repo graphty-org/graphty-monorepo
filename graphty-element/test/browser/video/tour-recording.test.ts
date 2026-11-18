@@ -125,7 +125,7 @@ describe("recording a tour", () => {
         });
         const order: string[] = [];
         const offProgress = graph.on("animation-progress", (event) => {
-            if (Number(event.progress) === 100) {
+            if (event.progress === 100) {
                 order.push("100");
             }
         });
@@ -178,7 +178,7 @@ describe("recording a tour", () => {
     test("a drag in a longer duration's trailing hold keeps the recording", async () => {
         const trailing = new Promise<void>((resolve) => {
             const off = graph.on("animation-progress", (event) => {
-                if (Number(event.progress) >= 50) {
+                if (event.progress >= 50) {
                     off();
                     resolve();
                 }

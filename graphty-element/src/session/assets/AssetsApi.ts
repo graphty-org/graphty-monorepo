@@ -21,7 +21,13 @@ import {
     normalizePath,
     roleOfName,
 } from "babylonjs-models/detect";
-import type { ModelProgress, ModelProgressListener, ModelSummary, RedirectGate } from "babylonjs-models/files";
+import type {
+    ModelLimits as FileModelLimits,
+    ModelProgress,
+    ModelProgressListener,
+    ModelSummary,
+    RedirectGate,
+} from "babylonjs-models/files";
 
 import type { ChannelValue, LayerId } from "../../catalog/types";
 import { GraphtyError, type GraphtyErrorCode, isGraphtyErrorCode } from "../../errors";
@@ -273,40 +279,10 @@ export interface ModelDefaultsPatch {
 
 /**
  * The limits that protect the tab. Only the page's code sets them; a document never does. The
- * per-model defaults refuse only what a browser tab cannot hold or draw; lower any to be stricter.
+ * per-model defaults (babylonjs-models' own) refuse only what a browser tab cannot hold or draw;
+ * lower any to be stricter. A session adds three limits across models.
  */
-export interface ModelLimits {
-    /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
-    readonly maxBytes: number;
-    /**
-     * Per OBJ, ASCII STL or ASCII PLY file, read as one string. Default 536,870,888 bytes (2^29 - 24),
-     * the longest string a browser holds: longer text cannot be read at all.
-     */
-    readonly maxTextBytes: number;
-    /** Per model, counted per use. Default 20,000,000. */
-    readonly maxTriangles: number;
-    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 1 GB. */
-    readonly maxTextureBytes: number;
-    /** What every glTF accessor decodes to, together. Default 1 GB. */
-    readonly maxDecodedBytes: number;
-    /** Files a model fetched by URL may load beside its main file. Default 10,000. */
-    readonly maxFiles: number;
-    /** glTF nodes. Default `Infinity`: no limit. */
-    readonly maxNodes: number;
-    /** glTF meshes. Default `Infinity`: no limit. */
-    readonly maxMeshes: number;
-    /** glTF materials. Default `Infinity`: no limit. */
-    readonly maxMaterials: number;
-    /** glTF textures. Default `Infinity`: no limit. */
-    readonly maxTextures: number;
-    /** glTF animations. Default `Infinity`: no limit. */
-    readonly maxAnimations: number;
-    /** Morph targets on one glTF primitive. Default `Infinity`: no limit. */
-    readonly maxMorphTargets: number;
-    /** Joints in one glTF skin. Default `Infinity`: no limit. */
-    readonly maxJoints: number;
-    /** Pixels per texture side; larger textures are drawn smaller. Default 2048. */
-    readonly maxTextureSize: number;
+export interface ModelLimits extends FileModelLimits {
     /**
      * Stored asset bytes in the session, all models together. Default `Infinity`: no limit, since
      * a model held but not drawn costs only memory; a page that wants a cap sets one.
@@ -316,11 +292,6 @@ export interface ModelLimits {
     readonly documentBytes: number;
     /** Triangles across the scene before `W_MODEL_BUDGET`. Default 2,000,000. */
     readonly sceneTriangleBudget: number;
-    /**
-     * A fetch that receives nothing for this many milliseconds is stopped. Default 30,000;
-     * `Infinity` (or anything past 2^31 - 1) waits for ever.
-     */
-    readonly fetchTimeoutMs: number;
 }
 
 const MB = 1024 * 1024;

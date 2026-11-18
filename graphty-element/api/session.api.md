@@ -38,6 +38,7 @@ import { ModelCompression } from 'babylonjs-models/files';
 import { ModelEncoding } from 'babylonjs-models/files';
 import { ModelFormat } from 'babylonjs-models/detect';
 import { ModelGeometry } from 'babylonjs-models/files';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
 import { ModelPicture } from 'babylonjs-models/files';
 import { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
@@ -3890,23 +3891,8 @@ export { ModelFormat }
 export { ModelGeometry }
 
 // @public
-export interface ModelLimits {
+export interface ModelLimits extends ModelLimits_2 {
     readonly documentBytes: number;
-    readonly fetchTimeoutMs: number;
-    readonly maxAnimations: number;
-    readonly maxBytes: number;
-    readonly maxDecodedBytes: number;
-    readonly maxFiles: number;
-    readonly maxJoints: number;
-    readonly maxMaterials: number;
-    readonly maxMeshes: number;
-    readonly maxMorphTargets: number;
-    readonly maxNodes: number;
-    readonly maxTextBytes: number;
-    readonly maxTextureBytes: number;
-    readonly maxTextures: number;
-    readonly maxTextureSize: number;
-    readonly maxTriangles: number;
     readonly sceneTriangleBudget: number;
     readonly sessionBytes: number;
 }

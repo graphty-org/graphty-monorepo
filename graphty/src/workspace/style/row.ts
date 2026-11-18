@@ -580,6 +580,26 @@ export function startingValue(
     session?: GraphSession,
     selector?: Layer["selector"],
 ): ChannelValue {
+    const value = startingValueOrNone(descriptor, session, selector);
+    if (value === undefined) {
+        throw new Error(`graphty-element states no starting value for ${descriptor.channel}`);
+    }
+    return value;
+}
+
+/**
+ * `startingValue`, or undefined for a channel the element states no starting value for (a list,
+ * an asset): one that waits for the reader's first pick.
+ * @param descriptor - the channel.
+ * @param session - the element's session, when the layer may be a selection's.
+ * @param selector - the selector of the layer the line goes on, when known.
+ * @returns the value, or undefined.
+ */
+export function startingValueOrNone(
+    descriptor: ChannelDescriptor,
+    session?: GraphSession,
+    selector?: Layer["selector"],
+): ChannelValue | undefined {
     const own = APP_STARTS[descriptor.channel];
     if (own !== undefined) {
         return own;
@@ -598,9 +618,6 @@ export function startingValue(
         (descriptor.accepts === "number" ? descriptor.min : undefined) ??
         (descriptor.accepts === "enum" ? descriptor.values?.[0] : undefined) ??
         (descriptor.accepts === "text" ? "" : undefined);
-    if (value === undefined) {
-        throw new Error(`graphty-element states no starting value for ${descriptor.channel}`);
-    }
     return value;
 }
 
@@ -891,6 +908,23 @@ export function startFor(
     ctx: Pick<RowContext, "session" | "beneath" | "layers" | "fresh">,
     descriptor: ChannelDescriptor,
 ): ChannelValue {
+    const value = startForOrNone(ctx, descriptor);
+    if (value === undefined) {
+        throw new Error(`graphty-element states no starting value for ${descriptor.channel}`);
+    }
+    return value;
+}
+
+/**
+ * `startFor`, or undefined for a channel with no starting value, which waits for the reader's first pick.
+ * @param ctx - the row.
+ * @param descriptor - the property.
+ * @returns the value, or undefined.
+ */
+export function startForOrNone(
+    ctx: Pick<RowContext, "session" | "beneath" | "layers" | "fresh">,
+    descriptor: ChannelDescriptor,
+): ChannelValue | undefined {
     const beneath = ctx.beneath(descriptor.channel).value;
     if (beneath !== undefined) {
         if (descriptor.accepts === "color") {
@@ -903,7 +937,7 @@ export function startFor(
         }
     }
     const selector = ctx.layers.find((layer) => !layer.locked)?.selector ?? ctx.fresh?.selector;
-    return startingValue(descriptor, ctx.session, selector);
+    return startingValueOrNone(descriptor, ctx.session, selector);
 }
 
 /**

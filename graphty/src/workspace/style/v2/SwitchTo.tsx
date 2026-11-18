@@ -17,7 +17,7 @@ import type { RowContext } from "../PropertyRow";
 import { failureWords } from "../words";
 import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
 import { LINE_WIDTHS, segmentsWidth } from "./rubric";
-import { LineFrame, SegmentsLine } from "./RubricLine";
+import { LineFrame, type RowSlots, SegmentsLine } from "./RubricLine";
 
 /** The line's name, on the select it becomes when the members' words do not fit. */
 const SWITCH_TO = "Switch to";
@@ -27,17 +27,20 @@ const SWITCH_TO = "Switch to";
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.family - the thing's family
+ * @param props.row - drawn as a thing's row (the Shape row while a shader draws in the shapes'
+ *     place): always the select, with the row's settings button and minus
  * @returns The line
  */
 export function SwitchTo({
     ctx,
     family,
-}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor }>): React.JSX.Element {
+    row,
+}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor; row?: RowSlots }>): React.JSX.Element {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const [picking, setPicking] = useState<{ readonly to: MemberChoice; readonly pick: MemberPick } | null>(null);
     const members = membersOf(ctx, family);
-    const now = currentMember(ctx, members);
+    const now = currentMember(ctx, family, members);
     const go = (toKey: string, picked?: string): void => {
         setPicking(null);
         const to = members.find((member) => member.key === toKey);
@@ -57,7 +60,7 @@ export function SwitchTo({
         }
         // A member that needs a pick, and holds nothing from before, waits for it; the row keeps
         // the old member until then.
-        if (to.pick !== undefined && !isHeld(ctx, family, members, to.key)) {
+        if (to.pick !== undefined && !isHeld(ctx, family, to.key)) {
             setPicking({ to, pick: to.pick });
             return;
         }
@@ -68,7 +71,7 @@ export function SwitchTo({
         name: member.name,
         disabled: member.disabled && member.key !== now,
     }));
-    const fits = segmentsWidth(options) <= LINE_WIDTHS.popoverFull;
+    const fits = row === undefined && segmentsWidth(options) <= LINE_WIDTHS.popoverFull;
     const control = fits ? (
         <SegmentsLine label={SWITCH_TO} options={options} value={now} onPick={choose} />
     ) : (
@@ -98,14 +101,14 @@ export function SwitchTo({
             }}
         >
             <LineFrame
-                line={`switch:${family.id}`}
-                name={fits ? null : SWITCH_TO}
-                set={false}
+                line={row === undefined ? `switch:${family.id}` : "node.shaders:replace"}
+                name={fits || row !== undefined ? null : SWITCH_TO}
+                set={row !== undefined}
                 rule={fits ? "R8f" : "R9"}
                 control={control}
-                modifier={null}
-                removeName={undefined}
-                onRemove={close}
+                modifier={row?.slot ?? null}
+                removeName={row?.removeLabel}
+                onRemove={row?.onRemove ?? close}
             />
             {picking?.pick === "model" && (
                 <ModelsPopover

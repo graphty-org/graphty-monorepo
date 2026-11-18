@@ -53,6 +53,8 @@ export interface SubGroup {
 export interface ThingRubric {
     /** Its row's main control, when it is not today's field (Visibility's Shown / Hidden). */
     readonly row?: LineSpec;
+    /** Channels its row's main control edits besides the main one (a gradient bar's stops): no line of their own. */
+    readonly rowOwns?: readonly Channel[];
     /** At most two lines under its row, shown from the moment it is added. */
     readonly common?: readonly LineSpec[];
     /** Its pop-over's Main lines, always shown. */
@@ -90,7 +92,10 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     },
     "node.imageClip": { node: { name: "Node" }, none: { name: "None" } },
     "node.imageAutoSize": { proportional: { name: "Proportional" }, natural: { name: "Natural" } },
-    "node.gradientKind": { linear: { name: "Linear" }, radial: { name: "Radial" } },
+    "node.gradientKind": {
+        linear: { name: "Linear", glyph: "gradientLinear" },
+        radial: { name: "Radial", glyph: "gradientRadial" },
+    },
     "node.sizeSpace": { scene: { name: "Graph" }, pivot: { name: "Pivot" }, screen: { name: "Screen" } },
     "node.sizeMode": { scale: { name: "Scale" }, diameter: { name: "Diameter" }, uniform: { name: "Uniform" } },
     "node.modelFit": { contain: { name: "Contain" }, stretch: { name: "Stretch" } },
@@ -104,7 +109,11 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         arc: { name: "Arc", glyph: "routeArc" },
         "great-circle": { name: "Great circle", glyph: "routeGreatCircle" },
     },
-    "edge.gradientKind": { linear: { name: "Linear" }, radial: { name: "Radial" }, none: { name: "None" } },
+    "edge.gradientKind": {
+        linear: { name: "Linear", glyph: "gradientLinear" },
+        radial: { name: "Radial", glyph: "gradientRadial" },
+        none: { name: "None", glyph: "gradientNone" },
+    },
     "edge.supportScale": { unit: { name: "Unit" }, drawing: { name: "Drawing" } },
     "edge.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
     ...Object.fromEntries(
@@ -247,7 +256,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                         channel: "node.modelAnimationSpeed",
                         name: "Play",
                         pair: "node.modelAnimationOffset",
-                        letters: ["S", "O"],
                     },
                 ],
             },
@@ -256,13 +264,13 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     fill: { main: [] },
     "fill:node.gradientColors": {
+        // The row's gradient bar edits the colors and their stops: one home for both (design 2.6).
+        rowOwns: ["node.gradientStops"],
         main: [
             { channel: "node.gradientKind", name: "Kind", rule: "R8" },
             { channel: "node.gradientDirection", name: "Direction" },
             { channel: "node.gradientCenterX", name: "Center", pair: "node.gradientCenterY", letters: ["X", "Y"] },
             { channel: "node.gradientRadius", name: "Radius" },
-            { channel: "node.gradientColor", name: null },
-            { channel: "node.gradientStops", name: "Stops", rule: "field" },
             { channel: "node.opacity", name: "Opacity" },
         ],
     },
@@ -311,10 +319,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     pie: {
-        main: [
-            { channel: "node.pieSizes", name: "Sizes", rule: "field" },
-            { channel: "node.pieOpacities", name: "Opacities", rule: "field" },
-        ],
+        // The slices' colors, shares and opacities are the list editor's (R15, `ListGroup.tsx`).
+        rowOwns: ["node.pieSizes", "node.pieOpacities"],
+        main: [],
         groups: [
             {
                 name: "Disc",
@@ -329,21 +336,16 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     stripes: {
+        rowOwns: ["node.stripeSizes", "node.stripeOpacities"],
         main: [
-            { channel: "node.stripeSizes", name: "Sizes", rule: "field" },
-            { channel: "node.stripeOpacities", name: "Opacities", rule: "field" },
             { channel: "node.stripeDirection", name: "Direction", rule: "R8" },
             { channel: "node.stripeSize", name: "Size" },
         ],
         groups: [{ name: "Frame", lines: [{ channel: "node.stripeFrame", name: "Frame", rule: "field" }] }],
     },
     chart: {
-        main: [
-            { channel: "node.chartValues", name: "Values", rule: "field" },
-            { channel: "node.chartColors", name: "Colors", rule: "field" },
-            { channel: "node.chartMin", name: "Range", pair: "node.chartMax", letters: ["", ""] },
-            { channel: "node.chartHorizontal" },
-        ],
+        rowOwns: ["node.chartValues", "node.chartColors"],
+        main: [{ channel: "node.chartMin", name: "Range", pair: "node.chartMax" }, { channel: "node.chartHorizontal" }],
         groups: [
             {
                 name: "Box",
@@ -382,7 +384,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                         channel: "node.borderWaveAmplitude",
                         name: "Wave",
                         pair: "node.borderWavePeriod",
-                        letters: ["A", "P"],
                     },
                 ],
             },
@@ -449,7 +450,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                         channel: "node.groupMinWidthBiasLeft",
                         name: "Bias",
                         pair: "node.groupMinHeightBiasTop",
-                        letters: ["L", "T"],
                     },
                 ],
             },
@@ -485,7 +485,7 @@ const LINE_GROUPS: readonly SubGroup[] = [
     {
         name: "Fade",
         lines: [
-            { channel: "edge.fadeStart", name: "Fade", pair: "edge.fadeEnd", letters: ["S", "E"] },
+            { channel: "edge.fadeStart", name: "Fade", pair: "edge.fadeEnd" },
             { channel: "edge.fadeOpacity", name: "Opacity" },
         ],
     },
@@ -501,8 +501,8 @@ const LINE_GROUPS: readonly SubGroup[] = [
         lines: [
             { channel: "edge.style", name: "Pattern", rule: "R10" },
             { channel: "edge.patternCount", name: "Count" },
-            { channel: "edge.dashLength", name: "Dash", pair: "edge.dashGap", letters: ["L", "G"] },
-            { channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod", letters: ["A", "P"] },
+            { channel: "edge.dashLength", name: "Dash", pair: "edge.dashGap" },
+            { channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" },
         ],
     },
 ];
@@ -566,9 +566,9 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     "line:edge.gradientColors": {
         common: [{ channel: "edge.width", name: "Width", glyph: "weight" }],
+        rowOwns: ["edge.gradientStops"],
         main: [
-            { channel: "edge.gradientKind", name: null, rule: "R8f" },
-            { channel: "edge.gradientStops", name: "Stops", rule: "field" },
+            { channel: "edge.gradientKind", name: "Kind", rule: "R8" },
             { channel: "edge.opacity", name: "Opacity" },
             ...LINE_MAIN,
         ],
@@ -621,7 +621,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                 name: "Gaps",
                 lines: [
                     { channel: "edge.nodeGap", name: "Gap" },
-                    { channel: "edge.sourceNodeGap", name: "Ends", pair: "edge.targetNodeGap", letters: ["S", "T"] },
+                    { channel: "edge.sourceNodeGap", name: "Ends", pair: "edge.targetNodeGap" },
                 ],
             },
             {
@@ -644,13 +644,11 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                         channel: "edge.supportSpringLength",
                         name: "Spring",
                         pair: "edge.supportSpringConstant",
-                        letters: ["L", "K"],
                     },
                     {
                         channel: "edge.supportRepulsion",
                         name: "Forces",
                         pair: "edge.supportCentralGravity",
-                        letters: ["R", "G"],
                     },
                 ],
             },
@@ -711,7 +709,8 @@ export function lineChannels(line: LineSpec): readonly Channel[] {
  * @returns the channels, once each.
  */
 export function rubricChannels(rubric: ThingRubric): readonly Channel[] {
-    const lines = [
+    const lines: LineSpec[] = [
+        ...(rubric.rowOwns ?? []).map((channel): LineSpec => ({ channel })),
         ...(rubric.row === undefined ? [] : [rubric.row]),
         ...(rubric.common ?? []),
         ...rubric.main,

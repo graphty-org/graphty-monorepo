@@ -210,6 +210,8 @@ interface ShaderGalleryProps {
     readonly exclude?: ShaderPlace;
     /** Tiles of a picture and a name only, every other fact in their tooltip and description (#8739). */
     readonly bare?: boolean;
+    /** The places it lists, when not every one (Style panel v2's "+": Around, Material, Along). */
+    readonly places?: readonly ShaderPlace[];
 }
 
 /**
@@ -232,6 +234,7 @@ interface ShaderGalleryProps {
  * @param props.onDelete - deletes a project shader, from its tile's context menu
  * @param props.exclude - a place it leaves out
  * @param props.bare - tiles of a picture and a name only
+ * @param props.places - the places it lists, when not every one
  * @returns The gallery
  */
 export function ShaderGallery({
@@ -245,6 +248,7 @@ export function ShaderGallery({
     onDelete,
     exclude,
     bare = false,
+    places,
 }: Readonly<ShaderGalleryProps>): React.JSX.Element {
     const [query, setQuery] = useState("");
     const [origin, setOrigin] = useState("all");
@@ -257,6 +261,7 @@ export function ShaderGallery({
             (descriptor) =>
                 onTab(descriptor, tab) &&
                 (exclude === undefined || descriptor.place !== exclude) &&
+                (places === undefined || (descriptor.place !== undefined && places.includes(descriptor.place))) &&
                 inOrigin(descriptor, origin) &&
                 shaderMatches(descriptor, query),
         );
@@ -327,7 +332,7 @@ export function ShaderGallery({
                     )
                 }
                 facts={bare ? undefined : <ShaderFacts descriptor={descriptor} />}
-                second={reason ?? originWords(descriptor)}
+                second={bare ? undefined : (reason ?? originWords(descriptor))}
                 quiet={bare}
                 description={description}
                 disabled={reason !== undefined}
@@ -398,20 +403,23 @@ export function ShaderGallery({
                     }
                 }}
             />
-            <Chip.Group
-                value={origin}
-                onChange={(value) => {
-                    setOrigin(typeof value === "string" ? value : "all");
-                }}
-            >
-                <Group gap={4} wrap="wrap" role="radiogroup" aria-label={GALLERY_WORDS.origin} data-filter="origin">
-                    {ORIGIN_FILTERS.map((each) => (
-                        <Chip key={each.key} value={each.key} size="xs" variant="outline">
-                            {each.label}
-                        </Chip>
-                    ))}
-                </Group>
-            </Chip.Group>
+            {/* Style panel v2's gallery holds tiles only: no filter chips (#8739). */}
+            {bare ? null : (
+                <Chip.Group
+                    value={origin}
+                    onChange={(value) => {
+                        setOrigin(typeof value === "string" ? value : "all");
+                    }}
+                >
+                    <Group gap={4} wrap="wrap" role="radiogroup" aria-label={GALLERY_WORDS.origin} data-filter="origin">
+                        {ORIGIN_FILTERS.map((each) => (
+                            <Chip key={each.key} value={each.key} size="xs" variant="outline">
+                                {each.label}
+                            </Chip>
+                        ))}
+                    </Group>
+                </Chip.Group>
+            )}
             <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a two-column grid of tile buttons; a fieldset would draw its own border and legend
                 className="ws-gallery-grid"
                 role="group"

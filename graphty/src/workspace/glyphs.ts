@@ -20,6 +20,7 @@ import {
     ArrowUp,
     ArrowUpRight,
     ArrowUpToLine,
+    Ban,
     Blend,
     Box,
     Boxes,
@@ -52,6 +53,7 @@ import {
     Database,
     Disc,
     Earth,
+    Expand,
     Eye,
     EyeOff,
     FilePlus,
@@ -59,7 +61,6 @@ import {
     FlaskConical,
     Folder,
     FolderOpen,
-    Frame,
     Gauge,
     GitCommitHorizontal,
     Grid2x2,
@@ -100,6 +101,7 @@ import {
     MoreHorizontal,
     MousePointerClick,
     MoveHorizontal,
+    MoveRight,
     Network,
     Orbit,
     Paintbrush,
@@ -150,6 +152,7 @@ import {
     Table2,
     Tag,
     Tags,
+    Target,
     ToggleLeft,
     ToggleRight,
     Trash2,
@@ -420,12 +423,12 @@ export const GLYPHS = {
     // Where a border's stroke sits on the shape's edge: inside it, centered on it, outside it.
     borderInside: SquareSquare,
     borderCenter: Square,
-    borderOutside: Frame,
+    borderOutside: Expand,
     // Which way stripes run: stacked down, or side by side to the right.
     stripesDown: Rows3,
     stripesRight: Columns4,
     // How a picture repeats over a node: once, both ways, across, down.
-    repeatNone: Square,
+    repeatNone: Ban,
     repeatBoth: Grid2x2,
     repeatAcross: Columns2,
     repeatDown: Rows2,
@@ -445,6 +448,10 @@ export const GLYPHS = {
     // Which side of its line a one-sided arrowhead sits on.
     sideLeft: PanelLeft,
     sideRight: PanelRight,
+    // A gradient's kind: along a direction, out from a center, or none (an edge's flat color).
+    gradientLinear: MoveRight,
+    gradientRadial: Target,
+    gradientNone: Ban,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

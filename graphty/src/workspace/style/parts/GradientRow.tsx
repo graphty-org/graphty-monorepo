@@ -25,14 +25,16 @@ const STARTING: readonly ColorStop[] = [
 ];
 
 /**
- * The stops a row's gradient holds: one per color, at its stop, else spread evenly; and each
- * stop's color as written, by stop id.
- * @param ctx - the row.
+ * The stops a gradient's colors and offsets make: one per color, at its offset, else spread
+ * evenly; and each stop's color as written, by stop id.
+ * @param colors - the colors.
+ * @param offsets - their offsets, if any.
  * @returns the stops and the colors as written.
  */
-function stopsOf(ctx: RowContext): { stops: ColorStop[]; written: ReadonlyMap<string, string> } {
-    const colors = readChannelList("node.gradientColors", lineIn(ctx, "node.gradientColors")?.value);
-    const offsets = readChannelList("node.gradientStops", lineIn(ctx, "node.gradientStops")?.value);
+function stopsOf(
+    colors: readonly unknown[],
+    offsets: readonly unknown[],
+): { stops: ColorStop[]; written: ReadonlyMap<string, string> } {
     if (colors.length === 0) {
         return { stops: [...STARTING], written: new Map() };
     }
@@ -85,31 +87,65 @@ export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.E
 
 /**
  * The gradient drawn as a button that opens the gradient editor: the row's control, and Style
- * panel v2's Fill row's control while it draws a gradient.
+ * panel v2's Fill and Line rows' control while they draw a gradient.
  * @param props - Component props
  * @param props.ctx - the row
  * @returns The button and its pop-out
  */
 export function GradientButton({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const { store } = useWorkspace();
+    const colorsChannel = ctx.side === "edge" ? "edge.gradientColors" : "node.gradientColors";
+    const stopsChannel = ctx.side === "edge" ? "edge.gradientStops" : "node.gradientStops";
+    return (
+        <GradientBar
+            label={`Edit ${ctx.side} ${COLORS.toLowerCase()}`}
+            colors={readChannelList(colorsChannel, lineIn(ctx, colorsChannel)?.value)}
+            offsets={readChannelList(stopsChannel, lineIn(ctx, stopsChannel)?.value)}
+            onWrite={(colors, offsets) => {
+                writeIn(
+                    ctx,
+                    colorsChannel,
+                    { value: writeChannelList(colorsChannel, colors) },
+                    { [stopsChannel]: writeChannelList(stopsChannel, offsets) },
+                    true,
+                ).catch((error: unknown) => {
+                    store.set({ notice: { message: failureWords("The gradient", "changed", error), error: true } });
+                });
+            }}
+        />
+    );
+}
+
+/**
+ * A gradient drawn as a button that opens the shared gradient editor, over any list of colors
+ * (a fill's, a line's, a label background's).
+ * @param props - Component props
+ * @param props.label - the button's accessible name
+ * @param props.colors - the colors, in order
+ * @param props.offsets - each color's offset, when the gradient has them (else spread evenly)
+ * @param props.onWrite - writes the colors and their offsets, sorted by offset
+ * @returns The button and its pop-out
+ */
+export function GradientBar({
+    label,
+    colors,
+    offsets = [],
+    onWrite,
+}: Readonly<{
+    label: string;
+    colors: readonly unknown[];
+    offsets?: readonly unknown[];
+    onWrite: (colors: string[], offsets: number[]) => void;
+}>): React.JSX.Element {
     const moving = useRef(false);
     const [opened, setOpened] = useState(false);
-    const { stops, written } = stopsOf(ctx);
+    const { stops, written } = stopsOf(colors, offsets);
     const bar = stops.map((stop) => `${stop.color} ${String(stop.offset * 100)}%`).join(", ");
     const write = (next: readonly ColorStop[]): void => {
         const sorted = [...next].sort((a, b) => a.offset - b.offset);
-        const colors = writeChannelList(
-            "node.gradientColors",
+        onWrite(
             sorted.map((stop) => colorOf(stop, written.get(stop.id))),
-        );
-        const offsets = writeChannelList(
-            "node.gradientStops",
             sorted.map((stop) => Math.round(stop.offset * 1000) / 1000),
-        );
-        writeIn(ctx, "node.gradientColors", { value: colors }, { "node.gradientStops": offsets }, true).catch(
-            (error: unknown) => {
-                store.set({ notice: { message: failureWords("The gradient", "changed", error), error: true } });
-            },
         );
     };
     return (
@@ -119,7 +155,7 @@ export function GradientButton({ ctx }: Readonly<{ ctx: RowContext }>): React.JS
                     variant="default"
                     size="compact-xs"
                     fullWidth
-                    aria-label={`Edit node ${COLORS.toLowerCase()}`}
+                    aria-label={label}
                     className="ws-gradient-button"
                     style={{ background: `linear-gradient(to right, ${bar})` }}
                 />

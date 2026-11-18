@@ -773,7 +773,8 @@ function graphHeader(session: GraphSession, doors: Doors): Header {
     return {
         name: "Graph",
         spoken: doors.projectName === undefined ? `Graph, ${size}` : `Graph, ${doors.projectName}: ${size}`,
-        from: words === undefined ? undefined : { words, open: doors.openData },
+        // Style panel v2's sidebar holds controls only (#8739): no "from" marker under its title.
+        from: words === undefined || stylePanelV2On(session) ? undefined : { words, open: doors.openData },
     };
 }
 

@@ -653,7 +653,9 @@ interface FieldKeys {
  */
 function fieldKeyDown(event: React.KeyboardEvent<HTMLDivElement>, keys: FieldKeys): void {
     const target = event.target as HTMLElement;
-    if (target.closest(".ws-field-control") === null) {
+    // A key from a popover the row opened (its settings) reaches here through React's portal: it
+    // is that popover's line's, never this row's.
+    if (!event.currentTarget.contains(target) || target.closest(".ws-field-control") === null) {
         return;
     }
     const input = target instanceof HTMLInputElement ? target : undefined;
@@ -1526,6 +1528,7 @@ export function Field({
  * @param props.to - where the binding is written, when not the descriptor's channel
  * @param props.label - the glyph's name, when the property has no channel word
  * @param props.onFail - says a refused binding
+ * @param props.anyKind - offers a binding whatever the channel's kind
  * @returns The column, empty when the channel takes no binding
  */
 export function VarySlot({
@@ -1534,11 +1537,14 @@ export function VarySlot({
     to = descriptor.channel,
     label,
     onFail,
+    anyKind = false,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
     /** Where the binding is written: a shader parameter's address, whose descriptor names its list channel. */
     to?: EncodeKey;
+    /** Offers a binding on a channel of any kind (Style panel v2's Visibility, a boolean). */
+    anyKind?: boolean;
     /** The glyph's name, when the property is not a channel of its own (a shader parameter). */
     label?: string;
     /** Says a refused binding, when the property has no channel word. */
@@ -1563,7 +1569,7 @@ export function VarySlot({
     };
     return (
         <span className="ws-slot ws-vary">
-            {takesBinding(descriptor) && (
+            {(anyKind || takesBinding(descriptor)) && (
                 <VaryButton
                     ctx={ctx}
                     descriptor={descriptor}

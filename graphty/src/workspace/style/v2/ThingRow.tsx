@@ -5,88 +5,30 @@
  */
 
 import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import { TextInput } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { SettingsPopout } from "../../options/SettingsPopout";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { GradientButton } from "../parts/GradientRow";
+import { PicturePopover } from "../PicturePopover";
 import { Field, type RowContext } from "../PropertyRow";
-import { layerWord, removeLine } from "../row";
+import { writeIn } from "../row";
 import { ShaderParams } from "../ShaderParams";
 import { bindingsOf, paramsOf, placeOf, shaderEntries, shadersChannel, unbindParam, writeParam } from "../shaderSlots";
-import { failureWords, takesBinding } from "../words";
-import { dropReplace, familyOf, replaceUse } from "./families";
+import { failureWords } from "../words";
+import { familyOf, replaceUse } from "./families";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
-import { type LineSpec, rubricChannels, rubricOf, SHAPE_REPLACE_RUBRIC, type ThingRubric } from "./rubric";
+import { unsetIn } from "./lineWrites";
+import { ListGroup, SwatchStrip } from "./ListGroup";
+import { LISTS } from "./lists";
+import { type LineSpec, rubricChannels, rubricOf, SHAPE_REPLACE_RUBRIC } from "./rubric";
 import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
+import { SwitchTo } from "./SwitchTo";
 import { FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
-
-/**
- * Takes every channel of a thing off the row's layers, one undo step.
- * @param ctx - the row.
- * @param name - the thing's name, for the step.
- * @param channels - the thing's channels.
- * @param shape - whether it is the Shape thing, whose shader in the shapes' place goes too.
- * @returns when it is done.
- */
-async function removeThing(
-    ctx: RowContext,
-    name: string,
-    channels: readonly Channel[],
-    shape: boolean,
-): Promise<unknown> {
-    const { many, session } = ctx;
-    if (many !== undefined) {
-        const [first, ...more] = channels.filter((channel) => many.count(channel) > 0);
-        return first === undefined ? undefined : many.clear(first, ...more);
-    }
-    const layers = ctx.layers.filter((layer) => !layer.locked);
-    const where = layers[0] === undefined ? undefined : layerWord(session, layers[0].id);
-    return session.transaction(`removing ${name.toLowerCase()} from ${where ?? "the default"}`, async (tx) => {
-        for (const { id } of layers) {
-            const layer = tx.styles.get(id);
-            const held = channels.filter((c) => layer?.set?.[c] !== undefined || layer?.encode?.[c] !== undefined);
-            if (layer !== undefined && held.length > 0) {
-                await removeLine(tx, layer, ...held);
-            }
-            // A shader drawn in the shapes' place is the Shape thing's too (design 4.1).
-            const after = tx.styles.get(id);
-            if (shape && after?.set !== undefined) {
-                const set: Record<string, unknown> = { ...after.set };
-                dropReplace(ctx, set);
-                if (set["node.shaders"] !== after.set["node.shaders"]) {
-                    await tx.styles.update(id, { set }, { keepEmpty: true });
-                }
-            }
-        }
-    });
-}
-
-/**
- * Whether a thing's pop-over would hold nothing (Visibility: no settings, no By data), so its row
- * draws no settings button at all.
- * @param rubric - the thing's rubric.
- * @param others - how many set lines its rubric has no line for.
- * @param family - whether it is a family, with a Switch to.
- * @param main - its main value.
- * @returns true when it would be empty.
- */
-function emptyPopover(
-    rubric: ThingRubric | undefined,
-    others: number,
-    family: boolean,
-    main: ChannelDescriptor,
-): boolean {
-    if (rubric === undefined || others > 0 || family || takesBinding(main) || main.accepts === "number") {
-        return false;
-    }
-    return rubric.main.length === 0 && (rubric.groups ?? []).length === 0;
-}
 
 /**
  * The parameters of the shader drawn in the shapes' place, in the Shape pop-over's Main (design 7.1).
@@ -132,7 +74,6 @@ function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Elemen
  * @param props.main - its main value
  * @param props.row - its rubric's line for the row, if any
  * @param props.replacing - the shader drawn in the shapes' place, if any
- * @param props.title - the thing's name with its kind
  * @param props.pending - added with "+" and waiting for its first value
  * @param props.onCancel - takes a waiting thing away again
  * @param props.slots - its settings button and whole-thing minus
@@ -144,7 +85,6 @@ function MainLine({
     main,
     row,
     replacing,
-    title,
     pending,
     onCancel,
     slots,
@@ -154,7 +94,6 @@ function MainLine({
     main: ChannelDescriptor;
     row: LineSpec | undefined;
     replacing: string | undefined;
-    title: string;
     pending: boolean;
     onCancel: () => void;
     slots: RowSlots;
@@ -171,12 +110,29 @@ function MainLine({
             onRemove={slots.onRemove}
         />
     );
-    if (replacing !== undefined) {
-        const name = ctx.session.shaders.describe(replacing)?.plainName ?? replacing;
-        return frame("node.shaders:replace", "R10", <TextInput size="xs" readOnly aria-label={title} value={name} />);
+    const family = familyOf(ctx.side, thing.id);
+    if (replacing !== undefined && family !== undefined) {
+        // The shader drawn in the shapes' place is a Shape member: the row's control is Switch to.
+        return <SwitchTo ctx={ctx} family={family} row={slots} />;
     }
-    if (main.channel === "node.gradientColors" && setOn(ctx, main.channel)) {
+    if (
+        (main.channel === "node.gradientColors" || main.channel === "edge.gradientColors") &&
+        setOn(ctx, main.channel)
+    ) {
         return frame(main.channel, "R16", <GradientButton ctx={ctx} />);
+    }
+    const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
+    if (main.channel === list?.colors) {
+        // A list thing's row (R15r): its swatches, opening its pop-over on the list.
+        const strip = (
+            <SwatchStrip
+                ctx={ctx}
+                list={list}
+                label={`Edit ${ctx.side} ${thing.name.toLowerCase()}`}
+                onOpen={slots.onOpen ?? (() => undefined)}
+            />
+        );
+        return frame(main.channel, "R15r", strip);
     }
     if (row !== undefined) {
         return <RubricLine ctx={ctx} line={row} row={slots} />;
@@ -199,6 +155,8 @@ function MainLine({
  * @param props.thing - the thing
  * @param props.channels - every channel the thing holds
  * @param props.pending - added with "+" and waiting for its first value
+ * @param props.opening - just added: opens its pop-over on its list, or an Image's picker (design 5.1)
+ * @param props.onOpened - told once it has opened
  * @param props.onCancel - takes a waiting thing away again
  * @returns The row, or nothing when the element offers none of its main channels here
  */
@@ -207,17 +165,34 @@ export function ThingRow({
     thing,
     channels,
     pending,
+    opening = false,
+    onOpened,
     onCancel,
 }: Readonly<{
     ctx: RowContext;
     thing: ThingSpec;
     channels: readonly Channel[];
     pending: boolean;
+    opening?: boolean;
+    onOpened?: () => void;
     onCancel: () => void;
 }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     // Held here, so the pop-over stays open while a switch redraws the row's main control.
     const [open, setOpen] = useState(false);
+    const [picking, setPicking] = useState(false);
+    const box = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!opening) {
+            return;
+        }
+        if (thing.id === "image") {
+            setPicking(true);
+        } else {
+            setOpen(true);
+        }
+        onOpened?.();
+    }, [opening, thing.id, onOpened]);
     const main = mainOf(ctx, thing, channels);
     if (main === undefined) {
         return null;
@@ -225,6 +200,7 @@ export function ThingRow({
     const kind = ctx.side === "node" ? "Node" : "Edge";
     const title = `${kind} ${thing.name.toLowerCase()}`;
     const family = familyOf(ctx.side, thing.id);
+    const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
     const rubric = replacing === undefined ? rubricOf(ctx.side, thing.id, main.channel) : SHAPE_REPLACE_RUBRIC;
@@ -244,7 +220,8 @@ export function ThingRow({
     const changed =
         others.length > 0 ||
         [...covered].some((channel) => channel !== main.channel && !commonChannels.has(channel) && setOn(ctx, channel));
-    const settings = emptyPopover(rubric, others.length, family !== undefined, main) ? null : (
+    // Every thing's pop-over holds at least By data (a shown / hidden row's too, design 7.1).
+    const settings = (
         <SettingsPopout
             label={`${title} settings`}
             title={title}
@@ -263,13 +240,14 @@ export function ThingRow({
                     others={others}
                     first={<FirstLines ctx={ctx} main={main} family={family} />}
                     extra={replacing === undefined ? undefined : <ReplaceParams ctx={ctx} />}
+                    after={list === undefined ? undefined : <ListGroup ctx={ctx} list={list} />}
                 />
             )}
         </SettingsPopout>
     );
     const remove = (): void => {
         onCancel();
-        removeThing(ctx, thing.name, all, thing.id === "shape")
+        unsetIn(ctx, all, { name: thing.name, shape: thing.id === "shape" })
             .then(() => {
                 store.set({ announcement: `${thing.name} removed` });
             })
@@ -295,16 +273,46 @@ export function ThingRow({
             </div>
         );
     }
-    const slots: RowSlots = { slot: settings, removeLabel, onRemove: remove };
+    const picker =
+        thing.id === "image" && picking ? (
+            <PicturePopover
+                opened
+                anchor={box}
+                onPick={(ref) => {
+                    setPicking(false);
+                    writeIn(ctx, "node.image", { value: ref }).catch((error: unknown) => {
+                        store.set({ notice: { message: failureWords(thing.name, "added", error), error: true } });
+                    });
+                }}
+                onModel={() => {
+                    setPicking(false);
+                }}
+                onClose={() => {
+                    setPicking(false);
+                    // Escape before a pick takes the row "+" added back.
+                    if (!setOn(ctx, "node.image")) {
+                        onCancel();
+                    }
+                }}
+            />
+        ) : null;
+    const slots: RowSlots = {
+        slot: settings,
+        removeLabel,
+        onRemove: remove,
+        onOpen: () => {
+            setOpen(true);
+        },
+    };
     return (
-        <div data-thing={thing.id}>
+        <div ref={box} data-thing={thing.id}>
+            {picker}
             <MainLine
                 ctx={ctx}
                 thing={thing}
                 main={main}
                 row={rubric?.row}
                 replacing={replacing?.shader}
-                title={title}
                 pending={pending}
                 onCancel={onCancel}
                 slots={slots}

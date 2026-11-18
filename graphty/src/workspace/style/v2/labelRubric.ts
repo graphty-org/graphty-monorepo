@@ -198,7 +198,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Wrap",
             lines: [
-                { field: "wrapWidth", name: "Wrap", pair: "maxLines", letters: ["W", "L"] },
+                { field: "wrapWidth", name: "Wrap", pair: "maxLines" },
                 { field: "wrapAnywhere", name: "Break anywhere" },
                 { field: "wrapEllipsis", name: "Cut long lines" },
                 { field: "maxLinesEllipsis", name: "Ellipsis at max lines" },
@@ -251,7 +251,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "pickable", name: "Pickable" },
                 { field: "closeButton", name: "Close button" },
                 { field: "depthFade", name: "Depth fade" },
-                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar", letters: ["N", "F"] },
+                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar" },
             ],
         },
     ],

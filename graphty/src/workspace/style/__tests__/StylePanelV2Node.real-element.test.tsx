@@ -198,4 +198,37 @@ describe("Style panel v2's node things", () => {
             );
         });
     });
+
+    it("Fill's Pie writes its first slice and opens on its slice list, whose '+' adds a slice", async () => {
+        const { session, id } = await openProject();
+        const tab = await openStyle("Key people");
+        const fill = sectionOf(tab, "node-fill");
+        await userEvent.click(within(fill).getByRole("button", { name: /^Add to node fill|^Add Fill/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Pie" }));
+        await waitFor(() => {
+            assert.isString(written(session, id, "node.pieColors"), "Pie starts with one slice");
+        });
+        const add = await screen.findByRole("button", { name: "Add slice" });
+        await userEvent.click(add);
+        await waitFor(() => {
+            assert.lengthOf(
+                String(written(session, id, "node.pieColors"))
+                    .trim()
+                    .split(/\s+/),
+                2,
+                "two slices",
+            );
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Remove slice 2" }));
+        await waitFor(() => {
+            assert.lengthOf(
+                String(written(session, id, "node.pieColors"))
+                    .trim()
+                    .split(/\s+/),
+                1,
+                "one slice",
+            );
+        });
+        assert.isNotNull(await rowOf(fill, "pie"), "the Pie row is its swatch strip");
+    });
 });

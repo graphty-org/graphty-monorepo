@@ -17,11 +17,12 @@ import {
     type LabelLocationPlace,
 } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Checkbox, Group, Stack, TextInput } from "@mantine/core";
+import { Checkbox, Group, Stack } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { shownChannel } from "../offered";
+import { GradientBar } from "../parts/GradientRow";
 import { Field, type RowContext } from "../PropertyRow";
 import { ValueField } from "../ValueField";
 import { enumWords, positionWord } from "../words";
@@ -364,9 +365,15 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
         case "R13":
             return <FontSelect label={name} value={value} onPick={write} />;
         case "field":
-            // A list of colors (a background gradient's) has no line of its own: read it here, unset it with "-".
+            // A list of colors (a background gradient's): the shared gradient editor, spread evenly.
             return (
-                <TextInput size="xs" aria-label={name} readOnly value={Array.isArray(value) ? value.join(", ") : ""} />
+                <GradientBar
+                    label={name}
+                    colors={Array.isArray(value) ? value : []}
+                    onWrite={(colors) => {
+                        write(colors);
+                    }}
+                />
             );
         default:
             // R1 colors and R14 free text: today's fields.
@@ -454,7 +461,7 @@ export function LabelFieldLine({
                 }}
             />
         );
-    const named = rule !== "R7" && rule !== "R8f" && line.name !== null;
+    const named = rule !== "R7" && rule !== "R8f" && rule !== "R2" && line.name !== null;
     return (
         <LineFrame
             line={`${label.kind.style}.${line.unit === undefined ? field : "unit"}`}

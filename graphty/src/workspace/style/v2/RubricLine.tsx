@@ -28,6 +28,8 @@ export interface RowSlots {
     readonly slot: React.ReactNode;
     readonly removeLabel: string;
     readonly onRemove: () => void;
+    /** Opens the thing's settings pop-over (a list thing's swatch strip). */
+    readonly onOpen?: () => void;
 }
 
 /**
@@ -58,26 +60,36 @@ export function NumberLine({
 }>): React.JSX.Element {
     const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
     const { min, max } = descriptor;
+    // Emptied and Enter unsets the line (design 2.2): the number field commits no empty text itself.
+    const onEmptyEnter = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        const input = event.target;
+        if (event.key === "Enter" && input instanceof HTMLInputElement && input.value.trim() === "") {
+            onWrite(undefined);
+        }
+    };
     return (
-        <ComboInput
-            label={label ?? fieldName(descriptor.channel)}
-            width="100%"
-            numeric
-            options={[]}
-            glyph={glyph}
-            value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
-            suffix={scale === 100 ? "%" : undefined}
-            min={min === undefined ? undefined : min * scale}
-            max={max === undefined ? undefined : max * scale}
-            step={descriptor.step ?? (scale === 1 && max !== undefined && max <= 1 ? 0.1 : 1)}
-            onChange={(next) => {
-                if (typeof next === "number") {
-                    onWrite(next / scale);
-                } else if (next === "") {
-                    onWrite(undefined);
-                }
-            }}
-        />
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only hears Enter bubbling from its own field
+        <div style={{ display: "contents" }} onKeyDown={onEmptyEnter}>
+            <ComboInput
+                label={label ?? fieldName(descriptor.channel)}
+                width="100%"
+                numeric
+                options={[]}
+                glyph={glyph}
+                value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
+                suffix={scale === 100 ? "%" : undefined}
+                min={min === undefined ? undefined : min * scale}
+                max={max === undefined ? undefined : max * scale}
+                step={descriptor.step ?? (scale === 1 && max !== undefined && max <= 1 ? 0.1 : 1)}
+                onChange={(next) => {
+                    if (typeof next === "number") {
+                        onWrite(next / scale);
+                    } else if (next === "") {
+                        onWrite(undefined);
+                    }
+                }}
+            />
+        </div>
     );
 }
 
@@ -458,6 +470,23 @@ function modifierOf(
     );
 }
 
+/**
+ * Whether graphty-element draws a channel with what the row holds now (`appliesWhen`): a gradient's
+ * direction only on a linear one, a dash's length only on a dashed or dotted line. An unset line
+ * that does nothing is not offered; a set one stays, so it can be taken off.
+ * @param ctx - the row.
+ * @param descriptor - the channel.
+ * @returns true when it is drawn.
+ */
+function applies(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
+    const when = descriptor.appliesWhen;
+    if (when === undefined) {
+        return true;
+    }
+    const now = lineIn(ctx, when.channel)?.value ?? ctx.session.styles.defaultValue(when.channel);
+    return typeof now === "string" && when.values.includes(now);
+}
+
 /** Props for RubricLine. */
 interface RubricLineProps {
     readonly ctx: RowContext;
@@ -482,7 +511,7 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
     const own = lineIn(ctx, channel);
     const set = setOn(ctx, channel) || (line.pair !== undefined && setOn(ctx, line.pair));
     const descriptor = shownChannel(session, side, channel, set);
-    if (descriptor?.renderable !== true) {
+    if (descriptor?.renderable !== true || (!set && !applies(ctx, descriptor))) {
         return null;
     }
     const rule = ruleOf(line, descriptor);
@@ -510,7 +539,12 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
     const args: ControlArgs = { ctx, line, descriptor, value: own?.value, set, label: fieldName(channel), write, fail };
     const control = line.unit === undefined ? CONTROLS[rule](args) : unitControl(args);
     const channels = [channel, ...(line.pair === undefined ? [] : [line.pair])];
-    const removeName = row?.removeLabel ?? `Remove ${(line.name ?? channelWord(channel)).toLowerCase()}`;
+    // A pair's minus names both its channels, so it is told from its sub-group's ("Remove width and height").
+    const removeWords =
+        line.pair === undefined
+            ? (line.name ?? channelWord(channel))
+            : `${channelWord(channel)} and ${channelWord(line.pair)}`;
+    const removeName = row?.removeLabel ?? `Remove ${removeWords.toLowerCase()}`;
     const named = rule !== "R7" && rule !== "R8f" && line.name !== null;
     const onRemove =
         row?.onRemove ??

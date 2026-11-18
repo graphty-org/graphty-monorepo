@@ -198,3 +198,47 @@ describe("Style panel v2's Switch to a member that needs a pick", () => {
         });
     });
 });
+
+describe("Style panel v2's keys inside a thing's pop-over", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+
+    it("emptying W and pressing Enter unsets only the width, and Backspace on Switch to changes nothing", async () => {
+        const { session, id } = await openStar();
+        await session.styles.update(id, {
+            set: {
+                "node.color": "#E8590C",
+                "node.shape": "star",
+                "node.cornerRadius": 0.2,
+                "node.size": 2,
+                "node.width": 2,
+            },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
+        const line = await openSwitch(row, "Node shape settings");
+        const popover = line.closest<HTMLElement>("[data-thing-popover]");
+        assert.isNotNull(popover);
+
+        const width = [...screen.queryAllByRole("textbox"), ...screen.queryAllByRole("spinbutton")].find(
+            (each) => popover.contains(each) && /width/i.test(each.getAttribute("aria-label") ?? ""),
+        );
+        assert.isDefined(width, "the Size sub-group's W field");
+        await userEvent.clear(width);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isUndefined(written(session, id, "node.width"), "the width is unset");
+        });
+        assert.equal(written(session, id, "node.shape"), "star", "the shape stays");
+        assert.equal(written(session, id, "node.cornerRadius"), 0.2, "its corners stay");
+        assert.equal(written(session, id, "node.size"), 2, "its size stays");
+
+        // A second click closes the select and leaves focus on it.
+        const select = within(line).getByRole("combobox", { name: "Switch to" });
+        await userEvent.click(select);
+        await userEvent.click(select);
+        await userEvent.keyboard("{Backspace}");
+        assert.equal(written(session, id, "node.shape"), "star", "Backspace on Switch to leaves the shape");
+        assert.equal(written(session, id, "node.size"), 2);
+    });
+});

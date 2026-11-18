@@ -3,11 +3,13 @@
  * rule a line follows, unsetting lines in one undo step, and moving a value between units.
  */
 
-import type { Channel, ChannelDescriptor, ChannelValue } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelDescriptor, ChannelValue, ShaderUse } from "@graphty/graphty-element/catalog";
+import type { Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "../PropertyRow";
-import { lineIn, removeLine, writeIn } from "../row";
+import { layerWord, lineIn, removeLine, writeIn } from "../row";
 import { channelWord } from "../words";
+import { replaces } from "./families";
 import { lineChannels, type LineSpec, type Rule, type SubGroup } from "./rubric";
 import { setOn } from "./things";
 
@@ -29,30 +31,81 @@ export function ruleOf(line: LineSpec, descriptor: ChannelDescriptor): Rule {
 }
 
 /**
- * Takes channels off the row, one undo step.
+ * Takes channels off the row, one undo step; for the whole Shape thing, the shader drawn in the
+ * shapes' place too (design 4.1), on one row or several alike.
  * @param ctx - the row.
  * @param channels - the channels.
+ * @param thing - the whole thing being removed, when it is: its name for the step, and whether it is the Shape.
+ * @param thing.name - its name.
+ * @param thing.shape - whether it is the Shape thing.
  * @returns when it is done.
  */
-export async function unsetIn(ctx: RowContext, channels: readonly Channel[]): Promise<unknown> {
+export async function unsetIn(
+    ctx: RowContext,
+    channels: readonly Channel[],
+    thing?: { readonly name: string; readonly shape: boolean },
+): Promise<unknown> {
     const { many, session } = ctx;
-    if (many !== undefined) {
+    const shape = thing?.shape === true;
+    if (many !== undefined && !shape) {
         const [first, ...more] = channels.filter((channel) => many.count(channel) > 0);
         return first === undefined ? undefined : many.clear(first, ...more);
     }
-    const held = channels.filter((channel) => setOn(ctx, channel));
-    if (held.length === 0) {
+    const layers = ctx.layers.filter((each) => !each.locked);
+    const held = channels.filter((channel) => layers.some((layer) => holds(layer, channel)));
+    const replaced = shape ? layers.filter((layer) => replaceIn(ctx, layer.set) !== undefined) : [];
+    if (held.length === 0 && replaced.length === 0) {
         return undefined;
     }
-    return session.transaction(`removing ${channelWord(held[0]).toLowerCase()}`, async (tx) => {
-        for (const layer of ctx.layers.filter((each) => !each.locked)) {
-            const own = tx.styles.get(layer.id);
-            const mine = held.filter((c) => own?.set?.[c] !== undefined || own?.encode?.[c] !== undefined);
+    const label =
+        thing === undefined
+            ? `removing ${channelWord(held[0] ?? channels[0]).toLowerCase()}`
+            : `removing ${thing.name.toLowerCase()} from ${(layers[0] === undefined ? undefined : layerWord(session, layers[0].id)) ?? "the default"}`;
+    return session.transaction(label, async (tx) => {
+        for (const { id } of layers) {
+            const own = tx.styles.get(id);
+            const mine = held.filter((channel) => own !== undefined && holds(own, channel));
             if (own !== undefined && mine.length > 0) {
                 await removeLine(tx, own, ...mine);
             }
+            const after = tx.styles.get(id);
+            const kept = shape ? replaceIn(ctx, after?.set) : undefined;
+            if (after !== undefined && kept !== undefined) {
+                const set: Record<string, unknown> = { ...after.set };
+                if (kept.length > 0) {
+                    set["node.shaders"] = kept;
+                } else {
+                    Reflect.deleteProperty(set, "node.shaders");
+                }
+                await tx.styles.update(id, { set }, { keepEmpty: true });
+            }
         }
     });
+}
+
+/**
+ * Whether a layer sets or binds a channel.
+ * @param layer - the layer.
+ * @param channel - the channel.
+ * @returns true when it does.
+ */
+function holds(layer: Layer, channel: Channel): boolean {
+    return layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined;
+}
+
+/**
+ * A layer's shader uses less the one drawn in the shapes' place, when it holds one.
+ * @param ctx - the row.
+ * @param set - the layer's `set`.
+ * @returns the uses left, or undefined when it draws no shader in the shapes' place.
+ */
+function replaceIn(ctx: RowContext, set: Layer["set"]): readonly ShaderUse[] | undefined {
+    const uses = set?.["node.shaders"];
+    if (!Array.isArray(uses)) {
+        return undefined;
+    }
+    const kept = (uses as readonly ShaderUse[]).filter((use) => !replaces(ctx, use));
+    return kept.length === uses.length ? undefined : kept;
 }
 
 /**

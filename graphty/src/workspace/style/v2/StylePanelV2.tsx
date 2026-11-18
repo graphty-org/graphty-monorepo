@@ -7,7 +7,7 @@
  */
 
 import { ControlSection } from "@graphty/compact-mantine";
-import type { Channel } from "@graphty/graphty-element/catalog";
+import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
@@ -17,13 +17,14 @@ import { ChannelLine } from "../parts/PartPage";
 import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
 import { useFindKey } from "../parts/useFindKey";
 import type { RowContext } from "../PropertyRow";
-import { startFor, writeIn, writeLine } from "../row";
+import { startForOrNone, writeIn, writeLine } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
 import { ShaderRow } from "../ShaderRow";
 import { addShader, moveShader, pickedShader, placeOf, shaderEntries, type ShaderEntry } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
+import { LISTS, nextColor } from "./lists";
 import { FIT_TO_LABEL, lineFor } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ThingRow } from "./ThingRow";
@@ -157,6 +158,8 @@ function ThingSection({
     // Things "+" added that the row does not set yet, waiting for their first value.
     const [waiting, setWaiting] = useState<readonly string[]>([]);
     const [menu, setMenu] = useState(openMenu);
+    // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
+    const [opening, setOpening] = useState<string | undefined>(undefined);
     const { things, shown } = thingsOf(ctx, part, section, waiting);
     // A one-only thing leaves the menu once set; Label stays, disabled, until a node can hold several
     // labels (design 7.4: list-valued labels are not in graphty-element yet).
@@ -198,12 +201,15 @@ function ThingSection({
             return;
         }
         focusLineNext(ctx.session, main.channel);
-        let start: unknown;
-        try {
-            start = main.accepts === "text" ? undefined : startFor(ctx, main);
-        } catch {
-            start = undefined;
+        const list = ctx.side === "node" ? LISTS[id] : undefined;
+        // A list thing opens on its list, and an Image on its picker (design 5.1).
+        if (list !== undefined || id === "image") {
+            setOpening(id);
         }
+        const first =
+            list === undefined ? undefined : { [list.colors]: writeChannelList(list.colors, [nextColor(ctx, [])]) };
+        const start = first?.[main.channel] ?? (main.accepts === "text" ? undefined : startForOrNone(ctx, main));
+        const starts = first === undefined || main.channel in first ? thing.starts : { ...thing.starts, ...first };
         // A thing with no plain starting value (a text source, a list) waits for the reader's first pick.
         if (typeof start !== "number" && typeof start !== "boolean" && (typeof start !== "string" || start === "")) {
             setWaiting((now) => (now.includes(id) ? now : [...now, id]));
@@ -215,9 +221,9 @@ function ThingSection({
         const written =
             ctx.many === undefined
                 ? ctx.session.transaction(`adding ${thing.name.toLowerCase()}`, (tx) =>
-                      writeLine(tx, ctx.row, ctx.side, main.channel, { value }, ctx.fresh, thing.starts),
+                      writeLine(tx, ctx.row, ctx.side, main.channel, { value }, ctx.fresh, starts),
                   )
-                : writeIn(ctx, main.channel, { value }, thing.starts);
+                : writeIn(ctx, main.channel, { value }, starts);
         written
             .then(() => {
                 store.set({ announcement: `${thing.name} added` });
@@ -272,6 +278,10 @@ function ThingSection({
                         thing={thing}
                         channels={channels}
                         pending={waiting.includes(thing.id)}
+                        opening={opening === thing.id}
+                        onOpened={() => {
+                            setOpening(undefined);
+                        }}
                         onCancel={() => {
                             setWaiting((now) => now.filter((each) => each !== thing.id));
                         }}

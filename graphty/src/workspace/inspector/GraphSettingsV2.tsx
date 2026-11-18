@@ -68,6 +68,8 @@ function colorText(value: unknown): string {
 function useProjectVersion(session: GraphSession | null): void {
     const [, bump] = useReducer((n: number) => n + 1, 0);
     useEffect(() => session?.on("project:changed", bump), [session]);
+    // The highlight color is a view setting, not a project change: it has its own event.
+    useEffect(() => session?.on("style:highlight-color-changed", bump), [session]);
 }
 
 /**
@@ -303,9 +305,6 @@ export function GraphSettingsV2(): React.JSX.Element | null {
     const sizeBound = useSizeBound(session);
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
     const hidden = useNotInEffect(session);
-    // The highlight color is read from the element on every render. graphty-element sends no event
-    // when it changes, so a write from elsewhere shows at the panel's next render (tracked in #8880).
-    const [, redraw] = useReducer((n: number) => n + 1, 0);
     if (session === null) {
         return null;
     }
@@ -314,12 +313,11 @@ export function GraphSettingsV2(): React.JSX.Element | null {
     };
     const { framing, minMarkSize, viewRotation } = session.config;
     const highlightNow = colorText(session.styles.highlightStyle("node")["node.color"]);
-    // Set when it is not the app's own highlight color, which "-" goes back to.
+    // Set when it is not the app's own highlight color (ElementHost's), which "-" goes back to.
     const highlightSet = highlightNow !== "" && highlightNow.toLowerCase() !== APP_HIGHLIGHT_COLOR.toLowerCase();
     const writeHighlight = (next: string | undefined): void => {
         try {
             session.styles.setHighlightColor(next);
-            redraw();
         } catch (error) {
             fail("Highlight color")(error);
         }

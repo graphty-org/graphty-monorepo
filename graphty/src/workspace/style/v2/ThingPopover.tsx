@@ -49,6 +49,8 @@ interface PopoverShellProps<G extends { readonly name: string }> {
     readonly first?: React.ReactNode;
     /** More lines at the end of Main (a replace shader's parameters). */
     readonly extra?: React.ReactNode;
+    /** A sub-group always shown after Main (a list thing's list, R15). */
+    readonly after?: React.ReactNode;
 }
 
 /**
@@ -65,6 +67,7 @@ interface PopoverShellProps<G extends { readonly name: string }> {
  * @param props.linesOf - see PopoverShellProps
  * @param props.first - see PopoverShellProps
  * @param props.extra - see PopoverShellProps
+ * @param props.after - see PopoverShellProps
  * @returns The contents
  */
 export function PopoverShell<G extends { readonly name: string }>({
@@ -79,6 +82,7 @@ export function PopoverShell<G extends { readonly name: string }>({
     linesOf,
     first,
     extra,
+    after,
 }: PopoverShellProps<G>): React.JSX.Element {
     const [added, setAdded] = useState<readonly string[]>([]);
     const box = useRef<HTMLDivElement>(null);
@@ -86,6 +90,8 @@ export function PopoverShell<G extends { readonly name: string }>({
         box.current?.querySelector("[data-set]")?.scrollIntoView({ block: "nearest" });
     }, []);
     const shown = groups.filter((group) => added.includes(group.name) || isSet(group));
+    const mainEmpty =
+        Array.isArray(main) && main.length === 0 && others.length === 0 && (extra === undefined || extra === null);
     const addable = groups.filter((group) => !shown.includes(group));
     const plus =
         addable.length === 0 ? undefined : (
@@ -106,13 +112,17 @@ export function PopoverShell<G extends { readonly name: string }>({
     return (
         <div ref={box} data-thing-popover="">
             {first}
-            <ControlGroup label="Main" actions={plus}>
-                {main}
-                {others.map((descriptor) => (
-                    <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
-                ))}
-                {extra}
-            </ControlGroup>
+            {/* An empty Main with nothing to add draws no legend (Solid fill). */}
+            {mainEmpty && plus === undefined ? null : (
+                <ControlGroup label="Main" actions={plus}>
+                    {main}
+                    {others.map((descriptor) => (
+                        <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
+                    ))}
+                    {extra}
+                </ControlGroup>
+            )}
+            {after}
             {shown.map((group) => (
                 <ControlGroup
                     key={group.name}
@@ -143,6 +153,7 @@ export function PopoverShell<G extends { readonly name: string }>({
  * @param props.others - set lines of the thing its rubric has no line for, drawn as today's fields
  * @param props.first - lines above Main: Switch to, By data, Combine
  * @param props.extra - more lines at the end of Main
+ * @param props.after - a sub-group always shown after Main (a list thing's list)
  * @returns The contents
  */
 export function ThingPopover({
@@ -152,6 +163,7 @@ export function ThingPopover({
     others,
     first,
     extra,
+    after,
 }: Readonly<{
     ctx: RowContext;
     title: string;
@@ -159,6 +171,7 @@ export function ThingPopover({
     others: readonly ChannelDescriptor[];
     first?: React.ReactNode;
     extra?: React.ReactNode;
+    after?: React.ReactNode;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     return (
@@ -167,6 +180,7 @@ export function ThingPopover({
             title={title}
             first={first}
             extra={extra}
+            after={after}
             groups={rubric.groups ?? []}
             isSet={(group) => groupSet(ctx, group)}
             onUnset={(group) => {
@@ -210,17 +224,19 @@ export function FirstLines({
     const { store } = useWorkspace();
     const own = lineIn(ctx, main.channel);
     const bound = own?.binding !== undefined || own?.template !== undefined;
+    // A shown / hidden row (Visibility) varies by data too (design 7.1): the element binds booleans.
+    const bindable = takesBinding(main) || main.accepts === "boolean";
     const number = main.accepts === "number" && typeof own?.value === "number" ? own.value : undefined;
     return (
         <>
             {family === undefined ? null : <SwitchTo ctx={ctx} family={family} />}
-            {bound || !takesBinding(main) ? null : (
+            {bound || !bindable ? null : (
                 <LineFrame
                     line={`by-data:${main.channel}`}
                     name={BY_DATA}
                     set={false}
                     rule="R12"
-                    control={<VarySlot ctx={ctx} descriptor={main} />}
+                    control={<VarySlot ctx={ctx} descriptor={main} anyKind={bindable} />}
                     modifier={null}
                     removeName={undefined}
                     onRemove={() => undefined}

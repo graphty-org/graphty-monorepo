@@ -8,7 +8,7 @@
 import { PanelField, Popout, type QuickAction, QuickActions } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Button } from "@mantine/core";
+import { Box, Button } from "@mantine/core";
 import React, { useState } from "react";
 
 import type { ValueSection } from "../v2/valueSections";
@@ -190,16 +190,19 @@ export function ValueListbox({
                 closeLabel={`Close ${label}`}
             >
                 {sections === undefined ? null : (
-                    <PanelField
-                        label={`${label} section`}
-                        kind="select"
-                        width="fill"
-                        data={sections.map((each) => ({ value: each.name, label: each.name }))}
-                        value={section}
-                        onChange={(next) => {
-                            setSection(String(next));
-                        }}
-                    />
+                    // Inset as the search box under it is (8 px each side).
+                    <Box mx={8} mt={8}>
+                        <PanelField
+                            label={`${label} section`}
+                            kind="select"
+                            width="fill"
+                            data={sections.map((each) => ({ value: each.name, label: each.name }))}
+                            value={section}
+                            onChange={(next) => {
+                                setSection(String(next));
+                            }}
+                        />
+                    </Box>
                 )}
                 <QuickActions
                     role="group"

@@ -157,6 +157,18 @@ describe("Style panel v2's label rubric", () => {
         }
     });
 
+    it("a location (R2) draws its Outside / Inside / Auto segments on a full unnamed line", () => {
+        const locations = lines.filter(({ line }) => line.rule === "R2");
+        assert.isAbove(locations.length, 0);
+        const width = segmentsWidth(["Outside", "Inside", "Auto"].map((name) => ({ name })));
+        for (const { place } of locations) {
+            assert.equal(place, "popover");
+            // R2 is R8f (design 6): a full popover line whatever the line's name.
+            assert.isAbove(width, LINE_WIDTHS.popoverNamed, "the words need more than a named slot");
+            assert.isAtMost(width, LINE_WIDTHS.popoverFull, `location (${String(width)} px)`);
+        }
+    });
+
     it("Main and every sub-group hold at most 8 lines, '+' holds 12, and nothing says Scene or World", () => {
         assert.isAtMost(LABEL_RUBRIC.common.length, 2);
         assert.isAtMost(LABEL_RUBRIC.main.length, 8);

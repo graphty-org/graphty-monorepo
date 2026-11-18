@@ -23,6 +23,7 @@ import {
     STYLE_ISSUE,
     styleFingerprint,
     styleTag,
+    unsettledStyles,
     writeStyleBlock,
 } from "../../src/styles/internal.js";
 import { styleBlockLosses } from "../../src/styles/io/block.js";
@@ -220,7 +221,8 @@ describe("a block that is not to be trusted", () => {
         expect(note?.params.samples).toEqual(["INVALID"]);
         // the file is read as NetworkX's node-link, with NetworkX's drawing defaults and nothing else
         expect(result.styles?.styles.source.tool).toBe("networkx");
-        expect(result.styles?.styles.rules.filter((r) => r.origin !== "tool")).toEqual([]);
+        const read = result.styles === null || result.styles === undefined ? null : unsettledStyles(result.styles);
+        expect(read?.styles.rules.filter((r) => r.origin !== "tool")).toEqual([]);
     });
 
     it("is ignored when a style column its rules read is missing from the file", () => {

@@ -3,7 +3,6 @@ import React from "react";
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { MultiRowPanel } from "./MultiRowPanel";
-import { StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 
 /**
@@ -20,11 +19,9 @@ export function FolderPanel({ id }: Readonly<{ id: string }>): React.JSX.Element
         return null;
     }
     const found = findTreeRow(session.styles.tree(), id);
-    if (found === undefined) {
-        return <StateLine>This row is gone</StateLine>;
-    }
-    if (found.row.children.length === 0) {
-        return <StateLine>Empty: drag rows onto the folder to put them in it</StateLine>;
+    // A gone or empty folder has nothing to style; the Style sidebar draws no note (#8739).
+    if (found === undefined || found.row.children.length === 0) {
+        return null;
     }
     return <MultiRowPanel ids={[id]} />;
 }

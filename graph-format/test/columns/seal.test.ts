@@ -1,21 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { type AttributeTable, type GraphSnapshot } from "../../src/types/index.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 function build(): GraphSnapshot {
     const builder = new GraphBuilder({ directed: false });

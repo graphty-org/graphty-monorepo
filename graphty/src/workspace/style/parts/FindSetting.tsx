@@ -8,11 +8,12 @@
 
 import { SearchInput } from "@graphty/compact-mantine";
 import type { GraphSession, LayerReach, StyleRow } from "@graphty/graphty-element/session";
-import { Button, Kbd, Text } from "@mantine/core";
+import { Button, Group, Kbd, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { rowName } from "../../graph-place/rows";
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { ControlLabel } from "../ControlLabel";
 import type { RowContext } from "../PropertyRow";
 import { findSettings, itemWord } from "./find";
 import { ChannelLine } from "./PartPage";
@@ -80,25 +81,25 @@ function AlsoSetBy({
         return null;
     }
     return (
-        <Text size="xs" c="dimmed" className="ws-also-set">
-            Also set by{" "}
+        <Group gap={0} className="ws-also-set">
             {others.map((reach) => {
                 const name = rowName(session, reach.row);
                 return (
-                    <Button
-                        key={reach.row}
-                        variant="subtle"
-                        size="compact-xs"
-                        aria-label={`Open ${name}`}
-                        onClick={() => {
-                            store.set({ inspected: { kind: "layer-row", id: reach.row } });
-                        }}
-                    >
-                        {name}
-                    </Button>
+                    <Tooltip key={reach.row} label={`Also set by ${name}`}>
+                        <Button
+                            variant="subtle"
+                            size="compact-xs"
+                            aria-label={`Open ${name}`}
+                            onClick={() => {
+                                store.set({ inspected: { kind: "layer-row", id: reach.row } });
+                            }}
+                        >
+                            {name}
+                        </Button>
+                    </Tooltip>
                 );
             })}
-        </Text>
+        </Group>
     );
 }
 
@@ -122,16 +123,11 @@ export function FindSettingResults({
     const groups = findSettings(ctx.side, query, parts);
     return (
         <div data-find-results="">
-            {groups.length === 0 ? (
-                <Text size="xs" c="dimmed" py={4}>
-                    No setting matches
-                </Text>
-            ) : null}
             {groups.map((group) => (
                 <div key={group.heading} data-find-group="">
-                    <Text size="xs" fw={600} pt={8}>
+                    <ControlLabel size="xs" fw={600} pt={8}>
                         {group.heading}
-                    </Text>
+                    </ControlLabel>
                     {group.channels.map((channel) => (
                         <div key={channel} data-result={channel}>
                             <ChannelLine ctx={ctx} channel={channel} word={itemWord(channel, group.item)} />

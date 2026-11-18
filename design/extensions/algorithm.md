@@ -1,6 +1,7 @@
 # Algorithm extension point
 
-Status: draft specification against graphty-element 2.6.1. Shared rules are in `README.md`.
+Status: specification, first written against graphty-element 2.6.1. `defineAlgorithm` shipped in
+graphty-element 3.0.1. Shared rules, and how to read "removed in 4.0", are in `README.md`.
 
 Normative files: `algorithm.d.ts`, `descriptors.schema.json#/$defs/AlgorithmDescriptor`, and this
 document.
@@ -311,24 +312,16 @@ Rules:
    "report for these", not "compute without the rest": a what-if run that removes a node cannot be
    expressed by scoping a whole-graph algorithm, and gets the baseline numbers back with only a
    caveat. Separating the two roles is open decision 23.
-4. **Edge identity (not yet met): no conforming edge-shaped plugin exists today.** There is no
-   public way to turn an edge row into the element's `Edge.id`: the mapping is internal. The
-   deprecated `algorithmGraph()` does not help: it is built over the SIMPLIFIED subgraph with
-   `graph.addEdge(source, target, weight)` and never receives an `Edge.id`
-   (`graphty-element/src/algorithms/utils/snapshotGraph.ts`), and the legacy graph holds one edge
-   per pair, so parallel edges are already merged. The only route that works is the guide's
-   `edgeIdsByPair` helper, which reads `this.graph.getSession()` -- forbidden by rule 1 -- and
-   which cannot name one of two parallel edges. The parity suite's edge tests use that route too.
-   So an `edge-metric` or `edge-set` plugin cannot publish by id without breaking this contract on
-   any graph, and cannot publish one value per edge at all on a multigraph (an event log, an
-   interaction log). The fix is `ScopedInputEdgeIdentity` in `algorithm.d.ts` (`edgeId(row)` on
-   `graph`, `subgraphEdgeIds(row)` on the subgraph), README open decision 5, which is therefore a
-   blocker for the whole algorithm contract, not only for the deprecation. The migration plan
-   specifies the same accessor differently -- "the scoped input's snapshot plus the edge remap" --
-   and open decision 5 must pick one and update the other document. It must also say what a value
-   published for a subgraph row that merged several parallel edges means: copied to every id
-   behind it, or refused. Until it lands, the `@deprecated` tag on `algorithmGraph` MUST NOT ship,
-   and the "Who this serves" table does not claim edge results as served.
+4. **Edge identity (met).** An edge-shaped plugin publishes by the element's `Edge.id` through
+   the scoped input (`graphty-element/src/algorithms/input/ScopedInput.ts`): `input.edgeId(row)`
+   names one edge of `graph`, and `input.subgraphEdgeIds(row)` names every edge of `graph` behind
+   one edge of `subgraph()` -- more than one when parallel edges were merged or a reciprocal pair
+   collapsed -- and a value computed for that row is published under each of them. So an
+   `edge-metric` or `edge-set` plugin conforms to rule 1 on any graph, and a plugin that needs one
+   value per parallel edge (an event log, an interaction log) reads `graph` or asks for
+   `simplify: "none"`. The deprecated `algorithmGraph()` still cannot name an edge (it is built over
+   the simplified subgraph and never receives an `Edge.id`), which is one reason it is deprecated;
+   the guide's old `edgeIdsByPair` helper, which read `this.graph.getSession()`, is gone.
 5. **What the snapshot carries beyond topology (not yet specified).** The specification does not
    yet say whether `graph` carries the loaded node and edge attributes as columns, which attribute
    (if any) fills a weights array and whether it means a distance or a strength, or whether the
@@ -359,16 +352,17 @@ Rules:
    `graphty.edgeAmong`, `graphty.pinned` and, before attachment, `graphty.importPosition`. Every
    column whose name begins with `graphty.` is element-internal: a plugin MUST NOT read it (a
    plugin that derives edge ids from `graphty.edgeId` works today and breaks silently when the
-   column changes). Edge ids come from the accessor of open decision 5, which is a wrapper over
+   column changes). Edge ids come from `input.edgeId(row)` and `input.subgraphEdgeIds(row)`, which wrap
    that column.
 
 ### 3.2 Deprecated: `algorithmGraph()`
 
 `Algorithm.algorithmGraph(mode)` returns a legacy `Graph` object from `@graphty/algorithms`, and
 `./extend` exports its type as `AlgorithmGraphView`. The owner decided on 2026-09-28 to deprecate
-both in a 3.x minor and remove them in graphty-element 4.0, together with `@graphty/algorithms`
-3.0. A new algorithm MUST NOT use them. They cannot supply edge ids either (section 3.1 item 4).
-Until 4.0 they keep working, and a class that uses them is still conforming.
+both in a 3.x minor and remove them later. There are no major releases, so the removal lands in
+an ordinary release that announces it (issue #851). A new algorithm MUST NOT use them. They cannot
+supply edge ids either (section 3.1 item 4). Until that release they keep working, and a class that
+uses them is still conforming.
 
 **Inconsistency to fix:** the published guide's main example
 (`graphty-element/docs/guide/extending/custom-algorithms.md`) still reads its input through
@@ -596,7 +590,7 @@ is not assignable to one from another. Therefore:
    requested sample size and the scope specification -- not from the parameters or the seed -- so re-running with new parameters keeps every saved
    selector working, and renaming a key breaks every saved style that selects on a derived id. A
    style or recipe meant to be reused across runs and networks SHOULD bind to an `as` name.
-5. `algorithmGraph`/`AlgorithmGraphView`: deprecated in 3.x, removed in 4.0 (section 3.2).
+5. `algorithmGraph`/`AlgorithmGraphView`: deprecated in 3.x, removed in a later ordinary release (section 3.2).
 
 ## 9. Security
 
@@ -763,7 +757,6 @@ repository's source.
 
 ## 13. Known gaps
 
-- No public edge identity accessor (section 3.1 item 4; open decision 5).
 - `algorithmGraph` is not yet tagged deprecated and the guide still teaches it (section 3.2).
 - `seed`, `exact`, `sample` and `timeBox` do not reach `compute` (section 5.1).
 - No headless host; plugins cannot be unit-tested in Node (section 10).

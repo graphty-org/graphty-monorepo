@@ -6,6 +6,13 @@ date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputControlle
 `src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
 and `src/cameras/PivotController.ts`.
 
+Do not copy its test code. Its examples use practices the repository now bans: fixed sleeps
+(`waitForTimeout`, `setTimeout` delays), local `timeout` deadlines, reads of private state
+(`activeCameraController`, `dataManager`, `node.mesh`), a fixed dev-server URL, and frame-rate
+assertions in functional tests. Tests now wait on the event or promise that settles the thing under
+test, assert through graphty-element's public API, start servers through servherd with an assigned
+port, and keep measurements in a `bench*` project. The rules are in tools/README.md, "Testing".
+
 ## Overview
 
 This unified plan combines the comprehensive XR camera architecture with the critical unified drag system, delivering a complete, production-ready XR experience for graph visualization.

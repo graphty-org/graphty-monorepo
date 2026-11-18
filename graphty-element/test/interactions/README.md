@@ -25,13 +25,16 @@ These mount a `<graphty-element>` (`helpers/mounted-element.ts`), drive it with 
 
 ### XR Tests (`xr/`)
 
-These drive the XR gesture code with mock hands and controllers (`helpers/iwer-setup.ts`). The test that starts real VR and AR sessions, through IWER (Immersive Web Emulation Runtime), is `test/browser/xr-session.test.ts`.
+These enter VR on an emulated Meta Quest 3 and move its thumbsticks and hands (`helpers/xr-input-driver.ts`, over IWER in `helpers/iwer-setup.ts`). The test that starts real VR and AR sessions, through IWER (Immersive Web Emulation Runtime), is `test/browser/xr-session.test.ts`.
 
-| File                       | Description                                      |
-| -------------------------- | ------------------------------------------------ |
-| `xr-thumbstick.test.ts`    | Thumbstick rotation, pan, zoom                   |
-| `xr-gestures.test.ts`      | Controller trigger, node drag, two-hand gestures |
-| `xr-hand-tracking.test.ts` | Pinch gestures, hand tracking                    |
+| File                         | Description                                                      |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `xr-thumbstick.test.ts`      | Thumbstick rotation, pan, zoom                                   |
+| `xr-gestures.test.ts`        | Controller trigger, node drag, two-hand gestures                 |
+| `xr-hand-tracking.test.ts`   | Pinch gestures, hand tracking                                    |
+| `xr-input-switching.test.ts` | Controllers put down and picked up, a hand losing tracking       |
+| `xr-local-space.test.ts`     | Sticks and grabs move things in the reader's own frame           |
+| `xr-voice.test.ts`           | Voice in an immersive session: push-to-talk, wrist orb, pointing |
 
 ### Edge Cases (`edge-cases/`)
 
@@ -43,6 +46,26 @@ Tests for complex scenarios, state transitions, and edge cases.
 | `pin-on-drag.test.ts`           | A dragged node is pinned or not as pinOnDrag says; a pin holds under a force layout |
 | `view-mode-transitions.test.ts` | After 2D/3D switches a drag does what the view shown does; undo restores Z          |
 | `input-sequences.test.ts`       | Clicks, a drag let go far away, a view switch or new nodes while the button is down |
+
+### Selection (`selection/`)
+
+| File                            | Description                                                  |
+| ------------------------------- | ------------------------------------------------------------ |
+| `node-selection-click.test.ts`  | Clicking a node selects it, in 2D and 3D                     |
+| `halo-on-hover.test.ts`         | A layer's halo channels draw the halo on the hovered node    |
+| `halo-over-edges.test.ts`       | A selected node's halo is drawn over crossing edges          |
+| `selection-halo-shape.test.ts`  | The halo follows the shape of the node it rings              |
+| `capped-selection-halo.test.ts` | A selection that is full draws no halo for a node it refused |
+
+### Top-level tests
+
+Each file in this directory drives one feature with real input and reads the outcome through the
+public API. `real-input.test.ts` is the pattern for a new test. The others: `autosave-drag`,
+`camera-behavior`, `expand-real-input`, `filter-keeps-camera`, `flat-shape-click`,
+`hover-ends-on-leave`, `input-recording`, `label-close-button`, `label-screen-fit`,
+`location-map-input`, `pointer-on-rows`, `render-on-demand`, `restyle-under-input`,
+`selection-mark-contrast`, `stable-frame-waits-for-pending-visuals` and `union-hover`; the
+`@file` comment at the top of each says what it covers.
 
 ## Running Tests
 
@@ -116,16 +139,12 @@ npx vitest run --project=interactions test/interactions/xr/ --browser.headless=f
 
 In test files, you can add console.log statements:
 
+The tests run in the page itself, so they read the graph directly:
+
 ```typescript
-test("debug example", async () => {
-    const state = await page.evaluate(() => {
-        const graph = document.querySelector("graphty-element")?.graph;
-        return {
-            viewMode: graph?.viewMode,
-            camera: graph?.getCameraManager()?.getActiveController()?.camera?.position,
-        };
-    });
-    console.log("Graph state:", state);
+it("debug example", async () => {
+    const element = await mounted("3d");
+    console.log("camera:", camera(element));
 });
 ```
 
@@ -135,11 +154,22 @@ test("debug example", async () => {
 
 Core utilities for all interaction tests:
 
-- `waitForGraphReady(page)` - Wait for graph initialization
-- `getNodeScreenPosition(page, nodeId)` - Get node's screen coordinates
-- `getCameraState(page)` - Snapshot camera position/rotation
-- `waitForSettle(page, frames)` - Wait for physics to settle
-- `setupTestGraph(page, options)` - Configure graph for testing
+Helpers over a `Graph` made directly with `new Graph(container)` (a real WebGL engine):
+
+- `setupTestGraph(options)` - Make a graph in the given view mode, layout and data, and wait until it is ready
+- `teardownTestGraph(graph)` - Dispose it and remove its container
+- `waitForGraphReady(graph)` - Wait until the camera, scene and input handlers are set up
+- `getNodeScreenPosition(graph, nodeId)` - Where a node is drawn, in CSS pixels
+- `dragNode(graph, nodeId, delta)` - Drag a node with the real mouse
+- `clickAtPosition(graph, position)` / `clickOnNode(graph, nodeId)` / `clickOnBackground(graph)` - Real clicks
+
+To read the camera, call the public `graph.getCameraState()`. To wait for a layout to come to rest, call `graph.waitForSettled()`.
+
+### `test/helpers/real-input.ts`
+
+The input driver every test here uses: `click`, `doubleClick`, `rightClick`, `hover`, `press`,
+`moveHeld`, `release`, `drag`, `wheel`, `touchDrag`, `pinch`, `twist`, `holdKey` and the rest send
+real events through the browser's own input pipeline (touch through the Chrome DevTools Protocol).
 
 ### `mounted-element.ts`
 
@@ -152,57 +182,41 @@ A `<graphty-element>` with three nodes at fixed places, removed after each test,
 
 ### `iwer-setup.ts`
 
-WebXR emulation and XR input mocks:
+WebXR emulation:
 
 - `installIWER()` - Make `navigator.xr` an emulated Meta Quest 3 and record every session the page starts (mode, frames rendered, ended). Call it before the graph initializes; `uninstall()` restores `navigator.xr`. `test/browser/xr-session.test.ts` uses it to enter and leave real VR and AR sessions.
-- `createMockHand(hand)` / `createPinchingHand(hand)` / `createMockController(hand)` - Plain-data hand and controller states for the gesture tests
 
 ### `types.ts`
 
 TypeScript interfaces for test configuration:
 
 - `TestGraphOptions` - Graph setup configuration
-- `CameraState` - Camera state snapshot
-- `MockController` / `MockHand` - XR input mocks
+- `NodeData` / `EdgeData` / `ScreenPosition` / `DragDelta` - Shapes the helpers take and return
+
+### `xr-input-driver.ts`
+
+`createXRInputDriver(...)` mounts a graphty-element, enters VR on the emulated headset and moves its
+thumbsticks and hands, for the tests under `xr/`.
 
 ## Writing New Tests
 
-### Direction Test Pattern
+Start from `real-input.test.ts`: mount the element, give it real input, wait for the input to be
+applied, and assert on what the public API reports.
 
 ```typescript
-test("input X causes direction Y", async () => {
-    // 1. Record initial state
-    const initial = await getCameraState(page);
+import { assert, it } from "vitest";
 
-    // 2. Apply input
-    await applyInput();
+import { drag } from "../helpers/real-input";
+import { applied, camera, EMPTY, mounted } from "./helpers/mounted-element";
 
-    // 3. Wait for effect
-    await waitForSettle(page);
+it("a drag on empty canvas turns the 3D camera", async () => {
+    const element = await mounted("3d");
+    const before = camera(element);
 
-    // 4. Verify direction
-    const final = await getCameraState(page);
-    assert.isAbove(final.position.x, initial.position.x, "Should move in positive X");
-});
-```
+    await drag(element, EMPTY, { x: EMPTY.x + 80, y: EMPTY.y });
+    await applied(element);
 
-### Integration Test Pattern
-
-```typescript
-test("user action causes expected behavior", async () => {
-    // 1. Navigate to appropriate story
-    await page.goto(`${STORYBOOK_URL}/iframe.html?id=story-id`);
-    await waitForGraphReady(page);
-
-    // 2. Perform user action
-    const canvas = page.locator("canvas");
-    await canvas.click({ position: { x: 200, y: 200 } });
-
-    // 3. Verify result
-    const result = await page.evaluate(() => {
-        return document.querySelector("graphty-element")?.graph?.someProperty;
-    });
-    assert.strictEqual(result, expectedValue);
+    assert.notStrictEqual(camera(element), before);
 });
 ```
 
@@ -235,12 +249,16 @@ Some interactions are difficult to test automatically. Here are manual testing p
 ```
 test/interactions/
 ├── helpers/
-│   ├── interaction-helpers.ts  # Core test utilities
-│   ├── iwer-setup.ts          # XR emulation setup
-│   └── helpers.test.ts        # Tests for helpers themselves
+│   ├── interaction-helpers.ts  # Helpers over a Graph
+│   ├── mounted-element.ts      # A mounted <graphty-element> and its readers
+│   ├── iwer-setup.ts           # XR emulation setup
+│   ├── xr-input-driver.ts      # Drives XR input in an emulated session
+│   └── helpers.test.ts         # Tests for helpers themselves
 ├── types.ts                    # TypeScript interfaces
-├── unit/                       # Unit tests (NullEngine)
-├── integration/                # Browser integration tests
+├── *.test.ts                   # One feature each, under real input
+├── unit/                       # XR mappings and deadzones
+├── integration/                # Mouse, keyboard and touch on a mounted element
+├── selection/                  # Selection and its halo
 ├── xr/                         # XR emulation tests
 └── edge-cases/                 # Edge case tests
 ```
@@ -248,6 +266,5 @@ test/interactions/
 ## Related Documentation
 
 - [IWER Documentation](https://github.com/meta-quest/immersive-web-emulator)
-- [Playwright Testing](https://playwright.dev/docs/api/class-page)
 - [Vitest Browser Mode](https://vitest.dev/guide/browser/)
 - [CDP Touch Events](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchTouchEvent)

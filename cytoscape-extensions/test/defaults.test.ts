@@ -37,7 +37,9 @@ describe("the package's own defaults", () => {
             weighted: false,
         });
         cy().graphtyKatzCentrality();
-        expect(seen.katzCentrality).toMatchObject({ alpha: 0.1, beta: 1, maxIterations: 100, tolerance: 1e-6 });
+        expect(seen.katzCentrality).toMatchObject({ beta: 1, maxIterations: 100, tolerance: 1e-6 });
+        // alpha is left to @graphty/algorithms, which derives one that converges on the graph
+        expect(seen.katzCentrality).not.toHaveProperty("alpha");
     });
 
     it("yield to the caller's option, and an undefined option keeps the default", () => {

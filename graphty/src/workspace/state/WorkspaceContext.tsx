@@ -4,6 +4,7 @@
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { createContext, useContext } from "react";
 
@@ -109,6 +110,7 @@ export function makeWorkspaceValue(
             ) {
                 return;
             }
+            GraphtyLogger.getLogger(["graphty", "workspace"]).info("command", { id });
             const outcome = command.run(value);
             if (outcome instanceof Promise) {
                 outcome.catch((error: unknown) => {

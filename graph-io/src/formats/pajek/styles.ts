@@ -20,18 +20,21 @@ import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { DVIPS_COLORS } from "../../styles/canon/color-tables.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
+import { graphvizFontName, postscriptFont } from "../../styles/canon/postscript-font.js";
 import { type CanonSite, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, replacedLabelNote } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
+    NodeStyleProperty,
     StyleColumn,
     StyleReadContext,
     StyleRule,
@@ -40,8 +43,6 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { graphvizFontName, postscriptFont } from "../dot/drawing.js";
-import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
     drawLines,
     drawsLineLabels,
@@ -324,7 +325,7 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
         put("label", canonText(label, at("label")));
     }
     const raw = get(SHAPE_COLUMN);
-    const shape = raw === null ? null : canonEnum("shape", raw, "dvips", at("shape"));
+    const shape = raw === null ? null : canonEnum("shape", drawnKeyword(raw), "dvips", at("shape"));
     if (raw !== null) {
         put("shape", shape);
     }
@@ -354,6 +355,18 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
         put("width", 0);
         put("height", 0);
     }
+}
+
+/**
+ * The shape keyword Pajek 6.02's SVG export draws a vertex line's keyword as: a `cross` is drawn as an ellipse, and so
+ * is a keyword in any case but lower (`Box`, `Triangle`), which Pajek reads as no shape (`pajek-specimen-node-shapes`
+ * `shape-cross`, `shape-box-capitalized`, `shape-triangle-capitalized`). The `shape` column keeps the keyword as
+ * written, so a file writes back as it was read.
+ * @param raw - the keyword as written
+ * @returns the keyword Pajek draws
+ */
+function drawnKeyword(raw: unknown): unknown {
+    return raw === "cross" || (typeof raw === "string" && raw !== raw.toLowerCase()) ? "ellipse" : raw;
 }
 
 /**
@@ -398,7 +411,7 @@ const PAJEK_OUTLINES: ReadonlyMap<string, readonly (readonly [number, number])[]
 const PAJEK_DIAMOND_Q = 0.001;
 
 /** The shapes `phi` turns whole, about their center (`shapeRotation`), where it turns no corners. */
-const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:cross", "other:man", "other:woman"]);
+const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:man", "other:woman"]);
 
 /**
  * A vertex's outline where Pajek draws one no named shape is: a diamond is Pajek's six-cornered one, its top and bottom
@@ -1100,9 +1113,9 @@ function hookPort(shape: unknown, hook: number): readonly [number, number] | nul
     if (!Number.isInteger(hook) || hook < 1) {
         return null;
     }
-    const keyword = typeof shape === "string" ? shape.toLowerCase() : "ellipse";
     // Pajek 6.02 draws a cross as an ellipse, with an ellipse's hooks (`h-cross-1-3`: hook 3 at 3 degrees)
-    if (keyword === "ellipse" || keyword === "cross") {
+    const keyword = typeof shape === "string" ? drawnKeyword(shape) : "ellipse";
+    if (keyword === "ellipse") {
         const a = (hook * Math.PI) / 180;
         return [Math.cos(a), Math.sin(a)];
     }
@@ -1143,7 +1156,7 @@ const PAJEK_AP_TIP_AHEAD = 5;
 const PAJEK_AP_LEAST = 1e-6;
 
 /** The vertex properties its outline is drawn from (`outlineReach`). */
-const OUTLINE_PROPERTIES: readonly string[] = ["width", "height", "shape", "shapePoints", "shapeRotation"];
+const OUTLINE_PROPERTIES: readonly NodeStyleProperty[] = ["width", "height", "shape", "shapePoints", "shapeRotation"];
 
 /** How far a line runs from each end's center before it leaves that vertex's outline, in drawn units. */
 type Ends = readonly [source: number, target: number];
@@ -1168,11 +1181,9 @@ function outlineReach(value: (property: string) => unknown, ux: number, uy: numb
         return 0;
     }
     const shape = value("shape");
-    const listed = typeof value("shapePoints") === "string" ? String(value("shapePoints")) : "";
+    // a polygon without three readable corners is drawn as the ellipse
     const corners =
-        shape === "polygon"
-            ? listed.split(" ").map((pair) => pair.split(",").map(Number) as unknown as readonly [number, number])
-            : PAJEK_OUTLINES.get(String(shape));
+        shape === "polygon" ? (polygonCorners(value("shapePoints")) ?? undefined) : PAJEK_OUTLINES.get(String(shape));
     if (corners === undefined) {
         const t = ((numberOrNull(value("shapeRotation")) ?? 0) * Math.PI) / 180;
         const [x, y] = [ux * Math.cos(t) + uy * Math.sin(t), -ux * Math.sin(t) + uy * Math.cos(t)];
@@ -1195,6 +1206,26 @@ function outlineReach(value: (property: string) => unknown, ux: number, uy: numb
         }
     });
     return reach;
+}
+
+/**
+ * The corners of a `shapePoints` value: `x,y` pairs separated by spaces.
+ * @param points - the value
+ * @returns the corners, or null unless it is text of at least three pairs of two finite numbers
+ */
+function polygonCorners(points: unknown): (readonly [number, number])[] | null {
+    if (typeof points !== "string") {
+        return null;
+    }
+    const corners: (readonly [number, number])[] = [];
+    for (const pair of points.trim().split(/\s+/)) {
+        const xy = pair.split(",").map((t) => (t.trim() === "" ? Number.NaN : Number(t)));
+        if (xy.length !== 2 || !xy.every(Number.isFinite)) {
+            return null;
+        }
+        corners.push([xy[0], xy[1]]);
+    }
+    return corners.length >= 3 ? corners : null;
 }
 
 /**
@@ -1506,6 +1537,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         drawVertices(draw, snapshot, node);
         drawLines(draw, snapshot, node, edge);
     }
+    unborderFlatEllipses(node, snapshot.nodeCount);
     layLoops(snapshot, loops, node, edge);
     if (block !== null) {
         exactFromBlock(snapshot, block, { node, edge }, labels, runOf, endsOf);
@@ -1606,6 +1638,23 @@ function keptOf(kept: unknown): {
         };
     }
     return { block: null, draw: null, voided: new Set() };
+}
+
+/**
+ * Takes the border off every ellipse drawn with no width or no height, in place: Pajek 6.02's SVG export writes it as an
+ * ellipse of radius 0, which draws nothing, border and all (`pajek-specimen-node-sizes-opacity` `x-fact-0`: `x_fact 0
+ * y_fact 0`; `pajek-specimen-mappings-bypass` `vec-0`: a vector value of 0), where graphty would draw its border as a dot.
+ * @param node - the vertices' values, drawn
+ * @param n - the number of vertices
+ */
+function unborderFlatEllipses(node: ValueColumns, n: number): void {
+    for (let i = 0; i < n; i++) {
+        const shape = node.shape?.[i] ?? "ellipse";
+        if (shape === "ellipse" && (node.width?.[i] === 0 || node.height?.[i] === 0)) {
+            node.borderWidth ??= new Array<StyleValue | null>(n).fill(null);
+            node.borderWidth[i] = 0;
+        }
+    }
 }
 
 /**
@@ -1720,15 +1769,8 @@ function shapeKeyword(get: Get, approximate: Approximate): string {
  * @returns the diamond's `q`, or null
  */
 function diamondQ(get: Get): number | null {
-    const points = get("shapePoints");
-    const corners =
-        typeof points === "string"
-            ? points
-                  .trim()
-                  .split(/\s+/)
-                  .map((p) => p.split(",").map(Number))
-            : [];
-    if (corners.length !== 6) {
+    const corners = polygonCorners(get("shapePoints"));
+    if (corners?.length !== 6) {
         return null;
     }
     const q = corners[2][0];
@@ -2164,7 +2206,7 @@ export function pajekStyledExport(
     // the lines as a reader without the `pajekDraw` option places them
     const runOf = lineRuns(snapshot, PAJEK_SQUARE);
     // graphty measures an arrowhead's place between the outlines it draws
-    const vertex = elementValues((t, p) => input.picture(t, p as never), "node", OUTLINE_PROPERTIES);
+    const vertex = elementValues((t, p) => input.picture(t, p), "node", OUTLINE_PROPERTIES);
     const endsOf = lineEnds(snapshot, runOf, (v, property) => vertex(v)(property));
     const directed = directedEdges(snapshot);
     for (const target of ["node", "edge"] as const) {
@@ -2172,7 +2214,7 @@ export function pajekStyledExport(
         const approximate: Approximate = (property, value) => {
             approximated.add(target, property, value);
         };
-        const get = elementValues((t, p) => input.picture(t, p as never), target, PAJEK_STYLE_CAPABILITIES[target]);
+        const get = elementValues((t, p) => input.picture(t, p), target, PAJEK_STYLE_CAPABILITIES[target]);
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
             target === "node"
@@ -2194,6 +2236,10 @@ export function pajekStyledExport(
         },
     );
     const notes = approximated.notes("Pajek");
+    const replaced = replacedLabelNote(snapshot, LABEL_COLUMN, input.picture("node", "label"), "the vertex label");
+    if (replaced !== null) {
+        notes.push(replaced);
+    }
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };

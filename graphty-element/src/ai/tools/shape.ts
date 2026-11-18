@@ -96,20 +96,31 @@ function keyOf(record: Readonly<Record<string, unknown>>, field: string): string
     return bare !== undefined && bare in record ? bare : undefined;
 }
 
+/** Fields that mean every attribute of the record, read only when the record has no key of that name. */
+const WHOLE_RECORD = new Set(["data", "data.*", "*"]);
+
 /**
  * One record, compact: at most twelve fields, long strings cut and flagged.
  * @param record - The record.
- * @param fields - The fields asked for, or all; each comes back under the name it was asked by.
+ * @param fields - The fields asked for, or all; each comes back under the name it was asked by, and
+ *   `data`, `data.*` or `*` returns every attribute under its own name.
  * @returns The record.
  */
 export function compactRecord(record: Readonly<Record<string, unknown>>, fields?: readonly string[]): JsonObject {
-    const keys =
+    const every = (): (readonly [string, string])[] => Object.keys(record).map((key) => [key, key] as const);
+    const named =
         fields === undefined
-            ? Object.keys(record).map((key) => [key, key] as const)
+            ? every()
             : fields.flatMap((field) => {
+                  // A model asking for "everything" names the whole attribute block (#8749).
+                  if (WHOLE_RECORD.has(field) && !(field in record)) {
+                      return every();
+                  }
+
                   const key = keyOf(record, field);
                   return key === undefined ? [] : [[field, key] as const];
               });
+    const keys = [...new Map(named.map((pair) => [pair[0], pair])).values()];
     const out: JsonObject = {};
     let truncated = false;
     for (const [name, key] of keys.slice(0, MAX_FIELDS)) {

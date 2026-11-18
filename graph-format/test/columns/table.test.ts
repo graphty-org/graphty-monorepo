@@ -8,21 +8,8 @@ import {
     verifyUniqueColumn,
     verifyUniqueColumns,
 } from "../../src/columns/table.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { type Column, type F32 } from "../../src/types/index.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 describe("AttributeTable construction", () => {
     it("wraps columns in declaration order and validates them", () => {
@@ -279,6 +266,12 @@ describe("unique enforcement", () => {
         expectError(() => verifyUniqueColumn(bool), "E_DUPLICATE_ID");
         const json = columnFromValues("node", 2, "j", [{ a: 1 }, { a: 1 }], { dtype: "json", unique: true });
         expectError(() => verifyUniqueColumn(json), "E_DUPLICATE_ID");
+        // NaN, Infinity and -0 are values of their own, never equal to null or 0
+        const special = columnFromValues("node", 5, "j", [null, Number.NaN, Infinity, 0, -0], {
+            dtype: "json",
+            unique: true,
+        });
+        expect(() => verifyUniqueColumn(special)).not.toThrow();
         const list = columnFromValues("node", 2, "l", [[1], [1]], { dtype: "list", itemDtype: "i32", unique: true });
         expectError(() => verifyUniqueColumn(list), "E_DUPLICATE_ID");
         const vec = columnFromValues(

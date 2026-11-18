@@ -59,7 +59,6 @@ import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { buildHistogram } from "../results/statistics";
-import type { ResolvedScope } from "../runs/types";
 import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture, capturedHalves } from "../sets/captures";
@@ -622,6 +621,34 @@ interface ScopeBehind extends Membership {
     now(): Membership;
 }
 
+/**
+ * A scope specification resolved against the graph as it stands.
+ */
+export interface ResolvedScope {
+    /**
+     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
+     * each id as the graph holds it, but `has` takes an integer id written either way: with node
+     * `34` in scope, `nodes.has("34")` is true.
+     */
+    readonly nodes: ReadonlySet<NodeId>;
+    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
+    readonly edges: ReadonlySet<EdgeId>;
+    /** How many nodes are in scope. */
+    readonly nodeCount: number;
+    /** How many edges are in scope. */
+    readonly edgeCount: number;
+    /**
+     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
+     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
+     * on first read.
+     */
+    readonly digest: string;
+    /** What was asked for, before it was resolved. */
+    readonly spec: Scope;
+    /** When it was resolved, as an ISO 8601 timestamp. */
+    readonly resolvedAt: string;
+}
+
 /** The resolution behind each resolved scope a resolver dressed, for the internal readers of its bitmaps. */
 const resolutionsBehind = new WeakMap<ResolvedScope, ScopeBehind>();
 
@@ -1065,6 +1092,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         return value;
     };
 
+    const { visibility } = sources;
     const steps = createScopeSteps({
         read: (leaf) => readUnionLeaf(sources.snapshot(), leaf, filterSourcesIn(context())),
         reading: {
@@ -1094,11 +1122,25 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 const index = side === "nodes" ? graph.ids.indexOf(id) : edgeSpaceOf(graph).indexOf(id as EdgeId);
                 return index === INVALID_INDEX ? -1 : index;
             },
+            ...(visibility === undefined
+                ? {}
+                : {
+                      shownOn: (side: "nodes" | "edges") => {
+                          const mask = side === "nodes" ? visibility.nodes() : visibility.edges();
+                          return (index: number) => mask.has(index);
+                      },
+                  }),
         },
         assertRule: (tree) => {
             parseScope({ define: { kind: "rule", where: tree, reading: "clipped" } });
         },
-        signature: (leaf) => scopeSignature({ define: { kind: "rule", where: leaf, reading: "clipped" } }, context()),
+        // What is shown is part of every reading (`total.shown`), so a filter change is heard too.
+        signature: (leaf) => {
+            const own = scopeSignature({ define: { kind: "rule", where: leaf, reading: "clipped" } }, context());
+            return own === null || visibility === undefined
+                ? own
+                : `${own}\n${String(visibility.nodes().version)}:${String(visibility.edges().version)}`;
+        },
         ...(sources.subscribe === undefined ? {} : { subscribe: sources.subscribe }),
         ...(sources.stepRuns === undefined ? {} : { stepRuns: sources.stepRuns }),
         ...(sources.runScopeOf === undefined ? {} : { runScopeOf: sources.runScopeOf }),

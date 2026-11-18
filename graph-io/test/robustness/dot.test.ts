@@ -7,15 +7,14 @@
 import { describe, expect, it } from "vitest";
 
 import { importAllGraphs, importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/index.js";
+import { codes, ids } from "./helpers.js";
 import {
     chunks,
-    codes,
     column,
     edgePairs,
     fatalCode,
     GZIP_BYTES,
     HTML_404,
-    ids,
     issue,
     latin1,
     rejects,
@@ -151,10 +150,10 @@ describe("DOT robustness: syntax errors", () => {
         }
     });
 
-    it("refuses # in the middle of a line and a single-quoted id", async () => {
-        const hash = await rejects(dot("digraph { a # b\n}"));
-        expect(fatalCode(hash)).toBe("E_SYNTAX");
-        expect(hash.issue?.message).toBe('unexpected character "#"');
+    it("reads # in the middle of a line as a comment and refuses a single-quoted id", async () => {
+        const hash = await dot("digraph { a # b\n}");
+        expect(codes(hash.report)).toEqual([]);
+        expect(ids(hash.snapshot)).toEqual(["a"]);
         const single = await rejects(dot("digraph { 'a' -> b }"));
         expect(fatalCode(single)).toBe("E_SYNTAX");
         expect(single.issue?.message).toBe('unexpected character "\'"');

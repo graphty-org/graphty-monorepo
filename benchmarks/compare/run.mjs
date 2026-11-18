@@ -35,13 +35,16 @@ const skip = flags.includes("skip-layout"),
     curves = flags.includes("curves"),
     // the lean mode's straight edges kept in 3D, where they are pulled under batched (cosmos-gap G12)
     threeD = flags.includes("3d"),
+    // graphty-element loads through session.data.importColumns with the typed arrays cosmos.gl gets,
+    // not nodeData/edgeData records (cosmos-gap G8)
+    columns = flags.includes("columns"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
     M = Number(m),
     DPR = Number(dpr);
 // The extracted libEGL sits in the main checkout's tmp/, which a worktree does not have.
-const gitDir = execSync("git rev-parse --path-format=absolute --git-common-dir", { cwd: HERE }); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+const gitDir = execSync("git rev-parse --path-format=absolute --git-common-dir", { cwd: HERE }); // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
 const MAIN = dirname(gitDir.toString().trim());
 const EGL = process.env.BENCH_EGL ?? join(MAIN, "tmp/egl/root/usr/lib/x86_64-linux-gnu");
 const FLAGS = [
@@ -56,10 +59,10 @@ const FLAGS = [
     "--js-flags=--max-old-space-size=16384",
 ];
 const gpuMB = () =>
-    Number(execSync("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits").toString().trim()); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+    Number(execSync("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits").toString().trim()); // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
 // Sum RSS (MB) of every browser process launched with this run's profile dir, by process type.
 const rssMB = () => {
-    const rows = execSync("ps -eo pid,ppid,rss,args --no-headers") // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+    const rows = execSync("ps -eo pid,ppid,rss,args --no-headers") // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
         .toString()
         .trim()
         .split("\n")
@@ -123,7 +126,7 @@ setTimeout(async () => {
     log("failure", DEADLINE_S >= 570 ? "did not finish in 10 minutes" : `did not finish in ${DEADLINE_S} s`);
     save();
     try {
-        execFileSync("pkill", ["-9", "-f", UDD]); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+        execFileSync("pkill", ["-9", "-f", UDD]); // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
     } catch {
         /* pkill exits 1 when nothing matched */
     }
@@ -198,6 +201,7 @@ try {
                 glyphs,
                 curves,
                 threeD,
+                columns,
                 renderPath: RENDER_PATH,
                 renderer: RENDERER,
                 antialias: ANTIALIAS,

@@ -306,3 +306,40 @@ describe("indexed.findAllIsomorphisms", () => {
         expect(only[endLoop.ids.indexOf("a")]).toBe(build("c").ids.indexOf("c"));
     });
 });
+
+describe("findAllIsomorphisms maxResults", () => {
+    function complete(n: number): GraphSnapshot {
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < n; i++) {
+            b.addNode(i);
+        }
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                b.addEdge(i, j);
+            }
+        }
+        return b.freeze({ checksum: true });
+    }
+
+    it("stops after maxResults isomorphisms, the first ones of the full list", () => {
+        const k5 = complete(5);
+        const all = findAllIsomorphisms(k5, k5);
+        expect(all).toHaveLength(120);
+        const first = findAllIsomorphisms(k5, k5, { maxResults: 7 });
+        expect(first.map((m) => [...m])).toEqual(all.slice(0, 7).map((m) => [...m]));
+        expect(findAllIsomorphisms(k5, k5, { maxResults: 1000 })).toHaveLength(120);
+    });
+
+    it("answers a graph with 12! automorphisms when capped", () => {
+        const k12 = complete(12);
+        expect(findAllIsomorphisms(k12, k12, { maxResults: 3 })).toHaveLength(3);
+        k12.validate({ checksum: true });
+    });
+
+    it("refuses a maxResults that is not a positive integer", () => {
+        const k3 = complete(3);
+        for (const maxResults of [0, -1, 1.5, Number.NaN, Infinity]) {
+            expect(() => findAllIsomorphisms(k3, k3, { maxResults })).toThrow(RangeError);
+        }
+    });
+});

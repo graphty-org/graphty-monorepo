@@ -89,7 +89,37 @@ export async function openLayer(
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-editor"));
     });
+    // The Style panel finishes laying out the layer before a test clicks in it: a control that moves
+    // or is drawn anew between a press and its release sends the click to an ancestor (issue #8345).
+    await session.styles.settled();
+    await laidOut(".sel-editor [data-edit]");
     return layer;
+}
+
+/**
+ * Waits until a control is drawn as the same element in the same place in two frames running.
+ * @param selector - Finds the control.
+ */
+async function laidOut(selector: string): Promise<void> {
+    const place = (): { el: Element | null; at: string } => {
+        const el = document.querySelector(selector);
+        return { el, at: JSON.stringify(el?.getBoundingClientRect()) };
+    };
+    const frame = (): Promise<void> =>
+        new Promise((resolve) => {
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
+    let last = place();
+    for (;;) {
+        await frame();
+        const now = place();
+        if (now.el === last.el && now.at === last.at) {
+            return;
+        }
+        last = now;
+    }
 }
 
 /**
@@ -110,6 +140,10 @@ export const oneStep = (id: string, stepRule: UnionLeaf["branches"][number]["ste
  * @param id - the step's id.
  */
 export async function selectStep(id: string): Promise<void> {
+    // At rest a style layer's selection is its Style Nodes... line alone; it opens the rows (issue #6810).
+    if (document.querySelector(`[data-row="${id}"]`) === null) {
+        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+    }
     const row = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(`[data-row="${id}"]`);
         assert.isNotNull(found);
@@ -137,43 +171,74 @@ export function listed(): { options: string[]; headings: string[] } {
     };
 }
 
-/** What the first frame after an input drew. */
+/** What the first frame after a click drew. */
 interface FirstFrame {
     /** The workspace header says "Drawing". */
     readonly drawing: boolean;
+    /** The workspace header said "Drawing" once the click's own handlers had run, before any frame. */
+    readonly drawingAtClick: boolean;
     /** The workspace header's count, or null with no workspace open. */
     readonly count: string | null;
     /** graphty-element draws the workspace's branches view. */
     readonly showing: boolean;
-    /** Milliseconds from the input to that frame, for the failure message. */
+    /**
+     * Milliseconds from the click to that frame's start, for the failure message (negative: the click
+     * arrived in that frame's own task, after its vsync and before its animation frame callbacks).
+     */
     readonly after: number;
 }
 
+/** Whether the workspace header says "Drawing" now. */
+const sayingDrawing = (): boolean => document.querySelector(".sel-ws-head [data-drawing]") !== null;
+
 /**
- * Does an input and reads what the first animation frame after it drew: the frame the browser
- * paints once the input's own task is done.
+ * Clicks a control by real pointer and reads what the first animation frame after the click drew:
+ * the frame the browser paints once the click's own task is done. Only a click that reaches the
+ * control counts: one a moving layout sent elsewhere (a press and a release on different elements
+ * send their click to an ancestor) is not the input the frame is measured from, and fails here.
  * @param session - The session.
- * @param input - The input, by real pointer or keys.
+ * @param target - The control clicked.
  * @returns What that frame drew.
  */
-export async function firstFrameAfter(session: GraphSession, input: () => Promise<void>): Promise<FirstFrame> {
+export async function firstFrameAfter(session: GraphSession, target: Element): Promise<FirstFrame> {
     let at = -1;
-    const arm = (): void => {
-        if (at < 0) {
-            at = performance.now();
+    let stopped = false;
+    let drawingAtClick = false;
+    const strays: string[] = [];
+    const reached = (event: Event): boolean => event.composedPath().includes(target);
+    // Armed by the click, the event the controls act on, not by pointerdown: a real click is a
+    // pointerdown and a pointerup sent as separate inputs, and when they land in different frames
+    // the frame between them has not seen the click yet.
+    const arm = (event: Event): void => {
+        if (!reached(event)) {
+            strays.push((event.target as Element | null)?.outerHTML.slice(0, 120) ?? "nothing");
+            return;
+        }
+        at = performance.now();
+    };
+    // Read after the click's handlers (this bubbles to the window after the app's) and the work they
+    // queued as microtasks (React's commit of a discrete event), still before any frame.
+    const read = (event: Event): void => {
+        if (reached(event)) {
+            queueMicrotask(() => {
+                drawingAtClick = sayingDrawing();
+            });
         }
     };
-    globalThis.addEventListener("pointerdown", arm, { capture: true });
-    globalThis.addEventListener("keydown", arm, { capture: true });
+    globalThis.addEventListener("click", arm, { capture: true });
+    globalThis.addEventListener("click", read);
     const seen = new Promise<FirstFrame>((resolve) => {
         const look = (now: number): void => {
             if (at < 0) {
-                requestAnimationFrame(look);
+                if (!stopped) {
+                    requestAnimationFrame(look);
+                }
                 return;
             }
             const head = document.querySelector(".sel-ws-head");
             resolve({
-                drawing: head?.querySelector("[data-drawing]") !== null && head !== null,
+                drawing: sayingDrawing(),
+                drawingAtClick,
                 count: head?.querySelector(".sel-count")?.textContent ?? null,
                 showing: session.styles.showingBranches,
                 after: now - at,
@@ -181,11 +246,17 @@ export async function firstFrameAfter(session: GraphSession, input: () => Promis
         };
         requestAnimationFrame(look);
     });
-    await input();
-    const frame = await seen;
-    globalThis.removeEventListener("pointerdown", arm, { capture: true });
-    globalThis.removeEventListener("keydown", arm, { capture: true });
-    return frame;
+    try {
+        await userEvent.click(target);
+        if (at < 0) {
+            throw new Error(`the click never reached the control; it reached ${strays.join(", ") || "nothing"}`);
+        }
+        return await seen;
+    } finally {
+        stopped = true;
+        globalThis.removeEventListener("click", arm, { capture: true });
+        globalThis.removeEventListener("click", read);
+    }
 }
 
 /** What the frames from an input to the workspace's closing drew. */

@@ -20,8 +20,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The full-screen selection workspace is the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * Les Miserables in the workspace, on the Data place.
@@ -107,13 +107,14 @@ async function saveTwoCardFilter(session: GraphSession): Promise<string> {
         assert.lengthOf(cards(), 2);
     });
     await degreeFrom(1, "10");
-    await waitFor(() => {
-        const rule = session.visibility.conditions[before]?.rule;
-        assert.strictEqual(rule?.kind === "union" ? rule.branches.length : 0, 2, "both cards written");
-    });
+    // The filter is a draft until Done (design/working-graph/design.md, section 3).
     await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
     await waitFor(() => {
         assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
+    });
+    await waitFor(() => {
+        const rule = session.visibility.conditions[before]?.rule;
+        assert.strictEqual(rule?.kind === "union" ? rule.branches.length : 0, 2, "both cards written");
     });
     return session.visibility.conditions[before]?.id ?? "";
 }

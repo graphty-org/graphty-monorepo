@@ -77,7 +77,7 @@ function resolve(session: GraphSession, choice: NodeChoice): NodeId | null {
  * @returns the field's value.
  */
 function chosen(session: GraphSession, id: NodeId | undefined): NodeChoice {
-    return id === undefined ? EMPTY : { text: session.data.name(id) ?? String(id), node: id };
+    return id === undefined ? EMPTY : { text: session.data.nodeName(id).name, node: id };
 }
 
 /** Props for NodeField. */
@@ -196,7 +196,7 @@ function NodeField({
                 }
             />
             {hits.length > 0 ? (
-                <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- the popup of an ARIA combobox on a text box; a native select cannot be one
                     id={listId}
                     role="listbox"
                     aria-label={`${label} nodes`}
@@ -368,7 +368,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
     );
 
     return (
-        <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back
+        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- catches Esc bubbling from the form's own controls to step back
             className="ws-analyze"
             onKeyDown={onKeyDown}
             aria-label="Shortest path"

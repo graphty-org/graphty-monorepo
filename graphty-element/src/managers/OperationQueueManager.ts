@@ -11,7 +11,6 @@ import type { Manager } from "./interfaces";
 // Constants for operation queue management
 const PROGRESS_CANCELLATION_THRESHOLD = 90; // Progress threshold for respecting in-progress operations
 const CLEANUP_DELAY_MS = 1000; // Delay before cleaning up operation progress tracking
-const OPERATION_POLL_INTERVAL_MS = 10; // Polling interval for waitForCompletion
 
 interface ProgressContext {
     setProgress(percent: number): void;
@@ -110,11 +109,6 @@ export class OperationQueueManager implements Manager {
     // Track completed operation categories for cross-batch dependency resolution
     private readonly completedCategories = new Set<OperationCategory>();
 
-    // Batch mode support
-    private batchMode = false;
-    private readonly batchOperations = new Set<string>();
-    private readonly batchPromises = new Map<string, Promise<void>>();
-
     // Trigger system
     private readonly triggers = new Map<
         OperationCategory,
@@ -124,9 +118,6 @@ export class OperationQueueManager implements Manager {
             description?: string;
         } | null)[]
     >();
-
-    // Callback for when operations are queued (for testing)
-    onOperationQueued?: (category: OperationCategory, description?: string) => void;
 
     // Check if layout engine exists (will be set by Graph)
     hasLayoutEngine?: () => boolean;
@@ -323,31 +314,24 @@ export class OperationQueueManager implements Manager {
             description: options?.description,
         });
 
-        // Handle batch mode differently
-        if (this.batchMode) {
-            // In batch mode: queue but don't execute yet
-            this.batchOperations.add(id);
-        } else {
-            // Normal mode: add to current batch for immediate execution
-            this.currentBatch.add(id);
+        this.currentBatch.add(id);
 
-            // Apply obsolescence rules before scheduling
-            this.applyObsolescenceRules(operation);
+        // Apply obsolescence rules before scheduling
+        this.applyObsolescenceRules(operation);
 
-            // Schedule batch execution
-            if (this.batchingEnabled) {
-                // When batching is enabled, schedule batch execution on next microtask
-                if (this.currentBatch.size === 1) {
-                    queueMicrotask(() => {
-                        this.executeBatch();
-                    });
-                }
-            } else {
-                // When batching is disabled, execute immediately
+        // Schedule batch execution
+        if (this.batchingEnabled) {
+            // When batching is enabled, schedule batch execution on next microtask
+            if (this.currentBatch.size === 1) {
                 queueMicrotask(() => {
                     this.executeBatch();
                 });
             }
+        } else {
+            // When batching is disabled, execute immediately
+            queueMicrotask(() => {
+                this.executeBatch();
+            });
         }
 
         return id;
@@ -939,15 +923,15 @@ export class OperationQueueManager implements Manager {
      * Clear all pending operations
      */
     clear(): void {
-        // Cancel all active operations
+        // Cancel every operation that has not finished. A finished one keeps its controller until
+        // its cleanup runs, and is not cancelled: its work is done.
         this.activeControllers.forEach((controller, id) => {
-            if (!controller.signal.aborted) {
+            if (!controller.signal.aborted && this.rankOf(id) !== -1) {
                 controller.abort();
                 this.eventManager.emit("operation-cancelled", {
                     type: "operation-cancelled",
                     id,
                     code: "queue-cleared",
-                    reason: "Queue cleared",
                 } satisfies OperationCancelledEvent);
             }
         });
@@ -978,55 +962,7 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Enter batch mode - operations will be queued but not executed
-     */
-    enterBatchMode(): void {
-        this.batchMode = true;
-        this.batchOperations.clear();
-    }
-
-    /**
-     * Exit batch mode - execute all batched operations in dependency order
-     */
-    async exitBatchMode(): Promise<void> {
-        if (!this.batchMode) {
-            return;
-        }
-
-        this.batchMode = false;
-
-        // Move all batched operations to currentBatch
-        this.batchOperations.forEach((id) => {
-            this.currentBatch.add(id);
-        });
-
-        // Collect all batch promises
-        const promises = Array.from(this.batchPromises.values());
-
-        // Clear batch tracking
-        this.batchOperations.clear();
-        this.batchPromises.clear();
-
-        // Execute the batch
-        this.executeBatch();
-
-        // Wait for all operations to complete
-        // Use allSettled to handle both resolved and rejected promises
-        // Individual operation errors are already handled via handleOperationError
-        await Promise.allSettled(promises);
-    }
-
-    /**
-     * Check if currently in batch mode
-     * @returns True if in batch mode, false otherwise
-     */
-    isInBatchMode(): boolean {
-        return this.batchMode;
-    }
-
-    /**
      * Queue an operation and get a promise for its completion
-     * Used for batch mode operations
      * @param category - Category of the operation
      * @param execute - Function to execute for this operation
      * @param options - Optional metadata for the operation
@@ -1055,27 +991,8 @@ export class OperationQueueManager implements Manager {
             operation.reject = reject;
         });
 
-        if (this.batchMode) {
-            // In batch mode, track the promise for later
-            this.batchPromises.set(id, promise);
-            // Return immediately resolved promise to avoid deadlock
-            // The actual operation will execute when exitBatchMode is called
-            return Promise.resolve();
-        }
-
-        // Not in batch mode, execute normally
         this.executeBatch();
         return promise;
-    }
-
-    /**
-     * Wait for a specific operation to complete
-     * @param id - Operation ID to wait for
-     */
-    private async _waitForOperation(id: string): Promise<void> {
-        while (this.pendingOperations.has(id) || this.queuedOperations.has(id) || this.runningOperations.has(id)) {
-            await new Promise((resolve) => setTimeout(resolve, OPERATION_POLL_INTERVAL_MS));
-        }
     }
 
     /**
@@ -1094,15 +1011,25 @@ export class OperationQueueManager implements Manager {
      */
     cancelOperation(operationId: string): boolean {
         const controller = this.activeControllers.get(operationId);
-        if (controller && !controller.signal.aborted) {
+        // A finished operation keeps its controller until its cleanup runs; it is not cancelled.
+        if (controller && !controller.signal.aborted && this.rankOf(operationId) !== -1) {
             controller.abort();
+
+            // One that has not started never reaches `executeOperation`, the only other place that
+            // settles: drop it and answer whoever awaits it, as `obsolete` does, or they wait for ever.
+            const waiting = this.pendingOperations.get(operationId) ?? this.queuedOperations.get(operationId);
+            if (waiting !== undefined) {
+                this.pendingOperations.delete(operationId);
+                this.queuedOperations.delete(operationId);
+                this.currentBatch.delete(operationId);
+                this.settleResolved(waiting);
+            }
 
             // Emit cancellation event
             this.eventManager.emit("operation-cancelled", {
                 type: "operation-cancelled",
                 id: operationId,
                 code: "cancelled",
-                reason: "Manual cancellation",
             } satisfies OperationCancelledEvent);
 
             return true;
@@ -1132,21 +1059,20 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Cancel all operations of a specific category
+     * Cancel all operations of a specific category: pending, queued and running.
      * @param category - The operation category to cancel
      * @returns Number of operations cancelled
      */
     cancelByCategory(category: OperationCategory): number {
         let cancelledCount = 0;
 
-        // Cancel pending operations
-        this.pendingOperations.forEach((operation) => {
-            if (operation.category === category) {
-                if (this.cancelOperation(operation.id)) {
-                    cancelledCount++;
-                }
+        // Running ones too: only looking at the pending ones left a running camera animation going
+        // after the camera was placed elsewhere, and it then moved the camera off that placement.
+        for (const operation of this.liveOf(new Set([category]), false)) {
+            if (this.cancelOperation(operation.id)) {
+                cancelledCount++;
             }
-        });
+        }
 
         return cancelledCount;
     }
@@ -1211,7 +1137,7 @@ export class OperationQueueManager implements Manager {
                 }
 
                 // Queue the triggered operation
-                this.fireAndForget(this.queueTriggeredOperation(triggerCategory, operation.metadata));
+                this.fireAndForget(this.queueTriggeredOperation(triggerCategory));
             }
         }
 
@@ -1220,14 +1146,7 @@ export class OperationQueueManager implements Manager {
             const result = trigger(operation.metadata);
             if (result) {
                 // Queue the custom triggered operation
-                this.fireAndForget(
-                    this.queueTriggeredOperation(
-                        result.category,
-                        operation.metadata,
-                        result.execute,
-                        result.description,
-                    ),
-                );
+                this.fireAndForget(this.queueTriggeredOperation(result.category, result.execute, result.description));
             }
         }
     }
@@ -1259,21 +1178,14 @@ export class OperationQueueManager implements Manager {
     /**
      * Queue a triggered operation
      * @param category - Category of the triggered operation
-     * @param _sourceMetadata - Metadata from the source operation (reserved for future use)
      * @param execute - Optional execution function
      * @param description - Optional description of the operation
      */
     private async queueTriggeredOperation(
         category: OperationCategory,
-        _sourceMetadata?: OperationMetadata,
         execute?: (context: OperationContext) => Promise<void> | void,
         description?: string,
     ): Promise<void> {
-        // Notify test callback if set
-        if (this.onOperationQueued) {
-            this.onOperationQueued(category, description);
-        }
-
         // Default execute function for layout-update
         if (!execute && category === "layout-update") {
             execute = (context: OperationContext) => {

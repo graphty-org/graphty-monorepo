@@ -1,9 +1,8 @@
 /**
- * The `orient-flags` kernel body (design 8.5; triangle counting): over the arcs of the simple symmetric graph, arc
+ * The `orient-flags` kernel body (triangle counting): over the arcs of the simple symmetric graph, arc
  * `(u, v)` is kept when `(degree(v), v)` is above `(degree(u), u)` lexicographically. The order is strict and total,
  * so exactly one arc of every undirected edge survives and every triangle is found once, at its lowest-ranked vertex;
- * the rows stay sorted by target because a compaction preserves order. `src` holds each arc's source. Body only
- * (spec 3.5, D9); normative text.
+ * the rows stay sorted by target because a compaction preserves order. `src` holds each arc's source. Body only; normative text.
  */
 export const orientFlagsWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)

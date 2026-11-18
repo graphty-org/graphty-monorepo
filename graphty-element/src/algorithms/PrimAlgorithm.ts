@@ -121,7 +121,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         const { snapshot, edgeRemap, run } = this.accelerated("primMST", "undirected");
         const start = startNode === undefined ? undefined : this.nodeIndex(snapshot, "startNode", startNode);
 
-        context.report({ phase: "Choosing edges", total: null });
+        context.report({ phase: "choosing-edges", total: null });
         const { value: tree, precision } = await run((dispatch, s) => dispatch.primMST(s, { start, forest: true }));
 
         // Read the remap from the edge the reader declared to the edge the tree chose, which is
@@ -129,7 +129,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         const chosen = new Set<number>(tree.edges);
 
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
+        await forEachChunked(context, "marking-the-network", graphEdges, (edge) => {
             const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
             edges.push({ id: edge.id, values: { in: chosen.has(merged) } });
         });

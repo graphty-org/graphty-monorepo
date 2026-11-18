@@ -291,6 +291,15 @@ const REACH: Readonly<Record<string, (session: GraphSession) => object | Promise
     SessionDataApi: (session) => session.data,
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
     ProjectApi: (session) => session.project,
+    // As the doors test gives it: g1 and g2 of team "door" and g3, with g1-g2 and g2-g3.
+    GroupsApi: async (session) => {
+        await session.data.addNodes([{ id: "g1", team: "door" }, { id: "g2", team: "door" }, { id: "g3" }]);
+        await session.data.addEdges([
+            { source: "g1", target: "g2" },
+            { source: "g2", target: "g3" },
+        ]);
+        return session.groups;
+    },
 };
 
 describe("every ordered door, called while a load is held in line", () => {
@@ -477,6 +486,8 @@ describe("session.data edits land after a load queued before them (issue #3526)"
         readonly name: string;
         readonly edit: (session: GraphSession) => Promise<unknown>;
         readonly check: (session: GraphSession) => void;
+        /** The edit cancels the load still reading, which then rejects with `E_SUPERSEDED`. */
+        readonly supersedes?: true;
     }[] = [
         {
             name: "addNodes",
@@ -509,6 +520,7 @@ describe("session.data edits land after a load queued before them (issue #3526)"
         {
             name: "clear",
             edit: (session) => session.data.clear(),
+            supersedes: true,
             check: (session) => {
                 assert.strictEqual(session.data.snapshot().nodeCount, 0, "the clear landed under the load");
             },
@@ -521,7 +533,10 @@ describe("session.data edits land after a load queued before them (issue #3526)"
             const older = await heldLoad(session, 5);
             const edited = each.edit(session);
             older.read.open();
-            await Promise.all([older.load.catch(() => undefined), edited]);
+            await Promise.all([
+                each.supersedes === true ? assertSuperseded(older.load, "the load under the clear") : older.load,
+                edited,
+            ]);
             each.check(session);
         });
     }

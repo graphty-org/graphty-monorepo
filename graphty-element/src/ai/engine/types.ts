@@ -13,6 +13,7 @@ import type { z } from "zod";
 
 import type {
     AiHostedToolId,
+    AiImageModelDescriptor,
     AiPageRetrieval,
     AiProviderId,
     AiReasoningEffort,
@@ -337,6 +338,14 @@ export type SpokenAudio =
     | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly audio: Blob }
     | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
 
+/**
+ * What generating a picture produced: `AI_COMPLETED` with the picture (a `Blob` of the provider's
+ * content type), or the code it failed with and no picture. Never thrown.
+ */
+export type GeneratedImage =
+    | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly image: Blob }
+    | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
+
 /** One attempt at a provider's speech call: its value, or a coded error like a turn's. */
 export type VoiceAttempt<T> = { readonly type: "done"; readonly value: T } | TurnError;
 
@@ -458,6 +467,13 @@ export interface AiEngine {
     /** A live conversation with the provider; absent, like `transcribe`, where it has none. */
     openLive?(options: LiveOptions, signal: AbortSignal): Promise<LiveOpened>;
     /**
+     * Make a picture from a prompt with the provider's image model. Absent, like `transcribe`, on
+     * an engine whose provider makes none; present together with `imageModel`.
+     */
+    generateImage?(prompt: string, signal: AbortSignal): Promise<GeneratedImage>;
+    /** The model `generateImage` uses and what one picture costs. */
+    readonly imageModel?: AiImageModelDescriptor;
+    /**
      * Whether `openLive` can open now: a key is set, and a custom `baseUrl` (which live cannot
      * reach) is not. Absent, it can whenever `openLive` exists.
      */
@@ -476,7 +492,10 @@ export type ProgramBindings = Readonly<Record<string, ProgramBinding>>;
 
 /** How far a program may go before it is stopped. */
 export interface ProgramLimits {
-    /** Wall time, in milliseconds, before the program is interrupted (`program-timeout`). */
+    /**
+     * Wall time, in milliseconds, before the program is interrupted (`program-timeout`). `Infinity`
+     * sets no time limit, leaving the memory and call limits and the abort signal to stop it.
+     */
     readonly timeoutMs: number;
     /** Binding calls allowed; the next one fails and the program ends `program-call-limit`. */
     readonly maxCalls: number;

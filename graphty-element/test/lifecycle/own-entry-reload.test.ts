@@ -1,63 +1,18 @@
 /**
  * What a real reload does with this tab's own entry beyond naming it: the tab names the entry as
  * soon as it starts, a reload waits for the lock of the page it replaces and gives up on a lock that
- * is never released, and `keepCamera` puts the view back. A file of its own, so it has its own file
+ * is never released, `keepCamera` puts the view back, and a reload that comes while a page is
+ * reopening the tab's work still finds the work. A file of its own, so it has its own file
  * guard beside own-entry.test.ts's three-engine walk.
  */
 
-import { rmSync } from "node:fs";
-
 import type { BrowserContext, Page } from "playwright";
-import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { ENGINES, launch, profile } from "./engines";
-import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
+import { owned, type PageCheck, useLifecycleFixture } from "./fixture";
 
-/** One entry as the fixture's `listed` reports it. */
-interface Listed {
-    readonly id: string;
-    readonly own: boolean | undefined;
-    readonly live: boolean;
-}
-
-let fx: Fixture;
-const open: { context: BrowserContext; dir: string }[] = [];
-
-beforeAll(async () => {
-    fx = await startFixture();
-});
-
-afterAll(async () => {
-    await fx.close();
-});
-
-afterEach(async () => {
-    for (const { context, dir } of open.splice(0)) {
-        await context.close().catch(() => undefined);
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    }
-});
-
-/**
- * The `listed` report a tab made at or after `from`.
- * @param tab - The tab label.
- * @param from - The log position to start at.
- * @returns The report.
- */
-function listedAt(tab: string, from: number): Promise<LogEvent & { item: string | null; entries: Listed[] }> {
-    return fx.waitFor((e) => e.seq >= from && e.tab === tab && e.type === "listed") as Promise<
-        LogEvent & { item: string | null; entries: Listed[] }
-    >;
-}
-
-/**
- * The ids a listing marks as this tab's own.
- * @param entries - The listing.
- * @returns The ids.
- */
-function owned(entries: readonly Listed[]): string[] {
-    return entries.filter((entry) => entry.own === true).map((entry) => entry.id);
-}
+const { fx, track, listedAt } = useLifecycleFixture();
 
 describe.each(ENGINES)("%s", (engine) => {
     /**
@@ -69,7 +24,7 @@ describe.each(ENGINES)("%s", (engine) => {
     const opened = async (key: string, delay?: number): Promise<{ context: BrowserContext; page: Page }> => {
         const dir = profile(engine);
         const context = await launch(engine, dir);
-        open.push({ context, dir });
+        track(() => context.close(), dir);
         const page = await context.newPage();
         await page.goto(fx.url({ key, tab: `${key}.a`, list: 1, ...(delay === undefined ? {} : { delay }) }));
         await page.waitForFunction("window.fixture !== undefined");
@@ -111,11 +66,37 @@ describe.each(ENGINES)("%s", (engine) => {
         );
     });
 
+    it("a reload while the page reopens the work, after the page wrote its own setup, still finds the work (issue #6484)", async () => {
+        const key = `own-reopening-${engine}`;
+        const { page } = await opened(key);
+        const entry = await editSaved(page, key);
+        const { probes } = await page.evaluate<PageCheck>("fixture.check()");
+
+        // A reload into a page that reopens kept work as an app does: it lists the key first, loads
+        // no data of its own, sets itself up while autosave starts (which writes an entry of the
+        // page's own), and restores by hand. It has not restored the work yet.
+        const reopening = fx.url({ key, tab: `${key}.a`, list: 1, n: 0, rows: "none", restore: "manual", setup: 1 });
+        let from = fx.log.length;
+        await page.goto(reopening);
+        assert.deepEqual(owned((await listedAt(`${key}.a`, from)).entries), [entry]);
+        await page.waitForFunction(
+            `window.fixture !== undefined && ![null, ${JSON.stringify(entry)}].includes(fixture.status().entry)`,
+        );
+
+        // The second reload, before the work was reopened, still names the work as this tab's.
+        from = fx.log.length;
+        await page.reload();
+        assert.deepEqual(owned((await listedAt(`${key}.a`, from)).entries), [entry]);
+        await page.waitForFunction("window.fixture !== undefined");
+        const reopened = await page.evaluate<PageCheck>(`fixture.restore(${JSON.stringify(entry)})`);
+        assert.deepEqual(reopened.probes, probes, "the newest work came back");
+    });
+
     it("puts the camera back after a real reload with keepCamera", async () => {
         const key = `own-camera-${engine}`;
         const dir = profile(engine);
         const context = await launch(engine, dir);
-        open.push({ context, dir });
+        track(() => context.close(), dir);
         const page = await context.newPage();
         await page.goto(fx.url({ key, tab: `${key}.a`, keepCamera: 1 }));
         await page.waitForFunction("window.fixture !== undefined");

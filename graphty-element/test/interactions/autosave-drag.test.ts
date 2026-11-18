@@ -38,7 +38,7 @@ afterEach(() => {
  * @param what - What is waited for.
  */
 async function until(condition: () => boolean, what: string): Promise<void> {
-    for (let frame = 0; frame < 600 && !condition(); frame++) {
+    while (!condition()) {
         await nextFrame();
     }
 

@@ -281,6 +281,30 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor {
     return found;
 }
 
+/** The image model a provider makes pictures with (`AI_IMAGE_MODELS`). */
+export interface AiImageModelDescriptor {
+    /** The model id sent to the provider. */
+    readonly id: string;
+    /** The model's own name. */
+    readonly plainName: string;
+    /**
+     * What one picture is expected to cost, in US dollars, at the provider's list price when this
+     * table was written. A host's own price, a discount or a later price change is not known here.
+     */
+    readonly costUsd: number;
+}
+
+/**
+ * The image model each provider that can make pictures uses, by provider id: the assistant's
+ * `project` tool `generate_background` action calls it with the reader's own key. A provider
+ * absent here makes no pictures (the action refuses with `AI_NOT_AVAILABLE`). Entries may be
+ * added in a minor release.
+ */
+export const AI_IMAGE_MODELS: Readonly<Partial<Record<AiProviderId, AiImageModelDescriptor>>> = Object.freeze({
+    // $30 per million output tokens, 1,290 tokens a picture (checked 2026-11-15).
+    google: { id: "gemini-2.5-flash-image", plainName: "Gemini 2.5 Flash Image", costUsd: 0.039 },
+});
+
 /**
  * Every tool the assistant can use beyond its own commands (`AiToolOptions`): a web search and
  * reading a given web page, both run by the provider, and running a program the model writes in a
@@ -312,7 +336,7 @@ export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilitySta
 /** What the assistant can use with a provider and model (`getAiCapabilities()`). */
 export interface AiCapabilities {
     /** The provider: one of `AI_PROVIDER_IDS`, or the `name` of a provider instance of your own. */
-    readonly provider: AiProviderId | (string & {}); // NOSONAR(S4335): the open-union idiom
+    readonly provider: AiProviderId | (string & {}); // the open-union idiom
     /** The model id; empty when a provider instance of your own does not say. */
     readonly model: string;
     /** Each tool, and whether it can be used. */
@@ -557,6 +581,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * Failed (`success: false`):
  * - `AI_NOT_ENABLED` -- the assistant is not switched on (`enableAiControl()` not called).
  * - `AI_DISPOSED` -- the assistant was shut down.
+ * - `AI_NO_PREVIOUS_COMMAND` -- `retryLastAiCommand()` was called before any command ran.
  * - `AI_KEY_MISSING` -- the provider needs an API key and has none. `{ provider }`.
  * - `AI_KEY_REJECTED` -- the provider refused the key (HTTP 401 or 403, or 400 from Google, which
  *   answers a wrong key that way). `{ provider, status }`.
@@ -649,6 +674,7 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_NO_RESPONSE",
     "AI_NOT_ENABLED",
     "AI_DISPOSED",
+    "AI_NO_PREVIOUS_COMMAND",
     "AI_KEY_MISSING",
     "AI_KEY_REJECTED",
     "AI_PROVIDER_ERROR",

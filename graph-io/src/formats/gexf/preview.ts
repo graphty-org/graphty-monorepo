@@ -4,6 +4,7 @@
  * (`graph-io/test/fidelity/specimens/gexf/pages.json`, one Preview setting per page).
  */
 
+import { hexChannels } from "../../styles/canon/color.js";
 import type { StyleValue } from "../../styles/types.js";
 
 /**
@@ -150,12 +151,7 @@ export function dependantColor(mode: string, parent: readonly number[]): number[
         case "original":
             return parent.slice(0, 3);
         default: {
-            const m = /^#([0-9a-f]{6})$/.exec(mode);
-            if (m === null) {
-                return null;
-            }
-            const n = Number.parseInt(m[1], 16);
-            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+            return /^#[0-9a-f]{6}$/.test(mode) ? hexChannels(mode) : null;
         }
     }
 }

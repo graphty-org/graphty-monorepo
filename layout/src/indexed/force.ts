@@ -11,6 +11,7 @@ import { FruchtermanReingoldSimulation } from "../simulation/fruchterman-reingol
 import { Lcg, seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions } from "../simulation/types.js";
+import { checkScaleCenter } from "./common.js";
 import { layoutDim, startColumn } from "./start.js";
 
 /**
@@ -40,8 +41,9 @@ export interface IndexedFruchtermanReingoldOptions extends Omit<
 /**
  * ForceAtlas2 run for `maxIter` iterations (default 100; a fractional count runs its ceiling, and 0, a negative or
  * a non-finite count runs none), then rescaled to `scale` (default 1) about `center` (default the origin).
- * `nodeMass` and `nodeSize` take a Float32Array, a node column name or an id-keyed record; with none, a role-`mass`
- * node column, else outDegree + 1. `weight` is true for the snapshot's weights or an edge column name.
+ * `nodeMass` and `nodeSize` take a Float32Array, a node column name or an id-keyed record; with no `nodeMass`, a
+ * role-`mass` node column, else outDegree + 1; with no `nodeSize`, nodes are points (a radius here is in the units
+ * the simulation runs in, before the rescale). `weight` is true for the snapshot's weights or an edge column name.
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
  * @param options - the options
  * @returns `dim` values per node
@@ -50,6 +52,7 @@ export function forceAtlas2(g: GraphSnapshot, options: IndexedForceAtlas2Options
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const { pos, scale = 1, center, maxIter = 100, ...rest } = options;
+    checkScaleCenter(scale, center);
     const column = startColumn(s, pos, dim);
     seedPositions(s, column, options.seed ?? null, dim, 1, null, "fa2");
     const iterations = wholeCount(maxIter);
@@ -77,6 +80,7 @@ export function fruchtermanReingold(g: GraphSnapshot, options: IndexedFruchterma
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const { pos, scale = 1, center, iterations: count = 50, ...rest } = options;
+    checkScaleCenter(scale, center);
     const column = startColumn(s, pos, dim);
     // every missing component is drawn in [0, 1), as the legacy loop drew a missing node: seedPositions would draw
     // inside the box of the given rows, a single point when pos names one node, and the forces cannot part

@@ -10,8 +10,8 @@
         "run:gpu.yml": { "minutes": 60, "why": "T4 lane measured about 50 min" },
         "run:hosts.yml": { "minutes": 60 },
         "job:ci.yml:Run cap": {
-            "minutes": 15,
-            "why": "a pull request waits here for a turn; tools/ci-run-cap.mjs gives up at 25 min"
+            "minutes": 60,
+            "why": "a pull request waits here for a turn while earlier runs fill the job budget (tools/ci-run-cap.mjs); its 120 min timeout is the only limit on the wait"
         },
         "job:ci.yml:Build": { "minutes": 6, "why": "4.2 min median before #3415's regression" },
         "job:ci.yml:Selector import graphs": {
@@ -33,7 +33,10 @@
             "why": "1m23s before the Sentry regression, 60-63 s after the fix (uncached)"
         },
         "job:ci.yml:Test (*)": { "minutes": 15, "why": "tools/ci-test-matrix.mjs plans every shard under 15" },
-        "job:ci.yml:Stories (*)": { "minutes": 10, "why": "story bins of at most 8 min plus setup (report-only)" },
+        "job:ci.yml:Stories (*)": {
+            "minutes": 10,
+            "why": "story bins of 6 min of capture (LIGHT_STORY_BIN_LIMIT_MS) plus about 1.5 min of setup"
+        },
         "ttg:full": { "minutes": 180, "why": "red full run to the next green one" },
         "ttg:owner-wait": { "record": true, "why": "recorded, no line" },
         "bytes:lfs": { "gib": 150, "per": "month", "why": "Team allowance 250 GiB, a hard block" },

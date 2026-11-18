@@ -206,6 +206,8 @@ interface DesignImportReport {
     readonly durationMs: number;
     // added by the network sources design (section 8)
     readonly source?: SourceReportInfo | undefined;
+    // the options the importer worked out, to read a file the same way again
+    readonly resolved?: Readonly<Record<string, unknown>> | undefined;
 }
 
 describe("design 12.4: the io contract types are exported with the listed shapes", () => {
@@ -332,8 +334,10 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
             exports: Record<string, Record<string, string>>;
         };
         // the format subpaths, plus the format-independent styles module and ./positions (stored coordinates);
-        // the network source subpaths (./sources/<name>) are checked by build-output.test.ts
-        const formatExports = Object.entries(pkg.exports).filter(([key]) => !key.startsWith("./sources/"));
+        // the network source subpaths (./sources and ./sources/<name>) are checked by build-output.test.ts
+        const formatExports = Object.entries(pkg.exports).filter(
+            ([key]) => key !== "./sources" && !key.startsWith("./sources/"),
+        );
         expect(formatExports.map(([key]) => key).sort()).toEqual(
             [".", ...FORMATS.map((f) => `./${f}`), "./styles", "./positions"].sort(),
         );

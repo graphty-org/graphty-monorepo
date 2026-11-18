@@ -18,7 +18,7 @@ import {
     SET_OPS,
 } from "../../../src/session/selection/index";
 import type { SessionRecordSource } from "../../../src/session/types";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow, rejectionCode } from "../helpers";
 
 /** A session with data in it. */
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = [], directed?: boolean): Harness {
@@ -39,17 +39,6 @@ function recordsOf(harness: Harness): SessionRecordSource {
         nodeAttributes: (index) => harness.nodeAttributes.get(index),
         edgeAttributes: (index) => harness.edgeAttributes.get(index),
     };
-}
-
-/** The code a call refused with, or null when it did not refuse. */
-function codeOf(call: () => unknown): string | null {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
-    }
-
-    return null;
 }
 
 /** Four nodes in a line, so there are three edges. */
@@ -187,7 +176,7 @@ describe("the five set operations", () => {
 
         assert.deepStrictEqual([...SET_OPS], ["replace", "add", "remove", "toggle", "intersect"]);
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ nodes: ["a"] }, "union" as SelectionOp)),
+            rejectionCode(() => selection.applyNow({ nodes: ["a"] }, "union" as SelectionOp)),
             "E_BAD_COMMAND",
         );
         harness.session.dispose();
@@ -543,11 +532,11 @@ describe("the cap", () => {
         cap = 2.5;
 
         assert.strictEqual(
-            codeOf(() => selection.cap),
+            rejectionCode(() => selection.cap),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ nodes: ["d"] })),
+            rejectionCode(() => selection.applyNow({ nodes: ["d"] })),
             "E_OPTION_RANGE",
         );
         assert.deepStrictEqual([...selection.nodes], ["a"], "the selection is what it was before the refusal");
@@ -643,6 +632,67 @@ describe("statistics over the selection", () => {
         assert.strictEqual((await empty.statistics()).cutEdges, 0);
         harness.session.dispose();
     });
+    it("adds up a number across the selection, matching a sum by hand", async () => {
+        const harness = measured();
+        const selection = selectionOf(harness, { records: recordsOf(harness) });
+        selection.applyNow({ nodes: ["b", "c", "d"] });
+
+        const [size] = (await selection.statistics()).attributes;
+
+        assert.strictEqual(size.sum, 20 + 30 + 40);
+        assert.strictEqual(size.min, 20);
+        assert.strictEqual(size.max, 40);
+        harness.session.dispose();
+    });
+
+    it("summarises the selected edges' attributes beside the nodes'", async () => {
+        const harness = harnessOf(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b", cost: 3 },
+                { src: "b", dst: "c", cost: 7 },
+            ],
+        );
+        const selection = selectionOf(harness, { records: recordsOf(harness) });
+        selection.applyNow({ edges: [edgeBetween(harness, "a", "b")] });
+
+        const { edgeAttributes } = await selection.statistics();
+
+        assert.deepStrictEqual(
+            edgeAttributes.map((entry) => [entry.path, entry.sum, entry.graphMean]),
+            [["data.cost", 3, 5]],
+        );
+        harness.session.dispose();
+    });
+
+    it("summarises a scope instead of the selection when one is named", async () => {
+        const harness = measured();
+        const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
+        const selection = selectionOf(harness, { records: recordsOf(harness), scope });
+        selection.applyNow({ nodes: ["a"] });
+
+        const statistics = await selection.statistics({ scope: "graph" });
+        const [size] = statistics.attributes;
+
+        assert.strictEqual(statistics.nodes, 4);
+        assert.strictEqual(size.sum, 100);
+        assert.strictEqual(size.direction, "equal");
+        assert.deepStrictEqual([...selection.nodes], ["a"], "the selection itself is untouched");
+        harness.session.dispose();
+    });
+
+    it("rejects a scope when the session keeps no scopes", async () => {
+        const harness = measured();
+        const selection = selectionOf(harness, { records: recordsOf(harness) });
+
+        const code = await selection.statistics({ scope: "graph" }).then(
+            () => null,
+            (error: unknown) => (isGraphtyError(error) ? error.code : "not-a-graphty-error"),
+        );
+
+        assert.strictEqual(code, "E_UNSUPPORTED");
+        harness.session.dispose();
+    });
 });
 
 describe("keeping a selection under a name", () => {
@@ -678,11 +728,11 @@ describe("keeping a selection under a name", () => {
         without.applyNow({ nodes: ["a"] });
 
         assert.strictEqual(
-            codeOf(() => withScopes.promote("empty")),
+            rejectionCode(() => withScopes.promote("empty")),
             "E_SCOPE_EMPTY",
         );
         assert.strictEqual(
-            codeOf(() => without.promote("nowhere")),
+            rejectionCode(() => without.promote("nowhere")),
             "E_UNSUPPORTED",
         );
 

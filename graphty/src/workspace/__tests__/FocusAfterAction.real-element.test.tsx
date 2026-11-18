@@ -28,7 +28,7 @@ import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { cardFields } from "../style/cards";
 import { Workspace } from "../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -45,7 +45,9 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+        await userEvent.click(
+            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+        );
     }
     const control = await waitFor(() => {
         const ws = document.querySelector<HTMLElement>(".sel-ws");
@@ -199,6 +201,7 @@ describe("focus after a command that moves the reader", () => {
     });
 
     it("Filter to... from a column's menu puts focus in the new card's value", async () => {
+        await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
         render(<Workspace store={store} registrations={REGISTRATIONS} />);
         const session = await waitFor(() => {
@@ -269,7 +272,8 @@ describe("focus after a command that moves the reader", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, filter, focused());
         });
-        await userEvent.keyboard("deg{Enter}");
+        // Shortest path is the analysis with its own form, and so the one with a Back.
+        await userEvent.keyboard("Shortest{Enter}");
         const back = await screen.findByRole("button", { name: "Back to analyses" });
         for (let press = 0; press < 12 && document.activeElement !== back; press++) {
             await userEvent.keyboard("{Shift>}{Tab}{/Shift}");

@@ -1,5 +1,5 @@
 /**
- * The `bc-finalize` kernel body (design 8.4, 5.4): the one-lane bookkeeping of a betweenness source batch, two roles
+ * The `bc-finalize` kernel body: the one-lane bookkeeping of a betweenness source batch, two roles
  * by `P.role`. The batch keeps ONE append-only claim log `S` -- every `(vertex, source)` pair the forward pass
  * claims, packed as the index `s * n + v` into the `n x k` arrays -- and `ends`, the level boundaries into it: the
  * entries at depth `L` are `S[ends[L] .. ends[L + 1])`. That log is Brandes' stack, so the backward pass walks the
@@ -15,18 +15,19 @@
  * `done` when that level is empty. A boundary that finds `done` set moves nothing, so the levels the host records
  * past the end are no-ops. The forward kernels dispatch directly and read their range from `ends` (no indirect
  * dispatch: design/decisions/2026-09-25-frontier-kernels-dispatch-directly.md). One lane; no barrier follows the
- * early return of the others (spec 3.5 rule 1). Body only; the sabotage rows of test/helpers/sabotage.ts are
+ * early return of the others. Body only; the sabotage rows of test/helpers/sabotage.ts are
  * textual edits of it.
  */
 export const bcFinalizeWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
 fn bc_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
-    if (lid.x != 0u) { return; }                                     // one lane; no barrier follows (3.5 rule 1)
+    if (lid.x != 0u) { return; }                                     // one lane; no barrier follows
     if (P.role == 1u) {                                              // the seed of a batch
         for (var i = 0u; i < P.k; i = i + 1u) {
             let t = S[i];
             depthK[t] = 0u;                                          // the source is at depth 0
-            sigmaK[t] = select(1u, bitcast<u32>(1.0), SCALED);       // with one shortest path, itself (f32 bits when SCALED)
+            sigmaK[t] = select(1u, 0x3f800000u, SCALED);             // with one shortest path, itself (the f32 1.0's bits when SCALED;
+                                                                     // no bitcast beside an override: Safari cannot evaluate it, #8215)
         }
         levelMax[0] = bitcast<u32>(1.0);                             // the largest count at depth 0
         ends[0] = 0u;

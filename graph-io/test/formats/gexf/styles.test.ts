@@ -19,6 +19,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editGexfNodeColor, replaceGexfBlock } from "../../styles/formats/gexf.js";
 
@@ -52,7 +53,10 @@ function writers(ex: ExtractedStyles, target: "node" | "edge", property: string)
     );
 }
 
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 
 describe("GEXF styles: reading", () => {
     it("draws a self-loop as Gephi's circle up and to the right of its node", async () => {
@@ -575,6 +579,28 @@ describe("GEXF styles: writing", () => {
         // the block keeps the exact values the viz module approximates
         expect(resolveStyles(back.styles, "node", "shape", back.snapshot)).toEqual(["hexagon", "ellipse"]);
         expect(resolveStyles(back.styles, "node", "height", back.snapshot)).toEqual([10, 20]);
+    });
+});
+
+describe("GEXF styles: escaping a picture's uri", () => {
+    it("writes a tab and a line break in a uri as character references, and refuses a control character", async () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addNode("a");
+        const snapshot = b.freeze();
+        const stylesOf = (uri: string) =>
+            planStyles(
+                {
+                    format: "test",
+                    node: { values: { shape: ["ellipse"], image: [uri] } },
+                    fingerprint: styleFingerprint(snapshot),
+                },
+                { node: featuresOf(snapshot, "node"), edge: [] },
+            );
+        const text = await registry.exportGraphToString(snapshot, "gexf", { styles: stylesOf("a\tb\nc.png") });
+        expect(text).toContain('uri="a&#9;b&#10;c.png"');
+        await expect(
+            registry.exportGraphToString(snapshot, "gexf", { styles: stylesOf("a\u0001b.png") }),
+        ).rejects.toMatchObject({ code: "E_COLUMN_TYPE" });
     });
 });
 

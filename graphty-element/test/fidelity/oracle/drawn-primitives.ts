@@ -5,6 +5,7 @@
  * (`drawn-scene.ts`) carries -- a label's weight, style, family and rotation, a gradient fill,
  * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM, but for an SVG picture's own reading.
  */
+import { deltaE } from "../../../../graph-io/test/fidelity/compare";
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
@@ -28,6 +29,7 @@ import {
     type Pt,
     type PText,
     rampAngleOnScreen,
+    TAPER_POINT,
 } from "./primitives";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
@@ -76,6 +78,20 @@ export function inkedLines(d: DrawnLabel, box: PBox): PBox {
     return { ...box, x0, x1 };
 }
 
+/**
+ * The class of a label panel's outline: a disc, a rounded rectangle or a rectangle.
+ * @param bg - the panel
+ * @param bg.circle - whether it is a disc
+ * @param bg.rounded - whether its corners are rounded
+ * @returns the class
+ */
+function panelShape(bg: { circle: boolean; rounded: boolean }): "ellipse" | "roundrect" | "rect" {
+    if (bg.circle) {
+        return "ellipse";
+    }
+    return bg.rounded ? "roundrect" : "rect";
+}
+
 function textOf(d: DrawnLabel): PText {
     // the words' own box, as an SVG text's box is its letters', not the plane they are drawn on with its margins
     const b = d.textBox ?? d.box;
@@ -121,7 +137,7 @@ function textOf(d: DrawnLabel): PText {
                                     dash: null,
                                     dashClass: "solid",
                                 },
-                      shape: bg.rounded ? "roundrect" : "rect",
+                      shape: panelShape(bg),
                   },
     };
 }
@@ -161,14 +177,20 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param pattern - the pattern graphty drew, or null
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
- * @returns the class
+ * @param taper - its width at the target over its width at the source, where it tapers
+ * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
+ * read by (`taperedOutline`)
  */
 function drawnLineClass(
     style: string,
     pattern: string | null,
     dashPx: readonly number[] | null,
     width: number,
+    taper: number | undefined,
 ): DashClass {
+    if (taper !== undefined && Math.min(taper, 1) <= TAPER_POINT * Math.max(taper, 1)) {
+        return "tapered";
+    }
     const name = pattern ?? style;
     if (dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(name)) {
         return dashClassOf(dashPx, width);
@@ -282,7 +304,13 @@ const CAP_PLACE_PX = 2;
  * @param standing - whether a stem stands it back from the line's end, so how far back is judged against the program's
  * @returns the arrow
  */
-function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, Pt], standing = false): PArrow {
+function drawnArrow(
+    c: DrawnCap,
+    line: readonly Pt[],
+    lineEnds?: readonly [Pt, Pt],
+    standing = false,
+    background = "#ffffff",
+): PArrow {
     const end = CAP_END[c.end];
     const open =
         (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
@@ -291,8 +319,15 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, P
     // points back along it
     const named = arrowShapeNamed(c.name);
     const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
+    // an open cap with an inside (`ArrowStyle.fillColor`) reads as the oracle's arrowheads do (associate.ts arrowFrom):
+    // filled in its inside's color where that differs from the canvas, else hollow in its outline's
+    const inside = open && c.fill !== undefined && deltaE(c.fill, background) > 3 ? c.fill : null;
     // a picture's colors are its own, not the cap's
-    const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
+    const look = {
+        filled: !open || inside !== null,
+        color: shape === "image" ? null : (inside ?? c.color),
+        shape,
+    };
     if (c.outline === null) {
         return { end, length: c.sizePx, width: c.sizePx, ...look };
     }
@@ -776,7 +811,7 @@ export function drawnPrimitives(
         const d = drawn.nodes.get(n.id);
         const inset = d === undefined ? 0 : 2 * borderInset(d);
         const ownLabel = n.label?.visible === true && d?.label ? textOf(d.label) : null;
-        const rule = d?.label?.nodeSizeRule;
+        const rule = d?.label?.sizeRule;
         const sized =
             rule !== undefined && d?.label && (n.label?.visible === true || n.drawn?.labelHiddenBySize === true)
                 ? { sizedLabel: { label: textOf(d.label), acrossPx: rule.acrossPx, min: rule.min } }
@@ -818,6 +853,9 @@ export function drawnPrimitives(
         const [hw, hh] = [(n.w - inset - gap) / 2, (n.h - inset - gap) / 2];
         const unit = ([x, y]: readonly [number, number]): Pt => [(x - n.x) / hw, (y - n.y) / hh];
         const figure = hw > 0 && hh > 0 ? d?.figure?.map(([a, b]): [Pt, Pt] => [unit(a), unit(b)]) : undefined;
+        // a node drawn as its picture alone, with no fill and no border (yEd's image and SVG nodes), is read by its
+        // picture's bounds, as the oracle's side reads one (`nodeFrom`): a box
+        const pictureOnly = d?.picture !== undefined && fill === null && !(borderColor !== null && borderWidth > 0);
         nodes.push({
             id: n.id,
             cx: n.x,
@@ -825,7 +863,7 @@ export function drawnPrimitives(
             // the fill, which graphty's border rings from outside (the scene's size takes the inset back)
             w: n.w - inset - gap,
             h: n.h - inset - gap,
-            shape: SHAPES[n.shape] ?? "other",
+            shape: pictureOnly ? "rect" : (SHAPES[n.shape] ?? "other"),
             fill: fill === null ? null : gradientFill(fill, n.fillOpacity, d?.gradient === true ? d.ramp : null, n),
             stroke:
                 borderColor !== null && borderWidth > 0
@@ -872,7 +910,9 @@ export function drawnPrimitives(
             !c.name.includes("slash") && d.caps.slice(0, k).some((s) => s.end === c.end && isStem(s));
         // a stem is a length of the line, no arrow: what stands behind it is
         const arrows: PArrow[] = d.caps.flatMap((c, k) =>
-            c.opacity > 0 && c.sizePx > 0 && !isStem(c) ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k))] : [],
+            c.opacity > 0 && c.sizePx > 0 && !isStem(c)
+                ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k), scene.background ?? undefined)]
+                : [],
         );
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
@@ -897,6 +937,7 @@ export function drawnPrimitives(
             d.pattern,
             d.dashPx ?? null,
             d.thicknessPx > 0 ? d.thicknessPx : e.width,
+            d.taper,
         );
         return [
             {

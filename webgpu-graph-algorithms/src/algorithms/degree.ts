@@ -1,20 +1,20 @@
 /**
- * `degree(ctx, s)` -- the walking-skeleton algorithm, kept public as a diagnostic (spec 3.3, 11.5): the out-degree of
- * every node computed on the device by the row-walking `degree` kernel (4.5) over the resident core of the snapshot,
- * with the group-0 dummy-binding pattern of spec 3.5 (`colIdx` in the `weights` slot when the snapshot is unweighted,
+ * `degree(ctx, s)` -- the walking-skeleton algorithm, kept public as a diagnostic: the out-degree of
+ * every node computed on the device by the row-walking `degree` kernel over the resident core of the snapshot,
+ * with the group-0 dummy-binding pattern (`colIdx` in the `weights` slot when the snapshot is unweighted,
  * `rowPtr` in the `perm` slot because P1-P3 pass no row permutation, so `USE_PERM` is false). The result equals
  * `snapshot.outDegree()`; the point of the kernel is to prove the upload, bind, dispatch and readback path end to end
- * on every adapter (bitwise identical across adapters, spec 11.5), not to be faster than the CPU (the README says
+ * on every adapter (bitwise identical across adapters), not to be faster than the CPU (the README says
  * so).
  *
- * Contract (3.12): `ctx.assertReady()` first; `nodeCount === 0` returns an empty `Uint32Array` (or `dest`) with no
- * GPU work (spec 5.6: there is no work, which is not a fallback); an already-aborted `signal` is `E_ABORTED` before
+ * Contract: `ctx.assertReady()` first; `nodeCount === 0` returns an empty `Uint32Array` (or `dest`) with no
+ * GPU work (there is no work, which is not a fallback); an already-aborted `signal` is `E_ABORTED` before
  * any work; `dest` must be a `Uint32Array` of length n over an `ArrayBuffer`; `arcCount === 0` skips the dispatch
  * (only `rowPtr` is resident) and the result is zeros; otherwise ONE dispatch over rows [0, n) with `accumulate = 0`
- * (every row is written, so no fill precedes it) -- or, on a windowed core (spec 4.2, PD-8), a `fill` of zeros and
+ * (every row is written, so no fill precedes it) -- or, on a windowed core, a `fill` of zeros and
  * one dispatch per window over its rows with `arcBase = w.start`, `arcEnd = w.end`, `accumulate = 1`, so a row split
  * across windows adds its partial counts -- a readback into the result, `onProgress(1, 1)`, and the scratch returned
- * in a finally. Two runs are bitwise identical (spec 11.9 item 4).
+ * in a finally. Two runs are bitwise identical.
  */
 
 import { type GraphSnapshot, type U32 } from "@graphty/graph-format";
@@ -73,13 +73,13 @@ function paramsBinding(ctx: GpuContext, pooled: GPUBuffer[], block: UniformBlock
 }
 
 /**
- * The walking-skeleton kernel, kept public as a diagnostic (spec 3.3): out-degree per node through the row-walking
+ * The walking-skeleton kernel, kept public as a diagnostic: out-degree per node through the row-walking
  * gather with the USE_PERM dummy pattern; equals snapshot.outDegree().
  * @param ctx - the context whose device runs the kernel
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param options - dest / signal / onProgress (spec 3.3). PLAN DECISION: spelled `?: GpuRunOptions` rather than the
- *   contract's `?: GpuRunOptions | undefined` because the root ESLint rule no-duplicate-type-constituents rejects the
- *   explicit undefined on an optional parameter (the call signature is identical; P1-T3 made the same choice).
+ * @param options - dest / signal / onProgress. Spelled `?: GpuRunOptions` rather than
+ *   `?: GpuRunOptions | undefined` because the root ESLint rule no-duplicate-type-constituents rejects the
+ *   explicit undefined on an optional parameter (the call signature is identical).
  * @returns the out-degree of every node, index-aligned (`dest` itself when given)
  */
 export async function degree(ctx: GpuContext, s: GraphSnapshot, options?: GpuRunOptions): Promise<U32> {

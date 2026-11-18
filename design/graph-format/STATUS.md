@@ -18,6 +18,14 @@ state" is current. The sections after "Final state of every phase" are the histo
 the graph-format and graph-io implementation and landing (2026-09-13 to 2026-09-18); their version
 numbers and "A1 has not started" are no longer current.
 
+## After the migration (2026-11-16)
+
+The rest of `feat/graph-format-migration` reached master in pull request #607 (merge `f99d5957e9`,
+2026-09-29). graphty-element 3.0.0 and layout 2.0.0 were released the same day (tags at `97b466b459`),
+and every later release of the three packages includes the #607 merge. The statements below that master is still at algorithms 2.1.2, layout 1.10.5 and graphty-element 2.6.2,
+and that no release may be cut from master, no longer hold; each package's `package.json` has its
+current version.
+
 ## Finished state (2026-09-29)
 
 The graph-format migration is complete on `feat/graph-format-migration`, and nothing is left
@@ -186,7 +194,7 @@ invariants, adding a view / a dtype). Benchmarks: `graph-format/benchmarks/` (`r
 
 Test counts by directory: builder 131 (7 files), columns 159 (7), ids 118 (3), populate 126 (3),
 snapshot 139 (6), wire 65 (3), util 42 (2), root 52 (errors, invariants, index, build-output),
-audit 477 (24 files under test/audit: the eight audit lenses' suites plus `round1-fixes.test.ts`).
+audit 477 (24 files under test/audit: the eight audit lenses' suites plus `audit-regressions.test.ts`).
 The graph-io audit added the widening, column-index and detachString tests, and the
 verification pass fixed a latent bug of the Map-of-Maps test model (`test/helpers/model-graph.ts`
 dropped self-loops before it could refuse a duplicate edge, so a refused freeze left the model

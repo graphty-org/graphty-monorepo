@@ -1,18 +1,13 @@
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { addSteps, alignTo, readInstant } from "../../../src/session/time/parse";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
+import { windowCount, windowNodeIds } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -286,6 +281,35 @@ describe("session.time: the designated field", () => {
         session.dispose();
     });
 
+    it("with asDates, makes a text column of dates a date column in the same undoable step", async () => {
+        const harness = emails();
+        const { session } = harness;
+        const typeOf = (): string | undefined =>
+            session.data.attributes().find((each) => each.kind === "edge" && each.name === "sent")?.type;
+        assert.strictEqual(typeOf(), "string");
+        const steps = session.history.steps.length;
+
+        await session.time.setField({ edges: { start: "sent" } }, { asDates: true });
+
+        // A date column reads as type "time".
+        assert.strictEqual(typeOf(), "time");
+        assert.deepStrictEqual(session.time.field, { edges: { start: "sent" } });
+        assert.strictEqual(session.history.steps.length, steps + 1);
+        await session.undo();
+        assert.isNull(session.time.field);
+        assert.strictEqual(typeOf(), "string");
+        session.dispose();
+    });
+
+    it("without asDates, leaves a text column's type alone", async () => {
+        const harness = emails();
+        const { session } = harness;
+        await session.time.setField({ edges: { start: "sent" } });
+        const column = session.data.attributes().find((each) => each.kind === "edge" && each.name === "sent");
+        assert.strictEqual(column?.type, "string");
+        session.dispose();
+    });
+
     it("is one undoable step", async () => {
         const harness = emails();
         await harness.session.time.setField({ edges: { start: "sent" } });
@@ -429,7 +453,7 @@ describe("session.time: the window", () => {
             await time.window({ from, to });
             assert.strictEqual(visibility.window?.attribute, "data.sent");
             assert.strictEqual(visibility.window?.nodes, "ends");
-            assert.deepStrictEqual([...visibility.nodes].map(String).sort(), bruteNodes(harness, from, to));
+            assert.deepStrictEqual(windowNodeIds(harness.session).sort(), bruteNodes(harness, from, to));
         }
 
         harness.session.dispose();
@@ -440,10 +464,11 @@ describe("session.time: the window", () => {
         const { time, visibility } = harness.session;
         await time.setField({ edges: { start: "sent" } });
         await time.window({ from: T0, to: T0 + 10 * DAY });
-        assert.strictEqual(visibility.summary.visibleEdges, 5);
+        assert.strictEqual(windowCount(visibility).edges, 5);
         await time.window({ from: T0, to: T0 + 10 * DAY, missing: "outside" });
-        assert.strictEqual(visibility.summary.visibleEdges, 4);
-        assert.isFalse(visibility.isVisible("f"));
+        assert.strictEqual(windowCount(visibility).edges, 4);
+        assert.notInclude(windowNodeIds(harness.session), "f");
+        assert.isTrue(visibility.isVisible("f"), "left out of the window, never out of the data");
         harness.session.dispose();
     });
 
@@ -452,8 +477,8 @@ describe("session.time: the window", () => {
         await harness.session.time.setField({ edges: { start: "sent" } });
         await harness.session.visibility.setWindow({ attribute: "data.sent", from: T0, to: T0 + DAY });
         // No "ends": every node stays, only edges outside the window go.
-        assert.strictEqual(harness.session.visibility.summary.visibleNodes, 6);
-        assert.strictEqual(harness.session.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(windowCount(harness.session.visibility).nodes, 6);
+        assert.strictEqual(windowCount(harness.session.visibility).edges, 2);
         harness.session.dispose();
     });
 
@@ -565,6 +590,44 @@ describe("session.time: playback", () => {
             ],
         );
         session.dispose();
+    });
+
+    it("runs one loop when paused and played again while a step is still recording", async () => {
+        const harness = emails();
+        const { session } = harness;
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const after: number[] = [];
+        let restarted = false;
+        session.on("time:step", (step) => {
+            if (step.cause !== "play") {
+                return;
+            }
+
+            if (restarted) {
+                after.push(step.index);
+                return;
+            }
+
+            // The first step is published while its tick still awaits: pause and play again then.
+            restarted = true;
+            session.time.pause();
+            session.time.play({ interval: 1000, motion: "steps" });
+        });
+
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            session.time.play({ interval: 1000, motion: "steps" });
+            await vi.advanceTimersByTimeAsync(1000);
+            assert.isTrue(restarted);
+            // One interval of the new play is one step, not one per loop.
+            await vi.advanceTimersByTimeAsync(1000);
+            assert.deepStrictEqual(after, [2]);
+        } finally {
+            session.time.pause();
+            vi.useRealTimers();
+            session.dispose();
+        }
     });
 
     it("opens a window at the start of the data when there is none", async () => {

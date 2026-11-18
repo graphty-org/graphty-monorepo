@@ -1,5 +1,11 @@
 # Feature Design: XR (VR/AR) Camera and Controls
 
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
 ## Overview
 
 - **User Value**: Users can experience and interact with graph visualizations in immersive VR and AR environments using popular headsets (Meta Quest, Apple Vision Pro, Android XR devices), enabling new ways to explore complex graph structures in 3D space.
@@ -14,10 +20,13 @@
 
 2. **VR/AR availability UI**:
     - Button(s) in bottom-left corner by default
-    - If XR not available: display "VR / AR NOT AVAILABLE" message briefly (5 seconds)
+    - If XR not available: display a "not available" message briefly (5 seconds)
     - If available: display separate VR and AR buttons
     - Clicking button enters corresponding XR mode
     - Button style and location must be configurable/disableable
+    - Every word drawn is configuration (`xr.ui.vrLabel`, `arLabel`, `unavailableLabel`), so a consumer
+      can translate or reword it; the English text is only the default. Availability itself is a
+      fact (`isVRSupported()`, `isARSupported()`), for a consumer that draws its own UI
 
 3. **XR camera behavior**:
     - Should behave similarly to Orbit camera (zoom, rotate, pan capabilities)

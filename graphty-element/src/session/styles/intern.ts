@@ -78,6 +78,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Geometry and material: a different value is a different source mesh.
     "node.size": "mesh",
     "node.sizeMode": "mesh",
+    // A matrix write on the instance the node already has (UpdateManager.sizeNodesForView).
+    "node.sizeSpace": "instance",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     // A different tessellation is a different source mesh, so low- and full-detail nodes never share one.
@@ -176,6 +178,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.chartLineWidth": "mesh",
     "node.chartBorderColor": "mesh",
     "node.chartBorderWidth": "mesh",
+    "node.chartBackgroundColor": "mesh",
+    "node.chartBackgroundOpacity": "mesh",
     // How a group is sized round its members: read by the layout each frame, no mesh's identity.
     "node.groupPadding": "content",
     "node.groupPaddingRatio": "content",
@@ -213,6 +217,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelFitQuantum": "mesh",
     "node.labelFitImage": "mesh",
     "node.labelFitImagePadding": "mesh",
+    "node.imageAspect": "mesh",
     // A gradient fill is a ramp texture in the source mesh's material, not per-instance state:
     // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
     "node.gradientColor": "mesh",
@@ -230,6 +235,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.modelSourceUp": "mesh",
     "node.modelTurn": "mesh",
     "node.modelTint": "mesh",
+    "node.modelDoubleSided": "mesh",
+    // A clip is baked into the template (playing or still picks the template); speed and start
+    // are one write to the node's instances.
+    "node.modelAnimation": "mesh",
+    "node.modelAnimationSpeed": "instance",
+    "node.modelAnimationOffset": "instance",
     "node.modelFit": "mesh",
     "node.modelCenter": "mesh",
     "node.texture": "mesh",
@@ -241,6 +252,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
     // describes: one source mesh is precisely the set of nodes sharing one effect configuration.
     "node.outline": "mesh",
+    // The ring's width picks its cached ring source, keyed by colour and width (NodeEffects).
+    "node.outlineWidth": "mesh",
     "node.glow": "mesh",
     // A glow's STRENGTH is keyed the same way. `NodeEffects.syncGlowStrengths` gives each SOURCE
     // mesh its own intensity (Babylon's per-mesh `setEffectIntensity`, keyed by uniqueId), so two
@@ -287,6 +300,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowHeadGap": "mesh",
     "edge.arrowHeadStack": "mesh",
     "edge.arrowHeadColor": "mesh",
+    "edge.arrowHeadFillColor": "mesh",
     "edge.arrowHeadOpacity": "mesh",
     "edge.arrowHeadImage": "mesh",
     "edge.arrowTail": "mesh",
@@ -298,6 +312,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailGap": "mesh",
     "edge.arrowTailStack": "mesh",
     "edge.arrowTailColor": "mesh",
+    "edge.arrowTailFillColor": "mesh",
     "edge.arrowTailOpacity": "mesh",
     "edge.arrowTailImage": "mesh",
     "edge.arrowMiddleHead": "mesh",
@@ -307,6 +322,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowMiddleHeadOutlineWidth": "mesh",
     "edge.arrowMiddleHeadPosition": "mesh",
     "edge.arrowMiddleHeadColor": "mesh",
+    "edge.arrowMiddleHeadFillColor": "mesh",
     "edge.arrowMiddleHeadOpacity": "mesh",
     "edge.arrowMiddleHeadImage": "mesh",
     "edge.arrowMiddleTail": "mesh",
@@ -316,6 +332,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowMiddleTailOutlineWidth": "mesh",
     "edge.arrowMiddleTailPosition": "mesh",
     "edge.arrowMiddleTailColor": "mesh",
+    "edge.arrowMiddleTailFillColor": "mesh",
     "edge.arrowMiddleTailOpacity": "mesh",
     "edge.arrowMiddleTailImage": "mesh",
 
@@ -361,9 +378,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelItalic": "content",
     "node.labelWrapWidth": "content",
     "node.labelWrapTrailingSpace": "content",
+    "node.labelWrapSkipEndSpace": "content",
     "node.labelWrapEllipsis": "content",
     "node.labelWrapAnywhere": "content",
     "node.labelWrapSpaceCount": "content",
+    "node.labelMaxLines": "content",
+    "node.labelMaxLinesEllipsis": "content",
     "node.labelRunAlign": "content",
     "node.labelMinScreenSize": "content",
     "node.labelOnTop": "content",
@@ -384,6 +404,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelPadding": "content",
     "node.labelCornerRadius": "content",
     "node.labelLineHeight": "content",
+    "node.labelLineBox": "content",
+    "node.labelBorderAlign": "content",
+    "node.labelBackgroundShape": "content",
     "node.labelOffsetX": "content",
     "node.labelOffsetY": "content",
     "node.labelShiftX": "content",
@@ -401,9 +424,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelLocation": "content",
     "edge.labelWrapWidth": "content",
     "edge.labelWrapTrailingSpace": "content",
+    "edge.labelWrapSkipEndSpace": "content",
     "edge.labelWrapEllipsis": "content",
     "edge.labelWrapAnywhere": "content",
     "edge.labelWrapSpaceCount": "content",
+    "edge.labelMaxLines": "content",
+    "edge.labelMaxLinesEllipsis": "content",
     "edge.labelRunAlign": "content",
     "edge.labelMinScreenSize": "content",
     "edge.labelOnTop": "content",
@@ -421,6 +447,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelTable": "content",
     "edge.labelCornerRadius": "content",
     "edge.labelLineHeight": "content",
+    "edge.labelLineBox": "content",
+    "edge.labelBorderAlign": "content",
+    "edge.labelBackgroundShape": "content",
     "edge.labelOffsetX": "content",
     "edge.labelOffsetY": "content",
     "edge.labelShiftX": "content",

@@ -43,7 +43,7 @@ const HOLD_TITLE = "Release held: publish failed";
  * @param project - an nx project name, as channel.json's `versions` keys it
  * @returns the package name
  */
-const UNSCOPED = new Set(["babylonjs-map"]);
+const UNSCOPED = new Set(["babylonjs-map", "babylonjs-models"]);
 export const packageOf = (project) =>
     project.startsWith("@") || UNSCOPED.has(project) ? project : `@graphty/${project}`;
 

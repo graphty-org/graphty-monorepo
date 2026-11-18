@@ -47,7 +47,7 @@ compressed prose fails the stranger it is written for.
 | 5a | `graph-conventions.md` | how every analysis reads a graph | Scope | network scientist | 50 KB | draft |
 | 6 | `figma-crosswalk.md` | how graphty's ontology maps onto Figma's, both ways, and the departures ledger | Scope | Figma product designer | 80 KB, a reference consulted by row | draft; ledger pruning under way |
 | 7 | `element-contract.md` | what graphty-element publishes and does, including a bare embed | Scope | graphty-element API steward | 80 KB | draft |
-| 7a | `element-needs.md` | the one list of element work the framework still needs, by area | Scope | graphty-element API steward | 120 KB | draft; most issues not yet filed |
+| 7a | `element-needs.md` | the one list of element work the framework still needs, by area | Scope | graphty-element API steward | 120 KB | draft; workaround rows tracked by issue, new capabilities filed per area |
 | 8 | `information-architecture.md` | where things live and how they are found; the three representations; the table's scope | Structure | information architect | 80 KB | draft, tree test not run |
 | 8a | `output-homes.md` | the register: every object's and output's home, and every command's label and starting places | Structure | information architect | 80 KB | draft |
 | 8b | `objects.md` | one card per object type: the builder's entry point, pointing to where each fact about it lives | Structure | information architect | 80 KB | started: two cards |
@@ -69,10 +69,10 @@ compressed prose fails the stranger it is written for.
 | -- | `README.md` | this front door | -- | design director | 25 KB | -- |
 
 **Where the code is.** Every citation of graphty-element, graphty or the sets and undo designs is to
-origin/master at `9fc948ee` (graphty-element 2.6.1) unless it names another commit, as the status
-line of `implementation-mapping.md` says. The main checkout where these documents sit is behind
-origin/master and lacks `design/sets/`, so a citation followed there finds older code. These
-documents are untracked files: they need a branch and a commit, which is the owner's to make.
+origin/master at `9fc948ee` (graphty-element 2.6.1, 2026-09-27) unless it names another commit, as
+the status line of `implementation-mapping.md` says; read a cited path there, since the old app
+shell it names was removed on 2026-10-16. The element's current status is kept only in
+`element-needs.md` and the status line of `implementation-mapping.md`.
 
 **Everything here is a hypothesis until its study runs.** No top-task vote, tree test, card sort,
 first-click test or teach-back has run yet (`research/study-schedule.md`). Studies come in two
@@ -251,7 +251,7 @@ One page for a stranger; each line cites its owner.
 - **Three representations of one selection** (`information-architecture.md` 8.1): the canvas
   shows an element among its neighbors, the inspector one element raw, the table many raw; the
   table's scope is the filtered graph, the selection, or one object's members.
-- **The style stack** (`conceptual-model.md` 5.1): Overrides first, Base style last, listed in the
+- **The style stack** (`conceptual-model.md` 5.1): one kind of layer in the reader's order, listed in the
   left panel's Styles list so it stays in view while data is selected (`information-architecture.md`
   11, where a decision study could still move it). Hidden elements
   are not a layer: whether an element is drawn is its own state (door 86, Whether an element is

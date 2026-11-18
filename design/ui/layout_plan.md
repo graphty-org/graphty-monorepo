@@ -1,5 +1,9 @@
 # Figma-Inspired Layout Plan for Graphty Application
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 Create a professional graph visualization application with a layout inspired by Figma's interface. The application will feature a central canvas (graphty-element) surrounded by contextual panels for layer management and styling.

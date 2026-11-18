@@ -54,7 +54,7 @@ export interface JournalEntry {
      * Why the session ran this command, when it was not a direct call; absent for a direct call.
      * `"suggestion"`: an algorithm's suggested styles, applied as an entry of their own (a batch's
      * held paint released, or `applySuggestedStyles`). `"project"`: one of the commands that
-     * opening a project ran. `"load"`: one of the commands a load ran -- the import and the
+     * opening a project, or a graphty document that is not one, ran. `"load"`: one of the commands a load ran -- the import and the
      * configuration the load settled beside it, such as the label path a graph file names its
      * nodes by -- for `data.import` (a network source's too), `data.loadExample`,
      * `data.loadDataset`, `data.generate`, a draft's `load`, `data.replaceSource`,

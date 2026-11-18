@@ -523,6 +523,8 @@ function openedData(
         }
         return;
     }
+    // A graphty document that is not a project (styles, notes, a graph) is the reader's own file too.
+    count("own_file_opened", { format: "graphty", via: "file" });
     // Opened as a new graph, it started its history (`history: "start"`).
     focusLater(fresh);
     if (!fresh) {

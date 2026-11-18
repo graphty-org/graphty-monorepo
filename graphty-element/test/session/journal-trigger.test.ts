@@ -114,6 +114,27 @@ describe("JournalEntry.trigger", () => {
         later.dispose();
     });
 
+    it("marks every member entry of a graphty document that is not a project", async () => {
+        const session = await fixtureSession();
+        const heard: JournalEntry[] = [];
+        session.on("journal:appended", ({ entry }) => heard.push(entry));
+        const style = {
+            kind: "graphty-style",
+            version: 1,
+            layers: [{ name: "Big", selector: { match: "everything" }, set: { "node.size": 3 } }],
+        };
+
+        const report = await session.project.open(JSON.stringify(style));
+
+        assert.strictEqual(report.opened, "document");
+        assert.isNotEmpty(heard, "opening ran commands");
+        assert.deepEqual(
+            heard.filter((entry) => entry.trigger !== "project").map((entry) => entry.command.op),
+            [],
+        );
+        session.dispose();
+    });
+
     it("marks every run:changed of a saved run a project open brings back, and not a later run", async () => {
         const session = await fixtureSession();
         await session.runs.start("degree", {}, { as: "deg" });

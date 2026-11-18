@@ -1523,8 +1523,11 @@ async function restoreAssetsOf(session: GraphSession, doc: ReadDocument, problem
     }
 }
 
-/** The transaction opening a document that is not a project into the session. */
-const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
+/**
+ * The transaction opening a document that is not a project into the session. Its member entries
+ * carry `trigger: "project"`, as a project open's do: the file's commands, not the reader's.
+ */
+const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} }, trigger: "project" };
 
 /**
  * Delete every row of the style tree, folders with their layers; the element's own layers stay.

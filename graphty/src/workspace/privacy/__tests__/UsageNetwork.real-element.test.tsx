@@ -10,11 +10,14 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import type { PostHog } from "posthog-js";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import {
+    type AnalyticsCalls,
     onUsageEvent,
+    postHog,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
     startAnalyticsAtBoot,
@@ -141,6 +144,25 @@ async function assertOnlyAnonymousCounts(): Promise<void> {
     }
 }
 
+/**
+ * The analytics seams these cases use: Umami recorded, PostHog's real code counted as it loads.
+ * @returns them.
+ */
+function recordingCalls(): Partial<AnalyticsCalls> {
+    return {
+        send: (body) => {
+            umami.push(body);
+            return undefined;
+        },
+        hostname: () => "graphty.app",
+        privacySignals: () => ({ dnt: false, gpc: false }),
+        importPostHog: () => {
+            imports++;
+            return import("posthog-js/full/no-external");
+        },
+    };
+}
+
 describe("a reader who never shares usage data", () => {
     beforeEach(async () => {
         resetAnalyticsForTests();
@@ -149,18 +171,7 @@ describe("a reader who never shares usage data", () => {
         umami.length = 0;
         imports = 0;
         sentryStarts = 0;
-        setAnalyticsCallsForTests({
-            send: (body) => {
-                umami.push(body);
-                return undefined;
-            },
-            hostname: () => "graphty.app",
-            privacySignals: () => ({ dnt: false, gpc: false }),
-            importPostHog: () => {
-                imports++;
-                return import("posthog-js/full/no-external");
-            },
-        });
+        setAnalyticsCallsForTests(recordingCalls());
         setSentryCallsForTests({
             init: () => {
                 sentryStarts++;
@@ -197,5 +208,50 @@ describe("a reader who never shares usage data", () => {
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await useTheApp();
         await assertOnlyAnonymousCounts();
+    });
+
+    it("stops PostHog for good when Share is turned off in Settings: opted out, no id kept, nothing captured", async () => {
+        // PostHog's requests go to this server, never off the page's origin.
+        setAnalyticsCallsForTests({
+            ...recordingCalls(),
+            posthogHost: `${globalThis.location.origin}/__posthog_never__`,
+        });
+        await boot();
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        await vi.waitFor(() => {
+            assert.isDefined(postHog(), "Share loaded PostHog");
+        });
+        const client = postHog() as unknown as PostHog;
+        assert.strictEqual(imports, 1);
+
+        await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        const toggle = within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" });
+        assert.isTrue(toggle.checked, "Share is on");
+        await userEvent.click(toggle);
+        assert.isFalse(toggle.checked);
+
+        assert.isTrue(client.has_opted_out_capturing());
+        assert.isUndefined(postHog());
+        assert.isEmpty(
+            Object.keys(localStorage).filter((key) => key.startsWith("ph_")),
+            "no PostHog id is kept",
+        );
+        // Counted work: every capture after the switch, the app's own counts included, is dropped
+        // before it is queued.
+        const capture = vi.spyOn(client, "capture");
+        await userEvent.keyboard("{Escape}");
+        await useTheApp();
+        assert.isTrue(
+            capture.mock.results.every((result) => result.type === "return" && result.value === undefined),
+            "nothing was captured after Share was turned off",
+        );
+        const offOrigin = await watch.takeOffOriginRequests();
+        assert.isEmpty(offOrigin.filter((url) => /posthog/i.test(url)));
+        assert.isEmpty(
+            Object.keys(localStorage).filter((key) => key.startsWith("ph_")),
+            "and none is saved later",
+        );
     });
 });

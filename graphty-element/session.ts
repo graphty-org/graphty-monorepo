@@ -562,6 +562,7 @@ export type {
     SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
+    SelectionVia,
     UnknownRulePath,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";

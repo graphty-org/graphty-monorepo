@@ -23,7 +23,7 @@ import {
     type UmamiBody,
 } from "../../../lib/analytics";
 import { openSampleFromStart } from "../../../test/open";
-import { wheelOver } from "../../../test/real-pointer";
+import { dragAcross, wheelOver } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { clearRecent } from "../../project/recent";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
@@ -375,11 +375,8 @@ describe("usage counts from the real element", () => {
         sendsNone("SECRET_GENES", "SECRET_PROJECT", "TP53");
     });
 
-    it("sends a run's suggested styles applied later as one suggested graph action", async () => {
-        const { element, session } = await loadedProject();
-        const ran = next("algorithm_run");
-        await session.runs.start("degree", {});
-        await ran;
+    it("sends the suggested styles a batch of runs releases as one suggested graph action", async () => {
+        const { session } = await loadedProject();
         const suggested = new Promise<Readonly<Record<string, unknown>>>((resolve) => {
             const off = onUsageEvent((name, props) => {
                 if (name === "graph_action" && props.suggested === true) {
@@ -388,14 +385,15 @@ describe("usage counts from the real element", () => {
                 }
             });
         });
-        // eslint-disable-next-line graphty/no-element-mutation -- the element's one public door that journals a suggestion as its own entry (design 8.3); the test drives it to read that entry's count
-        assert.isTrue(element.applySuggestedStyles("degree"), "degree suggests styles");
+        // A batch holds its members' paint and releases it as entries of their own (trigger "suggestion").
+        await session.runs.batch([{ algorithm: "degree" }, { algorithm: "betweenness" }]);
         const props = await suggested;
         assert.isString(props.op);
         assert.isString(props.kind);
         assert.lengthOf(
             sent("graph_action").posthog.filter((each) => each.suggested === true),
             1,
+            "one gesture, one event",
         );
     });
 
@@ -427,6 +425,23 @@ describe("usage counts from the real element", () => {
             assert.isEmpty(sent(name).umami, `${name} from a project open`);
         }
         sendsNone("SECRET_NOTE_TEXT", "SECRET_GENES");
+    });
+
+    it("counts a dropped graphty document that is not a project as one own file, and none of its entries", async () => {
+        await loadedProject();
+        const actionsBefore = actionOps().length;
+        const style = {
+            kind: "graphty-style",
+            version: 1,
+            layers: [{ name: "SECRET_STYLE_LAYER", selector: { match: "everything" }, set: { "node.size": 3 } }],
+        };
+        const own = next("own_file_opened");
+        drop(new File([JSON.stringify(style)], "SECRET_STYLES.graphty.json"));
+        assert.deepEqual({ ...(await own) }, { format: "graphty", via: "file" });
+        await screen.findByText(/^Added SECRET_STYLES/);
+        assert.lengthOf(actionOps(), actionsBefore, "the document's own entries are not the reader's actions");
+        assert.lengthOf(sent("own_file_opened").posthog, 2, "the TSV and the document");
+        sendsNone("SECRET_STYLE_LAYER");
     });
 
     it("never counts a re-run the timeline made as the reader's run", async () => {
@@ -493,6 +508,45 @@ describe("usage counts from the real element", () => {
         assert.isEmpty(sent("canvas_selected").umami);
         assert.isEmpty(sent("camera_used").umami);
         sendsNone("SECRET_GENES", "TP53");
+    });
+
+    it("counts a node drag, a canvas drag, Fit and Undo by kind and id alone", async () => {
+        const { element } = await loadedProject();
+        const canvas = canvasOf(element);
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        const [first] = element.session.data.nodes();
+        const at = await waitFor(() => {
+            const position = element.nodeScreenPosition(first.id);
+            assert.isTrue(position?.visible, "the node is drawn on screen");
+            return { x: position?.x ?? 0, y: position?.y ?? 0 };
+        });
+
+        const dragged = next("nodes_dragged");
+        await dragAcross(element, 60, at);
+        await dragged;
+
+        // Pressed on an empty corner of the canvas, away from every node.
+        const moved = next("camera_used");
+        await dragAcross(canvas, 80, { x: 8, y: 8 });
+        assert.include(["orbit", "pan"], (await moved).kind);
+
+        const fit = next("command_run");
+        // Fit from the canvas menu, opened over an empty corner.
+        await userEvent.click(canvas, { button: "right", position: { x: 8, y: 8 } });
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Fit/ }));
+        assert.strictEqual((await fit).command, "view.fit");
+
+        const actionsBefore = actionOps().length;
+        const undo = next("command_run");
+        await userEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+        assert.strictEqual((await undo).command, "history.undo");
+        assert.lengthOf(actionOps(), actionsBefore, "an undo is not a new graph action");
+
+        assert.lengthOf(sent("nodes_dragged").posthog, 1);
+        assert.isEmpty(sent("nodes_dragged").umami);
+        assert.isEmpty(sent("camera_used").umami);
+        sendsNone("SECRET_GENES", "TP53", String(first.id));
     });
 
     it("counts a layout chosen in the Layout form by its catalog id", async () => {

@@ -11,7 +11,7 @@ const OWNER_TEXT =
 /** What Share usage data adds to the anonymous counts everyone sends. */
 const COLLECTED = [
     "A replay of some sessions, with all text, typing, labels, file names and the graph hidden (PostHog).",
-    "Which buttons, panels, commands and steps you use, by name only, and how you use the canvas: selecting, dragging, zooming (PostHog).",
+    "Which buttons, panels, commands and steps you use, by id only, and how you use the canvas: selecting, dragging, zooming (PostHog).",
     "Page speed.",
     "Your answers to a short survey, if you answer it, including any text you type in its Other box.",
     "Error reports, with a masked replay of the moments before the error (Sentry).",

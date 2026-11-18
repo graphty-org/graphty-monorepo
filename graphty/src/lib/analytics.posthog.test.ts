@@ -3,13 +3,13 @@
  * same-origin prefix that this file answers itself: no request reaches a server. What leaves the page
  * is read from the recorded request bodies. Run it again whenever the posthog-js pin changes.
  *
- * Session replay is not started here: the canned remote config turns recording off, because the
- * shape of a config that turns it on is internal to posthog-js. Replay masking is pinned by the
- * init options in analytics.test.ts and by the address-bar strip below.
+ * The canned remote config turns recording off, except in the replay case, which turns it on with
+ * posthog-js's published `SessionRecordingRemoteConfig` shape and reads the `$snapshot` bodies.
  */
+import { pickFiles } from "@graphty/compact-mantine";
 import type { PostHog } from "posthog-js";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
 import {
@@ -22,6 +22,13 @@ import {
     stopPostHog,
     stripQueryForRecorders,
 } from "./analytics";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
 
 const KEY = "phc_realchunktest";
 /** The sentinel ingest host: a same-origin prefix answered by the wrappers below. */
@@ -80,8 +87,17 @@ const CONFIG = JSON.stringify({
  * @returns the JSON body.
  */
 function answer(url: string): string {
-    return url.includes("/flags") || url.includes("/config") ? CONFIG : JSON.stringify({ status: 1 });
+    return url.includes("/flags") || url.includes("/config") ? remoteConfig : JSON.stringify({ status: 1 });
 }
+
+/** The remote config answered now: {@link CONFIG}, or the replay case's. */
+let remoteConfig = CONFIG;
+
+/** The canned remote config with session recording on, sampled at 100%, no minimum duration. */
+const RECORDING_CONFIG = JSON.stringify({
+    ...(JSON.parse(CONFIG) as Record<string, unknown>),
+    sessionRecording: { endpoint: "/s/", sampleRate: null, minimumDurationMilliseconds: 0 },
+});
 
 /** The browser facts posthog-js reads to drop a bot's events; Playwright's browser reports itself as one. */
 const BOT_TELLS = ["userAgent", "webdriver", "userAgentData"] as const;
@@ -96,6 +112,63 @@ function looksHuman(): void {
     for (const name of BOT_TELLS) {
         Object.defineProperty(navigator, name, { configurable: true, get: () => values[name] });
     }
+}
+
+/**
+ * The recorded request bodies that carry a replay snapshot.
+ * @returns them, joined.
+ */
+function snapshots(): string {
+    return bodies.filter((body) => body.includes("$snapshot")).join("\n");
+}
+
+/**
+ * The events in recorded batch bodies: an `{ batch }` object or a bare array of events.
+ * @param texts - the bodies.
+ * @returns each event with its properties.
+ */
+function capturedEvents(texts: readonly string[]): { event: string; properties: { $time?: number } }[] {
+    const events: { event: string; properties: { $time?: number } }[] = [];
+    for (const text of texts) {
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(text);
+        } catch {
+            continue;
+        }
+        const batch = Array.isArray(parsed) ? parsed : (parsed as { batch?: unknown }).batch;
+        if (Array.isArray(batch)) {
+            events.push(...(batch as { event: string; properties: { $time?: number } }[]));
+        }
+    }
+    return events;
+}
+
+/**
+ * Starts PostHog as the live sender does and waits for its client.
+ * @returns the client.
+ */
+async function started(): Promise<PostHog> {
+    startPostHog();
+    await vi.waitFor(() => {
+        assert.isDefined(postHog());
+    });
+    return postHog() as unknown as PostHog;
+}
+
+/**
+ * A button carrying reader text in its label and text, and a marker class replay keeps.
+ * @param marker - its class, found in a snapshot to show the search works.
+ * @returns the button, on the page.
+ */
+function markedButton(marker: string): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.textContent = "SECRET_TEXT";
+    button.setAttribute("aria-label", "SECRET_PROJECT");
+    button.className = marker;
+    button.dataset.phCaptureAttributeControl = "history.undo";
+    document.body.append(button);
+    return button;
 }
 
 /** Answers every request to the sentinel host here, recording its body. */
@@ -138,6 +211,7 @@ beforeEach(async () => {
     resetSiteConfig();
     bodies = [];
     urls = [];
+    remoteConfig = CONFIG;
     // The site first: it is read through fetch, which the wrappers below replace.
     const site = {
         site: "production",
@@ -159,6 +233,7 @@ afterEach(() => {
         Reflect.deleteProperty(navigator, name);
     }
     globalThis.history.replaceState(null, "", address);
+    Reflect.deleteProperty(document, "referrer");
     document.body.replaceChildren();
     resetAnalyticsForTests();
     resetSiteConfig();
@@ -230,6 +305,51 @@ describe("the real posthog-js chunk", () => {
         assert.notInclude(urls.join("\n"), "/i/v1/logs");
     });
 
+    it("keeps a referrer's path and query out of every body, the flags request's included", async () => {
+        Object.defineProperty(document, "referrer", {
+            configurable: true,
+            get: () => "https://intranet.example/SECRET_REF?q=SECRET_REFQ",
+        });
+        const client = await started();
+        const flagsBefore = urls.filter((url) => url.includes("/flags")).length;
+        client.reloadFeatureFlags();
+        count("sample_loaded", { sample: "karate" });
+        await vi.waitFor(() => {
+            assert.isAbove(urls.filter((url) => url.includes("/flags")).length, flagsBefore, "a flags request left");
+            assert.include(bodies.join("\n"), "sample_loaded");
+        });
+        assert.notInclude(bodies.join("\n"), "SECRET_REF");
+        assert.notInclude(urls.join("\n"), "SECRET_REF");
+        stopPostHog();
+    });
+
+    it("records no dead or rage click for clicks on the graph's canvas", async () => {
+        await import("@graphty/graphty-element");
+        await started();
+        // As ElementHost.tsx renders it.
+        const element = document.createElement("graphty-element");
+        element.className = "ph-no-capture";
+        element.style.cssText = "display: block; width: 400px; height: 300px";
+        document.body.append(element);
+        const canvas = await vi.waitFor(() => {
+            const found = element.shadowRoot?.querySelector("canvas") ?? null;
+            assert.isNotNull(found, "the element drew its canvas");
+            return found;
+        });
+        for (let click = 0; click < 5; click++) {
+            await userEvent.click(canvas, { position: { x: 200, y: 150 } });
+        }
+        // The barrier: a later click elsewhere reaches PostHog, so the canvas clicks were seen first.
+        await userEvent.click(markedButton("AFTER_CANVAS"));
+        await vi.waitFor(() => {
+            assert.include(bodies.join("\n"), "$autocapture");
+        });
+        const sent = bodies.join("\n");
+        assert.notInclude(sent, "$rageclick");
+        assert.notInclude(sent, "$dead_click");
+        stopPostHog();
+    });
+
     it("gives a reader who says No and later Share again new ids, never the ones from before the No", async () => {
         startPostHog();
         await vi.waitFor(() => {
@@ -241,6 +361,9 @@ describe("the real posthog-js chunk", () => {
         assert.isNotEmpty(oldDevice);
 
         stopPostHog();
+        // An event captured before the No may still leave in a later batch: only what is captured
+        // from the new Share on is checked.
+        const restarted = Date.now() / 1000;
         startPostHog();
         const from = bodies.length;
         count("sample_loaded", { sample: "karate" });
@@ -248,7 +371,12 @@ describe("the real posthog-js chunk", () => {
             assert.include(bodies.slice(from).join("\n"), "sample_loaded");
         });
 
-        const sent = bodies.slice(from).join("\n");
+        const after = capturedEvents(bodies.slice(from)).filter((event) => (event.properties.$time ?? 0) >= restarted);
+        assert.include(
+            after.map((event) => event.event),
+            "sample_loaded",
+        );
+        const sent = JSON.stringify(after);
         const stored = localStorage.getItem(`ph_${KEY}_posthog`) ?? "";
         assert.include(stored, String(client.get_property("$device_id")), "the new id is the one kept");
         for (const old of [oldDevice, oldDistinct]) {
@@ -337,5 +465,69 @@ describe("the real posthog-js chunk", () => {
         assert.isTrue(client.config.disable_surveys_automatic_display);
         assert.isFalse(client.config.disable_surveys);
         stopPostHog();
+    });
+
+    // Last, on an instance of its own: posthog-js reads its remote config once, at init, and the
+    // other cases share the default instance, which has recording off.
+    it("records a masked replay: the kept class shows, no reader text, query, picked file or JSON-LD does", async () => {
+        remoteConfig = RECORDING_CONFIG;
+        setAnalyticsCallsForTests({
+            send: () => undefined,
+            hostname: () => "graphty.app",
+            posthogHost: PREFIX,
+            importPostHog: async () => {
+                const { PostHog: Fresh } = await import("posthog-js/full/no-external");
+                return { default: new Fresh() };
+            },
+        });
+        globalThis.history.replaceState(null, "", "?url=SECRET_URL&graphty-element-logging=SECRET_LOG");
+        setCommandAllowlist(["history.undo"]);
+        const jsonLd = document.createElement("script");
+        jsonLd.type = "application/ld+json";
+        jsonLd.textContent = JSON.stringify({ "@type": "Dataset", name: "SECRET_LD" });
+        document.head.append(jsonLd);
+        try {
+            stripQueryForRecorders();
+            const client = await started();
+            await vi.waitFor(() => {
+                assert.isTrue(client.sessionRecordingStarted(), "the remote config turned recording on");
+            });
+            await userEvent.click(markedButton("POSITIVE_MARKER"));
+            await vi.waitFor(() => {
+                assert.include(snapshots(), "POSITIVE_MARKER", "the search finds what replay keeps");
+                assert.include(bodies.join("\n"), "$autocapture");
+            });
+
+            // A file picked through the browser's chooser, then a change the next snapshot carries.
+            // Opened by a click, as the app's Open does: a browser shows its chooser only on a user gesture.
+            await commands.chooseNextFile("SECRET_FILE.csv", "text/csv", "a,b\n");
+            const open = document.createElement("button");
+            open.textContent = "Open";
+            let picking: Promise<File[]> | undefined;
+            open.addEventListener("click", () => {
+                picking = pickFiles();
+            });
+            document.body.append(open);
+            await userEvent.click(open);
+            assert.isDefined(picking, "the click opened the picker");
+            assert.deepEqual(
+                (await picking).map((file) => file.name),
+                ["SECRET_FILE.csv"],
+            );
+            await userEvent.click(markedButton("POSITIVE_AFTER_PICK"));
+            await vi.waitFor(() => {
+                assert.include(snapshots(), "POSITIVE_AFTER_PICK");
+            });
+
+            const sent = bodies.join("\n");
+            for (const secret of [...SECRETS, "SECRET_FILE", "SECRET_LD"]) {
+                assert.notInclude(sent, secret);
+                assert.notInclude(urls.join("\n"), secret);
+            }
+            assert.notInclude(snapshots(), "$json_ld");
+            stopPostHog();
+        } finally {
+            jsonLd.remove();
+        }
     });
 });

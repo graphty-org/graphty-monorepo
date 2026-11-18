@@ -6059,6 +6059,9 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
 export type SelectionTextMode = TextMatchMode | "attribute";
 
 // @public
+export type SelectionVia = NonNullable<SelectionDelta["via"]>;
+
+// @public
 export type Selector = {
     match: "expression";
     where: Query;

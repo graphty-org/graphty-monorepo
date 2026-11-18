@@ -84,6 +84,8 @@ export type {
     BasemapConfig,
     BasemapSourceId,
     BasemapStatus,
+    // Which background colour the canvas draws, as `element.colorScheme` takes it
+    ColorScheme,
     EdgeStyleConfig,
     // The room `element.fitInsets` keeps clear when the graph is framed
     FitInsets,

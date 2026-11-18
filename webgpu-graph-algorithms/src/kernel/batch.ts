@@ -129,12 +129,22 @@ export interface ReadbackRequest {
 }
 
 /**
- * The mapped bytes copied out before the unmap detaches them: into `into` when it holds them all, else a new buffer.
+ * Takes a batch's readback while it is still mapped and returns the bytes its readback resolves with, holding every
+ * request at its offset that the caller will read; the mapped range is detached as soon as it returns.
+ */
+export type ReadbackSink = (mapped: ArrayBuffer) => ArrayBuffer;
+
+/**
+ * The mapped bytes copied out before the unmap detaches them: by the caller's sink, into `into` when it holds them
+ * all, else into a new buffer.
  * @param mapped - the mapped range
- * @param into - the caller's destination, or undefined
+ * @param into - the caller's destination or sink, or undefined
  * @returns the buffer holding the bytes at their offsets
  */
-function copyOut(mapped: ArrayBuffer, into: ArrayBuffer | undefined): ArrayBuffer {
+function copyOut(mapped: ArrayBuffer, into: ArrayBuffer | ReadbackSink | undefined): ArrayBuffer {
+    if (typeof into === "function") {
+        return into(mapped);
+    }
     if (into === undefined || into.byteLength < mapped.byteLength) {
         return mapped.slice(0);
     }
@@ -300,9 +310,10 @@ export class CommandBatch {
      * A batch can be submitted once; submit() after device loss throws E_DEVICE_LOST.
      * @param into - where the readback is copied, when it holds {@link readbackBytes}: a caller that lands a batch a
      * frame reuses its buffers instead of allocating the readback anew each time (issue #8801). Else a new buffer.
+     * A {@link ReadbackSink} instead takes the mapped bytes itself, so it can copy each part straight where it goes.
      * @returns the submitted-batch handle
      */
-    submit(into?: ArrayBuffer): SubmittedBatch {
+    submit(into?: ArrayBuffer | ReadbackSink): SubmittedBatch {
         this.assertOpen("submit");
         this.submitted = true;
         this.endPass();
@@ -385,7 +396,7 @@ export class CommandBatch {
     private async awaitReadback(
         slot: StagingSlot | null,
         state: DiscardState,
-        into: ArrayBuffer | undefined,
+        into: ArrayBuffer | ReadbackSink | undefined,
     ): Promise<ArrayBuffer> {
         const facts = { batch: this.label, id: this.id };
         if (slot === null) {

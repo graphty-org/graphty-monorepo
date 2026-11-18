@@ -185,6 +185,11 @@ describe("the drawn ring", () => {
             expectBitwiseEqual(host, await readF32(ctx, landed, 4 * n), `landing ${String(batch)}`);
         }
         assert.isAtMost(buffers.size, 4, "the readbacks come from a few reused buffers, not one per landing");
+        assert.strictEqual(
+            (simulation as unknown as { scenesCopiedDirect: number }).scenesCopiedDirect,
+            2 * landings,
+            "every landing's scene rows went from the mapped readback to the owner once",
+        );
         simulation.dispose();
     });
 

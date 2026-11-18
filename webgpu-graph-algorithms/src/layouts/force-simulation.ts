@@ -556,6 +556,8 @@ interface PendingBatch {
     envelopeOffset: number;
     /** The spare buffer the readback is copied into, or null before the submit. */
     into: ArrayBuffer | null;
+    /** The scene rows went straight from the mapped readback into the owner's array. */
+    sceneCopied: boolean;
     profile: ReadbackRequest | null;
     /** Whether this batch carried the collision's settling sweeps. */
     sweptCollision: boolean;
@@ -613,6 +615,7 @@ function createPending(k: number, generation: number): PendingBatch {
         drawnOffset: -1,
         envelopeOffset: -1,
         into: null,
+        sceneCopied: false,
         stateOffset: 0,
         profile: null,
         sweptCollision: false,
@@ -813,6 +816,11 @@ export class ForceSimulation<
     private readonly spareBytes: ArrayBuffer[] = [];
     /** The readback `landedDrawnRows` views, held until a later landing replaces it. */
     private landedBytes: ArrayBuffer | null = null;
+    /**
+     * Landings whose scene rows went straight from the mapped readback into the owner's array, copied once.
+     * @internal
+     */
+    scenesCopiedDirect = 0;
     private collisionDirty = false;
     private collisionRadiiDirty = false;
     /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
@@ -1787,8 +1795,9 @@ export class ForceSimulation<
             record.drawn === null ? -1 : batch.readback(record.drawn.envelope, 0, ENVELOPE_BYTES).offset;
         const { profiler } = this.ctx;
         const profile = profiler === null ? null : profiler.resolveInto(batch);
-        record.into = this.takeSpare(batch.readbackBytes);
-        const submitted = batch.submit(record.into);
+        const into = this.takeSpare(batch.readbackBytes);
+        record.into = into;
+        const submitted = batch.submit((mapped) => this.takeMapped(record, mapped, into));
         record.submitted = submitted;
         record.id = submitted.id;
         record.sceneOffset = scene.offset;
@@ -1834,7 +1843,10 @@ export class ForceSimulation<
             }
             // The device measured the scene rows, which are the owner's only when no write overrode one of them.
             const measured = record.envelopeOffset >= 0 && !this.overridden(record);
-            this.copyScene(owner, bytes, record);
+            if (!record.sceneCopied) {
+                this.copyScene(owner, bytes, record);
+            }
+            this.forgetOverrides(record);
             this.landedEnvelopeValue = measured ? envelopeOf(bytes, record.envelopeOffset) : null;
             this.landedDrawnValue = record.drawn?.buffer ?? null;
             this.landedDrawnTransformValue = record.drawn?.transform ?? null;
@@ -1950,11 +1962,48 @@ export class ForceSimulation<
             owner[3 * i + 1] = scene[3 * i + 1];
             owner[3 * i + 2] = scene[3 * i + 2];
         }
+    }
+
+    /**
+     * Forgets the overrides older than a landed batch, which computed from them.
+     * @param record - the batch
+     */
+    private forgetOverrides(record: PendingBatch): void {
         for (const [i, after] of this.overrideList) {
             if (after < record.id) {
                 this.overrideList.delete(i);
             }
         }
+    }
+
+    /**
+     * Takes a batch's readback while it is mapped: the scene rows straight into the owner's array, unless the batch
+     * is stale already, and every other byte into the spare, so no row is copied twice (issue #8801).
+     * @param record - the batch
+     * @param mapped - its mapped readback
+     * @param into - the spare it was given, at least the readback's size
+     * @returns the bytes the readback resolves with: the spare, which holds all but the scene rows copied
+     */
+    private takeMapped(record: PendingBatch, mapped: ArrayBuffer, into: ArrayBuffer): ArrayBuffer {
+        const { owner } = this;
+        const start = record.sceneOffset;
+        const end = start + 12 * this.n;
+        const direct = owner !== null && !this.isStale(record) && mapped.byteLength >= end && into.byteLength >= end;
+        if (direct) {
+            this.copyScene(owner, mapped, record);
+            record.sceneCopied = true;
+            this.scenesCopiedDirect++;
+        }
+        const target = into.byteLength >= mapped.byteLength ? into : new ArrayBuffer(mapped.byteLength);
+        const to = new Uint8Array(target);
+        const from = new Uint8Array(mapped);
+        if (direct) {
+            to.set(from.subarray(0, start));
+            to.set(from.subarray(end), end);
+        } else {
+            to.set(from);
+        }
+        return target;
     }
 
     /**

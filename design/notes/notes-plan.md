@@ -546,7 +546,7 @@ compiles against the published types (CLAUDE.md, "Easy things easy, hard things 
 ## Step 9. The gate, and the pull request
 
 - `./tools/run-tests.sh graphty-element-default`, then each `graphty-element-browser-<n>` shard,
-  one at a time; `tools/prepush.sh` (build, lint, knip, fast tests).
+  one at a time; `tools/prepush.sh` (build, lint, knip, fast tests; removed 2026-11-02, `pnpm run check:quick` now).
 - Open the notes pull request from `feat/element-notes` against master. Its description says it is
   not breaking, lists the published names (section 10), and names the breaking change it leaves
   for the grouped major (below), with the reason.

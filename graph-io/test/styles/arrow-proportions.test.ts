@@ -86,7 +86,7 @@ describe("Cytoscape's arrows", () => {
         expect(v.targetArrowWidth).toEqual([null, null]);
         // ARROW_SHORT's notch is too shallow to show, so it is drawn as the triangle it reads as; CROSS_DELTA is a delta
         // with a bar behind it, 1.5 times a DELTA's length and width
-        expect(v.sourceArrow).toEqual(["triangle", "other:cross-delta"]);
+        expect(v.sourceArrow).toEqual(["triangle", "cross-delta"]);
         expect(v.sourceArrowLength).toEqual([0.6, 1.5]);
         expect(v.sourceArrowWidth).toEqual([0.8, 1.5]);
     });
@@ -94,20 +94,20 @@ describe("Cytoscape's arrows", () => {
     it("reads CX2's crossed deltas, triangle-cross and cross_open_delta, at a crossed delta's size", async () => {
         const doc = cx2({ EDGE_TARGET_ARROW_SHAPE: "triangle-cross", EDGE_SOURCE_ARROW_SHAPE: "cross_open_delta" });
         const v = await edgeValues("cx2", doc, ["targetArrow", "targetArrowLength", "sourceArrow", "sourceArrowWidth"]);
-        expect(v.targetArrow).toEqual(["other:cross-delta", "other:cross-delta"]);
+        expect(v.targetArrow).toEqual(["cross-delta", "cross-delta"]);
         expect(v.targetArrowLength).toEqual([1.5, 1.5]);
-        expect(v.sourceArrow).toEqual(["other:cross-open-delta", "other:cross-open-delta"]);
+        expect(v.sourceArrow).toEqual(["open-cross-delta", "open-cross-delta"]);
         expect(v.sourceArrowWidth).toEqual([1.5, 1.5]);
     });
 
-    it("keeps which side of the line a half arrow is on: HALF_TOP as half, HALF_BOTTOM as its mirror", async () => {
+    it("keeps which side of the line a half arrow is on: HALF_TOP as a barb, HALF_BOTTOM as its mirror", async () => {
         const doc = cx2(
             { EDGE_TARGET_ARROW_SHAPE: "HALF_TOP", EDGE_SOURCE_ARROW_SHAPE: "HALF_BOTTOM" },
             { EDGE_TARGET_ARROW_SHAPE: "half-bottom", EDGE_SOURCE_ARROW_SHAPE: "half-top" },
         );
         const v = await edgeValues("cx2", doc, ["targetArrow", "sourceArrow"]);
-        expect(v.targetArrow).toEqual(["half", "other:half-bottom"]);
-        expect(v.sourceArrow).toEqual(["other:half-bottom", "half"]);
+        expect(v.targetArrow).toEqual(["half-barb", "half-barb-flipped"]);
+        expect(v.sourceArrow).toEqual(["half-barb-flipped", "half-barb"]);
     });
 
     it("states no proportion for a file of arrows drawn in their shapes' own", async () => {
@@ -141,7 +141,7 @@ describe("Graphviz's arrow names", () => {
             "triangle-open",
             "crow",
             "triangle",
-            "other:open-square",
+            "open-box",
             "triangle-open",
             "none",
         ]);

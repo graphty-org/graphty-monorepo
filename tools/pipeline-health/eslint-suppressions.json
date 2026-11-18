@@ -1,0 +1,87 @@
+{
+  "infra/health-stack.ts": {
+    "sonarjs/aws-sns-unencrypted-topics": {
+      "count": 1
+    }
+  },
+  "src/collector/collect.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/collector/flaky.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/collector/parse.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "src/collector/slice-metrics.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/collector/slices.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/model/benchmarks.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/model/drill.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/model/raw.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/model/rollup.ts": {
+    "sonarjs/pseudo-random": {
+      "count": 1
+    }
+  },
+  "src/model/store.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/views/build.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/views/issue-sections.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "web/fixtures/build.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "web/src/charts.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "web/src/render.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 20
+    }
+  },
+  "web/src/text.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  }
+}

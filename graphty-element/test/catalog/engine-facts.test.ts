@@ -41,6 +41,7 @@ import { MaxFlowAlgorithm } from "../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../src/algorithms/PrimAlgorithm";
+import { RemovalImpactAlgorithm } from "../../src/algorithms/RemovalImpactAlgorithm";
 import { SpectralClusteringAlgorithm } from "../../src/algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import type { EngineFacts } from "../../src/catalog/engineFacts";
@@ -99,6 +100,7 @@ const ALGORITHMS = [
     MinCutAlgorithm,
     PageRankAlgorithm,
     PrimAlgorithm,
+    RemovalImpactAlgorithm,
     SpectralClusteringAlgorithm,
     StronglyConnectedComponentsAlgorithm,
 ];

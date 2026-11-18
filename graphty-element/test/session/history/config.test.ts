@@ -145,7 +145,7 @@ describe("session.config", () => {
         await typed.config.set({ author: "A" });
         await typed.config.set({ author: "Ada" });
         assert.lengthOf(typed.history.steps, 1);
-        assert.strictEqual(typed.history.steps[0].label, 'Changed the setting "author"');
+        assert.deepEqual(typed.history.steps[0].fact, { code: "config.set", params: { keys: ["author"] } });
         await typed.undo();
         assert.isUndefined(typed.config.author);
         await typed.redo();

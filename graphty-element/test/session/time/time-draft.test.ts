@@ -7,16 +7,13 @@ import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type DraftColumn, type GraphSession, type LoadDraft } from "../../../session";
 
-const ON = ["timeline"] as const;
-
 /**
  * Prepares a CSV file.
  * @param data - The file's text.
- * @param features - The features the session runs with.
  * @returns The draft.
  */
-async function prepare(data: string, features: readonly string[] = ON): Promise<LoadDraft> {
-    const session = createGraphSession({ features: [...features] });
+async function prepare(data: string): Promise<LoadDraft> {
+    const session = createGraphSession();
     return session.data.prepare({ type: "csv", config: { data } });
 }
 
@@ -163,7 +160,7 @@ describe("a draft's time suggestion", () => {
     });
 
     it("designates nothing on a load with no choice", async () => {
-        const session = createGraphSession({ features: [...ON] });
+        const session = createGraphSession();
         const draft = await session.data.prepare({
             type: "csv",
             config: { data: edges("sent", ["2026-01-02", "2026-01-03"]) },
@@ -175,7 +172,7 @@ describe("a draft's time suggestion", () => {
     });
 
     it("reads a bare number past the sample as a designation does: a stray among dates", async () => {
-        const session = createGraphSession({ features: [...ON] });
+        const session = createGraphSession();
         const data = edges("sent", afterSample(0));
         const draft = await session.data.prepare({ type: "csv", config: { data } });
         assert.equal(draft.findings[0].params.from, Date.UTC(2026, 0, 1));
@@ -185,7 +182,7 @@ describe("a draft's time suggestion", () => {
     it("reads loose text past the sample in UTC on every machine", async () => {
         vi.stubEnv("TZ", "America/Los_Angeles");
         try {
-            const session = createGraphSession({ features: [...ON] });
+            const session = createGraphSession();
             const data = edges("sent", afterSample("Jan 31 2026"));
             const draft = await session.data.prepare({ type: "csv", config: { data } });
             assert.equal(draft.findings[0].params.to, Date.UTC(2026, 0, 31));
@@ -196,7 +193,7 @@ describe("a draft's time suggestion", () => {
     });
 
     it("reads loose text past the sample in the configured parse zone", async () => {
-        const session = createGraphSession({ features: [...ON] });
+        const session = createGraphSession();
         await session.config.set({ data: { knownFields: { edgeTimeParseZone: "Asia/Tokyo" } } });
         const data = edges("sent", afterSample("Jan 31 2026"));
         const draft = await session.data.prepare({ type: "csv", config: { data } });
@@ -209,7 +206,7 @@ describe("a draft's time suggestion", () => {
             ["s", [1_700_000_000_000, 1_700_000_100_000]],
             ["ms", [1_700_000_000, 1_700_000_100]],
         ] as const) {
-            const session = createGraphSession({ features: [...ON] });
+            const session = createGraphSession();
             await session.config.set({ data: { knownFields: { edgeTimeUnit: unit } } });
             const data = edges("created", values);
             const draft = await session.data.prepare({ type: "csv", config: { data } });
@@ -218,7 +215,7 @@ describe("a draft's time suggestion", () => {
     });
 
     it("says nothing of numbers the configured unit reads as plain steps", async () => {
-        const session = createGraphSession({ features: [...ON] });
+        const session = createGraphSession();
         await session.config.set({ data: { knownFields: { edgeTimeUnit: "ordinal" } } });
         const data = edges("created", [1_700_000_000_000, 1_700_000_100_000]);
         const draft = await session.data.prepare({ type: "csv", config: { data } });
@@ -227,18 +224,11 @@ describe("a draft's time suggestion", () => {
 
     it("suggests a time column over guessing it as the weight", async () => {
         const data = edges("created", [1_700_000_100_000, 1_700_000_000_000]);
-        const session = createGraphSession({ features: [...ON] });
+        const session = createGraphSession();
         const draft = await session.data.prepare({ type: "csv", config: { data } }, { guess: "values" });
         assert.isUndefined(column(draft, "created").suggested);
         assert.equal(column(draft, "created").looksLike, "time");
         assert.equal(draft.findings[0].params.from, 1_700_000_000_000);
-    });
-
-    it("still guesses the weight from values with the timeline off", async () => {
-        const data = edges("created", [1_700_000_100_000, 1_700_000_000_000]);
-        const session = createGraphSession({ features: [] });
-        const draft = await session.data.prepare({ type: "csv", config: { data } }, { guess: "values" });
-        assert.equal(column(draft, "created").suggested, "weight");
     });
 
     it("lists what it reports among the candidates after the load", async () => {
@@ -247,7 +237,7 @@ describe("a draft's time suggestion", () => {
             ["start", ["1995", "2001"]],
             ["sent", ["2026-01-02", "2026-01-03"]],
         ] as const) {
-            const session = createGraphSession({ features: [...ON] });
+            const session = createGraphSession();
             const draft = await session.data.prepare({ type: "csv", config: { data: edges(name, values) } });
             assert.equal(draft.findings[0].params.column, name);
             await draft.load();
@@ -269,7 +259,7 @@ describe("a draft's time suggestion", () => {
             ["json", JSON_FILE],
             ["graphml", GRAPHML_FILE],
         ] as const) {
-            const session = createGraphSession({ features: [...ON] });
+            const session = createGraphSession();
             const draft = await session.data.prepare({ type, config: { data } });
             const edgeTable = draft.tables.find((table) => table.id === "edges");
             assert.isTrue(edgeTable?.fixed, type);
@@ -280,24 +270,11 @@ describe("a draft's time suggestion", () => {
     });
 
     it("takes only time and its unit on a table the format sets", async () => {
-        const session = createGraphSession({ features: [...ON] });
+        const session = createGraphSession();
         const draft = await session.data.prepare({ type: "json", config: { data: JSON_FILE } });
         const refused = await draft
             .load({ mapping: { tables: { edges: { weight: "sent" } } } })
             .catch((e: unknown) => e);
         assert.equal((refused as { code?: string }).code, "E_BAD_COMMAND");
-    });
-
-    it("refuses a time choice on a table the format sets with the timeline off", async () => {
-        const session = createGraphSession({ features: [] });
-        const draft = await session.data.prepare({ type: "json", config: { data: JSON_FILE } });
-        const refused = await draft.load({ mapping: { tables: { edges: { time: "sent" } } } }).catch((e: unknown) => e);
-        assert.equal((refused as { code?: string }).code, "E_BAD_COMMAND");
-    });
-
-    it("is silent with the timeline off", async () => {
-        const draft = await prepare(edges("sent", ["2026-01-02", "2026-01-03"]), []);
-        assert.notProperty(column(draft, "sent"), "looksLike");
-        assert.deepEqual(draft.findings, []);
     });
 });

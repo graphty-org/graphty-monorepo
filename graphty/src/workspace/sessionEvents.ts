@@ -10,6 +10,7 @@ export const INSPECTOR_EVENTS = [
     "visibility:changed",
     "note:changed",
     "source:refreshed",
+    "source:copy",
 ] as const;
 
 /** The element's events that change what the Graph place reads, undo and redo included. */

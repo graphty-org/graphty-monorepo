@@ -18,6 +18,7 @@ import {
     saveProjectAs,
 } from "./actions";
 import { NetworkPrompt } from "./NetworkPrompt";
+import { SourceCopyControl } from "./SourceCopyControl";
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -30,11 +31,14 @@ function SaveAsDialog(): React.JSX.Element {
     const current = useWorkspaceState((state) => state.project?.name ?? "");
     const [name, setName] = useState(current);
     const [saving, setSaving] = useState(false);
+    // While the data source settings pop-over is open, Escape closes it and not the dialog.
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
     // Whether another dialog took the slot during a save (the question about files from the web,
     // or Save as pressed again over it): the save then leaves the slot to that dialog.
     const left = useRef(false);
     useEffect(() => {
+        setSettingsOpen(false);
         if (opened) {
             setName(current);
         } else {
@@ -63,7 +67,7 @@ function SaveAsDialog(): React.JSX.Element {
     };
 
     return (
-        <Modal opened={opened} onClose={close} title={`Save ${current} as`}>
+        <Modal opened={opened} onClose={close} closeOnEscape={!settingsOpen} title={`Save ${current} as`}>
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
@@ -81,6 +85,7 @@ function SaveAsDialog(): React.JSX.Element {
                         event.currentTarget.select();
                     }}
                 />
+                <SourceCopyControl onSettingsOpen={setSettingsOpen} />
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
                         Cancel

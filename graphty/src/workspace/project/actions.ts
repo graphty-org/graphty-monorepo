@@ -10,6 +10,7 @@
 import {
     type AssetStorage,
     browserProjects,
+    type CodedFact,
     type GraphSession,
     isGraphtyError,
     type LoadDraft,
@@ -21,7 +22,8 @@ import {
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { nodeModelsOn } from "../features";
+import { sourceName } from "../data-place/words";
+import { nodeModelsOn, sourceReferencesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
@@ -29,7 +31,7 @@ import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStor
 import { chipLine } from "../style/modelWords";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
-import { notReadWords } from "./words";
+import { notReadWords, referenceWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
@@ -124,18 +126,42 @@ export function askAssetChoices(store: WorkspaceStore, session: GraphSession): P
 }
 
 /**
- * The saved notice, with what of the models the save could not keep as asked.
+ * The saved notice, with what of the models and data sources the save could not keep as asked.
  * @param session - the project's session.
  * @param message - the notice's sentence.
  * @param report - what the save reported, when it reported.
  * @returns the notice's words.
  */
-function withModelsLeftOut(session: GraphSession, message: string, report: ProjectSaveReport | undefined): string {
-    if (!nodeModelsOn(session)) {
-        return message;
+function withLeftOut(session: GraphSession, message: string, report: ProjectSaveReport | undefined): string {
+    const leftOut = report?.leftOut ?? [];
+    const models = nodeModelsOn(session) ? leftOut.filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine) : [];
+    return [message, ...models, ...referenceLines(session, leftOut, true)].join(" ");
+}
+
+/**
+ * What became of the data sources kept as references (the source references experiment), one
+ * sentence each, naming the source: by its row in the graph, else by the name or address the
+ * element reports, else by its key.
+ * @param session - the project's session.
+ * @param facts - what the element reported (a save's `leftOut`, an open's `problems`).
+ * @param saving - true for a save, false for an open.
+ * @returns the sentences; none with the experiment off.
+ */
+function referenceLines(session: GraphSession, facts: readonly CodedFact[], saving: boolean): string[] {
+    if (!sourceReferencesOn(session)) {
+        return [];
     }
-    const lines = (report?.leftOut ?? []).filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine);
-    return [message, ...lines].join(" ");
+    const loads = session.data.sources();
+    return facts.flatMap((fact) => {
+        const { source, name, url } = fact.params;
+        const load = loads.find((each) => each.key === source);
+        const shown =
+            load === undefined
+                ? [name, url, source].find((each): each is string => typeof each === "string" && each !== "")
+                : sourceName(load);
+        const words = referenceWords(fact, shown ?? "A data source", saving);
+        return words === undefined ? [] : [words];
+    });
 }
 
 /** Where the open project's Save goes, and what is waiting on the reader. Per workspace store. */
@@ -328,7 +354,7 @@ async function writeProject(
     });
     fileState(workspace).target = saved.id;
     await refreshStored();
-    workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
+    workspace.set({ notice: { message: withLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
     return true;
 }
 
@@ -559,11 +585,14 @@ async function openedProject(
     state.target = pending.storedId ?? null;
     state.recentId = pending.recentId ?? null;
     await remember(workspace, session, pending.handle);
-    const lost = report.problems.length;
+    // The references said one by one, by name; every other problem counted.
+    const references = referenceLines(session, report.problems, false);
+    const lost = report.problems.length - references.length;
     const parts = lost === 1 ? "part" : "parts";
+    const opened = lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`;
     workspace.set({
         notice: heldNotice(workspace, session, {
-            message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
+            message: references.length === 0 ? opened : [`${opened}${lost === 0 ? "." : ""}`, ...references].join(" "),
         }),
     });
     await focused;

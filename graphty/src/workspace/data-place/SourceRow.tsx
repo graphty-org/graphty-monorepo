@@ -1,9 +1,10 @@
 import { ContextMenu, EntityChip, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { LoadedSource } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, Tooltip, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Badge, Button, Menu, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
+import { sourceReferencesOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { RenameInput } from "../frame/RenameInput";
 import { GLYPHS } from "../glyphs";
@@ -129,7 +130,8 @@ function SourceCounts({ source }: Readonly<{ source: LoadedSource }>): React.JSX
  * On hover or focus, Load more, Refresh and "..." appear after the chips, and a running one stays
  * drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
  * that applies, and Rename. A load with open issues shows a warning chip with their count, which
- * opens its issue list.
+ * opens its issue list. With the source references experiment, a load a save keeps as a reference
+ * shows "Ref".
  * @param props - Component props
  * @param props.source - the load
  * @param props.selected - whether it is the selected row
@@ -237,6 +239,16 @@ export function SourceRow({
                                 )}
                             </span>
                             {match === null ? null : <VisuallyHidden>{joinWords(source)}</VisuallyHidden>}
+                            {source.copy === "reference" && sourceReferencesOn(session) ? (
+                                <Badge
+                                    component="span"
+                                    variant="light"
+                                    className="dp-source-ref"
+                                    aria-label="Saved as a reference"
+                                >
+                                    Ref
+                                </Badge>
+                            ) : null}
                             <SourceCounts source={source} />
                         </button>
                     )}

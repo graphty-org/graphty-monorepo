@@ -41,3 +41,14 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
 export function nodeModelsOn(session: GraphSession | null | undefined): boolean {
     return (session?.features.enabled ?? []).includes("node-models");
 }
+
+/**
+ * Whether the source references experiment is on (issue #8813). On, Save as offers to keep each
+ * data source as a copy or a reference, and the Data sources list marks a referenced source; off,
+ * nothing of it is shown.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function sourceReferencesOn(session: GraphSession | null | undefined): boolean {
+    return (session?.features.enabled ?? []).includes("source-references");
+}

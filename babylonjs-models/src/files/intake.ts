@@ -6,8 +6,11 @@
  * and nothing reaches Babylon.js or the DOM (design/rendering/node-models.md section 3).
  */
 
+import { scanBvh } from "./bvhChecks.js";
 import { BUILT_IN_MODEL_FORMATS, detectModelFormat, imageFormatOf, isZip, type ModelFormat } from "./detect.js";
+import { findFbxParts, scanFbx } from "./fbxChecks.js";
 import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks.js";
+import { DEFAULT_MODEL_LIMITS } from "./limits.js";
 import { isPrivateHost } from "./privateHost.js";
 import { isGltf1, readGlb1, upgradeGltf1 } from "./readers/gltf1.js";
 import {
@@ -42,6 +45,7 @@ import type {
     NamedBlob,
 } from "./types.js";
 import { unzipModel } from "./unzip.js";
+import { findUsdParts, scanUsd } from "./usdChecks.js";
 
 /** Something with bytes to read: a Blob, a File, or anything shaped like one. */
 interface BlobLike {
@@ -1178,6 +1182,39 @@ function bestOfEachBase(candidates: readonly Candidate[]): Candidate[] {
 }
 
 /**
+ * Of candidates of one rank, those no other candidate names as a part: a USD stage's root layer,
+ * not the layers it references (its payloads and sublayers are USD files too).
+ * @param top - The candidates.
+ * @param files - The set.
+ * @returns The candidates left; all of them when that would leave none.
+ */
+function withoutParts(top: Candidate[], files: ReadonlyMap<string, Uint8Array>): Candidate[] {
+    if (top.length < 2) {
+        return top;
+    }
+
+    const parts = new Set<string>();
+    for (const candidate of top) {
+        const findings: Findings = { warnings: [], missing: [], found: [] };
+        try {
+            findPartsByFormat(candidate, files.get(candidate.path), files, DEFAULT_MODEL_LIMITS, findings);
+        } catch (error) {
+            if (!(error instanceof ModelError)) {
+                throw error;
+            }
+        }
+        for (const part of findings.found ?? []) {
+            if (part.file !== candidate.path) {
+                parts.add(part.file);
+            }
+        }
+    }
+
+    const roots = top.filter((c) => !parts.has(c.path));
+    return roots.length > 0 ? roots : top;
+}
+
+/**
  * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, .babylon, then
  * formats the element does not load; of files sharing a base name only the best ranked counts; two different
  * candidates of the best rank are ambiguous.
@@ -1198,7 +1235,10 @@ function chooseMain(files: ReadonlyMap<string, Uint8Array>, forced?: ModelFormat
 
     const kept = bestOfEachBase(candidates);
     const best = Math.min(...kept.map((c) => c.rank));
-    const top = kept.filter((c) => c.rank === best);
+    const top = withoutParts(
+        kept.filter((c) => c.rank === best),
+        files,
+    );
     if (top.length > 1) {
         const names = top.map((c) => cut(c.path)).sort(byCodeUnits);
         refuse("E_MODEL_AMBIGUOUS", {
@@ -1337,6 +1377,17 @@ function checkByFormat(
             findBabylonParts(main.path, files, limits, findings);
             refuseMissing(findings);
             return scanBabylon(main.path, files, limits);
+        case "fbx":
+            findFbxParts(main.path, files, limits, findings);
+            refuseMissing(findings);
+            return scanFbx(main.path, files, limits);
+        case "usd":
+        case "usdz":
+            findUsdParts(main.path, files, limits, findings);
+            refuseMissing(findings);
+            return scanUsd(main.path, main.format, files, limits);
+        case "bvh":
+            return scanBvh(bytes, limits);
         default:
             return refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
     }
@@ -1412,6 +1463,13 @@ function findPartsByFormat(
             break;
         case "babylon":
             findBabylonParts(main.path, files, limits, findings);
+            break;
+        case "fbx":
+            findFbxParts(main.path, files, limits, findings);
+            break;
+        case "usd":
+        case "usdz":
+            findUsdParts(main.path, files, limits, findings);
             break;
         default:
             break;

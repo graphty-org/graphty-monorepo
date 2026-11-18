@@ -147,7 +147,7 @@ export interface ModelSummary {
     readonly geometry?: ModelGeometry;
     /** Points in the file, before thinning. Point clouds only. */
     readonly points?: number;
-    /** STL and PLY: how the file is stored. */
+    /** STL, PLY, FBX and a `.usd` layer: how the file is stored. */
     readonly encoding?: ModelEncoding;
     /** The file carries per-vertex or per-face colors, and they are drawn. */
     readonly vertexColors?: boolean;
@@ -157,6 +157,11 @@ export interface ModelSummary {
     readonly gltfVersion?: "1.0" | "2.0";
     /** glTF only: every extension the file uses, beside `extensionsRequired`. */
     readonly extensionsUsed?: readonly string[];
+    /**
+     * FBX and USD: how many meters one unit of the file's coordinates is (its `UnitScaleFactor` /
+     * 100, its `metersPerUnit`); the other formats do not say.
+     */
+    readonly metersPerUnit?: number;
 }
 
 /**

@@ -14,13 +14,15 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import { allowed } from "../decoders/config.js";
 import type { BuiltInModelFormat, ModelFormat } from "../files/detect.js";
+import { asciiFbxPictures } from "../files/fbxChecks.js";
 import { IGNORED_EXTENSIONS, readGlb, withoutGltfPictures } from "../files/gltfChecks.js";
 import { checkModelFiles, fetchModelSet, readModelFiles } from "../files/intake.js";
 import { DEFAULT_MODEL_LIMITS } from "../files/limits.js";
+import { isBinaryFbx } from "../files/readers/fbx.js";
 import { ModelReadError } from "../files/readers/geometry.js";
 import { isGltf1, readGlb1, upgradeGltf1 } from "../files/readers/gltf1.js";
 import { ModelError } from "../files/references.js";
-import { mtlMaterialsWithout, withSkips } from "../files/textFormats.js";
+import { mtlMaterialsWithout, WHITE_PNG, withSkips } from "../files/textFormats.js";
 import type {
     ModelFact,
     ModelFileOptions,
@@ -29,9 +31,11 @@ import type {
     ModelSource,
     ModelSummary,
 } from "../files/types.js";
+import { readUsdz, usdMaterialsDrawing } from "../files/usdChecks.js";
+import { bvhFigure } from "./bvhFigure.js";
 import { loadBabylonModel, type LoaderOptions, loadOwnModel, type ModelExtension, type OwnFormat } from "./loaders.js";
 import { guardRequests, REFUSED } from "./requestGuard.js";
-import { markWithoutPictures } from "./withoutPicture.js";
+import { markWithoutPictures, takeOffByName } from "./withoutPicture.js";
 
 /** Which reader draws each built-in format: one of Babylon's loaders, or the element's own. */
 const READERS: Readonly<Record<BuiltInModelFormat, ModelExtension | OwnFormat>> = {
@@ -41,6 +45,10 @@ const READERS: Readonly<Record<BuiltInModelFormat, ModelExtension | OwnFormat>> 
     stl: "stl",
     ply: "ply",
     babylon: "babylon",
+    fbx: ".fbx",
+    usd: ".usd",
+    usdz: ".usdz",
+    bvh: ".bvh",
 };
 
 /**
@@ -298,6 +306,71 @@ function withoutClimbs(
     return { files: changed, ...(body === undefined ? {} : { extension: ".gltf" }) };
 }
 
+/**
+ * Draw an FBX file's curves as thin tubes. Babylon's FBX loader makes a curve a line mesh, which a
+ * renderer that draws models as solids (graphty-element) cannot show; a file of NURBS curves then
+ * drew nothing. Each polyline becomes a tube 1/200 of the curves' extent thick, in the curve's color.
+ * @param container - The loaded FBX.
+ */
+async function curvesAsTubes(container: AssetContainer): Promise<void> {
+    const lines = container.meshes.filter((mesh) => mesh.getClassName() === "LinesMesh");
+    if (lines.length === 0) {
+        return;
+    }
+
+    const [{ CreateTube }, { StandardMaterial }, { Vector3 }] = await Promise.all([
+        import("@babylonjs/core/Meshes/Builders/tubeBuilder.js"),
+        import("@babylonjs/core/Materials/standardMaterial.js"),
+        import("@babylonjs/core/Maths/math.vector.js"),
+    ]);
+    let extent = 0;
+    for (const mesh of lines) {
+        const { minimum, maximum } = mesh.getBoundingInfo();
+        extent = Math.max(extent, maximum.subtract(minimum).length());
+    }
+
+    const radius = Math.max(extent, 1e-6) / 200;
+    for (const mesh of lines) {
+        const scene = mesh.getScene();
+        const positions = mesh.getVerticesData("position") ?? [];
+        const indices = mesh.getIndices() ?? [];
+        const point = (i: number): InstanceType<typeof Vector3> =>
+            new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+        // The loader writes each polyline as consecutive segments: a break starts a new path.
+        const paths: InstanceType<typeof Vector3>[][] = [];
+        for (let i = 0; i + 1 < indices.length; i += 2) {
+            const path = paths.at(-1);
+            if (path !== undefined && i > 0 && indices[i] === indices[i - 1]) {
+                path.push(point(indices[i + 1]));
+            } else {
+                paths.push([point(indices[i]), point(indices[i + 1])]);
+            }
+        }
+
+        const material = new StandardMaterial(`${mesh.name} curve`, scene);
+        material.diffuseColor = (mesh as unknown as { color: typeof material.diffuseColor }).color.clone();
+        scene.removeMaterial(material);
+        container.materials.push(material);
+        for (const [n, path] of paths.entries()) {
+            const tube = CreateTube(`${mesh.name} ${String(n)}`, { path, radius, tessellation: 8, cap: 3 }, scene);
+            scene.removeMesh(tube);
+            tube.parent = mesh.parent;
+            tube.position.copyFrom(mesh.position);
+            tube.rotation.copyFrom(mesh.rotation);
+            tube.rotationQuaternion = mesh.rotationQuaternion?.clone() ?? null;
+            tube.scaling.copyFrom(mesh.scaling);
+            tube.material = material;
+            container.meshes.push(tube);
+        }
+
+        for (const child of mesh.getChildren()) {
+            (child as { parent: unknown }).parent = mesh.parent;
+        }
+        container.meshes.splice(container.meshes.indexOf(mesh), 1);
+        mesh.dispose(true);
+    }
+}
+
 /** The Draco module, when a load uses it. */
 type DracoModule = typeof import("../decoders/draco.js");
 
@@ -309,6 +382,7 @@ const DECODERS = {
     draco: () => import("../decoders/draco.js"),
     meshopt: () => import("../decoders/meshopt.js"),
     ktx2: () => import("../decoders/ktx2.js"),
+    usd: () => import("../decoders/usd.js"),
 } as const;
 
 /**
@@ -332,18 +406,18 @@ async function importDecoder(kind: keyof typeof DECODERS): Promise<{ readonly av
 /**
  * Import a decoder a glTF cannot be drawn without.
  * @param kind - The decoder.
- * @param extension - The glTF extension it decodes, named when it is turned off or left out.
+ * @param named - What it decodes, named when it is turned off or left out: a glTF extension, or a format.
  * @returns The module.
  * @throws {ModelError} `E_MODEL_DECODER_UNAVAILABLE` when it is off, left out or failed to load.
  */
 async function requireDecoder(
     kind: keyof typeof DECODERS,
-    extension: string,
+    named: { readonly extension: string } | { readonly format: string },
 ): Promise<{ readonly available: boolean }> {
     const found = await importDecoder(kind);
     if (typeof found === "string") {
         throw new ModelError("E_MODEL_DECODER_UNAVAILABLE", {
-            ...(found === "missing" ? { extension } : {}),
+            ...(found === "missing" ? named : {}),
             reason: found,
         });
     }
@@ -361,10 +435,10 @@ async function requireDecoder(
 async function loadDecoders(used: readonly string[], required: readonly string[]): Promise<DracoModule | undefined> {
     const needed = new Set(DECODER_EXTENSIONS.filter(([name]) => used.includes(name)).map(([, kind]) => kind));
     const draco = needed.has("draco")
-        ? ((await requireDecoder("draco", "KHR_draco_mesh_compression")) as DracoModule)
+        ? ((await requireDecoder("draco", { extension: "KHR_draco_mesh_compression" })) as DracoModule)
         : undefined;
     if (needed.has("meshopt")) {
-        await requireDecoder("meshopt", "EXT_meshopt_compression");
+        await requireDecoder("meshopt", { extension: "EXT_meshopt_compression" });
     }
 
     if (needed.has("ktx2")) {
@@ -400,7 +474,7 @@ function failureOf(error: unknown, format: string): ModelFact {
         return { code: "E_MODEL_EXTERNAL_URL", params: { url: shown(url) } };
     }
 
-    if (text.includes("nothing is fetched from Babylon's CDN")) {
+    if (text.includes("nothing is fetched from Babylon's CDN") || text.includes("USD worker")) {
         return { code: "E_MODEL_DECODER_UNAVAILABLE", params: { reason: "load" } };
     }
 
@@ -410,6 +484,148 @@ function failureOf(error: unknown, format: string): ModelFact {
     }
 
     return { code: "E_MODEL_PARSE", params: { format } };
+}
+
+/**
+ * The loader options for a USD model: Babylon's USD loader reads no URL but its main file, so every
+ * other file of the set (its sublayers, references, payloads and pictures) is handed to OpenUSD as
+ * a virtual file under its path in the set, beside the main file under its own; and the worker and
+ * its files are this package's own (src/decoders/usd.ts).
+ * @param options - The caller's loader options.
+ * @param files - The file set.
+ * @param main - The main file's path.
+ * @returns The options with the USD loader's own.
+ * @throws {ModelError} `E_MODEL_DECODER_UNAVAILABLE` when the importer is off, left out or failed to load.
+ */
+async function withUsdFiles(
+    options: LoadModelFilesOptions,
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+): Promise<LoadModelFilesOptions> {
+    const usd = (await requireDecoder("usd", { format: "usd" })) as typeof import("../decoders/usd.js");
+    const others: Record<string, Uint8Array> = {};
+    for (const [path, bytes] of files) {
+        if (path !== main) {
+            others[path] = bytes;
+        }
+    }
+
+    const given = (options.pluginOptions?.usd ?? {}) as Record<string, unknown>;
+    return {
+        ...options,
+        pluginOptions: {
+            ...options.pluginOptions,
+            usd: { ...given, ...usd.usdImporterUrls(), rootFileName: main, files: others, resolveByFileName: true },
+        },
+    };
+}
+
+/**
+ * An ASCII FBX file with each backslash doubled. Babylon's ASCII FBX parser (still in 9.37) reads a
+ * backslash in a string as an escape, which FBX does not have, so a Windows path that ends in one
+ * (`"D:\"`, which Maya writes) swallowed its closing quote and the file failed to load; doubled,
+ * each reads back as the one backslash the file wrote. Delete when Babylon reads strings verbatim.
+ * @param files - The file set.
+ * @param main - The FBX file's path.
+ * @returns The set with the main file rewritten when it is ASCII.
+ */
+function withAsciiFbxBackslashes(
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+): ReadonlyMap<string, Uint8Array> {
+    const bytes = files.get(main) as Uint8Array;
+    if (isBinaryFbx(bytes) || !bytes.includes(0x5c)) {
+        return files;
+    }
+
+    const doubled = new Uint8Array(bytes.length + bytes.reduce((n, b) => n + Number(b === 0x5c), 0));
+    let at = 0;
+    for (const b of bytes) {
+        doubled[at++] = b;
+        if (b === 0x5c) {
+            doubled[at++] = b;
+        }
+    }
+
+    return new Map(files).set(main, doubled);
+}
+
+/**
+ * An FBX file's set as Babylon's loader reads it: an ASCII file's embedded pictures (which the
+ * loader reads only from a binary file) put beside it as files, where the loader then looks for
+ * them, and its backslashes doubled ({@link withAsciiFbxBackslashes}).
+ * @param files - The set.
+ * @param main - The FBX file's path.
+ * @param hidden - Pictures drawn without: an embedded one is put there as a white picture.
+ * @returns The set to load.
+ */
+function fbxFiles(
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+    hidden: readonly string[],
+): ReadonlyMap<string, Uint8Array> {
+    const folder = main.slice(0, main.lastIndexOf("/") + 1);
+    const pictures = asciiFbxPictures(files.get(main) as Uint8Array, DEFAULT_MODEL_LIMITS);
+    const out = new Map(files);
+    for (const [name, bytes] of pictures) {
+        if (!out.has(folder + name)) {
+            out.set(folder + name, hidden.includes(name) ? WHITE_PNG : bytes);
+        }
+    }
+
+    return withAsciiFbxBackslashes(out, main);
+}
+
+/**
+ * A USD model's set as OpenUSD reads it, as virtual files: a USDZ's entries unpacked (its first
+ * is the root layer), and every picture drawn without left out, so its material draws in its
+ * plain color. The materials that lose a picture are added to `lost`.
+ * @param files - The set.
+ * @param main - The main file's path.
+ * @param format - `usd` or `usdz`.
+ * @param gone - Pictures drawn without, by path.
+ * @param lost - Where the names of the materials that lose a picture go.
+ * @returns The set to load and its root layer.
+ */
+function usdFiles(
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+    format: "usd" | "usdz",
+    gone: readonly string[],
+    lost: Set<string>,
+): { files: ReadonlyMap<string, Uint8Array>; main: string } {
+    let set = files;
+    let root = main;
+    if (format === "usdz") {
+        set = readUsdz(files.get(main) as Uint8Array);
+        [root] = set.keys();
+    }
+
+    for (const name of usdMaterialsDrawing(root, set, gone, DEFAULT_MODEL_LIMITS)) {
+        lost.add(name);
+    }
+
+    const left = new Set(gone.map((g) => g.toLowerCase()));
+    return { files: new Map([...set].filter(([path]) => path === root || !left.has(path.toLowerCase()))), main: root };
+}
+
+/**
+ * What a format's loaded container still needs: an OBJ's faces drawn as faces, an FBX file's
+ * curves as tubes and its embedded pictures drawn without taken off (they are named by their
+ * file's base name, as the loader names them), a BVH file's skeleton drawn as a figure.
+ * @param container - The loaded model.
+ * @param format - Its format.
+ * @param hidden - Pictures drawn without.
+ */
+async function finish(container: AssetContainer, format: ModelFormat, hidden: readonly string[]): Promise<void> {
+    if (format === "obj") {
+        facesNotPoints(container);
+    } else if (format === "fbx") {
+        await curvesAsTubes(container);
+        takeOffByName(container, hidden);
+    } else if (format === "bvh") {
+        bvhFigure(container);
+    }
 }
 
 /** Options for {@link loadModelFiles}. */
@@ -464,6 +680,12 @@ export async function loadModelFiles(
         files = withSkips(files, hidden, true);
     }
 
+    if (format === "fbx") {
+        files = fbxFiles(files, main, hidden);
+    } else if (format === "usd" || format === "usdz") {
+        ({ files, main } = usdFiles(files, main, format, [...skipped, ...hidden], lostPicture));
+    }
+
     let reader = READERS[format];
     let draco: DracoModule | undefined;
     let clear: ReadonlySet<string> = new Set();
@@ -498,14 +720,11 @@ export async function loadModelFiles(
             folder,
             main.slice(slash + 1),
             reader as ModelExtension,
-            options,
+            format === "usd" || format === "usdz" ? await withUsdFiles(options, files, main) : options,
         );
         clearReflections(container, clear);
-        if (format === "obj") {
-            facesNotPoints(container);
-        }
-
-        markWithoutPictures(container, root, skipped, lostPicture);
+        await finish(container, format, hidden);
+        markWithoutPictures(container, root, format === "fbx" ? [...skipped, ...hidden] : skipped, lostPicture);
         return container;
     } catch (error) {
         const fact = failureOf(error, format);

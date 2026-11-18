@@ -51,7 +51,7 @@ function ruleOf(read: () => unknown): string {
 }
 
 describe("detecting the formats babylonjs-models reads", () => {
-    it("reads glTF 1.0 and .babylon, and names BVH", () => {
+    it("reads glTF 1.0, .babylon and BVH", () => {
         assert.deepStrictEqual(detectModelFormat({ head: fixture("glb1", "cube.glb") }), {
             format: "glb",
             supported: true,
@@ -65,7 +65,7 @@ describe("detecting the formats babylonjs-models reads", () => {
         );
         assert.deepStrictEqual(detectModelFormat({ head: fixture("bvh", "walk.bvh") }), {
             format: "bvh",
-            supported: false,
+            supported: true,
         });
     });
 
@@ -110,7 +110,8 @@ describe("detecting the formats babylonjs-models reads", () => {
         for (const format of BUILT_IN_MODEL_FORMATS) {
             assert.isTrue(hasReader(format), format);
         }
-        assert.isFalse(hasReader("fbx"));
+        assert.isTrue(hasReader("fbx"));
+        assert.isFalse(hasReader("dae"));
     });
 });
 

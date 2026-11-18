@@ -4,7 +4,8 @@
  * fflate's streaming `Unzip` reads each entry's local header and inflates it chunk by chunk, so
  * the bytes counted are the bytes actually produced, not the sizes the header declares (a zip
  * bomb lies there). Caps: 1,024 entries, names of 512 characters, an output-to-input ratio of 100
- * per entry, the unzipped total under the byte limit, no zip inside the zip, no two names that
+ * per entry, the unzipped total under the byte limit, no zip inside the zip (a `.usdz` package, a
+ * model of its own that its checks unpack, excepted), no two names that
  * differ only in case, no name that leaves the archive with `..`. `__MACOSX/` and directories are
  * skipped.
  */
@@ -88,7 +89,7 @@ export async function unzipModel(zip: Uint8Array, maxUnzipped: number): Promise<
                         refuse("E_MODEL_ZIP", { reason: "corrupt" });
                     }
 
-                    if (produced === 0 && isZip(chunk)) {
+                    if (produced === 0 && isZip(chunk) && !/\.usdz$/i.test(path)) {
                         refuse("E_MODEL_ZIP", { reason: "nested" });
                     }
 

@@ -7,15 +7,19 @@
 
 Load 3D models into [Babylon.js](https://www.babylonjs.com/) scenes from a URL, a File, a folder, a
 `.zip` or bytes. Every file is checked before Babylon reads it, a model reads only its own files, and
-nothing is fetched from a CDN: the Draco decoder and the KTX2 transcoders ship inside the package.
+nothing is fetched from a CDN: the Draco decoder, the KTX2 transcoders and the OpenUSD importer ship
+inside the package.
 
-| Format           | Files                                                                                                     |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| glTF 2.0 and 1.0 | `.glb`, `.gltf` with its `.bin` and pictures; Draco, meshopt and KTX2 compression; WebP and AVIF pictures |
-| OBJ              | `.obj` with its `.mtl` and the pictures the `.mtl` names (PNG, JPEG, TGA, DDS, BMP, GIF), vertex colors   |
-| STL              | ASCII and binary, with VisCAM and Materialise colors                                                      |
-| PLY              | ASCII and binary meshes and point clouds                                                                  |
-| Babylon.js       | `.babylon` (geometry and diffuse materials)                                                               |
+| Format           | Files                                                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| glTF 2.0 and 1.0 | `.glb`, `.gltf` with its `.bin` and pictures; Draco, meshopt and KTX2 compression; WebP and AVIF pictures                         |
+| OBJ              | `.obj` with its `.mtl` and the pictures the `.mtl` names (PNG, JPEG, TGA, DDS, BMP, GIF), vertex colors                           |
+| STL              | ASCII and binary, with VisCAM and Materialise colors                                                                              |
+| PLY              | ASCII and binary meshes and point clouds                                                                                          |
+| Babylon.js       | `.babylon` (geometry and diffuse materials)                                                                                       |
+| FBX              | binary and ASCII (6 and 7), with its pictures beside it or embedded; skins, blend shapes, clips, curves                           |
+| USD              | `.usda`, `.usdc`, `.usd` with the layers and pictures it references; `.usdz` packages; skins, clips                               |
+| BVH              | motion capture (a skeleton and its motion, no shape): drawn as a figure of one box per bone, its motion one clip, `BVH Animation` |
 
 Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY, a glTF requiring `KHR_gaussian_splatting`)
 are recognized and refused with `E_MODEL_FORMAT_UNSUPPORTED`: `params.format` is `splat`, `spz`, `sog`
@@ -97,7 +101,7 @@ its own language.
 | Code                                                                      | When                                                                                                                                                                                                                           |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `E_MODEL_FORMAT_UNKNOWN`                                                  | No file of the set is a model                                                                                                                                                                                                  |
-| `E_MODEL_FORMAT_UNSUPPORTED`                                              | A recognized format this package does not load (FBX, USDZ, COLLADA, 3MF, .blend, Gaussian splats)                                                                                                                              |
+| `E_MODEL_FORMAT_UNSUPPORTED`                                              | A recognized format this package does not load (COLLADA, 3MF, .blend, Gaussian splats)                                                                                                                                         |
 | `E_MODEL_AMBIGUOUS`                                                       | Several files could be the model: pass `main`                                                                                                                                                                                  |
 | `E_MODEL_MISSING_FILE`                                                    | A file the model names is not in the set (`name`, `role`)                                                                                                                                                                      |
 | `E_MODEL_PART_AMBIGUOUS`                                                  | Several files of the set match a name the model uses                                                                                                                                                                           |
@@ -105,15 +109,16 @@ its own language.
 | `E_MODEL_TOO_LARGE`                                                       | Over a limit (`what`, `found`, `limit`)                                                                                                                                                                                        |
 | `E_MODEL_STRUCTURE`                                                       | A damaged file (`rule`)                                                                                                                                                                                                        |
 | `E_MODEL_PARSE`                                                           | Babylon could not read the file                                                                                                                                                                                                |
-| `E_MODEL_DECODER_UNAVAILABLE`                                             | A decoder is off, left out of a build, or failed to load (`extension`, `reason`)                                                                                                                                               |
+| `E_MODEL_DECODER_UNAVAILABLE`                                             | A decoder is off, left out of a build, or failed to load (`extension`, or `format: "usd"` for the OpenUSD importer; `reason`)                                                                                                  |
 | `E_MODEL_FETCH`, `E_MODEL_URL_BLOCKED`, `E_MODEL_WEB_PAGE`, `E_MODEL_ZIP` | A URL or zip could not be read                                                                                                                                                                                                 |
 | `W_MODEL_*`                                                               | Worth knowing about an accepted model: a part substituted or skipped, pictures reduced, points drawn as solids, an extension drawn without (`W_MODEL_EXTENSION_IGNORED`, `extension`: the transmission family is drawn opaque) |
 
 ## Decoders
 
-The Draco decoder and the KTX2 transcoders are in `dist/wasm/`, found with
+The Draco decoder, the KTX2 transcoders and the OpenUSD importer are in `dist/wasm/`, found with
 `new URL("../wasm/<file>", import.meta.url)`, which Vite, webpack and Parcel copy into a build. Each
-loads only for a glTF that uses it.
+loads only for a model that uses it: Draco, meshopt and KTX2 for a glTF that names them, OpenUSD
+(a module worker and 10 MB of WebAssembly and data, 2.5 MB compressed) for a USD or USDZ model.
 
 - With Vite, keep the package out of dependency pre-bundling, which moves modules away from their
   files: `optimizeDeps: { exclude: ["babylonjs-models"] }`.
@@ -124,9 +129,22 @@ import { configureDecoders } from "babylonjs-models";
 
 configureDecoders({ baseUrl: "/static/model-decoders/" });
 configureDecoders({ ktx2: false }); // or turn one off: a model that needs it reports E_MODEL_DECODER_UNAVAILABLE
+configureDecoders({ usd: false }); // a USD or USDZ model is then refused the same way
 ```
 
-The decoders' licenses are in `licenses/`.
+The decoders' licenses are in `licenses/`: OpenUSD's (the Tomorrow Open Source Technology License,
+Apache 2.0 with its own trademark section, and the notices of the code it bundles), oneTBB's and
+zlib's are in `licenses/openusd/`.
+
+### What each format's summary says
+
+FBX and USD summaries count meshes, triangles, materials, pictures, clips, skins and blend shapes
+from the files without drawing them, give the bounds of the vertices as written, and say
+`metersPerUnit` (FBX: its `UnitScaleFactor` / 100; USD: the stage's `metersPerUnit`). Their
+`upAxis` is `"y"`: Babylon's loaders turn a Z-up file upright. A USD stage's counts add up each
+layer it references once, not once per use, and its one clip is `USD Animation 1`, as Babylon's
+loader names it. An FBX file's curves (NURBS curves, lines) are drawn as thin tubes. A BVH file's
+summary describes the figure it is drawn as: one box (12 triangles) per bone, skinned.
 
 ## License
 

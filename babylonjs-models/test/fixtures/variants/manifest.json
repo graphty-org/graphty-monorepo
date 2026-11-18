@@ -698,19 +698,198 @@
         "files": ["cube.babylon", "assets.example.com/textures/cube.png"]
     },
     {
-        "id": "fbx",
-        "upload": "files",
-        "format": "fbx",
-        "color": "any",
+        "geometry": "mesh",
         "warnings": [],
-        "refused": {
-            "code": "E_MODEL_FORMAT_UNSUPPORTED",
-            "params": {
-                "format": "fbx"
-            }
-        },
-        "what": "FBX (refused)",
+        "refused": null,
+        "upload": "files",
+        "id": "fbx",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "blue",
+        "what": "binary FBX 7.4, plain material color",
         "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "fbx-ascii",
+        "format": "fbx",
+        "encoding": "ascii",
+        "color": "blue",
+        "what": "ASCII FBX 7.4, plain material color",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "fbx-textured",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "green",
+        "what": "binary FBX whose texture is a file beside it, named by a relative path and an absolute one from its author's disk",
+        "files": ["cube.fbx", "textures/cube.png"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "fbx-embedded-texture",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "green",
+        "what": "binary FBX with its texture embedded in the file",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "fbx-ascii-embedded-texture",
+        "format": "fbx",
+        "encoding": "ascii",
+        "color": "green",
+        "what": "ASCII FBX with its texture embedded in the file (base64)",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "fbx-vertex-colors",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "red",
+        "what": "binary FBX with vertex colors",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "fbx-animated",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "blue",
+        "what": "binary FBX whose one clip, 'spin', turns the cube about Z",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "fbx-skinned-animated",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "blue",
+        "what": "binary FBX skinned to one bone, whose one clip, 'turn', turns the bone about Z",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "fbx-morph-animated",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "blue",
+        "what": "binary FBX whose one clip, 'grow', moves a blend shape channel from 0 to 100%",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "usda",
+        "format": "usd",
+        "color": "blue",
+        "what": "text USD layer (.usda), UsdPreviewSurface color",
+        "encoding": "ascii",
+        "files": ["cube.usda"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "usdc",
+        "format": "usd",
+        "color": "blue",
+        "what": "binary USD layer (.usdc), UsdPreviewSurface color",
+        "encoding": "binary",
+        "files": ["cube.usdc"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "folder",
+        "id": "usd-layers",
+        "format": "usd",
+        "color": "green",
+        "what": "text USD layer referencing a binary layer in geo/, whose picture is in textures/",
+        "encoding": "ascii",
+        "files": ["cube.usda", "geo/cube.usdc", "textures/cube.png"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "usdz",
+        "format": "usdz",
+        "color": "green",
+        "what": "USDZ package of a binary layer and its picture",
+        "files": ["cube.usdz"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": [],
+        "refused": null,
+        "upload": "files",
+        "id": "usda-z-up",
+        "format": "usd",
+        "color": "red",
+        "what": "Z-up text USD layer, red on top (+Z) and blue below, drawn upright",
+        "encoding": "ascii",
+        "upright": {
+            "top": "red",
+            "bottom": "blue"
+        },
+        "files": ["cube.usda"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "usda-animated",
+        "format": "usd",
+        "color": "blue",
+        "what": "text USD layer whose stage turns the cube about Y over a second",
+        "encoding": "ascii",
+        "files": ["cube.usda"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
+        "id": "usdz-skinned-animated",
+        "format": "usdz",
+        "color": "blue",
+        "what": "USDZ of a cube skinned to one joint, whose stage turns the joint",
+        "files": ["cube.usdz"]
     },
     {
         "id": "dae",
@@ -743,21 +922,6 @@
         "files": ["cube.3mf"]
     },
     {
-        "id": "usdz",
-        "upload": "files",
-        "format": "usdz",
-        "color": "any",
-        "warnings": [],
-        "refused": {
-            "code": "E_MODEL_FORMAT_UNSUPPORTED",
-            "params": {
-                "format": "usdz"
-            }
-        },
-        "what": "USDZ (refused)",
-        "files": ["cube.usdz"]
-    },
-    {
         "id": "blend",
         "upload": "files",
         "format": "blend",
@@ -773,18 +937,15 @@
         "files": ["cube.blend"]
     },
     {
-        "id": "bvh",
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
         "upload": "files",
+        "id": "bvh",
         "format": "bvh",
+        "encoding": "ascii",
         "color": "any",
-        "warnings": [],
-        "refused": {
-            "code": "E_MODEL_FORMAT_UNSUPPORTED",
-            "params": {
-                "format": "bvh"
-            }
-        },
-        "what": "BVH animation with no mesh (refused)",
+        "what": "BVH motion capture: a three-bone figure whose one clip turns it a quarter turn about Z",
         "files": ["walk.bvh"]
     },
     {

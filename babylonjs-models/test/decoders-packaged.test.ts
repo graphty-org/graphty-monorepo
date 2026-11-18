@@ -27,6 +27,10 @@ const DECODER_FILES = [
     "uastc_rgba8_srgb_v2.wasm",
     "uastc_rgba8_unorm_v2.wasm",
     "zstddec.wasm",
+    "babylon-usd-importer.worker.js",
+    "babylon-usd-importer.js",
+    "babylon-usd-importer.wasm",
+    "babylon-usd-importer.data",
 ];
 
 describe("the decoders in the package", () => {
@@ -36,7 +40,7 @@ describe("the decoders in the package", () => {
     });
 
     it("are loaded from those files, never from Babylon's CDN", () => {
-        for (const name of ["draco", "ktx2", "meshopt"]) {
+        for (const name of ["draco", "ktx2", "meshopt", "usd"]) {
             // The code, without the comments that say what Babylon would fetch by default.
             const code = readFileSync(join(DIST, "decoders", `${name}.js`), "utf8")
                 .replaceAll(/\/\*[\s\S]*?\*\//g, "")
@@ -44,7 +48,7 @@ describe("the decoders in the package", () => {
             assert.notInclude(code, "babylonjs.com", name);
             assert.include(code, "export const available = true", name);
         }
-        const named = ["draco", "ktx2"].flatMap((name) =>
+        const named = ["draco", "ktx2", "usd"].flatMap((name) =>
             [
                 ...readFileSync(join(DIST, "decoders", `${name}.js`), "utf8").matchAll(
                     /new URL\("\.\.\/wasm\/([\w.-]+)", import\.meta\.url\)/g,
@@ -70,6 +74,15 @@ describe("the decoders in the package", () => {
         assert.include(manifest.files, "licenses/");
         for (const name of ["draco", "ktx2"]) {
             assert.isTrue(existsSync(join(ROOT, "licenses", name, "LICENSE.md")), name);
+        }
+        for (const name of [
+            "README.md",
+            "LICENSE-babylon-usd-importer.md",
+            "LICENSE-openusd.txt",
+            "LICENSE-onetbb.txt",
+            "LICENSE-zlib.txt",
+        ]) {
+            assert.isTrue(existsSync(join(ROOT, "licenses", "openusd", name)), name);
         }
     });
 

@@ -28,6 +28,8 @@ import draco3d from "draco3dgltf";
 import { zipSync } from "fflate";
 import { MeshoptEncoder } from "meshoptimizer/encoder";
 
+import { fbxAscii, fbxBinary, type FbxCube, fbxCube } from "./fbx.js";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** What the tests expect of one variant. */
@@ -877,13 +879,17 @@ const KTX2 =
 const up = (format: string): string[] => (format === "stl" || format === "ply" ? ["W_MODEL_UP_GUESSED"] : []);
 const mesh = { geometry: "mesh" as const, warnings: [] as string[], refused: null, upload: "files" as const };
 
+/** The variants usd.py writes. */
+const USD_VARIANTS = ["usda", "usdc", "usd-layers", "usdz", "usda-z-up", "usda-animated", "usdz-skinned-animated"];
+
 async function main(): Promise<void> {
     const kept = new Map<string, Uint8Array>();
     for (const [id, name, url] of [["gltf-ktx2", "cube.ktx2", KTX2]] as const) {
         kept.set(id, await downloaded(id, name, url));
     }
 
-    for (const entry of readdirVariants()) {
+    // usd.py's folders are kept: this script lists them.
+    for (const entry of readdirVariants().filter((name) => !USD_VARIANTS.includes(name))) {
         rmSync(join(HERE, entry), { recursive: true, force: true });
     }
 
@@ -1572,6 +1578,111 @@ async function main(): Promise<void> {
         },
     );
 
+    // FBX, binary and ASCII, written by ./fbx.ts.
+    const colorOf = (cube: FbxCube): "red" | "green" | "blue" => {
+        if (cube.texture !== undefined) {
+            return "green";
+        }
+        return cube.vertexColors === undefined ? "blue" : "red";
+    };
+    const BLUE: [number, number, number] = [0, 0, 1];
+    const fbx = (id: string, cube: FbxCube, what: string, extra: Partial<Variant> = {}, ascii = false): void => {
+        const tree = fbxCube(cube, CUBE.positions, CUBE.uvs);
+        const files: Record<string, Uint8Array | string> = { "cube.fbx": ascii ? fbxAscii(tree) : fbxBinary(tree) };
+        if (cube.texture !== undefined && !cube.texture.embedded) {
+            files[cube.texture.name] = cube.texture.bytes;
+        }
+        write(
+            {
+                ...mesh,
+                id,
+                format: "fbx",
+                encoding: ascii ? "ascii" : "binary",
+                color: colorOf(cube),
+                warnings: cube.clip === undefined ? [] : ["W_MODEL_HAS_ANIMATIONS"],
+                what,
+                ...(cube.texture !== undefined && !cube.texture.embedded ? { upload: "folder" as const } : {}),
+                ...extra,
+            },
+            files,
+        );
+    };
+    fbx("fbx", { color: BLUE }, "binary FBX 7.4, plain material color");
+    fbx("fbx-ascii", { color: BLUE }, "ASCII FBX 7.4, plain material color", {}, true);
+    fbx(
+        "fbx-textured",
+        { texture: { name: "textures/cube.png", bytes: png(GREEN), embedded: false } },
+        "binary FBX whose texture is a file beside it, named by a relative path and an absolute one from its author's disk",
+    );
+    fbx(
+        "fbx-embedded-texture",
+        { texture: { name: "cube.png", bytes: png(GREEN), embedded: true } },
+        "binary FBX with its texture embedded in the file",
+    );
+    fbx(
+        "fbx-ascii-embedded-texture",
+        { texture: { name: "cube.png", bytes: png(GREEN), embedded: true } },
+        "ASCII FBX with its texture embedded in the file (base64)",
+        {},
+        true,
+    );
+    fbx("fbx-vertex-colors", { vertexColors: [1, 0, 0] }, "binary FBX with vertex colors");
+    fbx("fbx-animated", { color: BLUE, clip: "spin" }, "binary FBX whose one clip, 'spin', turns the cube about Z");
+    fbx(
+        "fbx-skinned-animated",
+        { color: BLUE, clip: "turn" },
+        "binary FBX skinned to one bone, whose one clip, 'turn', turns the bone about Z",
+    );
+    fbx(
+        "fbx-morph-animated",
+        { color: BLUE, clip: "grow" },
+        "binary FBX whose one clip, 'grow', moves a blend shape channel from 0 to 100%",
+    );
+
+    // USD, written by ./usd.py with OpenUSD (no npm package writes a binary layer or a USDZ).
+    const usd = (id: string, format: "usd" | "usdz", what: string, extra: Partial<Variant> = {}): void => {
+        const dir = join(HERE, id);
+        if (!existsSync(dir)) {
+            throw new Error(`${id} is missing: run test/fixtures/variants/usd.py first (see SOURCES.md)`);
+        }
+        const files: Record<string, Uint8Array> = {};
+        const walk = (sub: string): void => {
+            for (const name of readdirSync(join(dir, sub)).sort()) {
+                const rel = sub === "" ? name : `${sub}/${name}`;
+                if (statSync(join(dir, rel)).isDirectory()) {
+                    walk(rel);
+                } else {
+                    files[rel] = readFileSync(join(dir, rel));
+                }
+            }
+        };
+        walk("");
+        const ordered = Object.fromEntries(
+            Object.entries(files).sort(([a], [b]) => Number(/\.usd[az]?$/.test(b)) - Number(/\.usd[az]?$/.test(a))),
+        );
+        write({ ...mesh, id, format, color: "blue", what, ...extra }, ordered);
+    };
+    usd("usda", "usd", "text USD layer (.usda), UsdPreviewSurface color", { encoding: "ascii" });
+    usd("usdc", "usd", "binary USD layer (.usdc), UsdPreviewSurface color", { encoding: "binary" });
+    usd("usd-layers", "usd", "text USD layer referencing a binary layer in geo/, whose picture is in textures/", {
+        encoding: "ascii",
+        color: "green",
+        upload: "folder",
+    });
+    usd("usdz", "usdz", "USDZ package of a binary layer and its picture", { color: "green" });
+    usd("usda-z-up", "usd", "Z-up text USD layer, red on top (+Z) and blue below, drawn upright", {
+        encoding: "ascii",
+        color: "red",
+        upright: { top: "red", bottom: "blue" },
+    });
+    usd("usda-animated", "usd", "text USD layer whose stage turns the cube about Y over a second", {
+        encoding: "ascii",
+        warnings: ["W_MODEL_HAS_ANIMATIONS"],
+    });
+    usd("usdz-skinned-animated", "usdz", "USDZ of a cube skinned to one joint, whose stage turns the joint", {
+        warnings: ["W_MODEL_HAS_ANIMATIONS"],
+    });
+
     // Recognized and refused.
     const refused = (id: string, format: string, name: string, bytes: Uint8Array | string, what: string): void => {
         write(
@@ -1588,13 +1699,6 @@ async function main(): Promise<void> {
         );
     };
     refused(
-        "fbx",
-        "fbx",
-        "cube.fbx",
-        concat([encoder.encode("Kaydara FBX Binary  "), new Uint8Array([0, 0x1a, 0, 0xe8, 0x1c, 0, 0])]),
-        "FBX (refused)",
-    );
-    refused(
         "dae",
         "dae",
         "cube.dae",
@@ -1602,22 +1706,54 @@ async function main(): Promise<void> {
         "COLLADA (refused)",
     );
     refused("3mf", "3mf", "cube.3mf", zipSync({ "3D/3dmodel.model": encoder.encode("<model/>") }), "3MF (refused)");
-    refused(
-        "usdz",
-        "usdz",
-        "cube.usdz",
-        zipSync({ "cube.usdc": encoder.encode("PXR-USDC") }, { level: 0 }),
-        "USDZ (refused)",
-    );
     refused("blend", "blend", "cube.blend", "BLENDER-v300REND", "Blender (refused)");
-    refused(
-        "bvh",
-        "bvh",
-        "walk.bvh",
-        "HIERARCHY\nROOT Hips\n{\n  OFFSET 0 0 0\n  CHANNELS 3 Xposition Yposition Zposition\n}\nMOTION\nFrames: 1\nFrame Time: 0.033\n0 0 0\n",
-        "BVH animation with no mesh (refused)",
-    );
-    // Gaussian splats: recognized and refused, each a few splats of its own container.
+    // BVH motion capture: a skeleton and its motion, drawn as a figure of one box per bone.
+    write(
+        {
+            ...mesh,
+            id: "bvh",
+            format: "bvh",
+            encoding: "ascii",
+            color: "any",
+            warnings: ["W_MODEL_HAS_ANIMATIONS"],
+            what: "BVH motion capture: a three-bone figure whose one clip turns it a quarter turn about Z",
+        },
+        {
+            "walk.bvh": [
+                "HIERARCHY",
+                "ROOT Hips",
+                "{",
+                "  OFFSET 0 0 0",
+                "  CHANNELS 6 Xposition Yposition Zposition Zrotation Yrotation Xrotation",
+                "  JOINT Chest",
+                "  {",
+                "    OFFSET 0 1 0",
+                "    CHANNELS 3 Zrotation Yrotation Xrotation",
+                "    JOINT Arm",
+                "    {",
+                "      OFFSET 0.6 0 0",
+                "      CHANNELS 3 Zrotation Yrotation Xrotation",
+                "      End Site",
+                "      {",
+                "        OFFSET 0.6 0 0",
+                "      }",
+                "    }",
+                "    End Site",
+                "    {",
+                "      OFFSET 0 0.5 0",
+                "    }",
+                "  }",
+                "}",
+                "MOTION",
+                "Frames: 3",
+                "Frame Time: 0.5",
+                "0 0 0 0 0 0 0 0 0 0 0 0",
+                "0 0 0 45 0 0 0 0 0 45 0 0",
+                "0 0 0 90 0 0 0 0 0 90 0 0",
+                "",
+            ].join("\n"),
+        },
+    ); // Gaussian splats: recognized and refused, each a few splats of its own container.
     const splatProps = ["x", "y", "z", "f_dc_0", "f_dc_1", "f_dc_2", "opacity", "scale_0", "scale_1", "scale_2"];
     refused(
         "ply-splat",

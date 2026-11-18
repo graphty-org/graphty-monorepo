@@ -14,7 +14,7 @@ import { isSplatPly, readPlyHeader } from "./readers/ply.js";
 export type ModelFormat = string; // eslint-disable-line sonarjs/redundant-type-aliases -- published, documented name for the open union of model format ids
 
 /** The model formats this package reads itself. */
-export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "babylon";
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "babylon" | "fbx" | "usdz" | "usd" | "bvh";
 
 /** The built-in formats, best first: the order a main file is chosen in. */
 export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.freeze([
@@ -24,6 +24,10 @@ export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.free
     "stl",
     "ply",
     "babylon",
+    "fbx",
+    "usdz",
+    "usd",
+    "bvh",
 ]);
 
 /** What {@link detectModelFormat} is given: a file name, its first bytes, or both. */
@@ -37,10 +41,10 @@ export interface ModelDetectionInput {
 /** The answer of {@link detectModelFormat}. */
 export interface ModelDetection {
     /**
-     * The format: a {@link BuiltInModelFormat}, `"zip"` for an archive that may hold a model, or a
-     * recognized format this package cannot load (`"fbx"`, `"usdz"`, `"usd"`, `"dae"`, `"3mf"`,
-     * `"blend"`, `"bvh"`, and the Gaussian splat formats `"splat"`, `"spz"`, `"sog"` and
-     * `"splat-ply"`, a PLY holding splats).
+     * The format: a {@link BuiltInModelFormat} (`"usd"` is any of `.usd`, `.usda` and `.usdc`),
+     * `"zip"` for an archive that may hold a model, or a recognized format this package cannot load
+     * (`"dae"`, `"3mf"`, `"blend"`, and the Gaussian splat formats `"splat"`, `"spz"`,
+     * `"sog"` and `"splat-ply"`, a PLY holding splats).
      */
     readonly format: ModelFormat;
     /** Whether this package can load it. */
@@ -49,15 +53,9 @@ export interface ModelDetection {
 
 /** Recognized formats this package does not load, by extension. */
 const UNSUPPORTED_EXTENSIONS: Readonly<Record<string, string>> = {
-    fbx: "fbx",
-    usdz: "usdz",
-    usd: "usd",
-    usda: "usd",
-    usdc: "usd",
     dae: "dae",
     "3mf": "3mf",
     blend: "blend",
-    bvh: "bvh",
     // Gaussian splats: recognized, not loaded.
     splat: "splat",
     spz: "spz",
@@ -71,6 +69,12 @@ const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
     stl: "stl",
     ply: "ply",
     babylon: "babylon",
+    fbx: "fbx",
+    usd: "usd",
+    usda: "usd",
+    usdc: "usd",
+    usdz: "usdz",
+    bvh: "bvh",
 };
 
 /**
@@ -134,12 +138,7 @@ function headText(bytes: Uint8Array): string {
 }
 
 /** Binary magic numbers of recognized formats this package does not load. */
-const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [
-    ["Kaydara FBX Binary", "fbx"],
-    ["BLENDER", "blend"],
-    ["PXR-USDC", "usd"],
-    ["HIERARCHY", "bvh"],
-];
+const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [["BLENDER", "blend"]];
 
 /**
  * The answer for a file that starts `glTF`: a GLB, supported in version 1 (`KHR_binary_glTF`,
@@ -153,13 +152,42 @@ function glbDetection(head: Uint8Array): ModelDetection {
 }
 
 /**
- * The answer for a zip archive, by its extension.
+ * Whether a zip's first entry is a USD layer stored as it is: what a USDZ package starts with.
+ * @param head - The first bytes.
+ * @returns True for a `.usd`, `.usda` or `.usdc` first entry with no compression.
+ */
+function startsWithUsdLayer(head: Uint8Array): boolean {
+    if (head.length < 30) {
+        return false;
+    }
+
+    const view = new DataView(head.buffer, head.byteOffset, 30);
+    const length = view.getUint16(26, true);
+    if (view.getUint16(8, true) !== 0 || head.length < 30 + length) {
+        return false;
+    }
+
+    let name = "";
+    for (let i = 30; i < 30 + length; i++) {
+        name += String.fromCodePoint(head[i]);
+    }
+
+    return /\.usd[ac]?$/i.test(name);
+}
+
+/**
+ * The answer for a zip archive, by its extension (and, with none, by its first entry).
  * @param ext - The lower-cased extension.
+ * @param head - The first bytes.
  * @returns The detection, or undefined for a zip that is not a model kit.
  */
-function zipDetection(ext: string): ModelDetection | undefined {
+function zipDetection(ext: string, head: Uint8Array): ModelDetection | undefined {
+    if (ext === "usdz" || (ext === "" && startsWithUsdLayer(head))) {
+        return { format: "usdz", supported: true };
+    }
+
     // A PlayCanvas SOG bundle (Gaussian splats) is a zip of meta.json and the WebP pictures it names.
-    if (ext === "usdz" || ext === "3mf" || ext === "sog") {
+    if (ext === "3mf" || ext === "sog") {
         return { format: ext, supported: false };
     }
 
@@ -246,12 +274,12 @@ function formatFromText(head: Uint8Array, ext: string): ModelDetection | undefin
         return { format: "dae", supported: false };
     }
 
-    if (trimmed.startsWith("; FBX")) {
-        return { format: "fbx", supported: false };
+    if (trimmed.startsWith("; FBX") || /^FBXHeaderExtension\s*:/.test(trimmed)) {
+        return { format: "fbx", supported: true };
     }
 
     if (trimmed.startsWith("#usda")) {
-        return { format: "usd", supported: false };
+        return { format: "usd", supported: true };
     }
 
     if (/^v\s/m.test(text) && (/^f\s/m.test(text) || ext === "obj")) {
@@ -272,6 +300,18 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
         return glbDetection(head);
     }
 
+    if (startsWithAscii(head, "Kaydara FBX Binary")) {
+        return { format: "fbx", supported: true };
+    }
+
+    if (startsWithAscii(head, "PXR-USDC")) {
+        return { format: "usd", supported: true };
+    }
+
+    if (startsWithAscii(head, "HIERARCHY")) {
+        return { format: "bvh", supported: true };
+    }
+
     for (const [magic, format] of UNSUPPORTED_MAGIC) {
         if (startsWithAscii(head, magic)) {
             return { format, supported: false };
@@ -279,7 +319,7 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
     }
 
     if (isZip(head)) {
-        return zipDetection(ext);
+        return zipDetection(ext, head);
     }
 
     if (startsWithAscii(head, "ply\n") || startsWithAscii(head, "ply\r\n")) {
@@ -304,7 +344,9 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
  * Every drop target calls this before treating a file as graph data. Bytes come first: a GLB
  * starts `glTF`, a glTF is JSON with an `asset`, a binary STL is exactly 84 + 50 bytes per
  * triangle long, an ASCII STL starts `solid` and holds a `facet`, a PLY starts `ply`, an OBJ has
- * `v` and `f` lines, a zip starts `PK`, an SPZ is gzip named `.spz`, a BVH starts
+ * `v` and `f` lines, a zip starts `PK` (a USDZ is one named `.usdz`, or with no name one whose
+ * first entry is a USD layer), a binary FBX starts `Kaydara FBX Binary` and an ASCII one `; FBX`,
+ * a binary USD starts `PXR-USDC` and a text one `#usda`, an SPZ is gzip named `.spz`, a BVH starts
  * `HIERARCHY`. With nothing in the bytes, the extension decides: a raw `.splat` is rows of 32
  * bytes and nothing more. Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY) are recognized
  * and not loaded.

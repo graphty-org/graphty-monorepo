@@ -7,7 +7,12 @@
  *   stored. The decoder extensions (Draco, meshopt, KTX2) are in src/decoders/, each its own
  *   module, imported only for a model that uses it; none fetches anything from a CDN;
  * - the OBJ loader (with its MTL reader), with a fix that keeps an OBJ's vertex colors;
- * - the TGA and DDS texture loaders, which Babylon would otherwise import lazily.
+ * - the TGA and DDS texture loaders, which Babylon would otherwise import lazily;
+ * - the FBX loader (`.fbx`, binary and ASCII), the OpenUSD loader (`.usd`, `.usda`, `.usdc`,
+ *   `.usdz`) and the BVH loader (motion capture, drawn as a figure by ./bvhFigure.ts), each
+ *   registered by name and imported the first time a model of its format loads. The USD loader
+ *   runs OpenUSD in a worker whose files this package ships (src/decoders/usd.ts);
+ *   ./loadModel.ts hands it the model's files itself.
  *
  * STL, PLY and `.babylon` are read by this package's
  * own readers (src/files/readers/), which build the container themselves ({@link loadOwnModel}).
@@ -69,14 +74,21 @@ import "@babylonjs/core/Materials/Textures/Loaders/tgaTextureLoader.js";
 import "@babylonjs/core/Materials/Textures/Loaders/ddsTextureLoader.js";
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
-import { LoadAssetContainerAsync, type PluginOptions } from "@babylonjs/core/Loading/sceneLoader.js";
+import {
+    LoadAssetContainerAsync,
+    type PluginOptions,
+    RegisterSceneLoaderPlugin,
+} from "@babylonjs/core/Loading/sceneLoader.js";
 import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags.js";
 import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Tools } from "@babylonjs/core/Misc/tools.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+import { BVHFileLoaderMetadata } from "@babylonjs/loaders/BVH/bvhFileLoader.metadata.js";
+import { FBXFileLoaderMetadata } from "@babylonjs/loaders/FBX/fbxFileLoader.metadata.js";
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation.js";
 import { SolidParser } from "@babylonjs/loaders/OBJ/solidParser.js";
+import { USDFileLoaderMetadata } from "@babylonjs/loaders/USD/usdFileLoader.metadata.js";
 
 import { babylonTextureNames, embeddedPictureName, readBabylon } from "../files/readers/babylon.js";
 import { type Geometry, ModelReadError } from "../files/readers/geometry.js";
@@ -85,7 +97,35 @@ import { readStl } from "../files/readers/stl.js";
 import { buildContainer, type Part, type PartMaterial } from "../readers/container.js";
 
 /** The file extensions Babylon's own loaders read. */
-export type ModelExtension = ".glb" | ".gltf" | ".obj";
+export type ModelExtension = ".glb" | ".gltf" | ".obj" | ".fbx" | ".usd" | ".usdz" | ".bvh";
+
+// The FBX, USD and BVH loaders, by name and extensions: each one's code is imported when a model of
+// its format first loads, as each decoder is (Babylon's own loaders/dynamic.js registers them the
+// same way), so a page that draws only glTF never downloads them. The USD loader's worker and
+// WebAssembly are fetched from this package's own files (src/decoders/usd.ts).
+RegisterSceneLoaderPlugin({
+    ...FBXFileLoaderMetadata,
+    createPlugin: async (options) => {
+        const { FBXFileLoader } = await import("@babylonjs/loaders/FBX/fbxFileLoader.pure.js");
+        return new FBXFileLoader(options[FBXFileLoaderMetadata.name]);
+    },
+});
+RegisterSceneLoaderPlugin({
+    ...USDFileLoaderMetadata,
+    createPlugin: async (options) => {
+        const { USDFileLoader, _RegisterUSDLoaderDependencies } =
+            await import("@babylonjs/loaders/USD/usdFileLoader.pure.js");
+        _RegisterUSDLoaderDependencies();
+        return new USDFileLoader(options[USDFileLoaderMetadata.name]);
+    },
+});
+RegisterSceneLoaderPlugin({
+    ...BVHFileLoaderMetadata,
+    createPlugin: async (options) => {
+        const { BVHFileLoader } = await import("@babylonjs/loaders/BVH/bvhFileLoader.pure.js");
+        return new BVHFileLoader(options[BVHFileLoaderMetadata.name]);
+    },
+});
 
 // The glTF validator is a script on cdn.babylonjs.com. Loads never ask for validation; should
 // anything ask, the script it gets is a local one that fails.
@@ -242,11 +282,12 @@ export async function loadBabylonModel(
 ): Promise<AssetContainer> {
     const end = startLoad();
     try {
-        const { gltf, ...others } = options.pluginOptions ?? {};
+        const { gltf, fbx, ...others } = options.pluginOptions ?? {};
         const container = await LoadAssetContainerAsync(fileName, scene, {
             rootUrl,
             pluginExtension: extension,
-            pluginOptions: { ...others, gltf: { validate: false, ...gltf } },
+            // An FBX file's curves are drawn as lines: a file of NURBS curves has nothing else.
+            pluginOptions: { ...others, gltf: { validate: false, ...gltf }, fbx: { curves: "lines", ...fbx } },
         });
         return await settle(scene, container, options.keepCamerasAndLights ?? true);
     } finally {

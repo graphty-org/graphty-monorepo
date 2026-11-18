@@ -75,6 +75,21 @@ export function markWithoutPictures(
 }
 
 /**
+ * After a load: take pictures off by the name the loader gave their textures (an FBX file's
+ * embedded pictures, named by their file's base name).
+ * @param container - The loaded model.
+ * @param names - The pictures, by their summary names.
+ */
+export function takeOffByName(container: AssetContainer, names: readonly string[]): void {
+    const gone = new Set(names.map((name) => name.toLowerCase()));
+    for (const texture of container.textures) {
+        if (gone.has(texture.name.toLowerCase())) {
+            takeOff(container, texture);
+        }
+    }
+}
+
+/**
  * A picture's path in the set, lowercased, from its URL under the load's root.
  * @param url - The picture's URL.
  * @param root - The load's guarded root.

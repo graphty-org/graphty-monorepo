@@ -76,6 +76,7 @@ export type Binding = {
     combine?: CombineMode;
 } | {
     template: readonly string[];
+    format?: BindingNumberFormat;
 } | {
     by: Path;
     combine?: CombineMode;
@@ -111,6 +112,7 @@ export interface BindingNumberFormat {
     locale?: string;
     maximumFractionDigits?: number;
     maximumSignificantDigits?: number;
+    useGrouping?: boolean;
 }
 
 // @public

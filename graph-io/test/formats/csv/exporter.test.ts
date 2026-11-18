@@ -730,3 +730,28 @@ describe("CSV export: the notes are about the table written", () => {
         expect(notes.some((n) => n.column === "hops")).toBe(true);
     });
 });
+
+describe("csvExporter: spreadsheetSafe", () => {
+    const s = fromRecords({
+        directed: true,
+        nodes: [{ id: "=1+1", note: "@SUM(A1)", n: -5 }, { id: "b" }],
+        edges: [{ source: "=1+1", target: "b" }],
+    }).snapshot;
+
+    it("writes formula-like cells as is by default", async () => {
+        const text = await csvExporter.exportToString(s, { table: "nodes" });
+        expect(text).toContain("=1+1,@SUM(A1),-5");
+    });
+
+    it("prefixes formula-like cells with a quote in every table, numbers left alone", async () => {
+        expect(await csvExporter.exportToString(s, { table: "nodes", spreadsheetSafe: true })).toContain(
+            "'=1+1,'@SUM(A1),-5",
+        );
+        expect(await csvExporter.exportToString(s, { spreadsheetSafe: true })).toContain("'=1+1,b");
+        expect(await csvExporter.exportToString(s, { table: "adjacency", spreadsheetSafe: true })).toBe("'=1+1,b\n");
+    });
+
+    it("rejects a non-boolean", () => {
+        expect(() => csvExporter.check(s, { spreadsheetSafe: "yes" as unknown as boolean })).toThrow(/spreadsheetSafe/);
+    });
+});

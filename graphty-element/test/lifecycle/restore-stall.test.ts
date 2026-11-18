@@ -11,24 +11,7 @@ import type { BrowserContext } from "playwright";
 import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
 import { ENGINES, launch, profile } from "./engines";
-import { type Fixture, type LogEvent, startFixture } from "./fixture";
-
-/**
- * Opens the autosave database and keeps a read-write transaction on the "parts" store busy until
- * `window.__release` is set; resolves once the transaction runs.
- */
-const HOLD_PARTS = `new Promise((resolve, reject) => {
-    const req = indexedDB.open("graphty-autosave");
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => {
-        const db = req.result;
-        const tx = db.transaction(["parts"], "readwrite");
-        const store = tx.objectStore("parts");
-        window.__release = false;
-        const spin = () => { resolve(); if (!window.__release) store.count().onsuccess = spin; };
-        spin();
-    };
-})`;
+import { type Fixture, HOLD_PARTS, type LogEvent, startFixture } from "./fixture";
 
 let fx: Fixture;
 const open: { context: BrowserContext; dir: string }[] = [];

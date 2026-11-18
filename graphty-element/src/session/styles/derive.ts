@@ -46,6 +46,7 @@ import type { Channel, FieldDescriptor, StaticStyle } from "../../catalog/types"
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { resultShapeContract } from "../results/types";
 import type { RunStyle } from "../runs/types";
+import { PRIMARY_CHANNELS } from "./channels";
 import type { EncodingRun, EncodingSpec } from "./EncodingSpec";
 import type { SelectorTarget } from "./predicate";
 import type { HighlightSpec, MarkSpec } from "./StylesApi";
@@ -134,8 +135,8 @@ export const DEFAULT_EDGE_WIDTH_RANGE: readonly [number, number] = Object.freeze
 
 /** The channel `style: { size }` paints on each half, and the range `size: true` means there. */
 const SIZE_CHANNEL = {
-    node: { channel: "node.size", range: DEFAULT_SIZE_RANGE, shape: "node-metric" },
-    edge: { channel: "edge.width", range: DEFAULT_EDGE_WIDTH_RANGE, shape: "edge-metric" },
+    node: { channel: PRIMARY_CHANNELS.node.size, range: DEFAULT_SIZE_RANGE, shape: "node-metric" },
+    edge: { channel: PRIMARY_CHANNELS.edge.size, range: DEFAULT_EDGE_WIDTH_RANGE, shape: "edge-metric" },
 } as const satisfies Record<SelectorTarget, { channel: Channel; range: readonly [number, number]; shape: string }>;
 
 /**
@@ -151,8 +152,8 @@ const SUGGESTED_MARK_STYLE: StaticStyle = Object.freeze({
 
 /** The colour channel that paints one half of the graph. */
 const COLOR_CHANNEL = {
-    node: "node.color",
-    edge: "edge.color",
+    node: PRIMARY_CHANNELS.node.color,
+    edge: PRIMARY_CHANNELS.edge.color,
 } as const satisfies Record<SelectorTarget, Channel>;
 
 /**

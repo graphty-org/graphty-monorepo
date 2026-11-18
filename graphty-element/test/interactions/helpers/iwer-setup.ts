@@ -2,13 +2,10 @@
  * WebXR emulation setup using IWER (Immersive Web Emulation Runtime)
  *
  * `installIWER` makes the page's `navigator.xr` an emulated Meta Quest 3, so immersive-vr and
- * immersive-ar sessions really start, render and end in headless Chromium. The mock factories
- * below are plain data for the gesture tests, which drive the gesture code without a runtime.
+ * immersive-ar sessions really start, render and end in headless Chromium.
  */
 
 import { metaQuest3, XRDevice } from "iwer";
-
-import type { MockController, MockHand, Vector3D } from "../types";
 
 /**
  * One immersive session the page asked for, and what happened to it.
@@ -92,96 +89,5 @@ export function installIWER(refuse: readonly string[] = []): IWERHandle {
         uninstall: () => {
             device.uninstallRuntime();
         },
-    };
-}
-
-/**
- * Create a mock hand configuration for testing.
- * Returns a hand in a neutral, relaxed position.
- *
- * @param handedness - "left" or "right"
- * @returns Mock hand configuration
- */
-export function createMockHand(handedness: "left" | "right"): MockHand {
-    // Standard WebXR hand joint names
-    const jointNames = [
-        "wrist",
-        "thumb-metacarpal",
-        "thumb-phalanx-proximal",
-        "thumb-phalanx-distal",
-        "thumb-tip",
-        "index-finger-metacarpal",
-        "index-finger-phalanx-proximal",
-        "index-finger-phalanx-intermediate",
-        "index-finger-phalanx-distal",
-        "index-finger-tip",
-        "middle-finger-metacarpal",
-        "middle-finger-phalanx-proximal",
-        "middle-finger-phalanx-intermediate",
-        "middle-finger-phalanx-distal",
-        "middle-finger-tip",
-        "ring-finger-metacarpal",
-        "ring-finger-phalanx-proximal",
-        "ring-finger-phalanx-intermediate",
-        "ring-finger-phalanx-distal",
-        "ring-finger-tip",
-        "pinky-finger-metacarpal",
-        "pinky-finger-phalanx-proximal",
-        "pinky-finger-phalanx-intermediate",
-        "pinky-finger-phalanx-distal",
-        "pinky-finger-tip",
-    ];
-
-    const joints = new Map<string, Vector3D>();
-    const xOffset = handedness === "left" ? -0.2 : 0.2;
-
-    for (const name of jointNames) {
-        // Default position at roughly head height, offset to the side
-        joints.set(name, { x: xOffset, y: 1.5, z: -0.3 });
-    }
-
-    return {
-        handedness,
-        joints,
-        pinchStrength: 0,
-    };
-}
-
-/**
- * Create a mock hand in a pinching pose.
- * Thumb and index finger tips are brought close together.
- *
- * @param handedness - "left" or "right"
- * @returns Mock hand in pinching configuration
- */
-export function createPinchingHand(handedness: "left" | "right"): MockHand {
-    const hand = createMockHand(handedness);
-    const xOffset = handedness === "left" ? -0.2 : 0.2;
-
-    // Position thumb and index tip close together (2cm apart = pinching)
-    hand.joints.set("thumb-tip", { x: xOffset, y: 1.5, z: -0.3 });
-    hand.joints.set("index-finger-tip", { x: xOffset + 0.02, y: 1.5, z: -0.3 });
-    hand.pinchStrength = 0.9;
-
-    return hand;
-}
-
-/**
- * Create a mock controller configuration for testing.
- * Returns a controller in a neutral position pointing forward.
- *
- * @param handedness - "left" or "right"
- * @returns Mock controller configuration
- */
-export function createMockController(handedness: "left" | "right"): MockController {
-    const xOffset = handedness === "left" ? -0.3 : 0.3;
-
-    return {
-        handedness,
-        position: { x: xOffset, y: 1.0, z: -0.3 },
-        rotation: { x: 0, y: 0, z: 0 },
-        thumbstick: { x: 0, y: 0 },
-        trigger: { value: 0, pressed: false },
-        grip: { value: 0, pressed: false },
     };
 }

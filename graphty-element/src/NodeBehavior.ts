@@ -10,6 +10,7 @@ import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.j
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
+import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -27,6 +28,7 @@ import {
 } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
 import type { HoverDrawn } from "./session/types";
+import { inXR } from "./xr/inXR";
 
 /**
  * When a pointer event HAPPENED, on the `performance.now()` clock.
@@ -105,8 +107,10 @@ export interface NodePointerRoster {
     readonly engaged: Set<NodeDragHandler>;
     /** Handlers whose node the pointer is over: they hear the move that leaves it. */
     readonly hovered: Set<NodeDragHandler>;
-    /** Pointer moves so far, so a hover answered late is dropped once a newer move came. */
+    /** Pointer moves so far, numbering each move's hover answer. */
     moves: number;
+    /** The newest move whose hover answer was delivered, so an older answer landing later is dropped. */
+    heard: number;
     /** The node the last move found under the pointer. */
     overId: NodeIdType | undefined;
 }
@@ -156,16 +160,6 @@ function tappedNode(scene: Scene, roster: NodePointerRoster, pointerInfo: Pointe
 const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
 
 /**
- * Whether the scene is in an XR session, whose input XRInputHandler handles instead.
- * @param scene - The scene.
- * @returns True in XR.
- */
-function inXR(scene: Scene): boolean {
-    const xrHelper = scene.metadata?.xrHelper;
-    return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
-}
-
-/**
  * Deliver one pointer event to the nodes it concerns.
  * @param scene - The scene.
  * @param roster - The scene's nodes.
@@ -196,17 +190,17 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 
             // Picked AFTER the drags above have moved their nodes, so the hover reads where things
             // are now. On the batched path the answer is read from the node ID target and comes
-            // later; only the latest move's answer is heard.
+            // later. An answer is dropped only when a newer move's answer was already heard: a
+            // pointer that moves every frame while each read takes several frames still hears
+            // each answer one read late, instead of never (#8016).
             const move = ++roster.moves;
             const picked = hoverNodeId(scene, scene.pointerX, scene.pointerY);
             if (picked instanceof Promise) {
                 void picked.then((pick) => {
-                    if (move === roster.moves) {
-                        deliverHover(roster, pick);
-                    }
+                    hearHover(roster, move, pick);
                 });
             } else {
-                deliverHover(roster, picked);
+                hearHover(roster, move, picked);
             }
 
             break;
@@ -220,6 +214,19 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
         default:
             // Ignore other pointer events
             break;
+    }
+}
+
+/**
+ * Deliver a move's hover answer unless a newer move's answer was already delivered.
+ * @param roster - The scene's nodes.
+ * @param move - The move's number.
+ * @param pick - The node under the pointer at that move, if any, and where the pick found it drawn.
+ */
+function hearHover(roster: NodePointerRoster, move: number, pick: HoverPick): void {
+    if (move > roster.heard) {
+        roster.heard = move;
+        deliverHover(roster, pick);
     }
 }
 
@@ -257,6 +264,7 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
             hovered: new Set(),
             overId: undefined,
             moves: 0,
+            heard: 0,
         };
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
@@ -570,7 +578,7 @@ export class NodeDragHandler {
 
             // Disable camera input handler during node drag
             // This prevents OrbitInputController from rotating camera while dragging nodes
-            const cameraManager = this.scene.metadata?.cameraManager;
+            const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
             if (cameraManager) {
                 // Debug: console.log("📷 Disabling camera input during node drag");
                 cameraManager.temporarilyDisableInput();
@@ -886,7 +894,7 @@ export class NodeDragHandler {
 
     /** Give the camera its input back after a drag. */
     private releaseCamera(): void {
-        const cameraManager = this.scene.metadata?.cameraManager;
+        const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
         if (cameraManager) {
             cameraManager.temporarilyEnableInput();
         }

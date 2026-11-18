@@ -177,6 +177,9 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return exact({ "curve-style": value === true ? "unbundled-bezier" : "straight" });
         case "labelPosition":
             return labelPositionToCyjs(String(value));
+        case "labelWrapSkipEndSpace":
+            // Cytoscape.js always measures a line's last word without a space after it: nothing to write
+            return value === true ? exact({}) : null;
         case "fanSpacing":
         case "labelWrapWidth":
             return ifNumber(value, (v) => numberToCyjs(property, v));
@@ -224,7 +227,35 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "labelBorderWidth":
             return ifNumber(value, (v) => exact({ "text-border-width": v, "text-border-opacity": 1 }));
         default:
-            return groupToCyjs(property, value) ?? propertyToCyjs(property, value, specs);
+            return (
+                labelBoxToCyjs(property, value) ??
+                groupToCyjs(property, value) ??
+                propertyToCyjs(property, value, specs)
+            );
+    }
+}
+
+/**
+ * A label box's line box, border place and shape as Cytoscape.js properties: it strokes the line round the box
+ * centered on its edge and has no other place for it, measures a line one font size or its letters' ink tall
+ * (`text-metrics: glyph`), never its font box, and draws a rectangle or a circle.
+ * @param property - the neutral property
+ * @param value - the value
+ * @returns the properties, or null when the property is none of these or Cytoscape.js cannot draw its value
+ */
+function labelBoxToCyjs(property: string, value: StyleValue): Written | null {
+    switch (property) {
+        case "labelBorderAlign":
+            return value === "center" ? exact({}) : null;
+        case "labelLineBox":
+            if (value === "size") {
+                return exact({});
+            }
+            return value === "glyphs" ? exact({ "text-metrics": "glyph" }) : null;
+        case "labelBackgroundShape":
+            return value === "circle" || value === "rectangle" ? exact({ "text-background-shape": value }) : null;
+        default:
+            return null;
     }
 }
 
@@ -1209,14 +1240,16 @@ function dashBypasses(
     want: (property: string) => readonly (StyleValue | null)[],
     got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
 ): void {
-    const [style, dash, gap] = [want("lineStyle"), want("dashLength"), want("dashGap")];
+    const [style, dash, gap, width] = [want("lineStyle"), want("dashLength"), want("dashGap"), want("width")];
     for (let i = 0; i < rows.length; i++) {
         const [d, g] = [dash[i], gap[i]];
         if ((style[i] !== "dashed" && style[i] !== "dotted") || typeof d !== "number" || typeof g !== "number") {
             continue;
         }
         if (got.dashLength?.[i] !== d || got.dashGap?.[i] !== g) {
-            rows[i] = { ...rows[i], "line-style": "dashed", "line-dash-pattern": `${num6(d)} ${num6(g)}` };
+            // in widths; Cytoscape.js draws an edge 3 px wide without one
+            const w = typeof width[i] === "number" ? (width[i] as number) : 3;
+            rows[i] = { ...rows[i], "line-style": "dashed", "line-dash-pattern": `${num6(d * w)} ${num6(g * w)}` };
         }
     }
 }

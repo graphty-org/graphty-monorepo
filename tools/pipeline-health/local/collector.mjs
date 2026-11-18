@@ -7,8 +7,8 @@
 //   tmp/waits.jsonl (test-slot, gpu-slot)     -> POST <HEALTH_API_URL>/v1/local/waits
 //   tmp/test-ledger/records/<date>/*.json.gz  -> POST <HEALTH_API_URL>/v1/local/invocations
 //   tmp/push-log.jsonl (push gate runs)       -> POST <HEALTH_API_URL>/v1/local/push-runs
-// The last two were written only by the retired pre-push gate (tools/prepush.sh), which still writes them
-// when someone runs it by hand.
+// tools/push-queue.sh appends to tmp/push-log.jsonl on every push it runs. Nothing writes ledger records
+// any more except tools/test-ledger-import.mjs, run by hand; the retired pre-push gate wrote both.
 // Every body is { rows: [...] }, at most 200 rows and 1 MB. Every row has an id derived from its
 // content, so a retried post is harmless. Host paths, gate logs, cwd and session ids are never
 // posted.
@@ -42,7 +42,8 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { gunzipSync } from "node:zlib";
 
-// 200: a 500-row ledger post (each row expands to its test items) outlived the 10 s ingest Lambda.
+// 200: a 500-row ledger post (each row expands to its test items) outlived the ingest Lambda when its
+// timeout was 10 s. It is 28 s now (infra/health-stack.ts), and 200 rows keep a post well inside it.
 export const MAX_ROWS = 200;
 export const MAX_BYTES = 1_000_000;
 const WAIT_KINDS = new Set(["test-slot", "gpu-slot"]);

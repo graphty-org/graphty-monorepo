@@ -1,6 +1,6 @@
 import { Graph } from "../../../src/Graph";
 
-export async function createTestGraphWithData(options?: ConstructorParameters<typeof Graph>[2]): Promise<Graph> {
+export async function createTestGraphWithData(options?: ConstructorParameters<typeof Graph>[1]): Promise<Graph> {
     // Create a container element
     const container = document.createElement("div");
     container.id = "test-graph-container-screenshot";
@@ -9,7 +9,7 @@ export async function createTestGraphWithData(options?: ConstructorParameters<ty
     document.body.appendChild(container);
 
     // Create graph instance - engine creation handled automatically
-    const graph = new Graph(container, false, options);
+    const graph = new Graph(container, options);
 
     // Initialize
     await graph.init();

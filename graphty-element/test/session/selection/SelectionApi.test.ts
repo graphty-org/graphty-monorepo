@@ -18,7 +18,7 @@ import {
     SET_OPS,
 } from "../../../src/session/selection/index";
 import type { SessionRecordSource } from "../../../src/session/types";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow, rejectionCode } from "../helpers";
 
 /** A session with data in it. */
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = [], directed?: boolean): Harness {
@@ -39,17 +39,6 @@ function recordsOf(harness: Harness): SessionRecordSource {
         nodeAttributes: (index) => harness.nodeAttributes.get(index),
         edgeAttributes: (index) => harness.edgeAttributes.get(index),
     };
-}
-
-/** The code a call refused with, or null when it did not refuse. */
-function codeOf(call: () => unknown): string | null {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
-    }
-
-    return null;
 }
 
 /** Four nodes in a line, so there are three edges. */
@@ -187,7 +176,7 @@ describe("the five set operations", () => {
 
         assert.deepStrictEqual([...SET_OPS], ["replace", "add", "remove", "toggle", "intersect"]);
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ nodes: ["a"] }, "union" as SelectionOp)),
+            rejectionCode(() => selection.applyNow({ nodes: ["a"] }, "union" as SelectionOp)),
             "E_BAD_COMMAND",
         );
         harness.session.dispose();
@@ -543,11 +532,11 @@ describe("the cap", () => {
         cap = 2.5;
 
         assert.strictEqual(
-            codeOf(() => selection.cap),
+            rejectionCode(() => selection.cap),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => selection.applyNow({ nodes: ["d"] })),
+            rejectionCode(() => selection.applyNow({ nodes: ["d"] })),
             "E_OPTION_RANGE",
         );
         assert.deepStrictEqual([...selection.nodes], ["a"], "the selection is what it was before the refusal");
@@ -739,11 +728,11 @@ describe("keeping a selection under a name", () => {
         without.applyNow({ nodes: ["a"] });
 
         assert.strictEqual(
-            codeOf(() => withScopes.promote("empty")),
+            rejectionCode(() => withScopes.promote("empty")),
             "E_SCOPE_EMPTY",
         );
         assert.strictEqual(
-            codeOf(() => without.promote("nowhere")),
+            rejectionCode(() => without.promote("nowhere")),
             "E_UNSUPPORTED",
         );
 

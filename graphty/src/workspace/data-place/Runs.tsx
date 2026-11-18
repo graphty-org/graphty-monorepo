@@ -1,10 +1,11 @@
 /**
- * The Data place's Calculated tab (the `selection-workspace` experiment, issue #5805): every result
+ * The Data place's Calculated tab: every result
  * the session holds, wherever it was started -- Analyze or a selection's card -- as graphty-element
  * lists its runs. A row at rest is its value type's icon, its name and, only when they apply, quiet
  * marks: how many styles and how many filters use it, each by its own glyph, and an icon when it ran
  * over something other than what is showing or is out of date. A press opens it in the inspector;
- * its "..." (on hover or focus, or a right click) holds Apply style and Remove; removing a result
+ * its "..." (on hover or focus, or a right click) holds Apply style, Run again with changes..., the Copy
+ * items (JSON, command, methods text, TSV, member ids) and Remove; removing a result
  * something uses asks first, naming them, and the selections then wait for Run (design: algo-options cardruns.md, rules 3 to 5).
  */
 
@@ -13,16 +14,16 @@ import type { GraphSession, Run, RunReader } from "@graphty/graphty-element/sess
 import { ActionIcon, Badge, Button, Group, Menu, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { useSessionVersion } from "../inspector/hooks";
 import { runFailureWords, staleWords } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { ranOverWords, runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { unitOf } from "../time/timeActions";
+import { resultItems } from "./resultItems";
 import { namesOnce } from "./words";
 
 /**
@@ -78,7 +79,7 @@ function StateMark({ session, run }: Readonly<{ session: GraphSession; run: Run 
     }
     return (
         <Tooltip label={words}>
-            <span // NOSONAR(S6819): an icon drawn by a component, named as one image; there is no <img> to use
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an icon drawn by a component, named as one image; there is no <img> to use
                 className="dp-run-mark"
                 role="img"
                 aria-label={words}
@@ -108,7 +109,7 @@ function UsesMark({
     const said = `${kind === "style" ? "Styles" : "Filters"}: ${namesOnce(names)}`;
     return (
         <Tooltip label={said} multiline maw={240}>
-            <span // NOSONAR(S6819): an icon and its count, named as one image; there is no <img> to use
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an icon and its count, named as one image; there is no <img> to use
                 className="dp-run-uses"
                 data-run-uses={kind}
                 role="img"
@@ -193,6 +194,7 @@ function ResultRow({
                 again.then(undefined, () => undefined);
             },
         },
+        ...resultItems(session, store, run),
         {
             id: "remove",
             label: "Remove result",
@@ -299,18 +301,17 @@ function ResultRow({
 }
 
 /**
- * The Calculated tab's body, drawn only while the `selection-workspace` experiment is on: the
- * results, or with none, Analyze and its key.
- * @returns the list, or nothing.
+ * The Calculated tab's body: the results, or with none, Analyze and its key.
+ * @returns the list, or nothing before the element has come up.
  */
 export function ResultsList(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const analyze = useCommand("analyze.open");
     const open = useWorkspaceState((state) =>
         state.inspected?.kind === "measure-row" || state.inspected?.kind === "run-row" ? state.inspected.id : null,
     );
-    if (session === null || !selectionWorkspaceOn(session)) {
+    if (session === null) {
         return null;
     }
     const runs = session.runs.list().filter((run) => run.status !== "removed");

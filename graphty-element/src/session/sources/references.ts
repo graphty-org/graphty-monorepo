@@ -33,7 +33,7 @@ export const REF_KEY = "_source.ref";
 const LOADS_KEY = "_source.loads";
 
 /** A problem a save or an open reports about a reference. */
-export type ReferenceProblem = CodedFact<"W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED">;
+type ReferenceProblem = CodedFact<"W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED">;
 
 /** Why a reference could not be read again. */
 type UnavailableReason = "not-found" | "denied" | "unreadable";
@@ -135,7 +135,7 @@ export interface LoadHow {
 }
 
 /** A load's records as it reads them: nodes, edges without ids, and their digest. */
-export interface ReadRows {
+interface ReadRows {
     readonly nodes: readonly Record<string, unknown>[];
     readonly edges: readonly Record<string, unknown>[];
     readonly directed: boolean;
@@ -181,7 +181,7 @@ function fetchedUrl(how: LoadHow): URL | undefined {
  * @param network - The gate, or undefined to fetch without asking (the page's own load).
  * @returns The records, or why they could not be read.
  */
-export async function readAsLoaded(
+async function readAsLoaded(
     how: LoadHow,
     scratch: () => GraphSession,
     network: NetworkApiInternal | undefined,

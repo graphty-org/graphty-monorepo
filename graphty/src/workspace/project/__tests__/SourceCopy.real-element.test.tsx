@@ -246,6 +246,27 @@ describe("Copy or Reference, with the experiment on", () => {
         assert.isNotNull(within(row).getByText("Ref"));
     });
 
+    it("marks a reopened reference Ref while the Data place shows, without leaving it", async () => {
+        const { session } = await threeLoads();
+        const [people] = session.data.sources();
+        session.data.setCopy(people.key, "reference");
+        const saved = await session.project.save();
+        session.data.setCopy(people.key, "copy");
+        const row = (): HTMLElement => screen.getByRole("listitem", { name: "people.json" });
+        await waitFor(() => {
+            assert.isNull(within(row()).queryByText("Ref"));
+        });
+
+        const opening = session.project.open(saved.text, { discard: true });
+        const ask = await screen.findByRole("dialog", { name: "Open a web address?" });
+        await userEvent.click(within(ask).getByRole("button", { name: "Continue" }));
+        await opening;
+        assert.equal(session.data.sources()[0]?.copy, "reference");
+        await waitFor(() => {
+            assert.isNotNull(within(row()).queryByText("Ref"));
+        });
+    });
+
     it("saves a sample opened from the start page's library as a reference", async () => {
         const { session, store } = await openSampleFromStart("Florentine families");
         await userEvent.keyboard("{Control>}s{/Control}");

@@ -307,6 +307,9 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.setValueLabel()": "writes",
     "data.snapshot()": { wholeProbe: (s) => s.data.snapshot().nodeCount },
     "data.source()": "not the graph",
+    // Each load's copy or reference choice: a fact about the source, not its rows.
+    "data.copies()": "not the graph",
+    "data.setCopy()": "writes",
     "data.sources()": "not the graph",
     "data.sourceInput()": "names its target",
     "data.sourcesOf()": "names its target",

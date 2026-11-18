@@ -8,9 +8,8 @@
  * 100k vertices took 2.36 s against 49 ms once the loop resumed from a high-water mark.
  *
  * Nothing in the suite caught it. `test/audit/streaming-quadratic.test.ts` compares INPUT SHAPES at
- * one fixed size and never doubles the vertex count, and it is gated on IO_BENCH=1 besides. This
- * test is deliberately ungated and small enough to run in the default suite: a regression test that
- * only runs behind an env flag would not have caught this one either.
+ * one fixed size and never doubles the vertex count (and was then gated behind an env flag). This
+ * test is small enough to run in the default suite.
  *
  * It counts work rather than time: the reads of the importer's per-vertex id table, which the
  * gap-fill loop walks. A time ratio between two sizes also measured the machine (on a hybrid CPU

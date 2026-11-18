@@ -165,7 +165,7 @@ export const LayoutOpen: Story = {
     },
 };
 
-/** The Camera menu in 2D: Fit, Frame selection, the standard views and Auto-rotate disabled, zoom. */
+/** The Camera menu in 2D: Fit, Frame selection, the standard views and Auto-rotate disabled, zoom, Export image and Record video. */
 export const CameraMenu2D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -174,7 +174,7 @@ export const CameraMenu2D: Story = {
     },
 };
 
-/** The Camera menu in 3D: Fit, Frame selection, the standard views with their keys, Auto-rotate. */
+/** The Camera menu in 3D: Fit, Frame selection, the standard views, Auto-rotate, Export image and Record video, each with its key. */
 export const CameraMenu3D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -185,7 +185,7 @@ export const CameraMenu3D: Story = {
     },
 };
 
-/** The Mode menu in 2D: the square face, 2D checked, 3D with key 5, VR and AR with their reason. */
+/** The Mode menu in 2D: the square face, 2D checked, 3D with key 5, VR and AR a row each, Not available. */
 export const ModeMenu: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {

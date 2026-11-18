@@ -153,9 +153,9 @@ Gaps found while finishing, each open:
   the layout by the sheet's `ratio=2` as Graphviz does (the same sheet already fails node.width and node.height).
   On a side that names no caption (an SVG of free texts), a specimen labeled as a caption is still dropped.
 - The Cytoscape.js writer keeps a node's own opacity under a translucent class as an exceptions column that comes
-  back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures), and
-  rounds a label offset to 5 decimals where the rules hold 4.333333333333334 (two harness plans, expected
-  failures).
+  back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures). Fixed
+  2026-11-12 (#7179): a label offset read back at 6 significant digits (4.33333) where the block held
+  4.333333333333334; the vis reader's derived label offsets are canonical numbers now.
 - Fixed 2026-11-01 (#3111): Graphviz's arrow gap written into a Cytoscape file (XGMML, CX2) read back as
   Cytoscape's 4, and a per-element exceptions column of repro-shared-interaction.cx2 came back from XGMML and CX2
   as a layer of its own; every format's block repair now takes the block's none as well as its value.

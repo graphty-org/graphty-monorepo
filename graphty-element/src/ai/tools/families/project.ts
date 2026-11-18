@@ -301,6 +301,7 @@ interface Capturer {
         options: object,
     ): Promise<{ blob: Blob; metadata: { width: number; height: number; format: string; duration: number } }>;
     cancelAnimationCapture(): boolean;
+    stopAnimationCapture(): boolean;
     isVRSupported(): Promise<boolean>;
     isARSupported(): Promise<boolean>;
 }
@@ -411,6 +412,17 @@ export const captureTool: ToolDefinition = {
             run: (context) =>
                 Promise.resolve(
                     ok(undefined, { cancelled: capturer(context, "cancelAnimationCapture").cancelAnimationCapture() }),
+                ),
+        },
+        {
+            name: "stop",
+            summary: "End a video recording now and keep what it has recorded.",
+            fields: {},
+            effect: "exempt",
+            reaches: [{ door: "Graph.stopAnimationCapture" }],
+            run: (context) =>
+                Promise.resolve(
+                    ok(undefined, { stopped: capturer(context, "stopAnimationCapture").stopAnimationCapture() }),
                 ),
         },
     ] satisfies ActionSpec[],

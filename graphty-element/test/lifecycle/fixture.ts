@@ -16,7 +16,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, afterEach, beforeAll, onTestFailed } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, onTestFailed } from "vitest";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLE = path.resolve(here, "../../dist/graphty.bundle.js");
@@ -230,8 +230,10 @@ el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { param
 // whole decision from one report whatever order the reports arrive in.
 const available = [];
 el.addEventListener("graphty-autosave-available", (e) => {
-    available.push({ reason: e.detail.reason, id: e.detail.entry.id });
-    report("available", { reason: e.detail.reason, id: e.detail.entry.id });
+    // The problem's code only for a failed restore, so the other reasons read { reason, id }.
+    const why = { reason: e.detail.reason, id: e.detail.entry.id, ...(e.detail.problem ? { problem: e.detail.problem.code } : {}) };
+    available.push(why);
+    report("available", why);
 });
 const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
 // rows=none: the page loads no data of its own, as an app reopening kept work.
@@ -404,6 +406,34 @@ export const HOLD_PARTS = `new Promise((resolve, reject) => {
         spin();
     };
 })`;
+
+/**
+ * Where the saved work is when a page reopened on its key restored nothing: the ready report must
+ * say why, and the entry must still hold the work (issue #4148). Either another tab claimed the
+ * entry first, or another tab of the origin holds the database in an unfinished transaction -- a
+ * tab the browser suspended mid-listing, as iOS does to a tab Safari reloads in the background --
+ * so the restore's write stalled and was refused with `E_AUTOSAVE_STALLED`, leaving the entry as
+ * it was for a later reopen. Anything else is a lost restore.
+ * @param ready - The page's ready report, with `restored` null.
+ * @param entry - The entry the work was saved to.
+ * @returns The kept entry's revision, and who keeps it.
+ */
+export function keptWork(ready: LogEvent, entry: string): { revision: number; by: string } {
+    const held = (ready.entries as { id: string; revision: number; live: boolean }[]).find((e) => e.id === entry);
+    assert.isDefined(held, `the saved entry is still listed: ${JSON.stringify(ready.entries)}`);
+    const said = JSON.stringify(ready.available);
+    if (said === JSON.stringify([{ reason: "held-by-other-tab", id: entry }])) {
+        assert.isTrue(held.live, `the saved entry is held by the other tab: ${JSON.stringify(ready.entries)}`);
+        return { revision: held.revision, by: "held by the other tab" };
+    }
+
+    assert.deepEqual(
+        ready.available,
+        [{ reason: "restore-failed", id: entry, problem: "E_AUTOSAVE_STALLED" }],
+        `the page restored nothing, so it must be told the other tab holds the work or the database: ${JSON.stringify(ready)}`,
+    );
+    return { revision: held.revision, by: "kept while another tab held the database" };
+}
 
 /**
  * Start the fixture server on a free loopback port.

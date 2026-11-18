@@ -398,7 +398,7 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Variable Binding");
     });
 
-    it("reads a TableNode's header and lanes as bands in its table colors", async () => {
+    it("reads a TableNode's header and lanes as bands in its fill and lane colors", async () => {
         const table = (id: string, props: string, rows: string, cols: string, insets: string): string =>
             `<node id="${id}"><data key="d6"><y:TableNode configuration="YED_TABLE_NODE">` +
             '<y:Geometry height="90.0" width="150.0" x="0" y="0"/><y:Fill color="#ECF5FF" color2="#0042F440"/>' +
@@ -419,6 +419,17 @@ describe("GraphML styles: yEd", () => {
                 col(150),
                 'top="30.0" left="0.0"',
             ),
+            table(
+                "styled",
+                [
+                    prop("lane.color.main", "#C0C0C0"),
+                    prop("lane.color.alternating", "#FFCC00"),
+                    '<y:Property class="java.lang.String" name="yed.table.lane.style" value="LANE_STYLE_ROWS"/>',
+                ].join(""),
+                row + row,
+                col(150),
+                'top="30.0"',
+            ),
             table("plain", prop("lane.color.main", "#C0C0C0"), row + row, col(150), 'top="30.0"'),
             table(
                 "cols",
@@ -434,8 +445,11 @@ describe("GraphML styles: yEd", () => {
         const colors = resolveStyles(styles, "node", "stripeColors", snapshot);
         const sizes = resolveStyles(styles, "node", "stripeSizes", snapshot);
         const direction = resolveStyles(styles, "node", "stripeDirection", snapshot);
-        expect([colors[at("rows")], sizes[at("rows")]]).toEqual([
-            "#ff9999 #c0c0c0 #ffcc00",
+        // yEd paints the table's header in its fill and, with no lane style, every lane in the main color
+        // (yed-graphml-specimen-groups)
+        expect([colors[at("rows")], sizes[at("rows")]]).toEqual(["#ecf5ff #c0c0c0", "0.333333 0.666667"]);
+        expect([colors[at("styled")], sizes[at("styled")]]).toEqual([
+            "#ecf5ff #c0c0c0 #ffcc00",
             "0.333333 0.333333 0.333333",
         ]);
         // a color the table leaves unset is the node's fill; one lane color unset is the other
@@ -447,6 +461,28 @@ describe("GraphML styles: yEd", () => {
         ]);
         expect(direction[at("rows")]).toBeNull();
         expect(resolveStyles(styles, "node", "shape", snapshot)[at("rows")]).toBe("rectangle");
+    });
+
+    it("paints a PanelNode and a DemoGroup GenericGroupNode as yEd draws them", async () => {
+        const group = (id: string, conf: string): string =>
+            `<node id="${id}" yfiles.foldertype="group"><data key="d6"><y:ProxyAutoBoundsNode><y:Realizers active="0">` +
+            `<y:GenericGroupNode configuration="${conf}"><y:Geometry height="90.0" width="150.0" x="0" y="0"/>` +
+            '<y:Fill color="#F5F5F5" transparent="false"/>' +
+            '<y:BorderStyle color="#505050" raised="false" type="dashed" width="1.0"/>' +
+            `</y:GenericGroupNode></y:Realizers></y:ProxyAutoBoundsNode></data><graph id="${id}:"/></node>`;
+        const doc = [YED_HEAD, group("panel", "PanelNode"), group("demo", "DemoGroup"), "</graph></graphml>"].join(
+            "\n",
+        );
+        const { snapshot, styles } = await load(doc);
+        const at = (id: string): number => snapshot.ids.indexOf(id);
+        const get = (property: StyleProperty, id: string): unknown =>
+            resolveStyles(styles, "node", property, snapshot)[at(id)];
+        const panel: StyleProperty[] = ["fill", "fillGradient", "fillGradientAngle", "borderColor"];
+        const demo: StyleProperty[] = ["fillOpacity", "borderColor", "borderWidth", "borderStyle"];
+        // a ramp from white into the fill, the line at 0.8 of its color (yed-graphml-specimen-groups)
+        expect(panel.map((p) => get(p, "panel"))).toEqual(["#ffffff", "#f5f5f5", 90, "#404040"]);
+        // a frame in the fill round an unpainted inside, no dashed line
+        expect(demo.map((p) => get(p, "demo"))).toEqual([0, "#f5f5f5", 1, "solid"]);
     });
 
     it("reads no fill for transparent and hasColor=false fills, gradients into color2, alpha last", async () => {

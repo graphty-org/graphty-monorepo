@@ -141,3 +141,24 @@ export function resolveProjectMarker(options: MarkerResolutionOptions): string {
     // Final fallback
     return "default";
 }
+
+/**
+ * Check that a project marker is safe to use as one directory name under the log directory:
+ * non-empty, at most 255 characters, no path separator or NUL, and not "." or "..".
+ * Every marker that becomes a path goes through this, because markers arrive from
+ * unauthenticated clients (POST /log) and from MCP callers.
+ * @param marker - The project marker to check
+ * @throws {Error} If the marker could name a path outside its own directory
+ */
+export function assertSafeMarker(marker: unknown): asserts marker is string {
+    if (
+        typeof marker !== "string" ||
+        marker.length === 0 ||
+        marker.length > 255 ||
+        /[/\\\0]/.test(marker) ||
+        marker === "." ||
+        marker === ".."
+    ) {
+        throw new Error(`Invalid project marker: ${JSON.stringify(marker)}`);
+    }
+}

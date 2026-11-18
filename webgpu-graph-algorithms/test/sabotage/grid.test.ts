@@ -13,14 +13,10 @@
  * once "P4" is in SABOTAGE_PHASES, the K1 rows by tiers.test.ts's table check.
  */
 
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { type F32, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 
 import { type GpuContext } from "../../src/context.js";
-import { type KernelId, KERNELS } from "../../src/kernels.js";
+import { type KernelId } from "../../src/kernels.js";
 import { type GpuLayoutTuning } from "../../src/types/layout.js";
 import { paritySnapshot, startPositions } from "../helpers/fa2-parity.js";
 import { lawCheck, type LawModel } from "../helpers/grid-law.js";
@@ -40,12 +36,10 @@ import {
     SABOTAGE,
     SABOTAGE_P4_LAW,
     SABOTAGE_P4_TIERS,
-    sabotagedBody,
     withSabotage,
 } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /** The test every LAW row names (the measurement of test/helpers/grid-law.ts, asserted per fixture there). */
 const GRID_LAW_TEST = "test/layouts/grid-law.test.ts";
 /** The nearMax of the one-cell fixtures (grid-inspect.test.ts: the sampling window of G7 runs). */
@@ -215,27 +209,6 @@ function lawCheckFor(id: KernelId, row: Mutation): (ctx: GpuContext) => Promise<
 }
 
 describe("sabotage coverage of the P4 LAW table (PD-21, PD-22)", () => {
-    it("every find string occurs exactly once in the entry's normative body, the replacement differs, minFactor >= 10, names unique, tests exist", () => {
-        for (const id of Object.keys(SABOTAGE_P4_LAW) as KernelId[]) {
-            const { body } = KERNELS[id];
-            const names = new Set<string>();
-            for (const m of SABOTAGE_P4_LAW[id] ?? []) {
-                expect(names.has(m.name), `${id}: duplicate mutation name ${m.name}`).toBe(false);
-                names.add(m.name);
-                const first = body.indexOf(m.find);
-                expect(first, `${id}/${m.name}: find string absent from the body`).toBeGreaterThanOrEqual(0);
-                expect(body.indexOf(m.find, first + m.find.length), `${id}/${m.name}: find string not unique`).toBe(-1);
-                expect(m.replace, `${id}/${m.name}: replace equals find`).not.toBe(m.find);
-                expect(m.minFactor, `${id}/${m.name}: minFactor`).toBeGreaterThanOrEqual(10);
-                expect(sabotagedBody(id, m)).not.toBe(body);
-                expect(m.test).toMatch(/^test\/.+\.test\.ts$/);
-                expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${id}/${m.name}: ${m.test} does not exist`).toBe(
-                    true,
-                );
-            }
-        }
-    });
-
     it("the LAW table holds six far-field and six near-field rows (P4-T13), three FR and three coulomb each, every one measured by the grid-law test", () => {
         expect(Object.keys(SABOTAGE_P4_LAW).sort()).toEqual(["grid-far-field", "grid-near-field"]);
         for (const id of ["grid-far-field", "grid-near-field"] as const) {

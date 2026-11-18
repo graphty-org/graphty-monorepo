@@ -264,6 +264,20 @@ describe("support points", () => {
         assert.deepStrictEqual(nudged, fast, "a last move of a hair settles afresh");
     });
 
+    it("never come to rest at their edge's middle by bouncing at full speed between two nodes (#8094)", () => {
+        // a node just off the middle throws the point at full speed toward a node 25 units further on, which throws it
+        // back as hard: each speed clamped one axis at a time came back to exactly the middle every other step, and the
+        // settle, an even count of steps, showed the curve straight
+        const nodes = [at(-50, 0), at(50, 0), at(-1, -1), at(26, 26)];
+        const read = (): SupportEdge => ({ src: nodes[0], dst: nodes[1], forces: BARNES_HUT });
+        const support = new SupportPoints<string>();
+        framesToRest(support, () => nodes, ["e"], read, 100);
+        assert.isTrue(support.resting);
+        const point = support.pointOf("e");
+        assert.isNotNull(point);
+        assert.isAbove(Math.hypot(point?.x ?? 0, point?.y ?? 0), 1, "the curve bows");
+    });
+
     it("come to rest beside an edge whose two ends are at one place, whose point stays there", () => {
         // two nodes at one spot (a self-loop, or nodes moved onto each other): the edge has no length to hold its
         // point along, so each frame put the point back and the push sent it off again, and nothing ever rested

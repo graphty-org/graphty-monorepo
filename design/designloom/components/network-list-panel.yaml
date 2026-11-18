@@ -1,0 +1,16 @@
+id: network-list-panel
+name: Network List Panel
+category: navigation
+description: "Panel listing every network open in the session, including derived subnetworks, for switching between them."
+status: planned
+implements_capabilities:
+    - comparison-view
+used_in_workflows:
+    - W24
+    - W25
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T00:00:00.000Z
+updated_at: 2026-11-18T00:00:00.000Z

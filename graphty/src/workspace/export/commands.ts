@@ -1,7 +1,7 @@
 import { imageKey } from "../canvas/legendWords";
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import type { WorkspaceState } from "../state/store";
-import { nothingDrawn } from "../toolbar/useSessionVersion";
+import { nothingDrawn } from "../toolbar/disabledReasons";
 import { DEFAULT_IMAGE, DEFAULT_VIDEO, failureWords, fileName, IMAGE_EXTENSIONS, screenshotOptions } from "./choices";
 
 /** The longest a Camera > Record video recording runs before it stops on its own, in milliseconds. */

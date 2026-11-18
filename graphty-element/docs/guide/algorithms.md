@@ -39,8 +39,9 @@ await graph.runAlgorithm("graphty", "betweenness");
 
 `eigenvector` stops after `maxIterations` power-iteration passes (default 1000, at most 10000). If it
 has not met `tolerance` by then the run fails with a `GraphtyError` whose code is
-`E_NOT_CONVERGED`, rather than publishing scores that are not the answer. Long paths and large
-grids need more passes; raise the param and run it again:
+`E_NOT_CONVERGED`, rather than publishing scores that are not the answer. `tolerance` is relative
+to the scores, so the answer is as close on a large graph as on a small one. Large grids and sparse
+random graphs (about one edge per node or fewer) need more passes; raise the param and run it again:
 
 ```typescript
 await graph.runAlgorithm("graphty", "eigenvector", { algorithmOptions: { maxIterations: 5000 } });
@@ -112,9 +113,6 @@ for (const swatch of block?.swatches ?? []) {
     console.log(swatch.rank, swatch.value, swatch.color); // 1 2 "#e69f00" -- value === group
 }
 ```
-
-`SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
-group from `rank` in your own language instead.
 
 #### Hiding one group
 
@@ -189,6 +187,29 @@ removed in the next major.
 
 The result's [reading fact](#what-a-result-says) carries the band's id too, as `params.band`.
 
+#### Trying a range of settings
+
+A finding that holds across a range of settings is more trustworthy than one that holds at a
+single value. `runs.sweep()` runs one algorithm once per value of one option, as one batch with
+one progress stream and one cancel, and resolves to one row per value:
+
+```typescript
+const sweep = await element.session.runs.sweep("louvain", "resolution", [0.5, 1, 2], { seed: 1 });
+
+for (const row of sweep.rows) {
+    console.log(row.value, row.summary?.groupCount, row.graph?.modularity);
+}
+```
+
+Each row carries the value, whether its run succeeded (`ok`, and `failure` when it did not), the
+run's id, its `summary` and its graph-level values (`graph`, such as `modularity`). Each value is
+a listed run of its own, with the id `<algorithm>_<option>_<value>` (`louvain_resolution_0_5`),
+so its full result is `session.runs.get(row.runId)` and a later sweep over the same values answers
+from it. Options the sweep does not vary go in `params`; `scope`, `seed`, `label`, `signal` and
+`onProgress` are as `batch()` takes them. Nothing is painted unless `style` asks for it, and one
+undo takes the whole sweep away. A cancelled sweep keeps the values that finished, and their rows
+say so.
+
 ### Component Analysis
 
 Find connected subgraphs:
@@ -204,6 +225,24 @@ On an undirected graph every edge runs both ways, so `strongly-connected` finds 
 ```typescript
 await graph.runAlgorithm("graphty", "connected-components");
 ```
+
+#### What breaks if something is removed
+
+`removal-impact` works out what removing some nodes or edges would cut off, without removing
+anything: the graph is left as it was. Pass the nodes (`nodes`) and edges (`edges`) to imagine
+removed:
+
+```typescript
+const result = await element.session.runs.start("removal-impact", { nodes: ["hub"] });
+// The separate pieces before and after, and how many nodes are cut off from the rest of their piece.
+const { componentsBefore, componentsAfter, count } = result.graph;
+```
+
+Each node it cuts off carries `in: true`, which the suggested highlight layer paints. A piece that
+breaks keeps its largest part (the part holding the earliest node, on a tie); every other node of
+it is cut off. `cutOffShare` is the share of the remaining nodes cut off, read through its
+interpretation bands: `none`, `minor` (any), `severe` (more than a tenth). Pieces are weak: an
+edge joins its two nodes whichever way it was declared.
 
 ### Traversal Algorithms
 
@@ -319,8 +358,7 @@ if (run.partial) {
 }
 ```
 
-The codes are in the [table below](#why-a-run-stopped-early). `run.caveats.partialReason`, the
-same cause as an English sentence, is deprecated and removed in the next major.
+The codes are in the [table below](#why-a-run-stopped-early).
 
 ## What a result says
 
@@ -370,9 +408,9 @@ console.log(run.caveats.facts);
 //  { code: "pagerank.sums-to-one", params: {} }, { code: "weights.unread", params: {} }]
 ```
 
-A node id in `params` is the data's own id, a string or a number. `run.caveats.notes`, the same
-remarks as English sentences, is deprecated and removed in the next major; an algorithm registered
-from outside the element that writes its own `notes` in words has no facts for them.
+A node id in `params` is the data's own id, a string or a number. `run.caveats.notes` holds only
+the sentences an algorithm registered from outside the element wrote in its own words; it is empty
+for every built-in algorithm.
 
 | Code                                 | What it says, and its `params`                                                                                                                                                                  |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -390,6 +428,7 @@ from outside the element that writes its own `notes` in words has no facts for t
 | `scope.induced-subgraph`             | computed on the subgraph the scope's nodes induce: `{ nodes }`.                                                                                                                                 |
 | `scope.subgraph`                     | computed on the scope's nodes and edges: `{ nodes, edges }`.                                                                                                                                    |
 | `parallel-edges.merged`              | parallel edges were merged into one, every member of a group carrying the merged value: `{ count, policy }`, how many were merged and how their weights combined (`"sum"`, `"min"` or `"max"`). |
+| `direction.mixed`                    | the graph mixes directed and undirected edges, and the run read every edge alike, with the graph's default direction: `{ directed }`, true when it read them as directed.                       |
 | `input.empty`                        | the graph held nothing for the algorithm to measure.                                                                                                                                            |
 | `sampled.instead-of-exact`           | the run sampled rather than computed exactly: `{ method, name, sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the nodes it was drawn from.                 |
 | `sampled.exact-past-cap`             | an exact run was estimated past the cost cap, so the approximate method ran: `{ seconds, cap }`.                                                                                                |
@@ -484,6 +523,23 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
 
 With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
 
+### Describing an entry in your own words
+
+Every catalogue entry the element ships -- algorithm, layout, layout engine, camera, log destination,
+and a format that needs explaining -- carries a `descriptionId`, a stable id to key your own words on:
+`algorithm.<key>`, `layout.<id>`, `layout.<id>:<engine>`, `camera.<id>`, `logSink.<id>` and
+`format.<id>`. Each described option carries one too (`algorithm.<key>.<option>`). The English
+`description` beside it is deprecated and goes in a later release.
+
+```typescript
+const MY_WORDS: Record<string, string> = { "algorithm.pagerank": "Who the influential nodes are." };
+const line = (entry: { descriptionId?: string }) => MY_WORDS[entry.descriptionId ?? ""] ?? "";
+const lines = element.session.catalog.algorithms().map(line);
+```
+
+An extension that describes its entries supplies its own `descriptionId`, prefixed with its
+namespace.
+
 ### Options for this graph
 
 `session.catalog.algorithms()` and `session.catalog.layouts()` describe every option as plain data,
@@ -538,9 +594,9 @@ console.log(name, run.distinguishedBy); // "Communities" { option: "resolution",
 console.log(run.siblingsDifferBy); // null: no other Communities run yet
 ```
 
-`run.label` ("Communities (resolution 1.5)") is the element's own English for the same facts. It is
-deprecated, with the `label` of a run's record, of a `ResultRoot` and of an `EncodingRun`, and
-removed in the next major.
+When a run paints layers and the call names none, the layers are named from these facts
+("Communities (resolution 1.5)"); `name` on `encode()`, `highlight()` and `mark()` names them
+yourself.
 
 Starting the same run again finds the same result: same algorithm, same name, and the same scope
 -- with `"visible"` and `"selection"` frozen to the filter and the selection in force when the run

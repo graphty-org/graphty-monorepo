@@ -1,6 +1,5 @@
 /**
- * The `bc-backward` kernel body (design 8.4 "each (w, s) PULLS over its successors", 8.10 "BC backward (successor
- * pull)"): one level of a betweenness batch's dependency accumulation, one invocation per log entry `(w, s)` of the
+ * The `bc-backward` kernel body (each `(w, s)` PULLS over its successors): one level of a betweenness batch's dependency accumulation, one invocation per log entry `(w, s)` of the
  * level's range `S[P.start .. P.start + P.count)`, which the host planned from the `ends` it read back. Each entry
  * walks the out-arcs of `w` -- the rows the forward pass expanded -- and sums `sigma[s][w] / sigma[s][v] * (1 +
  * delta[s][v])` over the successors `v` (`depth[s][v] == depth[s][w] + 1`), whose dependencies the previous (deeper)

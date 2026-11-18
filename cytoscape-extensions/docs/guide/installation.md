@@ -120,8 +120,8 @@ Importing the package adds every `graphty...` method to Cytoscape's `Core` and `
 The package has four entry points:
 
 - `@graphty/cytoscape-extensions`: the extension (default export), `configureWebGpu`, `toSnapshot`, `writeData`, `LAYOUT_NAMES`, `ALGORITHM_NAMES`, `ASYNC_ALGORITHM_NAMES`, `GPU_SIZE_FLOOR` and the types of the methods and options, such as `GraphtyLayoutOptions`, `AlgorithmOptions` and `Backend`.
-- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds; and `BUNDLED_DATASET_NAMES`, deprecated: the 16 small datasets the package used to bundle. Every dataset now downloads from graphty.app; `DATASET_NAMES` of `@graphty/graph-samples` lists them all.
-- `@graphty/cytoscape-extensions/io`: `importElements`, which resolves to `{ elements, directed, format, report }`, and `exportElements`.
+- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds. Every dataset downloads from graphty.app; `DATASET_NAMES` of `@graphty/graph-samples` lists them all.
+- `@graphty/cytoscape-extensions/io`: `importElements`, which resolves to `{ elements, directed, format, report }`, `applyBypass`, which sets the per-element styles an import with `styles: true` returns, and `exportElements`.
 - `@graphty/cytoscape-extensions/bundle`: the script-tag build.
 
 The [API reference](../api/generated/) defines each export and type.
@@ -172,14 +172,14 @@ console.log(result.backend.ran, result.backend.reason); // "cpu" and why, on a m
 
 ## Supported versions
 
-| Package                 | Range            | Why                                               |
-| ----------------------- | ---------------- | ------------------------------------------------- |
-| `cytoscape`             | `^3.31.0`        | The first release with its own TypeScript typings |
-| `@graphty/algorithms`   | `^3.0.0`         | Peer dependency                                   |
-| `@graphty/layout`       | `^2.0.0`         | Peer dependency                                   |
-| `@graphty/graph-format` | `^1.0.0`         | Peer dependency                                   |
-| `webgpu`                | `>=0.4.0 <1.0.0` | Optional; only for WebGPU in Node                 |
-| Node                    | `>=18.19.0`      | `require()` needs 20.19+ or 22.12+                |
+| Package                 | Range            | Why                                                                                                                       |
+| ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `cytoscape`             | `^3.31.0`        | The first release with its own TypeScript typings                                                                         |
+| `@graphty/algorithms`   | `^3.4.0`         | The first release with every algorithm and option this package calls, such as `cutAt` on a hierarchical clustering result |
+| `@graphty/layout`       | `^2.5.14`        | The first release with every layout option this package documents, such as forceatlas2's `barnesHutOptimize`              |
+| `@graphty/graph-format` | `^1.0.0`         | Peer dependency                                                                                                           |
+| `webgpu`                | `>=0.4.0 <1.0.0` | Optional; only for WebGPU in Node                                                                                         |
+| Node                    | `>=18.19.0`      | `require()` needs 20.19+ or 22.12+                                                                                        |
 
 ## Next
 

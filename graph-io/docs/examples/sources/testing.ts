@@ -3,7 +3,7 @@ import { credentials, defineSource, loadFromSource, replayFetch } from "@graphty
 const people = defineSource({
     id: "people",
     records: async (params: { team: string }, ctx) => ({
-        nodes: await ctx.fetchJson<{ id: string }[]>(`/api/people?team=${params.team}`),
+        nodes: await ctx.fetchJson<{ id: string }[]>(`/api/people?team=${encodeURIComponent(params.team)}`),
     }),
 });
 

@@ -1,5 +1,9 @@
 # Implementation Plan for Properties Sidebar
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 This plan implements a context-sensitive properties sidebar using an **MVP-first approach**. Each phase delivers a working, user-visible feature that builds on the previous phase.

@@ -7,17 +7,17 @@
  * shapes of section 14.2 (`toRecord` / `toStringMap` / `stringIndex`) against the way the legacy
  * algorithms build them.
  *
- * Two tests in this file FAIL deliberately; each pins a finding of the audit:
+ * Two tests in this file (named "FINDING:") pin audit findings that have since been fixed; each
+ * asserts the agreed behaviour:
  *
  * - "outEdgesOf / inEdgesOf on an undirected builder ..." -- the builder's `outEdgesOf(u)` on an
- *   UNDIRECTED builder returns only the edges whose DECLARED source is u, so the dirty-path answer to
- *   "which edges touch this node" (design 6.6) disagrees with legacy `neighbors()` and with the
- *   snapshot's own row `outArcs(u)`, which holds both orientations (I7).
+ *   UNDIRECTED builder used to return only the edges whose DECLARED source is u; it now agrees with
+ *   legacy `neighbors()` and with the snapshot's own row `outArcs(u)`, which holds both
+ *   orientations (I7).
  * - "toRecord / toStringMap collisions ..." -- when two ids share a String() form (`1` and `"1"`,
- *   legal per 4.1) the legacy `Record<string, number>` results keep the LAST node's value
- *   (assignment in iteration order), while `ids.toRecord()` / `toStringMap()` keep the FIRST
- *   (STATUS.md records "lower index wins"; the design is silent), so the 14.2 facade conversion is
- *   not byte-identical to the legacy result for such graphs.
+ *   legal per 4.1) `ids.toRecord()` / `toStringMap()` used to keep the FIRST id's value; they now
+ *   keep the LAST, as the legacy `Record<string, number>` results do, so the 14.2 facade conversion
+ *   is identical to the legacy result.
  */
 
 import fc from "fast-check";

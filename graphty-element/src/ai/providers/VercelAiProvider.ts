@@ -180,8 +180,10 @@ export class VercelAiProvider implements LlmProvider {
                     callbacks?.onChunk(event.delta);
                     break;
                 case "tool-call":
-                    // A call whose arguments did not parse is not handed on to run with none.
+                    // A call whose arguments did not parse stays in the response, flagged, but is
+                    // not handed to onToolCall to run with none.
                     if (event.invalidArguments) {
+                        toolCalls.push({ id: event.id, name: event.name, arguments: {}, invalidArguments: true });
                         break;
                     }
 

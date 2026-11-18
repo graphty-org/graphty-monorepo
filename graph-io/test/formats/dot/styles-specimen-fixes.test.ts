@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
 import { type ExtractedStyles, resolveStyles, type StyleProperty } from "../../../src/styles/index.js";
+import { unsettledStyles } from "../../../src/styles/settle.js";
 
 const registry = createRegistry();
 
@@ -20,7 +21,8 @@ async function load(doc: string): Promise<{ snapshot: GraphSnapshot; styles: Ext
     if (result.styles === null || result.styles === undefined) {
         throw new Error("no styles");
     }
-    return { snapshot: result.snapshot, styles: result.styles };
+    // the reader's values, before they are settled for drawing
+    return { snapshot: result.snapshot, styles: unsettledStyles(result.styles) };
 }
 
 /**
@@ -48,7 +50,7 @@ async function edges(doc: string, property: string): Promise<readonly unknown[]>
 
 describe("DOT styles: labels", () => {
     it("decodes entities in a plain label, as Graphviz draws them", async () => {
-        expect((await nodes(`digraph { a [label="a&#946;&amp;"]; b [label="x & y"] }`, "label")).a).toBe("aβ&");
+        expect((await nodes(`digraph { a [label="a&#946;&amp;"]; b [label="x & y"] }`, "label")).a).toBe("a\u03B2&");
         expect((await nodes(`digraph { b [label="x & y"] }`, "label")).b).toBe("x & y");
     });
 

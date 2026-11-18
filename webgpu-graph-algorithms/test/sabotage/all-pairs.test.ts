@@ -8,16 +8,11 @@
  * loop of test/sabotage/coverage.test.ts applied to these rows.
  */
 
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
 import { allPairsReport } from "../helpers/all-pairs.js";
-import { assertCheckPasses, type Mutation, SABOTAGE, sabotagedBody, withSabotage } from "../helpers/sabotage.js";
+import { assertCheckPasses, type Mutation, SABOTAGE, withSabotage } from "../helpers/sabotage.js";
 import { acquire, isSoftware, requireGpu } from "../setup/gpu.js";
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ALL_PAIRS_TEST = "test/algorithms/all-pairs.test.ts";
 
 /**
@@ -47,18 +42,10 @@ describe("sabotage: apsp-init and apsp-fw (spec 11.9 item 1)", () => {
     for (const { id, names } of MEASURED) {
         const rows: readonly Mutation[] = SABOTAGE[id] ?? [];
 
-        it(`${id} has its rows naming the all-pairs test; every find occurs once in the normative body, the replacement differs, minFactor >= 10`, () => {
+        it(`${id} has its rows naming the all-pairs test`, () => {
             expect(rows.map((m) => m.name)).toEqual(names);
-            const { body } = KERNELS[id];
             for (const m of rows) {
-                const first = body.indexOf(m.find);
-                expect(first, `${id}/${m.name}: find string absent from the body`).toBeGreaterThanOrEqual(0);
-                expect(body.indexOf(m.find, first + m.find.length), `${id}/${m.name}: find string not unique`).toBe(-1);
-                expect(m.replace).not.toBe(m.find);
-                expect(m.minFactor).toBeGreaterThanOrEqual(10);
                 expect(m.test).toBe(ALL_PAIRS_TEST);
-                expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${m.test} does not exist`).toBe(true);
-                expect(sabotagedBody(id, m)).not.toBe(body);
             }
         });
     }

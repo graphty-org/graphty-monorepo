@@ -24,6 +24,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { itemAt } from "../../common/text.js";
 import { StyleBudget } from "../budget.js";
+import { num6 } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { StyleNotes } from "../notes.js";
@@ -58,6 +59,7 @@ import {
     cyjsPropertyName,
     type CyjsPropertySpec,
     cyjsRendered,
+    drawnDash,
     gradientStopColors,
     gradientStops,
     parseCyjsValue,
@@ -1344,12 +1346,15 @@ function evaluateTarget(
     const drawn = drawnValues(kind, els, cells, order, input.rendered, notes, spend);
     // a file read with Cytoscape.js's own defaults draws an edge no rule curves as a haystack (a file graphty wrote
     // is read with graphty's)
-    if (kind === "edge" && input.toolDefaults !== false) {
+    if (kind === "edge") {
         const read: DrawnRead = { kind, els, cells, order, rendered: input.rendered, notes };
         const curves = drawnColumn(read, "curve-style", CURVE_PART);
-        noArrowsOnHaystacks(curves, drawn);
-        if (env.nodes !== null) {
-            edgeRoutes(graph, read, curves, env.nodes, drawn);
+        taperTriangles(curves, drawn);
+        if (input.toolDefaults !== false) {
+            noArrowsOnHaystacks(curves, drawn);
+            if (env.nodes !== null) {
+                edgeRoutes(graph, read, curves, env.nodes, drawn);
+            }
         }
     }
     if (kind === "node") {
@@ -2035,8 +2040,8 @@ function combineNodeOpacity(
  * A dashed line or border as the line it looks like. Cytoscape.js draws `dashed` with `line-dash-pattern` (6 3) or
  * `border-dash-pattern` (4 2) in pixels whatever the width, and `dotted` as 1 1 (cytoscape.js 3.34.3 `drawEdgePath`,
  * `drawNode`), so a wide dashed line shows dots and a pattern of long and short dashes a dash-dot. The class is read
- * from the dashes and gaps against the width, a round or square cap lengthening each dash by the width.
- * ponytail: the neutral line styles name a class, not a pattern; a dash pattern slot would carry the lengths exactly
+ * from the dashes and gaps against the width, a round or square cap lengthening each dash by the width. An edge's
+ * own pattern's dash and gap as drawn are kept as `dashLength` and `dashGap`, in widths.
  * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
@@ -2059,7 +2064,51 @@ function combineDashes(
     for (const [style, width, fallback, pattern, own] of lines) {
         const col = values[style];
         if (col !== undefined) {
+            if (kind === "edge") {
+                dashLengths(col, n, values, fallback, words);
+            }
             dashColumn(col, n, values[width], { fallback, pattern }, own ? words : null);
+        }
+    }
+}
+
+/**
+ * Each dashed edge's own `line-dash-pattern` as the dash and gap it draws, into `dashLength` and `dashGap` in its
+ * line's widths: drawn in pixels whatever the width, a round or square cap lengthening each dash by the width
+ * (cytoscape.js 3.34.3 `drawEdgePath`).
+ * The pattern Cytoscape.js draws without one, and its dots, are its own (`ToolDefaults.dashes`).
+ * @param col - the line styles, before they are read as the lines they look like
+ * @param n - the element count
+ * @param values - the values; changed in place
+ * @param fallback - the width Cytoscape.js draws when none is set
+ * @param words - the parts by internal name
+ */
+function dashLengths(
+    col: readonly (StyleValue | null)[],
+    n: number,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+    fallback: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+): void {
+    const patterns = words.get("_dashPattern");
+    for (let i = 0; i < n; i++) {
+        const own = patterns?.[i];
+        if (col[i] !== "dashed" || own === null || own === undefined) {
+            continue;
+        }
+        const dashes = own
+            .split(/[\s,[\]]+/)
+            .filter((t) => t !== "")
+            .map((t) => Number.parseFloat(t));
+        if (!dashes.every((d) => Number.isFinite(d))) {
+            continue;
+        }
+        const w = values.width?.[i];
+        const width = typeof w === "number" ? w : fallback;
+        const pair = drawnDash(dashes, (words.get("_dashCap")?.[i] ?? "butt") === "butt" ? 0 : width);
+        if (pair !== null && pair.gap > 0 && width > 0) {
+            columnOf(values, "dashLength", n)[i] = num6(pair.dash / width);
+            columnOf(values, "dashGap", n)[i] = num6(pair.gap / width);
         }
     }
 }
@@ -2326,37 +2375,34 @@ function combineLabelDress(
         }
         const border = bordered && labelBorder(kind, i, words, col, notes, at(whole[i]));
         if (box || border) {
-            labelBoxShape(kind, i, words, col, notes);
+            labelBoxShape(i, words, col);
         }
     }
 }
 
 /**
  * A label's box or line round it, sized and shaped: it reaches `text-background-padding` past the words on every
- * side (0 unset), one font size tall a line (cytoscape.js 3.34.3 `calculateLabelDimensions`), its corners rounded
- * 2px for round-rectangle (`drawText`); a circle is noted.
- * @param kind - the target
+ * side (0 unset), one font size tall a line, or its letters' ink tall with `text-metrics: glyph` (cytoscape.js 3.34.3
+ * `calculateLabelDimensions`), its corners rounded 2px for round-rectangle, a circle a disc as tall as the box
+ * (`drawText`).
  * @param i - the element
  * @param words - the parts by internal name
  * @param col - a property's values, created when absent
- * @param notes - where problems are noted
  */
 function labelBoxShape(
-    kind: StyleTarget,
     i: number,
     words: ReadonlyMap<string, (string | null)[]>,
     col: (p: string) => (StyleValue | null)[],
-    notes: StyleNotes,
 ): void {
     const padding = words.get("_backgroundPadding")?.[i];
     col("labelPadding")[i] = padding === null || padding === undefined ? 0 : Number(padding);
     col("labelLineHeight")[i] = 1;
+    col("labelLineBox")[i] = words.get("_textMetrics")?.[i] === "glyph" ? "glyphs" : "size";
     const shape = words.get("_backgroundShape")?.[i];
     if (shape === "round-rectangle" || shape === "roundrectangle") {
         col("labelCornerRadius")[i] = 2;
     } else if (shape === "circle") {
-        // a disc as tall as the box, centered on it: no neutral box has that shape
-        notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBackground", { sample: "circle", element: i });
+        col("labelBackgroundShape")[i] = "circle";
     }
 }
 
@@ -2389,6 +2435,8 @@ function labelBorder(
     const style = words.get("_textBorderStyle")?.[i] ?? "solid";
     col("labelBorderColor")[i] = words.get("_textBorderColor")?.[i] ?? "#000000";
     col("labelBorderWidth")[i] = style === "double" ? width / 4 : width;
+    // stroked centered on the box's edge
+    col("labelBorderAlign")[i] = "center";
     const drawn = Math.round(opacity * whole * 1e6) / 1e6;
     col("labelBorderOpacity")[i] = drawn < 1 ? drawn : null;
     if (style === "dotted" || style === "dashed" || style === "double") {
@@ -3114,6 +3162,23 @@ function noArrowsOnHaystacks(
             }
         }
     }
+}
+
+/**
+ * A `straight-triangle` edge is drawn as a triangle `width` wide at its source narrowing to a point at its target
+ * (cytoscape.js 3.34.3 `drawEdgeTrianglePath`): its taper is 0.
+ * @param curves - each edge's curve style, null where no rule sets it
+ * @param values - the values; changed in place
+ */
+function taperTriangles(
+    curves: readonly (StyleValue | null | undefined)[],
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    curves.forEach((curve, i) => {
+        if (curve === "straight-triangle") {
+            columnOf(values, "taper", curves.length)[i] = 0;
+        }
+    });
 }
 
 /**

@@ -115,3 +115,6 @@ export const registration = defineRegistration({
         },
     ],
 });
+
+/** Settings' AI provider section, as its section list names it. */
+export const AI_PROVIDER_SECTION = { id: "assistant", name: "AI provider" } as const;

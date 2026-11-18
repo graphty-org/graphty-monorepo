@@ -1,5 +1,4 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotErrorCode } from "@graphty/graphty-element";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -18,11 +17,9 @@ import {
     PRESET_LABELS,
     presetChoices,
     presetOf,
+    refusalWords,
     screenshotOptions,
 } from "./choices";
-
-/** The error graphty-element throws when the layout does not settle before a capture. */
-const SETTLE_TIMEOUT: `${ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT}` = "LAYOUT_SETTLE_TIMEOUT";
 
 /** The app's words for the element's camera ids; another id shows as itself. */
 const VIEW_LABELS: Readonly<Record<string, string>> = {
@@ -38,12 +35,6 @@ const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
 
 /** The preview is captured this wide (height by the canvas's aspect), not at the canvas's size. */
 const PREVIEW_WIDTH = 480;
-
-/**
- * Why a size cannot be captured. `canCaptureScreenshot` gives a sentence but no code, so the app
- * cannot say which limit it hit; the gap is recorded with the Export dialog package.
- */
-const SIZE_REFUSED = "this browser cannot make an image this size";
 
 /** Props for ImageOutput. */
 interface ImageOutputProps {
@@ -113,7 +104,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setPreviewError(failureWords(error));
+                    setPreviewError(failureWords(error, true));
                 }
             });
         return () => {
@@ -135,7 +126,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 const check = await element.canCaptureScreenshot(
                     screenshotOptions({ ...choices, size }, { blob: true }),
                 );
-                return [size, check.supported ? undefined : SIZE_REFUSED] as const;
+                return [size, check.reason === undefined ? undefined : refusalWords(check.reason)] as const;
             }),
         ).then((entries) => {
             if (live) {
@@ -176,10 +167,10 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 onDone(`Exported ${name}`, name);
             }
         } catch (error) {
-            if (error instanceof Error && "code" in error && error.code === SETTLE_TIMEOUT) {
+            if (error instanceof Error && "code" in error && error.code === "E_NOT_SETTLED") {
                 setStatus({ kind: "settle-timeout", destination });
             } else {
-                setStatus({ kind: "failed", words: failureWords(error) });
+                setStatus({ kind: "failed", words: failureWords(error, true) });
             }
         }
     };

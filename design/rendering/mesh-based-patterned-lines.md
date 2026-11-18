@@ -1,9 +1,16 @@
 # Feature Design: Mesh-Based Patterned Lines
 
+Status: implemented, then superseded in part. Patterned lines ship (`graphty-element/src/meshes/PatternedLineMesh.ts`),
+but Decision 1, one mesh per pattern element, no longer holds: each element is now a thin-instance slot in the batch
+that draws every element of its shape (`graphty-element/src/meshes/ArrowCapBatch.ts`, issue #444), and every other
+edge line is a thin instance too. The "35x faster than thin instances" rationale it rests on measured an API misuse:
+`thinInstanceSetMatrixAt` re-uploads the whole buffer on every call unless told not to (see the comment on
+`ArrowCapBatch`). Read the 35x figures below as history, not as a result.
+
 ## Overview
 
 - **User Value**: Rich, visually appealing edge patterns (dots, stars, dashes, zigzags, sinewaves) that maintain consistent appearance from all camera angles with natural perspective effects
-- **Technical Value**: Reuses proven FilledArrowRenderer billboarding architecture; 35x faster than thin instances for position updates; extensible framework for future patterns
+- **Technical Value**: Reuses proven FilledArrowRenderer billboarding architecture; extensible framework for future patterns
 
 ## Requirements
 
@@ -48,12 +55,12 @@
 
 **Comparison of Approaches**:
 
-| Approach                  | Pros                                                                                  | Cons                                                                                      | Verdict           |
-| ------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------- |
-| **MeshCache + Instances** | ✅ Shared geometry<br>✅ Auto caching                                                 | ❌ Can't have per-mesh shader uniforms (lineDirection)<br>❌ All instances share material | ❌ Not suitable   |
-| **Thin Instances**        | ✅ Shared geometry<br>✅ Per-instance data                                            | ❌ **35x slower** for position updates (proven in Edge.ts)<br>❌ Complex buffer API       | ❌ Not suitable   |
-| **Individual Meshes**     | ✅ **35x faster** position updates<br>✅ Per-mesh materials/uniforms<br>✅ Simple API | ❌ Higher memory<br>❌ More draw calls                                                    | ✅ **BEST**       |
-| **Mesh Pool**             | ✅ All benefits of individual meshes<br>✅ Reuses meshes                              | ❌ More complexity<br>❌ Still duplicate geometry                                         | ⚠️ Optional later |
+| Approach                  | Pros                                                                                               | Cons                                                                                        | Verdict           |
+| ------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------- |
+| **MeshCache + Instances** | ✅ Shared geometry<br>✅ Auto caching                                                              | ❌ Can't have per-mesh shader uniforms (lineDirection)<br>❌ All instances share material   | ❌ Not suitable   |
+| **Thin Instances**        | ✅ Shared geometry<br>✅ Per-instance data                                                         | ❌ **35x slower** for position updates (an API misuse, see Status)<br>❌ Complex buffer API | ❌ Not suitable   |
+| **Individual Meshes**     | ✅ **35x faster** position updates (superseded)<br>✅ Per-mesh materials/uniforms<br>✅ Simple API | ❌ Higher memory<br>❌ More draw calls                                                      | ✅ **BEST**       |
+| **Mesh Pool**             | ✅ All benefits of individual meshes<br>✅ Reuses meshes                                           | ❌ More complexity<br>❌ Still duplicate geometry                                           | ⚠️ Optional later |
 
 **Evidence from existing code** (Edge.ts comments):
 
@@ -62,7 +69,7 @@
 
 **Rationale**:
 
-1. ✅ Proven 35x faster for position updates
+1. ~~Proven 35x faster for position updates~~ (superseded: the 35x measured an API misuse, see Status)
 2. ✅ Required for FilledArrowRenderer shader (needs per-mesh `lineDirection` uniform)
 3. ✅ Simple implementation (no pool complexity)
 4. ✅ Matches working demo approach (`tmp/mesh-based-patterned-line-demo.html`)
@@ -1954,7 +1961,7 @@ export class Edge {
 
 1. ✅ Dirty tracking (already exists in Edge.ts)
 2. ✅ Batched shader updates (implemented in Phase 1)
-3. ✅ Individual meshes (35x faster than thin instances)
+3. Individual meshes (superseded by thin-instance batches, see Status)
 4. Profile Edge.update() times
 5. Profile PatternedLineMesh.update() times
 6. Optimize hot paths if needed
@@ -2083,7 +2090,7 @@ describe("PatternedLineMesh", () => {
 
 - ✅ Dirty tracking (already implemented in Edge.ts)
 - ✅ Batch shader updates (reduce per-mesh overhead)
-- ✅ Individual meshes (proven 35x faster than thin instances)
+- Individual meshes (superseded by thin-instance batches, see Status)
 - ✅ Profile early and often
 - ✅ Performance tests in CI
 
@@ -2116,7 +2123,7 @@ describe("PatternedLineMesh", () => {
 
 **Rationale**:
 
-- 35x faster for position updates (proven in Edge.ts)
+- ~~35x faster for position updates (proven in Edge.ts)~~ (superseded: an API misuse, see Status)
 - Required for per-mesh shader uniforms (lineDirection)
 - Optimize for update speed (every frame) not creation speed (rare)
 

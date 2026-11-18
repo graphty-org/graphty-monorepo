@@ -4,7 +4,8 @@
  * A counted-work test runs the method and asserts how much work it did -- a count of visits,
  * searches, repaints or rebuilds, never a time -- so that a cost per call that grows with the size
  * of the graph fails it. New ones use `assertScalesLinearly` from `test/helpers/cost.ts`. Each
- * file named here must be a gating test (`*.test.ts`, not `*.bench.test.ts`).
+ * file named here must be a gating test (`*.test.ts`, not `*.bench.test.ts`) that calls each method
+ * it is registered for: `cost-coverage.test.ts` fails a registration whose file never names it.
  *
  * Each test registers itself in a sibling module, `<name>.counted-work.ts` next to `<name>.test.ts`,
  * whose default export names the test file and the methods it covers:

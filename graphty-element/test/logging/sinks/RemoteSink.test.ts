@@ -268,6 +268,30 @@ describe("RemoteSink", () => {
             assert.isTrue(message.includes("value"));
         });
 
+        test("removes credentials from the line and the structured data it sends", () => {
+            const sink = createRemoteSink({ serverUrl: "https://example.com/log" });
+            sink.write(
+                createTestRecord({
+                    message: "401: bad key sk-ant-api03-abcdefgh",
+                    data: {
+                        apiKey: "plainvalue",
+                        token: "sk-live-1234567890",
+                        url: "https://x.example/?key=abc123",
+                        nodes: 3,
+                    },
+                }),
+            );
+            vi.runAllTimers();
+
+            const sent = fetchSpy.mock.calls[0][1].body as string;
+            assert.notInclude(sent, "sk-ant-api03-abcdefgh");
+            assert.notInclude(sent, "sk-live-1234567890");
+            assert.notInclude(sent, "abc123");
+            assert.notInclude(sent, "plainvalue");
+            const body = JSON.parse(sent) as { logs: { data?: Record<string, unknown> }[] };
+            assert.strictEqual(body.logs[0].data?.nodes, 3);
+        });
+
         test("should include error stack in message", () => {
             const sink = createRemoteSink({ serverUrl: "https://example.com/log" });
 

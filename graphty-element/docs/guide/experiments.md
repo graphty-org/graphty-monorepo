@@ -7,15 +7,15 @@ as it would without that experiment's code.
 ## Switching experiments on
 
 ```html
-<graphty-element features="timeline location-map"></graphty-element>
+<graphty-element features="file-styles location-map"></graphty-element>
 ```
 
 - `features` takes space-separated ids. `all` switches on every experiment this build has.
-- From a framework, set the property: `element.features = ["timeline"]`.
-- Without a browser: `createGraphSession({ features: ["timeline"] })` from
+- From a framework, set the property: `element.features = ["file-styles"]`.
+- Without a browser: `createGraphSession({ features: ["file-styles"] })` from
   `@graphty/graphty-element/session`.
 - For every element and session on the page that names none of its own, call
-  `setDefaultFeatures(["timeline"])` from `@graphty/graphty-element/extend` before they are created.
+  `setDefaultFeatures(["file-styles"])` from `@graphty/graphty-element/extend` before they are created.
 
 The element reads `features` once, when it first renders. A later change applies to the next
 session it creates.
@@ -23,7 +23,7 @@ session it creates.
 ## From the page address
 
 The element never reads the page's address itself. To let readers switch experiments on with a
-link such as `?features=timeline`, pass the address to the parser:
+link such as `?features=file-styles`, pass the address to the parser:
 
 ```ts
 import { featuresFromUrl } from "@graphty/graphty-element/catalog";
@@ -48,60 +48,13 @@ graduated to a normal feature is accepted and changes nothing.
 its id, a default name and the issue that tracks it. `GRADUATED_FEATURES` lists the ids that have
 shipped.
 
+### Graduated
+
+- `timeline`: the [Timeline](./timeline) is a normal feature. `session.time` and the time
+  attributes work with no `features` set, and `features="timeline"` is accepted and changes
+  nothing.
+
 ## The experiments in this build
-
-### `timeline`
-
-Time-series playback over a date or number column: `session.time`, the `time:*` events, and the
-attributes `node-time-path`, `edge-time-path`, `node-time-end-path`, `edge-time-end-path`,
-`node-time-unit` and `edge-time-unit`. See
-[Timeline](./timeline).
-
-```html
-<graphty-element features="timeline" edge-time-path="sent"></graphty-element>
-```
-
-```ts
-const { session } = document.querySelector("graphty-element");
-const data = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,2026-01-03\n";
-await session.data.import({ type: "csv", config: { data } });
-
-if (session.features.enabled.includes("timeline")) {
-    await session.time.setSettings({ step: "day" });
-    session.time.play();
-}
-```
-
-Instead of the attribute, `await session.time.setField({ edges: { start: "sent" } })` picks the
-column from code.
-
-With it off, reading `session.time` answers as it does with no time field: `field` and `current` are
-null, `extent()` and `bins()` return null, `candidates()` returns an empty list and `playing` is
-false, so a display needs no check. Its actions refuse with `E_FEATURE_OFF` (`details` carry
-`{ feature, key }`): `play`, `pause`, `window`, `spanOf` and `committed` throw, while `setField`, `setSettings`, `stepBy`,
-`seek` and `commit` return a promise that rejects. Check
-`session.features.enabled.includes("timeline")` before an action, as above. A text column of dates
-does not measure time. `parse` works either way: it reads text as an instant.
-
-The four attributes change nothing with it off. `element.refusedFeatures` lists each one set to a
-value, as `{ code: "E_FEATURE_OFF", params: { feature, key } }` with `key` the property's name, and
-it is complete by the time `graphty-features` fires. Clearing an attribute is no refusal.
-
-`session.data.setRole(column, "time")` and a load mapping that newly names `time` or `timeUnit`
-refuse with `E_FEATURE_OFF` too. `session.visibility.setWindow` works either way, by its bounds: it
-refuses with `E_FEATURE_OFF` a window that names `nodes: "ends"` or `missing: "outside"`, and with
-the timeline off its bounds compare with the column's values as they stand, even on a column with a
-time role.
-
-A project saved with the timeline on keeps its time settings when it is opened and saved with it
-off. Playback settings and a window's `nodes` and `missing` options do nothing meanwhile, and
-`project.open` reports each in `problems` as `E_FEATURE_OFF` with `{ feature, key }`. A column's time
-role stays and is not reported. A saved window still limits what shows, by its bounds only, and
-`session.visibility.setWindow(null)` clears it. `styles.tree()` leaves out the saved Ghost row, and
-a saved run's `caveats.window` is left out of what `session.runs` hands over.
-
-Versions 3.31.0 to 3.35.0 had the timeline on for everyone. A page written against them adds
-`features="timeline"` to keep it.
 
 ### `file-styles`
 
@@ -128,7 +81,7 @@ With it off:
 - The fixed layout's `edgeRoutes` and `graphvizAttributes` options are left out of
   `session.catalog`, and the recommended layout no longer asks Graphviz to route a placed DOT
   file's edges.
-- `data.setFileStyles`, sent through `session.execute` or inside `session.transaction`, refuses with
+- `data.setStyleValues`, sent through `session.execute` or inside `session.transaction`, refuses with
   `E_FEATURE_OFF`.
 
 A layer that writes one of the experiment's channels or values directly is still accepted and

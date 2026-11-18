@@ -36,8 +36,9 @@
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
-// a newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected
-// (hold=replace, #5052: a red hold never outlives a green run behind it); any other commit's verdict leaves the hold
+// a newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item, rejected, refused
+// or green-images (hold=replace, #5052, #6604: no hold outlives a green run behind it, not even one awaiting the
+// owner's review); any other commit's verdict leaves the hold
 // alone and never promotes (tools/channel/nightly.mjs). The verdict reads
 // the hold from the store when it decides (output held), never from the pick: a re-run attempt keeps attempt 1's pick
 // outputs, and another run may have held its commit since. An attempt-1 red that waits for its re-run is recorded as
@@ -53,6 +54,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { PUBLISH_HOLD } from "./channel/nightly.mjs";
+import { approvalOnMaster } from "./channel/resume.mjs";
 import { diffCommits } from "./release-diff.mjs";
 import { call, config } from "./results/client.mjs";
 
@@ -380,10 +382,14 @@ export function t4Refusal(failedSteps) {
 }
 
 /**
- * The held head's verdicts a newer green run replaces (#5052): nothing waits on the owner's review of them. Never
- * green-images (his pending review), approved (its promotion is due) or a head no run judged yet (being tested).
+ * The held head's verdicts a newer green run replaces (#5052, #6604): every judged one but approved (its promotion is
+ * due; the verdict also counts a green-images head whose approval is on master as approved, approvalMerged) and a
+ * head no run judged yet (being tested). A green-images head awaiting the owner's review is replaced too
+ * (#6604): a newer green-clean run has no changed screenshots, so it promotes and ends the review; a newer
+ * green-images one is held in its place, so the owner reviews the newest candidate once (the review page keeps his
+ * per-file decisions) and nightly never waits behind an older review.
  */
-export const REPLACEABLE = new Set(["red", "owner-item", "rejected"]);
+export const REPLACEABLE = new Set(["red", "owner-item", "rejected", "refused", "green-images"]);
 
 /**
  * What the deciding verdict does to the held candidate (channels-pipeline.md section 3).
@@ -393,11 +399,12 @@ export const REPLACEABLE = new Set(["red", "owner-item", "rejected"]);
  * @param o.state the verdict
  * @param [o.heldState] the held head's own latest verdict ("" when no run judged it)
  * @param [o.newer] whether the judged commit is newer on master than the held one (its history holds it)
- * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end a red hold: a newer
- *   green-clean commit then promotes, a green-images one is held in its place) or "none"
+ * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end the held head: a newer
+ *   green-clean commit then promotes, a green-images one is held in its place), "unknown" (the store did not say what
+ *   is held: nothing can be decided, and release.yml fails the Verdict job so a re-run decides, #5597) or "none"
  */
 export function holdAction({ held, sha, state, heldState = "", newer = false }) {
-    if (held === "unknown") return "none";
+    if (held === "unknown") return "unknown";
     if (!held) return state === "green-clean" ? "none" : "start";
     if (held === sha) return "update";
     const green = state === "green-clean" || state === "green-images";
@@ -496,6 +503,14 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
 }
 
 /**
+ * bisect.yml's run name (its run-name), which carries the lane and the range's green commit.
+ * @param lane the bisect.yml lane
+ * @param good the last green full-run commit
+ * @returns the run name
+ */
+export const bisectRunName = (lane, good) => `Bisect (${lane} lane) from ${good}`;
+
+/**
  * The bisect.yml dispatch for a red run, or why there is none.
  * @param o the facts
  * @param o.red the lanes that did not pass (LANES keys)
@@ -503,12 +518,19 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
  * @param o.good the last green full-run commit, or empty
  * @param o.run the run id
  * @param o.failures `GET /v1/failures`'s answer, or null
+ * @param [o.bisected] the run names of recent bisect.yml runs ("Bisect (llm lane) from <good>")
  * @returns `{ inputs }` for bisect.yml, or `{ why }`
  */
-export function bisectPlan({ red, sha, good, run, failures }) {
+export function bisectPlan({ red, sha, good, run, failures, bisected = [] }) {
     const lane = red.find((l) => LANES[l].bisect);
     if (!lane) return { why: `${red.map((l) => LANES[l].name).join(", ")}: no bisect; the pipeline round looks` };
     if (!good) return { why: "no green full run is recorded before this one, so there is no range to bisect" };
+    // every point of an llm bisect is paid: a later red from the same green commit (no green run between) re-ran
+    // the same points of the same range for about $10 on 2026-11-14 (#8314), so the earlier bisect answers it
+    if (lane === "llm" && bisected.includes(bisectRunName("llm", good)))
+        return {
+            why: `the LLM lane's range from ${short(good)} is already bisected (a paid lane); the pipeline round looks`,
+        };
     // ponytail: the first MAX_TARGETS failing tests; a dispatch input holds at most 65,535 characters, and a
     // broken setup fails a thousand tests that all bisect to the same merge
     const tests = lane === "ci" ? (failures?.tests ?? []).slice(0, MAX_TARGETS) : [];
@@ -572,8 +594,11 @@ const output = (fields) => {
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
     console.log(lines.join("\n"));
 };
-const read = async (cfg, path) => {
-    const r = await call(cfg, "GET", path);
+// The held head's read waits longer than call()'s own retries (1 + 3 s): a store that answered 5xx for 12 s left a
+// newer green-images verdict unable to replace the hold (#5597), and the verdict has minutes to spare.
+const HELD_RETRY_MS = [5000, 15000, 30000, 60000];
+const read = async (cfg, path, retryMs = undefined) => {
+    const r = await call(retryMs ? { ...cfg, retryMs: cfg.retryMs ?? retryMs } : cfg, "GET", path);
     if (!r.ok) console.log(`::warning::results store: GET ${path} did not answer (${r.why})`);
     return r.ok ? r.data : null;
 };
@@ -586,7 +611,7 @@ const read = async (cfg, path) => {
  */
 export async function heldNow(cfg, fallback) {
     if (!cfg) return { head: fallback ?? "unknown", base: "", state: "" };
-    const store = await read(cfg, "/v1/candidate");
+    const store = await read(cfg, "/v1/candidate", HELD_RETRY_MS);
     if (!store) return { head: "unknown", base: "", state: "" };
     const hold = store.hold;
     if (!hold?.head) return { head: "", base: "", state: "" };
@@ -849,6 +874,56 @@ export function greenCloses(title, green, isAncestor) {
     const red = / on ([0-9a-f]{7,40})$/.exec(title ?? "")?.[1];
     return !!red && isAncestor(red, green);
 }
+/**
+ * Whether the owner's approval of a held candidate is on master now (#6604): the store records `approved` only when
+ * its promote-nightly run ends, and that run may wait hours behind this one in the release-train group, so a
+ * newer green run must not replace the head in between. Reads master fresh; a fetch that fails counts as merged, so
+ * an unanswered question never throws an approval away (the next slot asks again).
+ * @param held the held head
+ * @returns the answer
+ */
+function approvalMerged(held) {
+    try {
+        execFileSync("git", ["fetch", "--quiet", "--filter=blob:none", "origin", "master"], { stdio: "ignore" });
+        return approvalOnMaster(held, "FETCH_HEAD") !== null;
+    } catch (error) {
+        console.log(`::warning::could not read master for an approval of ${short(held)}: ${error.message}`);
+        return true;
+    }
+}
+
+/**
+ * What the deciding verdict does to the hold. The hold as the store has it now, not as the pick saw it: a re-run
+ * attempt keeps attempt 1's pick outputs, and another run may have held its commit since.
+ * @param cfg the store's settings
+ * @param env the environment (SHA, HELD)
+ * @param o the verdict
+ * @param o.state this run's verdict
+ * @param o.decides whether the verdict decides (not a deferred attempt 1, not a failed pick)
+ * @returns `{ now, hold }`: the store's hold (heldNow) and holdAction's answer
+ */
+async function verdictHold(cfg, env, { state, decides }) {
+    const now = await heldNow(cfg, env.HELD);
+    if (!decides) return { now, hold: "none" };
+    // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
+    const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
+    const heldState = heldStateNow(now, state, newer);
+    return { now, hold: holdAction({ held: now.head, sha: env.SHA, state, heldState, newer }) };
+}
+
+/**
+ * The held head's state as holdAction weighs it: a held green-images head whose approval merged is approved in all
+ * but the store, so its promotion is due (master is read only when a newer green verdict could replace it).
+ * @param now the hold the store has now (heldNow)
+ * @param state this run's verdict
+ * @param newer whether this run's commit is newer than the held one
+ * @returns the state
+ */
+function heldStateNow(now, state, newer) {
+    const replaceable = now.state === "green-images" && newer && state.startsWith("green");
+    return replaceable && approvalMerged(now.head) ? "approved" : now.state;
+}
+
 const ancestor = (a, b) => {
     try {
         execFileSync("git", ["merge-base", "--is-ancestor", a, b], { stdio: "ignore" });
@@ -1134,7 +1209,25 @@ export function fileFlakies(env, lanes, stories, run = sh) {
 async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes, refused = [] }) {
     const failures = cfg ? await read(cfg, `/v1/failures?run=${runId}&good=${good}`) : null;
     const coded = red.filter((l) => !refused.includes(l));
-    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures }));
+    // a listing GitHub fails leaves the bisect to dispatch: a missed duplicate costs one bisect, a missed red more
+    const bisected = bestEffort(
+        () =>
+            sh("gh", [
+                "run",
+                "list",
+                "--workflow",
+                "bisect.yml",
+                "--limit",
+                "100",
+                "--json",
+                "displayTitle",
+                "--jq",
+                ".[].displayTitle",
+            ]).split("\n"),
+        "listing the recent bisects",
+        () => [],
+    );
+    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures, bisected }));
     const body = redIssue({ sha, red, lanes, run: runUrl, bisect });
     const issue = bestEffort(
         () => fileRed(body),
@@ -1255,14 +1348,8 @@ async function verdictMain(env) {
     if (cfg && red[0] !== "pick")
         await record(cfg, { sha: env.SHA, state: recorded, lane: red.join(",") || null, issue });
     if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
-    // the hold as the store has it now, not as the pick saw it: a re-run attempt keeps attempt 1's pick outputs, and
-    // another run may have held its commit since
-    const now = await heldNow(cfg, env.HELD);
+    const { now, hold } = await verdictHold(cfg, env, { state, decides: !wait && red[0] !== "pick" });
     const held = now.head;
-    // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
-    const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
-    const hold =
-        wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state, heldState: now.state, newer });
     const owner = heldLine(env.VERSION_HELD);
     console.log("::endgroup::");
     output({

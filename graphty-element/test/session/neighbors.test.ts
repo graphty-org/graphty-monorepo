@@ -182,7 +182,7 @@ describe("a node's neighbors with their weights", () => {
     });
 
     it("weighs an edge with no number 1, and counts it", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
         await session.data.addEdges([
             { source: "a", target: "b", w: "heavy" },
@@ -204,7 +204,7 @@ describe("a node's neighbors with their weights", () => {
     });
 
     it("reads the weight the graph was loaded with when none is asked", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         const data = JSON.stringify({
             nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
             edges: [
@@ -241,7 +241,7 @@ describe("a node's neighbors with their weights", () => {
     });
 
     it("sorts by the name the label path gives, falling back to the id", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.config.set({ data: { knownFields: { nodeLabelPath: "label" } } });
         await session.data.addNodes([
             { id: "hub" },
@@ -278,7 +278,7 @@ describe("a node's neighbors with their weights", () => {
     });
 
     it("sorts by each neighbor's own degree, best connected first", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([{ id: "hub" }, { id: "a" }, { id: "b" }, { id: "c" }, { id: "x" }, { id: "y" }]);
         await session.data.addEdges([
             { source: "hub", target: "a" },
@@ -299,7 +299,7 @@ describe("a node's neighbors with their weights", () => {
     });
 
     it("pages one stable order", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes(Array.from({ length: 30 }, (_unused, index) => ({ id: `n${String(index)}` })));
         await session.data.addEdges(
             Array.from({ length: 29 }, (_unused, index) => ({
@@ -331,7 +331,7 @@ describe("a node's neighbors with their weights", () => {
     });
 
     it("lists a scope's neighbors only, and marks the ones a filter hides", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([
             { id: "a", type: "host" },
             { id: "b", type: "host" },
@@ -366,7 +366,7 @@ describe("a node's neighbors with their weights", () => {
     });
 
     it('keeps ids 1 and "1" apart, and reads __proto__ as an ordinary id', async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.addNodes([{ id: "hub" }, { id: 1 }, { id: "1" }, { id: "__proto__" }]);
         await session.data.addEdges([
             { source: "hub", target: 1 },

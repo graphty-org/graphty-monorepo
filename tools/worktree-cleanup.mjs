@@ -7,10 +7,15 @@
 //   node tools/worktree-cleanup.mjs --apply --every M  the same every M minutes, forever (the servherd watcher)
 //   --recent H   keep a worktree with git activity in the last H hours (default 3)
 //
+// Every --apply pass also stops servherd dev servers idle for 12 hours (tools/idle-servers.mjs); a stopped
+// server no longer keeps its worktree.
+//
 // A worktree is finished when its branch's commits are all on origin/master or origin/golden and its
 // tip is off their first-parent lines (a fresh branch sits on the line and is not finished), when its
-// branch is gone from origin (`[gone]` after `fetch --prune`), or when it is detached at a commit
-// already in origin/master or origin/golden. Never by age. A finished worktree is removed only when
+// branch is gone from origin (`[gone]` after `fetch --prune`), when its branch's newest pull request was
+// closed without merging (the branch stays on origin, where the pull request can be reopened; one GitHub
+// GraphQL query a pass asks about every other branch), or when it is detached at a commit already in
+// origin/master or origin/golden. Never by age. A finished worktree is removed only when
 // every check passes; otherwise it is kept and counted by the first reason, in this order:
 //
 // - not the main checkout, a live tool's worktree (tools/live-tools.json), golden-local, golden-cut,
@@ -49,6 +54,8 @@ import { homedir, setPriority } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+
+import { stopIdleServers } from "./idle-servers.mjs";
 
 /** The reasons a finished worktree is kept, in the order they are checked. */
 export const KEEP = {
@@ -317,14 +324,50 @@ function heldBranches(root, env) {
 }
 
 /**
- * The finished worktrees: a branch gone upstream, or a head reachable from master or golden that is not
- * on their first-parent line; a detached head when reachable.
+ * The branches whose newest pull request was closed without merging, from one GraphQL query (every
+ * session shares the GitHub budget, so never one call per branch).
+ * @param branches the branch names to ask about
+ * @param root the main checkout (gh reads the repository from it)
+ * @returns each such branch with its pull request's number; empty when gh cannot answer
+ */
+export function closedPulls(branches, root) {
+    const closed = new Map();
+    if (!branches.length) return closed;
+    const vars = branches.map((_, i) => `$b${i}: String!`).join(", ");
+    const fields = branches
+        .map(
+            (_, i) =>
+                `b${i}: pullRequests(headRefName: $b${i}, first: 1, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number state } }`,
+        )
+        .join("\n");
+    const query = `query($owner: String!, $name: String!, ${vars}) { repository(owner: $owner, name: $name) {\n${fields}\n} }`;
+    const args = ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-f", `query=${query}`];
+    branches.forEach((b, i) => args.push("-f", `b${i}=${b}`));
+    const r = spawnSync("gh", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 26, timeout: 60e3 });
+    let repo;
+    try {
+        repo = JSON.parse(r.stdout).data?.repository;
+    } catch {
+        return closed;
+    }
+    branches.forEach((b, i) => {
+        const pr = repo?.[`b${i}`]?.nodes?.[0];
+        if (pr?.state === "CLOSED") closed.set(b, pr.number);
+    });
+    return closed;
+}
+
+/**
+ * The finished worktrees: a branch gone upstream, a branch whose newest pull request was closed unmerged,
+ * or a head reachable from master or golden that is not on their first-parent line; a detached head when
+ * reachable.
  * @param trees the worktrees
  * @param root the main checkout
  * @param env git's environment
+ * @param askClosed answers which branches' newest pull request was closed unmerged (`closedPulls`)
  * @returns the finished worktrees
  */
-function finishedTrees(trees, root, env) {
+function finishedTrees(trees, root, env, askClosed) {
     const bases = BASES.filter((b) => git(root, ["rev-parse", "-q", "--verify", b], env).code === 0);
     const firstParent = new Set(bases.flatMap((b) => lines(root, ["rev-list", "--first-parent", b], env)));
     const gone = new Set(
@@ -339,7 +382,16 @@ function finishedTrees(trees, root, env) {
         if (gone.has(t.branch)) return "branch gone from origin";
         return !firstParent.has(t.head) && inBases(t.head) ? "merged" : null;
     };
-    return trees.filter((t) => (t.finished = why(t)));
+    for (const t of trees) t.finished = why(t);
+    const open = trees.filter((t) => t.branch && !t.finished);
+    const closed = askClosed(
+        open.map((t) => t.branch),
+        root,
+    );
+    for (const t of open) {
+        if (closed.has(t.branch)) t.finished = `pull request #${closed.get(t.branch)} closed without merging`;
+    }
+    return trees.filter((t) => t.finished);
 }
 
 /**
@@ -478,7 +530,8 @@ function removeBatch(batch, c, bump) {
 /**
  * One pass: finds the finished worktrees and, with `apply`, removes up to `max` that pass every check.
  * @param o the options: `root` the main checkout, `apply` whether to remove, `max` the most to remove,
- *   `recentHours` the activity window; for tests `env`, `home`, `procDir`, `fetch` and `log`
+ *   `recentHours` the activity window; for tests `env`, `home`, `procDir`, `fetch`, `log` and
+ *   `closedPulls` (stands in for the GitHub query)
  * @returns the removed directories, the ones a dry run would remove (`would`, and as worktrees with
  *   their `finished` reason in `wouldTrees`), the kept counts by reason and the kept worktrees with
  *   their reason `why` (`keptTrees`), how many wait for a later run, the bytes freed and a summary
@@ -492,7 +545,7 @@ export function cleanup(o) {
     const list = git(root, ["worktree", "list", "--porcelain"], env);
     if (list.code !== 0) throw new Error(`git worktree list failed: ${list.err.trim()}`);
     const trees = parseTrees(list.out);
-    const finished = finishedTrees(trees, root, env);
+    const finished = finishedTrees(trees, root, env, o.closedPulls ?? closedPulls);
 
     const dirs = new Set(finished.map((t) => t.dir));
     const prot = [...new Set(protectedDirs(root, home))];
@@ -564,6 +617,11 @@ async function main(argv) {
     spawnSync("ionice", ["-c3", "-p", String(process.pid)]);
     const root = mainCheckout(process.cwd());
     for (;;) {
+        try {
+            if (apply) console.log(stopIdleServers({ root }).text);
+        } catch (e) {
+            console.error(`idle-servers: ${e.message}`);
+        }
         try {
             const r = cleanup({ root, apply, max, recentHours });
             for (const d of r.would) console.log(`would remove ${d}`);

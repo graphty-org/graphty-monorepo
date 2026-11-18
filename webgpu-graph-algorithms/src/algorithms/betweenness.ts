@@ -1,5 +1,5 @@
 /**
- * Betweenness and edge betweenness on the device (design 8.4 "Betweenness (A7)", 3.3 lines 811-812, 9.7): Brandes'
+ * Betweenness and edge betweenness on the device: Brandes'
  * algorithm as McLaughlin-Bader run it, k sources at a time.
  *
  * A source batch keeps four `n x k` arrays -- `depthK`, `sigmaK` (u32 shortest-path counts, or the f32 bits of the
@@ -28,13 +28,14 @@
  * grid, 235 x 235 raises it and 230 x 230 does not); the `@graphty/algorithms` dispatcher then throws instead of
  * returning the scores.
  *
- * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays design 4.7
+ * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays the design
  * counts plus the 4-byte log entry it omits -- as `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x
  * maxBufferSize / 16n), BC_MAX_BATCH)` (256), at least 1 (`planBatchSize`); a graph whose single source does not fit one binding is
  * E_TOO_LARGE. The forward form is chosen per batch: the first batch runs `bc-forward`; a later one runs the
  * edge-parallel form when the previous batch's level count -- the MAXIMUM depth over its sources, the only depth
- * figure the host has, which over-estimates the median of design 8.4's rule and so errs toward the frontier form --
- * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`.
+ * figure the host has, which over-estimates the median of the design's rule and so errs toward the frontier form --
+ * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`, on a snapshot of at least `BC_EDGE_PARALLEL_MIN_NODES` nodes whose
+ * degrees are not skewed (`edgeParallelEligible`, issue #776); anywhere else the frontier form was faster.
  *
  * The host applies the CPU package's convention after the readback (`@graphty/algorithms` betweenness.ts): the vertex
  * scores are halved on an undirected snapshot (the gather counts each unordered pair from both ends); the edge scores
@@ -58,12 +59,14 @@ import {
     BC_BATCH_BUDGET_FRACTION,
     BC_COUNT_MAX_GROUPS,
     BC_EDGE_PARALLEL_GAMMA,
+    BC_EDGE_PARALLEL_MAX_SKEW,
+    BC_EDGE_PARALLEL_MIN_NODES,
     BC_MAX_BATCH,
     MAX_LEVELS_PER_SUBMIT,
 } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
-import { CommandBatch } from "../kernel/batch.js";
+import { CommandBatch, traced } from "../kernel/batch.js";
 import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { BC_PARAMS, FILL_PARAMS, FRONTIER_COUNTERS, kernelSpec } from "../kernels.js";
@@ -152,7 +155,7 @@ interface RawBetweenness {
 }
 
 /**
- * The source batch size (design 8.4, 10.1): `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
+ * The source batch size: `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
  * 16n), BC_MAX_BATCH, remaining)`, at least 1. Each of the four `n x k` arrays is one binding of `4 n k` bytes, and the batch's
  * four together stay inside a quarter of the largest buffer.
  * @internal
@@ -270,6 +273,8 @@ interface RunState {
     scaled: ModeKernels | null;
     /** Each bc kernel bound once per run: its resources never change inside a run, only the params offset does. */
     readonly bound: Map<Kernel, BoundKernel>;
+    /** The source batch running now, from 0, for the trace. */
+    batchIndex: number;
 }
 
 /** The kernels of one counting mode; `count` and `reverse` (the in-arcs it pulls over) only when scaled. */
@@ -373,12 +378,23 @@ function recordBc(
  * @param state - the run
  * @param batch - the batch
  * @param signal - the caller's signal
+ * @param level - the first level the submit records, for the trace
  * @returns the readback bytes
  */
-async function submit(state: RunState, batch: CommandBatch, signal: AbortSignal | undefined): Promise<ArrayBuffer> {
+async function submit(
+    state: RunState,
+    batch: CommandBatch,
+    signal: AbortSignal | undefined,
+    level?: number,
+): Promise<ArrayBuffer> {
     state.scope.flush();
+    const { trace } = state.ctx;
+    const facts = { stage: batch.label, id: batch.id, batch: state.batchIndex, level: level ?? null };
+    trace?.(`${ALGORITHM} submit`, { ...facts, dispatches: batch.dispatches });
+    const started = performance.now();
     const submitted = batch.submit();
     const back = await submitted.readback;
+    trace?.(`${ALGORITHM} readback resolved`, { ...facts, ms: Math.round(performance.now() - started) });
     state.ctx.assertReady();
     if (signal?.aborted) {
         throw aborted(ALGORITHM, submitted.id);
@@ -500,7 +516,7 @@ async function forwardPhase(
         const endsCount = Math.min(n + 2, recorded + 1);
         const countersRequest = batch.readback(counters.buffer, counters.offset, FRONTIER_COUNTERS.byteLength);
         const endsRequest = batch.readback(ends.buffer, ends.offset, 4 * endsCount);
-        const back = await submit(state, batch, signal);
+        const back = await submit(state, batch, signal, recorded - levelsPerSubmit);
         const words32 = new Uint32Array(back, countersRequest.offset, FRONTIER_COUNTERS.byteLength / 4);
         if (words32[W.done] !== 0) {
             const levels = words32[W.level];
@@ -607,7 +623,7 @@ async function backwardPhase(
         const requests = wantArrays
             ? [depthK, sigmaK, deltaK].map((b) => batch.readback(b.buffer, b.offset, 4 * words))
             : [];
-        const back = await submit(state, batch, signal);
+        const back = await submit(state, batch, signal, chunk[0] ?? 0);
         if (wantArrays) {
             return {
                 depthK: new Uint32Array(back, requests[0].offset, words).slice(),
@@ -647,8 +663,15 @@ async function runBatch(
     const seeds = Uint32Array.from(sources, (v, s) => s * n + v);
     ctx.device.queue.writeBuffer(S.buffer, S.offset, seeds);
 
+    ctx.trace?.(`${ALGORITHM} batch start`, {
+        batch: state.batchIndex,
+        sources: k,
+        form,
+        scaled: mode.count !== null,
+    });
     const forward = await forwardPhase(state, mode, k, form, levelsPerSubmit, signal);
     const { levels, overflow, endsWords } = forward;
+    ctx.trace?.(`${ALGORITHM} forward done`, { batch: state.batchIndex, levels, overflow });
     if (overflow && mode.count === null) {
         return { levels, wrapped: true, overflow: false };
     }
@@ -668,12 +691,32 @@ async function runBatch(
 }
 
 /**
- * The forward body of the next batch: pinned, or under "auto" edge-parallel once the last batch was shallow; always
- * the frontier body when there are no edges to run edge-parallel over.
+ * Whether "auto" may ever run the edge-parallel forward form on a snapshot (issue #776): at least
+ * `BC_EDGE_PARALLEL_MIN_NODES` nodes and a largest out-degree within `BC_EDGE_PARALLEL_MAX_SKEW` times the mean. Below
+ * either the frontier form was faster on every graph measured, shallow or deep.
+ * @internal
+ * @param s - the snapshot
+ * @returns true when the per-batch depth test decides
+ */
+export function edgeParallelEligible(s: GraphSnapshot): boolean {
+    const n = s.nodeCount;
+    if (n < BC_EDGE_PARALLEL_MIN_NODES || s.arcCount === 0) {
+        return false;
+    }
+    let maxDegree = 0;
+    for (let v = 0; v < n; v++) {
+        maxDegree = Math.max(maxDegree, s.rowPtr[v + 1] - s.rowPtr[v]);
+    }
+    return maxDegree * n <= BC_EDGE_PARALLEL_MAX_SKEW * s.arcCount;
+}
+
+/**
+ * The forward body of the next batch: pinned, or under "auto" edge-parallel once the last batch was shallow on an
+ * eligible snapshot; always the frontier body when there are no edges to run edge-parallel over.
  * @param pinned - the tuning's pin
  * @param previousLevels - the last batch's levels, -1 before the first
  * @param n - the node count
- * @param exact - the exact kernels (forwardEdge null when there are no edges)
+ * @param exact - the exact kernels (forwardEdge null when there are no edges, or when "auto" never runs it)
  * @returns the form
  */
 function forwardForm(pinned: ForwardForm | "auto", previousLevels: number, n: number, exact: ModeKernels): ForwardForm {
@@ -733,13 +776,15 @@ async function runRaw(
     assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
     const { edgeCount } = s;
     // the edge-parallel form runs only when pinned, or from the second batch on: a one-batch run never uploads the view
-    const mayRunEdge = pinned === "edge" || (pinned === "auto" && sources.length > kMax);
+    const mayRunEdge = pinned === "edge" || (pinned === "auto" && sources.length > kMax && edgeParallelEligible(s));
     const edgeView = mayRunEdge && edgeCount > 0 ? ctx.residency.view(s, "edgeList") : null;
     const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
     try {
         const arrayBytes = 4 * n * kMax;
         const lease = (bytes: number, label: string): Binding => bindingOf(scope.scratch(bytes, label), bytes);
         const arcBytes = 4 * Math.max(1, s.arcCount);
+        ctx.trace?.(`${ALGORITHM} start`, { n, arcs: s.arcCount, sources: sources.length, kMax, withEdges });
+        const compiling = performance.now();
         const [fill, gather] = await Promise.all(
             (["fill", "bc-gather"] as const).map((id) => ctx.pipelines.kernel(kernelSpec(id))),
         );
@@ -768,8 +813,10 @@ async function runRaw(
             exact,
             scaled: null,
             bound: new Map(),
+            batchIndex: -1,
         };
-        await ctx.allocator.check();
+        ctx.trace?.(`${ALGORITHM} kernels compiled`, { ms: Math.round(performance.now() - compiling) });
+        await traced(ctx.allocator.check(), ctx.trace, `${ALGORITHM} allocator check`, {});
 
         // the result accumulators start at 0
         await clearAccumulators(state, arcBytes / 4, options?.signal);
@@ -781,6 +828,7 @@ async function runRaw(
             const k = planBatchSize(n, sources.length - start, limits);
             const form = forwardForm(pinned, previousLevels, n, state.exact);
             const batch = sources.slice(start, start + k);
+            state.batchIndex = batches;
             let outcome = await runBatch(
                 state,
                 state.scaled ?? state.exact,
@@ -841,7 +889,7 @@ function normaliser(s: GraphSnapshot, normalized: boolean | undefined): number {
  */
 async function precheck(ctx: GpuContext, options: BetweennessAcceleratorOptions | undefined): Promise<void> {
     ctx.assertReady();
-    await assertDeviceComputes(ctx);
+    await traced(assertDeviceComputes(ctx), ctx.trace, `${ALGORITHM} device self-check`, {});
     if (options?.endpoints === true) {
         throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: endpoints: true is not supported`, {
             feature: "betweenness.endpoints",
@@ -931,7 +979,7 @@ export async function edgeBetweennessWithTuning(
 }
 
 /**
- * Betweenness centrality on the device (spec 3.3 line 811, design 8.4): Brandes' algorithm, k sources per batch.
+ * Betweenness centrality on the device: Brandes' algorithm, k sources per batch.
  * Exact over every vertex by default; `sources` or `k` gives the SAMPLED form, whose scores are the unscaled sum over
  * the sources run (`sourcesUsed` beside them; multiply by `n / sourcesUsed` for the estimator of the full sum). The
  * CPU package's convention: halved on an undirected snapshot, `normalized` divides by `(n - 1)(n - 2)` directed or
@@ -953,7 +1001,7 @@ export function betweennessCentrality(
 }
 
 /**
- * Edge betweenness centrality on the device (spec 3.3 line 812, design 8.4): the per-arc terms of the same batches,
+ * Edge betweenness centrality on the device: the per-arc terms of the same batches,
  * folded to one score per edge with `foldArcs(s, perArc, "sum")` and halved on an undirected snapshot (the two arcs
  * carry the pairs crossing the edge in each direction, so their sum counts each unordered pair twice; this is the CPU
  * package's number, and it holds for a sample too). `normalized`, sampling, `endpoints` and `sigmaOverflow` as in

@@ -3,8 +3,7 @@
  * corners, and a drop shadow under the panel.
  *
  * Made only of public style options. It shows three things the label canvas draws: `padding`
- * moves the words in from the border (it used to grow the panel and leave the words where they
- * were), the border is as light at its corners as along its edges, and `panelShadow` throws a
+ * moves the words in from the border without growing the panel, the border is as light at its corners as along its edges, and `panelShadow` throws a
  * shadow that is not cut off at the label's edge.
  */
 
@@ -215,14 +214,7 @@ async function settled(element: Graphty): Promise<void> {
  * @param parameters - The story's parameters.
  */
 async function clickOn(scene: Drawn, id: string, parameters: Record<string, unknown>): Promise<void> {
-    const input = realInput(parameters);
-    const at = scene.element.nodeScreenPosition(id);
-    if (input === undefined || at === undefined) {
-        await clickNode(scene, id);
-    } else {
-        await input.click(scene.element, { x: at.x, y: at.y });
-    }
-
+    await clickNode(scene, id, realInput(parameters));
     await settled(scene.element);
 }
 

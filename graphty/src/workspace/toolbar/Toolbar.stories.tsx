@@ -115,7 +115,7 @@ export const AnalyzeFiltered: Story = {
     },
 };
 
-/** PageRank picked: its short form, the cost line and Run (`#/analyze-popover/essentials`). */
+/** PageRank picked: its row with its settings button, the cost line and Run (`#/analyze-popover/essentials`). */
 export const AnalyzeEssentials: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {

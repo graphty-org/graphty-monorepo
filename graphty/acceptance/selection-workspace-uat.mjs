@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * User acceptance test of the selection workspace (the `selection-workspace` feature): a pairwise matrix
+ * User acceptance test of the selection workspace: a pairwise matrix
  * of card kinds, verbs, starts, card shapes, entry points, datasets, edits and ways of leaving, plus named
  * scenarios for what the matrix cannot reach. It drives a served build with real clicks, drags and keys
  * and checks what a reader sees (the counts on the title bar and the cards, the table's rows and tints,
  * the drawing through graphty-element's public API, the layer or filter saved, the run list).
  *
  *   tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <served url>
+ *   tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist
+ *     --dist <dir>         serve this build on a loopback port instead of --url (what CI does)
  *     --only <text,text>   only the scenarios whose id or description holds one of these
+ *     --browser <name>     chromium, webkit (Playwright's WebKit, the Safari engine) or all (default all:
+ *                          every scenario in each, one browser after the other)
  *     --workers <n>        scenarios at once, each in its own browser context (default 3)
  *     --out <dir>          where a failed scenario's screenshot goes (default tmp/selection-workspace-uat)
  *     --list               print the matrix and run nothing
@@ -17,24 +21,28 @@
  * Except a difference), then the cards unioned. Exit 0 when every scenario passed, 1 when one failed.
  * See README.md beside this file.
  */
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
+
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
+        dist: { type: "string" },
         only: { type: "string" },
         workers: { type: "string", default: "3" },
         out: { type: "string", default: "tmp/selection-workspace-uat" },
         list: { type: "boolean", default: false },
+        browser: { type: "string", default: "all" },
     },
 });
 
-// How long a reader's view may take to reach what is expected: a hang guard, never a wait.
-const SETTLE = 30_000;
 const SAMPLES = { lesmis: "Les Miserables", karate: "Zachary's karate club", papers: "Paper citations" };
 const NODES = { lesmis: ["Valjean", "Napoleon"], karate: ["1", "34"] };
 const fail = (message) => {
@@ -116,7 +124,11 @@ class Visit {
             if (this.side === "edge") {
                 await this.page.getByRole("tab", { name: /^Edge/ }).first().click();
             }
-            await this.page.getByRole("button", { name: new RegExp(`^Edit Which ${this.many}`) }).click();
+            await this.page
+                .getByRole("button", {
+                    name: `Style ${this.many[0].toUpperCase()}${this.many.slice(1)}...`,
+                })
+                .click();
             await this.ws.waitFor();
         } else {
             await this.page.getByRole("button", { name: "Data", exact: true }).click();
@@ -143,14 +155,10 @@ class Visit {
     // color graphty-element gives it once the edit is handed on, a frame and any transition later.
     async colorOf(at) {
         const card = await this.card(at).elementHandle();
-        const handle = await this.page.waitForFunction(
-            (c) => {
-                const color = c.style.getPropertyValue("--cm-card-color");
-                return color !== "" && color !== "var(--cm-border)" && color.toUpperCase();
-            },
-            card,
-            { timeout: SETTLE },
-        );
+        const handle = await this.page.waitForFunction((c) => {
+            const color = c.style.getPropertyValue("--cm-card-color");
+            return color !== "" && color !== "var(--cm-border)" && color.toUpperCase();
+        }, card);
         return handle.jsonValue();
     }
 
@@ -270,7 +278,6 @@ class Visit {
                 return Object.fromEntries(records.map((r) => [String(r.id), read(r.id)]));
             },
             [algorithm, field, params, this.side],
-            { timeout: SETTLE },
         );
         return handle.jsonValue();
     }
@@ -321,22 +328,18 @@ class Visit {
             rows: total.size,
         };
         const handle = await this.page
-            .waitForFunction(
-                (w) => {
-                    const box = document.querySelector(".sel-ws.sel-modal");
-                    const seen = [...box.querySelectorAll(".cm-card-list > .cm-list-card")].map(
-                        (c) => c.querySelector(".cm-card-head .sel-count")?.textContent ?? "",
-                    );
-                    const grid = box.querySelector("[role=grid]");
-                    return (
-                        box.querySelector(".sel-ws-head > .sel-count")?.textContent === w.title &&
-                        JSON.stringify(seen) === JSON.stringify(w.cards) &&
-                        (w.rows === 0 ? grid === null : Number(grid?.getAttribute("aria-rowcount")) - 1 === w.rows)
-                    );
-                },
-                want,
-                { timeout: SETTLE },
-            )
+            .waitForFunction((w) => {
+                const box = document.querySelector(".sel-ws.sel-modal");
+                const seen = [...box.querySelectorAll(".cm-card-list > .cm-list-card")].map(
+                    (c) => c.querySelector(".cm-card-head .sel-count")?.textContent ?? "",
+                );
+                const grid = box.querySelector("[role=grid]");
+                return (
+                    box.querySelector(".sel-ws-head > .sel-count")?.textContent === w.title &&
+                    JSON.stringify(seen) === JSON.stringify(w.cards) &&
+                    (w.rows === 0 ? grid === null : Number(grid?.getAttribute("aria-rowcount")) - 1 === w.rows)
+                );
+            }, want)
             .catch(() => null);
         if (handle === null) {
             const seen = await this.shown();
@@ -354,20 +357,16 @@ class Visit {
         const colorOf = (id) => cards.find((each) => each.held.has(id))?.card.color;
         const want = Object.fromEntries([...total].map((id) => [id, colorOf(id)]));
         const handle = await this.page
-            .waitForFunction(
-                (w) => {
-                    const rows = [...document.querySelectorAll(".sel-ws [data-testid=data-table-row]")];
-                    return (
-                        rows.length > 0 &&
-                        rows.every((row) => {
-                            const id = row.querySelector("[role=gridcell],[role=rowheader]")?.textContent ?? "";
-                            return w[id] === row.style.getPropertyValue("--cm-dt-row-color").toUpperCase();
-                        })
-                    );
-                },
-                want,
-                { timeout: SETTLE },
-            )
+            .waitForFunction((w) => {
+                const rows = [...document.querySelectorAll(".sel-ws [data-testid=data-table-row]")];
+                return (
+                    rows.length > 0 &&
+                    rows.every((row) => {
+                        const id = row.querySelector("[role=gridcell],[role=rowheader]")?.textContent ?? "";
+                        return w[id] === row.style.getPropertyValue("--cm-dt-row-color").toUpperCase();
+                    })
+                );
+            }, want)
             .catch(() => null);
         if (handle === null) {
             const seen = await this.ws.evaluate(
@@ -406,7 +405,6 @@ class Visit {
                     });
                 },
                 [want, colors],
-                { timeout: SETTLE },
             )
             .catch(() => null);
         if (handle === null) {
@@ -438,7 +436,6 @@ class Visit {
                     },
                     // A filter with nothing picked yet filters nothing (graphty-element's inert condition).
                     [this.side, inert ? this.all.size : total.size],
-                    { timeout: SETTLE },
                 )
                 .catch(async () => {
                     const seen = await inPage(this.page, () => {
@@ -466,7 +463,6 @@ class Visit {
                         return pending.length === 0 && total.count === n;
                     },
                     [this.layer, this.many, total.size],
-                    { timeout: SETTLE },
                 )
                 .catch(() => null);
             if (handle === null) {
@@ -539,7 +535,6 @@ class Visit {
                             .map((r) => r.id),
                     ) === want,
                 before,
-                { timeout: SETTLE },
             )
             .catch(() => null);
         if (handle === null) {
@@ -845,7 +840,6 @@ const EDITS = {
                     ),
                 ) === want,
             JSON.stringify(v.cards.map((c) => c.id)),
-            { timeout: SETTLE },
         );
         await v.check("drag");
     },
@@ -1030,7 +1024,7 @@ async function walkRow(page, row) {
 // A layer saved by Done opens again as the same cards with the same counts.
 async function reopenSame(v) {
     await v.page.getByRole("button", { name: "Graph", exact: true }).click();
-    await v.page.getByRole("button", { name: /^Edit Which nodes/ }).click();
+    await v.page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
     await v.ws.waitFor();
     await v.check("reopen");
     await assertOrder(v, "reopen");
@@ -1062,14 +1056,10 @@ const sliderEnds = (dataset, entry, kind, algorithm) => async (page) => {
         .boundingBox();
     const now = async (thumb) => Number(await thumb.getAttribute("aria-valuenow"));
     const says = (want) =>
-        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent === n, want, {
-            timeout: SETTLE,
-        });
+        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent === n, want);
     const whole = `${String(v.all.size)} of ${String(v.all.size)}`;
     const leaves = () =>
-        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent !== n, whole, {
-            timeout: SETTLE,
-        });
+        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent !== n, whole);
     await v.drag(end, track.x + track.width / 2);
     await leaves();
     await v.drag(end, track.x + track.width + 200);
@@ -1142,7 +1132,6 @@ const retune = (dataset, entry, kind, settings, run) => async (page) => {
         .waitForFunction(
             () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]:checked").length === 1,
             null,
-            { timeout: SETTLE },
         )
         .catch(() => fail("the old group's tick did not follow it into the new run"));
     [step.params.groups[0]] = await tickedGroups(box);
@@ -1214,7 +1203,6 @@ const typedEnds = (dataset, kind, algorithm) => async (page) => {
         .waitForFunction(
             (n) => document.querySelector(".sel-ws-head > .sel-count").textContent === n,
             `${String(top)} of ${String(v.all.size)}`,
-            { timeout: SETTLE },
         )
         .catch(async () =>
             fail(`typing ${String(maximum)} (the scale ends at ${String(end)}) leaves ${(await v.shown()).title}`),
@@ -1239,7 +1227,6 @@ const sameGroupsKeepTicks = async (page) => {
     await v.page.waitForFunction(
         () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]:checked").length === 2,
         null,
-        { timeout: SETTLE },
     );
     const now = await tickedGroups(box);
     if (JSON.stringify([...now].sort()) !== JSON.stringify([1, 3])) {
@@ -1263,7 +1250,7 @@ const reopenOrder = async (page) => {
     await v.page.mouse.click(520, 80);
     await v.leave("done");
     await v.page.getByRole("button", { name: "Graph", exact: true }).click();
-    await v.page.getByRole("button", { name: /^Edit Which nodes/ }).click();
+    await v.page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
     await v.ws.waitFor();
     await v.unfold(0);
     await v.step(0, 0).getByRole("checkbox").first().waitFor();
@@ -1330,7 +1317,6 @@ const edgesOnCard = async (page) => {
     await v.page.waitForFunction(
         () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]").length > 1,
         null,
-        { timeout: SETTLE },
     );
     const lone = await box.getByRole("checkbox", { name: /^\(no value\)/ }).count();
     if (lone > 0) {
@@ -1348,7 +1334,11 @@ const cardKeys = async (page) => {
         .card(0)
         .getByRole("button", { name: /^More for / })
         .click();
-    for (const key of ["F2", "Ctrl+D", "Ctrl+]", "Ctrl+[", "Del"]) {
+    // The app names Cmd and listens for it wherever the browser says it is on Apple's systems, as
+    // Playwright's WebKit does on Linux too; Playwright's ControlOrMeta follows the host instead.
+    const mac = await inPage(v.page, () => /Mac|iPhone|iPad/.test(navigator.userAgent));
+    const [said, mod] = mac ? ["Cmd", "Meta"] : ["Ctrl", "Control"];
+    for (const key of ["F2", `${said}+D`, `${said}+]`, `${said}+[`, "Del"]) {
         const shown = await v.page.getByRole("menu").innerText();
         if (!shown.includes(key)) {
             fail(`the card's menu shows no ${key}: ${shown.replaceAll("\n", " ")}`);
@@ -1357,7 +1347,7 @@ const cardKeys = async (page) => {
     await v.page.keyboard.press("Escape");
     const grip = (at) => v.card(at).locator(".cm-card-grip");
     await grip(1).focus();
-    await v.page.keyboard.press("ControlOrMeta+]");
+    await v.page.keyboard.press(`${mod}+]`);
     v.cards.unshift(v.cards.pop());
     await v.page.waitForFunction(
         (want) =>
@@ -1365,14 +1355,13 @@ const cardKeys = async (page) => {
                 [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-list-card")].map((c) => c.dataset.cardId),
             ) === want,
         JSON.stringify(v.cards.map((c) => c.id)),
-        { timeout: SETTLE },
     );
     await grip(0).focus();
     await v.page.keyboard.press("F2");
     await v.card(0).getByRole("textbox").waitFor();
     await v.page.keyboard.press("Escape");
     await grip(0).focus();
-    await v.page.keyboard.press("ControlOrMeta+d");
+    await v.page.keyboard.press(`${mod}+d`);
     await v.ws.locator(".cm-card-list > .cm-list-card").nth(2).waitFor();
     await grip(1).focus();
     await v.page.keyboard.press("Delete");
@@ -1415,16 +1404,18 @@ const analyzeList = async (page) => {
     await panel.waitFor();
     await v.type(panel.getByLabel("Seed", { exact: true }), "7");
     await page.getByRole("button", { name: "Run Leiden" }).click();
-    await page.waitForFunction(
-        () => {
-            const s = document.querySelector("graphty-element").session;
-            return s.runs
-                .list()
-                .some((r) => r.algorithm === "leiden" && r.params.randomSeed === 7 && r.status === "succeeded");
-        },
-        null,
-        { timeout: SETTLE },
-    );
+    // Waits for the run to end however it ends, so a run that fails says why instead of waiting forever.
+    const ended = await page.waitForFunction(() => {
+        const s = document.querySelector("graphty-element").session;
+        const run = s.runs.list().find((r) => r.algorithm === "leiden" && r.params.randomSeed === 7);
+        return ["succeeded", "failed", "canceled", "removed"].includes(run?.status)
+            ? { status: run.status, error: run.error ? `${run.error.code}: ${run.error.message}` : "" }
+            : null;
+    }, null);
+    const { status, error } = await ended.jsonValue();
+    if (status !== "succeeded") {
+        fail(`the Leiden run with seed 7 ended ${status}: ${error}`);
+    }
 };
 
 // Every popover closes on an outside click and leaves the workspace open.
@@ -1475,9 +1466,7 @@ const outsideClick = (entry) => async (page) => {
             await open();
             await shown.waitFor();
             await v.page.mouse.click(x, y);
-            await shown
-                .waitFor({ state: "hidden", timeout: SETTLE })
-                .catch(() => fail(`${name} stayed open after a click on ${where}`));
+            await shown.waitFor({ state: "hidden" }).catch(() => fail(`${name} stayed open after a click on ${where}`));
             if (!(await v.ws.isVisible())) {
                 fail(`a click on ${where} closed the workspace with ${name} open`);
             }
@@ -1567,7 +1556,6 @@ const dragBothWays = async (page) => {
                 [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-list-card")].map((c) => c.dataset.cardId),
             ) === want,
         JSON.stringify(v.cards.map((c) => c.id)),
-        { timeout: SETTLE },
     );
     await v.check("drag down");
     await v.leave("done");
@@ -1657,29 +1645,6 @@ const dataColumns = (verb) => async (page) => {
     await reopenSame(v);
 };
 
-// With the feature off, Which nodes opens the old editor and no modal.
-const flagOff = async (page) => {
-    const v = new Visit(page, "karate", "style-nodes");
-    const url = new URL(args.url);
-    url.searchParams.delete("features");
-    await v.open(url.href);
-    await page.getByRole("button", { name: "Add a layer or a folder" }).click();
-    await page.getByRole("menuitem", { name: "Layer", exact: true }).click();
-    await page.getByRole("textbox", { name: "Layer name" }).waitFor();
-    await page.keyboard.press("Escape");
-    const edit = page.getByRole("button", { name: /^Edit Which nodes/ });
-    await page.mouse.move(0, 0);
-    const opacity = await edit.evaluate((each) => getComputedStyle(each).opacity);
-    if (opacity !== "0") {
-        fail(`with the feature off Edit is drawn at rest (opacity ${opacity}): it stays a hover control`);
-    }
-    await edit.click({ force: true });
-    await page.locator(".sel-ws").waitFor();
-    if ((await page.locator(".sel-ws.sel-modal").count()) > 0) {
-        fail("the modal opened with the feature off");
-    }
-};
-
 // A picture of a scenario's end state, for the reader to look at, beside the failure shots.
 const shot = (page, name) => page.screenshot({ path: join(args.out, `${name}.png`) });
 
@@ -1766,7 +1731,6 @@ const analyzePopover = async (page) => {
                 .session.runs.list()
                 .some((r) => r.algorithm === "louvain" && r.params.resolution === 1.3 && r.status === "succeeded"),
         null,
-        { timeout: SETTLE },
     );
 };
 
@@ -1816,7 +1780,6 @@ const groupSwatches = async (page) => {
                 .session.runs.list()
                 .some((r) => r.algorithm === "louvain" && r.status === "succeeded"),
         null,
-        { timeout: SETTLE },
     );
     await v.enter();
     await v.firstStep(KINDS.louvain, { pick: [1] });
@@ -1931,7 +1894,6 @@ const SCENARIOS = [
     ["fold: adding a card folds the others and keeps ticks", addFolds],
     ["table: a Degree column, and no actions before a test", degreeColumn],
     ["cancel: a cancelled visit leaves nothing, the next one works", cancelThenDone],
-    ["flag: off keeps the old editor", flagOff],
     ["columns: category and number, Add", dataColumns("add")],
     ["columns: category and number, Keep", dataColumns("keep")],
     ["columns: category and number, Except", dataColumns("except")],
@@ -1973,61 +1935,117 @@ if (args.list) {
     );
     process.exit(0);
 }
+const TYPES = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".wasm": "application/wasm",
+};
+
+// The build in --dist on a loopback port: a file when the path names one, else the app's page.
+async function serve(dist) {
+    const root = resolve(dist);
+    if (!existsSync(join(root, "index.html"))) {
+        console.error(`no built app at ${root}: run pnpm exec nx run graphty:build first`);
+        process.exit(2);
+    }
+    const http = createServer(async (req, res) => {
+        const url = new URL(req.url, "https://x");
+        const file = join(root, normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, ""));
+        if (file !== root && !file.startsWith(root + sep)) {
+            return res.writeHead(403).end();
+        }
+        const body = await readFile(file).catch(() => null);
+        if (body !== null) {
+            return res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
+        }
+        if (extname(file) !== "") {
+            return res.writeHead(404).end();
+        }
+        res.writeHead(200, { "content-type": "text/html" }).end(await readFile(join(root, "index.html")));
+    });
+    await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
+    http.unref();
+    return `http://127.0.0.1:${String(http.address().port)}/`;
+}
+
+if (args.dist !== undefined) {
+    args.url = await serve(args.dist);
+}
 if (args.url === undefined) {
-    console.error("--url is required");
+    console.error("--url or --dist is required");
+    process.exit(2);
+}
+
+// WebKit is here because a slider defect only Safari showed passed every Chromium run (#8309).
+const ENGINES = {
+    chromium: () => chromium.launch({ args: ["--ignore-certificate-errors", "--use-gl=angle"] }),
+    webkit: () => webkit.launch(),
+};
+const engines = args.browser === "all" ? Object.keys(ENGINES) : [args.browser];
+if (!engines.every((name) => name in ENGINES)) {
+    console.error(`--browser must be chromium, webkit or all, not ${args.browser}`);
     process.exit(2);
 }
 
 const wanted = args.only?.split(",");
-const queue = scenarios.filter(
+const chosen = scenarios.filter(
     (each) => wanted === undefined || wanted.some((text) => each.id === text || each.words.includes(text)),
 );
 mkdirSync(args.out, { recursive: true });
-const browser = await chromium.launch({ args: ["--ignore-certificate-errors", "--use-gl=angle"] });
 const results = [];
 
-async function runOne(scenario) {
+async function runOne(browser, engine, scenario) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: true });
     const page = await context.newPage();
-    page.setDefaultTimeout(60_000);
+    // Every wait waits on its condition; only the repository's one hang guard ends a wait that hangs.
+    page.setDefaultTimeout(WAIT_GUARD_MS);
     const began = Date.now();
-    const result = { id: scenario.id, words: scenario.words, status: "pass", message: "" };
+    const result = { id: scenario.id, engine, words: scenario.words, status: "pass", message: "" };
     try {
         await scenario.run(page);
     } catch (error) {
         result.status = "FAIL";
         const where = /selection-workspace-uat\.mjs:(\d+)/.exec(String(error.stack).split("\n").slice(1).join("\n"));
         result.message = `${String(error.message).split("\n").slice(0, 2).join(" ").slice(0, 400)} (line ${where?.[1] ?? "?"})`;
-        result.shot = join(args.out, `${scenario.id}.png`);
+        result.shot = join(args.out, `${engine}-${scenario.id}.png`);
         await page.screenshot({ path: result.shot }).catch(() => undefined);
     }
     result.seconds = Math.round((Date.now() - began) / 1000);
     results.push(result);
-    console.log(`${result.status}  ${result.id}  ${String(result.seconds).padStart(3)}s  ${result.words}`);
+    console.log(`${result.status}  ${engine}  ${result.id}  ${String(result.seconds).padStart(3)}s  ${result.words}`);
     if (result.message !== "") {
         console.log(`      ${result.message}`);
     }
     await context.close();
 }
 
-await Promise.all(
-    Array.from({ length: Number(args.workers) }, async () => {
-        for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
-            await runOne(next);
-        }
-    }),
-);
-await browser.close();
+for (const engine of engines) {
+    const browser = await ENGINES[engine]();
+    const queue = [...chosen];
+    await Promise.all(
+        Array.from({ length: Number(args.workers) }, async () => {
+            for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+                await runOne(browser, engine, next);
+            }
+        }),
+    );
+    await browser.close();
+}
 
 const failed = results.filter((each) => each.status === "FAIL");
-console.log(`\n${"id".padEnd(6)}${"result".padEnd(8)}${"secs".padEnd(6)}scenario`);
-for (const each of [...results].sort((a, b) => a.id.localeCompare(b.id))) {
-    console.log(`${each.id.padEnd(6)}${each.status.padEnd(8)}${String(each.seconds).padEnd(6)}${each.words}`);
+console.log(`\n${"browser".padEnd(10)}${"id".padEnd(6)}${"result".padEnd(8)}${"secs".padEnd(6)}scenario`);
+for (const each of [...results].sort((a, b) => a.engine.localeCompare(b.engine) || a.id.localeCompare(b.id))) {
+    console.log(
+        `${each.engine.padEnd(10)}${each.id.padEnd(6)}${each.status.padEnd(8)}${String(each.seconds).padEnd(6)}${each.words}`,
+    );
 }
 console.log(
     `\n${String(results.length - failed.length)} passed, ${String(failed.length)} failed of ${String(results.length)}`,
 );
 for (const each of failed) {
-    console.log(`${each.id}: ${each.message}\n    ${each.shot}`);
+    console.log(`${each.engine} ${each.id}: ${each.message}\n    ${each.shot}`);
 }
 process.exit(failed.length === 0 ? 0 : 1);

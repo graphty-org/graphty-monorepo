@@ -122,7 +122,7 @@ export const NEO4J_DESCRIPTOR: SourceDescriptor = Object.freeze({
             plainName: "Neo4j demo: movies over Bolt",
             endpoint: NEO4J_DEMO_BOLT,
             params: { database: "movies", mode: "all", transport: "bolt" },
-            publicLogin: { username: "movies", password: "movies" }, // NOSONAR(S2068): the public login Neo4j publishes for its demo server
+            publicLogin: { username: "movies", password: "movies" }, // the public login Neo4j publishes for its demo server
             counts: { nodes: 171, edges: 253 },
         },
         {
@@ -158,4 +158,19 @@ export const NEPTUNE_DESCRIPTOR: SourceDescriptor = Object.freeze({
     ],
     // Neptune sends no CORS headers (Database), or is not shown to (Analytics)
     runtimes: { browser: { supported: false, reason: "cors" }, worker: { supported: false, reason: "cors" } },
+});
+
+/**
+ * The descriptor of the `memgraph` preset: a Memgraph on this machine, over Bolt. Experimental.
+ * @category Network sources
+ */
+export const MEMGRAPH_DESCRIPTOR: SourceDescriptor = Object.freeze({
+    plainName: "Memgraph on this computer",
+    kind: "database",
+    version: 1,
+    auth: ["basic", "bearer"],
+    authRequired: "optional",
+    features: CYPHER_FEATURES,
+    params: CYPHER_PARAMS,
+    defaultEndpoint: "bolt://localhost:7687",
 });

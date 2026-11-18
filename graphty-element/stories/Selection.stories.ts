@@ -20,7 +20,7 @@ import {
     drawn,
     holds,
 } from "./assertions";
-import { eventWaitingDecorator, setLayoutPreSteps, type StoryArgs, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, realInput, setLayoutPreSteps, type StoryArgs, waitForGraphSettled } from "./helpers";
 
 // Sample data with named nodes for clarity
 const selectionNodeData = [
@@ -124,11 +124,10 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     graphEl.addEventListener("selection-changed", (event) => {
         const display = container.querySelector("#selected-node-display");
         if (display) {
-            const customEvent = event as CustomEvent<{ currentNode: { id: string; data: { label?: string } } | null }>;
-            const node = customEvent.detail.currentNode;
+            const node = event.detail.currentNode;
             if (node) {
-                const label = node.data.label ?? node.id;
-                display.textContent = `${label} (${node.id})`;
+                const label: unknown = node.data.label ?? node.id;
+                display.textContent = `${String(label)} (${String(node.id)})`;
                 (display as HTMLElement).style.color = "#FFFF00";
             } else {
                 display.textContent = "None";
@@ -148,8 +147,13 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
  * something can be asked for, and until now none of them was.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name it in a failure message.
+ * @param parameters - The story's parameters, for the runner's real input.
  */
-const selects = async (canvasElement: HTMLElement, story: string): Promise<void> => {
+const selects = async (
+    canvasElement: HTMLElement,
+    story: string,
+    parameters: Record<string, unknown>,
+): Promise<void> => {
     await waitForGraphSettled(canvasElement);
 
     const scene = await drawn(canvasElement, `Selection ${story}`);
@@ -158,7 +162,7 @@ const selects = async (canvasElement: HTMLElement, story: string): Promise<void>
     await assertDrawnColour(scene, "#4a90d9");
     await assertLabelsDrawn(scene);
     await assertLabelsReadable(scene);
-    await assertSelectionDrawn(scene, "alpha");
+    await assertSelectionDrawn(scene, "alpha", realInput(parameters));
 
     // The status bar is the story's own chrome, and it is driven by the element's
     // `selection-changed` event rather than by anything the story polls.
@@ -194,8 +198,8 @@ type Story = StoryObj<StoryArgs>;
 export const Mode2D: Story = {
     name: "2D Mode",
     render: () => renderSelectionDemo("2d"),
-    play: async ({ canvasElement }) => {
-        await selects(canvasElement, "2D Mode");
+    play: async ({ canvasElement, parameters }) => {
+        await selects(canvasElement, "2D Mode", parameters);
     },
 };
 
@@ -208,8 +212,8 @@ export const Mode2D: Story = {
 export const Mode3D: Story = {
     name: "3D Mode",
     render: () => renderSelectionDemo("3d"),
-    play: async ({ canvasElement }) => {
-        await selects(canvasElement, "3D Mode");
+    play: async ({ canvasElement, parameters }) => {
+        await selects(canvasElement, "3D Mode", parameters);
     },
 };
 
@@ -237,8 +241,8 @@ export const ModeVR: Story = {
 
         return container;
     },
-    play: async ({ canvasElement }) => {
-        await selects(canvasElement, "VR Mode");
+    play: async ({ canvasElement, parameters }) => {
+        await selects(canvasElement, "VR Mode", parameters);
     },
 };
 
@@ -264,7 +268,7 @@ export const ModeAR: Story = {
 
         return container;
     },
-    play: async ({ canvasElement }) => {
-        await selects(canvasElement, "AR Mode");
+    play: async ({ canvasElement, parameters }) => {
+        await selects(canvasElement, "AR Mode", parameters);
     },
 };

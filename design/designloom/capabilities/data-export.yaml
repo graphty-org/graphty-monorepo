@@ -11,8 +11,14 @@ used_by_workflows:
     - W13
     - W16
     - W15
+    - W20
+    - W21
+    - W23
+    - W24
+    - W25
 implemented_by_components:
     - data-export-dialog
+    - share-dialog
 requirements:
     - Export to CSV edge list format with configurable delimiter
     - Export to CSV node list format with all attributes as columns

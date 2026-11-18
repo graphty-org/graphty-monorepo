@@ -1,0 +1,334 @@
+{
+  "benchmarks/compare/main.js": {
+    "no-undef": {
+      "count": 16
+    },
+    "unicorn/prefer-at": {
+      "count": 2
+    }
+  },
+  "benchmarks/compare/run.mjs": {
+    "no-undef": {
+      "count": 27
+    }
+  },
+  "benchmarks/compare/summarize.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "eslint.config.js": {
+    "sonarjs/todo-tag": {
+      "count": 1
+    },
+    "unicorn/prefer-string-raw": {
+      "count": 2
+    }
+  },
+  "tools/ai-framework-packages.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/api-report.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/bisect-ci.mjs": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "tools/changelog-renderer.cjs": {
+    "jsdoc/require-jsdoc": {
+      "count": 2
+    }
+  },
+  "tools/channel/approval-update.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/channel/hold.mjs": {
+    "unicorn/prefer-set-has": {
+      "count": 1
+    }
+  },
+  "tools/channel/rehearse.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/check-bundle-size.mjs": {
+    "jsdoc/no-types": {
+      "count": 2
+    }
+  },
+  "tools/check-data-source-migration.mjs": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "tools/check-features.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/check-figma-lock.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/check-packed-exports.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/check-published-deps.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/check-saved-format-allowlist.mjs": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "tools/check-special-layers.mjs": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "tools/check-test-integrity.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    },
+    "unicorn/prefer-set-has": {
+      "count": 1
+    }
+  },
+  "tools/check-working-graph.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "tools/ci-test-matrix.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/claude-no-foreground-wait.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/claude-owner-credential-guard.mjs": {
+    "unicorn/prefer-string-raw": {
+      "count": 1
+    }
+  },
+  "tools/count-migration-state.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 8
+    }
+  },
+  "tools/diff-stories.mjs": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "tools/dry-run-check-guard.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/duplicates-check.mjs": {
+    "jsdoc/no-types": {
+      "count": 2
+    },
+    "jsdoc/require-returns-description": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 3
+    }
+  },
+  "tools/eslint-rules/no-test-timing.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 11
+    }
+  },
+  "tools/eslint-rules/sonar-way.mjs": {
+    "sonarjs/fixme-tag": {
+      "count": 1
+    },
+    "sonarjs/todo-tag": {
+      "count": 1
+    }
+  },
+  "tools/full-run.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-string-raw": {
+      "count": 2
+    }
+  },
+  "tools/health-owner-sweep.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/isolated-git-env.mjs": {
+    "unicorn/prefer-set-has": {
+      "count": 1
+    }
+  },
+  "tools/issue-queue.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/light-check-replay.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/load-time.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/master-guard.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/pr-integrity.mjs": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 4
+    }
+  },
+  "tools/release-rerun.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/render-sample-thumbnails.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/results-service/src/queries.js": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/results-service/src/service.js": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/results-service/src/signature.js": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/results/plan-read.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/sanitize-api-docs.js": {
+    "unicorn/prefer-string-raw": {
+      "count": 1
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    },
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "tools/scratch-ruleset-cases.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/test-changed.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/test-history.mjs": {
+    "unicorn/prefer-set-has": {
+      "count": 1
+    }
+  },
+  "tools/test-ledger-import.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/test-ledger.mjs": {
+    "no-unmodified-loop-condition": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/test-quarantine.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/test-select-mutate.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/test-select-replay.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/test-select.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 17
+    }
+  },
+  "tools/visual-capture-plan.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "tools/visual-flaky-report.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "tools/vitest-time-budget.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "vitest.babylon-compilers.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  }
+}

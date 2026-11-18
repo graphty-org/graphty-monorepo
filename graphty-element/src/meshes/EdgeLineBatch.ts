@@ -2,10 +2,13 @@
 // here so any path that reaches a batch has them. See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Buffer, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
+import { Buffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { UNTIMED_AGE } from "../session/time/ageFade";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type JoinedPatternKind } from "./CustomLineRenderer";
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import {
     EDGE_STATIC_ATTRIBUTES,
@@ -85,10 +88,15 @@ const scratchColor = new Float32Array(FLOATS_PER_COLOR);
 export interface EdgeLineMeta {
     joinedLine?: boolean;
     /**
-     * A dashed or dotted line: which, its element's length along the line, `line.patternCount`, and the gap between
+     * A patterned line (dashes, dots, boxes, diamonds or stars): which, its element's length along the line, `line.patternCount`, and the gap between
      * two elements (`line.dashGap`, in world units; unset, the elements spread from end to end).
      */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
+    pattern?: {
+        kind: JoinedPatternKind;
+        elementLength: number;
+        count?: number | undefined;
+        gap?: number | undefined;
+    };
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
      * also carries the whole edge's length, and the static values in a buffer of their own.
@@ -130,7 +138,7 @@ export function segmentMatrixToRef(srcPoint: Vector3, dstPoint: Vector3, out: Ma
     // segment, so the vector it turns into yaw and pitch is half the delta -- same direction,
     // and the angles below are Babylon's own (TransformNode.setDirection).
     const yaw = -Math.atan2(scratchDirection.z, scratchDirection.x) + Math.PI / 2;
-    const flat = Math.sqrt(scratchDirection.x * scratchDirection.x + scratchDirection.z * scratchDirection.z); // NOSONAR(S7769): per edge, per frame; Math.hypot made this function 50-70% slower
+    const flat = Math.sqrt(scratchDirection.x * scratchDirection.x + scratchDirection.z * scratchDirection.z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame; Math.hypot made this function 50-70% slower
     const pitch = -Math.atan2(scratchDirection.y, flat);
 
     Quaternion.RotationYawPitchRollToRef(yaw, pitch, 0, scratchRotation);
@@ -794,7 +802,7 @@ export class EdgeLineBatch {
         const y = this.slots[at + 7] - this.slots[at + 4];
         const z = this.slots[at + 8] - this.slots[at + 5];
 
-        return Math.sqrt(x * x + y * y + z * z); // NOSONAR(S7769): per edge, per frame; Math.hypot measured ~17x slower here
+        return Math.sqrt(x * x + y * y + z * z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame; Math.hypot measured ~17x slower here
     }
 
     /**
@@ -1388,5 +1396,5 @@ function pieceLength(flat: readonly number[], i: number): number {
     const y = flat[i * 3 + 4] - flat[i * 3 + 1];
     const z = flat[i * 3 + 5] - flat[i * 3 + 2];
 
-    return Math.sqrt(x * x + y * y + z * z); // NOSONAR(S7769): per piece, per frame; Math.hypot is measurably slower
+    return Math.sqrt(x * x + y * y + z * z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per piece, per frame; Math.hypot is measurably slower
 }

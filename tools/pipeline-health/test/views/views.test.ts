@@ -439,6 +439,7 @@ describe("views", () => {
     it("names the pull requests behind a PR count, and the chronic jobs with no issue that turn CI red", async () => {
         const store = new MemoryStore();
         await setCursor(store, "pr-stocks", JSON.stringify({ oldest: 1234, greenStuck: [], armedLong: [7, 8] }), T0);
+        await setCursor(store, "flaky-no-issue", JSON.stringify(["a.test.ts > flips"]), T0);
         const ev = await evaluate(store, T0);
         const set = (id: string, v: Partial<(typeof ev.members)[number]>) =>
             Object.assign(
@@ -449,6 +450,8 @@ describe("views", () => {
         set("pr.automerge_armed_long", { value: 2 });
         set("pr.automerge_green_stuck", { value: 0, state: "OK" });
         set("ci.chronic_jobs", { value: 3, state: "FAILING", facts: { "ci.chronic_no_issue": 1 } });
+        set("flaky.no_issue", { value: 1 });
+        set("flaky.net_new", { value: -1, state: "OK", facts: { "flaky.net_added": 2, "flaky.net_resolved": 3 } });
         const vs = await buildViews(store, T0, ev);
         const row = (page: string, id: string) =>
             pages(vs)
@@ -464,6 +467,15 @@ describe("views", () => {
         });
         expect(row("pull-requests", "pull-requests.automerge_green_stuck").note).toBeUndefined();
         expect(row("ci", "ci.chronic_jobs").note).toEqual({ code: "note.chronic_no_issue", params: { n: 1 } });
+        expect(row("flaky", "flaky.net_new").note).toEqual({
+            code: "flaky.net_new.note",
+            params: { added: 2, resolved: 3 },
+        });
+        // #8795: the row names the tests it counts
+        expect(row("flaky", "flaky.no_issue").note).toEqual({
+            code: "note.flaky_no_issue",
+            params: { tests: ["a.test.ts > flips"] },
+        });
     });
 
     it("a page's state names only members the page shows", async () => {

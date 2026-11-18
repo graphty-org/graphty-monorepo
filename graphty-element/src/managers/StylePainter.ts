@@ -13,6 +13,9 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import type { NodeSizeSpace as NodeSizeSpaceValue } from "../config/NodeStyle";
+import { drawnText } from "../config/RichTextStyle";
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
     asColorValue,
@@ -44,6 +47,11 @@ export interface NodePaint {
     readonly style: NodeStyleConfig;
     /** The colour to write into this node's instance, or null when no layer painted one. */
     readonly color: Rgba | null;
+    /**
+     * Set on a plain paint ({@link plainNodePaint}) whose row's own paint draws a label: label sampling
+     * may still pick the row, and then builds it a `Node` for the label.
+     */
+    readonly labelled?: boolean;
 }
 
 /**
@@ -67,13 +75,24 @@ export interface EdgePaint {
 export interface BatchView {
     /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
     readonly flatOutline: boolean;
+    /** `layoutBehavior.node.sizeSpace`: how a node whose style sets none follows the camera. */
+    readonly sizeSpace: NodeSizeSpaceValue;
 }
+
+export type { NodeSizeSpace } from "../config/NodeStyle";
 
 /**
  * The shape options a batch draws: everything else about a shape waits for a wider batch. A z order
  * (`zIndex`, `drawOrder`) is baked into the source's vertices in 2D, which the batch's geometry copy keeps.
  */
-const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail", "zIndex", "drawOrder"]);
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set([
+    "type",
+    "size",
+    "detail",
+    "zIndex",
+    "drawOrder",
+    "sizeSpace",
+]);
 /** The effects a batch draws: both are in the geometry or the material. */
 const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
 /** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
@@ -95,7 +114,7 @@ const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
  */
 export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
     const { style } = paint;
-    // A size that follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`) is in the row's matrix.
+    // A size that follows the view (`node.sizeSpace`) is in the row's matrix, through the row's `wholeScale`.
     if (view.flatOutline) {
         return false;
     }
@@ -115,6 +134,66 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
         set(style.texture).every((key) => key === "color" || key === "image")
     );
 }
+
+/**
+ * The paint a row past `limits.objectRows` is drawn with: its own, less everything no batch draws
+ * (a border, an outline, a model, a picture, a label or tooltip), so a batch draws it as a plain body.
+ * @param paint - The row's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainNodePaint(paint: NodePaint): NodePaint {
+    const { style } = paint;
+    const only = <T extends object>(bag: T | undefined, keys: ReadonlySet<string>): T | undefined =>
+        bag === undefined ? undefined : (Object.fromEntries(Object.entries(bag).filter(([key]) => keys.has(key))) as T);
+    const plain: NodeStyleConfig = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        shape: only(style.shape, BATCHABLE_SHAPE_KEYS),
+        texture: only(style.texture, PLAIN_TEXTURE_KEYS),
+        effect: only(style.effect, BATCHABLE_EFFECT_KEYS),
+    };
+    const labelled = drawnText(style.label) !== undefined;
+    return {
+        meshKey: `${PLAIN_PREFIX}${paint.meshKey}`,
+        style: plain,
+        color: paint.color,
+        ...(labelled ? { labelled } : {}),
+    };
+}
+
+/** What a plain paint's mesh key starts with ({@link plainNodePaint}, {@link plainEdgePaint}). */
+const PLAIN_PREFIX = "plain|";
+
+/**
+ * Whether a paint is a plain one, drawn for a row past an object budget.
+ * @param paint - The paint.
+ * @param paint.meshKey - Its mesh key: a plain paint's starts with {@link PLAIN_PREFIX}.
+ * @returns True for {@link plainNodePaint}'s and {@link plainEdgePaint}'s.
+ */
+export function isPlainPaint(paint: { readonly meshKey: string }): boolean {
+    return paint.meshKey.startsWith(PLAIN_PREFIX);
+}
+
+/** The line keys a plain line keeps. */
+const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth"]);
+
+/**
+ * The paint an edge past `limits.objectEdges` is drawn with: its line's width, color and opacity
+ * alone, as a solid straight line with no caps, label or band.
+ * @param paint - The edge's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainEdgePaint(paint: EdgePaint): EdgePaint {
+    const { style } = paint;
+    const line = Object.fromEntries(Object.entries(style.line ?? {}).filter(([key]) => PLAIN_LINE_KEYS.has(key)));
+    const plain = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        line,
+    } as EdgeStyleConfig;
+    return { meshKey: `${PLAIN_PREFIX}${paint.meshKey}`, style: plain };
+}
+
+/** The texture a plain body keeps: its color, never a picture. */
+const PLAIN_TEXTURE_KEYS: ReadonlySet<string> = new Set(["color"]);
 
 /** The colour a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
@@ -665,6 +744,64 @@ function resolveRelativeExtents(style: NodeStyleConfig): NodeStyleConfig {
     return { ...style, shape };
 }
 
+/** The smallest node size and edge width drawn: the project setting `minMarkSize`. */
+export interface MarkMinimums {
+    /** In `node.size` units; absent or 0, nodes are drawn as painted. */
+    readonly node?: number;
+    /** In `edge.width` units; absent or 0, edges are drawn as painted. */
+    readonly edge?: number;
+}
+
+/** The node size drawn when no layer paints one. */
+const NODE_SIZE = NODE_BASE.shape?.size ?? 1;
+
+/** The edge width drawn when no layer paints one. */
+const EDGE_WIDTH = EDGE_BASE.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+
+/** Marks a resolved style {@link floored} raised, so its paint is keyed apart from the unraised one. */
+const FLOORED = new WeakSet<ResolvedStyle>();
+
+/**
+ * A resolved style with its size raised to the minimum, or the same style when it is drawn at
+ * least that large (always, with no minimum). The style is the paint's, never the stack's: what
+ * the layers wrote, and every reading of it, is untouched.
+ * @param resolved - Everything the stack painted the element.
+ * @param channel - The size channel: `node.size` or `edge.width`.
+ * @param minimum - The smallest size drawn, 0 for none.
+ * @param fallback - The size drawn when no layer paints one.
+ * @returns The style to paint from.
+ */
+function floored(resolved: ResolvedStyle, channel: Channel, minimum: number, fallback: number): ResolvedStyle {
+    if (minimum <= 0) {
+        return resolved;
+    }
+
+    const value = resolved[channel];
+    if ((typeof value === "number" ? value : fallback) >= minimum) {
+        return resolved;
+    }
+
+    const raised: ResolvedStyle = { ...resolved, [channel]: minimum };
+    FLOORED.add(raised);
+    return raised;
+}
+
+/**
+ * A paint whose size was raised, keyed apart from one drawn at the same mesh key unraised: the
+ * interned key follows what the layers wrote, and the renderer caches a source mesh by this key.
+ * @param paint - The paint.
+ * @param resolved - The style it was built from.
+ * @param minimum - The size it was raised to, when it was.
+ * @returns The paint, or a copy with the raised size in its key.
+ */
+function keyedByFloor<T extends NodePaint | EdgePaint>(paint: T, resolved: ResolvedStyle, minimum: number): T {
+    if (!FLOORED.has(resolved)) {
+        return paint;
+    }
+
+    return { ...paint, meshKey: `${paint.meshKey}|min${String(minimum)}` };
+}
+
 /**
  * Build one edge's paint from the channels the pass resolved for it.
  * @param resolved - Everything the stack painted this edge.
@@ -737,6 +874,39 @@ function rowColor(resolved: ResolvedStyle): Rgba | null {
     return painted === null ? bootstrapNodePaint().color : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
 }
 
+/** How many colors one look keeps a shared paint for; rows of further colors each get their own. */
+const ROW_COLOR_LIMIT = 1024;
+
+/**
+ * The paint of a row of a known look whose instance color is its own, shared with every row of the
+ * look painted the same color: rows hold it (`ColumnRow.paint`), so a paint and a color object per
+ * row was 52 MB at a million rows (G11).
+ * @param look - The look's shared paint, and its paints by color.
+ * @param look.paint - The paint the look was first made with.
+ * @param look.byHex - Its paints by color, filled here.
+ * @param resolved - Everything the stack painted this node.
+ * @returns The paint.
+ */
+function sharedColorPaint(
+    look: { readonly paint: NodePaint; readonly byHex: Map<string, NodePaint> },
+    resolved: ResolvedStyle,
+): NodePaint {
+    const painted = asColorValue(resolved["node.color"]);
+    const hex = painted?.hex ?? "";
+    const known = look.byHex.get(hex);
+    // The alpha is in the look's identity, but a paint is only shared when it matches.
+    if (known !== undefined && known.color?.a === (painted?.a ?? known.color?.a)) {
+        return known;
+    }
+
+    const made = { meshKey: look.paint.meshKey, style: look.paint.style, color: rowColor(resolved) };
+    if (look.byHex.size < ROW_COLOR_LIMIT) {
+        look.byHex.set(hex, made);
+    }
+
+    return made;
+}
+
 /**
  * The look a node row shares with every row of the same mesh key, or null when its paint does not
  * follow from the key: every channel it carries keys its mesh, or is the colour, the opacity or the
@@ -762,6 +932,35 @@ function nodeIdentity(resolved: ResolvedStyle, meshKey: number): string | null {
     const alpha = color !== null && color.a < 1 ? String(color.a) : "";
     const hex = gradient ? (color?.hex ?? "") : "";
     return `s${String(meshKey)}|${String(resolved["node.opacity"])}|${String(resolved["node.visible"])}|${alpha}|${hex}`;
+}
+
+/**
+ * Whether two resolved styles carry the same channels with the same values, by reference.
+ * @param a - One style.
+ * @param b - The other.
+ * @returns True when they are the same.
+ */
+function sameStyle(a: ResolvedStyle, b: ResolvedStyle): boolean {
+    const left = a as Record<string, unknown>;
+    const right = b as Record<string, unknown>;
+    let count = 0;
+    for (const channel in right) {
+        if (left[channel] !== right[channel]) {
+            return false;
+        }
+
+        count++;
+    }
+
+    // Every channel of `b` is in `a` with its value (no channel is held as undefined), so equal counts mean
+    // the same channels.
+    for (const channel in left) {
+        if (left[channel] !== undefined) {
+            count--;
+        }
+    }
+
+    return count === 0;
 }
 
 /**
@@ -848,42 +1047,133 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
     return style;
 }
 
+/** The rows an empty {@link PendingRows} has room for. */
+const INITIAL_PENDING = 64;
+
 /**
- * The rows waiting to be drawn, taken oldest first.
+ * The rows waiting to be drawn, taken oldest first, each held once.
  *
- * ONE ITERATOR ACROSS THE BATCHES. A Set keeps the entries it deleted as holes until it next
- * rehashes, and a fresh iterator steps over all of them, so starting one for each batch made
- * taking a million rows a batch at a time quadratic. A running iterator stays past the holes, and
- * still reaches rows added after it started.
+ * A FLAG PER ROW AND A RING OF ROWS, NOT A SET. A load queues every edge it builds, and a Set of a
+ * million rows spent about 0.2 s hashing and rehashing them (design/rendering/row-renderer.md,
+ * stage G8). A row is a small dense index, so a byte per row says whether it waits and an array
+ * of rows keeps the order a Set's insertion order kept: a row taken and added again goes to the
+ * back. Exported for its test.
  */
-class PendingRows extends Set<number> {
-    private cursor: Iterator<number> | null = null;
+export class PendingRows {
+    private waiting = new Uint8Array(INITIAL_PENDING);
+    private order = new Int32Array(INITIAL_PENDING);
+    private head = 0;
+    private tail = 0;
 
     /**
-     * Take up to `limit` rows.
+     * How many rows wait.
+     * @returns The count.
+     */
+    get size(): number {
+        return this.tail - this.head;
+    }
+
+    /**
+     * Whether a row waits.
+     * @param row - Its dense index.
+     * @returns True when it was added and not yet taken.
+     */
+    has(row: number): boolean {
+        return row < this.waiting.length && this.waiting[row] === 1;
+    }
+
+    /**
+     * Queue a row at the back, unless it already waits.
+     * @param row - Its dense index, at least 0.
+     */
+    add(row: number): void {
+        if (this.has(row)) {
+            return;
+        }
+
+        if (row >= this.waiting.length) {
+            const grown = new Uint8Array(Math.max(row + 1, this.waiting.length * 2));
+            grown.set(this.waiting);
+            this.waiting = grown;
+        }
+
+        if (this.tail === this.order.length) {
+            this.makeRoom();
+        }
+
+        this.waiting[row] = 1;
+        this.order[this.tail++] = row;
+    }
+
+    /** Drop every row. */
+    clear(): void {
+        this.waiting.fill(0);
+        this.empty();
+    }
+
+    /**
+     * How many bytes the queue holds, waiting or not.
+     * @returns The bytes of its two arrays.
+     */
+    get bytes(): number {
+        return this.waiting.byteLength + this.order.byteLength;
+    }
+
+    /**
+     * Take up to `limit` rows, oldest first.
      * @param limit - The most to take.
-     * @returns The rows taken, which leave the set.
+     * @returns The rows taken, which leave the queue.
      */
     take(limit: number): readonly number[] {
         if (this.size === 0) {
             return NOTHING;
         }
 
-        const taken: number[] = [];
-        this.cursor ??= this.values();
+        const end = this.head + Math.min(limit, this.size);
+        const taken = Array.from(this.order.subarray(this.head, end));
 
-        while (taken.length < limit && this.size > 0) {
-            const next = this.cursor.next();
+        for (const row of taken) {
+            this.waiting[row] = 0;
+        }
 
-            if (next.done === true) {
-                this.cursor = this.values();
-            } else {
-                taken.push(next.value);
-                this.delete(next.value);
-            }
+        this.head = end;
+
+        if (this.head === this.tail) {
+            this.empty();
         }
 
         return taken;
+    }
+
+    /**
+     * Empty the queue, and let go of the ring a load grew to every row (8 MiB at 1M nodes and 1M
+     * edges): once drained it would otherwise be kept, unused, for the life of the graph. The flag
+     * per row is kept (a byte per row, all zero once drained): dropping it would make every later
+     * repaint of a high row allocate and zero a flag array as long as that row number.
+     */
+    private empty(): void {
+        if (this.order.length > INITIAL_PENDING) {
+            this.order = new Int32Array(INITIAL_PENDING);
+        }
+
+        this.head = 0;
+        this.tail = 0;
+    }
+
+    /** Slide the waiting rows to the front, and grow the ring when that frees too little. */
+    private makeRoom(): void {
+        const { size } = this;
+
+        if (size * 2 > this.order.length) {
+            const grown = new Int32Array(this.order.length * 2);
+            grown.set(this.order.subarray(this.head, this.tail));
+            this.order = grown;
+        } else {
+            this.order.copyWithin(0, this.head, this.tail);
+        }
+
+        this.head = 0;
+        this.tail = size;
     }
 }
 
@@ -1001,10 +1291,19 @@ export function bootstrapEdgePaint(directed = true): EdgePaint {
 export class StylePainter {
     /**
      * Make a painter.
-     * @param directed - Whether the graph is directed now. Asked once per edge painted, so it
-     *     must be cheap; a painter with no graph behind it draws edges as directed.
+     * @param directed - Whether the edge on a snapshot row is directed now: the graph's direction,
+     *     or the edge's own in a graph that mixes both. Asked once per edge painted, so it must be
+     *     cheap; a painter with no graph behind it draws edges as directed.
+     * @param minimums - The smallest node size and edge width drawn (the project setting
+     *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
      */
-    constructor(private readonly directed: () => boolean = () => true) {}
+    constructor(
+        private readonly directed: (row: number) => boolean = () => true,
+        private readonly minimums: () => MarkMinimums | undefined = () => undefined,
+    ) {}
+
+    /** The minimums the cached paints were built at; see {@link StylePainter.floorOf}. */
+    private floorSeen = "";
 
     /** What the last pass painted, or null while no session is bound. */
     private paint: ElementPaint | null = null;
@@ -1012,8 +1311,23 @@ export class StylePainter {
     /** The paint of each edge key, for edges painted by their key alone; see {@link StylePainter.edgePaint}. */
     private readonly edgePaints = new Map<string, { mesh: ResolvedStyle | undefined; paint: EdgePaint }>();
 
+    /**
+     * The last edge {@link StylePainter.edgePaint} found among {@link edgePaints}: the next edge painted the same
+     * reuses its paint with no identity built, as the rows of a load mostly are (cosmos-gap.md G8).
+     */
+    private lastEdgePaint: {
+        resolved: ResolvedStyle;
+        meshKey: number;
+        directed: boolean;
+        mesh: ResolvedStyle | undefined;
+        paint: EdgePaint;
+    } | null = null;
+
     /** The look of each node key, for rows painted by their key alone; see {@link StylePainter.rowPaint}. */
-    private readonly nodeLooks = new Map<string, { mesh: ResolvedStyle | undefined; paint: NodePaint }>();
+    private readonly nodeLooks = new Map<
+        string,
+        { mesh: ResolvedStyle | undefined; paint: NodePaint; byHex: Map<string, NodePaint> }
+    >();
 
     /** The nodes whose paint the renderer has not applied yet. */
     private readonly pendingNodes = new PendingRows();
@@ -1049,6 +1363,7 @@ export class StylePainter {
         this.stopListening = null;
         this.paint = paint;
         this.edgePaints.clear();
+        this.lastEdgePaint = null;
         this.nodeLooks.clear();
         this.pendingNodes.clear();
         this.pendingEdges.clear();
@@ -1109,6 +1424,22 @@ export class StylePainter {
         for (let at = 0; at < edges.length; at++) {
             this.pendingEdges.add(edges[at]);
         }
+    }
+
+    /**
+     * Whether every pending node came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get nodesFromRowsOnly(): boolean {
+        return this.nodesRowsOnly;
+    }
+
+    /**
+     * Whether every pending edge came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get edgesFromRowsOnly(): boolean {
+        return this.edgesRowsOnly;
     }
 
     /**
@@ -1243,30 +1574,42 @@ export class StylePainter {
     }
 
     /**
-     * What one node is painted.
+     * The smallest size one kind of mark is drawn at, now. A change of the setting drops every
+     * cached paint, which was built at the old minimum under the same mesh key.
+     * @param target - Nodes or edges.
+     * @returns The minimum, 0 for none.
+     */
+    private floorOf(target: SelectorTarget): number {
+        const minimums = this.minimums();
+        const node = minimums?.node ?? 0;
+        const edge = minimums?.edge ?? 0;
+        const seen = `${String(node)}|${String(edge)}`;
+        if (seen !== this.floorSeen) {
+            this.floorSeen = seen;
+            this.edgePaints.clear();
+            this.lastEdgePaint = null;
+            this.nodeLooks.clear();
+        }
+
+        return target === "node" ? node : edge;
+    }
+
+    /**
+     * What one node is painted. Nodes of one look share one paint (see {@link StylePainter.rowPaint}):
+     * a paint is never written after it is built, so a `Node` holding a shared style is safe, and
+     * one that is handed the style it already draws compares it by reference (#7966).
      * @param index - Its dense index.
      * @returns The paint, or null when nothing is bound or the index is not an element's.
      */
     nodePaint(index: number): NodePaint | null {
-        const { paint } = this;
-
-        if (paint === null || index < 0) {
-            return null;
-        }
-
-        return nodePaintOf(paint.styleOf("node", index), paint.meshKeyOf("node", index), (channel) =>
-            paint.plainText("node", index, channel),
-        );
+        return this.rowPaint(index);
     }
 
     /**
-     * What a row drawn with no `Node` is painted (`NodeBatches.paintRow`), the paint
-     * {@link StylePainter.nodePaint} gives it, built once per look rather than once per row.
+     * What one row is painted, built once per look rather than once per row.
      *
      * Rows painted by their mesh key alone share one style object, and each keeps its own colour,
      * so a load of a hundred thousand rows of one shape builds one style, not a hundred thousand.
-     * Only rows with no `Node` take it: a `Node` keeps the style object it is handed, and the objects
-     * path, which builds a `Node` for every row, still builds a style of its own for each.
      * @param index - The row's dense index.
      * @returns The paint, or null when nothing is bound or the index is not an element's.
      */
@@ -1276,10 +1619,15 @@ export class StylePainter {
             return null;
         }
 
-        const resolved = paint.styleOf("node", index);
+        const floor = this.floorOf("node");
+        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
         const meshKey = paint.meshKeyOf("node", index);
         const make = (): NodePaint =>
-            nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel));
+            keyedByFloor(
+                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
+                resolved,
+                floor,
+            );
         const identity = nodeIdentity(resolved, meshKey);
         if (identity === null) {
             return make();
@@ -1290,8 +1638,7 @@ export class StylePainter {
         const mesh = paint.meshStyleOf("node", meshKey);
         const known = this.nodeLooks.get(identity);
         if (known !== undefined && known.mesh === mesh) {
-            const { meshKey: key, style, color } = known.paint;
-            return { meshKey: key, style, color: color === null ? null : rowColor(resolved) };
+            return known.paint.color === null ? known.paint : sharedColorPaint(known, resolved);
         }
 
         if (this.nodeLooks.size >= EDGE_PAINT_CACHE_LIMIT) {
@@ -1299,7 +1646,13 @@ export class StylePainter {
         }
 
         const made = make();
-        this.nodeLooks.set(identity, { mesh, paint: made });
+        // The first row's paint is the one later rows of its color share.
+        const byHex = new Map<string, NodePaint>();
+        if (made.color !== null) {
+            byHex.set(asColorValue(resolved["node.color"])?.hex ?? "", made);
+        }
+
+        this.nodeLooks.set(identity, { mesh, paint: made, byHex });
         return made;
     }
 
@@ -1315,18 +1668,34 @@ export class StylePainter {
             return null;
         }
 
-        const resolved = paint.styleOf("edge", index);
+        const floor = this.floorOf("edge");
+        const resolved = floored(paint.styleOf("edge", index), "edge.width", floor, EDGE_WIDTH);
         const meshKey = paint.meshKeyOf("edge", index);
-        const directed = this.directed();
+        const directed = this.directed(index);
+        const last = this.lastEdgePaint;
+        if (
+            last !== null &&
+            last.meshKey === meshKey &&
+            last.directed === directed &&
+            sameStyle(last.resolved, resolved) &&
+            last.mesh === paint.meshStyleOf("edge", meshKey)
+        ) {
+            return last.paint;
+        }
+
         const make = (): EdgePaint =>
-            edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed);
+            keyedByFloor(
+                edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed),
+                resolved,
+                floor,
+            );
 
         if (!paintedByKeyAlone(resolved)) {
             return make();
         }
 
         // ONE PAINT PER KEY. Edges painted by their key alone share one paint object, so a pass that
-        // moves thousands of edges between two looks (a time window's Ghost row) builds two paints,
+        // moves thousands of edges between two looks (a time window's ghost look) builds two paints,
         // not thousands, and an edge handed the paint it is already drawn from skips by reference.
         // The interned mesh style is held beside it because a released mesh key is minted again
         // for another style.
@@ -1335,6 +1704,7 @@ export class StylePainter {
         const known = this.edgePaints.get(identity);
 
         if (known !== undefined && known.mesh === mesh) {
+            this.lastEdgePaint = { resolved, meshKey, directed, mesh, paint: known.paint };
             return known.paint;
         }
 
@@ -1344,6 +1714,7 @@ export class StylePainter {
 
         const made = make();
         this.edgePaints.set(identity, { mesh, paint: made });
+        this.lastEdgePaint = { resolved, meshKey, directed, mesh, paint: made };
 
         return made;
     }

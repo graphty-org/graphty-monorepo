@@ -53,7 +53,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Time window",
+    "filter-step": "Filter",
     source: "Source",
 };
 
@@ -69,11 +69,16 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model",
     "node.modelTurn": "Model",
     "node.modelTint": "Model",
+    "node.modelDoubleSided": "Model",
+    "node.modelAnimation": "Model",
+    "node.modelAnimationSpeed": "Model",
+    "node.modelAnimationOffset": "Model",
     "node.modelFit": "Model",
     "node.modelCenter": "Model",
     "node.texture": "Texture",
@@ -87,6 +92,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapWidth": "Label",
     "node.labelLetterSize": "Label",
     "node.labelWrapTrailingSpace": "Label",
+    "node.labelWrapSkipEndSpace": "Label",
     "node.labelMinScreenSize": "Label",
     "node.labelOnTop": "Label",
     "node.labelDeclutter": "Label",
@@ -95,6 +101,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
     "node.halo": "Halo",
@@ -188,12 +195,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapWidth": "Label",
     "edge.labelLetterSize": "Label",
     "edge.labelWrapTrailingSpace": "Label",
+    "edge.labelWrapSkipEndSpace": "Label",
     "edge.labelMinScreenSize": "Label",
     "edge.labelOnTop": "Label",
     "edge.labelRotation": "Label",
     "node.labelWrapEllipsis": "Label",
     "node.labelWrapAnywhere": "Label",
     "node.labelWrapSpaceCount": "Label",
+    "node.labelMaxLines": "Label",
+    "node.labelMaxLinesEllipsis": "Label",
     "node.labelRunAlign": "Label",
     "node.labelOutline": "Label",
     "node.labelOutlineWidth": "Label",
@@ -206,6 +216,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPadding": "Label",
     "node.labelCornerRadius": "Label",
     "node.labelLineHeight": "Label",
+    "node.labelLineBox": "Label",
+    "node.labelBorderAlign": "Label",
+    "node.labelBackgroundShape": "Label",
     "node.labelOffsetX": "Label",
     "node.labelOffsetY": "Label",
     "node.labelShiftX": "Label",
@@ -267,6 +280,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",
@@ -303,6 +317,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartLineWidth": "Chart line width",
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
+    "node.chartBackgroundColor": "Chart background color",
+    "node.chartBackgroundOpacity": "Chart background opacity",
     "node.exactCornerRadius": "Exact corner radius",
     "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Shape",
@@ -349,6 +365,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow",
     "edge.arrowHeadOutlineWidth": "Arrow",
+    "edge.arrowHeadFillColor": "Arrow",
     "edge.arrowHeadGap": "Arrow",
     "edge.arrowHeadStack": "Arrow",
     "edge.arrowHeadImage": "Arrow",
@@ -362,6 +379,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetY": "Arrow",
     "edge.arrowTailSide": "Arrow",
     "edge.arrowTailOutlineWidth": "Arrow",
+    "edge.arrowTailFillColor": "Arrow",
     "edge.arrowTailGap": "Arrow",
     "edge.arrowTailStack": "Arrow",
     "edge.arrowTailImage": "Arrow",
@@ -378,6 +396,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadWidth": "Arrow",
     "edge.arrowMiddleHeadSide": "Arrow",
     "edge.arrowMiddleHeadOutlineWidth": "Arrow",
+    "edge.arrowMiddleHeadFillColor": "Arrow",
     "edge.arrowMiddleHeadPosition": "Arrow",
     "edge.arrowMiddleHeadColor": "Arrow",
     "edge.arrowMiddleHeadOpacity": "Arrow",
@@ -387,6 +406,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailWidth": "Arrow",
     "edge.arrowMiddleTailSide": "Arrow",
     "edge.arrowMiddleTailOutlineWidth": "Arrow",
+    "edge.arrowMiddleTailFillColor": "Arrow",
     "edge.arrowMiddleTailPosition": "Arrow",
     "edge.arrowMiddleTailColor": "Arrow",
     "edge.arrowMiddleTailOpacity": "Arrow",
@@ -396,6 +416,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapEllipsis": "Label",
     "edge.labelWrapAnywhere": "Label",
     "edge.labelWrapSpaceCount": "Label",
+    "edge.labelMaxLines": "Label",
+    "edge.labelMaxLinesEllipsis": "Label",
     "edge.labelRunAlign": "Label",
     "edge.labelOutline": "Label",
     "edge.labelOutlineWidth": "Label",
@@ -409,6 +431,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
+    "edge.labelLineBox": "Label",
+    "edge.labelBorderAlign": "Label",
+    "edge.labelBackgroundShape": "Label",
     "edge.labelOffsetX": "Label",
     "edge.labelOffsetY": "Label",
     "edge.labelShiftX": "Label",
@@ -501,26 +526,26 @@ export function directionNote(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
- * directed graph, "Ava -- Kofi" otherwise.
+ * An edge by its two ends' names (the element's `data.edgeName`): "Ava -> Kofi" on a directed
+ * graph, "Ava -- Kofi" otherwise.
  * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    const { source, target } = session.data.edgeName(edge);
+    return `${source.name}${edgeJoiner(session)}${target.name}`;
 }
 
 /**
  * What the status line calls one selected node: the label graphty-element gives it
- * (`session.data.name`, the label column's value), else its id.
+ * (`session.data.nodeName`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.
  * @returns such as "Nebraska", or "74" when the graph has no label column.
  */
 export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**
@@ -559,6 +584,18 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 
 /** What a node's Degree row does: it changes the selection. */
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
+
+/**
+ * What a degree is called where it is read: among what is shown while a filter or the time window
+ * hides something ("Degree showing", as "Nodes showing"), else plain "Degree".
+ * @param session - the element's session.
+ * @param name - the degree's name ("Degree", "In-degree").
+ * @returns the label.
+ */
+export function degreeLabel(session: GraphSession, name = "Degree"): string {
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    return visibleNodes < totalNodes ? `${name} showing` : name;
+}
 
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";

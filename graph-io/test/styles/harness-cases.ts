@@ -8,7 +8,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { extractStyles } from "../../src/styles/internal.js";
+import { readFileStyles } from "../../src/styles/internal.js";
 import { RANDOM_10000, RANDOM_10000_CUT } from "./formats/dot.js";
 import {
     checkHostileBlocks,
@@ -39,30 +39,6 @@ export const FORMATS = [...registered, ...unregistered];
  * failure, so the fix turns it red until it is removed from here. All found by the style fidelity fixtures.
  */
 const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
-    [
-        "json/fidelity/vis-siblings.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-synth.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-transparency.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-unix.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-world.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/vis-dot-to-graph-softmaint.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
     [
         "json/generated/cytoscape-graphty-written.json plans",
         "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
@@ -149,7 +125,7 @@ export function writeSlice(slice: number): (readonly [string, StyleWriter, Write
  */
 export async function writeProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
     const loaded = await input.load();
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
     return ex === null ? [] : roundTrip(writer, loaded, ex, !SCALE_POINTS.has(input.name));
 }
 
@@ -162,6 +138,6 @@ export async function writeProblems(writer: StyleWriter, input: StyleInput): Pro
  */
 export async function hostileProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
     const loaded = await input.load();
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
     return ex === null ? [] : checkHostileBlocks(writer, loaded, ex);
 }

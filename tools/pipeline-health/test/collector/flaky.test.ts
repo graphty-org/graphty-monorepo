@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     blockedPrs,
+    cleanRunsNeeded,
     flakyMembers,
     type FlakySeen,
     type IssueText,
@@ -13,7 +14,8 @@ import {
 } from "../../src/collector/flaky.js";
 import { GitHub } from "../../src/collector/github.js";
 import type { GqlPr } from "../../src/collector/parse.js";
-import { DAY, floorTo, MIN, rollKey, type TestItem } from "../../src/model/items.js";
+import { type Bucket, DAY, floorTo, MIN, rollKey, type TestItem } from "../../src/model/items.js";
+import { fileRunKey } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
 import { MemoryStore } from "../../src/model/store.js";
 
@@ -131,7 +133,9 @@ describe("flaky in CI with no open issue", () => {
         await day(store, TODAY - 10 * DAY, [["graphty", "c.test.ts", "older than the week"]]);
         const { gh, asked } = searchGitHub([filed("a.test.ts", "named in an issue")]);
         const m = await flakyMembers(store, gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(2);
+        expect(m.obs["flaky.no_issue"]).toBe(2);
+        // #8795: the dashboard row names the tests it counts
+        expect(m.untracked.sort()).toEqual(["a.test.ts > suite > nobody filed", "b.test.ts > also unfiled"]);
         // Two searches: the open flaky issues, and those closed as fixed since the week began.
         expect(asked).toEqual([
             `repo:${REPO} is:issue flaky is:open`,
@@ -151,17 +155,20 @@ describe("flaky in CI with no open issue", () => {
             filed("LocationMap.real-element.test.tsx", "chooses the map in the Map form"),
         ]);
         const m = await flakyMembers(store, gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
     });
 
     it("is 0 when nothing was flaky, without asking GitHub", async () => {
         const { gh, asked } = searchGitHub([]);
         const m = await flakyMembers(new MemoryStore(), gh, REPO, [], NOW);
-        expect(m).toEqual({
+        expect(m.untracked).toEqual([]);
+        expect(m.obs).toEqual({
             "flaky.no_issue": 0,
             "flaky.blocked_prs": 0,
             "flaky.blocked_oldest_ms": 0,
             "flaky.net_change": 0,
+            "flaky.net_added": 0,
+            "flaky.net_resolved": 0,
         });
         expect(asked).toEqual([]);
     });
@@ -180,7 +187,7 @@ describe("a flaky test whose issue was closed as fixed", () => {
         const store = new MemoryStore();
         await day(store, TODAY - DAY, [["graphty-element-stories", file, "Node Gap"]]);
         const m = await flakyMembers(store, searchGitHub([], [issue5820]).gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
     });
 
     /** The story was flaky today at `seenAt`, and its issue closed an hour before NOW. */
@@ -193,14 +200,14 @@ describe("a flaky test whose issue was closed as fixed", () => {
 
     it("is filed when the close came later on the day of its last flaky event", async () => {
         const m = await flakyToday(NOW - 2 * 3_600_000);
-        expect(m["flaky.no_issue"]).toBe(0);
-        expect(m["flaky.net_change"]).toBe(0); // new this week, and fixed
+        expect(m.obs["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.net_change"]).toBe(0); // new this week, and fixed
     });
 
     it("counts again when it goes flaky after the close on the same day", async () => {
         const m = await flakyToday(NOW - 30 * MIN);
-        expect(m["flaky.no_issue"]).toBe(1);
-        expect(m["flaky.net_change"]).toBe(1); // new this week, and not fixed
+        expect(m.obs["flaky.no_issue"]).toBe(1);
+        expect(m.obs["flaky.net_change"]).toBe(1); // new this week, and not fixed
     });
 });
 
@@ -256,7 +263,7 @@ describe("the six flaky issues of 2026-10-26", () => {
         const closed = issues.filter((i) => i.state === "CLOSED");
         expect(open).toHaveLength(3);
         const m = await flakyMembers(store, searchGitHub(open, closed).gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
         // Seen again after the fix: the closed issues no longer count, so those three have no open issue.
         await day(
             store,
@@ -264,7 +271,7 @@ describe("the six flaky issues of 2026-10-26", () => {
             tests.map(([, file, name]) => ["graphty", file, name]),
         );
         const later = await flakyMembers(store, searchGitHub(open, closed).gh, REPO, [], NOW + DAY);
-        expect(later["flaky.no_issue"]).toBe(3);
+        expect(later.obs["flaky.no_issue"]).toBe(3);
     });
 });
 
@@ -302,30 +309,86 @@ describe("the quarantine issues of 2026-10-27", () => {
             tests.map(([, file, name]) => ["graphty", file, name]),
         );
         const m = await flakyMembers(store, searchGitHub(issues, []).gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
     });
 });
 
 describe("net new flaky", () => {
     const seen = (file: string, ...days: number[]): [string, FlakySeen] => [
         testKey(file, "t"),
-        { file, name: "t", days: days.map((d) => TODAY - d * DAY) },
+        { file, name: "t", days: days.map((d) => TODAY - d * DAY), families: ["graphty"], events: days.length },
     ];
+    /** flaky.file_runs daily buckets: on each day ago, each file ran `n` times, `clean` of them clean. */
+    const fileRuns = (runs: Record<string, { n: number; clean: number }>, daysAgo: number[]): Map<number, Bucket> =>
+        new Map(
+            daysAgo.map((d) => [
+                TODAY - d * DAY,
+                {
+                    n: 0,
+                    sum: 0,
+                    dims: Object.fromEntries(
+                        Object.entries(runs).map(([file, r]) => [
+                            fileRunKey("graphty", file),
+                            { n: r.n, sum: r.clean },
+                        ]),
+                    ),
+                },
+            ]),
+        );
+    const allDays = Array.from({ length: 28 }, (_, i) => i);
 
-    it("adds tests first seen this week and takes away tests quiet for 7 days or fixed since their last detection", () => {
+    it("adds tests first seen this week and takes away tests fixed since their last detection", () => {
         const history = new Map([
             seen("new.ts", 2), // new this week
             seen("new-and-fixed.ts", 1), // new, then fixed
             seen("old-still-flaky.ts", 20, 3), // neither
-            seen("went-quiet.ts", 20, 9), // quiet since 9 days: resolved this week
-            seen("quiet-long-ago.ts", 25), // resolved in an earlier week
             seen("fixed-then-flaky-again.ts", 20, 1), // its issue closed before the newest detection
         ]);
         const fixed = new Map([
             [testKey("new-and-fixed.ts", "t"), TODAY - DAY + 3 * 3_600_000],
             [testKey("fixed-then-flaky-again.ts", "t"), TODAY - 4 * DAY],
         ]);
-        expect(netChange(history, fixed, NOW)).toBe(2 - 2);
+        expect(netChange(history, fixed, new Map(), NOW)).toEqual({ added: 2, resolved: 1 });
+    });
+
+    it("resolves a quiet test only once its clean runs would have shown its old failure rate", () => {
+        // Each file ran 4 times a day, every run after its last detection (9 days ago) clean.
+        const runs = fileRuns(
+            {
+                "one-in-ten.ts": { n: 4, clean: 4 },
+                "one-in-fifty.ts": { n: 4, clean: 4 },
+                "deleted.ts": { n: 0, clean: 0 },
+            },
+            allDays,
+        );
+        const history = new Map([
+            // 10 events in the 76 runs of days 27..9: about 1 in 8, so 22 clean runs, reached 3 days ago: resolved this
+            // week.
+            seen("one-in-ten.ts", 27, 25, 23, 21, 19, 17, 15, 13, 11, 9),
+            // 1 event in 76 runs needs 227 clean runs: 8 quiet days are not enough.
+            seen("one-in-fifty.ts", 9),
+            // Its file stopped running: removed, not resolved.
+            seen("deleted.ts", 20, 9),
+        ]);
+        expect(netChange(history, new Map(), runs, NOW)).toEqual({ added: 0, resolved: 1 });
+    });
+
+    it("does not resolve a test again in a later week, nor count runs that were not clean", () => {
+        const history = new Map([seen("rare.ts", 27, 20)]);
+        // 2 events in the 32 runs of days 27..20: 47 clean runs needed, reached 8 days ago: in the week of 2 days ago,
+        // not in this one.
+        const clean = fileRuns({ "rare.ts": { n: 4, clean: 4 } }, allDays);
+        expect(netChange(history, new Map(), clean, NOW - 2 * DAY).resolved).toBe(1);
+        expect(netChange(history, new Map(), clean, NOW)).toEqual({ added: 0, resolved: 0 });
+        // Runs that never passed the test (its group failed outright) are not clean: never resolved.
+        expect(netChange(history, new Map(), fileRuns({ "rare.ts": { n: 4, clean: 0 } }, allDays), NOW)).toEqual({
+            added: 0,
+            resolved: 0,
+        });
+    });
+
+    it("needs more clean runs the rarer the failure", () => {
+        expect([0.2, 0.1, 0.05, 0.02, 1].map(cleanRunsNeeded)).toEqual([14, 29, 59, 149, 1]);
     });
 
     it("reads closed issues from the search into flakyMembers", async () => {
@@ -337,8 +400,9 @@ describe("net new flaky", () => {
             [filed("a.test.ts", "fixed one", new Date(NOW - 3_600_000).toISOString())],
         );
         const m = await flakyMembers(store, gh, REPO, [], NOW);
-        expect(m["flaky.net_change"]).toBe(1); // two new, one fixed
-        expect(m["flaky.no_issue"]).toBe(0); // one open issue, one closed as fixed after its last detection
+        expect(m.obs["flaky.net_change"]).toBe(1); // two new, one fixed
+        expect([m.obs["flaky.net_added"], m.obs["flaky.net_resolved"]]).toEqual([2, 1]);
+        expect(m.obs["flaky.no_issue"]).toBe(0); // one open issue, one closed as fixed after its last detection
     });
 });
 

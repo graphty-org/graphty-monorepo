@@ -7,15 +7,13 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { PathWalkError } from "../errors.js";
+import { checkWeights, PathWalkError } from "../errors.js";
 import { arcSourceIn } from "./structures/arc-source.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
 /**
- * Single-source shortest paths, index-based (graph-format design 14.2 Port 2, line 3860).
- * `dist` is a `NumericVector` rather than the design's `F64` because ONE declaration serves both
- * the CPU port (which produces a `Float64Array`) and the dispatcher's decoration of an
- * accelerator's f32 result (plan decision PD-3, departure DEP-8A-C).
+ * Single-source shortest paths from one source. `dist` is a `NumericVector`: a `Float64Array` from the CPU run, a
+ * `Float32Array` when an accelerator answered through `accelerated()`.
  * @public
  */
 export interface SsspResult {
@@ -40,7 +38,7 @@ export interface SsspResult {
 export interface SsspOptions {
     /** Stop relaxing beyond this distance. */
     readonly cutoff?: number | undefined;
-    /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
+    /** Per-arc weight override, arcCount long; f64 weights here are used exactly. */
     readonly weights?: NumericVector | undefined;
 }
 
@@ -128,12 +126,16 @@ export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, ta
  * @param sourceNode - The node to start from: its index, or `{ id }`
  * @param options - Cutoff and per-arc weight override
  * @returns The distances, the predecessor arcs, and the two path accessors
+ * @throws RangeError with code `E_BAD_WEIGHT` when a weight is negative, NaN or infinite (use
+ * `bellmanFord` for negative weights), or `E_BAD_OPTION` when the weights override has the wrong length
  * @public
  */
 export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOptions = {}): SsspResult {
     const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx } = g;
     const weights: NumericVector | null = options.weights ?? g.weights;
+    // A negative arc re-queues a popped node, so a negative cycle (or undirected edge) never ends.
+    checkWeights("dijkstra", weights, colIdx.length);
     const dist = new Float64Array(nodeCount).fill(Infinity);
     const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const heap = new IndexedMinHeap(nodeCount);

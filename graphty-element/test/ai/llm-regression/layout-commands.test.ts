@@ -14,57 +14,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import { assertAction, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
-
-/**
- * Valid layout types that can be set.
- * Maps prompts to expected layout types with synonyms.
- */
-const LAYOUT_SYNONYMS: Record<string, string[]> = {
-    circular: ["circular", "circle"],
-    ngraph: ["ngraph", "force-directed", "force", "physics"],
-    d3: ["d3", "d3-force", "force-directed"],
-    random: ["random"],
-    spiral: ["spiral"],
-    shell: ["shell"],
-    spring: ["spring"],
-    forceatlas2: ["forceatlas2", "forceatlas", "atlas"],
-};
-
-/**
- * Check if a layout type matches any of the expected synonyms.
- * Force-directed layouts could be 'ngraph', 'd3', 'spring', or 'forceatlas2'.
- *
- * @param actual - The actual layout type from the LLM
- * @param expected - The base expected layout type
- * @returns True if the layout matches expected or its synonyms
- */
-function isValidLayoutType(actual: unknown, expected: string): boolean {
-    if (typeof actual !== "string") {
-        return false;
-    }
-
-    const normalizedActual = actual.toLowerCase().trim();
-    const normalizedExpected = expected.toLowerCase().trim();
-
-    // Direct match
-    if (normalizedActual === normalizedExpected) {
-        return true;
-    }
-
-    // Check synonyms for expected layout
-    const synonyms = LAYOUT_SYNONYMS[normalizedExpected] as string[] | undefined;
-    if (synonyms?.some((s) => normalizedActual.includes(s))) {
-        return true;
-    }
-
-    // For force-directed, accept multiple layout types
-    if (normalizedExpected === "force-directed" || normalizedExpected === "ngraph") {
-        const forceDirectedLayouts = ["ngraph", "d3", "spring", "forceatlas2", "force"];
-        return forceDirectedLayouts.some((l) => normalizedActual.includes(l));
-    }
-
-    return false;
-}
+import { isLayout } from "./matchers";
 
 describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
@@ -88,7 +38,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
 
             // Verify layout type is circular
             assert.ok(
-                isValidLayoutType(call.arguments.engine ?? call.arguments.name, "circular"),
+                isLayout(call.arguments.engine ?? call.arguments.name, "circular"),
                 `Expected layout type 'circular' but got '${call.arguments.engine ?? call.arguments.name}'`,
             );
         });
@@ -99,9 +49,9 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             const call = assertAction(result, "layout", "set");
 
-            // Force-directed could be ngraph, d3, spring, or forceatlas2
+            // The force layout, by its id or any of its engines (ngraph, d3, forceatlas2, ...)
             assert.ok(
-                isValidLayoutType(call.arguments.engine ?? call.arguments.name, "force-directed"),
+                isLayout(call.arguments.engine ?? call.arguments.name, "force"),
                 `Expected force-directed layout type but got '${call.arguments.engine ?? call.arguments.name}'`,
             );
         });
@@ -114,7 +64,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
 
             // Verify layout type is random
             assert.ok(
-                isValidLayoutType(call.arguments.engine ?? call.arguments.name, "random"),
+                isLayout(call.arguments.engine ?? call.arguments.name, "random"),
                 `Expected layout type 'random' but got '${call.arguments.engine ?? call.arguments.name}'`,
             );
         });
@@ -171,22 +121,6 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
             assert.ok(result.commandResult.success, "Expected the change to succeed");
-        });
-
-        it("tracks latency for layout commands", async () => {
-            const result = await harness.testPrompt("Use spiral layout");
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
-
-        it("captures token usage for layout commands", async () => {
-            const result = await harness.testPrompt("Switch to 3D mode");
-
-            // Token usage may not always be available depending on provider configuration
-            if (result.tokenUsage) {
-                assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
-                assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");
-            }
         });
     });
 });

@@ -2,8 +2,9 @@
  * The measurement harness of the @graphty/graph-format benchmarks (design section 15.5), also used
  * by graphty-element's Node benchmarks (graphty-element/benchmarks/run.ts): every benchmark runs its
  * body several times (default 5) after one warm-up and reports the MEDIAN wall time plus the median
- * `process.memoryUsage()` heap-and-buffer delta of one run; with `--expose-gc` the garbage collector
- * runs before every measured iteration so the deltas are of the run, not of leftovers. Results are
+ * `process.memoryUsage()` heap-and-buffer delta of one run; the garbage collector runs before every
+ * measured iteration (the harness switches `--expose-gc` on itself) so the deltas and the times are of
+ * the run, not of leftovers. Results are
  * appended to `<package>/benchmarks/results/<host>-<node>.json` with the Node version and CPU model,
  * the pattern of algorithms/benchmarks/benchmark-sessions.json. Timings are recorded, never asserted.
  */
@@ -12,6 +13,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { cpus, hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 /** One measured benchmark. */
 export interface BenchResult {
@@ -53,16 +56,18 @@ interface BenchCase<T> {
     readonly run: (input: T) => unknown;
 }
 
-/** The global gc hook exposed by `node --expose-gc`. */
-declare const gc: (() => void) | undefined;
+/**
+ * The garbage collector, switched on here rather than by a `node --expose-gc` flag every caller must
+ * remember: without it the previous run's input is collected inside a later timed run (issue #6565).
+ */
+setFlagsFromString("--expose-gc");
+const gc = runInNewContext("gc") as () => void;
 
 /**
- * Run the garbage collector when `--expose-gc` is on.
+ * Run the garbage collector.
  */
 function collectGarbage(): void {
-    if (typeof gc === "function") {
-        gc();
-    }
+    gc();
 }
 
 /**
@@ -237,7 +242,7 @@ interface BenchSession {
     readonly node: string;
     /** CPU model string. */
     readonly cpu: string;
-    /** Whether --expose-gc was on. */
+    /** Whether the garbage collector ran before every measured run (always true since issue #6565). */
     readonly exposeGc: boolean;
     /** The results. */
     readonly results: readonly BenchResult[];
@@ -262,7 +267,7 @@ export function appendSession(
         host: hostname(),
         node: process.version,
         cpu: cpus()[0]?.model ?? "unknown",
-        exposeGc: typeof gc === "function",
+        exposeGc: true,
         results,
     };
     let sessions: BenchSession[] = [];

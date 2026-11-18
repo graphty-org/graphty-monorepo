@@ -32,7 +32,7 @@ import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
-import { isVisualCapture } from "./helpers";
+import { isVisualCapture, type RealInput, skyboxReady, untilFrames } from "./helpers";
 
 // Outside Storybook (render-parity, and every test that runs a story's play) nothing has run
 // .storybook/preview.ts, so storybook/test's waitFor would keep Testing Library's 1000 ms default
@@ -153,9 +153,8 @@ export interface Drawn {
      * READ OFF THE EDGES, because a cap has no mesh of its own. Every cap of one appearance is a
      * thin instance of a single batch mesh whose name deliberately does not say "arrow", so the
      * scene walk that counted caps by name finds none of them and would count the batch as a cap
-     * nothing is drawing. `Edge.drawnCaps` is where the answer moved to: the shape is the name
-     * the cap's mesh used to carry, and the span is the reading a story used to take off its
-     * bounding box -- the same number, so a measurement written before this change still holds.
+     * nothing is drawing. `Edge.drawnCaps` gives each cap's shape by name and its span, the
+     * same number a reading of the cap's bounding box gives.
      */
     readonly arrowCaps: readonly { readonly name: string; readonly span: number; readonly visibility: number }[];
     /** The distinct line-pattern meshes in the scene, by name. */
@@ -495,9 +494,8 @@ function sagittaOf(points: readonly Vector3[]): number {
  *
  * WAITING IS PART OF THE READING. Every wait here fails rather than expiring quietly, because a
  * wait that gives up and returns anyway cannot be told apart from a wait that succeeded: a story
- * whose fetch died would render an empty canvas and pass. That used to be true of the helpers in
- * `stories/helpers.ts` as well -- both of their waits raced a five-second timer that resolved
- * either way -- and is not any more: they throw, naming what never happened.
+ * whose fetch died would render an empty canvas and pass. The waits in `stories/helpers.ts`
+ * behave the same way: they throw, naming what never happened.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name the story in a failure message.
  * @returns What is on screen.
@@ -658,7 +656,16 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
         arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
         arrowCaps: drawnCaps,
-        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
+        // a dash, dot, box, diamond or star line's elements are drawn by its line's shader (issue #7404)
+        linePatternNames: [
+            ...new Set([
+                ...patternElements.map((element) => element.name),
+                ...edges.flatMap((edge) => {
+                    const pattern = edge.drawnLine?.pattern ?? null;
+                    return pattern === null ? [] : [`pattern-${pattern}`];
+                }),
+            ]),
+        ].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
@@ -1943,7 +1950,8 @@ export async function assertNodeBands(
 }
 
 /**
- * A skybox is actually in the scene.
+ * A skybox is actually in the scene, and its image has arrived: a dome with no image draws as an
+ * empty sphere, so the dome alone does not show the skybox loaded.
  * @param scene - What the story drew.
  */
 export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
@@ -1954,6 +1962,8 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
         `${scene.story}: asks for a photo-dome skybox and the scene holds no dome mesh at all -- it holds ` +
             `[${[...new Set(scene.graph.scene.meshes.map((mesh) => mesh.name))].join(", ")}]`,
     );
+    // The image arrives on the network's time; wait on it with no deadline (the hang guard ends a load that never comes).
+    await untilFrames("the skybox image has arrived", () => skyboxReady(scene.graph.scene.meshes));
 }
 
 /**
@@ -1962,15 +1972,22 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
  *
  * Pointer events on the canvas rather than `selectNode`, because these stories exist to show that
  * a CLICK selects: a story that selected through the API passed with the canvas's pointer
- * listeners gone. `button: -1` on the move, as a real move carries no button (a hand-built one
- * defaults to the left button, which Babylon reads as a press).
+ * listeners gone. Under the test runner, the browser's own pointer (`realInput`); in Storybook's
+ * own UI, pointer events dispatched on the canvas, with `button: -1` on the move, as a real move
+ * carries no button (a hand-built one defaults to the left button, which Babylon reads as a press).
  * @param scene - What the story drew.
  * @param id - The node to click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function clickNode(scene: Drawn, id: string): Promise<void> {
+export async function clickNode(scene: Drawn, id: string, input?: RealInput): Promise<void> {
     const at = scene.element.nodeScreenPosition(id);
 
     await holds(at?.visible === true, `${scene.story}: node "${id}" is not on screen to be clicked`);
+
+    if (input !== undefined && at !== undefined) {
+        await input.click(scene.element, { x: at.x, y: at.y });
+        return;
+    }
 
     const { canvas } = scene.graph;
     const box = canvas.getBoundingClientRect();
@@ -1983,6 +2000,42 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
 }
 
 /**
+ * Double-click a node the way a mouse does, at the spot the element says the node is drawn: the
+ * browser's own pointer under the test runner (`realInput`); in Storybook's own UI, two presses and
+ * releases dispatched on the canvas, then the `dblclick` the browser would add.
+ * @param element - The element.
+ * @param id - The node to double-click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
+ */
+export async function doubleClickNode(element: Graphty, id: string, input?: RealInput): Promise<void> {
+    const at = element.nodeScreenPosition(id);
+    await holds(at?.visible === true, `node "${id}" is not on screen to be double-clicked`);
+    if (input !== undefined && at !== undefined) {
+        await input.doubleClick(element, { x: at.x, y: at.y });
+        return;
+    }
+
+    const { canvas } = element.graph;
+    const box = canvas.getBoundingClientRect();
+    const pointer = {
+        clientX: box.left + (at?.x ?? 0),
+        clientY: box.top + (at?.y ?? 0),
+        bubbles: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+    };
+    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
+    for (let press = 1; press <= 2; press++) {
+        canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1, detail: press }));
+        canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0, detail: press }));
+        canvas.dispatchEvent(new MouseEvent("click", { ...pointer, button: 0, detail: press }));
+    }
+    // The browser's own word that the two clicks were one double-click, which the element expands on.
+    canvas.dispatchEvent(new MouseEvent("dblclick", { ...pointer, button: 0, detail: 2 }));
+}
+
+/**
  * Clicking a node puts the element's own highlight on screen.
  *
  * THE SCENE'S ANSWER TO "IS IT SELECTED", rather than the session's. The element draws a halo
@@ -1990,9 +2043,10 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
  * compared with each other -- which is the whole subject of the four selection stories.
  * @param scene - What the story drew.
  * @param id - The node the story clicks.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
-    await clickNode(scene, id);
+export async function assertSelectionDrawn(scene: Drawn, id: string, input?: RealInput): Promise<void> {
+    await clickNode(scene, id, input);
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.
@@ -2007,11 +2061,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
 
     const haloed = scene.graph
         .getNodes()
-        .filter((node) => {
-            const { halo } = node as unknown as { halo?: { isDisposed: () => boolean } | null };
-
-            return halo !== undefined && halo !== null && !halo.isDisposed();
-        })
+        .filter((node) => node.drawnSelectionHalo)
         .map((node) => String(node.id));
 
     await holds(

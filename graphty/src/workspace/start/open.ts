@@ -13,12 +13,7 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import {
-    createGraphSession,
-    type DataSourceInput,
-    type GraphSession,
-    type LoadDraft,
-} from "@graphty/graphty-element/session";
+import type { DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -70,7 +65,6 @@ export function openProject(
         ends: null,
         pickedSource: null,
         dataTab: "loaded",
-        timeWindowCard: false,
     }));
 }
 
@@ -111,6 +105,10 @@ export async function openNetworkSample(
     signal: AbortSignal,
 ): Promise<void> {
     workspace.set({ notice: null });
+    // Loaded on first use rather than with the start page, which does not need a session to show.
+    // Through a module of the app's own: the start page imports graphty-element's session entry
+    // statically, and a dynamic import of a module already in the first load brings all of it.
+    const { createGraphSession } = await import("./scratchSession");
     const scratch = createGraphSession({ features: [...siteConfig().features] });
     try {
         const read = await scratch.data.readExample(source, example, { signal });
@@ -149,12 +147,12 @@ export function preferLocalDatasets(prefer: boolean): void {
 
 /**
  * Where the datasets are read from: this machine's copy where there is one, else the site's own
- * (its site.json's `datasets`), else graph-samples' default.
- * @returns the options naming it, or none for graph-samples' default.
+ * (its site.json's `datasets`), else graph-samples' default. graphty-element has no default of
+ * its own, so every load names one.
+ * @returns the options naming it.
  */
-export function datasetBase(): { readonly baseUrl?: string } {
-    const baseUrl = localDatasets ?? siteConfig().datasets;
-    return baseUrl === undefined ? {} : { baseUrl };
+export function datasetBase(): { readonly baseUrl: string } {
+    return { baseUrl: localDatasets ?? siteConfig().datasets ?? DEFAULT_DATASET_BASE_URL };
 }
 
 /**
@@ -165,9 +163,7 @@ export function datasetBase(): { readonly baseUrl?: string } {
  * @returns the address, or undefined when it has no picture.
  */
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
-    return entry.thumbnail === undefined
-        ? undefined
-        : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
+    return entry.thumbnail === undefined ? undefined : new URL(entry.thumbnail, datasetBase().baseUrl).href;
 }
 
 /** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
@@ -407,19 +403,9 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
  * @param url - the address.
  * @returns the source.
  */
-function urlSource(url: string): Incoming {
+export function urlSource(url: string): Incoming {
     const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
     return { name, source: { config: { url }, name } };
-}
-
-/**
- * Opens the graph file at a web address as a new project named after the file, drawn as a first
- * file is. The element reads the format from the address and the file.
- * @param workspace - the workspace store.
- * @param url - the address.
- */
-export function openUrl(workspace: WorkspaceStore, url: string): void {
-    openSeparate(workspace, urlSource(url));
 }
 
 /**

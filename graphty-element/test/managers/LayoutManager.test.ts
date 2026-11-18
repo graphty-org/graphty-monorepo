@@ -5,7 +5,7 @@ import { afterEach, assert, beforeEach, describe, expect, it } from "vitest";
 import { LAYOUT_DESCRIPTORS } from "../../src/catalog/layouts";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
-import { LayoutEngine } from "../../src/layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { DataManager, EventManager, LayoutManager } from "../../src/managers";
 import { layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -439,8 +439,9 @@ describe("LayoutManager", () => {
         it("should report settled state from layout engine", async () => {
             await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
-            // ngraph layout might or might not be settled immediately
-            assert.isBoolean(layoutManager.isSettled);
+            const engine = layoutManager.layoutEngine;
+            assert.isDefined(engine);
+            assert.strictEqual(layoutManager.isSettled, engine.isSettled);
         });
 
         it("should report as settled when no layout engine", () => {
@@ -516,6 +517,46 @@ describe("LayoutManager", () => {
 
             graph.setRunning(true);
             assert.isTrue(graph.isRunning(), "the consumer's resume runs it again");
+        });
+
+        it("keeps a resting engine's publish scratch through its pre-steps and lets it go once after", async () => {
+            graph.setLayoutBehavior({ layout: { preSteps: 20 } });
+            graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }, { id: "c" }] as Record<string, unknown>[]);
+            graph.setRunning(false);
+
+            const heldAfterStep: number[] = [];
+            let built: LayoutEngine | undefined;
+            const originalGet = LayoutEngine.get;
+            LayoutEngine.get = (type: string, opts: object) => {
+                const engine = originalGet(type, opts);
+                if (engine) {
+                    built = engine;
+                    // Resting before its pre-steps, as a layout the consumer paused is.
+                    layoutEngineInternals.rest(engine, true);
+                    Object.defineProperty(engine, "isSettled", { get: () => false, configurable: true });
+                    const originalStep = engine.step.bind(engine);
+                    engine.step = () => {
+                        originalStep();
+                        heldAfterStep.push(layoutEngineInternals.scratchHeld(engine));
+                    };
+                }
+
+                return engine;
+            };
+
+            try {
+                await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
+            } finally {
+                LayoutEngine.get = originalGet;
+            }
+
+            assert.strictEqual(heldAfterStep.length, 20);
+            assert.isTrue(
+                heldAfterStep.every((held) => held > 0),
+                "held between steps, not made again on every step",
+            );
+            assert.isDefined(built);
+            assert.strictEqual(layoutEngineInternals.scratchHeld(built), 0, "let go once the pre-steps are published");
         });
     });
 

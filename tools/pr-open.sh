@@ -23,7 +23,10 @@
 #      again with --review-answered;
 #   4. scans the branch's changed files for secrets, uploads its Git LFS objects, and pushes the branch;
 #   5. opens the pull request (title: the branch's first commit header; body: the commit list, a line
-#      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one and
+#      "Fixes #N", or "Refs #N" with --refs, then a "Fixes #M" for every other issue a commit names with Fixes,
+#      Closes or Resolves and a "Refs #M" for every one named only with Refs (an issue group's members; GitHub
+#      closes the Fixes ones on merge, so the review judged each of them), and a "## Proof" section from the
+#      file), or reuses the open one and
 #      refreshes the Proof section of its description, and
 #      posts the review's report as a COMMENT review (its `<!-- fresh-review <patch id> -->` line is what PR
 #      Integrity checks) unless one with that marker is already there;
@@ -43,9 +46,35 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# How long the whole run and its review took, one line each in <main checkout>/tmp/step-times.jsonl
+# (tools/step-log.mjs). The log never fails or changes the run.
+log_step() { node "$here/step-log.mjs" "$@" >/dev/null 2>&1 || true; }
+run_start=$(date +%s%3N)
+on_exit() {
+    local rc=$?
+    log_step pr-open "$run_start" total "$rc"
+    [ -z "${tmp_files:-}" ] || rm -f $tmp_files
+}
+trap on_exit EXIT
 die() {
     echo "pr-open: $*" >&2
     exit "${code:-1}"
+}
+# The pull request's issue lines: "<kind> #<own>" first, then "Fixes #N" for every other issue a commit of <range>
+# (merge commits too: GitHub reads them all) names with a closing keyword (GitHub's: fix, close, resolve and their
+# -es/-ed forms, colon allowed; #N, graphty-org/graphty-monorepo#N or the issue's URL), then "Refs #N" for every
+# other one named only with Ref or Refs. <kind> is the given one, or Fixes when the branch names other issues and a
+# commit closes its own (GitHub closes it on merge whatever the flag says). A branch naming no other issue gets
+# "<given kind> #<own>" alone, as always. tools/pr-open.sh and tools/pr-review.sh both have it: keep them equal.
+#   member_lines <range> <own issue> <Fixes|Refs>
+member_lines() {
+    git log --format=%B "$1" |
+        { grep -oiE '\b(fix(e[sd])?|close[sd]?|resolve[sd]?|refs?)[[:space:]]*:?[[:space:]]+(https://github\.com/graphty-org/graphty-monorepo/issues/|graphty-org/graphty-monorepo#|#)[0-9]+\b' || true; } |
+        awk -v own="$2" -v kind="$3" '{ n = $NF; sub(/.*[#\/]/, "", n); sub(/^0+/, "", n); c = tolower($1) !~ /^ref/
+                if (n == own) { ownfix = ownfix || c; next }
+                others = 1; if (c) k[n] = "Fixes"; else if (!(n in k)) k[n] = "Refs" }
+            END { print 0, (ownfix && others ? "Fixes" : kind), own; for (n in k) print 1, k[n], n }' |
+        sort -k1,1n -k2,2 -k3,3n | awk '{ print $2 " #" $3 }'
 }
 
 proof="" refs=0 title="" issue="" answered=0 merge_master=0
@@ -73,9 +102,8 @@ for v in $(env | sed -n 's/^\(GIT_CONFIG_\(COUNT\|KEY_[0-9]*\|VALUE_[0-9]*\)\)=.
 [ -n "$proof" ] && [ -s "$proof" ] || die "--proof <file> is required and must not be empty: what you ran and what it showed"
 branch=$(git symbolic-ref -q --short HEAD) || die "HEAD is detached; check out the branch"
 case "$branch" in master | golden | golden-cut | golden-verified) die "refusing to open a pull request from $branch" ;; esac
-[ -n "$issue" ] || issue=$(git config "branch.$branch.issue" || true)
-# Only the number right after the type prefix: a date or a commit id elsewhere in the name is not an issue.
-[ -n "$issue" ] || issue=$(printf '%s\n' "$branch" | sed -nE 's#^[a-z0-9-]+/([0-9]{3,})(-[a-zA-Z].*)?$#\1#p')
+# Its branch.<b>.issue setting, else the number right after the type prefix (tools/branch-note.mjs issueInName).
+[ -n "$issue" ] || issue=$(node "$here/branch-note.mjs" issue-of "$branch" || true)
 [[ "$issue" =~ ^[0-9]+$ ]] || die "$branch names no issue (pass --issue N, or name it as in fix/1234-topic)"
 [ -z "$(git status --porcelain)" ] || die "the worktree has uncommitted or untracked changes; commit them first"
 [ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ] || die "a merge is in progress; finish it first"
@@ -111,7 +139,11 @@ fi
 # The fresh-context review, before anything is pushed. It prints its report's path; exit 3 is a blocking finding.
 review="${PR_OPEN_REVIEW:-$here/pr-review.sh}"
 rc=0
-report=$("$review" --proof "$proof" --issue "$issue" --reuse) || rc=$?
+review_start=$(date +%s%3N)
+# The review reads the members from the commits itself; it needs only whether this issue is Refs (an environment
+# variable, not an argument: master's copy, which the review always runs, would refuse an argument it predates).
+report=$(PR_REVIEW_REFS="$refs" "$review" --proof "$proof" --issue "$issue" --reuse) || rc=$?
+log_step pr-open-review "$review_start" review "$rc"
 if [ "$rc" = 3 ] && [ "$answered" = 1 ]; then
     echo "pr-open: opening with the review's blocking findings answered in the Proof (--review-answered)" >&2
 elif [ "$rc" = 3 ]; then
@@ -121,6 +153,19 @@ elif [ "$rc" != 0 ]; then
 fi
 
 base=$(git merge-base origin/master HEAD)
+if [ "$refs" = 1 ]; then kind=Refs; else kind=Fixes; fi
+members=$(member_lines "$base..HEAD" "$issue" "$kind") || die "could not read the issues $branch's commits name"
+# A pull request that closes an issue besides its own opens only on a review that judged every member: its header names
+# exactly these lines (master's older pr-review.sh, which the review always runs, does not), and no closed member
+# was found unaddressed, which --review-answered cannot answer: merging would close that issue unfixed.
+header=$(sed '/^$/q' "$report")
+if sed 1d <<<"$members" | grep -q '^Fixes ' &&
+    ! grep -qxF -- "<!-- review-members $(echo $members) -->" <<<"$header"; then
+    die "the review did not judge every issue this branch closes ($(echo $members)); tools/pr-review.sh on origin/master must review every member first"
+fi
+if grep -q '^<!-- member-not-addressed ' <<<"$header"; then
+    code=3 die "the review found an issue this branch closes that its diff does not address ($report): fix it on this branch"
+fi
 scan="${PR_OPEN_SCAN:-$here/scan-secrets.sh}"
 PREPUSH_ROOT="$PWD" "$scan" "$base" HEAD || die "the secret scan refused the branch"
 zero=0000000000000000000000000000000000000000
@@ -140,7 +185,7 @@ existing=$(gh pr list --head "$branch" --base master --state open --json url,aut
 url=${existing%% *}
 author=${existing#* }
 body=$(mktemp) section=$(mktemp)
-trap 'rm -f "$body" "$section"' EXIT
+tmp_files="$body $section"
 {
     echo "## Proof"
     echo
@@ -159,7 +204,7 @@ if [ -z "$url" ]; then
         total=$(git rev-list --count --no-merges "$base..HEAD")
         [ "$total" -le 50 ] || echo "- and $((total - 50)) more"
         echo
-        if [ "$refs" = 1 ]; then echo "Refs #$issue"; else echo "Fixes #$issue"; fi
+        echo "$members"
         echo
         cat "$section"
     } >"$body"
@@ -201,7 +246,7 @@ fi
 # saved-format/ and its push check). A change to one waits for the owner; every other CI change merges on green.
 # Gap the owner accepted: ci.yml's own gate steps are not held, so a pull request can still change a check
 # that judges it; code-owner review closes that when it is turned on.
-GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
+GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge|refresh-inherited-prs)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 # A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.

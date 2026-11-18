@@ -58,10 +58,15 @@ describe("Animation Helpers", () => {
             it("easeOutCubic returns correct values", () => {
                 assert.strictEqual(animation.easeOutCubic(0), 0);
                 assert.strictEqual(animation.easeOutCubic(1), 1);
+                // 1 - (1 - t)^3: 1 - 0.125 at the midpoint
+                assert.strictEqual(animation.easeOutCubic(0.5), 0.875);
             });
 
             it("easeInOutCubic is symmetric", () => {
                 assert.strictEqual(animation.easeInOutCubic(0.5), 0.5);
+                // 4t^3 in the first half, mirrored in the second
+                assert.strictEqual(animation.easeInOutCubic(0.25), 0.0625);
+                assert.strictEqual(animation.easeInOutCubic(0.75), 0.9375);
             });
         });
 

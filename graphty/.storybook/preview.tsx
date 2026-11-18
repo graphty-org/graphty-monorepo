@@ -13,6 +13,7 @@ import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
 import { loadGraphtyElement } from "../src/elementLoader";
 import { loadFrame } from "../src/workspace/frameLoader";
+import { assumeUsageDeclinedForTests } from "../src/workspace/privacy/usageData";
 import { HeroTurns } from "../src/workspace/start/heroTurns";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
@@ -50,7 +51,7 @@ if (
     !navigator.webdriver &&
     (hasErudaFlag(() => globalThis.location.search) || hasErudaFlag(() => globalThis.parent.location.search))
 ) {
-    void showEruda(); // NOSONAR(S7785): fire and forget on purpose; awaiting would hold every story until eruda loads
+    void showEruda(); // fire and forget on purpose; awaiting would hold every story until eruda loads
 }
 
 /** Load the eruda console and show it pinned top right, without making the preview wait for it. */
@@ -62,8 +63,8 @@ async function showEruda(): Promise<void> {
 }
 
 /**
- * Determines the Mantine color scheme based on Storybook globals.
- * Supports both Storybook's built-in backgrounds addon and custom theme global.
+ * Determines the Mantine color scheme based on Storybook globals: the capture mode's colorScheme
+ * first, then the toolbar's theme.
  */
 function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
     // The light and dark modes the visual capture renders (parameters.chromatic.modes below) set
@@ -72,30 +73,7 @@ function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
         return globals.colorScheme;
     }
 
-    // Check Storybook's built-in backgrounds addon
-    const backgroundValue = globals.backgrounds as { value?: string } | undefined;
-    if (
-        backgroundValue?.value === "light" ||
-        backgroundValue?.value === "#ffffff" ||
-        backgroundValue?.value === "#F8F8F8"
-    ) {
-        return "light";
-    }
-
-    if (
-        backgroundValue?.value === "dark" ||
-        backgroundValue?.value === "#333333" ||
-        backgroundValue?.value === "#1b1c1d"
-    ) {
-        return "dark";
-    }
-
-    // Fall back to custom theme global
-    if (globals.theme === "light") {
-        return "light";
-    }
-
-    return "dark";
+    return globals.theme === "light" ? "light" : "dark";
 }
 
 const preview: Preview = {
@@ -117,6 +95,11 @@ const preview: Preview = {
                 dynamicTitle: true,
             },
         },
+    },
+    // The usage data question is pinned over every page of a first visit; a story about it forgets
+    // this answer in its own beforeEach, which runs after this one.
+    beforeEach: () => {
+        assumeUsageDeclinedForTests();
     },
     initialGlobals: {
         theme: "dark",
@@ -157,20 +140,7 @@ const preview: Preview = {
         options: {
             storySort: {
                 method: "alphabetical",
-                order: [
-                    // App stories first
-                    "App",
-                    ["Default", "*"],
-                    // Then Graphty stories
-                    "Graphty",
-                    ["Default", "*"],
-                    // Compact Components
-                    "Compact",
-                    ["Overview", "Inputs", "Controls", "Buttons", "Display", "*"],
-                    // Data View Components
-                    "DataView",
-                    ["ViewDataModal", "DataAccordion", "DataGrid", "CopyButton", "*"],
-                ],
+                order: ["Compact", ["Overview", "Inputs", "Controls", "Buttons", "Display", "*"]],
                 includeNames: true,
             },
         },

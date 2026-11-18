@@ -1,16 +1,18 @@
 /**
- * Enhanced helpers that integrate loader-based event waiting
- * This approach prevents race conditions while maintaining backwards compatibility
+ * Shared story helpers: the story setup (data, styles, layout settings), waits on the element's
+ * own events and public state, and the real-input parameter stories use to click, drag and type.
  */
 
-import type { Meta } from "@storybook/web-components-vite";
+import type { AbstractMesh } from "@babylonjs/core";
+import { RemoteLogClient } from "@graphty/remote-logger";
+import type { Meta, WebComponentsRenderer } from "@storybook/web-components-vite";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
 
-import { LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
+import { LABEL_STYLE_DESCRIPTORS, LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
 import type { Channel, Encoding, LabelStyle, LayerSpec, StaticStyle } from "../src/catalog/types";
-import { type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
+import { EdgeArrowTypes, type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
 import type { AlgorithmOnLoad } from "../src/config/DataConfig";
 import { pageDefaultFeatures } from "../src/features/resolve";
 import type { Graphty } from "../src/graphty-element";
@@ -45,8 +47,8 @@ function setupEventListenersForElement(element: HTMLElement): void {
     const promises = new Map<string, Promise<void>>();
     const resolvers = new Map<string, () => void>();
 
-    // Note: skybox-loaded is optional and only fires if a skybox is configured, so it is waited
-    // for directly by the few stories that configure one.
+    // Note: skybox-loaded is optional and only fires if a skybox is configured; the few stories
+    // that configure one read the scene instead (waitForSkyboxLoaded).
     const events = ["data-loaded"];
     events.forEach((eventName) => {
         let resolver: (() => void) | undefined;
@@ -72,12 +74,20 @@ function setupEventListenersForElement(element: HTMLElement): void {
     eventWaitingState.set(element, { promises, resolvers });
 }
 
+/** The observer of the story rendered last, stopped when the next story renders. */
+let storyObserver: MutationObserver | undefined;
+
 /**
  * Enhanced decorator that sets up event listeners before elements are rendered
  * This decorator should be added to the meta configuration
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const eventWaitingDecorator = (story: any): any => {
+export const eventWaitingDecorator = (
+    story: () => WebComponentsRenderer["storyResult"],
+): WebComponentsRenderer["storyResult"] => {
+    // One observer at a time: the previous story's stops when the next one renders. It is not
+    // stopped on a timer, because an element added after that timer would have no listeners, and
+    // its play function would wait for an event that had already fired.
+    storyObserver?.disconnect();
     // Set up mutation observer to catch graphty-element creation
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -98,16 +108,9 @@ export const eventWaitingDecorator = (story: any): any => {
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
+    storyObserver = observer;
 
-    // Run the story
-    const result = story();
-
-    // Clean up observer after a short delay
-    setTimeout(() => {
-        observer.disconnect();
-    }, 100);
-
-    return result;
+    return story();
 };
 
 /**
@@ -156,11 +159,9 @@ async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
  * element's own answer to "is this the finished picture", and every consumer has it, not just
  * these stories.
  *
- * IT THROWS RATHER THAN GIVING UP. What stood here before raced the settle event against a five
- * second timer and resolved either way, so a story that had not finished moving was photographed
- * anyway and said nothing about it -- a determinism device that failed silently, which is the
- * same defect as a waiver that hides a bug. A story that cannot reach a final frame now fails,
- * with the element's account of what was still moving.
+ * IT THROWS RATHER THAN GIVING UP. A wait that resolved either way would photograph a story that
+ * had not finished moving and say nothing about it. A story that cannot reach a final frame
+ * fails, with the element's account of what was still moving.
  * @param canvasElement - The story's root element.
  */
 export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<void> {
@@ -179,47 +180,46 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
     await graphtyElement.waitForStableFrame();
 }
 
-// Helper to wait for skybox to load - only call this if your story actually uses a skybox
+/**
+ * Wait, a frame at a time, until a condition holds. It has no deadline of its own: the one hang
+ * guard (tools/test-wait-guard.mjs) ends a wait that never holds, so a busy machine that draws
+ * fewer frames per second only makes the story slower, never failed.
+ * @param _what - What is awaited, naming the wait where it is called.
+ * @param holds - The condition.
+ */
+export async function untilFrames(_what: string, holds: () => boolean): Promise<void> {
+    while (!holds()) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+}
+
+/**
+ * Wait until the story's skybox is drawn: its dome is in the scene and the dome's image has
+ * arrived. Only call this if your story uses a skybox.
+ *
+ * It reads the scene rather than listening for `skybox-loaded`, because a listener attached in
+ * `play` misses an event that fired while the story rendered. It has no deadline of its own: a
+ * skybox that never loads is ended by the one hang guard (tools/test-wait-guard.mjs) instead of
+ * being photographed without its image.
+ * @param canvasElement - The story's root element.
+ */
 export async function waitForSkyboxLoaded(canvasElement: HTMLElement): Promise<void> {
-    const graphtyElement = canvasElement.querySelector("graphty-element");
+    const graphtyElement = canvasElement.querySelector<Graphty>("graphty-element");
     if (!graphtyElement) {
-        // No element to wait for
         return;
     }
 
-    // Since skybox-loaded is not in the default decorator events, we always use direct listener
-    await new Promise<void>((resolve) => {
-        let resolved = false;
+    await untilFrames("the skybox image has arrived", () => skyboxReady(graphtyElement.graph.scene.meshes));
+}
 
-        // Short timeout - if skybox hasn't loaded quickly, it's probably not configured
-        const timeout = setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                // This is only called by stories that explicitly configure a skybox,
-                // so a timeout here might indicate a real issue
-                console.warn("[Warning] skybox-loaded event timeout (2s) - skybox may have failed to load");
-                resolve();
-            }
-        }, 2000);
-
-        const handleSkyboxLoaded = (): void => {
-            if (!resolved) {
-                resolved = true;
-                clearTimeout(timeout);
-                resolve();
-            }
-        };
-
-        graphtyElement.addEventListener("skybox-loaded", handleSkyboxLoaded, { once: true });
-
-        // Check if the skybox might have already loaded
-        // Give it a tiny delay to see if the event fires immediately
-        setTimeout(() => {
-            if (!resolved) {
-                // Still waiting - skybox is probably loading
-            }
-        }, 10);
-    });
+/**
+ * Whether a scene's meshes hold a skybox dome whose image has arrived.
+ * @param meshes - The scene's meshes.
+ * @returns True once at least one dome mesh is in the scene and every one is ready to draw.
+ */
+export function skyboxReady(meshes: readonly AbstractMesh[]): boolean {
+    const domes = meshes.filter((mesh) => mesh.name.toLowerCase().includes("dome"));
+    return domes.length > 0 && domes.every((mesh) => mesh.isReady(true));
 }
 
 /**
@@ -227,8 +227,7 @@ export async function waitForSkyboxLoaded(canvasElement: HTMLElement): Promise<v
  *
  * ONE STACK, ONE DOCUMENT. `node`, `edge`, `nodeEncode`, `edgeEncode` and `layers` become layers
  * on `session.styles`, which is the only style stack there is; the rest are the element's own
- * configuration properties. What used to sit here instead was a 1.x style template, which
- * carried both halves in one object and replaced the whole of it every time a story applied one.
+ * configuration properties, set one by one so a story changes only what it names.
  */
 interface StorySetup {
     /** Channels every node is painted with, such as `{"node.color": "red"}`. */
@@ -437,11 +436,9 @@ function applyStyleLayers(element: Graphty, setup: StorySetup): void {
 /**
  * Apply the configuration half of a story's setup to the element.
  *
- * TWO OF THESE REACH THROUGH `graph`, AND SHOULD NOT HAVE TO. The layout pre-step count and the
- * list of algorithms to run on load were reachable only through the style template, and when that
- * was removed nothing replaced them: every other setting it carried has a property on
- * `<graphty-element>` -- `viewMode`, `background`, `startingCameraDistance`, `layout` -- and these
- * two have none. Until the element grows them, a story writes the configuration document.
+ * Every setting goes through a public property of `<graphty-element>`: `viewMode`,
+ * `background`, `startingCameraDistance`, `layoutBehavior` (layout pre-steps, the step
+ * multiplier, label decluttering and text) and `algorithmsOnLoad`.
  * @param element - The element to configure.
  * @param setup - What the story asked for.
  */
@@ -458,8 +455,8 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
         element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    // One document, written once: two assignments would leave only the second, and a story that
-    // declutters its labels used to lose its pre-steps that way.
+    // One document, written once: two assignments would leave only the second, so a story that
+    // declutters its labels would lose its pre-steps.
     const { preSteps, stepMultiplier, declutterLabels, labelText } = setup;
     const labels = {
         ...(declutterLabels === undefined ? {} : { declutter: declutterLabels }),
@@ -585,6 +582,19 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         }
     }
 
+    // A `layoutConfig.<option>` the reader changed wins over the controls above. The panel labels a
+    // control by the option it sets (`layoutConfig.weighted`), but its arg key is something else
+    // (`kamadaWeighted`), so a link built from the label -- `?args=layoutConfig.weighted:!false` --
+    // reaches Storybook as a nested write into the `layoutConfig` arg, which the control's
+    // unchanged value must not overwrite. Either spelling works in a URL (issue #229).
+    const initialLayoutConfig = (storyConfig.initialArgs.layoutConfig ?? {}) as Record<string, unknown>;
+
+    for (const [option, value] of Object.entries((args.layoutConfig ?? {}) as Record<string, unknown>)) {
+        if (value !== initialLayoutConfig[option]) {
+            layoutConfig[option] = value;
+        }
+    }
+
     applyConfiguration(g, setup);
     applyStyleLayers(g, setup);
 
@@ -634,148 +644,80 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     return g;
 };
 
+/** The console methods {@link remoteLogging} forwards. */
+const FORWARDED_CONSOLE_METHODS = ["log", "info", "warn", "error"] as const;
+
 /**
- * Decorator that enables remote logging for XR debugging.
- * Logs are sent to the server specified in VITE_REMOTE_LOG_URL env var (default: https://localhost:9077/log)
- * Start the server with: npm run dev:xr
+ * Forward the console to a remote-logger server while a story is shown, for debugging on an XR
+ * headset whose console cannot be seen. Use it as a story's `beforeEach`: the cleanup it returns
+ * puts the console back when the story is left.
  *
- * Usage:
- * ```
- * export default {
- *     decorators: [eventWaitingDecorator, remoteLoggingDecorator],
- * }
- * ```
+ * The server is the one `VITE_REMOTE_LOG_URL` names, by its base URL (the client posts to
+ * `<url>/log`): start `npx remote-log-server --port {{port}}` from the remote-logger package
+ * through servherd and set the variable to the URL servherd gives it. Unset, nothing is forwarded
+ * and the console is left alone.
+ *
+ * Batching, retries and dropping a batch the server never took are `RemoteLogClient`'s, so the
+ * logs a story writes with no server listening are given up after the retries, never kept.
+ * @returns The cleanup that restores the console, or nothing when no server is named.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const remoteLoggingDecorator = (story: any): any => {
-    // Only enable in browser environment
-    if (typeof window !== "undefined") {
-        enableRemoteLoggingInBrowser();
+export const remoteLogging = (): (() => void) | undefined => {
+    const serverUrl = import.meta.env.VITE_REMOTE_LOG_URL as string | undefined;
+
+    if (!serverUrl) {
+        return undefined;
     }
 
-    return story();
+    const client = new RemoteLogClient({
+        serverUrl,
+        sessionPrefix: "storybook",
+        throttlePatterns: [
+            { pattern: /Max number of touches/, intervalMs: 5000 },
+            { pattern: /Max touches exceeded/, intervalMs: 5000 },
+        ],
+    });
+    /* eslint-disable no-console -- the console is what this forwards */
+    const originals = FORWARDED_CONSOLE_METHODS.map((method) => [method, console[method].bind(console)] as const);
+
+    for (const [method, original] of originals) {
+        console[method] = (...args: unknown[]): void => {
+            original(...args);
+
+            // The client reports its own failed sends on the console; forwarding that would send
+            // one more batch for every batch that failed.
+            if (typeof args[0] === "string" && args[0].startsWith("[RemoteLogClient]")) {
+                return;
+            }
+
+            client.log(method.toUpperCase(), args.map(formatConsoleArg).join(" "));
+        };
+    }
+
+    return () => {
+        for (const [method, original] of originals) {
+            console[method] = original;
+        }
+
+        void client.close();
+    };
+    /* eslint-enable no-console */
 };
 
 /**
- * Enable remote logging in the browser.
- * Intercepts console.log/warn/error/info and sends to remote server.
+ * One console argument as text.
+ * @param arg - What was passed to the console.
+ * @returns It as JSON when it is an object that serialises, otherwise as a string.
  */
-function enableRemoteLoggingInBrowser(): void {
-    // Don't enable twice
-    if ((window as unknown as { __remoteLoggingEnabled?: boolean }).__remoteLoggingEnabled) {
-        return;
+function formatConsoleArg(arg: unknown): string {
+    if (typeof arg !== "object" || arg === null) {
+        return String(arg);
     }
 
-    (window as unknown as { __remoteLoggingEnabled?: boolean }).__remoteLoggingEnabled = true;
-
-    // Use VITE_REMOTE_LOG_URL env var or fall back to localhost
-    const SERVER_URL = (import.meta.env.VITE_REMOTE_LOG_URL as string | undefined) ?? "https://localhost:9077/log";
-    const SESSION_ID = `storybook-${Date.now().toString(36)}`;
-    const LOG_BUFFER: { time: string; level: string; message: string }[] = [];
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // Throttling for repeated messages
-    const lastMessages = new Map<string, number>();
-    const THROTTLE_MS = 5000;
-    const THROTTLE_PATTERNS = [/Max number of touches/, /Max touches exceeded/];
-
-    function shouldThrottle(message: string): boolean {
-        for (const pattern of THROTTLE_PATTERNS) {
-            if (pattern.test(message)) {
-                const key = pattern.source;
-                const lastTime = lastMessages.get(key) ?? 0;
-                const now = Date.now();
-                if (now - lastTime < THROTTLE_MS) {
-                    return true;
-                }
-
-                lastMessages.set(key, now);
-                return false;
-            }
-        }
-        return false;
+    try {
+        return JSON.stringify(arg, null, 2);
+    } catch {
+        return "[Circular or non-serializable object]";
     }
-
-    function flushLogs(): void {
-        if (LOG_BUFFER.length === 0) {
-            return;
-        }
-
-        const logsToSend = LOG_BUFFER.splice(0, LOG_BUFFER.length);
-        fetch(SERVER_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId: SESSION_ID, logs: logsToSend }),
-        }).catch(() => {
-            // Put logs back on failure
-            LOG_BUFFER.unshift(...logsToSend);
-        });
-    }
-
-    function formatArgs(args: unknown[]): string {
-        return args
-            .map((arg) => {
-                if (typeof arg === "object" && arg !== null) {
-                    try {
-                        return JSON.stringify(arg, null, 2);
-                    } catch {
-                        return "[Circular or non-serializable object]";
-                    }
-                }
-
-                return String(arg);
-            })
-            .join(" ");
-    }
-
-    function queueLog(level: string, args: unknown[]): void {
-        const message = formatArgs(args);
-        if (shouldThrottle(message)) {
-            return;
-        }
-
-        LOG_BUFFER.push({
-            time: new Date().toISOString(),
-            level,
-            message,
-        });
-        if (flushTimer) {
-            clearTimeout(flushTimer);
-        }
-
-        flushTimer = setTimeout(flushLogs, 100);
-    }
-
-    // Store original console methods and override them with remote logging wrappers
-    // This is intentional - the remote logging system intercepts console.* calls
-    /* eslint-disable no-console */
-    const originalConsole = {
-        log: console.log.bind(console),
-        warn: console.warn.bind(console),
-        error: console.error.bind(console),
-        info: console.info.bind(console),
-    };
-
-    // Override console methods
-    console.log = (...args: unknown[]) => {
-        originalConsole.log(...args);
-        queueLog("LOG", args);
-    };
-    console.warn = (...args: unknown[]) => {
-        originalConsole.warn(...args);
-        queueLog("WARN", args);
-    };
-    console.error = (...args: unknown[]) => {
-        originalConsole.error(...args);
-        queueLog("ERROR", args);
-    };
-    console.info = (...args: unknown[]) => {
-        originalConsole.info(...args);
-        queueLog("INFO", args);
-    };
-
-    originalConsole.log(`[RemoteLogging] Enabled with session: ${SESSION_ID}`);
-    /* eslint-enable no-console */
 }
 
 /**
@@ -788,23 +730,30 @@ function enableRemoteLoggingInBrowser(): void {
  */
 export const nodeShapes = NodeShapes.options;
 
-/** Every arrow cap a layer can ask for, which is what `edge.arrowHead` and `edge.arrowTail` take. */
-export const arrowTypes = [
-    "normal",
-    "inverted",
-    "dot",
-    "sphere-dot",
-    "open-dot",
-    "none",
-    "tee",
-    "open-normal",
-    "diamond",
-    "open-diamond",
-    "crow",
-    "box",
-    "half-open",
-    "vee",
-] as const;
+/**
+ * Every arrow cap a layer can ask for, which is what `edge.arrowHead` and `edge.arrowTail` take, in
+ * the order the schema declares them.
+ *
+ * READ OFF `EdgeArrowTypes`, NEVER RETYPED, for the reason `nodeShapes` is: the hand-written copy
+ * held fourteen of the schema's arrows, so the arrow pickers offered none of the rest.
+ */
+export const arrowTypes = EdgeArrowTypes.options;
+
+/**
+ * The values a label style field takes, read off the element's own label style descriptors, for a
+ * select control's options.
+ * @param field - A label style field that takes one of a fixed set of values.
+ * @returns Those values, in the order the descriptor lists them.
+ */
+export function labelStyleValues(field: keyof LabelStyle): readonly string[] {
+    const values = LABEL_STYLE_DESCRIPTORS.find((descriptor) => descriptor.field === field)?.values;
+
+    if (!values) {
+        throw new Error(`label style field ${field} takes no fixed set of values`);
+    }
+
+    return values;
+}
 
 /**
  * Real (browser-trusted) pointer input for play functions.
@@ -819,6 +768,12 @@ export interface RealInput {
     hover(element: Element, point: { x: number; y: number }): Promise<void>;
     /** Press and release the left button at a point in CSS pixels from the element's top-left corner. */
     click(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Click twice at a point, as one double-click, in CSS pixels from the element's top-left corner. */
+    doubleClick(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Move to a point and press the left button there, holding it, in CSS pixels from the element's top-left corner. */
+    press(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Release the left button at a point, as after `press`. */
+    release(element: Element, point: { x: number; y: number }): Promise<void>;
 }
 
 /**

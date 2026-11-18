@@ -3,7 +3,7 @@
  * of network, a card opens the app with the form on that kind, and closing the form stays in the
  * app, also across a reload; a refused Load stays in the form; and the Load network data
  * section holds one sample of each kind of source, each of which reads first and lands on the graph
- * with the Style panel up; a project's Samples offers the same samples. Every step is real input;
+ * with the Style panel up; and a project's Samples offers the same samples. Every step is real input;
  * NDEx answers from its recording.
  */
 
@@ -144,23 +144,25 @@ describe("network data from the start page", () => {
         await clearRecent();
     });
 
-    it("pops up the four kinds of network, and nothing opens until one is picked", async () => {
+    it("pops up the four kinds of network and Load from URL, and nothing opens until one is picked", async () => {
         const { store, chooser } = await openChooser();
         assert.deepEqual(
             within(chooser)
                 .getAllByRole("button")
                 .map((button) => button.textContent)
-                .slice(0, 5),
+                .slice(0, 6),
             [
                 "",
                 "NDNDExPublic biology networks",
                 "N4jNeo4jRun a Cypher query",
                 "SPSPARQL endpointRun a SPARQL query",
                 "APIWeb APIJSON results as nodes and edges",
+                "URLLoad from URLA graph file at a web address",
             ],
         );
-        within(chooser).getByPlaceholderText("Web address of a graph file");
-        within(chooser).getByRole("button", { name: /^Open a file/ });
+        assert.isNull(within(chooser).queryByPlaceholderText("Web address of a graph file"));
+        assert.isNull(within(chooser).queryByRole("textbox"));
+        assert.isNull(within(chooser).queryByRole("button", { name: /^Open a file/ }));
         assert.isNull(store.get().project);
     });
 
@@ -169,6 +171,7 @@ describe("network data from the start page", () => {
         [/^Neo4j/, "Neo4j"],
         [/^SPARQL/, "SPARQL endpoint"],
         [/^Web API/, "Web API"],
+        [/^Load from URL/, "Load from URL"],
     ] as const) {
         it(`opens the app with the form on ${kind}, with no samples in it`, async () => {
             const { store, form } = await openForm(card);

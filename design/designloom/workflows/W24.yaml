@@ -28,7 +28,8 @@ suggested_components:
     - statistics-panel
     - filter-panel
     - visual-encoding-panel
-    - export-dialog
+    - data-export-dialog
+    - image-export-dialog
 starting_state:
     data_type: two or more networks over the same gene identifier space (tumor vs normal, treated vs untreated, two diseases)
     node_count: 100-5000 each

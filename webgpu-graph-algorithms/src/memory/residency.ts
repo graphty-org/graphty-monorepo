@@ -1,16 +1,18 @@
 /**
- * The upload cache of spec 4.1 / 4.3 / 4.5: every core array, view array, column and ad hoc array a kernel binds
+ * The upload cache: every core array, view array, column and ad hoc array a kernel binds
  * lives on the device exactly once per snapshot core, keyed on the typed-array object (or the Column object for
- * columns, PLAN DECISION 8), recorded per serial so `release(snapshot)` destroys every buffer of a snapshot and its
- * withColumns() siblings, and tombstoned so a live user learns of the release through `isReleased` (spec 4.5).
+ * columns), recorded per serial so `release(snapshot)` destroys every buffer of a snapshot and its
+ * withColumns() siblings, and tombstoned so a live user learns of the release through `isReleased`.
  * Uploads follow the pure planner of ./upload-plan.ts: the arena path writes ONE buffer with ONE writeBuffer of the
  * hot prefix (or the full arena when a cold segment is needed and fits) and binds segments at
- * `segment.byteOffset - arena.byteOffset`; the perArray path writes one buffer per array; the windowed path (P4-T7,
- * PD-8) writes one buffer per PlannedArray range of every arc-indexed array and binds window 0 as the default
+ * `segment.byteOffset - arena.byteOffset`; the perArray path writes one buffer per array; the windowed path
+ * writes one buffer per PlannedArray range of every arc-indexed array and binds window 0 as the default
  * colIdx / weights, the whole window list and the per-array buffers riding on the CoreBinding for the row-walking
  * primitives to bind per window. Identity permutations are never materialised: presence is
  * decided from counts and flags, and the arcToEdge / edgeToArc getters are read only when a segment exists. Nothing
  * is freed by garbage collection; the once-only warning above warnUnreleasedSnapshots names the missing release.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "4.1 GraphResidency: what is cached and under which key".
  */
 
 import {
@@ -28,9 +30,9 @@ import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type PlanCaps } from "../types/context.js";
 import { type ArcWindow, type Binding } from "../types/memory.js";
-import { planUpload, type UploadPlan } from "./upload-plan.js";
+import { planUpload, planWindowLayout, type UploadPlan } from "./upload-plan.js";
 
-/** The core arrays a kernel binds by default (spec 4.1); the cold segments are named explicitly by the caller. */
+/** The core arrays a kernel binds by default; the cold segments are named explicitly by the caller. */
 const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights"]);
 
 /** The five core arrays in arena (hot-to-cold) order. */
@@ -46,10 +48,9 @@ const ARC_INDEXED: readonly ArcIndexedName[] = Object.freeze(["colIdx", "weights
 const RESIDENT_USAGE = BufferUsage.STORAGE | BufferUsage.COPY_DST | BufferUsage.COPY_SRC;
 
 /**
- * The core arrays of a snapshot on the device (spec 4.1); a null member is absent (zero-length, unweighted or an
- * identity permutation) and is bound as a dummy by the kernel layer (3.9). `Binding` itself is declared in
- * src/types/memory.ts (3.3). Exported by contract 3.8: P1-T4's graphBindings / graphOverrides and every later
- * kernel driver take it; nothing at P1-T2 imports it by name.
+ * The core arrays of a snapshot on the device; a null member is absent (zero-length, unweighted or an
+ * identity permutation) and is bound as a dummy by the kernel layer. `Binding` itself is declared in
+ * src/types/memory.ts. graphBindings / graphOverrides and every kernel driver take it.
  * @public
  */
 export interface CoreBinding {
@@ -67,8 +68,8 @@ export interface CoreBinding {
 }
 
 /**
- * A view's arrays on the device plus the CPU-side scalars (degreeOrder's segmentOffsets) (spec 4.3). Exported by
- * contract 3.8: the degreeOrder permutation of P4's kernels is a ViewBinding; nothing at P1-T2 imports it by name.
+ * A view's arrays on the device plus the CPU-side scalars (degreeOrder's segmentOffsets). The degreeOrder
+ * permutation the tiered kernels read is a ViewBinding.
  * @public
  */
 export interface ViewBinding {
@@ -79,8 +80,7 @@ export interface ViewBinding {
 }
 
 /**
- * A column's gpuView() on the device (spec 4.3). Exported by contract 3.8: P3's layout inputs register columns
- * through it; nothing at P1-T2 imports it by name.
+ * A column's gpuView() on the device. The layout inputs register columns through it.
  * @public
  */
 export interface ColumnBinding {
@@ -92,9 +92,8 @@ export interface ColumnBinding {
 }
 
 /**
- * An ad hoc array on the device (spec 4.1 last row); `destroy()` is the caller's when no owner was given. Exported
- * by contract 3.8: P3's model resolves column inputs to a registered ArrayBinding; nothing at P1-T2 imports it by
- * name.
+ * An ad hoc array on the device; `destroy()` is the caller's when no owner was given. The layout model resolves
+ * column inputs to a registered ArrayBinding.
  * @public
  */
 export interface ArrayBinding {
@@ -105,8 +104,7 @@ export interface ArrayBinding {
 }
 
 /**
- * stats() shape (spec 4.1). Exported by contract 3.8 for the callers of ctx.residency.stats(); nothing at P1-T2
- * imports it by name.
+ * stats() shape, for the callers of ctx.residency.stats().
  * @public
  */
 export interface ResidencyStats {
@@ -151,7 +149,7 @@ interface ResidencyRecord {
         readonly segments: Readonly<Record<CoreArrayName, ArenaSegmentBinding | null>>;
     } | null;
     readonly bindings: Map<CoreArrayName, Binding>;
-    /** Memo of the P7 views by `name` or `name + ":packed"`, so a second view() call uploads nothing (spec 4.3). */
+    /** Memo of the views by `name` or `name + ":packed"`, so a second view() call uploads nothing. */
     readonly views: Map<string, ViewBinding>;
     /**
      * One fresh marker object per PACKED view, keyed the same way as `views`. It is the `key` argument of
@@ -167,6 +165,8 @@ interface ResidencyRecord {
     windows: readonly ArcWindow[] | null;
     /** The window buffers of every arc-indexed array uploaded so far (windowed plan only). */
     readonly arcBuffers: Map<CoreArrayName, GPUBuffer[]>;
+    /** Memo of reverseWindowed(): the directed reverse adjacency as a windowed core, or null until asked for. */
+    reverseWindowed: CoreBinding | null;
     released: boolean;
 }
 
@@ -218,8 +218,7 @@ function assertAttached(s: GraphSnapshot): void {
 
 /**
  * Whether a core array exists on the snapshot, from counts and flags alone (mirrors coreByteLengths of
- * ./upload-plan.ts; spec 5.6: zero-length arrays are never uploaded; spec 4.1: identity permutations never
- * materialised).
+ * ./upload-plan.ts: zero-length arrays are never uploaded and identity permutations never materialised).
  * @param s - the snapshot
  * @param name - the core array
  * @returns true when the array has bytes to upload
@@ -269,7 +268,7 @@ function coreArray(s: GraphSnapshot, name: CoreArrayName): TypedArrayData {
     }
 }
 
-/** The upload cache (spec 4.1): WeakMap on array objects, WeakMap on snapshots, a strong Map by serial; @internal (reached as ctx.residency). */
+/** The upload cache: WeakMap on array objects, WeakMap on snapshots, a strong Map by serial; @internal (reached as ctx.residency). */
 export class GraphResidency {
     private readonly device: GPUDevice;
     private readonly caps: PlanCaps;
@@ -318,10 +317,10 @@ export class GraphResidency {
     }
 
     /**
-     * Uploads (or finds) the core; `need` defaults to ["rowPtr", "colIdx", "weights"]; cold segments on demand
-     * (spec 4.2). Never materialises an identity permutation. A windowed plan (spec 4.2, PD-8) uploads every
+     * Uploads (or finds) the core; `need` defaults to ["rowPtr", "colIdx", "weights"]; cold segments on demand.
+     * Never materialises an identity permutation. A windowed plan uploads every
      * arc-indexed array as the plan's buffer ranges and binds window 0 as its default binding; rowPtr and edgeToArc
-     * stay whole. A tombstoned serial is lifted and re-uploaded (PLAN DECISION 7).
+     * stay whole. A tombstoned serial is lifted and re-uploaded.
      * @param s - the snapshot
      * @param need - the core arrays to bind (rowPtr is always included; absent arrays are ignored)
      * @returns the core binding (a frozen object; grows as cold segments are added)
@@ -382,8 +381,8 @@ export class GraphResidency {
 
     /**
      * Uploads (or finds) a view: outDegree / inDegree / degreeOrder / reverseDegreeOrder upload one array each;
-     * reverse and edgeList (P7) upload their arrays perArray, never into the arena, and are memoised per record so
-     * a second call uploads nothing (spec 4.3). coo uploads its per-arc `src` (P11; the rest aliases the core); mate ->
+     * reverse and edgeList upload their arrays perArray, never into the arena, and are memoised per record so
+     * a second call uploads nothing. coo uploads its per-arc `src` (the rest aliases the core); mate ->
      * E_UNSUPPORTED. packViews concatenates a
      * reverse or edgeList view into ONE buffer at STORAGE_ALIGN offsets; on any other view `true` is E_UNSUPPORTED
      * { option: "packViews" }.
@@ -488,8 +487,8 @@ export class GraphResidency {
      * The reverse adjacency's bindings. On an UNDIRECTED snapshot graph-format invariant I7 makes reverse() return
      * the FORWARD arrays, so the core bindings ARE the reverse bindings and nothing is uploaded -- delegating to
      * core() rather than re-uploading the arrays is what makes that true on the arena plan as well, where the
-     * per-array WeakMap key resolves to the whole-arena resident (spec 4.3 lines 1182-1186). `fwdArc` is never
-     * uploaded (spec 13 row P7). `packed` is ignored when undirected: there is nothing to pack.
+     * per-array WeakMap key resolves to the whole-arena resident. `fwdArc` is never
+     * uploaded. `packed` is ignored when undirected: there is nothing to pack.
      * @param s - the snapshot
      * @param record - its residency record
      * @param packed - concatenate the arrays into one buffer (directed only)
@@ -500,7 +499,7 @@ export class GraphResidency {
         if (!s.directed) {
             const core = this.core(s, ["rowPtr", "colIdx", "weights"]);
             if (core.plan === "windowed") {
-                // a view is never windowed (spec 4.3): window 0's colIdx must not pose as the whole reverse adjacency
+                // a view is never windowed: window 0's colIdx must not pose as the whole reverse adjacency
                 throw new WebGpuGraphError(
                     "E_TOO_LARGE",
                     `snapshot ${s.serial}: the undirected reverse view is the core, which needs arc windows (${core.windows?.length ?? 0}) that no view executes`,
@@ -548,8 +547,70 @@ export class GraphResidency {
     }
 
     /**
-     * The each-edge-once binding an edge-parallel kernel uses on directed and undirected snapshots alike (spec 8.1
-     * row 2); `arc` is not uploaded (no kernel of P7 reads it).
+     * The reverse adjacency of a DIRECTED snapshot as a windowed core (issue #471): its own rowPtr whole and its colIdx
+     * split into arc windows exactly as core() splits the forward colIdx, so a frontier-walking kernel dispatches once
+     * per window (`coreWindows`). Null when the reverse colIdx fits one binding and one buffer: the caller binds
+     * view(s, "reverse") whole then. Carries colIdx only (`weights` null): the bottom-up sweep reads no weight.
+     * Memoised per record, so a second call uploads nothing.
+     * @param s - a directed snapshot
+     * @returns the windowed core of the reverse adjacency, or null when it needs no windows
+     */
+    reverseWindowed(s: GraphSnapshot): CoreBinding | null {
+        this.assertLive();
+        assertAttached(s);
+        this.assertNotReleased(s);
+        this.assertNonEmpty(s);
+        if (!s.directed) {
+            throw invalid("snapshot", s.serial, "a directed snapshot (an undirected reverse is the core)");
+        }
+        const { limits } = this.caps;
+        const bytes = 4 * s.arcCount;
+        if (bytes <= limits.maxStorageBufferBindingSize && bytes <= limits.maxBufferSize) {
+            return null;
+        }
+        const record = this.ensureRecord(s);
+        const memo = record.reverseWindowed;
+        if (memo !== null) {
+            return memo;
+        }
+        const rev = s.reverse();
+        const { buffers: ranges, windows } = planWindowLayout(rev.rowPtr, rev.arcCount, this.caps.limits);
+        const label = `residency:view:${record.serial}:reverse`;
+        const rowPtr = this.upload(record, rev.rowPtr, rev.rowPtr, `${label}:rowPtr`);
+        const colIdx = ranges.map(
+            (range, index) =>
+                this.upload(
+                    record,
+                    this.windowKey(record, `reverse:colIdx:${index}`),
+                    new Uint8Array(rev.colIdx.buffer, rev.colIdx.byteOffset + range.byteOffset, range.byteLength),
+                    `${label}:colIdx:w${index}`,
+                ).buffer,
+        );
+        const first = windows[0];
+        const built: CoreBinding = Object.freeze({
+            serial: record.serial,
+            plan: "windowed" as const,
+            rowPtr: { buffer: rowPtr.buffer, offset: 0, size: rowPtr.byteLength, window: null },
+            colIdx: {
+                buffer: colIdx[first.bufferIndex],
+                offset: first.offset,
+                size: 4 * (first.end - first.start),
+                window: first,
+            },
+            weights: null,
+            arcToEdge: null,
+            edgeToArc: null,
+            windows,
+            arcBuffers: Object.freeze({ colIdx: Object.freeze(colIdx), weights: [], arcToEdge: [] }),
+            hasWeights: false,
+        });
+        record.reverseWindowed = built;
+        return built;
+    }
+
+    /**
+     * The each-edge-once binding an edge-parallel kernel uses on directed and undirected snapshots alike;
+     * `arc` is not uploaded (no kernel reads it).
      * @param s - the snapshot
      * @param record - its residency record
      * @param packed - concatenate into one buffer
@@ -580,9 +641,9 @@ export class GraphResidency {
     }
 
     /**
-     * One resident per array (spec 4.3: views upload in perArray mode, never into the arena). An empty array (the
-     * colIdx of an edgeless directed reverse view, the src / dst of an edgeless edgeList) is skipped: spec 5.6 never
-     * uploads a zero-length array, and Kernel.bind rejects a zero-size binding, so it is absent as in core().
+     * One resident per array (views upload in perArray mode, never into the arena). An empty array (the
+     * colIdx of an edgeless directed reverse view, the src / dst of an edgeless edgeList) is skipped: a zero-length array is
+     * never uploaded, and Kernel.bind rejects a zero-size binding, so it is absent as in core().
      * @param record - the owning record
      * @param arrays - the named arrays
      * @param label - the buffer label prefix
@@ -605,7 +666,7 @@ export class GraphResidency {
     }
 
     /**
-     * The arrays concatenated into ONE buffer at STORAGE_ALIGN-aligned offsets (spec 4.3 packViews): one
+     * The arrays concatenated into ONE buffer at STORAGE_ALIGN-aligned offsets (packViews): one
      * createBuffer and one writeBuffer instead of three of each, which is what the option buys. The resident is
      * keyed on `key`, a marker object owned by the record (packKey), NOT on one of the snapshot's arrays: upload()
      * returns an existing resident whenever the key matches and the serial matches, without comparing byte
@@ -666,9 +727,9 @@ export class GraphResidency {
     }
 
     /**
-     * gpuView(name) + column.version; re-uploads in place when the version changed and the byte length did not
-     * (spec 4.3). CONTRACT DECISION: `owner` is required so release(owner) can find the buffer (a table has no
-     * back-reference to its snapshot). The key is the Column object (PLAN DECISION 8). E_GPU_INELIGIBLE and
+     * gpuView(name) + column.version; re-uploads in place when the version changed and the byte length did not.
+     * `owner` is required so release(owner) can find the buffer (a table has no
+     * back-reference to its snapshot). The key is the Column object. E_GPU_INELIGIBLE and
      * E_UNKNOWN_COLUMN from the format pass through unchanged.
      * @param table - the table holding the column
      * @param name - the column name
@@ -701,7 +762,7 @@ export class GraphResidency {
             }
         } else {
             if (existing !== undefined) {
-                // the stale buffer stays in its record until release (spec 4.1: no leak, no stale read)
+                // the stale buffer stays in its record until release (no leak, no stale read)
                 this.residents.delete(column);
             }
             resident = this.upload(record, column, data, label);
@@ -717,11 +778,11 @@ export class GraphResidency {
     }
 
     /**
-     * Any format array keyed on the object; registered against `owner` when given (spec 4.1).
+     * Any format array keyed on the object; registered against `owner` when given.
      * @param key - the array (a non-empty, 4-byte-multiple array over a plain ArrayBuffer)
      * @param label - the buffer label suffix
      * @param owner - the snapshot to record the buffer against, or undefined for a caller-owned buffer
-     * @returns the array binding; `destroy()` is idempotent (PLAN DECISION 12)
+     * @returns the array binding; `destroy()` is idempotent
      */
     array(key: TypedArrayData, label: string, owner?: GraphSnapshot): ArrayBinding {
         this.assertLive();
@@ -750,8 +811,8 @@ export class GraphResidency {
     }
 
     /**
-     * Destroys every buffer recorded for s.serial (siblings included, Q-27) and tombstones the serial; idempotent
-     * (spec 4.5); safe on a snapshot never uploaded (nothing to tombstone, PLAN DECISION 7).
+     * Destroys every buffer recorded for s.serial (siblings included) and tombstones the serial; idempotent;
+     * safe on a snapshot never uploaded (nothing to tombstone).
      * @param s - the snapshot (or any withColumns() sibling)
      */
     release(s: GraphSnapshot): void {
@@ -804,7 +865,7 @@ export class GraphResidency {
     }
 
     /**
-     * The resident buffers, bytes and snapshots (spec 4.1).
+     * The resident buffers, bytes and snapshots.
      * @returns the statistics
      */
     stats(): ResidencyStats {
@@ -863,7 +924,7 @@ export class GraphResidency {
 
     /**
      * Binds one core array: a segment of the arena buffer when the buffer holds it, else its own buffer keyed on
-     * the array object (the cold-segment-on-demand path of spec 4.2, and the whole perArray path).
+     * the array object (the cold-segment-on-demand path, and the whole perArray path).
      * @param record - the snapshot's record
      * @param s - the snapshot
      * @param name - a PRESENT core array
@@ -882,9 +943,9 @@ export class GraphResidency {
     }
 
     /**
-     * Uploads one arc-indexed array as the windowed plan's buffer ranges (spec 4.2: an array above maxBufferSize is
+     * Uploads one arc-indexed array as the windowed plan's buffer ranges (an array above maxBufferSize is
      * split across buffers at window boundaries), each keyed on a marker object of the record (windowKey), and
-     * returns window 0's binding so a caller that ignores windows still binds something valid (PD-8).
+     * returns window 0's binding so a caller that ignores windows still binds something valid.
      * @param record - the snapshot's record
      * @param s - the snapshot
      * @param name - a PRESENT arc-indexed core array
@@ -936,7 +997,7 @@ export class GraphResidency {
 
     /**
      * Uploads `data` into a new buffer keyed on `key`, or returns the resident already uploaded for that key by
-     * the same owner (PLAN DECISION 11: a resident belongs to one record).
+     * the same owner (a resident belongs to one record).
      * @param record - the owning record, or null for an owner-less array
      * @param key - the object the buffer is keyed on
      * @param data - the bytes (byteLength a multiple of 4, graph-format invariant I10; a view over a plain
@@ -1007,6 +1068,7 @@ export class GraphResidency {
         record.windowKeys.clear();
         record.arcBuffers.clear();
         record.windows = null;
+        record.reverseWindowed = null;
         record.arena = null;
         record.plan = null;
         this.bySerial.delete(record.serial);
@@ -1038,6 +1100,7 @@ export class GraphResidency {
                 windowKeys: new Map<string, object>(),
                 windows: null,
                 arcBuffers: new Map<CoreArrayName, GPUBuffer[]>(),
+                reverseWindowed: null,
                 released: false,
             };
             this.bySerial.set(s.serial, record);
@@ -1045,7 +1108,7 @@ export class GraphResidency {
             if (!this.warned && this.bySerial.size > this.warnUnreleasedSnapshots) {
                 this.warned = true;
                 this.warn(
-                    `[webgpu-graph-algorithms] ${this.bySerial.size} snapshots are resident on the device (warnUnreleasedSnapshots = ${this.warnUnreleasedSnapshots}); call ctx.release(snapshot) for superseded snapshots -- GPU memory is never freed by garbage collection (spec 4.1)`,
+                    `[webgpu-graph-algorithms] ${this.bySerial.size} snapshots are resident on the device (warnUnreleasedSnapshots = ${this.warnUnreleasedSnapshots}); call ctx.release(snapshot) for superseded snapshots -- GPU memory is never freed by garbage collection`,
                 );
             }
         }
@@ -1068,7 +1131,7 @@ export class GraphResidency {
     }
 
     /**
-     * Throws E_INVALID_ARGUMENT for an empty snapshot (a view of it would be a zero-length array, spec 5.6).
+     * Throws E_INVALID_ARGUMENT for an empty snapshot (a view of it would be a zero-length array).
      * @param s - the snapshot
      */
     private assertNonEmpty(s: GraphSnapshot): void {
@@ -1077,7 +1140,7 @@ export class GraphResidency {
         }
     }
 
-    /** Throws E_DISPOSED after destroyAll() (PLAN DECISION 13). */
+    /** Throws E_DISPOSED after destroyAll(). */
     private assertLive(): void {
         if (this.disposed) {
             throw new WebGpuGraphError("E_DISPOSED", "the residency was disposed", { label: "residency" });

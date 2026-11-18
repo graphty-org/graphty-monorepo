@@ -1,4 +1,4 @@
-import { Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
+import { DynamicTexture, Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
 import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, test } from "vitest";
 
 import { NodeShapes } from "../src/config/NodeStyle";
@@ -369,6 +369,40 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
 
         assert.isTrue(fellBack, "the per-scene texture ceiling must engage");
         assert.isAtMost(textured, 32);
+    });
+
+    test("a gradient no material draws any more gives its slot back, and its texture is disposed", () => {
+        // Each gradient a style editor drags through is a new key. Once its meshes are gone the
+        // texture must go too, or 32 dead ramps spend the budget and every later gradient is flat.
+        const dead: DynamicTexture[] = [];
+        for (let i = 0; i < 32; i++) {
+            const mat = materialFor(`tex-old-${i}`, { ...linear, direction: i });
+            assert.instanceOf(mat.diffuseTexture, DynamicTexture);
+            dead.push(mat.diffuseTexture);
+        }
+
+        meshCache.clear();
+        const mat = materialFor("tex-new", { ...linear, direction: 100 });
+
+        assert.instanceOf(mat.diffuseTexture, DynamicTexture);
+        assert.isTrue(
+            dead.every((texture) => !scene.textures.includes(texture)),
+            "the dead ramps are disposed",
+        );
+    });
+
+    test("a shared gradient texture lives while any material still draws it", () => {
+        const a = materialFor("tex-share-a", linear);
+        const b = materialFor("tex-share-b", { ...linear });
+        const texture = b.diffuseTexture;
+        assert.instanceOf(texture, DynamicTexture);
+
+        a.dispose();
+        assert.include(scene.textures, texture);
+        assert.strictEqual(materialFor("tex-share-c", { ...linear }).diffuseTexture, texture);
+
+        b.dispose();
+        assert.include(scene.textures, texture, "tex-share-c still draws it");
     });
 
     test("the ceiling is per scene, so a fresh scene starts with a fresh budget", () => {

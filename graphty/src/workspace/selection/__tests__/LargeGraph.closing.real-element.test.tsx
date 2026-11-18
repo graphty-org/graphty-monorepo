@@ -10,7 +10,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { framesUntilClosed, oneStep, openGenerated, openLayer, REPAINTED_NODES } from "./large-graph";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("the selection editor on 50,000 nodes", () => {
@@ -24,9 +24,9 @@ describe("the selection editor on 50,000 nodes", () => {
                 "Closing",
                 oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
             );
-            const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
+            const row = document.querySelector<HTMLElement>(".sel-rest [data-edit]");
             if (row === null) {
-                throw new Error("the step's row is drawn");
+                throw new Error("the Style Nodes... line is drawn");
             }
             await userEvent.click(row);
             const values = await screen.findByRole("group", { name: "community values" });
@@ -45,7 +45,8 @@ describe("the selection editor on 50,000 nodes", () => {
                 throw new Error("the workspace is open");
             }
             const closing = await framesUntilClosed(() =>
-                userEvent.click(within(ws).getByRole("button", { name: button })),
+                // A button's name may carry its key after its word.
+                userEvent.click(within(ws).getByRole("button", { name: new RegExp(`^${button}`) })),
             );
             assert.strictEqual(
                 closing.quiet,

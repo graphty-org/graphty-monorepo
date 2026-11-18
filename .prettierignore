@@ -10,8 +10,12 @@ storybook-static/
 graph-samples/public-data/
 # pipeline-health's CDK synth output: written by `pnpm run synth`, ignored by tools/pipeline-health/.gitignore
 tools/pipeline-health/cdk.out/
+# benchmark page builds: written by benchmarks/compare, ignored by benchmarks/.gitignore
+benchmarks/compare/builds/
 
 # Generated files
+# ESLint's bulk suppressions: written by `eslint --suppress-*` / `--prune-suppressions` in its own format
+**/eslint-suppressions.json
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
 */api/*.api.md
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
@@ -26,6 +30,8 @@ graphty-element/test/ai/conversation/fixtures/
 # sample and property, which prettier would spread over a line per element id (4 MB instead of 1.5)
 graphty-element/test/fidelity/oracle-known-failures.json
 graphty-element/test/fidelity/baseline-scores.json
+# Written by graphty-element/test/catalog/engine-facts.test.ts (UPDATE_ENGINE_FACTS=1), byte for byte
+graphty-element/src/catalog/engine-facts.json
 # Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
 # compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
 graphty-element/test/layout/graphviz-fixtures/
@@ -129,4 +135,4 @@ design/githerd/
 /design/ui/mockups/system/ARTBOARD-CHANGES-1.8.md
 /design/webgpu/webgpu-acceleration-plan.md
 /graphty/docs/decisions/G12.md
-/webgpu-graph-algorithms/docs/research/draft-B.md
+/design/webgpu/plan-drafts-and-reviews/draft-B.md

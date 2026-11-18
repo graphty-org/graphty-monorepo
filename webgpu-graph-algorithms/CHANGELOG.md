@@ -1,3 +1,20 @@
+## 0.6.69 (2026-11-12)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** window the directed reverse view and gate betweenness edge form ([#471](https://github.com/graphty-org/graphty-monorepo/issues/471), [#776](https://github.com/graphty-org/graphty-monorepo/issues/776), [#95](https://github.com/graphty-org/graphty-monorepo/issues/95))
+- **webgpu-graph-algorithms:** steady the upload benchmark's median ([#6565](https://github.com/graphty-org/graphty-monorepo/issues/6565))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.5.2
+- Updated algorithms to 3.4.22
+- Updated layout to 2.7.1
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.6.68 (2026-11-10)
 
 ### 🚀 Features

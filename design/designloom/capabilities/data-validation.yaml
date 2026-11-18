@@ -10,9 +10,12 @@ used_by_workflows:
     - W01
     - W13
     - W18
+    - W20
+    - W22
 implemented_by_components:
     - data-preview-table
     - data-import-dialog
+    - attribute-table-join-dialog
 requirements:
     - Detect and report nodes missing required ID field
     - Detect and report edges missing source or target field

@@ -20,13 +20,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { readableName } from "../../style/words";
 import { Workspace } from "../../Workspace";
 
-/** A segmented control's visible label, which a reader presses: the radio itself is drawn invisible. */
-function segment(radio: HTMLInputElement): HTMLElement {
-    const label = radio.labels?.[0];
-    assert.isDefined(label);
-    return label;
-}
-
 /**
  * A new, empty project, then Zachary's karate club opened through the element's
  * import, with the layout the element recommends for it.
@@ -92,8 +85,7 @@ async function finished(session: GraphSession, algorithm: string): Promise<RunId
     return found;
 }
 
-// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
-// (covered by its own tests): the experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("tier 1 tasks from the toolbar, on the real element", () => {
@@ -154,40 +146,63 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
         const update = await screen.findByRole("button", { name: "Update PageRank layer" });
         assert.strictEqual(update.getAttribute("aria-disabled"), "true");
-        await userEvent.keyboard("{Enter}");
+        // A real press on the dimmed button (force: it is aria-disabled, so it would wait for enabled).
+        await userEvent.click(update, { force: true });
         assert.strictEqual(session.history.steps.length, steps, "pressing it records nothing");
         assert.isNotNull(screen.getByText("PageRank is up to date with these settings."));
-        await userEvent.keyboard("{Escape}");
-        assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
+        assert.isNotNull(screen.getByRole("combobox", { name: "Filter analyses" }), "Analyze stays open");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
         });
     });
 
+    it("a run that made no layer (canceled) leaves Analyze offering Run, not Update <name> layer", async () => {
+        const session = await openKarate();
+        const run = session.runs.start("betweenness");
+        run.cancel();
+        await waitFor(() => {
+            assert.equal(session.runs.get(run.id)?.status, "canceled");
+        });
+        assert.lengthOf(session.runs.bindings(run.id), 0);
+
+        await userEvent.click(analyzeTool());
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Betweenness");
+        await userEvent.click(await screen.findByRole("option", { name: /^Betweenness/ }));
+        const action = await screen.findByRole("button", { name: /^(Run\b|(Update|Add) Betweenness layer)/ });
+        assert.match(action.textContent ?? "", /^Run\b/);
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+    });
+
     it("Analyze picks and runs from the keyboard alone: a single match on Enter, Arrow keys otherwise", async () => {
         const session = await openKarate();
 
-        // A single match: typing then Enter opens it, and Enter again runs it.
+        // A single match: typing then Enter chooses it, focus moves to its Run, and Enter runs it.
         await userEvent.click(analyzeTool());
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "brokers{Enter}");
-        assert.isNotNull(await screen.findByRole("form", { name: /^Betweenness/ }));
+        const run = await screen.findByRole("button", { name: "Run Betweenness" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, run);
+        });
         await userEvent.keyboard("{Enter}");
         await finished(session, "betweenness");
 
-        // No filter: ArrowDown moves the active entry, ArrowUp moves it back, Enter opens it.
+        // No filter: ArrowDown moves the active entry, ArrowUp moves it back, Enter chooses it.
         await userEvent.click(analyzeTool());
         const box = await screen.findByRole("combobox", { name: "Filter analyses" });
         assert.isNull(box.getAttribute("aria-activedescendant"));
         await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
         const options = screen.getAllByRole("option");
-        const activeId = box.getAttribute("aria-activedescendant");
-        assert.equal(activeId, options[1].id);
+        assert.equal(box.getAttribute("aria-activedescendant"), options[1].id);
         assert.equal(options[1].getAttribute("aria-selected"), "true");
         assert.equal(document.activeElement, box);
-        const name = within(options[1]).getAllByText(/./)[0].textContent ?? "";
+        const name = options[1].getAttribute("aria-label") ?? "";
         await userEvent.keyboard("{Enter}");
-        assert.isNotNull(await screen.findByRole("form", { name }));
+        await waitFor(() => {
+            assert.isTrue(screen.getAllByRole("option")[1].hasAttribute("data-chosen"), `${name} is chosen`);
+        });
+        assert.isNotNull(screen.getByRole("button", { name: new RegExp(`^(Run|Update|Add) ${name}`) }));
     });
 
     it("T8: after Betweenness, Analyze > Find groups > Louvain runs and paints", async () => {
@@ -228,8 +243,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(analyzeTool());
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "communities");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
-        const form = await screen.findByRole("form", { name: "Louvain" });
-        await userEvent.click(within(form).getByRole("button", { name: "Add Louvain layers" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add Louvain layers" }));
         // Nothing needs computing again, so the run settles once whatever Analyze asked of it has.
         await session.runs.get(louvain)?.then(
             () => undefined,
@@ -291,6 +305,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(await screen.findByRole("option", { name: /Re-run layout/ }));
         await waitFor(() => {
             assert.notEqual(session.positions.generation, generation);
+            // Recorded as a re-run, not as a change of layout.
+            assert.equal(session.history.steps.at(-1)?.fact.code, "layout.rerun");
         });
         assert.equal(session.layout.id, "circular");
 
@@ -300,13 +316,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the Mode tool, draws its icon, and offers 2D, 3D, VR and AR", async () => {
+    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D, VR and AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        // Named with the mode its icon shows (WCAG 2.5.3).
+        // Named with the mode its face shows (WCAG 2.5.3).
         const view = within(toolbar).getByRole("button", { name: "Mode, 3D" });
-        const face = (): string | null | undefined => view.querySelector("svg")?.getAttribute("data-mode");
+        const face = (): string | null | undefined => view.querySelector("[data-mode]")?.getAttribute("data-mode");
         assert.equal(face(), "3d");
+        assert.equal(view.textContent, "3D");
         // No XR buttons on the canvas: the menu is the one way in.
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
@@ -338,10 +355,18 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(session.layout.dimension, "2d");
             assert.equal(face(), "2d");
         });
+        assert.equal(view.textContent, "2D");
         assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
         await userEvent.click(view);
         const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+        // Key 5 switches back, and the face says so.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("5");
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "3d");
+            assert.equal(view.textContent, "3D");
+        });
     });
 
     it("moves the camera from the Camera tool, turns Auto-rotate on and off, and keeps 3D views for 3D", async () => {
@@ -409,6 +434,78 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.include(flatRotate.textContent, "Only in 3D");
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom in/ }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
+    });
+
+    it("saves the camera as a view, goes back to it, removes it, and turns Follow selection off", async () => {
+        const session = await openKarate();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        await element.waitForStableFrame();
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        // Save view keeps the camera under the first free name, and Camera lists it.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await waitFor(() => {
+            assert.isTrue(session.views.has("View 1"));
+        });
+        const saved = session.views.get("View 1");
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Top/ }));
+        await element.waitForStableFrame();
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await waitFor(() => {
+            assert.deepEqual([...session.views.keys()], ["View 1", "View 2"]);
+        });
+
+        // Its row moves the camera back.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^View 1$/ }));
+        await waitFor(() => {
+            const now = element.getCameraState();
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.closeTo(
+                    now.position?.[axis] ?? Number.NaN,
+                    saved?.position?.[axis] ?? 0,
+                    1e-3,
+                    `position.${axis}`,
+                );
+            }
+        });
+
+        // Remove view forgets it.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Remove view/ }));
+        const removeMenu = (await screen.findAllByRole("menu")).at(-1);
+        assert.isDefined(removeMenu);
+        if (removeMenu === undefined) {
+            return;
+        }
+        await userEvent.click(within(removeMenu).getByRole("menuitem", { name: /^View 1$/ }));
+        await waitFor(() => {
+            assert.deepEqual([...session.views.keys()], ["View 2"]);
+        });
+
+        // Follow selection is on, and turning it off leaves the camera where it is on a pick.
+        await userEvent.keyboard("{Escape}");
+        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        assert.equal(follow.getAttribute("aria-checked"), "true");
+        await userEvent.click(follow);
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.camera?.pivotOnSelection);
+        });
+        await element.waitForStableFrame();
+        const before = element.getCameraState();
+        await session.selection.apply({ nodes: [session.data.nodes()[0].id] }, "replace", { cause: "user" });
+        await element.waitForStableFrame();
+        assert.deepEqual(element.getCameraState().target, before.target);
+        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        assert.equal(off.getAttribute("aria-checked"), "false");
     });
 
     it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {
@@ -506,8 +603,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Hops 2 in the list's header reselects two hops out and relists; the list, the
         // selection and the status line agree on the count.
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isAbove(session.selection.nodes.length, neighborhood);
             assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
@@ -561,8 +659,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Open at one hop, reach two, filter to it, twice.
         await degree();
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isTrue(
                 screen.getAllByRole("status").some((status) => /within 2 hops$/.test(status.textContent ?? "")),
@@ -599,8 +698,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await degree();
         const words = `${name} and ${String(grown)} connections`;
         await screen.findByRole("group", { name: words });
-        const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
-        assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);
+        const reopened = await screen.findByRole<HTMLInputElement>("spinbutton", { name: "Hops" });
+        assert.equal(reopened.value, "2");
         // Reopened under its own filter, the command is still disabled.
         assert.equal(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"), "true");
         assert.equal(session.selection.nodes.length, grown + 1);
@@ -617,8 +716,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", {
             name: "Filters",
         });
-        const cardWords = `within 2 hops of ${name}`;
-        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use / }));
+        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use\b/ }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 34);
             assert.deepEqual(
@@ -626,7 +724,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("group", { name: new RegExp(`^${cardWords}`, "i") }));
+        assert.lengthOf(within(filters).getAllByRole("listitem"), 1, "the card stays listed");
         // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));
@@ -642,14 +740,15 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("opens Filters from the Graph place through Quick actions, its + list open", async () => {
+    it("opens Filters from the Graph place through Quick actions, with a new card open", async () => {
         await openKarate();
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
         await userEvent.keyboard("{Control>}k{/Control}");
         await userEvent.keyboard("filter");
         await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await screen.findByRole("region", { name: "Data place" });
-        await screen.findByRole("option", { name: "Largest component" });
+        // The new card opens in the selection workspace, its Value field ready.
+        await screen.findByRole("button", { name: "Value" });
     });
 });
 it("shows and hides the legend and the table from their own toolbar buttons, pressed while showing", async () => {

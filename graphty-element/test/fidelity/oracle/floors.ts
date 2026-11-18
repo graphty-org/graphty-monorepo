@@ -33,6 +33,11 @@ export interface Judgement {
      * with no list here (a score and no list) counts every known failure of it as measured.
      */
     judged?: Partial<Record<string, string[]>>;
+    /**
+     * The elements judged as the drawing as a whole (the frame, the share of lines drawn bent): a property judging only
+     * these judges no element one by one, so a known failure of one element there can never pass or fail.
+     */
+    wholeDrawing?: string[];
     /** Pass rate per judged property (and the raster regions' similarity as `raster.<region>`). */
     scores: Record<string, number>;
 }
@@ -222,7 +227,9 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
 
 /**
  * The not-measurable elements that neither drawing has any more: no property of the run judges or fails them, under
- * either side's id. A run that names no judged elements at all (a sample that drew nothing) says nothing is gone.
+ * either side's id; and every one of a property the run judges only on the drawing as a whole (an own-layout sample's
+ * `edge.curve`, judged as the share of lines bent since comparator round 5), however drawn. A run that names no judged
+ * elements at all (a sample that drew nothing) says nothing is gone.
  * @param run - the judgement
  * @param notMeasurable - the known failures not judged now, by property
  * @returns those whose element is gone, by property
@@ -236,8 +243,13 @@ function goneFromBoth(run: Judgement, notMeasurable: Record<string, string[]>): 
     const bare = (id: string): string => (id.startsWith("graphty:") ? id.slice("graphty:".length) : id);
     const exists = (id: string): boolean => present.has(bare(id)) || present.has(`graphty:${bare(id)}`);
     const gone: Record<string, string[]> = {};
+    const whole = new Set(run.wholeDrawing ?? []);
+    const wholeOnly = (p: string): boolean => {
+        const ids = run.judged?.[p] ?? [];
+        return ids.length > 0 && ids.every((id) => whole.has(id));
+    };
     for (const [p, ids] of Object.entries(notMeasurable)) {
-        const left = ids.filter((id) => !exists(id));
+        const left = wholeOnly(p) ? ids : ids.filter((id) => !exists(id));
         if (left.length > 0) {
             gone[p] = left;
         }
@@ -379,13 +391,84 @@ const named = (add: { properties?: readonly string[] } | undefined, property: st
     add?.properties === undefined || add.properties.includes(property);
 
 /**
+ * The issue numbers a reason cites: `#` and one to five digits standing alone. A color (`#505050`, `#5F809D`) or an
+ * HTML entity (`&#123;`) is not an issue.
+ * @param reason - the reason
+ * @returns the numbers, in the order the reason names them
+ */
+export function citedIssues(reason: string): number[] {
+    return [...reason.matchAll(/(?<![\w&#])#(\d{1,5})(?!\w)/g)].map((m) => Number(m[1]));
+}
+
+/**
+ * Refuses a reason too short to say anything, or one that names no issue (`#1234`): a known failure or an accepted drop
+ * stays on the list until its issue is fixed, so each one must say which issue that is (#7015).
+ * @param reason - the reason given
+ * @param what - what the reason is for, for the error
+ */
+export function checkReason(reason: string, what: string): void {
+    if (reason.trim().length < 10) {
+        throw new Error(`${what} needs a reason of 10 or more characters`);
+    }
+    if (citedIssues(reason).length === 0) {
+        throw new Error(`${what} needs a reason that names the issue tracking it (#1234)`);
+    }
+}
+
+/** A listed known failure that no open issue tracks. */
+export interface UntrackedKnown {
+    key: string;
+    property: string;
+    id: string;
+    /** Every issue the reasons that added it cite (none when no reason records it, or its reasons cite none). */
+    cited: number[];
+}
+
+/**
+ * The listed known failures that no open issue tracks: each element whose reasons (every reason that added it) cite no
+ * issue, or cite only issues that are closed. A known failure stays on the list until its issue is fixed, so one whose
+ * issue is closed needs a new issue or a fix (#7015).
+ * @param records - the known failures
+ * @param open - the cited issues that are open
+ * @returns the untracked known failures, in the list's order
+ */
+export function untrackedKnown(records: KnownRecords, open: ReadonlySet<number>): UntrackedKnown[] {
+    const cites = new Map<string, Set<number>>();
+    for (const r of records.reasons) {
+        const issues = citedIssues(r.reason);
+        for (const [key, props] of Object.entries(r.added)) {
+            for (const [property, ids] of Object.entries(props)) {
+                for (const id of ids) {
+                    const at = `${key}\0${property}\0${id}`;
+                    const set = cites.get(at) ?? new Set<number>();
+                    issues.forEach((n) => set.add(n));
+                    cites.set(at, set);
+                }
+            }
+        }
+    }
+    const out: UntrackedKnown[] = [];
+    for (const [key, props] of Object.entries(records.known)) {
+        for (const [property, ids] of Object.entries(props)) {
+            for (const id of ids) {
+                const cited = [...(cites.get(`${key}\0${property}\0${id}`) ?? [])].sort((a, b) => a - b);
+                if (!cited.some((n) => open.has(n))) {
+                    out.push({ key, property, id, cited });
+                }
+            }
+        }
+    }
+    return out;
+}
+
+/**
  * The accepted drops after a run: a drop whose rate is back at its floor is taken off, and, with a reason, every rate
  * below its floor and its accepted drop is accepted at this run's rate, with the reason. Never accepts without a reason,
  * and never lowers a floor.
  * @param drops - the accepted drops as committed
  * @param gates - the run's verdicts by key
  * @param add - the reason and date to accept the drops with; omitted to accept none
- * @param add.reason - why the rates are lower
+ * @param add.reason - why the rates are lower, naming the issue that tracks them (`#1234`)
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
@@ -396,8 +479,8 @@ export function ratchetDrops(
     gates: readonly KeyGate[],
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
 ): { drops: AcceptedDrops; removed: number; added: number; unaccepted: number } {
-    if (add !== undefined && add.reason.trim().length < 10) {
-        throw new Error("accepting a drop below a floor needs a reason of 10 or more characters");
+    if (add !== undefined) {
+        checkReason(add.reason, "accepting a drop below a floor");
     }
     const out: AcceptedDrops = structuredClone(drops);
     let removed = 0;
@@ -423,7 +506,7 @@ export function ratchetDrops(
         out[gate.key] = row;
     }
     const left = Object.fromEntries(Object.entries(out).filter(([, row]) => Object.keys(row).length > 0));
-    return { drops: sortedKeys(left), removed, added, unaccepted };
+    return { drops: sortedByKey(left), removed, added, unaccepted };
 }
 
 /**
@@ -433,21 +516,22 @@ export function ratchetDrops(
  * @param records - the known failures as committed
  * @param gates - the run's verdicts by key
  * @param add - the reason and date to add the unlisted failures with; omitted to add nothing
- * @param add.reason - why they are added
+ * @param add.reason - why they are added, naming the issue that tracks them (`#1234`)
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
- * @param prune - also take off the not-measurable ones whose element neither drawing has any more (`KeyGate.gone`)
+ * @param prune - also take off the not-measurable ones whose element neither drawing has any more (`KeyGate.gone`):
+ * `true` for every key, or a list of keys for only those
  * @returns the new known failures and what changed
  */
 export function ratchetKnown(
     records: KnownRecords,
     gates: readonly KeyGate[],
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
-    prune = false,
+    prune: boolean | readonly string[] = false,
 ): { records: KnownRecords; removed: number; added: number; unlisted: number } {
-    if (add !== undefined && add.reason.trim().length < 10) {
-        throw new Error("adding to the known failures needs a reason of 10 or more characters");
+    if (add !== undefined) {
+        checkReason(add.reason, "adding to the known failures");
     }
     const known: KnownFailures = structuredClone(records.known);
     let removed = 0;
@@ -456,7 +540,8 @@ export function ratchetKnown(
     const record: KnownReason = { date: add?.date ?? "", reason: add?.reason ?? "", added: {}, sources: {} };
     for (const gate of gates) {
         const now = known[gate.key] ?? {};
-        const takeOff = Object.entries(gate.nowPassing).concat(prune ? Object.entries(gate.gone ?? {}) : []);
+        const pruning = prune === true || (prune !== false && prune.includes(gate.key));
+        const takeOff = Object.entries(gate.nowPassing).concat(pruning ? Object.entries(gate.gone ?? {}) : []);
         for (const [p, ids] of takeOff) {
             const off = new Set(ids);
             const before = now[p] ?? [];
@@ -484,7 +569,7 @@ export function ratchetKnown(
         }
     }
     const reasons = added > 0 ? [...records.reasons, record] : records.reasons;
-    return { records: { about: records.about, known: sortedKeys(known), reasons }, removed, added, unlisted };
+    return { records: { about: records.about, known: sortedByKey(known), reasons }, removed, added, unlisted };
 }
 
 /**
@@ -507,31 +592,67 @@ export function raiseFloors(table: Floors, key: string, scores: Readonly<Record<
     return raised;
 }
 
-const sortedKeys = <T>(o: Record<string, T>): Record<string, T> =>
-    Object.fromEntries(
-        Object.keys(o)
-            .sort()
-            .map((k) => [k, o[k]]),
+/** Orders two keys by UTF-16 code units, the same on every machine and locale. */
+const byKey = (a: string, b: string): number => (a < b ? -1 : Number(a > b));
+
+/**
+ * A record's entries sorted by key. Every writer of the fidelity record files keeps their entries in this order, so
+ * two branches that add different entries insert them in different places and git merges them without a conflict
+ * (#8729).
+ * @param o - the entries
+ * @returns the same entries, sorted by key
+ */
+const sortedByKey = <T>(o: Readonly<Record<string, T>>): Record<string, T> =>
+    Object.fromEntries(Object.entries(o).sort(([a], [b]) => byKey(a, b)));
+
+/**
+ * The reasons in the order the files keep them: by the reason's text (which names its issue first), then by date, so
+ * two branches adding reasons for different issues insert them in different places rather than both at the end.
+ * @param reasons - the reasons
+ * @returns them sorted
+ */
+const sortedReasons = (reasons: readonly KnownReason[]): KnownReason[] =>
+    [...reasons].sort(
+        (a, b) => byKey(a.reason, b.reason) || byKey(a.date, b.date) || byKey(JSON.stringify(a), JSON.stringify(b)),
     );
+
+/**
+ * A floors file (oracle-floors.json, requested-floors.json, drawn-floors.json) as text, the entries of each of its
+ * sections (`floors`, `lowered`, `drops`, `allowedDrops`, ...) sorted by key.
+ * @param file - the file's contents
+ * @returns the file's text
+ */
+export function floorsFileText(file: object): string {
+    const sorted = Object.fromEntries(
+        Object.entries(file).map(([k, v]: [string, unknown]) => [
+            k,
+            typeof v === "object" && v !== null && !Array.isArray(v) ? sortedByKey(v as Record<string, unknown>) : v,
+        ]),
+    );
+    return `${JSON.stringify(sorted, null, 4)}\n`;
+}
 
 /**
  * The known failures as text: one line per key and property, and one per reason, so a diff shows which elements a fix
  * took off the list and why any were added. Prettier leaves the files alone (`.prettierignore`): it would spread the
- * lists over a line per element id.
+ * lists over a line per element id. Keys, floors and reasons are written sorted (`sortedByKey`, by reason text), so
+ * concurrent additions merge cleanly.
  * @param records - the known failures
  * @param floors - recorded pass rates to keep in the same file, before the known failures (the drawn-scene scorecard's)
  * @returns the file's text
  */
 export function knownText(records: KnownRecords, floors?: Floors): string {
-    const lines = Object.entries(records.known).map(
+    const lines = Object.entries(sortedByKey(records.known)).map(
         ([key, props]) =>
             `        ${JSON.stringify(key)}: {\n${Object.entries(props)
                 .map(([p, ids]) => `            ${JSON.stringify(p)}: ${JSON.stringify(ids)}`)
                 .join(",\n")}\n        }`,
     );
-    const reasons = records.reasons.map((r) => `        ${JSON.stringify(r)}`);
+    const reasons = sortedReasons(records.reasons).map((r) => `        ${JSON.stringify(r)}`);
     const floorsText =
-        floors === undefined ? "" : `    "floors": ${JSON.stringify(floors, null, 4).replaceAll("\n", "\n    ")},\n`;
+        floors === undefined
+            ? ""
+            : `    "floors": ${JSON.stringify(sortedByKey(floors), null, 4).replaceAll("\n", "\n    ")},\n`;
     return `{\n    "about": ${JSON.stringify(records.about)},\n${floorsText}    "known": {${lines.length === 0 ? "" : `\n${lines.join(",\n")}\n    `}},\n    "reasons": [${reasons.length === 0 ? "" : `\n${reasons.join(",\n")}\n    `}]\n}\n`;
 }
 
@@ -598,7 +719,7 @@ export function gateReportText(gates: readonly KeyGate[], gpu: string, baseline:
             listed((g) => g.notMeasurable),
         ),
         ...section(
-            "Of those, gone from both drawings (`npm run fidelity:ratchet -- --prune` takes them off)",
+            "Of those, gone from both drawings or judged only on the whole drawing now (`npm run fidelity:ratchet -- --prune` takes them off)",
             listed((g) => g.gone ?? {}),
         ),
         ...section("Scores below their recorded value (raster regions past 0.02 only)", changes("drop")),

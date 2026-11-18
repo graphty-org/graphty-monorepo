@@ -219,7 +219,7 @@ async function regions() {
             continue;
         }
 
-        const named = new Set((geonames.get(p.gn_a1_code) ?? []).map(normalize));
+        const named = new Set((geonames.get(p.gn_a1_code) ?? []).map((n) => normalize(n)));
         const same = [p.name, p.name_en, p.gn_name, p.woe_name].some((n) => named.has(normalize(n)));
         const others = alternates(
             p.name,

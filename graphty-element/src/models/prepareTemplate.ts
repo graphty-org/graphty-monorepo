@@ -19,7 +19,6 @@
  * Reached only through the model chunk (src/models/chunk.ts), so it costs the main entry nothing.
  */
 
-import "@babylonjs/core/Meshes/instancedMesh.js";
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
@@ -30,6 +29,7 @@ import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js"
 import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
@@ -219,31 +219,46 @@ function withoutWhiteColors(data: VertexData): VertexData {
  * @returns The parts.
  */
 function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): Part[] {
-    const parts: Part[] = [];
-    for (const mesh of container.meshes) {
-        if (!(mesh instanceof Mesh) || mesh.getTotalVertices() === 0 || mesh.getIndices() === null) {
-            continue;
+    return container.meshes.flatMap((node) => {
+        // A glTF mesh used by several nodes is loaded as one Mesh and an InstancedMesh for each
+        // further use (ABeautifulGame's second rook and its pawns): each is baked from its source's
+        // vertices, placed by its own world matrix.
+        if (node instanceof InstancedMesh) {
+            return bakeMesh(node.sourceMesh, node.computeWorldMatrix(true), turn, false);
         }
 
-        const data = withoutWhiteColors(restPose(mesh));
-        const { material } = mesh;
-        const signature = [data.uvs, data.uvs2, data.colors, data.tangents].map((a) => (a ? 1 : 0)).join("");
-        const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
-        const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
-        const placed = mesh.computeWorldMatrix(true).multiply(turn);
-        // A thin instance's matrix places it in the mesh's own space, before the mesh's world matrix.
-        // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
-        const instances = mesh.thinInstanceGetWorldMatrices();
-        // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) is drawn still; give each copy a bone if a file animates one.
-        const movable =
-            animated && instances.length === 0 ? { mesh, local: withoutWhiteColors(ownVertices(mesh)) } : {};
-        for (const instance of instances.length === 0 ? [Matrix.Identity()] : instances) {
-            const copy = instances.length > 1 ? data.clone() : data;
-            parts.push({ vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable });
-        }
+        return node instanceof Mesh ? bakeMesh(node, node.computeWorldMatrix(true), turn, animated) : [];
+    });
+}
+
+/**
+ * Bake one mesh, placed by a world matrix, into parts: one, or one per thin instance.
+ * @param mesh - The mesh whose vertices and material are baked.
+ * @param world - Where it stands: its own world matrix, or that of an instance of it.
+ * @param turn - The orientation to bake in.
+ * @param animated - Whether the part keeps its own vertices and its mesh, to animate.
+ * @returns The parts.
+ */
+function bakeMesh(mesh: Mesh, world: Matrix, turn: Matrix, animated: boolean): Part[] {
+    if (mesh.getTotalVertices() === 0 || mesh.getIndices() === null) {
+        return [];
     }
 
-    return parts;
+    const data = withoutWhiteColors(restPose(mesh));
+    const { material } = mesh;
+    const signature = [data.uvs, data.uvs2, data.colors, data.tangents].map((a) => (a ? 1 : 0)).join("");
+    const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
+    const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
+    const placed = world.multiply(turn);
+    // A thin instance's matrix places it in the mesh's own space, before the mesh's world matrix.
+    // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
+    const instances = mesh.thinInstanceGetWorldMatrices();
+    // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) or a reused mesh's copy is drawn still; give each copy a bone if a file animates one.
+    const movable = animated && instances.length === 0 ? { mesh, local: withoutWhiteColors(ownVertices(mesh)) } : {};
+    return (instances.length === 0 ? [Matrix.Identity()] : instances).map((instance) => {
+        const copy = instances.length > 1 ? data.clone() : data;
+        return { vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable };
+    });
 }
 
 /**

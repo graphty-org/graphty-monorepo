@@ -858,12 +858,19 @@ function firstInverseBind(
     const accessor = data.accessors[skin.inverseBindMatrices as number] as Record<string, unknown> | undefined;
     const view = data.views[accessor?.bufferView as number] as Record<string, unknown> | undefined;
     const bytes = data.buffers[view?.buffer as number] as Uint8Array | undefined;
-    if (accessor?.componentType !== 5126 || accessor.sparse !== undefined || view === undefined || bytes === undefined) {
+    if (
+        accessor?.componentType !== 5126 ||
+        accessor.sparse !== undefined ||
+        view === undefined ||
+        bytes === undefined
+    ) {
         return undefined;
     }
 
     const start =
-        bytes.byteOffset + integer(view.byteOffset, "bufferView.byteOffset", 0) + integer(accessor.byteOffset, "accessor.byteOffset", 0);
+        bytes.byteOffset +
+        integer(view.byteOffset, "bufferView.byteOffset", 0) +
+        integer(accessor.byteOffset, "accessor.byteOffset", 0);
     if (start + 64 > bytes.byteOffset + bytes.length) {
         return undefined;
     }

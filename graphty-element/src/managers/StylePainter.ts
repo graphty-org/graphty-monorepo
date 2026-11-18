@@ -1672,9 +1672,7 @@ export class StylePainter {
         index: number,
     ): { resolved: ResolvedStyle; meshKey: number; tag: string; make: () => NodePaint } {
         const floor = this.floorOf("node");
-        const defaulted = this.withModelDefaults(
-            floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE),
-        );
+        const defaulted = this.withModelDefaults(floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE));
         const { tag } = defaulted;
         const resolved = coarsened(defaulted.resolved, this.largeGraph());
         const meshKey = paint.meshKeyOf("node", index);

@@ -2,7 +2,7 @@
     "name": "babylonjs-models",
     "version": "0.0.0",
     "private": false,
-    "description": "Load 3D models into Babylon.js scenes from URLs, files, folders, zips or bytes: glTF and GLB with Draco, meshopt and KTX2, OBJ with MTL, STL, PLY, Gaussian splats and .babylon, every file checked first and nothing fetched from a CDN",
+    "description": "Load 3D models into Babylon.js scenes from URLs, files, folders, zips or bytes: glTF and GLB with Draco, meshopt and KTX2, OBJ with MTL, STL, PLY and .babylon, every file checked first and nothing fetched from a CDN",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "main": "dist/index.js",
@@ -84,7 +84,6 @@
         "obj",
         "stl",
         "ply",
-        "gaussian-splat",
         "draco",
         "ktx2"
     ],

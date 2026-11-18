@@ -5,22 +5,16 @@
  * What a PLY holds decides what it draws:
  * - faces: a mesh, each face a fan of triangles, with the vertices' normals, texture coordinates
  *   (`s t`, `u v`, `texture_u texture_v`) and colors (`red green blue alpha`, uchar or float);
- * - no faces: a point cloud, each point drawn as a small solid in its color;
- * - `f_dc_0` and `opacity` on the vertices: a Gaussian splat, each splat a small solid;
- * - a `chunk` element and `packed_position` on the vertices: PlayCanvas's compressed splat.
+ * - no faces: a point cloud, each point drawn as a small solid in its color.
+ *
+ * A Gaussian splat PLY (`f_dc_0` and `opacity` on the vertices, or PlayCanvas's compressed splat
+ * with `packed_position`) is not drawn: {@link isSplatPly} tells it, and the intake refuses it.
  *
  * Babylon.js's own PLY reading decodes only little-endian binary and corrupts the faces after a
  * quad, so it is not used. Babylon-free, so the intake scan reads the same header the drawing does.
  */
 
-import {
-    type Geometry,
-    ModelReadError,
-    pointsToSolids,
-    SPLAT_ROW_BYTES,
-    splatRowsToSolids,
-    toLeftHanded,
-} from "./geometry.js";
+import { type Geometry, ModelReadError, pointsToSolids, toLeftHanded } from "./geometry.js";
 
 /** Bytes per PLY scalar type. */
 const SIZES: Readonly<Record<string, number>> = {
@@ -69,7 +63,7 @@ export interface PlyHeader {
 }
 
 /** What a PLY holds, by the properties of its elements. */
-export type PlyGeometryKind = "mesh" | "points" | "splats";
+export type PlyGeometryKind = "mesh" | "points";
 
 /**
  * Read a PLY header.
@@ -131,17 +125,23 @@ function propertyOf(tokens: readonly string[]): PlyProperty {
 }
 
 /**
- * What a PLY's header says it draws.
+ * Whether a PLY holds Gaussian splats: `f_dc_0` and `opacity` on its vertices, or PlayCanvas's
+ * compressed splat (`packed_position`). This package does not load them.
  * @param header - The header.
- * @returns `mesh`, `points` or `splats`.
+ * @returns True for a splat PLY.
  */
-export function plyGeometryKind(header: PlyHeader): PlyGeometryKind {
+export function isSplatPly(header: PlyHeader): boolean {
     const vertex = header.elements.find((e) => e.name === "vertex");
     const names = new Set(vertex?.properties.map((p) => p.name));
-    if ((names.has("f_dc_0") && names.has("opacity")) || names.has("packed_position")) {
-        return "splats";
-    }
+    return (names.has("f_dc_0") && names.has("opacity")) || names.has("packed_position");
+}
 
+/**
+ * What a PLY's header says it draws.
+ * @param header - The header.
+ * @returns `mesh` or `points`.
+ */
+export function plyGeometryKind(header: PlyHeader): PlyGeometryKind {
     const face = header.elements.find((e) => e.name === "face");
     return face === undefined || face.count === 0 ? "points" : "mesh";
 }
@@ -407,80 +407,11 @@ function fanIndices(face: ElementData, vertices: number): Uint32Array {
     return Uint32Array.from(out);
 }
 
-/**
- * The rows of a 3D Gaussian splat PLY (`f_dc_*`, `scale_*`, `opacity`).
- * @param vertex - The vertex element.
- * @param positions - x, y, z per splat.
- * @returns 32-byte splat rows.
- */
-function gaussianRows(vertex: ElementData, positions: Float32Array): ArrayBuffer {
-    const SH_C0 = 0.28209479177387814;
-    const rows = new ArrayBuffer(vertex.count * SPLAT_ROW_BYTES);
-    const floats = new Float32Array(rows);
-    const bytes = new Uint8ClampedArray(rows);
-    const get = (name: string, i: number): number => vertex.columns.get(name)?.[i] ?? 0;
-    for (let i = 0; i < vertex.count; i++) {
-        floats.set(positions.subarray(i * 3, i * 3 + 3), i * 8);
-        for (let k = 0; k < 3; k++) {
-            floats[i * 8 + 3 + k] = Math.exp(get(`scale_${String(k)}`, i));
-            bytes[i * 32 + 24 + k] = (0.5 + SH_C0 * get(`f_dc_${String(k)}`, i)) * 255;
-        }
-        bytes[i * 32 + 27] = (1 / (1 + Math.exp(-get("opacity", i)))) * 255;
-    }
-
-    return rows;
-}
-
-/**
- * The rows of a PlayCanvas compressed splat PLY: 256 splats per chunk, positions and scales
- * packed 11-10-11 between the chunk's bounds, colors 8-8-8-8.
- * @param vertex - The vertex element.
- * @param chunk - The chunk element.
- * @returns 32-byte splat rows.
- */
-function compressedRows(vertex: ElementData, chunk: ElementData | undefined): ArrayBuffer {
-    const rows = new ArrayBuffer(vertex.count * SPLAT_ROW_BYTES);
-    const floats = new Float32Array(rows);
-    const bytes = new Uint8ClampedArray(rows);
-    const at = (name: string, c: number, fallback: number): number => chunk?.columns.get(name)?.[c] ?? fallback;
-    const unpack = (v: number): [number, number, number] => [
-        (v >>> 21) / 2047,
-        ((v >>> 11) & 1023) / 1023,
-        (v & 2047) / 2047,
-    ];
-    const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-    const axes = ["x", "y", "z"];
-    const channels = ["r", "g", "b"];
-    for (let i = 0; i < vertex.count; i++) {
-        const c = Math.floor(i / 256);
-        if (chunk !== undefined && c >= chunk.count) {
-            throw new ModelReadError("splat");
-        }
-
-        const position = unpack(vertex.columns.get("packed_position")?.[i] ?? 0);
-        const scale = unpack(vertex.columns.get("packed_scale")?.[i] ?? 0);
-        const color = vertex.columns.get("packed_color")?.[i] ?? 0xffffffff;
-        axes.forEach((axis, k) => {
-            floats[i * 8 + k] = lerp(at(`min_${axis}`, c, 0), at(`max_${axis}`, c, 1), position[k]);
-            floats[i * 8 + 3 + k] = Math.exp(
-                lerp(at(`min_scale_${axis}`, c, 0), at(`max_scale_${axis}`, c, 0), scale[k]),
-            );
-        });
-        channels.forEach((channel, k) => {
-            const value = ((color >>> (24 - k * 8)) & 255) / 255;
-            bytes[i * 32 + 24 + k] = lerp(at(`min_${channel}`, c, 0), at(`max_${channel}`, c, 1), value) * 255;
-        });
-        bytes[i * 32 + 27] = color & 255;
-    }
-
-    return rows;
-}
-
 /** What {@link readPly} returns. */
 export interface PlyRead {
     readonly kind: PlyGeometryKind;
     readonly geometry: Geometry;
-    /** Points or splats drawn, for a point cloud or a splat. */
+    /** Points drawn, for a point cloud. */
     readonly drawn?: number;
     /** The picture a `comment TextureFile` line names. */
     readonly textureFile?: string;
@@ -490,7 +421,7 @@ export interface PlyRead {
  * Read a PLY into geometry, in Babylon's left-handed space with the file's up axis kept.
  * @param bytes - The file.
  * @returns What it draws.
- * @throws {ModelReadError} `header`, `ply` or `splat` for a damaged file.
+ * @throws {ModelReadError} `header` or `ply` for a damaged file.
  */
 export function readPly(bytes: Uint8Array): PlyRead {
     const header = readPlyHeader(bytes);
@@ -501,19 +432,9 @@ export function readPly(bytes: Uint8Array): PlyRead {
         throw new ModelReadError("ply");
     }
 
-    if (kind === "splats" && vertex.columns.has("packed_position")) {
-        const { geometry, drawn } = splatRowsToSolids(compressedRows(vertex, body.get("chunk")));
-        return { kind, geometry: toLeftHanded(geometry), drawn };
-    }
-
     const positions = interleave(vertex.count, [column(vertex, "x"), column(vertex, "y"), column(vertex, "z")]);
     if (positions === undefined) {
         throw new ModelReadError("ply");
-    }
-
-    if (kind === "splats") {
-        const { geometry, drawn } = splatRowsToSolids(gaussianRows(vertex, positions));
-        return { kind, geometry: toLeftHanded(geometry), drawn };
     }
 
     const colors = vertexColors(header, vertex);

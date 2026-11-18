@@ -1,7 +1,8 @@
 /**
  * The readers and checks of every format babylonjs-models reads, over the variant fixtures
  * (test/fixtures/variants, written by its generate.ts): detection, the STL, PLY and .babylon
- * readers, points and splats drawn as solids, the glTF 1.0 upgrade and picture sizes.
+ * readers, points drawn as solids, Gaussian splats recognized and refused, the glTF 1.0 upgrade and
+ * picture sizes.
  */
 
 import { readFileSync } from "node:fs";
@@ -15,7 +16,7 @@ import { BUILT_IN_MODEL_FORMATS, detectModelFormat } from "../src/files/detect.j
 import { checkGltf, parseGltfJson } from "../src/files/gltfChecks.js";
 import { DEFAULT_MODEL_LIMITS } from "../src/files/limits.js";
 import { readBabylon } from "../src/files/readers/babylon.js";
-import { MAX_POINTS_DRAWN, ModelReadError, pointsToSolids, splatRowsToSolids } from "../src/files/readers/geometry.js";
+import { MAX_POINTS_DRAWN, ModelReadError, pointsToSolids } from "../src/files/readers/geometry.js";
 import { isGltf1, readGlb1, upgradeGltf1 } from "../src/files/readers/gltf1.js";
 import { readPly } from "../src/files/readers/ply.js";
 import { readStl, stlFacts } from "../src/files/readers/stl.js";
@@ -50,26 +51,11 @@ function ruleOf(read: () => unknown): string {
 }
 
 describe("detecting the formats babylonjs-models reads", () => {
-    it("reads glTF 1.0, splats, .babylon and SOG, and names BVH", () => {
+    it("reads glTF 1.0 and .babylon, and names BVH", () => {
         assert.deepStrictEqual(detectModelFormat({ head: fixture("glb1", "cube.glb") }), {
             format: "glb",
             supported: true,
         });
-        assert.deepStrictEqual(detectModelFormat({ filename: "a.spz", head: fixture("spz", "combined_SPZv3.spz") }), {
-            format: "spz",
-            supported: true,
-        });
-        assert.deepStrictEqual(
-            detectModelFormat({ filename: "a.sog", head: zipSync({ "meta.json": new Uint8Array(2) }) }),
-            {
-                format: "sog",
-                supported: true,
-            },
-        );
-        assert.deepStrictEqual(
-            detectModelFormat({ filename: "meta.json", head: new TextEncoder().encode('{"means":{},"quats":{}}') }),
-            { format: "sog", supported: true },
-        );
         assert.deepStrictEqual(
             detectModelFormat({ filename: "cube.babylon", head: fixture("babylon", "cube.babylon") }),
             {
@@ -80,6 +66,43 @@ describe("detecting the formats babylonjs-models reads", () => {
         assert.deepStrictEqual(detectModelFormat({ head: fixture("bvh", "walk.bvh") }), {
             format: "bvh",
             supported: false,
+        });
+    });
+
+    it("recognizes Gaussian splats and does not load them", () => {
+        const cases: [string, string, string][] = [
+            ["splat", "points.splat", "splat"],
+            ["spz", "points.spz", "spz"],
+            ["sog", "points.sog", "sog"],
+            ["ply-splat", "splat.ply", "splat-ply"],
+            ["ply-splat-compressed", "splat.compressed.ply", "splat-ply"],
+        ];
+        for (const [id, name, format] of cases) {
+            assert.deepStrictEqual(detectModelFormat({ filename: name, head: fixture(id, name) }), {
+                format,
+                supported: false,
+            });
+        }
+        // An unbundled SOG's meta.json, and a splat named with no bytes to read.
+        assert.deepStrictEqual(
+            detectModelFormat({ filename: "meta.json", head: new TextEncoder().encode('{"means":{},"quats":{}}') }),
+            { format: "sog", supported: false },
+        );
+        assert.deepStrictEqual(
+            detectModelFormat({ filename: "a.sog", head: zipSync({ "meta.json": new Uint8Array(2) }) }),
+            { format: "sog", supported: false },
+        );
+        for (const ext of ["splat", "spz", "sog"]) {
+            assert.deepStrictEqual(detectModelFormat({ filename: `a.${ext}` }), { format: ext, supported: false });
+        }
+        // A head too short to hold the whole header is a PLY until the intake reads all of it.
+        const head = fixture("ply-splat", "splat.ply").slice(0, 20);
+        assert.deepStrictEqual(detectModelFormat({ filename: "splat.ply", head }), { format: "ply", supported: true });
+        assert.notInclude(BUILT_IN_MODEL_FORMATS as readonly string[], "splat");
+        // A plain PLY point cloud is still a PLY.
+        assert.deepStrictEqual(detectModelFormat({ head: fixture("ply-points-bin", "points.ply") }), {
+            format: "ply",
+            supported: true,
         });
     });
 
@@ -130,17 +153,11 @@ describe("the PLY reader", () => {
         assert.strictEqual(textured.geometry.uvs?.length, 48);
     });
 
-    it("draws points and splats as octahedra, eight triangles each", () => {
+    it("draws points as octahedra, eight triangles each", () => {
         const points = readPly(fixture("ply-points-bin", "points.ply"));
         assert.strictEqual(points.kind, "points");
         assert.strictEqual(points.drawn, 216);
         assert.strictEqual(points.geometry.indices.length, 216 * 24);
-        const splat = readPly(fixture("ply-splat", "splat.ply"));
-        assert.strictEqual(splat.kind, "splats");
-        assert.strictEqual(splat.drawn, 216);
-        const compressed = readPly(fixture("ply-splat-compressed", "combined_SPZv3.compressed.ply"));
-        assert.strictEqual(compressed.kind, "splats");
-        assert.isAbove(compressed.drawn ?? 0, 0);
     });
 
     it("refuses a face that names a vertex the file does not have", () => {
@@ -159,12 +176,6 @@ describe("points as solids", () => {
     it("thins points by stride to the cap", () => {
         const many = new Float32Array((MAX_POINTS_DRAWN + 10) * 3);
         assert.strictEqual(pointsToSolids(many).drawn, MAX_POINTS_DRAWN);
-    });
-
-    it("drops splats whose opacity is under 0.1", () => {
-        const rows = new Uint8Array(fixture("splat", "points.splat"));
-        rows[27] = 10;
-        assert.strictEqual(splatRowsToSolids(rows.slice().buffer).drawn, 215);
     });
 });
 

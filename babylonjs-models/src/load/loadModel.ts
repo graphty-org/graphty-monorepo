@@ -40,9 +40,6 @@ const READERS: Readonly<Record<BuiltInModelFormat, ModelExtension | OwnFormat>> 
     obj: ".obj",
     stl: "stl",
     ply: "ply",
-    splat: "splat",
-    spz: "spz",
-    sog: "sog",
     babylon: "babylon",
 };
 

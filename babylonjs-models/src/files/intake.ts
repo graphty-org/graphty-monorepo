@@ -25,13 +25,9 @@ import {
     findBabylonParts,
     findObjParts,
     findPlyParts,
-    findSogParts,
     scanBabylon,
     scanObj,
     scanPly,
-    scanSog,
-    scanSplat,
-    scanSpz,
     scanStl,
     withSkips,
 } from "./textFormats.js";
@@ -214,10 +210,8 @@ export async function unpackZip(
     }
 
     const [[name, only]] = given;
-    // A .sog is a zip of a meta.json and the pictures it names: unpacked as a set, so its
-    // meta.json is the main file.
     const format = isZip(only) ? detectModelFormat({ filename: name, head: only })?.format : undefined;
-    if (format !== "zip" && format !== "sog") {
+    if (format !== "zip") {
         return given;
     }
 
@@ -1184,8 +1178,8 @@ function bestOfEachBase(candidates: readonly Candidate[]): Candidate[] {
 }
 
 /**
- * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, .babylon, SPZ, SOG,
- * .splat, then formats the element does not load; of files sharing a base name only the best ranked counts; two different
+ * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, .babylon, then
+ * formats the element does not load; of files sharing a base name only the best ranked counts; two different
  * candidates of the best rank are ambiguous.
  * @param files - The set.
  * @param forced - A format the caller forced.
@@ -1339,14 +1333,6 @@ function checkByFormat(
             findPlyParts(main.path, files, findings);
             refuseMissing(findings);
             return scanPly(main.path, files, limits);
-        case "splat":
-            return scanSplat(bytes, limits);
-        case "spz":
-            return scanSpz(bytes, limits);
-        case "sog":
-            findSogParts(main.path, files, limits, findings);
-            refuseMissing(findings);
-            return scanSog(main.path, files, limits);
         case "babylon":
             findBabylonParts(main.path, files, limits, findings);
             refuseMissing(findings);
@@ -1423,9 +1409,6 @@ function findPartsByFormat(
             break;
         case "ply":
             findPlyParts(main.path, files, findings);
-            break;
-        case "sog":
-            findSogParts(main.path, files, limits, findings);
             break;
         case "babylon":
             findBabylonParts(main.path, files, limits, findings);

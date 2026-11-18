@@ -1,5 +1,5 @@
 /**
- * The checks of the formats read as text or plain binary (OBJ, STL, PLY, splats, `.babylon`) and
+ * The checks of the formats read as text or plain binary (OBJ, STL, PLY, `.babylon`) and
  * of glTF 1.0: each is held to the limits before it is parsed, and a damaged file is refused with
  * the rule it broke.
  */
@@ -50,8 +50,7 @@ describe("the text and plain binary formats", () => {
             ["stl-binary", "cube.stl"],
             ["ply-ascii", "cube.ply"],
             ["babylon", "cube.babylon"],
-            ["splat", "points.splat"],
-            ["spz", "combined_SPZv3.spz"],
+            ["ply-points-bin", "points.ply"],
         ]) {
             const fact = await refusalOf(one(id, name), { maxTriangles: 2 });
             assert.strictEqual(fact.code, "E_MODEL_TOO_LARGE", id);
@@ -73,12 +72,50 @@ describe("the text and plain binary formats", () => {
         assert.strictEqual((await refusalOf(cut)).code, "E_MODEL_STRUCTURE");
     });
 
-    it("refuse a .splat whose length is not whole rows, and a .babylon that is not JSON", async () => {
-        const splat = one("splat", "points.splat");
-        const ragged = new Map([["points.splat", (splat.get("points.splat") as Uint8Array).slice(0, 33)]]);
-        assert.strictEqual((await refusalOf(ragged)).code, "E_MODEL_STRUCTURE");
+    it("refuse a .babylon that is not JSON", async () => {
         const babylon = await refusalOf(text("cube.babylon", '{ "producer": {}, "meshes": [ '));
         assert.strictEqual(babylon.code, "E_MODEL_STRUCTURE");
+    });
+
+    it("refuse Gaussian splats as an unsupported format, naming the splat format", async () => {
+        for (const [id, name, format] of [
+            ["splat", "points.splat", "splat"],
+            ["spz", "points.spz", "spz"],
+            ["sog", "points.sog", "sog"],
+            ["ply-splat", "splat.ply", "splat-ply"],
+            ["ply-splat-compressed", "splat.compressed.ply", "splat-ply"],
+        ]) {
+            const fact = await refusalOf(one(id, name));
+            assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED", id);
+            assert.strictEqual(fact.params.format, format, id);
+        }
+    });
+
+    it("refuse a splat PLY even when the caller says it is a PLY", async () => {
+        const error = await checkModelFiles(
+            one("ply-splat", "splat.ply"),
+            { format: "ply" },
+            DEFAULT_MODEL_LIMITS,
+        ).then(
+            () => assert.fail("the set was accepted"),
+            (e: unknown) => e,
+        );
+        assert.instanceOf(error, ModelError);
+        assert.deepInclude(error.fact, { code: "E_MODEL_FORMAT_UNSUPPORTED" });
+        assert.strictEqual(error.fact.params.format, "splat-ply");
+    });
+
+    it("refuse a glTF that requires Gaussian splatting", async () => {
+        for (const extension of ["KHR_gaussian_splatting", "KHR_gaussian_splatting_compression_spz_2"]) {
+            const gltf = JSON.stringify({
+                asset: { version: "2.0" },
+                extensionsUsed: [extension],
+                extensionsRequired: [extension],
+            });
+            const fact = await refusalOf(text("splats.gltf", gltf));
+            assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED", extension);
+            assert.deepInclude(fact.params, { format: "gltf", extension });
+        }
     });
 
     it("upgrade glTF 1.0 and refuse a GLB version 1 cut short", async () => {

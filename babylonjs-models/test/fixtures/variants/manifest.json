@@ -665,84 +665,6 @@
         "files": ["points.ply"]
     },
     {
-        "geometry": "splats",
-        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
-        "refused": null,
-        "upload": "files",
-        "upAxis": "-y",
-        "format": "ply",
-        "id": "ply-splat",
-        "encoding": "binary",
-        "color": "red",
-        "what": "3D Gaussian splat PLY",
-        "files": ["splat.ply"]
-    },
-    {
-        "geometry": "splats",
-        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
-        "refused": null,
-        "upload": "files",
-        "upAxis": "-y",
-        "format": "ply",
-        "id": "ply-splat-compressed",
-        "encoding": "binary",
-        "color": "any",
-        "what": "PlayCanvas compressed splat PLY (Babylon sample)",
-        "files": ["combined_SPZv3.compressed.ply"]
-    },
-    {
-        "geometry": "splats",
-        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
-        "refused": null,
-        "upload": "files",
-        "upAxis": "-y",
-        "format": "splat",
-        "id": "splat",
-        "color": "red",
-        "what": "raw .splat (32-byte rows)",
-        "files": ["points.splat"]
-    },
-    {
-        "geometry": "splats",
-        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
-        "refused": null,
-        "upload": "files",
-        "upAxis": "-y",
-        "format": "splat",
-        "id": "splat-upright",
-        "color": "any",
-        "upright": {
-            "top": "green",
-            "bottom": "red"
-        },
-        "what": "raw .splat, green on top and red below with Y pointing down",
-        "files": ["points.splat"]
-    },
-    {
-        "geometry": "splats",
-        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
-        "refused": null,
-        "upload": "files",
-        "upAxis": "-y",
-        "format": "spz",
-        "id": "spz",
-        "color": "any",
-        "what": "Niantic .spz (Babylon sample)",
-        "files": ["combined_SPZv3.spz"]
-    },
-    {
-        "geometry": "splats",
-        "warnings": ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
-        "refused": null,
-        "upload": "files",
-        "upAxis": "-y",
-        "format": "sog",
-        "id": "sog",
-        "color": "any",
-        "what": "PlayCanvas .sog bundle (Babylon sample)",
-        "files": ["combined_SPZv3.sog"]
-    },
-    {
         "geometry": "mesh",
         "warnings": [],
         "refused": null,
@@ -864,5 +786,80 @@
         },
         "what": "BVH animation with no mesh (refused)",
         "files": ["walk.bvh"]
+    },
+    {
+        "id": "ply-splat",
+        "upload": "files",
+        "format": "splat-ply",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "splat-ply"
+            }
+        },
+        "what": "3D Gaussian splat PLY (refused)",
+        "files": ["splat.ply"]
+    },
+    {
+        "id": "ply-splat-compressed",
+        "upload": "files",
+        "format": "splat-ply",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "splat-ply"
+            }
+        },
+        "what": "PlayCanvas compressed splat PLY (refused)",
+        "files": ["splat.compressed.ply"]
+    },
+    {
+        "id": "splat",
+        "upload": "files",
+        "format": "splat",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "splat"
+            }
+        },
+        "what": "raw .splat (refused)",
+        "files": ["points.splat"]
+    },
+    {
+        "id": "spz",
+        "upload": "files",
+        "format": "spz",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "spz"
+            }
+        },
+        "what": "Niantic .spz (refused)",
+        "files": ["points.spz"]
+    },
+    {
+        "id": "sog",
+        "upload": "files",
+        "format": "sog",
+        "color": "any",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "sog"
+            }
+        },
+        "what": "PlayCanvas .sog bundle (refused)",
+        "files": ["points.sog"]
     }
 ]

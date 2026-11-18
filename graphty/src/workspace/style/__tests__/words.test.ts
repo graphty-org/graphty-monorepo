@@ -218,7 +218,6 @@ describe("model variant words", () => {
         );
         assert.equal(CUSTOM_MODEL.variantLine({ format: "glb", compression: ["draco"] }), "GLB, Draco");
         assert.equal(CUSTOM_MODEL.variantLine({ format: "gltf", gltfVersion: "1.0" }), "glTF, glTF 1.0");
-        assert.equal(CUSTOM_MODEL.variantLine({ format: "spz", geometry: "splats" }), "SPZ, Gaussian splats");
         assert.equal(CUSTOM_MODEL.variantLine({ format: "stl", encoding: "ascii" }), "STL, ASCII");
     });
 
@@ -343,5 +342,13 @@ describe("model variant words", () => {
         });
         assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
         assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
+        // A refused format is named; a glTF refused for an extension names the extension.
+        assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "spz" } }).word, "SPZ not read");
+        const splatGltf = {
+            code: "E_MODEL_FORMAT_UNSUPPORTED",
+            params: { format: "gltf", extension: "KHR_gaussian_splatting" },
+        } as const;
+        assert.equal(modelChip(splatGltf).tip, "KHR_gaussian_splatting");
+        assert.match(modelWords(splatGltf), /needs KHR_gaussian_splatting/);
     });
 });

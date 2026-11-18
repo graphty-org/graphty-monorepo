@@ -125,7 +125,6 @@ function tooLargeTip(p: CodedFact["params"]): string {
 const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
     delayLoad: "meshes kept in other files",
     ply: "PLY data damaged",
-    splat: "splat data damaged",
     babylon: ".babylon data damaged",
 };
 
@@ -158,7 +157,7 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     E_MODEL_FORMAT_UNSUPPORTED: (p) =>
         p.assetKind === "image"
             ? { word: "Picture", tip: "this file is a picture" }
-            : { word: `${said(p.format).toUpperCase()} not read`, tip: "Export as GLB" },
+            : { word: `${said(p.format).toUpperCase()} not read`, tip: said(p.extension) || "Export as GLB" },
     E_MODEL_WEB_PAGE: (p) => ({ word: "Web page", tip: hostOf(p) }),
     E_MODEL_FETCH: (p) => ({
         word: "Not reached",

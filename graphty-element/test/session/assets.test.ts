@@ -976,7 +976,7 @@ describe("detectModelFormat", () => {
             supported: false,
         });
         assert.deepStrictEqual(detectModelFormat({ filename: "rig.fbx" }), { format: "fbx", supported: false });
-        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: true });
+        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: false });
     });
 
     it("says nothing about graph data", () => {

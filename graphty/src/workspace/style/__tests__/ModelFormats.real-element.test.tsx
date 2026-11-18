@@ -65,7 +65,7 @@ interface Variant {
 const TABLE = JSON.parse(await commands.readFile(`${VARIANTS}/manifest.json`)) as Variant[];
 
 /** Files that hold other files: their parts are named inside them, not by the files chosen. */
-const CONTAINER = /\.(zip|sog)$/;
+const CONTAINER = /\.zip$/;
 
 /**
  * The share of a picture's pixels that are drawn, and of those dominated by a color (that channel

@@ -14,9 +14,12 @@ nothing is fetched from a CDN: the Draco decoder and the KTX2 transcoders ship i
 | glTF 2.0 and 1.0 | `.glb`, `.gltf` with its `.bin` and pictures; Draco, meshopt and KTX2 compression; WebP and AVIF pictures |
 | OBJ              | `.obj` with its `.mtl` and the pictures the `.mtl` names (PNG, JPEG, TGA, DDS, BMP, GIF), vertex colors   |
 | STL              | ASCII and binary, with VisCAM and Materialise colors                                                      |
-| PLY              | ASCII and binary meshes, point clouds and Gaussian splats                                                 |
-| Gaussian splats  | `.splat`, `.spz`, `.sog`                                                                                  |
+| PLY              | ASCII and binary meshes and point clouds                                                                  |
 | Babylon.js       | `.babylon` (geometry and diffuse materials)                                                               |
+
+Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY, a glTF requiring `KHR_gaussian_splatting`)
+are recognized and refused with `E_MODEL_FORMAT_UNSUPPORTED`: `params.format` is `splat`, `spz`, `sog`
+or `splat-ply`, and a glTF names the extension in `params.extension`.
 
 ```bash
 npm install babylonjs-models @babylonjs/core @babylonjs/loaders
@@ -94,7 +97,7 @@ its own language.
 | Code                                                                      | When                                                                                                                                                                                                                           |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `E_MODEL_FORMAT_UNKNOWN`                                                  | No file of the set is a model                                                                                                                                                                                                  |
-| `E_MODEL_FORMAT_UNSUPPORTED`                                              | A recognized format this package does not load (FBX, USDZ, COLLADA, 3MF, .blend)                                                                                                                                               |
+| `E_MODEL_FORMAT_UNSUPPORTED`                                              | A recognized format this package does not load (FBX, USDZ, COLLADA, 3MF, .blend, Gaussian splats)                                                                                                                              |
 | `E_MODEL_AMBIGUOUS`                                                       | Several files could be the model: pass `main`                                                                                                                                                                                  |
 | `E_MODEL_MISSING_FILE`                                                    | A file the model names is not in the set (`name`, `role`)                                                                                                                                                                      |
 | `E_MODEL_PART_AMBIGUOUS`                                                  | Several files of the set match a name the model uses                                                                                                                                                                           |

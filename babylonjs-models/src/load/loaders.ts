@@ -9,7 +9,7 @@
  * - the OBJ loader (with its MTL reader), with a fix that keeps an OBJ's vertex colors;
  * - the TGA and DDS texture loaders, which Babylon would otherwise import lazily.
  *
- * STL, PLY, Gaussian splats (`.splat`, `.spz`, `.sog`) and `.babylon` are read by this package's
+ * STL, PLY and `.babylon` are read by this package's
  * own readers (src/files/readers/), which build the container themselves ({@link loadOwnModel}).
  *
  * Babylon.js lazily imports several modules the first time they are needed: the PBR material and
@@ -83,7 +83,6 @@ import { type Geometry, ModelReadError } from "../files/readers/geometry.js";
 import { readPly } from "../files/readers/ply.js";
 import { readStl } from "../files/readers/stl.js";
 import { buildContainer, type Part, type PartMaterial } from "../readers/container.js";
-import { readSplat } from "../readers/splat.js";
 
 /** The file extensions Babylon's own loaders read. */
 export type ModelExtension = ".glb" | ".gltf" | ".obj";
@@ -284,11 +283,10 @@ async function settle(scene: Scene, container: AssetContainer, keepCamerasAndLig
 }
 
 /** The formats babylonjs-models' own readers draw. */
-export type OwnFormat = "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
+export type OwnFormat = "stl" | "ply" | "babylon";
 
 /**
  * The parts and materials one of this package's own readers makes of a file.
- * @param scene - The scene.
  * @param files - The file set.
  * @param main - The main file's path.
  * @param format - Its format.
@@ -297,14 +295,13 @@ export type OwnFormat = "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
  * @returns The parts and their materials.
  * @throws {ModelReadError} For a damaged file.
  */
-async function readOwn(
-    scene: Scene,
+function readOwn(
     files: ReadonlyMap<string, Uint8Array>,
     main: string,
     format: OwnFormat,
     rootUrl: string,
     hidden: ReadonlySet<string>,
-): Promise<{ parts: Part[]; materials: PartMaterial[] }> {
+): { parts: Part[]; materials: PartMaterial[] } {
     const bytes = files.get(main) as Uint8Array;
     // A part the file gives no look has no material, as an OBJ without an .mtl.
     const one = (geometry: Geometry, material?: PartMaterial): { parts: Part[]; materials: PartMaterial[] } => ({
@@ -319,7 +316,7 @@ async function readOwn(
             const texture = read.textureFile === undefined ? undefined : rootUrl + read.textureFile;
             return one(read.geometry, texture === undefined ? undefined : { texture });
         }
-        case "babylon": {
+        default: {
             let json: unknown;
             try {
                 json = JSON.parse(new TextDecoder().decode(bytes));
@@ -345,14 +342,11 @@ async function readOwn(
                 }),
             };
         }
-        default: {
-            return one((await readSplat(scene, files, main, format)).geometry);
-        }
     }
 }
 
 /**
- * Load a model one of this package's own readers draws (STL, PLY, splats, `.babylon`) into a
+ * Load a model one of this package's own readers draws (STL, PLY, `.babylon`) into a
  * container that is not in the scene. Its pictures are named under `rootUrl`, which the caller's
  * request guard resolves to the set's own files.
  * @param scene - The scene.
@@ -375,7 +369,7 @@ export async function loadOwnModel(
 ): Promise<AssetContainer> {
     const end = startLoad();
     try {
-        const read = await readOwn(scene, files, main, format, rootUrl, hidden);
+        const read = readOwn(files, main, format, rootUrl, hidden);
         return await settle(scene, buildContainer(scene, read.parts, read.materials), false);
     } finally {
         end();

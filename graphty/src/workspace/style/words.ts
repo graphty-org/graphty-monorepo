@@ -1063,7 +1063,9 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
             ? "This .babylon file keeps its meshes in other files. Export it as one file or as .glb."
             : "The model file is damaged.",
     E_MODEL_FORMAT_UNSUPPORTED: (p) =>
-        `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
+        typeof p.extension === "string"
+            ? `This model needs ${p.extension}, which cannot be loaded yet.`
+            : `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
     E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
     E_MODEL_AMBIGUOUS: (p) => `Which one is the model? ${said(p.candidates)}. Drop just one of them.`,
     E_MODEL_MISSING_FILE: (p) =>
@@ -2151,7 +2153,7 @@ export const CUSTOM_MODEL = {
         [
             summary.gltfVersion === "1.0" ? `${formatWord(summary.format)}, glTF 1.0` : formatWord(summary.format),
             summary.encoding === undefined ? "" : ENCODING_WORDS[summary.encoding],
-            { mesh: "", points: "point cloud", splats: "Gaussian splats" }[summary.geometry ?? "mesh"],
+            { mesh: "", points: "point cloud" }[summary.geometry ?? "mesh"],
             ...(summary.compression ?? []).map((c) => COMPRESSION_WORDS[c]),
         ]
             .filter((w) => w !== "")

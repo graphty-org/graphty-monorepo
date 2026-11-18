@@ -60,8 +60,8 @@ compile per file.
 | glTF 2.0 (`.gltf`)                         | 1 + `.bin` + images | yes                   | PBR            | separate files (or base64 inside) | yes         | yes      | yes    | yes                       | yes, as GLB                            | yes                                                                         |
 | OBJ + MTL                                  | 1 + `.mtl` + images | yes                   | simple (Phong) | separate files                    | groups only | no       | no     | no                        | no                                     | yes                                                                         |
 | STL                                        | 1                   | yes                   | no             | no                                | no          | no       | no     | no                        | no (usually millimeters, Z up)         | yes                                                                         |
-| PLY                                        | 1                   | yes, or points        | vertex colors  | no                                | no          | no       | no     | no                        | no                                     | yes (also Gaussian splats)                                                  |
-| Gaussian splats (`.splat`, `.spz`, `.sog`) | 1                   | points, not triangles | n/a            | n/a                               | no          | no       | no     | no                        | no                                     | yes                                                                         |
+| PLY                                        | 1                   | yes, or points        | vertex colors  | no                                | no          | no       | no     | no                        | no                                     | yes                                                                         |
+| Gaussian splats (`.splat`, `.spz`, `.sog`) | 1                   | points, not triangles | n/a            | n/a                               | no          | no       | no     | no                        | no                                     | yes, but not loaded: refused (see below)                                    |
 | BVH                                        | 1                   | no                    | no             | no                                | skeleton    | yes      | no     | yes (motion capture only) | no                                     | yes                                                                         |
 | `.babylon`                                 | 1 (+ images)        | yes                   | yes            | separate                          | yes         | yes      | yes    | yes                       | Babylon's own                          | yes, in core                                                                |
 | FBX                                        | 1 (+ images)        | yes                   | yes            | embedded or separate              | yes         | yes      | yes    | yes                       | yes                                    | no: Babylon 9 only                                                          |
@@ -74,19 +74,24 @@ compile per file.
 graphty-element reads every format Babylon 8.56 can decode: **GLB and glTF 2.0** (compressed with
 Draco, meshopt, KTX2, WebP or AVIF, or not), **glTF 1.0** (upgraded to 2.0 JSON on reading, so one
 checker and one loader serve both; techniques and GLSL are dropped and a material draws its
-diffuse color or picture), **OBJ**, **STL**, **PLY** (meshes, point clouds, Gaussian splats and
-PlayCanvas compressed splats), **`.splat`, `.spz` and `.sog`**, and **`.babylon`** (geometry and
+diffuse color or picture), **OBJ**, **STL**, **PLY** (meshes and point clouds), and **`.babylon`** (geometry and
 diffuse materials only, read by the element's own reader; Babylon's `.babylon` loader is never
 imported). STL and PLY have the element's own readers too: Babylon's STL loader draws nothing for
 an unnamed solid and drops face colors, and its PLY reading decodes only little-endian binary.
 
-Points and splats are drawn as small solids, an 8-triangle octahedron per point in its color, sized
-by a splat's own scale or by the points' spacing; splats under 0.1 opacity are dropped and more than
-50,000 points are thinned evenly (`W_MODEL_POINTS_APPROXIMATED { points, drawn }`). True splat
-rendering, one sorted `GaussianSplattingMesh` per node, cannot be instanced and does not scale.
+A point cloud's points are drawn as small solids, an 8-triangle octahedron per point in its color,
+sized by the points' spacing; more than 50,000 points are thinned evenly
+(`W_MODEL_POINTS_APPROXIMATED { points, drawn }`).
 
 FBX, USD and USDZ, DAE, 3MF, `.blend` and BVH (animation only, no mesh) are recognized and answered
 with `E_MODEL_FORMAT_UNSUPPORTED`, which tells the reader to export GLB.
+
+**Gaussian splats are not loaded** (owner, 2026-11-17: drawn as solids they did not look good, and
+true splat rendering is not worth the effort now). `.splat`, `.spz`, `.sog` (bundled or an unbundled
+`meta.json`) and a splat PLY (`f_dc_0` and `opacity`, or PlayCanvas's compressed `packed_position`)
+are recognized and refused with `E_MODEL_FORMAT_UNSUPPORTED { format }`, `format` being `splat`,
+`spz`, `sog` or `splat-ply`. A glTF requiring `KHR_gaussian_splatting` (or its SPZ compression) is
+refused as any glTF requiring an extension the element does not read: `{ format: "gltf", extension }`.
 
 ### 1.3 Is there one standard package that holds everything?
 
@@ -348,7 +353,7 @@ export interface ModelSummary {
     readonly textures: number;
     readonly textureBytes: number; // decoded, as w * h * 4 * 4/3 (RGBA with mipmaps)
     readonly bounds?: { min: [number, number, number]; max: [number, number, number] }; // as authored
-    readonly upAxis: "y" | "z" | "-y" | "unknown"; // "-y": Gaussian splats, stored Y down
+    readonly upAxis: "y" | "z" | "unknown";
     readonly animations: readonly { name: string; seconds: number }[];
     readonly skinned: boolean;
     readonly morphTargets: number;
@@ -553,8 +558,7 @@ When the same base name appears in several formats (a kit with `rack.glb`, `rack
 
 **References resolve to keys of the file set.** A reference (glTF `buffers[].uri` and
 `images[].uri`, OBJ `mtllib`, the file name in an MTL `map_*` line after its option flags, a PLY's
-`comment TextureFile`, a `.babylon` material's texture `name`, the pictures a SOG's `meta.json`
-names) is percent-decoded once and resolved to a key in the file set:
+`comment TextureFile`, a `.babylon` material's texture `name`) is percent-decoded once and resolved to a key in the file set:
 
 - a relative path inside the main file's folder is its normalized path (tolerant matching, 12.5);
 - a `data:` URL whose media type is an image or `application/octet-stream` is its bytes;
@@ -619,13 +623,11 @@ own JSON: no `__proto__` key, no duplicate key, at most 64 levels deep):
 
 A failure is `E_MODEL_STRUCTURE { rule }` or `E_MODEL_TOO_LARGE { what, found, limit }`.
 
-**OBJ, STL, PLY, splats and `.babylon`** are scanned cheaply: OBJ counts `f` lines against the
+**OBJ, STL, PLY and `.babylon`** are scanned cheaply: OBJ counts `f` lines against the
 triangle limit and checks every face index is in range (no negative or huge ones beyond the vertex
 count); binary STL's declared triangle count must match its length; a PLY header's vertex and face
-counts must fit the file's length; a `.splat` is whole 32-byte rows; an `.spz`'s declared inflated
-size is under the decoded-bytes limit and it inflates to an `NGSP` header whose count fits; a SOG's
-`meta.json` names pictures the set holds; every `.babylon` index is in range and no mesh loads from
-another file (`delayLoadingFile`). A point cloud or splat counts 8 triangles per point drawn. Text formats have a lower byte limit (8 MB) because they parse on the main
+counts must fit the file's length, and a splat PLY is refused; every `.babylon` index is in range and no mesh loads from
+another file (`delayLoadingFile`). A point cloud counts 8 triangles per point drawn. Text formats have a lower byte limit (8 MB) because they parse on the main
 thread.
 
 **Decoders.** Each decoder is its own chunk (src/models/decoders/), loaded only for a glTF whose
@@ -664,9 +666,7 @@ that only uses it draws opaque, and one that requires it is refused.
 - **Up axis.** glTF and GLB need nothing: the loader's `__root__` node already converts glTF's +Y
   up into Babylon's frame. For the rest, `node.modelSourceUp: "detected"` draws the summary's
   `upAxis` up: STL is Z up, OBJ and PLY meshes and point clouds are Y up (Blender's OBJ exporter
-  writes Y up by default), and Gaussian splats (`.splat`, `.spz`, `.sog` and a splat PLY) are Y
-  down (`"-y"`), the 3D Gaussian splatting convention, which Babylon's own splat loader also flips
-  for every one of those containers. STL, PLY and splats report `W_MODEL_UP_GUESSED { format, up }`;
+  writes Y up by default). STL and PLY report `W_MODEL_UP_GUESSED { format, up }`;
   OBJ does not, because its guess is usually right.
 - **Fit.** The template is measured with `getHierarchyBoundingVectors` in its rest pose,
   recentered on its bounding-box center (unless `node.modelCenter: "origin"`), and scaled so its
@@ -780,7 +780,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `W_NETWORK_POLICY_IGNORED`    | `kind`                                                                                                                               | A project file carries a network approval an earlier build wrote; it is ignored (2.6)              | "This project asked to open web addresses without asking. It will ask."                                                                                               |
 | `E_MODEL_TOO_LARGE`           | `what: "bytes" \| "unzipped" \| "triangles" \| "textureBytes" \| "decodedBytes" \| "sceneTextureBytes" \| "count"`, `found`, `limit` | Over a limit in section 6                                                                          | "This model has 4.2 million triangles; the limit is 1 million. Pick a lighter one."                                                                                   |
 | `E_MODEL_STRUCTURE`           | `rule: "index" \| "cycle" \| "depth" \| "accessor" \| "json" \| "instancing"`                                                        | The glTF's structure is unsafe or broken                                                           | "The file is damaged."                                                                                                                                                |
-| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                                                                                                 | Recognized but not loadable (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon)                        | "FBX files cannot be loaded yet. Export as GLB from your 3D program."                                                                                                 |
+| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                                                                                                 | Recognized but not loadable (FBX, USDZ, DAE, .blend, 3MF, splats)                                  | "FBX files cannot be loaded yet. Export as GLB from your 3D program."                                                                                                 |
 | `E_MODEL_FORMAT_UNKNOWN`      | `fileName`                                                                                                                           | No format matches the bytes                                                                        | "This is not a 3D model file graphty knows."                                                                                                                          |
 | `E_MODEL_AMBIGUOUS`           | `candidates`                                                                                                                         | Two different main files in one set                                                                | "Which one is the model?" with the list                                                                                                                               |
 | `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`, `url?` (the absolute address of a part outside the main file's folder)                                       | A `.bin`, texture or `.mtl` is not in the set                                                      | "robot.gltf needs robot.bin. Drop the whole folder or a .zip, or export as .glb."                                                                                     |
@@ -797,9 +797,9 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                                                                                                                         | Textures above `maxTextureSize` were drawn smaller                                                 | (usually nothing)                                                                                                                                                     |
 | `W_MODEL_TRANSPARENT`         | `nodes`                                                                                                                              | Many blended instances may sort wrongly                                                            | "See-through parts may look wrong where models overlap."                                                                                                              |
 | `W_MODEL_HAS_ANIMATIONS`      | `clips`                                                                                                                              | Clips exist and animation is off                                                                   | Offer a "Play animation" control (later)                                                                                                                              |
-| `W_MODEL_POINTS_APPROXIMATED` | `points`, `drawn`                                                                                                                    | A point cloud or splat drawn as small solids                                                       | Say the points are drawn as small solids                                                                                                                              |
+| `W_MODEL_POINTS_APPROXIMATED` | `points`, `drawn`                                                                                                                    | A point cloud drawn as small solids                                                                | Say the points are drawn as small solids                                                                                                                              |
 | `W_MODEL_TEXTURE_FAILED`      | `name`                                                                                                                               | One texture could not be decoded; the rest of the model is drawn                                   | "One texture (bark.png) could not be read; the model shows without it."                                                                                               |
-| `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL, PLY or splats: the up axis is a guess                                                         | Show the "Turn upright" control near the model                                                                                                                        |
+| `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL or PLY: the up axis is a guess                                                                 | Show the "Turn upright" control near the model                                                                                                                        |
 | `W_MODEL_REMOVED`             | `id`, `layerIds`                                                                                                                     | An asset in use was removed                                                                        | "Layers that used this model now show the plain shape."                                                                                                               |
 | `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                                                                                                    | A project was saved naming a model it does not hold (7.3)                                          | "This project names a model on the web; others may not be able to open it."                                                                                           |
 | `E_MODEL_WEB_PAGE`            | `url`, `host`, `part?`, `suggested?`                                                                                                 | The URL answered with a web page, not a model (12.6)                                               | "That address is a web page, not the model file."                                                                                                                     |
@@ -826,7 +826,7 @@ Nothing in this table is ever asked of the user.
 | Missing companion files | References checked against the set                                                                                                                                                                                                                                                                                                                                                                            | `E_MODEL_MISSING_FILE`                                                |
 | Decoders needed         | glTF `extensionsRequired`                                                                                                                                                                                                                                                                                                                                                                                     | `E_MODEL_DECODER_UNAVAILABLE`                                         |
 | Units                   | Irrelevant: every model is fitted to the node                                                                                                                                                                                                                                                                                                                                                                 | --                                                                    |
-| Up axis                 | glTF, GLB: fixed by the spec; STL: Z; OBJ, PLY meshes and point clouds: Y; Gaussian splats: -Y (Y down)                                                                                                                                                                                                                                                                                                       | PLY, STL and splats report `W_MODEL_UP_GUESSED`; `node.modelSourceUp` |
+| Up axis                 | glTF, GLB: fixed by the spec; STL: Z; OBJ, PLY meshes and point clouds: Y                                                                                                                                                                                                                                                                                                                                     | PLY, STL and splats report `W_MODEL_UP_GUESSED`; `node.modelSourceUp` |
 | Center, size            | Bounding box, fitted like a box node of the same size                                                                                                                                                                                                                                                                                                                                                         | `node.modelCenter`, `node.modelFit`                                   |
 | Lighting                | The scene's environment, else the bundled one                                                                                                                                                                                                                                                                                                                                                                 | `node.unlit`                                                          |
 | Animations, skeleton    | The glTF JSON                                                                                                                                                                                                                                                                                                                                                                                                 | Static rest pose                                                      |

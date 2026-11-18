@@ -89,7 +89,7 @@ export interface ModelPart {
 }
 
 /** What a model file draws: see {@link ModelSummary.geometry}. */
-export type ModelGeometry = "mesh" | "points" | "splats";
+export type ModelGeometry = "mesh" | "points";
 
 /** How an STL or PLY file is stored: see {@link ModelSummary.encoding}. */
 export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
@@ -122,11 +122,8 @@ export interface ModelSummary {
         readonly min: readonly [number, number, number];
         readonly max: readonly [number, number, number];
     };
-    /**
-     * The axis that points up in the file: fixed for glTF, assumed for the others (`"-y"` for
-     * Gaussian splats, which store Y pointing down).
-     */
-    readonly upAxis: "y" | "z" | "-y" | "unknown";
+    /** The axis that points up in the file: fixed for glTF, assumed for the others. */
+    readonly upAxis: "y" | "z" | "unknown";
     /** Each clip; an unnamed glTF clip is `animation<index>`, as Babylon's glTF loader names it. */
     readonly animations: readonly { readonly name: string; readonly seconds: number }[];
     /**
@@ -144,12 +141,11 @@ export interface ModelSummary {
     /** glTF only. */
     readonly extensionsRequired: readonly string[];
     /**
-     * What the file draws: triangles (`mesh`), a point cloud (`points`) or Gaussian splats
-     * (`splats`). Points and splats are drawn as small solids, one per point, and earn
-     * `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
+     * What the file draws: triangles (`mesh`) or a point cloud (`points`). Points are drawn as
+     * small solids, one per point, and earn `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
      */
     readonly geometry?: ModelGeometry;
-    /** Points or splats in the file, before thinning. Points and splats only. */
+    /** Points in the file, before thinning. Point clouds only. */
     readonly points?: number;
     /** STL and PLY: how the file is stored. */
     readonly encoding?: ModelEncoding;

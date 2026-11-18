@@ -191,8 +191,7 @@ export function optionsOf(
     look: ModelLook = {},
 ): TemplateOptions {
     const asked = shape.modelSourceUp ?? "detected";
-    // glTF's loader converts +Y up itself; an STL is taken as Z up, Gaussian splats as Y down,
-    // OBJ and other PLYs as Y up.
+    // glTF's loader converts +Y up itself; an STL is taken as Z up, OBJ and PLY as Y up.
     const detected = upAxis === "unknown" ? "y" : upAxis;
     return {
         up: asked === "detected" ? detected : asked,

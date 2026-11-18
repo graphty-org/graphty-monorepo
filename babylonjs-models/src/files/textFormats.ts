@@ -1,5 +1,5 @@
 /**
- * @file Cheap scans of OBJ, STL, PLY, Gaussian splats (`.splat`, `.spz`, `.sog`) and `.babylon`
+ * @file Cheap scans of OBJ, STL, PLY and `.babylon`
  * before anything parses them for drawing.
  *
  * - OBJ: every `f` line's vertex indices are in range (no zero, no index past the vertices, no
@@ -7,21 +7,17 @@
  *   `mtllib` files and the `map_*` files inside them pass the reference allowlist.
  * - STL: a binary file's declared triangle count matches its length; an ASCII file's facets are
  *   counted.
- * - PLY: the header's vertex and face counts fit the file's length; a point cloud or a splat is
- *   counted as the small solids it is drawn as.
- * - Splats: a `.splat` is whole 32-byte rows, an `.spz` inflates to an `NGSP` header whose count
- *   fits, a SOG's `meta.json` names its pictures.
+ * - PLY: the header's vertex and face counts fit the file's length; a point cloud is counted as
+ *   the small solids it is drawn as; a Gaussian splat PLY is refused.
  * - `.babylon`: every index is in range and no mesh loads from another file.
  *
  * Text formats parse on the main thread, so they also have the lower text byte limit.
  */
 
-import { gunzipSync } from "fflate";
-
 import { parseGltfJson } from "./gltfChecks.js";
 import { babylonPictureUses, babylonTextureNames, embeddedPictureName, readBabylon } from "./readers/babylon.js";
-import { ModelReadError, pointsDrawn, SPLAT_ROW_BYTES, TRIANGLES_PER_POINT } from "./readers/geometry.js";
-import { plyGeometryKind, type PlyHeader, plyTextureFile, readPlyHeader } from "./readers/ply.js";
+import { ModelReadError, pointsDrawn, TRIANGLES_PER_POINT } from "./readers/geometry.js";
+import { isSplatPly, plyGeometryKind, type PlyHeader, plyTextureFile, readPlyHeader } from "./readers/ply.js";
 import { stlFacts } from "./readers/stl.js";
 import {
     baseName,
@@ -109,7 +105,7 @@ function textOf(bytes: Uint8Array, limits: ModelLimits): string {
  */
 function baseSummary(
     format: string,
-    upAxis: "y" | "z" | "-y",
+    upAxis: "y" | "z",
 ): Omit<ModelSummary, "triangles" | "meshes" | "materials" | "textures" | "textureBytes"> {
     return {
         format,
@@ -607,14 +603,12 @@ function checkPlyBody(bytes: Uint8Array, header: PlyHeader, limits: ModelLimits)
 }
 
 /**
- * The summary fields and warning of a model drawn as small solids, one per point or splat.
- * @param geometry - `points` or `splats`.
+ * The summary fields and warning of a point cloud, drawn as small solids, one per point.
  * @param points - The points in the file.
  * @param limits - The limits in force.
  * @returns The triangles drawn, the facts, and the warning.
  */
 function pointFacts(
-    geometry: "points" | "splats",
     points: number,
     limits: ModelLimits,
 ): { triangles: number; facts: Partial<ModelSummary>; warning: ModelFact } {
@@ -626,7 +620,7 @@ function pointFacts(
 
     return {
         triangles,
-        facts: { geometry, points },
+        facts: { geometry: "points", points },
         warning: { code: "W_MODEL_POINTS_APPROXIMATED", params: { points, drawn } },
     };
 }
@@ -645,7 +639,8 @@ export function findPlyParts(path: string, files: ReadonlyMap<string, Uint8Array
 }
 
 /**
- * Scan a PLY header against the file's length.
+ * Scan a PLY header against the file's length. A Gaussian splat PLY is refused
+ * (`E_MODEL_FORMAT_UNSUPPORTED`, format `splat-ply`).
  * @param path - The PLY's path in the set.
  * @param files - The set.
  * @param limits - The limits in force.
@@ -654,6 +649,10 @@ export function findPlyParts(path: string, files: ReadonlyMap<string, Uint8Array
 export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): Scanned {
     const bytes = files.get(path) as Uint8Array;
     const header = asRefusal(() => readPlyHeader(bytes));
+    if (isSplatPly(header)) {
+        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "splat-ply", fileName: cut(path) });
+    }
+
     const kind = plyGeometryKind(header);
     const vertex = header.elements.find((e) => e.name === "vertex");
     const face = header.elements.find((e) => e.name === "face");
@@ -665,9 +664,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
         ["binary_little_endian", "binary"],
         ["binary_big_endian", "binaryBigEndian"],
     ] as const);
-    // Gaussian splats store Y pointing down (the 3D Gaussian splatting convention); other PLYs Y up.
-    const upAxis = kind === "splats" ? "-y" : "y";
-    const warnings: ModelFact[] = [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: upAxis } }];
+    const warnings: ModelFact[] = [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: "y" } }];
     let triangles = face?.count ?? 0;
     let facts: Partial<ModelSummary> = { geometry: "mesh" };
     if (kind === "mesh") {
@@ -675,7 +672,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
             refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
         }
     } else {
-        const points = pointFacts(kind, vertex?.count ?? 0, limits);
+        const points = pointFacts(vertex?.count ?? 0, limits);
         ({ triangles, facts } = points);
         warnings.push(points.warning);
     }
@@ -684,7 +681,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
     const texture = textureName === undefined ? undefined : resolveReference(textureName, path, files);
     return {
         summary: Object.freeze({
-            ...baseSummary("ply", upAxis),
+            ...baseSummary("ply", "y"),
             triangles,
             meshes: 1,
             materials: Object.freeze([]),
@@ -698,147 +695,10 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
             ),
             ...facts,
             encoding: encoding.get(header.format as "ascii"),
-            ...(kind === "splats" || names.has("red") || names.has("diffuse_red") ? { vertexColors: true } : {}),
+            ...(names.has("red") || names.has("diffuse_red") ? { vertexColors: true } : {}),
         }),
         warnings,
     };
-}
-
-/**
- * A summary of a splat file, taken as Y down.
- * @param format - `splat`, `spz` or `sog`.
- * @param points - The splats in the file.
- * @param limits - The limits in force.
- * @returns The summary and its warning.
- */
-function splatScanned(format: string, points: number, limits: ModelLimits): Scanned {
-    const { triangles, facts, warning } = pointFacts("splats", points, limits);
-    return {
-        summary: Object.freeze({
-            // Gaussian splats store Y pointing down (the 3D Gaussian splatting convention, which
-            // Babylon's own splat loader also flips for .splat, .spz, .sog and splat PLY).
-            ...baseSummary(format, "-y"),
-            triangles,
-            meshes: 1,
-            materials: Object.freeze([]),
-            textures: 0,
-            textureBytes: 0,
-            ...facts,
-            vertexColors: true,
-        }),
-        warnings: [{ code: "W_MODEL_UP_GUESSED", params: { format, up: "-y" } }, warning],
-    };
-}
-
-/**
- * Scan a raw `.splat`: whole 32-byte rows.
- * @param bytes - The file.
- * @param limits - The limits in force.
- * @returns The summary.
- */
-export function scanSplat(bytes: Uint8Array, limits: ModelLimits): Scanned {
-    if (bytes.length === 0 || bytes.length % SPLAT_ROW_BYTES !== 0) {
-        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
-    }
-
-    return splatScanned("splat", bytes.length / SPLAT_ROW_BYTES, limits);
-}
-
-/**
- * Scan an `.spz`: gzip whose declared size is under the decoded limit, inflating to an `NGSP`
- * header (version 2 or 3) whose splat count fits the data.
- * @param bytes - The file.
- * @param limits - The limits in force.
- * @returns The summary.
- */
-export function scanSpz(bytes: Uint8Array, limits: ModelLimits): Scanned {
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const declared = bytes.length >= 18 ? view.getUint32(bytes.length - 4, true) : 0;
-    if (declared > limits.maxDecodedBytes) {
-        refuse("E_MODEL_TOO_LARGE", { what: "decodedBytes", found: declared, limit: limits.maxDecodedBytes });
-    }
-
-    let raw: Uint8Array;
-    try {
-        raw = gunzipSync(bytes);
-    } catch {
-        return refuse("E_MODEL_STRUCTURE", { rule: "splat" });
-    }
-
-    const header = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-    const version = raw.length >= 16 ? header.getUint32(4, true) : 0;
-    if (raw.length < 16 || header.getUint32(0, true) !== 0x5053474e || (version !== 2 && version !== 3)) {
-        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
-    }
-
-    const count = header.getUint32(8, true);
-    // Positions 9, alpha 1, color 3, scale 3 and rotation 3 (version 2) or 4 bytes per splat.
-    if (16 + count * (version === 3 ? 20 : 19) > raw.length) {
-        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
-    }
-
-    return splatScanned("spz", count, limits);
-}
-
-/**
- * The pictures a SOG's `meta.json` names, and its splat count.
- * @param text - The `meta.json` text.
- * @returns The count and the picture names.
- */
-function readSogMeta(text: string): { count: number; pictures: string[] } {
-    const meta = parseGltfJson(text);
-    const group = (key: string): Record<string, unknown> | undefined => {
-        const value = meta[key];
-        return typeof value === "object" && value !== null && !Array.isArray(value)
-            ? (value as Record<string, unknown>)
-            : undefined;
-    };
-    const shape = group("means")?.shape;
-    const fromShape = Array.isArray(shape) ? Number(shape[0]) : Number.NaN;
-    const count = typeof meta.count === "number" ? meta.count : fromShape;
-    if (!Number.isSafeInteger(count) || count < 0) {
-        refuse("E_MODEL_STRUCTURE", { rule: "splat" });
-    }
-
-    const pictures = ["means", "scales", "quats", "sh0", "shN"].flatMap((key) => {
-        const list = group(key)?.files;
-        return Array.isArray(list) ? list.filter((f) => typeof f === "string") : [];
-    });
-    return { count, pictures };
-}
-
-/**
- * Look up the pictures a SOG's `meta.json` names.
- * @param path - The `meta.json`'s path in the set.
- * @param files - The set.
- * @param limits - The limits in force.
- * @param findings - Where missing pictures go.
- */
-export function findSogParts(
-    path: string,
-    files: ReadonlyMap<string, Uint8Array>,
-    limits: ModelLimits,
-    findings: Findings,
-): void {
-    for (const name of readSogMeta(textOf(files.get(path) as Uint8Array, limits)).pictures) {
-        findReference(name, path, files, "geometry", findings);
-    }
-}
-
-/**
- * Scan an unbundled SOG: its `meta.json` count, and every picture it names in the set.
- * @param path - The `meta.json`'s path in the set.
- * @param files - The set.
- * @param limits - The limits in force.
- * @returns The summary.
- */
-export function scanSog(path: string, files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): Scanned {
-    const { count, pictures } = readSogMeta(textOf(files.get(path) as Uint8Array, limits));
-    for (const name of pictures) {
-        resolveReference(name, path, files);
-    }
-
-    return splatScanned("sog", count, limits);
 }
 
 /**

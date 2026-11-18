@@ -9,6 +9,7 @@ used_by_workflows:
     - W01
     - W14
     - W18
+    - W20
 implemented_by_components:
     - data-preview-table
     - data-import-dialog

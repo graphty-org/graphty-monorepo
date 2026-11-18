@@ -13,10 +13,15 @@ used_by_workflows:
     - W14
     - W16
     - W18
+    - W20
+    - W22
+    - W24
 implemented_by_components:
     - file-drop-zone
     - column-mapper
     - data-import-dialog
+    - attribute-table-join-dialog
+    - gene-set-import-dialog
 requirements:
     - Support CSV edge list format with configurable delimiter (comma, tab, semicolon, pipe)
     - Support JSON node-link format per D3.js specification

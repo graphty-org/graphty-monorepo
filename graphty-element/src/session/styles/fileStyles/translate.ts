@@ -610,10 +610,26 @@ function channelPlans(
         convert: (value) => (typeof value === "number" ? round(value * factor) : null),
         identity: factor === 1,
     });
+    // A text size under its channel's minimum (1, issue #2619) is drawn at the minimum, noted as drawn nearest.
+    const floored = (plan: ChannelPlan): ChannelPlan => {
+        const min = channelDescriptor(plan.channel)?.min ?? Number.NEGATIVE_INFINITY;
+        return {
+            ...plan,
+            convert: (value) => {
+                const out = plan.convert(value);
+                return typeof out === "number" ? Math.max(min, out) : out;
+            },
+            identity: false,
+            nearest: (value) => {
+                const out = plan.convert(value);
+                return typeof out === "number" && out < min;
+            },
+        };
+    };
     // A label size fixed on screen, as the screen size it is, with its label style's `sizeMode: "screen"` beside it,
     // never scaled by the lengths.
     const screenSize = (channel: Channel): ChannelPlan[] => [
-        id(channel),
+        floored(id(channel)),
         {
             channel: channel.replace(/Size$/, "Style") as Channel,
             convert: (value) => (typeof value === "number" ? { sizeMode: "screen" } : null),
@@ -633,14 +649,14 @@ function channelPlans(
         const px = factors.label;
         const { letter } = factors;
         return px === null || letter === null
-            ? [id(channel)]
+            ? [floored(id(channel))]
             : [
-                  {
+                  floored({
                       channel,
                       convert: (value) => (typeof value === "number" ? round(px(value)) : null),
                       identity: false,
                       curved: true,
-                  },
+                  }),
                   length(letters, letter),
               ];
     };

@@ -54,7 +54,21 @@ export const pulledEdgesDefault: { value: boolean } = { value: false };
  * default; only render-parity's `VITE_PARITY_ANTIALIAS=false` run writes it, so every story's three
  * loads draw without multisampling and the batched one uses the lean line program.
  */
-export const antialiasDefault: { value: boolean } = { value: true };
+export const antialiasDefault: { value: Antialias } = { value: true };
+
+/**
+ * How the canvas multisamples (graphty-element's `antialias`): always (`true`), never (`false`),
+ * only on the frame a still scene rests on (`"at-rest"`), or never while the line shader smooths
+ * the lines' edges itself (`"shader"`).
+ */
+export type Antialias = boolean | "at-rest" | "shader";
+
+/**
+ * Which program a straight pulled line draws (`GraphContext.leansLines`): the join template
+ * (`false`), the lean rectangle (`true`, `EDGE_PULLED_LEAN`), or the lean rectangle a pixel wider
+ * with its edges smoothed in the fragment shader (`"smooth"`, `EDGE_LINE_AA`).
+ */
+export type LeanLines = boolean | "smooth";
 
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
@@ -71,6 +85,31 @@ const JOIN_TEMPLATE = { indices: JOIN_TEMPLATE_INDICES, vertices: JOIN_TEMPLATE_
 
 /** The lean program's rectangle, drawn once per piece of a mesh made with `pulledLean: true`. */
 export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TEMPLATE_OF.length };
+
+/** The lean program's define, which a batch that switches program adds to and takes from its material. */
+const LEAN_DEFINE = "#define EDGE_PULLED_LEAN";
+
+/** Each scene's batches that can draw their pieces with either program; see {@link drawLinesLean}. */
+const SWITCHING = new WeakMap<Scene, Set<PulledLineBatch>>();
+
+/**
+ * Draw every straight line batch of a scene with the lean program (`EDGE_PULLED_LEAN`) or with
+ * the join template, from the next frame on: `antialias: "at-rest"` draws its moving frames lean
+ * and the frame it rests on joined, the picture `antialias: true` draws. Neither moves a piece or
+ * sends a table again; the first use of each program compiles it.
+ * @param scene - The scene.
+ * @param lean - Whether to draw the lean program.
+ * @returns How many batches draw the lean program now.
+ */
+export function drawLinesLean(scene: Scene, lean: boolean): number {
+    let count = 0;
+    for (const batch of SWITCHING.get(scene) ?? []) {
+        batch.drawLean(lean);
+        count += lean ? 1 : 0;
+    }
+
+    return count;
+}
 
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
@@ -96,6 +135,16 @@ const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
 
 /** A row number no row has: the piece draws nothing. */
 export const NO_ROW = -1;
+
+/**
+ * Draw keys for `capacity` pieces, each piece's its own number: the key one width gives it, and the key of a piece
+ * not yet handed out.
+ * @param capacity - How many pieces.
+ * @returns The keys.
+ */
+function identityKeys(capacity: number): Float64Array {
+    return Float64Array.from({ length: capacity }, (_, piece) => piece);
+}
 
 /** Straight edges between row centres, drawn in one non-instanced draw; see the file comment. */
 export class PulledLineBatch {
@@ -123,6 +172,9 @@ export class PulledLineBatch {
     private hiddenFirst = -1;
     private hiddenLast = -1;
 
+    /** Whether the pieces draw the lean program in place of the template; see {@link PulledLineBatch.drawLean}. */
+    private lean = false;
+
     /** Pieces handed out so far; the draw covers these. */
     private highWater = 0;
 
@@ -132,8 +184,10 @@ export class PulledLineBatch {
      * Each piece's draw key: its width group's rank, then the slot the object path's batch of that width gives it.
      * The object path draws a batch per width, one after another in the order they were made, and draw order
      * decides how lines that cross blend; the draw order table draws pieces in this order (#6392).
+     * Null while there is one width group, where every piece's key is its own number (8 MB a million edges spared).
+     * Doubles, never floats: a key is rank * 2^32 + slot.
      */
-    private keys = new Float64Array(0);
+    private keys: Float64Array | null = null;
 
     /** The width groups, by width, and by rank: the order this batch met them. */
     private readonly groups = new Map<number, WidthGroup>();
@@ -196,6 +250,8 @@ export class PulledLineBatch {
      *     corner's vertex itself: the batch draws `indices.length` vertices a piece, unindexed.
      * @param template.indices - Its corners: the vertex each draws, which its shader holds too.
      * @param template.vertices - Its vertices.
+     * @param switches - Whether {@link drawLinesLean} may switch it to the lean program: a straight
+     *     batch drawing the join template, 2D or 3D.
      */
     constructor(
         mesh: Mesh,
@@ -203,6 +259,7 @@ export class PulledLineBatch {
         private readonly rowPositions: () => BaseTexture,
         curve = false,
         private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
+        switches = false,
     ) {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
@@ -223,6 +280,16 @@ export class PulledLineBatch {
             this.routes = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
             this.routeTable = this.buildRoutes(this.routes);
         }
+        if (switches) {
+            let switching = SWITCHING.get(scene);
+            if (switching === undefined) {
+                switching = new Set();
+                SWITCHING.set(scene, switching);
+            }
+
+            switching.add(this);
+        }
+
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
@@ -241,6 +308,15 @@ export class PulledLineBatch {
      */
     get drawOrder(): Readonly<Float32Array> | null {
         return this.order;
+    }
+
+    /**
+     * How many draw keys the batch holds: none while it has met one width.
+     * @returns The count.
+     * @internal
+     */
+    get keyCount(): number {
+        return this.keys?.length ?? 0;
     }
 
     /**
@@ -276,9 +352,18 @@ export class PulledLineBatch {
         }
 
         const key = group.rank * SLOTS_PER_RANK + (group.free.pop() ?? group.highWater++);
-        // With one width a piece's key is its own number, as the free pieces are taken in the same order.
-        this.reorder ||= this.keys[piece] !== key;
-        this.keys[piece] = key;
+        // With one width a piece's key is its own number, as the free pieces are taken in the same order, so the keys
+        // are kept only from the second width on, starting from that identity.
+        let { keys } = this;
+        if (keys === null && this.ranked.length > 1) {
+            keys = this.keys = identityKeys(this.rows.length / this.pieceFloats);
+        }
+
+        if (keys !== null) {
+            this.reorder ||= keys[piece] !== key;
+            keys[piece] = key;
+        }
+
         return piece;
     }
 
@@ -290,7 +375,7 @@ export class PulledLineBatch {
         this.setRows(piece, NO_ROW, NO_ROW);
         this.setHidden(piece, false);
         this.free.push(piece);
-        const key = this.keys[piece] ?? 0;
+        const key = this.keys === null ? piece : (this.keys[piece] ?? 0);
         this.ranked[Math.floor(key / SLOTS_PER_RANK)]?.free.push(key % SLOTS_PER_RANK);
     }
 
@@ -557,6 +642,7 @@ export class PulledLineBatch {
 
     /** Stop following the frames and free the mesh and the table. */
     dispose(): void {
+        SWITCHING.get(this.scene)?.delete(this);
         this.stopFlush();
         this.stopRestore();
         this.table.dispose();
@@ -674,15 +760,14 @@ export class PulledLineBatch {
      */
     private sort(): void {
         const capacity = this.rows.length / this.pieceFloats;
-        if (this.keys.length !== capacity) {
-            // a piece not yet handed out keys as its own number, which is the key one width gives it
-            const keys = Float64Array.from({ length: capacity }, (_, piece) => piece);
+        if (this.keys !== null && this.keys.length !== capacity) {
+            const keys = identityKeys(capacity);
             keys.set(this.keys);
             this.keys = keys;
         }
 
         const { keys, highWater } = this;
-        const ordered = this.ranked.length > 1;
+        const ordered = keys !== null && this.ranked.length > 1;
         if (ordered) {
             // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give
             // each group its own slot range if a large mixed-width load shows it
@@ -712,11 +797,43 @@ export class PulledLineBatch {
         this.setCount();
     }
 
+    /**
+     * Draw the pieces with the lean program or the join template; see {@link drawLinesLean}.
+     * @param lean - Whether to draw the lean program.
+     */
+    drawLean(lean: boolean): void {
+        if (lean === this.lean) {
+            return;
+        }
+
+        const material = this.mesh.material as ShaderMaterial;
+        const { defines } = material.options;
+        const set = (on: boolean): void => {
+            const at = defines.indexOf(LEAN_DEFINE);
+            if (on && at === -1) {
+                defines.push(LEAN_DEFINE);
+            } else if (!on && at !== -1) {
+                defines.splice(at, 1);
+            }
+        };
+        set(lean);
+        // A program not compiled yet would leave every piece off the frame: the batch keeps the one
+        // it has until the other is ready, which its compile, under way now, makes it soon.
+        if (!material.isReady(this.mesh, false, this.mesh.subMeshes[0])) {
+            set(!lean);
+            return;
+        }
+
+        this.lean = lean;
+        this.setCount();
+    }
+
     /** Draw only the pieces handed out, a vertex a corner. */
     private setCount(): void {
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;
-        subMesh.verticesCount = this.highWater * this.template.indices.length;
+        const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;
+        subMesh.verticesCount = this.highWater * corners;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

@@ -165,6 +165,8 @@ export interface LayoutEnvelope {
      * it to fit, and the scale and centre beside it are the identity rather than a measurement.
      */
     readonly placed: number;
+    /** The measured rows' box in the simulation's own units: min x, y, z then max x, y, z; empty for none. */
+    readonly box: readonly number[];
 }
 
 /**
@@ -205,22 +207,27 @@ export function measureEnvelope(
     sumPlaced(positions, nodeCount, held, ENVELOPE_SUMS);
     const placed = ENVELOPE_SUMS[0];
     if (placed === 0) {
-        return { scale: 1, centre: [0, 0, 0], placed };
+        return { scale: 1, centre: [0, 0, 0], placed, box: [] };
     }
 
     const cx = ENVELOPE_SUMS[1] / placed;
     const cy = ENVELOPE_SUMS[2] / placed;
     const cz = ENVELOPE_SUMS[3] / placed;
     const radius = Math.sqrt(furthestSquared(positions, nodeCount, held, cx, cy, cz));
-    return { scale: radius > POINT_RADIUS ? scalingFactor / radius : 1, centre: [cx, cy, cz], placed };
+    return {
+        scale: radius > POINT_RADIUS ? scalingFactor / radius : 1,
+        centre: [cx, cy, cz],
+        placed,
+        box: Array.from(ENVELOPE_SUMS.subarray(4)),
+    };
 }
 
-/** The count and coordinate sums {@link sumPlaced} writes: placed, x, y, z. */
-const ENVELOPE_SUMS = new Float64Array(4);
+/** What {@link sumPlaced} writes: placed; the x, y, z sums; the min x, y, z; the max x, y, z. */
+const ENVELOPE_SUMS = new Float64Array(10);
 
 /**
- * Count and sum the finite rows not held, into `out` (placed, x, y, z), accumulated in place so no
- * code runs after the loop.
+ * Count, sum and bound the finite rows not held, into `out` (placed, sums, min, max), accumulated in
+ * place so no code runs after the loop.
  * @param positions - A stride-3 array.
  * @param nodeCount - How many rows of it.
  * @param held - Answers true for a row to leave out, or null.
@@ -232,7 +239,9 @@ function sumPlaced(
     held: ((row: number) => boolean) | null,
     out: Float64Array,
 ): void {
-    out.fill(0);
+    out.fill(0, 0, 4);
+    out.fill(Infinity, 4, 7);
+    out.fill(-Infinity, 7, 10);
     for (let row = 0; row < nodeCount; row += 1) {
         const x = positions[3 * row];
         const y = positions[3 * row + 1];
@@ -242,6 +251,12 @@ function sumPlaced(
             out[1] += x;
             out[2] += y;
             out[3] += z;
+            out[4] = Math.min(out[4], x);
+            out[5] = Math.min(out[5], y);
+            out[6] = Math.min(out[6], z);
+            out[7] = Math.max(out[7], x);
+            out[8] = Math.max(out[8], y);
+            out[9] = Math.max(out[9], z);
         }
     }
 }
@@ -648,13 +663,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #nodeMass: F32 | null = null;
 
-    /**
-     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
-     * renderPath "batched".
-     * @internal
-     */
-    rowRecord: ((row: number) => unknown) | null = null;
-
     /** The last read of `clusterBy`: by `Node` under renderPath "objects", by row under "batched". */
     #communities: ReadonlyMap<Node | number, number> = new Map();
 
@@ -700,6 +708,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /** The box {@link SimulationLayoutEngine.publishedBounds} answers while a publish is owed. */
     #owedBox: Float64Array | null = null;
+    /** The box of the rows the last envelope measured, in the simulation's units, or empty for none. */
+    #simBox: readonly number[] = [];
 
     /**
      * Rows walked on the CPU by a publish: the rows it writes and the walk for the rows the card's
@@ -1433,7 +1443,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 return;
             }
 
-            this.#owedBox = this.holdsAny ? null : this.#keepFixedIn(this.#envelopeBox(viaCard.target));
+            const box = this.holdsAny ? null : this.#keepFixedIn(this.#rowsBox(viaCard));
+            this.#owedBox = box !== null && box[0] <= box[3] ? box : null;
             store.owe(this.#owedPublish);
             return;
         }
@@ -1565,22 +1576,20 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * The box a landing owed on the card is drawn inside, with no row walked: the envelope fits every
-     * published row within its radius of the target centre.
-     * @param target - The scene-unit centre the landing drew about.
-     * @returns Min x, y, z then max x, y, z.
+     * The box a landing owed on the card is drawn inside, with no row walked: the box the envelope
+     * measured, mapped through the transform the landing drew with, as `#writeRows` would place it.
+     * @param viaCard - The transform the landed batch drew with.
+     * @returns Min x, y, z then max x, y, z, or an empty box when nothing was measured.
      */
-    #envelopeBox(target: readonly [number, number, number]): Float64Array {
-        // ponytail: the envelope's sphere, not the rows' own box; framing while it runs is a little looser.
-        const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
-        return Float64Array.of(
-            target[0] - radius,
-            target[1] - radius,
-            target[2] - radius,
-            target[0] + radius,
-            target[1] + radius,
-            target[2] + radius,
-        );
+    #rowsBox(viaCard: DrawnTransform): Float64Array {
+        const box = Float64Array.of(Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity);
+        if (this.#simBox.length === 6) {
+            for (let axis = 0; axis < 6; axis++) {
+                box[axis] = (this.#simBox[axis] - viaCard.center[axis % 3]) * viaCard.scale + viaCard.target[axis % 3];
+            }
+        }
+
+        return box;
     }
 
     /**
@@ -1832,6 +1841,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
         const measured = measureEnvelope(simPositions, snapshot.nodeCount, radius, held);
+        this.#simBox = measured.box;
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
         // graph every row of which is held publishes nothing, but the next `setNodePosition` still

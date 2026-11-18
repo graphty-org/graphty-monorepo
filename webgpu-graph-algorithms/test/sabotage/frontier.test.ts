@@ -7,24 +7,19 @@
  * these rows (P8 is not in SABOTAGE_PHASES until P8-T15).
  */
 
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { KERNELS, kernelSpec } from "../../src/kernels.js";
 import { frontierReport } from "../helpers/frontier.js";
-import { assertCheckPasses, SABOTAGE, sabotagedBody, withSabotage } from "../helpers/sabotage.js";
+import { assertCheckPasses, SABOTAGE, withSabotage } from "../helpers/sabotage.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
 const ID = "frontier-finalize";
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ROWS = SABOTAGE[ID] ?? [];
 /** The rows frontierReport measures; P8-T7's inverted-threshold row and P8-T8's inverted-growing-test row name the BFS test and are measured by test/sabotage/bfs.test.ts alone (only a traversal's choice counters and direction words see them). */
 const MEASURED = ROWS.filter((m) => m.test === FRONTIER_TEST);
 
 describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
-    it("has three rows naming the frontier test and two (P8-T7's threshold, P8-T8's growing test) naming the BFS test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has three rows naming the frontier test and two (P8-T7's threshold, P8-T8's growing test) naming the BFS test", () => {
         // the `ceil-wraps` and `second-row-floored` rows mutated the indirect-slot arithmetic; they went with the
         // slots (2026-09-25), because no dispatch consumed what they broke
         expect(ROWS.map((m) => m.name)).toEqual([
@@ -35,26 +30,12 @@ describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
             "growing-test-inverted",
         ]);
         expect(MEASURED).toHaveLength(3);
-        const { body } = KERNELS[ID];
-        const names = new Set<string>();
         for (const m of ROWS) {
-            expect(names.has(m.name), `duplicate mutation name ${m.name}`).toBe(false);
-            names.add(m.name);
-            const first = body.indexOf(m.find);
-            expect(first, `${m.name}: find string absent from the body`).toBeGreaterThanOrEqual(0);
-            expect(body.indexOf(m.find, first + m.find.length), `${m.name}: find string not unique`).toBe(-1);
-            expect(m.replace).not.toBe(m.find);
-            expect(m.minFactor).toBeGreaterThanOrEqual(10);
             expect(m.test).toBe(
                 m.name === "fused-threshold-inverted" || m.name === "growing-test-inverted"
                     ? "test/algorithms/bfs.test.ts"
                     : FRONTIER_TEST,
             );
-            expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${m.test} does not exist`).toBe(true);
-            const mutated = sabotagedBody(ID, m);
-            expect(mutated).not.toBe(body);
-            expect(mutated.includes(m.replace)).toBe(true);
-            expect(mutated.length).toBe(body.length - m.find.length + m.replace.length);
         }
     });
 

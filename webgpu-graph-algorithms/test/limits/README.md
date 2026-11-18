@@ -1,59 +1,23 @@
-# test/limits -- the node-limits project (P4+)
+# test/limits -- the node-limits project
 
-Tests that need limits or time above lavapipe's run here (spec 11.1), selected by
-`pnpm exec vitest run --project=node-limits` on the GPU lane only; the default lane
-never selects this project. The first file, `pagerank-1m.test.ts`, landed at G7
-(the P7 phase; spec 13 rule (b) kept the directory empty until a phase needed it).
-Files, planned and landed, and the gate that lands each:
+Tests that need device limits or run time beyond a software adapter (lavapipe) live here. The `node-limits` project
+runs them, one file at a time, on the GPU lane only: `pnpm run test:limits` (`vitest run --project=node-limits`).
+The default lane never selects this project.
 
-- `pagerank-1m.test.ts` (G7, landed): PageRank over a 1M-node / 10M-arc random
-  snapshot completes within 100 iterations, returns 1M finite scores summing to 1
-  within `1e-3`, and reports a boolean `converged`.
-- `binding-2gib.test.ts` (G4, landed): the raised `maxStorageBufferBindingSize` is above
-  128 MiB (the RTX 4070 SUPER reports 2,147,483,644: the 2 GiB request clamped four bytes
-  under 2^31) and a 1.5 GiB buffer is bound whole to `fill` and read back.
-- `windowed-200mb.test.ts` (G4, landed): a 200 MB per-array upload is bound windowed at
-  the default limits (two windows) and the windowed `degree` equals `outDegree()`; the
-  `exclusiveScan` at 16,776,961 items (the `+ 1` case of spec 11.3).
-- `dispatch-2d-100m.test.ts` (G4, landed): a real 2D dispatch on 100M items (above
-  16,776,960) through `linear_id`.
-- `oom-scope.test.ts` (G4, landed): the "out-of-memory" error scope on a deliberately
-  oversized allocation (a buffer of exactly `maxBufferSize`: inside the validation limit,
-  beyond what the adapter backs) yields `E_OUT_OF_MEMORY` with `requested` / `resident`,
-  and the context stays usable.
-- `vendor-features.test.ts` (G4, landed): the NVIDIA adapter's feature and limit
-  assertions (`subgroups` 32 / 32, `timestamp-query`, the raised limits).
-- `layout-1m.test.ts` (G4, landed): the 262k and 1M ForceAtlas2 fixtures of spec 11.4 --
-  the one-iteration and unbiasedness checks at 1M, the exact-vs-grid and 200-iteration
-  distributional comparison at 262,144, and the 1M grid run with its `msPerIteration`.
-  The 1M 200-iteration comparison is the owner's `benchmarks/layout-run.ts` run, never a
-  lane's.
-- `advance-windowed.test.ts` (G8, landed): `breadthFirstSearch` over the 2.5M-node / 50M-arc
-  snapshot of `windowed-200mb.test.ts` at the default limits, its core in two arc windows
-  (P8-T12: every frontier-walking kernel dispatched once per window); `depth` exact against
-  the FIFO oracle, `parent` and `order` by their rules, twice.
-- `bfs-large.test.ts` (G8, landed): the 1000 x 1000 grid unscaled from its corner (1,999
-  levels; `depth` against the FIFO oracle; exactly `ceil(levels / 32) + 1` mapAsync calls on
-  a device wrapped by the leak counter after the self-check -- the T-10 accounting of PD-7),
-  and the 1M / 10M R-MAT tier from node 0 (an edge queue of 4 x arcCount bytes, about 84 MB;
-  `depth` against the oracle; `switches > 0`, so the sweep ran at that size).
-- `sssp-1m.test.ts` (G8, landed): `sssp` over the 1M / 10M R-MAT tier with random f32 weights
-  in [0.1, 10) (the benchmark's SSSP row; the near-far queue binds 8 x roundUp(arcCount, 64)
-  bytes whole, above lavapipe's 128 MiB): `dist` bitwise against the f32 oracle, the triangle
-  inequality, `reachedCount`.
-- `apsp-bound.test.ts` (G9): APSP exact / weighted inside the binding-size bound
-  of spec 8.7 and `E_TOO_LARGE` above it.
-- `betweenness-1m.test.ts` (betweenness, landed): 64 sampled sources on the 1M / 10M RMAT rung --
-  the planned batch count, the scores against the Brandes reference within 1e-4, and bitwise the
-  same scores when a faked `maxBufferSize` forces eight sources per batch.
-- `apsp-ceiling.test.ts` (all-pairs shortest paths, landed): an 8,192-node matrix (268 MB) is
-  `E_TOO_LARGE` under `limits: "default"` (128 MiB, 5,792 nodes) and, on a hardware adapter,
-  runs under the context's default `limits: "raise"` and matches one BFS per source exactly;
-  one node above the raised ceiling is `E_TOO_LARGE` naming the node count, the ceiling, the
-  limit and `GpuContextOptions.limits`.
+| File                       | What it checks                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pagerank-1m.test.ts`      | PageRank over a 1M-node / 10M-arc random snapshot finishes within 100 iterations with 1M finite scores summing to 1 within `1e-3` and a boolean `converged`.                                                                                                                                                                                        |
+| `binding-2gib.test.ts`     | Under `limits: "raise"`, `maxStorageBufferBindingSize` is above 128 MiB, and a 1.5 GiB buffer is bound whole to `fill` and reads back.                                                                                                                                                                                                              |
+| `windowed-200mb.test.ts`   | A 200 MB per-array upload is bound in two windows at the default limits and the windowed `degree` equals `outDegree()`; `exclusiveScan` at 16,776,961 items equals the reference.                                                                                                                                                                   |
+| `dispatch-2d-100m.test.ts` | A 2D dispatch over 100M items (above the 16,776,960 one-dimension maximum) reaches every item.                                                                                                                                                                                                                                                      |
+| `oom-scope.test.ts`        | A buffer of exactly `maxBufferSize` (inside the validation limit, beyond what the adapter backs) is reported as `E_OUT_OF_MEMORY` with `requested` and `resident`, and the context stays usable.                                                                                                                                                    |
+| `vendor-features.test.ts`  | The adapter's features and raised limits: on NVIDIA `subgroups` 32 / 32, `timestamp-query` and `maxBufferSize` at least 2^31.                                                                                                                                                                                                                       |
+| `layout-1m.test.ts`        | ForceAtlas2 at 262,144 and 1M nodes: one grid iteration against one exact iteration at 1M, the grid's unbiasedness, the exact-versus-grid comparison over many iterations at 262,144, and a long 1M grid run that prints `msPerIteration`.                                                                                                          |
+| `advance-windowed.test.ts` | `breadthFirstSearch` over a 2.5M-node / 50M-arc snapshot at the default limits, with the graph bound in two arc windows: `depth` equals the reference, `parent` and `order` obey their rules, twice.                                                                                                                                                |
+| `bfs-large.test.ts`        | `breadthFirstSearch` on a 1000 x 1000 grid from its corner (1,999 levels; `depth` exact; `ceil(levels / 32) + 1` readbacks) and on a 1M / 10M R-MAT graph (an 84 MB edge queue; `depth` exact; at least one top-down / bottom-up switch).                                                                                                           |
+| `sssp-1m.test.ts`          | `sssp` over the 1M / 10M R-MAT graph with random f32 weights in [0.1, 10): `dist` bitwise equal to the f32 reference, the triangle inequality, `reachedCount`.                                                                                                                                                                                      |
+| `betweenness-1m.test.ts`   | Betweenness from 64 sampled sources on the 1M / 10M R-MAT graph: the planned batch count, scores within `1e-4` of Brandes' algorithm, and bitwise the same scores when a smaller `maxBufferSize` forces eight sources per batch.                                                                                                                    |
+| `apsp-ceiling.test.ts`     | `allPairsShortestPath` at its size ceiling: 8,192 nodes (a 268 MB matrix) is `E_TOO_LARGE` under `limits: "default"` (at most 5,792 nodes), and on a hardware adapter runs under the default `limits: "raise"` and matches one BFS per source; one node above the raised ceiling is `E_TOO_LARGE` naming the node count, the ceiling and the limit. |
 
-The six G4 files are the P4 phase's (`design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md`,
-Task P4-T15); their measured numbers are in the G4 record, `docs/decisions/G4.md`.
-
-Every file follows `test/setup/gpu.ts` (`requireGpu`, a fresh adapter per device)
-with `GRAPHTY_GPU_REQUIRE=nvidia`; a wrong result is never a skip.
+Every file acquires its device through `test/setup/gpu.ts` (`requireGpu`, a fresh adapter per device) with
+`GRAPHTY_GPU_REQUIRE=nvidia`; a wrong result is a failure, never a skip.

@@ -75,13 +75,28 @@ describe("Cytoscape.js label boxes", () => {
         expect(evaluateCytoscapeJs(doc({})).node.values.labelLineHeight).toBeUndefined();
     });
 
-    it("notes a circle box, which no neutral box shape draws", () => {
-        const notes = new StyleNotes();
-        evaluateCytoscapeJs({
-            ...doc({ "text-background-opacity": 1, "text-background-shape": "circle" }),
-            notes,
-        });
-        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBackground", 0)).toBe(true);
+    it("reads a box one font size tall a line, its line centered on its edge, and a circle", () => {
+        const dress = {
+            "text-background-opacity": 1,
+            "text-background-color": "yellow",
+            "text-background-shape": "circle",
+            "text-border-width": 2,
+            "text-border-opacity": 1,
+        };
+        const styles = evaluateCytoscapeJs(doc(dress, dress));
+        for (const kind of ["node", "edge"] as const) {
+            const { values } = styles[kind];
+            expect(["labelLineBox", "labelBorderAlign", "labelBackgroundShape"].map((p) => values[p]?.[0])).toEqual([
+                "size",
+                "center",
+                "circle",
+            ]);
+        }
+    });
+
+    it("reads text-metrics glyph as a box its letters' ink tall", () => {
+        const { values } = evaluateCytoscapeJs(doc({ "text-background-opacity": 1, "text-metrics": "glyph" })).node;
+        expect(values.labelLineBox?.[0]).toBe("glyphs");
     });
 });
 
@@ -533,5 +548,42 @@ describe("Cytoscape.js edge endpoints", () => {
         expect(ports({ ...straight, "source-endpoint": "90deg", "target-endpoint": "0deg" })).toEqual(["1,0", "0,1"]);
         // a taxi edge leaves its ends where the outline is
         expect(ports({ "curve-style": "taxi", "source-endpoint": "inside-to-node" })).toEqual([null, null]);
+    });
+});
+
+describe("Cytoscape.js ghosts and mapped pie slices", () => {
+    it("reads a ghost as a hard shadow in the node's fill, faded by the ghost's opacity", () => {
+        const values = (more: Record<string, unknown>): unknown[] => {
+            const v = evaluateCytoscapeJs(doc({ "background-color": "#336699", ...more })).node.values;
+            return ["shadowColor", "shadowOpacity", "shadowBlur", "shadowOffsetX", "shadowOffsetY"].map(
+                (p) => v[p]?.[0],
+            );
+        };
+        // cytoscapejs-specimen-node-sizes-opacity ghost-yes
+        expect(
+            values({ ghost: "yes", "ghost-offset-x": "6px", "ghost-offset-y": "-3px", "ghost-opacity": 0.4 }),
+        ).toEqual(["#336699", 0.4, 0, 6, -3]);
+        // drawn at the fill's opacity too
+        expect(values({ ghost: "yes", "ghost-opacity": 0.5, "background-opacity": 0.5 })[1]).toBe(0.25);
+        // no ghost, or one of no opacity (Cytoscape.js's default), draws none
+        expect(values({ ghost: "no", "ghost-opacity": 0.4 })[0]).toBeUndefined();
+        expect(values({ ghost: "yes" })[0]).toBeUndefined();
+    });
+
+    it("reads a pie slice's size from a mapData() mapper, as Cytoscape.js maps a percent", () => {
+        // cytoscapejs-specimen-mappings-bypass pie-by-mapdata: sizes mapData(a, 0, 100, 0, 100), a 30 and b 50
+        const { values } = evaluateCytoscapeJs(
+            doc(
+                {
+                    "pie-1-background-color": "#e41a1c",
+                    "pie-1-background-size": "mapData(a, 0, 100, 0, 100)",
+                    "pie-2-background-color": "#377eb8",
+                    "pie-2-background-size": "mapData(b, 0, 100, 0, 100)",
+                },
+                {},
+                [{ data: { id: "a", a: 30, b: 50 }, position: { x: 0, y: 0 } }],
+            ),
+        ).node;
+        expect([values.pieColors?.[0], values.pieSizes?.[0]]).toEqual(["#e41a1c #377eb8", "0.3 0.5"]);
     });
 });

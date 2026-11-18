@@ -78,6 +78,8 @@ export const STYLE_ISSUE = Object.freeze({
     LAYER_CAP: "W_STYLE_LAYER_CAP",
     /** The counted work budget ran out; the values not yet explained are copied per element. */
     BUDGET: "W_STYLE_BUDGET",
+    /** A program's own value graphty has no exact counterpart for, settled to the nearest graphty value. */
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST",
     // ------------------------------------------------ graphty's own block
     /** A `graphty.styles` block was ignored, with a reason code; the file is read like any other. */
     BLOCK_IGNORED: "W_STYLE_BLOCK_IGNORED",

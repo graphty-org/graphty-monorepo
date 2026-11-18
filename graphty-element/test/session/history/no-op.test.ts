@@ -17,11 +17,11 @@ import type { GraphSession } from "../../../src/session/types";
  */
 async function recordsNothing(session: GraphSession, what: string, act: () => PromiseLike<unknown>): Promise<void> {
     const before = stateDigest(dispatcherOf(session).state);
-    const steps = session.history.steps.map((step) => step.label);
+    const steps = session.history.steps.map((step) => step.fact.params.label);
     await act();
     assert.strictEqual(stateDigest(dispatcherOf(session).state), before, `${what}: the state`);
     assert.deepEqual(
-        session.history.steps.map((step) => step.label),
+        session.history.steps.map((step) => step.fact.params.label),
         steps,
         `${what}: the steps`,
     );

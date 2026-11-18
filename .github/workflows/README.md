@@ -52,6 +52,7 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `release-watch.yml`                                             | Announces on the `Release status` issue a Release run that ended badly without announcing itself                                                                                                                                                                                                   |
 | `bisect.yml`                                                    | Finds the merge that turned a full run red (`tools/bisect-core.mjs`, `tools/bisect-ci.mjs`)                                                                                                                                                                                                        |
 | `base-check.yml`                                                | Runs one test file on master's code at a pull request's base, so a failure the pull request did not cause is known                                                                                                                                                                                 |
+| `refresh-inherited-prs.yml`                                     | When a master break's issue closes, merges master into the open pull requests that failed on its test, so their checks run on the fix                                                                                                                                                              |
 | `nightly-abandon.yml`                                           | Ends the held nightly candidate without promoting it (`-f reason="<why>"`); anyone, no approval, its own concurrency group, never the release train's                                                                                                                                              |
 | `promote.yml`                                                   | Production promotion (graphty.app, npm `latest`) and nightly rollback; owner only (`tools/channel/promote.mjs`)                                                                                                                                                                                    |
 | `master-guard.yml`                                              | A red master build: a revert pull request and a `priority:critical` issue (none for a failure that looks external); a failed canary deploy: one issue                                                                                                                                              |
@@ -188,8 +189,8 @@ only the selected test files where `test-select-rules.json` allows file-level se
 of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
 resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
-fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-scorecard` (the drawn fidelity
-scorecard on the batched render path) run only in the full run.
+fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-1` to `-12` (the browser and
+interaction tests on the batched render path) run only in the full run.
 
 ## Visual review
 

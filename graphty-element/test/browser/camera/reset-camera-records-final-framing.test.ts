@@ -9,9 +9,17 @@
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import type { Graph } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
+import type { LayerSpec } from "../../../session";
+import { type Graph, renderManagerOf } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
+
+/** A layer that draws every node larger, so the box the framing measures waits for its pass. */
+const GROW: LayerSpec = {
+    name: "reset camera - every node larger",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.size": 4 },
+};
 
 describe("resetCamera after the first settlement", () => {
     let graph: Graph;
@@ -20,7 +28,7 @@ describe("resetCamera after the first settlement", () => {
     beforeEach(async () => {
         graph = await createTestGraph();
         // Frames are pumped by hand below, so the live loop must not run passes in between.
-        releaseFrames = ((graph as unknown as Record<string, unknown>).renderManager as RenderManager).holdFrames();
+        releaseFrames = renderManagerOf(graph).holdFrames();
 
         await graph.addNodes([
             { id: "1", position: { x: -50, y: 0, z: 0 } },
@@ -37,13 +45,13 @@ describe("resetCamera after the first settlement", () => {
     });
 
     it("returns to the framing that landed after a style pass held it back", async () => {
-        // A style pass on its way holds the settlement's framing back.
-        const painting = vi.spyOn(graph.getStylePainter(), "isPainting", "get").mockReturnValue(true);
         vi.useFakeTimers({ toFake: ["setTimeout", "setInterval"] });
+        // A style pass on its way holds the settlement's framing back.
+        const edit = graph.getSession().styles.add(GROW);
 
-        graph.getLayoutManager().running = true;
+        graph.setRunning(true);
         graph.update();
-        assert.isFalse(graph.getLayoutManager().running, "the layout settled on this pass");
+        assert.isFalse(graph.isRunning(), "the layout settled on this pass");
 
         const unframed = graph.getCameraState();
 
@@ -52,7 +60,7 @@ describe("resetCamera after the first settlement", () => {
         graph.update();
         vi.useRealTimers();
 
-        painting.mockReturnValue(false);
+        await edit;
         graph.update();
 
         const framed = graph.getCameraState();

@@ -14,7 +14,7 @@
  * specular, and a rim in the node's own color), lifts a lit face a little past the style color --
  * 1.07 times its lightness at most, measured here -- and never to white, and keeps the darkest face
  * at about three quarters of the style lightness, so no side of a node goes dark. "headlight" and "matte" top out at the style
- * color, and "flat" draws exactly it. Shapes with flat faces (tetrahedron, box) are used because
+ * color, and "flat" draws exactly it, with a gray outline that is no part of a lit face. Shapes with flat faces (tetrahedron, box) are used because
  * each face is lit evenly and a face turned toward the light is where a clamp shows.
  */
 
@@ -24,6 +24,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { DEFAULT_LIGHTING, type Lighting, LIGHTING_VALUES } from "../../src/config/Lighting";
 import { OKABE_ITO_COLORS } from "../../src/config/palettes/categorical";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { OUTLINE_COLOR } from "../../src/meshes/NodeLighting";
 import { type Frame, readFrame } from "../helpers/paint-assertions";
 
 const WIDTH = 480;
@@ -57,6 +58,9 @@ const WHITE = 240;
 
 /** Pixels below this chroma are the gray page, gray edges or anti-aliased silhouette. */
 const MIN_CHROMA = 0.04;
+
+/** How far (0-255, per channel) a pixel may sit off the line from the style color to the flat outline's gray. */
+const OUTLINE_BLEND_TOLERANCE = 3;
 
 /** How far in from the silhouette a pixel must be to count as surface. */
 const INTERIOR_RADIUS = 2;
@@ -108,26 +112,56 @@ interface Reading {
 }
 
 /**
+ * Whether a pixel is the style color blended some way toward another color, as an anti-aliased
+ * edge against it is.
+ * @param rgb - The pixel, 0-255.
+ * @param from - The style color, 0-255.
+ * @param to - The color it blends toward, 0-255.
+ * @returns True when the pixel lies on the line between them, short of the style color itself.
+ */
+function blendsToward(rgb: readonly number[], from: readonly number[], to: readonly number[]): boolean {
+    let along = 0;
+    let length = 0;
+    for (let i = 0; i < 3; i++) {
+        along += (rgb[i] - from[i]) * (to[i] - from[i]);
+        length += (to[i] - from[i]) ** 2;
+    }
+    const t = along / length;
+    if (t * Math.sqrt(length) <= OUTLINE_BLEND_TOLERANCE || t > 1) {
+        return false;
+    }
+
+    return [0, 1, 2].every((i) => Math.abs(rgb[i] - (from[i] + t * (to[i] - from[i]))) <= OUTLINE_BLEND_TOLERANCE);
+}
+
+/**
  * Read every pixel of a frame that is wholly a node or a cap against the style color.
  *
  * A pixel counts only when every pixel within {@link INTERIOR_RADIUS} of it is colored too. The
  * silhouette is anti-aliased against the near-white page, and a blended pixel is lighter and
- * grayer than any surface: it says nothing about how the surface was lit.
+ * grayer than any surface: it says nothing about how the surface was lit. The same holds for a
+ * pixel blended with the gray outline that "flat" draws (thinner than a pixel, so it shows only
+ * as such blends, crossing a node where another shape's outline passes over it).
  * @param frame - The frame.
- * @param style - The style color.
+ * @param color - The style color.
  * @returns The worst deviations found.
  */
-function readAgainst(frame: Frame, style: Lch): Reading {
+function readAgainst(frame: Frame, color: string): Reading {
+    const style = oklchOf(color);
+    const styleRgb = new Color(color).to("srgb").coords.map((v) => (v ?? 0) * 255);
+    const outlineRgb = [OUTLINE_COLOR.r, OUTLINE_COLOR.g, OUTLINE_COLOR.b].map((v) => v * 255);
     const { width, height } = frame;
     const lch: Lch[] = [];
     const isWhite: boolean[] = [];
+    const isOutline: boolean[] = [];
     for (let at = 0; at < frame.pixels.length; at += 4) {
         const rgb = [frame.pixels[at], frame.pixels[at + 1], frame.pixels[at + 2]] as const;
         lch.push(oklchOf(rgb));
         isWhite.push(rgb.every((channel) => channel > WHITE));
+        isOutline.push(blendsToward(rgb, styleRgb, outlineRgb));
     }
     const colored = (x: number, y: number): boolean =>
-        x >= 0 && y >= 0 && x < width && y < height && lch[y * width + x].c >= MIN_CHROMA;
+        x >= 0 && y >= 0 && x < width && y < height && lch[y * width + x].c >= MIN_CHROMA && !isOutline[y * width + x];
     const interior = (x: number, y: number): boolean => {
         for (let dy = -INTERIOR_RADIUS; dy <= INTERIOR_RADIUS; dy++) {
             for (let dx = -INTERIOR_RADIUS; dx <= INTERIOR_RADIUS; dx++) {
@@ -260,13 +294,13 @@ for (const [name, color] of [
         beforeAll(async () => {
             let frame: Frame;
             ({ container, graph, frame } = await mount(color));
-            readings.set("default", readAgainst(frame, style));
+            readings.set("default", readAgainst(frame, color));
             // Switched at runtime, one after another on the same graph, and back to the default
             // last: each reading is only right if the switch before it took effect.
             for (const lighting of ["matte", "headlight", "flat", "studio"] as const) {
                 graph.setLighting(lighting);
                 await nextFrameDrawn(graph);
-                readings.set(lighting, readAgainst(await readFrame(graph), style));
+                readings.set(lighting, readAgainst(await readFrame(graph), color));
             }
         });
 

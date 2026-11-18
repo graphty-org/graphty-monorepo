@@ -313,7 +313,7 @@ describe("per-tool readers", () => {
 
     it("Gephi: reads circles, labels and flattened arcs from its SVG export", async () => {
         const { sceneFromGephi, svgPathPoints } = await load<{
-            sceneFromGephi: (svg: string, items: unknown) => SceneParts;
+            sceneFromGephi: (svg: string, items: unknown, positioned?: boolean) => SceneParts;
             svgPathPoints: (d: string) => Pt[];
         }>("gephi.mjs");
         const arc = svgPathPoints("M 0,0 A 10,10 0,0 1,20,0");
@@ -341,7 +341,12 @@ describe("per-tool readers", () => {
             width: 2,
             arrow: { target: "filled-triangle" },
         });
-        expect(s.gaps[0].property).toBe("labelText");
+        // node 2 has no text (overlap avoidance hid it): judged as no label where the file stores every position
+        expect(s.nodes[1].label).toBeNull();
+        expect(s.gaps).toEqual([]);
+        // elsewhere Gephi hid it at a place it chose itself
+        const unplaced = sceneFromGephi(svg, { edge: [{ _src: "1", _dst: "2", directed: "true" }] }, false);
+        expect(unplaced.gaps.map((g) => g.property)).toEqual(["labelText"]);
     });
 
     it("Gephi: leaves self-loops out and gives a node its id with spaces, as the items dump keeps it", async () => {
@@ -374,19 +379,83 @@ describe("per-tool readers", () => {
         });
         const topology = { elements: { edges: [edge(13, 1, 2), edge(11, 2, 1), edge(12, 1, 2), edge(14, 1, 1)] } };
         const rows = [11, 12, 13, 14].map((SUID) => ({ SUID }));
-        // SUID order 11, 12, 13: the first straight, then 40 (the largest side) to either side of x = 50
+        // desktop's walk 11 (node 2's), 13, 12: the first straight, then 40 (the largest side) to either side of x = 50
         expect([...autoAnchors(topology, rows, geo)]).toEqual([
-            ["12", [50, 40]],
             ["13", [50, -40]],
+            ["12", [50, 40]],
         ]);
         const bentFirst = rows.map((r) => (r.SUID === 11 ? { ...r, EDGE_BEND: "0.5,0.5,0.5" } : r));
         expect(autoAnchors(topology, bentFirst, geo).size).toBe(0);
+        // desktop walks its edges newest first and fans from the newer node: three 1->2 edges fan 13 straight, then
+        // 12 and 11 (cys-annotation-example YPL248C->YML051W#1 bows below the line in desktop's drawing)
+        const oneWay = { elements: { edges: [edge(11, 1, 2), edge(12, 1, 2), edge(13, 1, 2)] } };
+        expect([...autoAnchors(oneWay, rows, geo)]).toEqual([
+            ["12", [50, -40]],
+            ["11", [50, 40]],
+        ]);
         const path = anchoredPath([0, 0], [50, 40], [100, 0], true);
         expect(path[8]).toEqual([50, 20]);
         expect(anchoredPath([0, 0], [50, 40], [100, 0], false)).toEqual([
             [0, 0],
             [50, 40],
             [100, 0],
+        ]);
+    });
+
+    it("Cytoscape desktop: boxes an arrow annotation from its source annotation to its end", async () => {
+        const { arrowBox } = await load<{
+            arrowBox: (
+                a: Record<string, string>,
+                byId: Map<string, Record<string, string>>,
+                textSizes: Record<string, { w: number; h: number }>,
+                nodes: unknown[][],
+            ) => { x: number; y: number; w: number; h: number };
+        }>("cyrest.mjs");
+        const text = { uuid: "t", type: "x.TextAnnotation", x: "100", y: "50", fontSize: "20" };
+        const shape = { uuid: "s", type: "x.ShapeAnnotation", x: "0", y: "0", width: "40", height: "20" };
+        const byId = new Map<string, Record<string, string>>([
+            ["t", text],
+            ["s", shape],
+        ]);
+        const sizes = { t: { w: 60, h: 20 } };
+        // from the text's measured right side (160, 60) to a point; the arrow's own x, y is not its start
+        expect(arrowBox({ sourceAnnotation: "t", targetPoint: "200,70", x: "90", y: "40" }, byId, sizes, [])).toEqual({
+            x: 160,
+            y: 60,
+            w: 40,
+            h: 10,
+        });
+        // to a node: the line stops at the node's outline, not its center
+        const node = [300, 60, 40, 40, "rect"];
+        expect(
+            arrowBox({ sourceAnnotation: "t", targetNode: "300.001,60", x: "0", y: "0" }, byId, sizes, [node]),
+        ).toEqual({ x: 160, y: 60, w: 120, h: 0 });
+        // to another annotation: from the facing side of the one to the facing side of the other
+        expect(arrowBox({ sourceAnnotation: "s", targetAnnotation: "t", x: "0", y: "0" }, byId, sizes, [])).toEqual({
+            x: 40,
+            y: 10,
+            w: 90,
+            h: 40,
+        });
+        // a text with no measured size: from the arrow's own x, y
+        expect(arrowBox({ sourceAnnotation: "t", targetPoint: "200,70", x: "90", y: "40" }, byId, {}, [])).toEqual({
+            x: 90,
+            y: 40,
+            w: 110,
+            h: 30,
+        });
+    });
+
+    it("Cytoscape desktop: numbers parallel edges in SUID order, not the view's topology order", async () => {
+        const { cyrestIds } = await load<{
+            cyrestIds: (t: unknown) => { edges: Map<string, string> };
+        }>("cyrest.mjs");
+        const node = (suid: number, name: string) => ({ data: { SUID: suid, name } });
+        const edge = (suid: number) => ({ data: { SUID: suid, source: "1", target: "2" } });
+        const topology = { elements: { nodes: [node(1, "a"), node(2, "b")], edges: [edge(21), edge(20)] } };
+        expect([...cyrestIds(topology).edges]).toEqual([
+            ["20", "a->b"],
+            ["21", "a->b#1"],
         ]);
     });
 

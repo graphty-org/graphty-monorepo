@@ -23,7 +23,7 @@ export type RestMappingIssueCode =
     | "paging" // an unknown paging style or a bad paging field
     | "batch" // batch.max is not a positive integer, or join is not a string
     | "number" // not a positive number
-    | (string & {}); // NOSONAR(S4335): the open-union idiom keeps the listed codes in editor completion
+    | (string & {}); // the open-union idiom keeps the listed codes in editor completion
 
 /**
  * One problem `checkRestMapping` found. Experimental.

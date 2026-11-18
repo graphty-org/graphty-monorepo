@@ -217,8 +217,8 @@ export interface ProjectAssetChoice {
     /** The node layers naming it. */
     readonly layerIds: readonly LayerId[];
     /**
-     * What a save with no entry for this URL does: `"embed"`; with the `node-models` experiment on,
-     * what the opened project or the last save kept it as, else `"embed"`.
+     * What a save with no entry for this URL does: what the opened project or the last save kept it
+     * as, else `"embed"`.
      */
     readonly storage: AssetStorage;
     /** `W_MODEL_NOT_KEPT_BY_URL` when `"url"` cannot be honored, and the asset is embedded anyway. */
@@ -235,14 +235,13 @@ function notKeptByUrl(url: string): CodedFact<"W_MODEL_NOT_KEPT_BY_URL"> {
 }
 
 /**
- * How the project last kept a URL, when that carries to a save without a choice: only with the
- * `node-models` experiment on. With it off, such a save embeds, as before the experiment.
+ * How the project last kept a URL, which carries to a save without a choice.
  * @param session - The session.
  * @param ref - The URL.
  * @returns The remembered storage, or undefined.
  */
 function rememberedOf(session: GraphSession, ref: string): AssetStorage | undefined {
-    return session.features.enabled.includes("node-models") ? assetsOf(session).rememberedStorage(ref) : undefined;
+    return assetsOf(session).rememberedStorage(ref);
 }
 
 /**
@@ -420,7 +419,7 @@ function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
  * The `graphty-assets` member: every model and picture a layer names that the session holds,
  * and every other accepted model it holds (embedded by id), files as given; one a layer names by
  * URL is kept by its URL and digest alone when `storage` says `"url"` for it, or, with no entry
- * for it and the `node-models` experiment on, when the session remembers it kept that way.
+ * for it, when the session remembers it kept that way.
  * @param session - The session.
  * @param storage - By the URL a layer names: `"url"` keeps it by URL, `"embed"` embeds it; or
  *     `"embed-all"` to embed everything whatever the session remembers (autosave). Default: none.

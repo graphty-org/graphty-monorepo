@@ -297,12 +297,6 @@ interface EdgeOpts {
     metadata?: object;
 }
 
-/**
- * How far off an end cap's axis, seen from its tip, the point a bent line runs from to the cap's back may lie before
- * the route's corner under the cap is kept ({@link Edge.turnsOffAxis}).
- */
-const CAP_AXIS_TURN = Math.PI / 18;
-
 /** Most uses along one edge drawn at once; past it the highest are kept. */
 const ALONG_CAP = 4;
 
@@ -4502,44 +4496,30 @@ export class Edge {
         lineStart: Vector3,
         lineEnd: Vector3,
     ): number[] {
-        const kept = clearOfCaps(mid, start, end, {
-            start: Vector3.Distance(start, lineStart),
-            end: Vector3.Distance(end, lineEnd),
-        });
-        // A corner the cap points from stays, though it lies under the cap: without it the line would run from the
-        // point before it straight to the cap's back and meet the cap from the side (gml-synthetic-coverage 39->50, a
-        // bend 10 px above its target under a 14 px diamond, issue #8844). A curve's last sample before the cap lies
-        // on its axis, and its points under the cap are still dropped.
-        const n = mid.length;
-        if (n >= 3 && kept.length < n) {
-            const [first, last] = [Vector3.FromArray(mid, 0), Vector3.FromArray(mid, n - 3)];
-            const tailFrom = kept.length > 0 ? Vector3.FromArray(kept, 0) : lineEnd;
-            if (!first.equals(tailFrom) && Edge.turnsOffAxis(start, lineStart, tailFrom)) {
-                kept.unshift(first.x, first.y, first.z);
+        const reach = { start: Vector3.Distance(start, lineStart), end: Vector3.Distance(end, lineEnd) };
+        const kept = clearOfCaps(mid, start, end, reach);
+        // The route's point a cap is aimed from lies on the cap's axis. Under the cap (a bend that a head longer than
+        // the route's last leg covers) the line turns there and runs on along the axis to the cap's middle, as yEd's
+        // does, rather than cutting the corner to the cap's back across its side (issue #8840). Nearer the tip than
+        // the cap's middle the point is dropped, as above.
+        const n = mid.length / 3;
+        const under = (i: number, tip: Vector3, back: number): boolean => {
+            const d = Vector3.Distance(Vector3.FromArray(mid, 3 * i), tip);
+            return d < back && d >= back / 2;
+        };
+        // one point under both caps keeps the plain run
+        const both = n === 1 && under(0, start, reach.start) && under(0, end, reach.end);
+        const turn = (i: number, tip: Vector3, back: number, lineAt: Vector3): Vector3[] => {
+            if (n === 0 || both || !under(i, tip, back)) {
+                return [lineAt];
             }
-            const headFrom = kept.length > 0 ? Vector3.FromArray(kept, kept.length - 3) : lineStart;
-            if (!last.equals(headFrom) && Edge.turnsOffAxis(end, lineEnd, headFrom)) {
-                kept.push(last.x, last.y, last.z);
-            }
-        }
-        return [lineStart.x, lineStart.y, lineStart.z, ...kept, lineEnd.x, lineEnd.y, lineEnd.z];
-    }
-
-    /**
-     * Whether a point the line would run from to a cap's back lies off the line the cap points along: seen from the
-     * cap's tip, turned from its back by more than {@link CAP_AXIS_TURN}. A curve's last sample just behind the back
-     * lies on it, however its last short step turns (the Graphviz dot story's h->a); a route's corner before the bend
-     * under the cap lies far to the side (gml-synthetic-coverage 39->50).
-     * @param tip - The cap's tip.
-     * @param back - The cap's back, where the line ends.
-     * @param from - The point the line would run from.
-     * @returns True where the line would meet the cap from the side.
-     */
-    private static turnsOffAxis(tip: Vector3, back: Vector3, from: Vector3): boolean {
-        const axis = tip.subtract(back);
-        const run = tip.subtract(from);
-        const [a, r] = [axis.length(), run.length()];
-        return a > 0 && r > 0 && Vector3.Dot(axis, run) / (a * r) < Math.cos(CAP_AXIS_TURN);
+            const p = Vector3.FromArray(mid, 3 * i);
+            const middle = Vector3.Center(tip, lineAt);
+            return Vector3.Distance(p, middle) < 1e-9 ? [middle] : [p, middle];
+        };
+        const first = turn(0, start, reach.start, lineStart).reverse();
+        const last = turn(n - 1, end, reach.end, lineEnd);
+        return [...first.flatMap((v) => v.asArray()), ...kept, ...last.flatMap((v) => v.asArray())];
     }
 
     /**

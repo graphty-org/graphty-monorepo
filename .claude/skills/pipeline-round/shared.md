@@ -45,7 +45,8 @@ origin/master` (merged), the issue's state, what npm lists.
   `ci.yml` master build or a `promote-nightly` run); never merge a pull request past a
   check or with `--admin`; never approve screenshots, call the review page's API or touch `visual-baselines/`; never
   arm auto-merge on a breaking (`!`) change without the owner's go, on a pull request `tools/pr-open.sh` left it off
-  for, or on one opened by anyone but graphty-agent, dependabot or a master-guard revert; never label anything
+  for a breaking change or another author (a hold for a `GUARD_PATHS` change alone is armed by pipeline-round step 7
+  once green, unless it writes an approval the owner keeps), or on one opened by anyone but graphty-agent, dependabot or a master-guard revert; never label anything
   `priority:critical` except
   the one fix for a red master.
 - Keep the round short; when a step says stop, end the round.

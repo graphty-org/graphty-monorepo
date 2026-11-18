@@ -31,10 +31,10 @@
 #      posts the review's report as a COMMENT review (its `<!-- fresh-review <patch id> -->` line is what PR
 #      Integrity checks) unless one with that marker is already there;
 #   6. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
-#      turns it off on a re-run) for the owner to merge: a breaking change (`type!:` or BREAKING CHANGE), a change
-#      to one of the few files that guard the owner (GUARD_PATHS below), and a pull request someone other than
-#      the agent opened. A change to CI or to what guards the owner merges like any
-#      other once green (owner, 2026-10-25: "I don't agree that I should be required to manually merge to change
+#      turns it off on a re-run) for the owner to merge a breaking change (`type!:` or BREAKING CHANGE) and a pull
+#      request someone other than the agent opened; and off for pipeline-round to arm once green (its step 7) a
+#      change to one of the few files that guard the owner (GUARD_PATHS below). A change to CI or to what guards
+#      the owner merges like any other once green (owner, 2026-10-25: "I don't agree that I should be required to manually merge to change
 #      CI"). Such a pull request -- one that can change the very checks that judge it -- merges with only the
 #      fresh review and PR Integrity looking at it; the guard planned for that gap is to run master's copy of
 #      those checks, not the pull request's (issue #4421).
@@ -248,6 +248,10 @@ fi
 # that judges it; code-owner review closes that when it is turned on.
 GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge|refresh-inherited-prs)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
 hold=""
+# Who moves it on: pipeline-round arms a guarded-path hold once green (its step 7; owner, 2026-10-25: "I don't agree
+# that I should be required to manually merge to change CI"); only a breaking change and someone else's pull request
+# wait for the owner.
+next_step="The owner merges it when he gives the go"
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 # A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.
 # master's list, never the branch's: a branch cannot rule its own commit not breaking (none before the file exists).
@@ -258,15 +262,16 @@ for c in $(git rev-list --no-merges "$base..HEAD"); do
 done
 if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$msgs"; then
     hold="it holds a breaking change (it bumps a published major)"
-elif guarded=$(git diff --name-only --no-renames "$base" HEAD | grep -E "$GUARD_PATHS"); then
-    hold="it changes what guards the owner: $(echo $guarded)"
 elif [ "$author" != "$agent" ]; then
     hold="it was opened by $author, not by $agent"
+elif guarded=$(git diff --name-only --no-renames "$base" HEAD | grep -E "$GUARD_PATHS"); then
+    hold="it changes what guards the owner: $(echo $guarded)"
+    next_step="pipeline-round arms it once green (pipeline-round step 7), unless it writes an approval the owner keeps"
 fi
 if [ -n "$hold" ]; then
     # On a re-run auto-merge may be on from before; it must not stay on.
     gh pr merge "$url" --disable-auto >/dev/null 2>&1 || true
-    echo "pr-open: auto-merge is NOT on for $url: $hold. The owner merges it when he gives the go" >&2
+    echo "pr-open: auto-merge is NOT on for $url: $hold. $next_step" >&2
 else
     gh pr merge "$url" --auto --merge || die "auto-merge could not be turned on for $url"
 fi

@@ -167,7 +167,7 @@ describe("list", () => {
         const { run, calls } = runner({ pages });
         const out = main(["list", "--limit", "1"], run, NOW).out.split("\n");
         assert.equal(calls.length, 2);
-        assert.equal(out.length, 2);
+        assert.equal(out.length, 4, "the issue line, the count line, the critical/high line, the owner-rule line");
         assert.match(out[0], /^#1 high other effort:none 32d a$/);
     });
 });
@@ -268,6 +268,46 @@ describe("filter", () => {
     });
 });
 
+describe("critical and high", () => {
+    it("counts open critical/high as queue, alarms and held, and lists owner-gated ones as owner-rule candidates", () => {
+        const pages = [
+            [
+                issue(1, "a", ["bug", "priority:high"]),
+                issue(2, "CI budget: x", ["bug", "ci-budget", "priority:high"]),
+                issue(3, "Nightly held on abc", ["bug", "priority:high"]),
+                issue(4, "b", ["enhancement", "ux-owner", "priority:high"]),
+                issue(5, "c", ["bug", "needs-decision", "priority:critical"]),
+                issue(6, "d", ["bug", "in-progress", "priority:high"]),
+                issue(7, "e", ["bug", "ux-owner", "in-progress", "priority:high"]),
+                issue(8, "f", ["enhancement", "ux-owner", "priority:low"]),
+                issue(9, "g", ["bug", "blocked", "priority:high"]),
+                issue(10, "h", ["enhancement", "ux-owner", "priority:high"], {
+                    comments: { nodes: [{ ...issue(0, ""), body: "issue-round: stays owner's -- Figma-locked" }] },
+                }),
+                issue(11, "i", ["enhancement", "ux-owner", "priority:high"], {
+                    comments: {
+                        nodes: [{ ...issue(0, ""), author: user("mallory"), body: "issue-round: stays owner's -- x" }],
+                    },
+                }),
+            ],
+        ];
+        const r = listJson(pages);
+        assert.deepEqual(r.critHigh, { queue: 1, inProgress: 2, alarms: 2, held: 5 });
+        assert.deepEqual(
+            r.ownerRule.map((i) => [i.number, i.gate]),
+            [
+                [5, "needs-decision"],
+                [4, "ux-owner"],
+                [11, "ux-owner"],
+            ],
+            "blocked is no owner gate; a trusted stays-owner's comment decides one, an untrusted one does not",
+        );
+        const out = main(["list"], runner({ pages }).run, NOW).out;
+        assert.match(out, /critical\/high open 10: in the queue 1, in progress 2, alarms 2, held 5/);
+        assert.match(out, /owner-rule candidates 3 undecided .*\n {2}#5 critical needs-decision/);
+    });
+});
+
 describe("jobs", () => {
     const BUILT = "2026-11-02T11:00:00Z";
     const q = [
@@ -285,6 +325,12 @@ describe("jobs", () => {
         jobs: jobList,
         blocked: [{ issue: 6, prs: [9] }],
         ...extra,
+    });
+
+    it("offers a blocked issue again once its block's due time passed", () => {
+        const due = (t) => cache([], { blocked: [{ issue: 6, prs: [], reason: "re-measure", due: t }] });
+        assert.ok(!JSON.parse(run(due("2026-11-02T13:00:00Z")).out).rescan.includes(6));
+        assert.ok(JSON.parse(run(due("2026-11-02T11:30:00Z")).out).rescan.includes(6));
     });
 
     it("exits stale when the free queue is missing, has no jobs list, or is over 2 hours old", () => {

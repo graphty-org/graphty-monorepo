@@ -10,7 +10,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
+import { BATCHED_PATH_CHANGES, plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     advisoryMisses,
@@ -22,6 +22,7 @@ import {
     graphCacheKey,
     nearestBase,
     lightPlan,
+    onlyWhenChanged,
     planSummary,
     reusableEdges,
     lockMoves,
@@ -2717,5 +2718,61 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             bins.flatMap((b) => b.files),
             ["graph-io/fidelity-stories/F.stories.tsx"],
         );
+    });
+});
+
+describe("the forced-batched variant on a pull request (#8826)", () => {
+    const fb = SHARDS.filter((s) => s.shard.startsWith("graphty-element-forced-batched-"));
+    const files = { mode: "files", files: [{ file: "graphty-element/test/browser/a.test.ts", why: "changed" }] };
+    const selection = (mode = files) => fb.map((s) => ({ shard: s.shard, package: s.package, ...mode }));
+
+    it("runs its selected files only when a browser test or the render path changed", () => {
+        assert.ok(fb.length > 0 && fb.every((s) => !s["full-run-only"] && s["pull-request"] === "selected"));
+        for (const changed of [
+            ["graphty-element/test/browser/a.test.ts"],
+            ["graphty-element/test/interactions/drag.test.ts"],
+            ["graphty-element/src/meshes/EdgeMesh.ts"],
+            ["graphty-element/src/Edge.ts"],
+            ["graphty-element/src/managers/UpdateManager.ts"],
+        ]) {
+            assert.ok(
+                onlyWhenChanged(selection(), fb, changed).every((s) => s.mode === "files"),
+                changed[0],
+            );
+        }
+        for (const changed of [["graphty-element/src/session/projectFile.ts"], ["graphty-element/src/EdgeX.ts"]]) {
+            const out = onlyWhenChanged(selection(), fb, changed);
+            assert.ok(
+                out.every((s) => s.mode === "none" && s.files.length === 0),
+                changed[0],
+            );
+        }
+        assert.equal(BATCHED_PATH_CHANGES, fb[0]["pull-request-when"]);
+    });
+
+    it("leaves a shard without a pull-request-when list as it was", () => {
+        const other = [{ shard: "graphty-element-browser-1", package: "graphty-element" }];
+        const sel = [{ shard: "graphty-element-browser-1", ...files }];
+        assert.deepEqual(onlyWhenChanged(sel, other, ["graphty-element/src/session/x.ts"]), sel);
+    });
+
+    it("runs as bins of the selected files on a pull request, never whole", () => {
+        const bin = {
+            name: "graphty-element-forced-batched-1",
+            family: "graphty-element-forced-batched",
+            shard: fb[0].shard,
+            covers: fb.map((s) => s.shard),
+            files: ["graphty-element/test/browser/a.test.ts"],
+            command: "cd graphty-element && pnpm exec vitest run --project=forced-batched test/browser/a.test.ts",
+        };
+        const pr = matrixPlan(["graphty-element"], undefined, { bins: [bin] }, true);
+        assert.deepEqual(
+            pr.filter((e) => e.shard.includes("forced-batched")).map((e) => e.shard),
+            ["graphty-element-forced-batched-1"],
+        );
+        const whole = matrixPlan(["graphty-element"], undefined, { bins: [] }, true);
+        assert.ok(!whole.some((e) => e.shard.includes("forced-batched")), "no whole shard on a pull request");
+        const full = matrixPlan(["graphty-element"], undefined, undefined, false);
+        assert.equal(full.filter((e) => e.shard.includes("forced-batched")).length, fb.length, "the full run");
     });
 });

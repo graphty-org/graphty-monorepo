@@ -385,7 +385,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const { session } = document.getElementById("g");
      *   await session.visibility.set({ kind: "degree", min: 3 });
@@ -541,7 +541,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   const run = g.run("betweenness");
@@ -570,7 +570,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   await g.select({ nodes: [1, 2, 3] });

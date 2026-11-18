@@ -165,12 +165,17 @@ function settleType(types: ReadonlySet<AttributeType>): AttributeType {
     return "mixed";
 }
 
+/** At most this many distinct values still make groups on a small graph, as a ten-color legend shows them. */
+const FEW_GROUPS = 10;
+
 /**
  * Whether a string attribute is a category rather than free text.
  *
  * The test is "few distinct values, many records", because that is what makes a legend readable
  * and a group-by useful. A column of 400 distinct labels over 400 nodes is an identifier; a
- * column of 4 over 400 is a category, and a palette should be offered for it.
+ * column of 4 over 400 is a category, and a palette should be offered for it. On a small graph the
+ * square root is too strict (3 values over 6 nodes would be text), so a column of at most
+ * {@link FEW_GROUPS} values that each come back twice on average is a category too.
  * @param accumulator - what the walk saw
  * @param total - how many records of that kind there are
  * @returns true when the attribute should be described as a category
@@ -180,7 +185,8 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
         return false;
     }
 
-    return accumulator.unique.size <= Math.max(2, Math.sqrt(total));
+    const distinct = accumulator.unique.size;
+    return distinct <= Math.max(2, Math.sqrt(total)) || (distinct <= FEW_GROUPS && distinct * 2 <= accumulator.present);
 }
 
 /**

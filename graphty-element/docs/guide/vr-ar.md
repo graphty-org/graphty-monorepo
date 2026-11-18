@@ -228,13 +228,10 @@ For AR experiences:
 4. **Occlusion**: Real objects can occlude the graph
 
 ::: warning Not yet published
-Placing and scaling the graph in the room is not something the element publishes an API for. The
-`graph.setScale()` and `graph.setPosition()` calls this page used to teach have never existed in
-any version, and a reader who copied them got a `TypeError`. Recorded in
-`design/element-api/capability-losses.md`.
+The element has no API for placing and scaling the graph in the room.
 
 What IS published for AR and VR today is the mode switch and the XR configuration: set
-`element.viewMode` to `"ar"` or `"vr"`, and use `element.xrConfig` for the session options. The
+`element.viewMode` to `"ar"` or `"vr"`, and use `element.xr` for the session options. The
 reader's own headset places the scene.
 :::
 

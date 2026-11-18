@@ -2,7 +2,8 @@ id: histogram
 name: Histogram
 category: display
 description: Bar chart showing distribution of a numeric attribute. Supports brushing for range selection.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/inspector/Distribution.tsx."
 implements_capabilities:
     - metric-histograms
     - degree-analysis

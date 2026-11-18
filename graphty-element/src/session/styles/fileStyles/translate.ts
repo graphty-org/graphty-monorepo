@@ -675,6 +675,14 @@ function channelPlans(
         ["labelBorderOpacity", [label("labelBorderOpacity")]],
         ["labelPadding", [labelLength(`${kind}.labelPadding`, false)]],
     ];
+    // how a label box's corners, lines, border and shape are drawn, the same for nodes and edges
+    const labelBoxShape: [string, ChannelPlan[]][] = [
+        ["labelCornerRadius", [labelLength(`${kind}.labelCornerRadius`, false)]],
+        ["labelLineHeight", [label("labelLineHeight")]],
+        ["labelLineBox", [label("labelLineBox")]],
+        ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBackgroundShape", [label("labelBackgroundShape")]],
+    ];
     if (kind === "node") {
         const shapeTable = NODE_SHAPES;
         return new Map<string, readonly ChannelPlan[]>([
@@ -875,11 +883,7 @@ function channelPlans(
             ["labelPosition", [location("node")]],
             ["labelItalic", [label("labelItalic")]],
             ...labelBox,
-            ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
-            ["labelLineHeight", [label("labelLineHeight")]],
-            ["labelLineBox", [label("labelLineBox")]],
-            ["labelBorderAlign", [label("labelBorderAlign")]],
-            ["labelBackgroundShape", [label("labelBackgroundShape")]],
+            ...labelBoxShape,
             ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
@@ -1085,11 +1089,7 @@ function channelPlans(
                 },
             ],
         ],
-        ["labelCornerRadius", [labelLength("edge.labelCornerRadius", false)]],
-        ["labelLineHeight", [label("labelLineHeight")]],
-        ["labelLineBox", [label("labelLineBox")]],
-        ["labelBorderAlign", [label("labelBorderAlign")]],
-        ["labelBackgroundShape", [label("labelBackgroundShape")]],
+        ...labelBoxShape,
         // moved in the scene's units, as a wrap width is
         ["labelOffsetX", [length("edge.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
         ["labelOffsetY", [length("edge.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],

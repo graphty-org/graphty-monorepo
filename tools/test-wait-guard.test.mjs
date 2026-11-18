@@ -55,6 +55,12 @@ test("withTestGuards sets the global guard on the root and every inline project,
     assert.deepEqual(withTestGuards(config).test.setupFiles, ["./a.ts", SETUP]);
 });
 
+test("withTestGuards keeps a run's coverage when a test fails, so a retried flaky shard still has it (#8474)", () => {
+    const config = withTestGuards({ test: { coverage: { provider: "v8", reportsDirectory: "./c" } } });
+    assert.deepEqual(config.test.coverage, { provider: "v8", reportsDirectory: "./c", reportOnFailure: true });
+    assert.equal(withTestGuards({}).test.coverage.reportOnFailure, true);
+});
+
 test("a real action gets the wait guard on the object each Playwright provider holds, on instances too", () => {
     // playwright() reads the options object it was handed, so that object is what must change.
     const [root, project, instance, other] = [{ actionTimeout: 5 }, { hasTouch: true }, {}, {}];
@@ -85,14 +91,23 @@ test("a real action gets the wait guard on the object each Playwright provider h
     assert.deepEqual(other, {});
 });
 
-test("a bench project is a measurement: no time limit and no guard", () => {
+test("a bench project gets the same guard as every other project (#8032)", () => {
     const config = withTestGuards({
-        test: { projects: [{ test: { name: "bench-browser", setupFiles: ["./a.ts"], testTimeout: 5 } }] },
+        test: {
+            projects: [
+                { test: { name: "bench", testTimeout: 0 } },
+                { test: { name: "bench-browser", setupFiles: ["./a.ts"], testTimeout: 0, hookTimeout: 0 } },
+            ],
+        },
     });
-    const [bench] = config.test.projects;
-    assert.equal(bench.test.testTimeout, 0);
-    assert.equal(bench.test.hookTimeout, 0);
-    assert.deepEqual(bench.test.setupFiles, ["./a.ts"]);
+    for (const { test: bench } of config.test.projects) {
+        assert.equal(bench.testTimeout, TEST_GUARD_MS);
+        assert.equal(bench.hookTimeout, TEST_GUARD_MS);
+        assert.equal(bench.teardownTimeout, TEST_GUARD_MS);
+        assert.deepEqual(bench.expect.poll, { timeout: WAIT_GUARD_MS });
+        assert.equal(bench.setupFiles.at(-1), SETUP);
+    }
+    assert.deepEqual(config.test.projects[1].test.setupFiles, ["./a.ts", SETUP]);
 });
 
 test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call names", () => {
@@ -108,10 +123,7 @@ test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call n
 });
 
 // Tracked vitest configs that export no config of their own, each with the reason it needs no wrap.
-const UNWRAPPED = {
-    // A factory, not a config: packages build theirs from createVitestConfig(), which guards its result.
-    "vitest.shared.config.ts": /return withTestGuards\(config\);/,
-};
+const UNWRAPPED = {};
 
 test("every tracked vitest config, at any depth, is wrapped in withTestGuards", () => {
     const configs = trackedFiles(/(^|\/)vitest(\.[\w-]+)?\.config\.(ts|mts|mjs|js)$/);

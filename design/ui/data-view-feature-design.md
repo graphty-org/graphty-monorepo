@@ -1,5 +1,9 @@
 # Feature Design: Data View
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 - **User Value**: Users can inspect the raw data behind their graph visualizations, understand node properties, debug data issues, and navigate between visual elements and their underlying data.

@@ -204,7 +204,7 @@ describe("what a session publishes without being asked to compute", () => {
         session.dispose();
     });
 
-    it("publishes the acceleration capability document, and states an unfinished probe as such", () => {
+    it("publishes the acceleration capability document, and states a policy of off as off", () => {
         const session = createGraphSession({ config: { acceleration: { policy: "off" } } });
 
         assert.strictEqual(session.capabilities.acceleration.state, "off");
@@ -214,13 +214,21 @@ describe("what a session publishes without being asked to compute", () => {
 
     it("does not measure the hardware until something asks what the machine can do", async () => {
         const session = createGraphSession();
+        const probed = new Promise<void>((resolve) => {
+            const stop = session.on("capabilities:changed", ({ capabilities }) => {
+                if (capabilities.acceleration.state !== "probing") {
+                    stop();
+                    resolve();
+                }
+            });
+        });
 
         // A renderer builds a session on its way up, and reaching for a GPU adapter on the way to
         // drawing a thirty-node graph is a cost nobody asked for. Reading the capability document
         // IS the request, so that is what starts the measurement.
         assert.strictEqual(session.capabilities.acceleration.state, "probing", "the answer is not known yet");
 
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await probed;
 
         assert.strictEqual(session.capabilities.acceleration.state, "unavailable", "nothing registered an accelerator");
         assert.isString(session.capabilities.acceleration.reason, "and it says why in a sentence");

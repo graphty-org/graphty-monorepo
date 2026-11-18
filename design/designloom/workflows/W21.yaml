@@ -27,7 +27,8 @@ suggested_components:
     - node-chart-overlay
     - annotation-toolbar
     - graph-canvas
-    - export-dialog
+    - data-export-dialog
+    - image-export-dialog
 starting_state:
     data_type: protein-protein interaction network with joined attributes
     node_count: 100-2000

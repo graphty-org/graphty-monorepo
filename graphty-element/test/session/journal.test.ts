@@ -3,12 +3,14 @@
  * run's `journalId`, `journal:appended`, batches, refusals, the cap and gesture coalescing.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type JournalEntry as PublishedEntry } from "../../session";
 import { isGraphtyError } from "../../src/errors";
+import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import type { JournalEntry } from "../../src/session/journal";
 import type { SessionCommand } from "../../src/session/planning";
+import { takeCaughtErrors } from "../helpers/caught-errors";
 import { notesHarness } from "./notes/harness";
 import { finishAtOnce } from "./runs/harness";
 
@@ -53,6 +55,57 @@ describe("session.journal", () => {
         assert.deepEqual(published, session.journal.entries);
         assert.deepEqual(heard, published.slice(0, 4), "unsubscribed before the last");
         session.dispose();
+    });
+
+    it("keeps an add's records as the graph's own frozen copies, not the caller's objects", async () => {
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            const nodes = [
+                { id: "a", position: { x: 0, y: 0, z: 0 } },
+                { id: "b", position: { x: 1, y: 0, z: 0 } },
+            ];
+            const edges = [{ source: "a", target: "b" }];
+            // The copy is made when the add runs, not on the caller's synchronous dispatch, which
+            // at a million records would hold the page for half a second.
+            const atDispatch: unknown[] = [];
+            dispatcherOf(session).events.dispatched = (dispatched) => {
+                const command = dispatched as SessionCommand;
+                if (command.op === "data.apply" && "records" in command.mutation) {
+                    atDispatch.push(command.mutation.records[0]);
+                }
+            };
+            await session.data.addNodes(nodes);
+            await session.data.addEdges(edges);
+            assert.strictEqual(atDispatch.length, 2, `two adds dispatched, batched ${String(batched)}`);
+            if (!batched) {
+                // (Under "batched" these adds go as a rows view, whose records are built when read.)
+                assert.strictEqual(atDispatch[0], nodes[0], "dispatch copies no node record");
+                assert.isFalse(Object.isFrozen(atDispatch[1]), "dispatch freezes no edge record");
+            }
+
+            const { graph } = dispatcherOf(session).state;
+            const kept = (kind: string): readonly unknown[] => {
+                const entry = session.journal.entries.find(
+                    ({ command }) => command.op === "data.apply" && command.mutation.kind === kind,
+                );
+                const mutation = entry?.command.op === "data.apply" ? entry.command.mutation : undefined;
+                return mutation !== undefined && "records" in mutation ? mutation.records : [];
+            };
+            const [nodeA, nodeB] = kept("add-nodes");
+            const [edge] = kept("add-edges");
+            // One copy serves the journal and the graph, so the caller's objects can be let go.
+            // (Under "batched" the slice keeps columns and builds a record on each read.)
+            const same = batched ? assert.deepStrictEqual : assert.strictEqual;
+            same(nodeA, graph.nodes.get("a"), `node a, batched ${String(batched)}`);
+            same(nodeB, graph.nodes.get("b"), `node b, batched ${String(batched)}`);
+            same(edge, [...graph.edges.values()][0], `edge, batched ${String(batched)}`);
+            assert.notStrictEqual(nodeA, nodes[0]);
+            assert.notStrictEqual(edge, edges[0]);
+            assert.deepStrictEqual(nodeA, nodes[0]);
+            assert.isTrue(Object.isFrozen(nodeA));
+            assert.isFalse(Object.isFrozen(nodes[0]), "the caller's object is never frozen");
+            session.dispose();
+        }
     });
 
     it("writes nothing for a command that fails", async () => {
@@ -230,6 +283,45 @@ describe("session.journal", () => {
         const ops = session.journal.entries.map((each) => each.command.op);
         assert.deepEqual(ops, ["data.apply", "algo.run"]);
         assert.deepEqual(heard, session.journal.entries.slice(1), "heard from when it subscribed");
+        session.dispose();
+    });
+
+    it("reports a throwing subscriber or event handler and still tells the others", async () => {
+        const { session } = notesHarness();
+        const journalBug = new Error("a bug in a journal subscriber");
+        const eventBug = new Error("a bug in an event handler");
+        const heard: string[] = [];
+        session.journal.subscribe(() => {
+            throw journalBug;
+        });
+        session.journal.subscribe(() => heard.push("journal"));
+        session.on("journal:appended", () => {
+            throw eventBug;
+        });
+        session.on("journal:appended", () => heard.push("event"));
+        // Catch what a microtask rethrows unhandled, so it can be checked instead of ending the run.
+        const rethrown: unknown[] = [];
+        const queue = globalThis.queueMicrotask.bind(globalThis);
+        const spy = vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => {
+            queue(() => {
+                try {
+                    callback();
+                } catch (error) {
+                    rethrown.push(error);
+                }
+            });
+        });
+
+        try {
+            session.notes.add({ text: "hub", targets: [{ node: "a" }] });
+        } finally {
+            spy.mockRestore();
+        }
+        await Promise.resolve();
+
+        assert.deepEqual(heard, ["journal", "event"], "the others were told");
+        assert.deepEqual(takeCaughtErrors(), [journalBug, eventBug], "both reported");
+        assert.deepEqual(rethrown, [journalBug, eventBug], "both rethrown unhandled");
         session.dispose();
     });
 });

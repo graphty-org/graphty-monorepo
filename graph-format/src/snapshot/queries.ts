@@ -3,7 +3,9 @@
  * searches over sorted rows (invariant I4) for `findArc` / `hasArc` / `arcsBetween` /
  * `multiplicity` / `selfLoopsAt`, and the binary search over `rowPtr` behind `arcSource`. Every
  * function is total for in-range arguments and unchecked for out-of-range ones (design section
- * 11.1: typed-array semantics, no bounds checks in hot paths). GraphSnapshot's methods of the same
+ * 11.1: typed-array semantics, no bounds checks in hot paths): an out-of-range node index never
+ * throws, but only `findArc` / `hasArc` still report a miss; `arcsBetween` / `multiplicity` /
+ * `selfLoopsAt` return unspecified values (today a NaN count and an undefined range). GraphSnapshot's methods of the same
  * names delegate here; the views and the derived graphs reuse the searches directly.
  *
  * Multigraph semantics (design section 3.5): parallel arcs are adjacent and ordered by logical edge

@@ -242,6 +242,31 @@ describe("the project file", () => {
         target.session.dispose();
     });
 
+    it("keeps the name the reader gave a run, and opens a file whose runs carry none (#829)", async () => {
+        const source = await busySession();
+        await source.session.runs.rename("links", "My links");
+        const { text } = await source.session.project.save();
+        const saved = JSON.parse(text) as { members: { kind: string; runs?: { name?: string }[] }[] };
+        const runs = saved.members.find((member) => member.kind === "graphty-results")?.runs;
+        assert.strictEqual(runs?.[0].name, "My links");
+
+        const { harness: target } = withDegree();
+        await target.session.project.open(text);
+        assert.strictEqual(target.session.runs.get("links")?.record.name, "My links");
+
+        // A file written before runs carried a name: the run opens unnamed.
+        delete runs?.[0].name;
+        const { harness: older } = withDegree();
+        const report = await older.session.project.open(JSON.stringify(saved));
+        assert.deepStrictEqual(report.problems, []);
+        assert.isNull(older.session.runs.get("links")?.record.name);
+        assert.strictEqual(older.session.results.get("links")?.node("b")?.value, 2);
+
+        source.session.dispose();
+        target.session.dispose();
+        older.session.dispose();
+    });
+
     it("carries edge results and the edge selection over to the edge ids of the session it opens in", async () => {
         const source = await busySession();
         const [, middle] = source.session.data.edges();
@@ -306,7 +331,7 @@ describe("the project file", () => {
         const report = await harness.session.styles.applyTemplate(harness.session.styles.toDocument());
         assert.deepStrictEqual(report.unbound, [], "results.links.value is answered by the run links");
         const [block] = harness.session.styles.legend().filter((entry) => entry.runId === "links");
-        assert.strictEqual(block.field?.plainName, "Connections", "the legend names the column in the run's words");
+        assert.strictEqual(block.field?.result?.algorithm, "degree", "the legend names the run field by its algorithm");
         harness.session.dispose();
     });
 
@@ -592,7 +617,7 @@ describe("the project file", () => {
         // The reader's edit is dispatched the moment the open is pending work.
         let styled: PromiseLike<unknown> | undefined;
         const off = session.on("history:changed", () => {
-            if (session.history.pending.some((each) => each.label === "Open project")) {
+            if (session.history.pending.some((each) => each.fact.code === "project.open")) {
                 off();
                 styled = session.styles.add({
                     name: "during",

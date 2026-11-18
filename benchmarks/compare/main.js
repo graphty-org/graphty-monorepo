@@ -22,8 +22,8 @@ const intervals = (st) => st.slice(1).map((t, i) => t - st[i]);
 
 function mulberry32(a) {
     return () => {
-        a |= 0; // NOSONAR(S7767): int32 wrap, which Math.trunc does not do; the positions depend on it
-        a = (a + 0x6d2b79f5) | 0; // NOSONAR(S7767): int32 wrap, as above
+        a |= 0; // eslint-disable-line unicorn/prefer-math-trunc -- int32 wrap, which Math.trunc does not do; the positions depend on it
+        a = (a + 0x6d2b79f5) | 0; // eslint-disable-line unicorn/prefer-math-trunc -- int32 wrap, as above
         let t = Math.imul(a ^ (a >>> 15), 1 | a);
         t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -106,7 +106,18 @@ const B = {
         lib = name === "cosmos" ? await cosmosAdapter(opts) : await graphtyAdapter(opts);
         return lib.describe();
     },
-    load: () => lib.load(),
+    // No per-frame readback while a load runs: a load spans several of graphty-element's frames, and a
+    // blocking readPixels after each one stalled its ingest on GPU work its own fence pacing
+    // (RenderManager.gpuBehind) would have overlapped. Each adapter reads one pixel itself after the
+    // first complete frame, so firstFrameMs still includes that frame's GPU work, as for cosmos.gl.
+    async load() {
+        SYNC = false;
+        try {
+            return await lib.load();
+        } finally {
+            SYNC = true;
+        }
+    },
     async still(frames = 200) {
         await lib.settle();
         SYNC = false;
@@ -379,7 +390,9 @@ async function cosmosAdapter({ dpr }) {
 async function measureRepack(graph, eng) {
     if (!graph.openRowTable) return undefined;
     const table = graph.openRowTable();
-    for (const node of graph.getNodes()) node.update();
+    // getNodes() builds every node the batched path left unbuilt: at 1,000,000 nodes that is about
+    // 5 GB and the renderer dies (issue #8169), so the walk is skipped at that size.
+    if (table.rows < 1000000) for (const node of graph.getNodes()) node.update();
     const gl = graph.engine?._gl;
     table.flush();
     const repack = [];
@@ -584,7 +597,7 @@ async function graphtyAdapter({
                 }
             };
             const deadline = now() + STABLE_MS;
-            while (tFirst === null && errors.length === 0 && now() < deadline) await sleep(20); // NOSONAR(S2189): an event handler sets tFirst and errors during the await
+            while (tFirst === null && errors.length === 0 && now() < deadline) await sleep(20); // eslint-disable-line no-unmodified-loop-condition -- an event handler sets tFirst and errors during the await
             onFrame = null;
             if (tFirst === null)
                 return {

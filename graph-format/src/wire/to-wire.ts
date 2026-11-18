@@ -395,7 +395,8 @@ function utf8Ref(layout: WireLayout, encoded: EncodedUtf8, shared: boolean): Wir
 /**
  * The manifest copy of a column's metadata: the JSON fields tagged per design section 5.9, the rest
  * copied as is. The tagged fields no longer match ColumnMeta's static types when a value was
- * non-finite; the reader decodes them before resolving the metadata again.
+ * non-finite; the reader decodes them before resolving the metadata again. `coordinates` is
+ * omitted when null (older readers ignore it; this reader resolves a missing one to null).
  * @param meta - the resolved metadata
  * @returns the manifest form
  */
@@ -418,7 +419,9 @@ function encodeColumnMeta(meta: ColumnMeta): ColumnMeta {
         origin: meta.origin === null ? null : { ...meta.origin },
         dynamic: meta.dynamic,
         extra: encodeJsonValue(meta.extra) as Readonly<Record<string, unknown>>,
-    };
+        // Written only when declared, so a manifest without coordinates keeps the bytes it always had.
+        ...(meta.coordinates === null ? {} : { coordinates: { ...meta.coordinates } }),
+    } as ColumnMeta;
 }
 
 /**

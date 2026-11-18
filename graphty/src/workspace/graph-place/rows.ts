@@ -6,7 +6,6 @@
  */
 
 import {
-    fileStyleOf,
     type GraphSession,
     type LayerId,
     RESULT_SHAPE_CONTRACTS,
@@ -16,7 +15,7 @@ import {
     type StyleRowPlace,
 } from "@graphty/graphty-element/session";
 
-import { fileStyleLayerWords } from "../styles/fileStyleWords";
+import { count } from "../inspector/words";
 
 /**
  * A run's kind, the one the inspector's header reads: a grouping, or a run whose primary field is
@@ -163,16 +162,6 @@ export function rowLayers(session: GraphSession, id: string): string[] {
 }
 
 /**
- * A count with its noun, "1 node" or "77 nodes".
- * @param n - the count.
- * @param noun - the singular noun.
- * @returns the words.
- */
-export function count(n: number, noun: string): string {
-    return `${n.toLocaleString()} ${noun}${n === 1 ? "" : "s"}`;
-}
-
-/**
  * The words heading the panel of several rows: how many layers an edit there reaches, through
  * folders at every depth, as the panel's scope line counts them ("11 layers").
  * @param session - the element's session.
@@ -186,8 +175,7 @@ export function rowsHeading(session: GraphSession, ids: readonly string[]): stri
 }
 
 /**
- * A tree row's name, or "Gone": for a layer row made from a file's styles, the app's words for
- * its facts (`fileStyleOf`); otherwise the row's own name.
+ * A tree row's name, or "Gone".
  * @param session - the element's session.
  * @param id - the row's id.
  * @returns the name.
@@ -196,14 +184,6 @@ export function rowName(session: GraphSession, id: string): string {
     const found = findTreeRow(session.styles.tree(), id);
     if (found === undefined) {
         return "Gone";
-    }
-    for (const layerId of found.row.kind === "layer" ? rowLayers(session, id) : []) {
-        const layer = session.styles.get(layerId);
-        const origin = layer === undefined ? null : fileStyleOf(layer);
-        if (origin !== null) {
-            const column = session.data.attributes().find((attribute) => attribute.path === origin.column);
-            return fileStyleLayerWords(origin, column?.plainName);
-        }
     }
     return found.row.name;
 }
@@ -236,7 +216,7 @@ export function paintingParts(session: GraphSession, id: string): { node?: Layer
  * @param id - the row's id.
  * @returns the halves' layer ids, empty for a row the stack does not hold.
  */
-export function builtParts(session: GraphSession, id: string): { node?: LayerId; edge?: LayerId } {
+function builtParts(session: GraphSession, id: string): { node?: LayerId; edge?: LayerId } {
     const painting = paintingParts(session, id);
     const parts = session.styles.parts(id);
     const built = (layer: LayerId | undefined, writes: LayerId | undefined): layer is LayerId =>
@@ -302,4 +282,54 @@ export function kindGlyphWords(session: GraphSession, row: StyleRow): string {
     return target === undefined
         ? "Layer"
         : { node: "Paints nodes", edge: "Paints edges", both: "Paints nodes and edges" }[target];
+}
+
+/** What one layer row paints, read from the element's counts. */
+export interface Paints {
+    readonly nodes: number | undefined;
+    readonly edges: number | undefined;
+    /** Every property it writes is painted over by rows above (and it is shown). */
+    readonly paintedOver: boolean;
+    /** The names of the layers the picture shows instead, the most elements first. */
+    readonly paintedBy: readonly string[];
+}
+
+/**
+ * What a layer row paints: how many of the nodes and edges drawn its parts match, and whether
+ * every property it writes is painted over above it (`styles.counts`).
+ * @param session - the element's session.
+ * @param row - the layer row.
+ * @returns the facts.
+ */
+export function paintsOf(session: GraphSession, row: StyleRow): Paints {
+    // Only the halves the reader is building count: those that write, else those with a condition.
+    const parts = builtParts(session, row.id);
+    const read = (layer: string | undefined): ReturnType<GraphSession["styles"]["counts"]> | undefined =>
+        layer === undefined ? undefined : session.styles.counts(layer);
+    const node = read(parts?.node);
+    const edge = read(parts?.edge);
+    const painted = [node, edge].flatMap((c) => (c === undefined ? [] : Object.values(c.painted)));
+    // A row that matches nothing paints nothing, so nothing of it is painted over.
+    const matched = (node?.matched ?? 0) + (edge?.matched ?? 0);
+    const by = [node, edge].flatMap((c) => c?.paintedBy ?? []).map((id) => session.styles.get(id)?.name ?? id);
+    // Counted over the graph the filter leaves drawn, the base Which nodes and the key count over.
+    return {
+        nodes: node === undefined ? undefined : (node.visible?.matched ?? node.matched),
+        edges: edge === undefined ? undefined : (edge.visible?.matched ?? edge.matched),
+        paintedOver: matched > 0 && painted.length > 0 && painted.every((n) => n === 0),
+        paintedBy: [...new Set(by)],
+    };
+}
+
+/**
+ * The words for what a layer paints: "5 nodes, 4 edges".
+ * @param paints - the facts.
+ * @returns the words.
+ */
+export function paintsWords(paints: Paints): string {
+    const words = [
+        ...(paints.nodes === undefined ? [] : [count(paints.nodes, "node")]),
+        ...(paints.edges === undefined ? [] : [count(paints.edges, "edge")]),
+    ];
+    return words.length === 0 ? "paints nothing" : words.join(", ");
 }

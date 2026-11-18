@@ -696,14 +696,45 @@ function startPositions(
     return { pos, fixed, anyLocked };
 }
 
+/** The LayoutAccelerator method that builds each simulation type; an accelerator may implement any subset. */
+const ACCELERATOR_METHOD = {
+    forceatlas2: "forceAtlas2",
+    fruchtermanReingold: "fruchtermanReingold",
+    spring: "fruchtermanReingold",
+    "spring-electrical": "springElectrical",
+} as const satisfies Record<SimulationType, keyof LayoutAccelerator>;
+
 /**
- * Runs a simulation on an accelerator (null: the CPU).
+ * The accelerator that runs this type: the given one when it implements the type's method, else null (the CPU), with
+ * `layout.backend` saying why.
  * @param layout - the layout
  * @param type - the simulation type
- * @param accelerator - the accelerator
+ * @param given - the accelerator
+ * @returns the accelerator, or null
  */
-function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutAccelerator | null): void {
+function acceleratorFor(
+    layout: LayoutThis,
+    type: SimulationType,
+    given: LayoutAccelerator | null,
+): LayoutAccelerator | null {
+    const method = ACCELERATOR_METHOD[type];
+    if (given === null || given[method] !== undefined) {
+        return given;
+    }
+    layout.backend = { ran: "cpu", reason: `the accelerator has no ${method} simulation`, device: null };
+    return null;
+}
+
+/**
+ * Runs a simulation on an accelerator (null: the CPU). An accelerator without this type's method runs it as null
+ * would, and `layout.backend` says so.
+ * @param layout - the layout
+ * @param type - the simulation type
+ * @param given - the accelerator
+ */
+function simulate(layout: LayoutThis, type: SimulationType, given: LayoutAccelerator | null): void {
     const o = layout.options;
+    const accelerator = acceleratorFor(layout, type, given);
     if (accelerator === null && type === "spring-electrical") {
         const reason = layout.backend?.reason ?? "none was available";
         // nothing ran, so no backend: "cpu" would say the layout ran there (as with gpu: "require")
@@ -727,22 +758,32 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     // simulation's own size, and the first steps would jolt it back out.
     const drawn = o.randomize === false && !anyLocked ? DRAWN_SCALE.get(o.cy)?.get(type) : undefined;
     const scale = drawn ?? radius;
-    const sim = createSimulation(
-        type,
-        {
-            ...SIMULATION_DEFAULTS[type],
-            ...graphtyOptions(o),
-            ...nodeFields(cs, o),
-            scale,
-            center: drawn === undefined ? center : centroidOf(pos, n),
-            iterationsPerStep: 1,
-        },
-        accelerator,
-    );
-    sim.load(s, pos);
-    if (anyLocked) {
-        sim.setFixed(fixed);
+    let created: LayoutSimulation | undefined;
+    try {
+        created = createSimulation(
+            type,
+            {
+                ...SIMULATION_DEFAULTS[type],
+                ...graphtyOptions(o),
+                ...nodeFields(cs, o),
+                scale,
+                center: drawn === undefined ? center : centroidOf(pos, n),
+                iterationsPerStep: 1,
+            },
+            accelerator,
+        );
+        created.load(s, pos);
+        if (anyLocked) {
+            created.setFixed(fixed);
+        }
+    } catch (error) {
+        // a GPU simulation holds a buffer and a device-loss listener from construction; nothing ran, so no backend
+        created?.dispose();
+        layout.backend = undefined;
+        failLater(layout, error);
+        return;
     }
+    const sim = created;
     // a data change while the simulation runs must not release the snapshot its device upload came from
     const unhold = hold(s);
     const dispose = (): void => {
@@ -786,7 +827,13 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
                 finishDiscrete(layout, cs.nodes, xy());
             }
         };
-        const r = stepToEnd(sim, layout);
+        let r: void | Promise<void>;
+        try {
+            r = stepToEnd(sim, layout);
+        } catch (error) {
+            fail(error);
+            return;
+        }
         if (r === undefined) {
             done();
         } else {
@@ -860,7 +907,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
  * @param layout - the layout
  * @param error - the error
  */
-function failLater(layout: LayoutThis, error: Error): void {
+function failLater(layout: LayoutThis, error: unknown): void {
     layout.looping = true;
     void Promise.resolve().then(() => {
         layout.looping = false;

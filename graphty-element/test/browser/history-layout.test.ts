@@ -15,7 +15,8 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { Graph, operationQueueOf } from "../../src/Graph";
+import { isGraphtyError } from "../../src/errors";
+import { Graph, graphContextOf, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
@@ -89,7 +90,7 @@ function lane(session: GraphSession): number[] {
  */
 function agrees(graph: Graph, dimension: "2d" | "3d", what: string): void {
     const twoD = dimension === "2d";
-    const context = (graph as unknown as { graphContext: { is2D(): boolean } }).graphContext;
+    const context = graphContextOf(graph);
     assert.strictEqual(graph.getSession().layout.dimension, dimension, `${what}: the slice`);
     assert.strictEqual(context.is2D(), twoD, `${what}: GraphContext.is2D`);
     assert.strictEqual(graph.getLayoutManager().dimension, twoD ? 2 : 3, `${what}: the engine's dimension`);
@@ -277,8 +278,12 @@ describe("the layout as a step", () => {
         await graph.setViewMode("2d");
         const steps = session.history.steps.length;
 
-        // This browser has no WebXR, so entry fails.
-        await graph.setViewMode("vr");
+        // XR is off here, so entry fails, and says so.
+        const refused: unknown = await graph.setViewMode("vr").then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_UNSUPPORTED", "the entry did not reject, coded");
 
         assert.lengthOf(session.history.steps, steps, "no step for a switch the reader never got");
         assert.strictEqual(graph.getViewMode(), "2d");

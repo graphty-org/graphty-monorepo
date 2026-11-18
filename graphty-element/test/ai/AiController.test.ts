@@ -275,7 +275,8 @@ describe("AiController", () => {
                 ["look"],
             );
             assert.strictEqual(second.at(-1)?.role, "tool");
-            assert.strictEqual(second.at(-1)?.toolCallId, "t1");
+            // The result answers the call the model was shown: the engine's id for it, not the provider's.
+            assert.strictEqual(second.at(-1)?.toolCallId, second.at(-2)?.toolCalls?.[0].id);
             assert.deepStrictEqual(JSON.parse(second.at(-1)?.content ?? "{}"), {
                 success: true,
                 message: "look servers",
@@ -333,9 +334,10 @@ describe("AiController", () => {
 
             assert.deepStrictEqual(skipped, []);
             const toolMessages = provider.asks[1].filter((message) => message.role === "tool");
+            const calls = provider.asks[1].find((message) => message.toolCalls)?.toolCalls ?? [];
             assert.deepStrictEqual(
                 toolMessages.map((message) => message.toolCallId),
-                ["t1", "t2"],
+                calls.map((call) => call.id),
             );
             assert.include(toolMessages[1].content, "Not run");
         });
@@ -685,27 +687,25 @@ describe("AiController", () => {
     });
 
     describe("dispose", () => {
-        it("disposes cleanly", () => {
+        it("leaves the status ready", () => {
             controller.dispose();
-            // Should not throw
+            assert.strictEqual(controller.getStatus().state, "ready");
         });
 
-        it("clears listeners on dispose", async () => {
+        it("refuses a message sent after dispose with AI_DISPOSED, asking the provider nothing", async () => {
             const states: string[] = [];
             controller.onStatusChange((status) => states.push(status.state));
-
             controller.dispose();
+            const seen = states.length;
 
             mockProvider.setResponse("after", { text: "After", toolCalls: [] });
-            // This might throw or not work after dispose
-            try {
-                await controller.execute("after dispose");
-            } catch {
-                // Expected to possibly fail after dispose
-            }
+            const result = await controller.execute("after dispose");
 
-            // States should be minimal or empty after dispose
-            // This test verifies dispose doesn't crash and clears state
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.code, "AI_DISPOSED");
+            assert.strictEqual(states.length, seen, "no status change after dispose");
+            assert.strictEqual(mockProvider.getCallHistory().length, 0);
+            assert.strictEqual(controller.getStatus().state, "ready");
         });
     });
 });

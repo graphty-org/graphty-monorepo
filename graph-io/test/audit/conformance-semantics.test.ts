@@ -12,9 +12,7 @@
  * - 8.6: ImportReport counts, errorCount / warningCount, truncation at errorLimit, ImportError
  *   with the partial report, every IssueCategory reachable through a built-in importer;
  * - 8.5: every LOSS code reachable through a built-in exporter's check(), sanitizeIds "error" /
- *   "mangle" (Q26) and restoreMangledIds, onMixedDirection on export;
- *
- * Tests that fail deliberately pin the audit's findings and say so in their names.
+ *   "mangle" (Q26) and restoreMangledIds, onMixedDirection on export.
  */
 
 import { type Column, GraphBuilder, GraphFormatError, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
@@ -875,6 +873,16 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
             },
         ],
         [
+            LOSS.ID_TEXT_RENAMED,
+            "graphml",
+            () => {
+                const b = new GraphBuilder({ directed: true });
+                b.addEdge(1, "1");
+                return b.freeze();
+            },
+            { sanitizeIds: "mangle" },
+        ],
+        [
             LOSS.WEIGHT_KEY_CLASH,
             "graphml",
             () => {
@@ -1014,7 +1022,7 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         // the cases above plus these cover the whole table
         const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS, LOSS.COLUMN_DROPPED]);
         expect([...Object.values(LOSS)].filter((code) => !covered.has(code))).toEqual([]);
-        expect(Object.keys(LOSS)).toHaveLength(43);
+        expect(Object.keys(LOSS)).toHaveLength(44);
     });
 });
 

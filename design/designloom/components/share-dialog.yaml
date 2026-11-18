@@ -1,0 +1,15 @@
+id: share-dialog
+name: Share Dialog
+category: dialog
+description: "Dialog for sharing a network with title, authors, license and other metadata, privately by link or publicly."
+status: planned
+implements_capabilities:
+    - data-export
+used_in_workflows:
+    - W25
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T00:00:00.000Z
+updated_at: 2026-11-18T00:00:00.000Z

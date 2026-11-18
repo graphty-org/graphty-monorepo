@@ -17,19 +17,11 @@ import "../../src/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { OperationQueueManager } from "../../src/managers/OperationQueueManager.js";
-import type { RenderManager } from "../../src/managers/RenderManager.js";
-import type { UpdateManager } from "../../src/managers/UpdateManager.js";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph.js";
 
 const COUNT = 8;
 const NODES = Array.from({ length: COUNT }, (_unused, index) => ({ id: `n${String(index)}` }));
 const EDGES = NODES.map((node, index) => ({ src: node.id, dst: NODES[(index + 1) % COUNT].id }));
-
-interface Internals {
-    operationQueue: OperationQueueManager;
-    renderManager: RenderManager;
-    updateManager: UpdateManager;
-}
 
 describe("a stable-frame wait and work that arrives while it waits", () => {
     let element: Graphty;
@@ -50,8 +42,7 @@ describe("a stable-frame wait and work that arrives while it waits", () => {
     });
 
     it("waits for an operation queued after it drained the queue", async () => {
-        const internals = element.graph as unknown as Internals;
-        const queue = internals.operationQueue;
+        const queue = operationQueueOf(element.graph);
         const scene = element.graph.getScene();
         const drain = queue.waitForCompletion.bind(queue);
         let queued = false;
@@ -68,7 +59,7 @@ describe("a stable-frame wait and work that arrives while it waits", () => {
                         scene.onAfterRenderObservable.addOnce(() => {
                             resolve();
                         });
-                        internals.renderManager.requestFrame();
+                        renderManagerOf(element.graph).requestFrame();
                     });
                     ran = true;
                 });
@@ -86,8 +77,8 @@ describe("a stable-frame wait and work that arrives while it waits", () => {
     });
 
     it("resolves when a pass that paints nothing starts and ends between two frames", async () => {
-        const internals = element.graph as unknown as Internals;
-        const { updateManager, renderManager } = internals;
+        const renderManager = renderManagerOf(element.graph);
+        const updateManager = element.graph.getUpdateManager();
         const { deriving } = updateManager;
         let passing = true;
         let asked = 0;

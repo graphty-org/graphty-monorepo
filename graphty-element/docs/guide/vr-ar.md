@@ -33,7 +33,14 @@ in time reads `"unsupported"`. `"disabled"` means `xr.enabled` (or `xr.vr.enable
 
 Enter a mode with the `view.immersive` command; `mode: null` leaves it. From 2D it switches to 3D
 first, in the same undo step. A refused entry rejects, and is also reported as an `error` event
-with `context: "xr"`.
+with `context: "xr"`. The rejection is a `GraphtyError`: `E_UNSUPPORTED` when XR is off or the
+browser has no WebXR, `E_XR_SESSION_FAILED` when the browser or headset would not start the session
+(its `cause` is what the browser said). Nothing is left half built, so asking again starts clean.
+
+Changing `element.xr` (or calling `setXRConfig`) during a session leaves the session running: the
+drag settings under `input` apply at once, and the session settings (`vr`, `ar`,
+`input.handTracking`, `input.nearInteraction`) from the next session. Only turning `xr.enabled`
+off ends it.
 
 ```html
 <select id="mode">

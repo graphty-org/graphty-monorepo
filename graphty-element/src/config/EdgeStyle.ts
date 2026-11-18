@@ -127,6 +127,12 @@ const ArrowStyle = z.strictObject({
      * with caps at both ends was drawn with a magenta tail and a grey head.
      */
     color: ColorStyle.optional(),
+    /**
+     * The colour an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
+     * inside its outline, which stays in `color`: yEd's framed edges fill their arrowheads so. Unset, the inside is left
+     * empty. Other cap types ignore it.
+     */
+    fillColor: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).default(1).optional(),
     /**
      * The picture an `image` cap draws, a URL or a data URL: stretched over the cap with its top

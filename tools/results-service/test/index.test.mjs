@@ -11,8 +11,8 @@ import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
 import { failureHashes, issueKey } from "../src/signature.js";
-import { HISTORY_INVOCATIONS } from "../src/queries.js";
-import { AUDIENCE, handle } from "../src/service.js";
+import { HISTORY_INVOCATIONS, PLAN_PARALLEL } from "../src/queries.js";
+import { AUDIENCE, handle, keyCache } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
 const NOW = Date.UTC(2026, 9, 24, 12);
@@ -20,10 +20,8 @@ const REPO = "graphty-org/graphty-monorepo";
 const LOCAL_TOKEN = "local-test-token-0123456789";
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const jwks = { keys: [{ ...publicKey.export({ format: "jwk" }), kid: "test-kid", alg: "RS256", use: "sig" }] };
-let keyFetches = 0;
 const fetch = async (url) => {
     assert.equal(url, "https://token.actions.githubusercontent.com/.well-known/jwks");
-    keyFetches++;
     return Response.json(jwks);
 };
 
@@ -59,8 +57,10 @@ const pr = (claims = {}) =>
         ...claims,
     });
 
-function service() {
+// A store with its own key cache, so no test depends on which tokens an earlier test sent.
+function service({ fetch: doFetch = fetch } = {}) {
     const DB = d1();
+    const keys = keyCache();
     const env = {
         DB,
         REPOSITORY_ID: "1122477634",
@@ -74,7 +74,7 @@ function service() {
             headers,
             body: body && JSON.stringify(body),
         });
-        const res = await handle(request, env, { fetch, now });
+        const res = await handle(request, env, { fetch: doFetch, now, keys });
         return { status: res.status, body: await res.json() };
     };
     const rows = (sql) =>
@@ -272,6 +272,20 @@ describe("POST /v1/invocations", () => {
             400,
         );
     });
+
+    it("refuses wrong column types and oversized lists and strings with 400, never a 500 from D1 (#7270)", async () => {
+        const { call, rows } = service();
+        const post = async (o) => (await call("POST", "/v1/invocations", { token: pr(), body: record(o) })).status;
+        assert.equal(await post({ files: [["a", { n: 1 }, 0, 0, 1]] }), 400);
+        assert.equal(await post({ files: [[7, 1, 0, 0, 1]] }), 400);
+        assert.equal(await post({ baseSha: { sha: "x" } }), 400);
+        assert.equal(await post({ pr: "12" }), 400);
+        assert.equal(await post({ note: "n".repeat(2001) }), 400);
+        assert.equal(await post({ variant: "v".repeat(2001) }), 400);
+        const failures = Array.from({ length: 5001 }, (_, i) => ({ file: "a", name: `t${i}`, message: "Error" }));
+        assert.equal(await post({ failures }), 400);
+        assert.equal(rows("SELECT count(*) AS n FROM invocation")[0].n, 0);
+    });
 });
 
 describe("POST /v1/failures", () => {
@@ -311,8 +325,6 @@ describe("POST /v1/failures", () => {
         assert.deepEqual((await call("POST", "/v1/failures", { token: pr(), body: { ...body, failures: [] } })).body, {
             stored: 0,
         });
-        const bad = { ...body, failures: [{ file: "a", name: "a", message: "m" }], root: 7 };
-        assert.equal((await call("POST", "/v1/failures", { token: pr(), body: bad })).status, 400);
     });
 });
 
@@ -349,6 +361,8 @@ describe("POST /v1/durations", () => {
             ms: 61000,
             conclusion: "success",
         };
+        const wrong = { rows: [{ ...row, startedAt: "2026-11-13T00:00:00Z" }] };
+        assert.equal((await call("POST", "/v1/durations", { token: master("ci.yml"), body: wrong })).status, 400);
         assert.deepEqual(
             (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } })).body,
             { stored: 1, kind: "full", trend: [], lastSeen: {} },
@@ -483,6 +497,15 @@ describe("GET /v1/plan", () => {
         assert.equal((await plan(call, { variants: `${BROWSER},b`, inputs: "k1" })).status, 400);
     });
 
+    it("refuses more than 100 variants or 5,000 files with 400 (#7270)", async () => {
+        const { call } = service();
+        const variants = Array.from({ length: 101 }, (_, i) => `family-${i}|off`);
+        const many = { variants: variants.join(","), inputs: variants.map(() => "-").join(",") };
+        assert.equal((await plan(call, many)).status, 400);
+        const files = Array.from({ length: 5001 }, (_, i) => `f${i}`).join(",");
+        assert.equal((await plan(call, { files })).status, 400);
+    });
+
     it("answers an everything run's ~55 variants within D1's 100 bound parameters", async () => {
         const { call } = service();
         const variants = Array.from({ length: 55 }, (_, i) => `family-${i}|off`);
@@ -562,7 +585,7 @@ describe("GET /v1/plan", () => {
         s.fail("prOnBase", { name: "pr says so" });
         s.inv("sameInputs", { kind: "bisect", sha: "later", outcome: "failed" });
         s.fail("sameInputs", { name: "same inputs", signature: "s2" });
-        s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed" });
+        s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed", at: NOW - DAY });
         s.fail("elsewhere", { name: "other inputs" });
         s.inv("otherVariant", { sha: "base1", variant: "graphty-element-browser|flags=on|whole", outcome: "failed" });
         s.fail("otherVariant", { name: "flags on only" });
@@ -574,6 +597,88 @@ describe("GET /v1/plan", () => {
             ["camera > zooms", "onBase", 31],
             ["same inputs", "sameInputs", null],
         ]);
+    });
+
+    it("#8051: excuses failures of the variant's newest full run, on any commit, but not an older full run's", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("oldFull", { sha: "old", inputs: "k9", outcome: "failed", at: NOW - DAY });
+        s.fail("oldFull", { name: "fixed since" });
+        s.inv("newFull", { sha: "newest", inputs: "k9", outcome: "failed", at: NOW - HOUR });
+        s.fail("newFull", { name: "broken on master" });
+        s.inv("newFullPart", { sha: "newest", inputs: "k8", outcome: "failed", at: NOW - 2 * HOUR });
+        s.fail("newFullPart", { name: "another shard" });
+        s.inv("newBase", { kind: "base", sha: "newest", inputs: "k9", outcome: "failed", at: NOW });
+        s.fail("newBase", { name: "base check, other commit" });
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.deepEqual(res.body.failingOnBase.map((f) => [f.name, f.sha]).sort(), [
+            ["another shard", "newest"],
+            ["broken on master", "newest"],
+        ]);
+    });
+
+    it("#8208: no plan statement re-runs a subquery per row", async () => {
+        // a correlated subquery in failingOnBase ran once per failed master invocation: on 100,000 invocations the read
+        // took 18 s instead of 0.4 s, and D1 answered half of pull request plan reads with HTTP 500
+        const { call, env } = service();
+        const seen = new Set();
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.add(sql), prepare(sql));
+        await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.ok(seen.size > 0);
+        for (const sql of seen) {
+            const steps = env.DB.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all();
+            const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
+            assert.deepEqual(correlated, [], sql);
+        }
+    });
+
+    it("#8208: asks D1 at most a few queries at once, however many variants", async () => {
+        // all ~47 variants of a light check at once queued about 100 queries in D1, which answered HTTP 500
+        const { call, env } = service();
+        let open = 0;
+        let most = 0;
+        const prepare = env.DB.prepare;
+        const counted = (s) => ({
+            bind: (...a) => counted(s.bind(...a)),
+            ...Object.fromEntries(
+                ["all", "first"].map((m) => [
+                    m,
+                    async () => {
+                        most = Math.max(most, ++open);
+                        await new Promise(setImmediate);
+                        try {
+                            return await s[m]();
+                        } finally {
+                            open--;
+                        }
+                    },
+                ]),
+            ),
+        });
+        env.DB.prepare = (sql) => counted(prepare(sql));
+        const variants = Array.from({ length: 47 }, (_, i) => `family-${i}|off`);
+        const res = await plan(call, { variants: variants.join(","), inputs: variants.map(() => "-").join(",") });
+        assert.equal(res.status, 200);
+        assert.deepEqual(Object.keys(res.body.variants), variants);
+        assert.ok(most <= PLAN_PARALLEL, `${most} queries at once`);
+    });
+
+    it("#7269: runs no inputs query for the placeholder inputs key", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("dash", { kind: "pr", inputs: "-" });
+        const seen = [];
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.push(sql), prepare(sql));
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "-" });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.variants[BROWSER].passedWithInputs, null);
+        assert.ok(seen.length > 0);
+        assert.deepEqual(
+            seen.filter((sql) => /inputs = \?/.test(sql)),
+            [],
+        );
     });
 
     it("answers reuse, recent failures first and per-file durations per variant", async () => {
@@ -763,6 +868,7 @@ describe("flaky tests from master's records", () => {
             name: "camera > zooms",
         };
         assert.equal((await call("POST", "/v1/issues", { token: pr(), body: back })).status, 403);
+        assert.equal((await call("POST", "/v1/issues", { token, body: { ...back, number: 77.5 } })).status, 400);
         assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
         assert.deepEqual(rows("SELECT issue FROM quarantine"), [{ issue: 77 }]);
         assert.deepEqual(rows("SELECT number, kind FROM tracked_issue"), [{ number: 77, kind: "flaky" }]);
@@ -808,6 +914,25 @@ describe("flaky tests from master's records", () => {
             [["camera > zooms", 78]],
         );
         assert.equal(rows("SELECT * FROM quarantine WHERE left_at IS NULL").length, 1);
+    });
+
+    it("leaves tracked out of the answer, and logs why, when the tracked-issue lookup fails", async (t) => {
+        const { call, env } = service();
+        const prepare = env.DB.prepare.bind(env.DB);
+        env.DB.prepare = (sql) => {
+            if (sql.startsWith("SELECT DISTINCT issue FROM quarantine")) throw new Error("D1 is down");
+            return prepare(sql);
+        };
+        const log = t.mock.method(console, "log", () => {});
+        const res = await call("POST", "/v1/invocations", {
+            token: master("base-check.yml"),
+            body: passing("4010.1.base.t1.1"),
+        });
+        assert.deepEqual(res.body, { stored: true, kind: "base", flaky: [] });
+        assert.deepEqual(
+            log.mock.calls.map((c) => c.arguments[0]),
+            ["trackedIssues 4010.1.base.t1.1: D1 is down"],
+        );
     });
 
     it("names a test again when it flips after 20 passes took it out of the quarantine", async () => {
@@ -1906,6 +2031,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         // ponytail: the consumers early-capture.md 4c allows
         const allowed = [
             /^tools\/results-service\//,
+            // the store itself on AWS (#3607): its routes, records and tests
+            /^tools\/pipeline-health\/(README\.md|infra\/health-stack\.ts|(src\/handlers|test)\/(ingest|results|handlers\.test|stack\.test)\.ts)$/,
             /^tools\/channel\/story-slices\.mjs$/,
             /^tools\/channel\/rolling\.mjs$/,
             /^tools\/full-run\.mjs$/,
@@ -1926,7 +2053,68 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
 });
 
 describe("GitHub's key set", () => {
-    it("is fetched once and reused for every token signed with a known key", () => {
-        assert.equal(keyFetches, 2, "once for the first token, once for the unknown kid");
+    // the key set GitHub serves, and how many times the store asked for it
+    const github = () => {
+        const state = { fetches: 0, answer: () => Response.json(jwks) };
+        state.fetch = async () => {
+            state.fetches++;
+            return state.answer();
+        };
+        return state;
+    };
+    const status = async (call, token, now) => (await call("GET", "/v1/quarantine", { token, now })).status;
+
+    it("is fetched once and reused for every token signed with a known key", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        assert.equal(await status(call, pr()), 200);
+        assert.equal(await status(call, pr()), 200);
+        assert.equal(gh.fetches, 1);
+    });
+
+    it("fetches the set at most once a minute however many unknown kids arrive", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        const bogus = oidc({}, { kid: "nope" });
+        assert.equal(await status(call, bogus), 401);
+        assert.equal(await status(call, bogus), 401);
+        assert.equal(await status(call, oidc({}, { kid: "other" }), NOW + 59_000), 401);
+        assert.equal(await status(call, pr(), NOW + 59_000), 200, "a known kid still verifies");
+        assert.equal(gh.fetches, 1);
+        assert.equal(await status(call, bogus, NOW + 60_000), 401);
+        assert.equal(gh.fetches, 2, "a minute later an unknown kid may fetch again");
+    });
+
+    it("shares one fetch among concurrent tokens", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        const statuses = await Promise.all([1, 2, 3].map(() => status(call, pr())));
+        assert.deepEqual(statuses, [200, 200, 200]);
+        assert.equal(gh.fetches, 1);
+    });
+
+    it("stops trusting a key an hour after the fetch that read it", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        assert.equal(await status(call, pr()), 200);
+        gh.answer = () => Response.json({ keys: [] }); // GitHub rotated the key out
+        const later = NOW + 3_600_000;
+        const token = oidc({ event_name: "pull_request", exp: later / 1000 + 300 });
+        assert.equal(await status(call, token, later - 1), 200);
+        assert.equal(gh.fetches, 1);
+        assert.equal(await status(call, token, later), 401);
+        assert.equal(gh.fetches, 2);
+    });
+
+    it("answers 503 while GitHub fails, without asking again within the minute", async () => {
+        const gh = github();
+        const { call } = service(gh);
+        gh.answer = () => new Response("down", { status: 502 });
+        assert.equal(await status(call, pr()), 503);
+        assert.equal(await status(call, pr(), NOW + 59_000), 503);
+        assert.equal(gh.fetches, 1);
+        gh.answer = () => Response.json(jwks);
+        assert.equal(await status(call, pr(), NOW + 60_000), 200);
+        assert.equal(gh.fetches, 2);
     });
 });

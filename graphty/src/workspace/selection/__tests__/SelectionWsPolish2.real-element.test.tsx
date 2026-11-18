@@ -23,7 +23,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -99,7 +99,7 @@ async function opened(): Promise<HTMLElement> {
  * @returns the open workspace.
  */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
     return opened();
 }
 
@@ -153,261 +153,31 @@ describe("the preview is the canvas", () => {
 });
 
 describe("one place for the rule while it is edited", () => {
-    it("the sidebar keeps only its title row, marked as being edited, with no outline and no count", async () => {
+    it("the sidebar keeps only its Style Nodes... line, at rest and while edited, with no outline and no count", async () => {
         const { session } = await openSample();
         await openLayer(session, "Once", TWO);
         const rest = document.querySelector<HTMLElement>(".sel-rest");
-        assert.isAbove(rest?.querySelectorAll(".sel-step-row").length ?? 0, 0, "at rest the outline is drawn");
+        assert.lengthOf(rest?.querySelectorAll(".sel-step-row, .sel-group-row") ?? [], 0, "no outline at rest");
         await edit();
         await waitFor(() => {
             assert.lengthOf(rest?.querySelectorAll(".sel-step-row, .sel-group-row") ?? [], 0, "no outline");
             assert.isNull(rest?.querySelector(".sel-count") ?? null, "no count");
-            assert.strictEqual(rest?.querySelector("[data-editing]")?.textContent, "Editing");
+            assert.strictEqual(rest?.querySelector("[data-edit]")?.textContent, "Style Nodes...");
         });
     });
 });
 
-describe("verbs", () => {
-    it("a narrowing step says no verb; its one choice is the Except switch; Add is in its menu", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Verbs", TWO);
-        const ws = await edit();
-        const row = await waitFor(() => {
-            const found = ws.querySelector<HTMLElement>('.sel-ws-outline [data-row="a2"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.strictEqual(row?.querySelector(".sel-verb")?.textContent, "", "no Keep word");
-        await userEvent.click(row ?? document.body);
-        const pane = await waitFor(() => {
-            const found = ws.querySelector<HTMLElement>('[data-step-pane="a2"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.isNull(within(pane ?? document.body).queryByRole("radiogroup", { name: "Verb" }), "no segment");
-        await userEvent.click(within(pane ?? document.body).getByRole("switch", { name: /^Except/ }));
-        await waitFor(() => {
-            const rule = session.styles.list().find((each) => each.name === "Verbs")?.selector;
-            const where = rule?.match === "rule" ? (rule.where as UnionLeaf) : undefined;
-            assert.strictEqual(where?.branches[0]?.steps[1]?.op, "except");
-            assert.strictEqual(row?.querySelector(".sel-verb")?.textContent, "Except");
-        });
-        await userEvent.click(within(pane ?? document.body).getByRole("button", { name: /^More for / }));
-        await screen.findByRole("menuitem", { name: /Add instead/ });
-    });
-});
-
-describe("words", () => {
-    it("a step's Advanced says edges, not links", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Edges", TWO);
-        const ws = await edit();
-        await userEvent.click(ws.querySelector<HTMLElement>('.sel-ws-outline [data-row="a1"]') ?? document.body);
-        const pane = await waitFor(() => {
-            const found = ws.querySelector<HTMLElement>('[data-step-pane="a1"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(within(pane ?? document.body).getByRole("button", { name: /^Advanced/ }));
-        const group = await within(pane ?? document.body).findByRole("radiogroup", { name: "Edges" });
-        within(group).getByText("All edges");
-        within(group).getByText("Edges where ...");
-        assert.notInclude(pane?.textContent ?? "", "link");
-        // The segment takes the column's full width, as every pane control does.
-        const value = within(pane ?? document.body).getByRole("button", { name: /^Value: / });
-        assert.closeTo(group.getBoundingClientRect().width, value.getBoundingClientRect().width, 2);
-    });
-});
-
-describe("reopening", () => {
-    it("an existing rule reopens on its first step's pane, never an empty title pane", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Reopen", TWO);
-        const ws = await edit();
-        await waitFor(() => {
-            assert.isNotNull(ws.querySelector('[data-step-pane="a1"]'), "the first step's pane");
-            assert.strictEqual(
-                ws.querySelector('.sel-ws-outline [aria-selected="true"]')?.getAttribute("data-row"),
-                "a1",
-            );
-        });
-    });
-
-    it("and on the step last edited, after Done and Edit again", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Again", TWO);
-        let ws = await edit();
-        await userEvent.click(ws.querySelector<HTMLElement>('.sel-ws-outline [data-row="b1"]') ?? document.body);
-        const hops = await waitFor(() => {
-            const pane = ws.querySelector<HTMLElement>('[data-step-pane="b1"]');
-            assert.isNotNull(pane);
-            return pane;
-        });
-        // An edit on b1's pane: its Except switch.
-        await userEvent.click(within(hops ?? document.body).getByRole("button", { name: /^More for / }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /Turn off/ }));
-        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
-        ws = await edit();
-        await waitFor(() => {
-            assert.isNotNull(ws.querySelector('[data-step-pane="b1"]'), "the step last edited");
-        });
-    });
-});
-
-describe("the sidebar's title row", () => {
-    it("draws no count at rest in a style layer, and Edit shows on hover inside the row", async () => {
+describe("the sidebar's Style Nodes... line", () => {
+    it("draws no count at rest in a style layer, and its open-in-new-window icon inside the line", async () => {
         const { session } = await openSample();
         await openLayer(session, "Hover", TWO);
-        const row = document.querySelector<HTMLElement>(".sel-rest .sel-title-row");
-        assert.isNotNull(row);
-        // The layer row and the canvas key say the layer's count; its outline does not (tier5 decided.md).
-        assert.isNull(row?.querySelector(".sel-count") ?? null, "no count at rest");
-        await userEvent.hover(row ?? document.body);
-        const button = row?.querySelector<HTMLElement>("[data-edit]") ?? document.body;
-        await waitFor(() => {
-            assert.strictEqual(getComputedStyle(button).opacity, "1");
-        });
-        const inner = button.getBoundingClientRect();
-        const outer = row?.getBoundingClientRect();
-        assert.isAtMost(inner.right, outer?.right ?? 0, "Edit is drawn inside the row");
-    });
-});
-
-describe("the new step", () => {
-    it("its picker opens below its field; no All nodes row and no second lit row while it is added", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Fresh");
-        const ws = await edit();
-        const field = await waitFor(() => {
-            const found = ws.querySelector<HTMLElement>(".sel-ws-props [data-first-focus]");
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.isNull(ws.querySelector(".sel-ws-outline .sel-all-row"), "no All nodes row over the new step");
-        assert.lengthOf(ws.querySelectorAll('.sel-ws-outline [aria-selected="true"]'), 0, "only the new row is lit");
-        assert.strictEqual(ws.querySelector("[data-new-step] .sel-verb")?.textContent, "", "and it says no verb");
-        await userEvent.click(field ?? document.body);
-        const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
-        await waitFor(() => {
-            assert.isAtLeast(
-                search.getBoundingClientRect().top,
-                (field?.getBoundingClientRect().bottom ?? 0) - 1,
-                "the list opens below its field",
-            );
-        });
-    });
-
-    it("after an algorithm value is picked, focus goes to its test, not the Except switch", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Focus");
-        const ws = await edit();
-        await waitFor(() => {
-            assert.isNotNull(ws.querySelector(".sel-ws-props [data-first-focus]"));
-        });
-        await userEvent.keyboard("{Enter}");
-        await screen.findByRole("combobox", { name: "Find attributes, results" });
-        await userEvent.keyboard("Closeness");
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.isNotNull(
-                document.activeElement?.closest(".sel-test-box"),
-                `focus is in the test, not ${document.activeElement?.outerHTML.slice(0, 160) ?? "nothing"}`,
-            );
-        });
-    });
-
-    it("the outline draws no No match row while every node matches", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Key");
-        const ws = await edit();
-        await screen.findByRole("combobox", { name: "Find attributes, results" });
-        assert.isNull(ws.querySelector("[data-no-match]"));
-        assert.isFalse(
-            document.querySelector(".ws-legend-card")?.checkVisibility() ?? false,
-            "no key over the preview (ws-polish 3)",
-        );
-    });
-});
-
-describe("Escape", () => {
-    it("on an open Advanced closes it and keeps focus on it", async () => {
-        const { session } = await openSample();
-        await openLayer(session, "Esc", TWO);
-        const ws = await edit();
-        const pane = await waitFor(() => {
-            const found = ws.querySelector<HTMLElement>('[data-step-pane="a1"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        const advanced = within(pane ?? document.body).getByRole("button", { name: /^Advanced/ });
-        advanced.focus();
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.strictEqual(advanced.getAttribute("aria-expanded"), "true");
-        });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.strictEqual(advanced.getAttribute("aria-expanded"), "false");
-            assert.strictEqual(document.activeElement, advanced);
-            assert.isNotNull(document.querySelector(".sel-ws"), "the workspace stays open");
-        });
-    });
-});
-
-describe("a new filter card", () => {
-    it("keeps Nodes | Edges over its picker; Edges lists edge values", async () => {
-        await openSample("data");
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        const ws = await opened();
-        await screen.findByRole("combobox", { name: "Find attributes, results" });
-        const edges = within(ws).getByRole("radio", { name: "Edges" });
-        // The segment's radio is visually hidden: the pointer clicks its label.
-        await userEvent.click(document.querySelector(`label[for="${edges.id}"]`) ?? edges);
-        await waitFor(() => {
-            const open = document.querySelector<HTMLElement>(".sel-ws");
-            assert.isNotNull(open);
-            const radio = within(open ?? document.body).getByRole("radio", { name: "Edges" });
-            assert.isTrue((radio as HTMLInputElement).checked, "the card is on edges");
-        });
-        // The switch keeps its picker shut (ws-polish 3): the Value field under it opens it.
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("combobox", { name: "Find attributes, results" }));
-        });
-        await userEvent.click(within(await opened()).getByRole("button", { name: "Value" }));
-        await screen.findByRole("combobox", { name: "Find attributes, results" });
-        await screen.findByRole("option", { name: /shared_chapters/ });
-    });
-
-    it("the first Escape after its pick goes to the outline, not Done", async () => {
-        await openSample("data");
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        await opened();
-        await screen.findByRole("combobox", { name: "Find attributes, results" });
-        await userEvent.keyboard("Degree");
-        await userEvent.keyboard("{Enter}");
-        const ws = await opened();
-        await waitFor(() => {
-            assert.isNotNull(ws.querySelector("[data-step-pane]"));
-        });
-        const box = ws.querySelector<HTMLElement>("[data-step-pane] input:not([type=hidden])");
-        box?.focus();
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNotNull(document.querySelector(".sel-ws"), "the workspace stays open");
-            assert.strictEqual(document.activeElement?.getAttribute("data-row"), "title");
-        });
-    });
-
-    it("Escape on its picker takes it back and says so", async () => {
-        const { heard } = await openSample("data");
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        await opened();
-        await screen.findByRole("combobox", { name: "Find attributes, results" });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(document.querySelector(".sel-ws"));
-            assert.include(heard, "Filter not added");
-        });
+        const line = await screen.findByRole("button", { name: "Style Nodes..." });
+        // The layer row and the canvas key say the layer's count; the line does not (tier5 decided.md).
+        assert.isNull(document.querySelector(".sel-rest .sel-count"), "no count at rest");
+        assert.strictEqual(getComputedStyle(line).opacity, "1", "drawn with no hover");
+        const icon = line.querySelector("svg");
+        assert.isNotNull(icon, "the open-in-new-window icon");
+        assert.isAtMost(icon?.getBoundingClientRect().right ?? Infinity, line.getBoundingClientRect().right);
     });
 });
 

@@ -9,7 +9,8 @@
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
  *   the date and how many came from the drawing or from the comparator (`--keys` and `--properties` limit what is
- *   added to those keys and properties). Nothing is added without a reason;
+ *   added to those keys and properties). Nothing is added without a reason, and the reason names the issue tracking
+ *   it (`#1234`);
  * - for the oracle scorecard, takes off an accepted drop (`drops` in the floors file) whose rate is back at its floor,
  *   and with `--add "<reason>"` accepts every rate below its floor at the rate measured, with the reason. The floor
  *   itself stays: it is the best the property has measured.
@@ -20,7 +21,7 @@
  * `test/fidelity/fidelity.test.ts`) into `test/fidelity/baseline-scores.json`.
  *
  *     npm run fidelity:ratchet
- *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--properties <p>,<p>]
+ *     npm run fidelity:ratchet -- --add "why these elements fail now (#1234)" [--keys <key>,<key>] [--properties <p>,<p>]
  *         [--suite oracle|drawn]
  *     npm run fidelity:ratchet -- --prune [--keys <key>,<key>]
  *
@@ -34,6 +35,7 @@ import {
     FLOOR_SECTIONS,
     type Floors,
     type FloorSection,
+    floorsFileText,
     type KeyGate,
     type KnownRecords,
     knownText,
@@ -137,26 +139,19 @@ if (suite === "all" || suite === "oracle") {
         }
         const kept = (section: FloorSection): Floors =>
             Object.fromEntries(
-                Object.keys(sections[section])
-                    .filter((k) => (sectionOf.get(k) ?? section) === section)
-                    .sort((a, b) => a.localeCompare(b))
-                    .map((k) => [k, sections[section][k]]),
+                Object.entries(sections[section]).filter(([k]) => (sectionOf.get(k) ?? section) === section),
             );
         writeFileSync(knownPath, knownText(out.records));
         writeFileSync(
             floorsPath,
-            `${JSON.stringify(
-                {
-                    about: floors.about,
-                    floors: kept("floors"),
-                    standInFloors: kept("standInFloors"),
-                    specificationFloors: kept("specificationFloors"),
-                    lowered: floors.lowered,
-                    drops: drops.drops,
-                },
-                null,
-                4,
-            )}\n`,
+            floorsFileText({
+                about: floors.about,
+                floors: kept("floors"),
+                standInFloors: kept("standInFloors"),
+                specificationFloors: kept("specificationFloors"),
+                lowered: floors.lowered,
+                drops: drops.drops,
+            }),
         );
         report(knownPath, out, raised);
         console.log(

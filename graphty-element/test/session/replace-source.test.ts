@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { withConsumerStrictState } from "./helpers";
 
 /** Supplier ids s01 to s40, or as many as asked. */
 const supplier = (at: number, count = 40): string => `s${String((at % count) + 1).padStart(2, "0")}`;
@@ -81,7 +82,7 @@ const file = (text: string, name: string): { config: { file: File } } => ({ conf
  * @returns the session and the October file's text
  */
 async function supplyChain(edges = 150, count = 40): Promise<{ session: GraphSession; october: string }> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     const { september, october } = shipments(edges, count);
     await (await session.data.prepare(file(suppliersCsv(count), "suppliers.csv"))).load();
     await (await session.data.prepare(file(september, "ships-to-2024-09.csv"))).load({ mode: "merge" });
@@ -165,7 +166,7 @@ describe("replacing a load with a newer copy", () => {
     });
 
     it("removes a node only the load supplied and keeps one another load supplied", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.import({ type: "csv", config: { data: "source,target\nA,B\nB,C\n" }, name: "a.csv" });
         await session.data.import(
             { type: "csv", config: { data: "source,target\nC,D\nD,E\n" }, name: "b.csv" },
@@ -210,14 +211,15 @@ describe("replacing a load with a newer copy", () => {
 
     it("SessionDataApi.replaceSource: no more than linear in the graph", async () => {
         await assertScalesLinearly(
-            async (size) => {
-                const { session, october } = await supplyChain(size, size / 4);
-                const visits = await visitsDuring(() =>
-                    session.data.replaceSource("s2", file(october, "ships-to-2024-10.csv")),
-                );
-                session.dispose();
-                return visits;
-            },
+            (size) =>
+                withConsumerStrictState(async () => {
+                    const { session, october } = await supplyChain(size, size / 4);
+                    const visits = await visitsDuring(() =>
+                        session.data.replaceSource("s2", file(october, "ships-to-2024-10.csv")),
+                    );
+                    session.dispose();
+                    return visits;
+                }),
             { sizes: [200, 800], growth: "linear", counter: "elements visited by SessionDataApi.replaceSource" },
         );
     });

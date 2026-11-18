@@ -1,5 +1,12 @@
 # compact-mantine Package Design
 
+> **Status: superseded.** This is the original extraction design. Its `size="compact"` API is now a
+> legacy size name: the package sets `defaultProps: { size: "sm" }` instead, as
+> [compact-mantine-refactor.md](./compact-mantine-refactor.md) describes. The binding
+> specification for how every component looks and behaves is
+> [compact-mantine/design/figma-spec.md](../../compact-mantine/design/figma-spec.md); the package is
+> locked to it.
+
 ## Executive Summary
 
 This document outlines the design for extracting the Mantine theme and custom components from `@graphty/graphty` into a standalone redistributable npm package called `compact-mantine`. The package will provide a "compact" size variant for Mantine components, optimized for dense UIs like sidebars, property panels, and tool palettes.

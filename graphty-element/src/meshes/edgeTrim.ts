@@ -50,8 +50,10 @@ export interface EdgeTrimInput {
     source: TrimEnd;
     /** The target end. */
     target: TrimEnd;
-    /** How far short of the target end the line stops for its arrow head. */
+    /** How far short of the target end, after {@link EdgeTrimInput.capGap}, the line stops for its arrow head. */
     capBack: number;
+    /** The gap before the arrow head, taken off first, as `Edge.lineEndBefore` takes it; 0 when left out. */
+    capGap?: number;
 }
 
 /** The answer, as `Edge.getInterceptPoints` gives it: null where a line has no end. */
@@ -106,13 +108,26 @@ function surfaceEnd(centre: Xyz, dir: Xyz, end: TrimEnd, span: number): Xyz | nu
  */
 function pastBorders(src: Xyz, dst: Xyz, srcReach: number, dstReach: number): [Xyz, Xyz] {
     const [dx, dy, dz] = [dst.x - src.x, dst.y - src.y, dst.z - src.z];
-    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // NOSONAR(S7769): per edge, per frame, as in Edge.getInterceptPoints
+    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame, as in Edge.getInterceptPoints
     if ((srcReach === 0 && dstReach === 0) || span <= srcReach + dstReach) {
         return [src, dst];
     }
 
-    const dir = { x: dx / span, y: dy / span, z: dz / span };
+    // scaled by the reciprocal, as `Edge.pastBorders` does
+    const dir = scaled(dx, dy, dz, 1 / span);
     return [along(src, dir, srcReach), along(dst, dir, -dstReach)];
+}
+
+/**
+ * A vector times a number.
+ * @param x - Its x.
+ * @param y - Its y.
+ * @param z - Its z.
+ * @param by - The number.
+ * @returns The vector.
+ */
+function scaled(x: number, y: number, z: number, by: number): Xyz {
+    return { x: x * by, y: y * by, z: z * by };
 }
 
 /**
@@ -145,9 +160,9 @@ function groupEnd(centre: Xyz, toward: Xyz, end: TrimEnd): Xyz {
  * @returns The ends.
  */
 export function trimEnds(edge: EdgeTrimInput): TrimmedEnds {
-    const { src, dst, source, target, capBack } = edge;
+    const { src, dst, source, target, capBack, capGap = 0 } = edge;
     const [dx, dy, dz] = [dst.x - src.x, dst.y - src.y, dst.z - src.z];
-    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // NOSONAR(S7769): per edge, per frame, as in Edge.getInterceptPoints
+    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame, as in Edge.getInterceptPoints
     const dir = span > 0 ? { x: dx / span, y: dy / span, z: dz / span } : { x: 0, y: 0, z: 0 };
     const back = { x: -dir.x, y: -dir.y, z: -dir.z };
 
@@ -162,6 +177,15 @@ export function trimEnds(edge: EdgeTrimInput): TrimmedEnds {
     } else if (span > 0) {
         start = surfaceEnd(src, dir, source, span);
         end = surfaceEnd(dst, back, target, span);
+        // two overlapping nodes meet the line in the wrong order: they have no line between them either
+        if (
+            start !== null &&
+            end !== null &&
+            (end.x - start.x) * dir.x + (end.y - start.y) * dir.y + (end.z - start.z) * dir.z <= 0
+        ) {
+            start = null;
+            end = null;
+        }
     }
 
     if (start !== null && end !== null) {
@@ -175,15 +199,17 @@ export function trimEnds(edge: EdgeTrimInput): TrimmedEnds {
     }
 
     const [lx, ly, lz] = [end.x - start.x, end.y - start.y, end.z - start.z];
-    const length = Math.sqrt(lx * lx + ly * ly + lz * lz); // NOSONAR(S7769): per edge, per frame, as in Edge.getInterceptPoints
-    const unit = length > 0 ? { x: lx / length, y: ly / length, z: lz / length } : { x: 0, y: 0, z: 0 };
-    return { src: start, dst: end, lineEnd: along(end, unit, -capBack) };
+    const length = Math.sqrt(lx * lx + ly * ly + lz * lz); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame, as in Edge.getInterceptPoints
+    // scaled by the reciprocal and taken off in two steps, as `Edge.lineEndBefore` does with Babylon's `normalize`
+    const unit = length > 0 ? scaled(lx, ly, lz, 1 / length) : { x: 0, y: 0, z: 0 };
+    return { src: start, dst: end, lineEnd: along(along(end, unit, -capGap), unit, -capBack) };
 }
 
 /**
  * The same, in GLSL ES 3.00, for a shader to take in by interpolation, as `edgeJoinShader.ts` is
  * taken in. A null radius is negative; `ellipse`, `leaves` and `group` are 0 or 1. A polygon's
- * outline is not here: its end comes by `measured`, and a group of that shape stays on the CPU.
+ * outline is not here: its end comes by `measured`, and a group of that shape stays on the CPU. Its `capBack` is
+ * {@link EdgeTrimInput.capGap} and {@link EdgeTrimInput.capBack} together.
  */
 export const EDGE_TRIM_GLSL = /* glsl */ `
 const float EDGE_TRIM_NO_HIT = ${TRIM_NO_HIT.toFixed(1)};
@@ -276,6 +302,10 @@ EdgeTrimmed edgeTrimEnds(vec3 src, vec3 dst, EdgeTrimEnd source, EdgeTrimEnd tar
     } else if (span > 0.0) {
         ends.hasSrc = edgeTrimSurface(src, dir, source, span, ends.src);
         ends.hasDst = edgeTrimSurface(dst, -dir, target, span, ends.dst);
+        if (ends.hasSrc && ends.hasDst && dot(ends.dst - ends.src, dir) <= 0.0) {
+            ends.hasSrc = false;
+            ends.hasDst = false;
+        }
     }
 
     if (ends.hasSrc && ends.hasDst) {

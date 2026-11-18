@@ -9,9 +9,8 @@
 import { assert, describe, it } from "vitest";
 
 import type { Scope } from "../../../src/catalog/types";
-import { inputCountersOf, writeUpdates } from "../../../src/session/attributes";
 import { scopeResolverOfSession, setsNotifierOfSession } from "../../../src/session/GraphSession";
-import type { MovedInput, SetWatch } from "../../../src/session/sets/notify";
+import { type MovedInput, SetsNotifier, type SetWatch } from "../../../src/session/sets/notify";
 import { scopeSignature } from "../../../src/session/sets/signature";
 import { type Harness, makeSession } from "../helpers";
 import { finishAtOnce } from "../runs/harness";
@@ -146,26 +145,23 @@ describe("change notification", () => {
         assert.strictEqual(bystander.resolves, 0);
     });
 
-    it("an attribute write, once per batch and only for a watch reading the field", () => {
+    it("an attribute write, once per batch and only for a watch reading the field", async () => {
         const h = graph();
         const heavy = probe(h, { where: "data.weight > `3`" });
         const labelled = probe(h, { where: "data.label == 'x'" });
-        const indexOf = (id: string | number): number => h.session.data.snapshot().ids.indexOf(id);
 
-        writeUpdates(
-            inputCountersOf(h.store),
-            "node",
-            [
-                { id: "a", weight: 10 },
-                { id: "b", weight: 10 },
-                { id: "zz", weight: 10 },
-            ],
-            (id) => h.nodeAttributes.get(indexOf(id)),
-        );
-
-        assert.deepStrictEqual(heavy.readies, [
-            { count: 4, moved: [{ kind: "attributes", element: "node", fields: ["weight"] }] },
+        await h.session.data.updateNodes([
+            { id: "a", values: { weight: 10 } },
+            { id: "b", values: { weight: 10 } },
         ]);
+
+        // Told once for the batch, with the field, after every record of it is written: the watch
+        // resolves against a, b, d and e (issue #8504).
+        assert.deepStrictEqual(
+            heavy.readies.map((ready) => ready.moved),
+            [[{ kind: "attributes", element: "node", fields: ["weight"] }]],
+        );
+        assert.strictEqual(heavy.readies[0]?.count, 4);
         assert.strictEqual(labelled.resolves, 0);
     });
 
@@ -205,5 +201,35 @@ describe("change notification", () => {
         assert.deepStrictEqual(watched.readies, [
             { count: 3, moved: [{ kind: "snapshot", serial }, { kind: "selection" }] },
         ]);
+    });
+
+    it("reports a watch that throws, keeps what it had, and retries it on the next input", () => {
+        const errors: unknown[] = [];
+        const notifier = new SetsNotifier({ onError: (error) => errors.push(error) });
+        const failure = new Error("a bug in the watch");
+        let fail = true;
+        let readies = 0;
+        notifier.subscribe({
+            signature: () => null,
+            resolve: () => {
+                if (fail) {
+                    throw failure;
+                }
+                return 1;
+            },
+            ready: () => {
+                readies++;
+            },
+            cost: () => 1,
+        });
+
+        notifier.notify({ kind: "selection" });
+        assert.deepStrictEqual(errors, [failure]);
+        assert.strictEqual(readies, 0);
+
+        fail = false;
+        notifier.notify({ kind: "selection" });
+        assert.strictEqual(readies, 1);
+        notifier.dispose();
     });
 });

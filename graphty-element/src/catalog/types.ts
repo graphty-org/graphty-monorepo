@@ -23,9 +23,11 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { EstimateRefusalCode } from "../session/cost/estimate";
+import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
-import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
+import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
@@ -148,9 +150,6 @@ export type Query = string;
 /**
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
  * the built-in set without a catalogue instance.
- *
- * One of these names is deprecated: `all-paths` is reserved but not implemented, and starting it
- * fails with `E_UNSUPPORTED`. See {@link DEPRECATED_ALGORITHMS}.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -166,7 +165,6 @@ export const KNOWN_ALGORITHMS = [
     "components",
     "shortest-path",
     "all-pairs-distance",
-    "all-paths",
     "max-flow",
     "min-cut",
     "k-core",
@@ -183,27 +181,11 @@ export const KNOWN_ALGORITHMS = [
     "hierarchical-clustering",
     "astar",
     "edge-betweenness",
+    "removal-impact",
 ] as const;
 
-/**
- * One of the built-in algorithms. `all-paths` is deprecated and does not run; see
- * {@link DEPRECATED_ALGORITHMS}.
- */
+/** One of the built-in algorithms. */
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
-
-/**
- * The built-in algorithm names the element reserves but does not run.
- *
- * Nothing implements this one yet. The name stays in {@link KNOWN_ALGORITHMS}, so no plugin can
- * claim it and no code that names it stops compiling, but starting it fails with `E_UNSUPPORTED`
- * rather than `E_UNKNOWN_ALGORITHM`. It is removed at the next major release unless it is
- * implemented first; `all-paths` is tracked by issue #329. `clustering-coefficient`, reserved here
- * until issue #330, now runs.
- */
-export const DEPRECATED_ALGORITHMS = ["all-paths"] as const satisfies readonly KnownAlgorithm[];
-
-/** A built-in algorithm name the element reserves but does not run, and will remove. */
-export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 /**
  * An algorithm key. The built-in names keep autocomplete alive; the string arm accepts a
@@ -359,7 +341,7 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
  *
  * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
  */
-export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /**
  * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
@@ -369,7 +351,7 @@ export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | 
  *
  * OPEN UNION: values may be added in a minor release.
  */
-export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
 export type MeasurementDeclaration =
@@ -499,7 +481,7 @@ export interface FieldDescriptor {
      * by. Experimental: may change or be removed in a minor release.
      * @beta
      */
-    missing?: "unreached" | "unmeasured" | (string & {}); // NOSONAR(S4335): keeps the named codes in autocomplete while open to others
+    missing?: "unreached" | "unmeasured" | (string & {}); // keeps the named codes in autocomplete while open to others
     /**
      * Present (true) when its values are names a re-run may spell differently (a community's
      * number), so a group is saved by a member it holds rather than by its number.
@@ -556,6 +538,8 @@ export const OPTION_TYPES = [
     "ordering",
     /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
     "color",
+    /** A list of edge ids. @since 3.40.0 */
+    "edge-set",
     "unknown",
 ] as const;
 
@@ -611,14 +595,18 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     group?: string;
     advanced?: boolean;
     internal?: boolean;
+    /**
+     * What the option does, in an English sentence.
+     * @deprecated Word the option from {@link OptionDescriptor.descriptionId} in the application.
+     */
     description?: string;
     /**
-     * Why `type` is "unknown", in a sentence naming the construct that could not be
-     * classified. Present only when `type` is "unknown".
-     * @deprecated Read {@link OptionDescriptor.unsupported} and word it in the application.
-     * Removed at the next major release.
+     * A stable id for what the option does, which an application keys its own words on, such as
+     * "algorithm.pagerank.dampingFactor". Present on every built-in option that has a description;
+     * an extension that describes its options supplies its own, prefixed with its namespace.
+     * @since 3.55.0
      */
-    unsupportedReason?: string;
+    descriptionId?: string;
     /**
      * Why `type` is "unknown", as a code with no words. Present on every "unknown" option the
      * element derives from a schema; a descriptor written by hand may leave it out. See {@link OptionUnsupportedCode} for the codes.
@@ -669,7 +657,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -682,6 +670,7 @@ export type Channel =
     | "node.color"
     | "node.size"
     | "node.sizeMode"
+    | "node.sizeSpace"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"
@@ -693,9 +682,12 @@ export type Channel =
     | "node.labelItalic"
     | "node.labelWrapWidth"
     | "node.labelWrapTrailingSpace"
+    | "node.labelWrapSkipEndSpace"
     | "node.labelWrapEllipsis"
     | "node.labelWrapAnywhere"
     | "node.labelWrapSpaceCount"
+    | "node.labelMaxLines"
+    | "node.labelMaxLinesEllipsis"
     | "node.labelRunAlign"
     | "node.labelMinScreenSize"
     | "node.labelOnTop"
@@ -716,6 +708,9 @@ export type Channel =
     | "node.labelPadding"
     | "node.labelCornerRadius"
     | "node.labelLineHeight"
+    | "node.labelLineBox"
+    | "node.labelBorderAlign"
+    | "node.labelBackgroundShape"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
     | "node.labelShiftX"
@@ -727,6 +722,7 @@ export type Channel =
     | "node.tooltipStyle"
     | "node.opacity"
     | "node.outline"
+    | "node.outlineWidth"
     | "node.glow"
     | "node.glowStrength"
     | "node.halo"
@@ -797,6 +793,7 @@ export type Channel =
     | "node.labelFitQuantum"
     | "node.labelFitImage"
     | "node.labelFitImagePadding"
+    | "node.imageAspect"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
@@ -856,10 +853,16 @@ export type Channel =
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.chartBackgroundColor"
+    | "node.chartBackgroundOpacity"
     | "node.model"
     | "node.modelSourceUp"
     | "node.modelTurn"
     | "node.modelTint"
+    | "node.modelDoubleSided"
+    | "node.modelAnimation"
+    | "node.modelAnimationSpeed"
+    | "node.modelAnimationOffset"
     | "node.modelFit"
     | "node.modelCenter"
     | "node.texture"
@@ -930,6 +933,7 @@ export type Channel =
     | "edge.arrowHeadGap"
     | "edge.arrowHeadStack"
     | "edge.arrowHeadColor"
+    | "edge.arrowHeadFillColor"
     | "edge.arrowHeadOpacity"
     | "edge.arrowHeadImage"
     | "edge.arrowHeadText"
@@ -953,6 +957,7 @@ export type Channel =
     | "edge.arrowTailGap"
     | "edge.arrowTailStack"
     | "edge.arrowTailColor"
+    | "edge.arrowTailFillColor"
     | "edge.arrowTailOpacity"
     | "edge.arrowTailImage"
     | "edge.arrowTailText"
@@ -974,6 +979,7 @@ export type Channel =
     | "edge.arrowMiddleHeadOutlineWidth"
     | "edge.arrowMiddleHeadPosition"
     | "edge.arrowMiddleHeadColor"
+    | "edge.arrowMiddleHeadFillColor"
     | "edge.arrowMiddleHeadOpacity"
     | "edge.arrowMiddleHeadImage"
     | "edge.arrowMiddleTail"
@@ -983,6 +989,7 @@ export type Channel =
     | "edge.arrowMiddleTailOutlineWidth"
     | "edge.arrowMiddleTailPosition"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowMiddleTailFillColor"
     | "edge.arrowMiddleTailOpacity"
     | "edge.arrowMiddleTailImage"
     | "edge.animationSpeed"
@@ -1008,9 +1015,12 @@ export type Channel =
     | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
+    | "edge.labelWrapSkipEndSpace"
     | "edge.labelWrapEllipsis"
     | "edge.labelWrapAnywhere"
     | "edge.labelWrapSpaceCount"
+    | "edge.labelMaxLines"
+    | "edge.labelMaxLinesEllipsis"
     | "edge.labelRunAlign"
     | "edge.labelMinScreenSize"
     | "edge.labelOnTop"
@@ -1029,6 +1039,9 @@ export type Channel =
     | "edge.labelTable"
     | "edge.labelCornerRadius"
     | "edge.labelLineHeight"
+    | "edge.labelLineBox"
+    | "edge.labelBorderAlign"
+    | "edge.labelBackgroundShape"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
@@ -1331,8 +1344,9 @@ export type Selector =
     | { match: "rule"; where: RuleTree; edges?: EdgeReading }
     /**
      * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-     * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
-     * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+     * edges), under the pointer (`"hovered"`, one node at most), drawn while a held filter
+     * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`:
+     * a layer selecting it decides how it looks: hidden, faint, or as any other), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
      * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
      * `selectorRule` reads this selector as with its `states` option.
@@ -1357,7 +1371,12 @@ export type Selector =
      */
     | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean };
 
-/** Who put a layer in the stack. Every layer names its source. */
+/**
+ * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
+ * what it is for: `"default"` the look every element is drawn from, `"selection"`, `"hover"` and
+ * `"notes"` what they paint, and `"time"` the two
+ * locked layers that hide what lies outside a time window.
+ */
 export type LayerSource =
     | { by: "element"; reason: "default" | "selection" | "hover" | "notes" }
     | { by: "run"; runId: RunId; algorithm: AlgorithmKey; params: Record<string, unknown> }
@@ -1379,13 +1398,6 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
-    /**
-     * Where a layer made from a file's styles came from: the element's facts about it, set when
-     * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
-     * Absent on every other layer. An update that does not name it keeps it.
-     * @experimental file-styles
-     */
-    fileStyle?: FileStyleOrigin;
     /**
      * The row this layer is a part of: the id of the row's node part. Two layers sharing a row
      * are one entry that paints nodes and edges (`styles.addRow` with target `"both"`), and
@@ -1482,7 +1494,18 @@ export interface AlgorithmDescriptor {
     key: AlgorithmKey;
     plainName: string;
     technicalName: string;
+    /**
+     * What the algorithm does, in an English sentence.
+     * @deprecated Word the algorithm from {@link AlgorithmDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the algorithm does, which an application keys its own words on, such as
+     * "algorithm.pagerank". Present on every built-in algorithm; an extension that describes its
+     * algorithms supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
     /**
      * Other words a reader may search for it by (`union`, `bridges`), so a picker finds it by more
@@ -1548,7 +1571,18 @@ export interface LayoutDescriptor {
     id: LayoutId;
     plainName: string;
     technicalName: string;
+    /**
+     * What the layout does, in an English sentence.
+     * @deprecated Word the layout from {@link LayoutDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the layout does, which an application keys its own words on, such as
+     * "layout.force". Present on every built-in layout; an extension that describes its
+     * layouts supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     family: string;
     kind: "live" | "batch";
     maxDimensions: 2 | 3;
@@ -1640,8 +1674,19 @@ export interface FormatDescriptor {
      * writes one kind of file.
      */
     exportVariants?: readonly FormatExportVariant[];
-    /** What the format is for, when its name does not say, such as which call reads it. */
+    /**
+     * What the format is for, when its name does not say, such as which call reads it, in an
+     * English sentence.
+     * @deprecated Word the format from {@link FormatDescriptor.descriptionId} in the application.
+     */
     description?: string;
+    /**
+     * A stable id for what the format is for, which an application keys its own words on, such as
+     * "format.graphty". Present on every built-in format that has a description; an extension that
+     * describes its formats supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
 }
 
 /**
@@ -1703,7 +1748,18 @@ export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorbli
 export interface CameraDescriptor {
     id: CameraId;
     plainName: string;
+    /**
+     * What the view does, in an English sentence.
+     * @deprecated Word the view from {@link CameraDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the view does, which an application keys its own words on, such as
+     * "camera.fitToGraph". Present on every built-in view; an extension that describes its
+     * views supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     /** The drawing modes this view can be computed in. The element refuses the others. */
     modes: readonly DrawingMode[];
     options: readonly OptionDescriptor[];
@@ -1720,7 +1776,18 @@ export interface CameraDescriptor {
 export interface LogSinkDescriptor {
     id: LogSinkId;
     plainName: string;
+    /**
+     * What the destination does, in an English sentence.
+     * @deprecated Word the destination from {@link LogSinkDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the destination does, which an application keys its own words on, such as
+     * "logSink.console". Present on every built-in destination; an extension that describes its
+     * destinations supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     options: readonly OptionDescriptor[];
 }
 
@@ -1754,7 +1821,17 @@ export interface FunctionDescriptor {
     name: string;
     /** The smallest and largest argument count accepted. */
     arity: [number, number];
+    /**
+     * What the function does, in an English sentence.
+     * @deprecated Word the function from {@link FunctionDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the function does, which an application keys its own words on, such as
+     * "function.log". An extension supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     returns: "number" | "boolean" | "string";
 }
 
@@ -2039,15 +2116,18 @@ export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
  * Whether a metric can be computed on this graph, what it would cost, and whether it has
  * already been run. Metrics that have never been run are listed too, which is what makes the
  * catalogue self-describing: a stranger can see everything the element could compute, with a
- * cost and an availability reason beside each entry, before computing anything.
+ * cost and why it is unavailable beside each entry, before computing anything.
  */
 export interface MetricAvailability {
     key: AlgorithmKey;
     plainName: string;
     technicalName: string;
     available: boolean;
-    /** Why it is unavailable on this graph. Present only when `available` is false. */
-    reason?: string;
+    /**
+     * Why it is unavailable on this graph, as a code and the values it is about, as
+     * `CostEstimate.refusal` reports it. Present only when `available` is false.
+     */
+    refusal?: CodedFact<EstimateRefusalCode>;
     costClass: CostClass;
     estimateSeconds: number;
     hasRun: boolean;
@@ -2058,10 +2138,24 @@ export interface MetricAvailability {
  * The result of checking an expression. Validation covers references, not only syntax: an
  * expression that parses perfectly and names a run or an attribute that does not exist matches
  * nothing, silently, which reads exactly like a correct answer of zero.
+ *
+ * `ok` is true only when the expression parses and every path it reads is answered.
  */
 export interface QueryValidation {
     ok: boolean;
-    error?: { code: GraphtyErrorCode; message: string; position: number };
+    /**
+     * Why the expression does not parse, as a code and its parameters, never as words: `code` is
+     * `E_BAD_SELECTOR`, `position` the character offset of the mistake, and `params` the error's
+     * `details` (`reason`, one of the selector refusal reasons, and the values it names). A
+     * `formula` is `E_UNSUPPORTED` at position 0, since the formula grammar is not implemented.
+     * Absent when it parses.
+     */
+    error?: { code: GraphtyErrorCode; position: number; params: Readonly<Record<string, unknown>> };
+    /**
+     * The paths it reads that nothing in this session answers: `unknown-run` for a `results.`
+     * path naming no run here, `unknown-attribute` for any other. `candidates` are the nearest
+     * paths that would be answered, nearest first. Empty when it does not parse.
+     */
     unresolvedPaths: readonly {
         path: Path;
         reason: "unknown-run" | "unknown-attribute";
@@ -2246,6 +2340,14 @@ export type RuleTree =
            * @beta
            */
           readonly missing?: MissingValues;
+          /**
+           * Which elements are ranked: `"graph"` (the default) ranks the whole column, so a node's
+           * place does not move as a filter changes; `"visible"` ranks only what the filter and the
+           * time window leave shown. Inside a step, the step's own population is ranked. A filter
+           * cannot rank within what it shows itself.
+           * @since 3.40.0
+           */
+          readonly within?: "graph" | "visible";
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -2296,11 +2398,12 @@ export type RuleTree =
     | { readonly kind: "not"; readonly of: RuleTree };
 
 /**
- * What a reader is doing to an element now: selected, under the pointer, drawn outside the time
- * window, or pinned in place.
+ * What a reader is doing to an element now: selected, under the pointer, drawn while a held filter
+ * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`), or pinned
+ * in place.
  * @since 3.36.0
  */
-export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+export type ElementState = "selected" | "hovered" | "ghosted" | "outsideWindow" | "pinned";
 
 /**
  * The elements in a state now, as a calculated value: what `{ match: "state", state }` paints,
@@ -2555,7 +2658,7 @@ export interface MeasureLeaf {
 export type RuleSide = "nodes" | "edges";
 
 /** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
-export type SourceKey = string; // NOSONAR(S6564): a named public type in the API report; removing it breaks consumers
+export type SourceKey = string; // eslint-disable-line sonarjs/redundant-type-aliases -- a named public type in the API report; removing it breaks consumers
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.
@@ -2874,6 +2977,20 @@ export interface CatalogApi {
      * @since 3.36.0
      */
     channels(target: "node" | "edge"): readonly ChannelDescriptor[];
+    /**
+     * Every value of one enum channel this session offers, in the order of the channel's
+     * `values`, each with a default name and, for a node shape, an arrowhead or a line pattern
+     * (a border's included), a picture. With the `file-styles` experiment off it leaves out the
+     * values the experiment added, as {@link CatalogApi.channels} does.
+     *
+     * ```ts
+     * session.catalog.channelValues("node.shape"); // [{ id: "box", plainName: "Box", glyph: "<svg ..." }, ...]
+     * ```
+     * @param channel - The channel.
+     * @returns The values; empty for a channel that is not an enum or that the session does not offer.
+     * @since 3.40.0
+     */
+    channelValues(channel: Channel): readonly ChannelValueDescriptor[];
     palettes(): readonly PaletteDescriptor[];
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
@@ -2922,8 +3039,12 @@ export interface CatalogApi {
      */
     functions(): readonly FunctionDescriptor[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #333).
+     * The attributes that hold points in time, for a time slider: first those `data.attributes()`
+     * gives the `time` role (declared by the file or the load), then the columns whose values read
+     * as time, best first, as `session.time.candidates()` finds them -- dates in text, epochs, and
+     * whole numbers from 1000 to 2999 in a column whose name speaks of time.
+     * @returns The time attributes, nodes and edges both; empty when the graph has none.
+     * @since 3.40.0
      */
     timeAttributes(): readonly AttributeDescriptor[];
     metrics(): readonly MetricAvailability[];
@@ -2934,8 +3055,15 @@ export interface CatalogApi {
      */
     applicable(): readonly MetricAvailability[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #335).
+     * Check an expression against this session without running it, as a form field would on
+     * every keystroke: whether it parses, where it does not, and which paths it reads that
+     * nothing here answers. Selectors and filters share one expression grammar; a `formula` is
+     * refused with `E_UNSUPPORTED`, since the formula grammar is not implemented.
+     * @param query - The expression.
+     * @param o - Options.
+     * @param o.kind - Which kind of expression it is; a selector when absent.
+     * @returns The check. Never throws for a bad expression.
+     * @since 3.40.0
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
@@ -2963,7 +3091,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
 
 // ---------------------------------------------------------------------------------------------
 // Guards
@@ -2976,15 +3104,6 @@ export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" 
  */
 export function isOptionType(value: unknown): value is OptionType {
     return typeof value === "string" && (OPTION_TYPES as readonly string[]).includes(value);
-}
-
-/**
- * Tell whether an algorithm key names a built-in the element reserves but does not run.
- * @param key - The algorithm key.
- * @returns True when the key is a member of DEPRECATED_ALGORITHMS.
- */
-export function isDeprecatedAlgorithm(key: string): key is DeprecatedAlgorithm {
-    return (DEPRECATED_ALGORITHMS as readonly string[]).includes(key);
 }
 
 /**

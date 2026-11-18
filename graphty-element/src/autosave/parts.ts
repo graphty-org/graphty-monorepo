@@ -17,7 +17,7 @@
 
 import type { RunId } from "../catalog/types";
 import { assetsMember } from "../session/assets/projectMember";
-import { dispatcherOf, sessionRunsOf } from "../session/GraphSession";
+import { dispatcherOf, sessionRunsOf } from "../session/dispatchers";
 import {
     arrangementMember,
     dataMember,
@@ -145,7 +145,7 @@ function buildRestPart(
         });
         const rest: RestPart = {
             head: documentAround(session, [], {}),
-            session: sessionMember(sources, idsNow),
+            session: sessionMember(sources),
             results: resultsMember(session, []),
             style: styleMember(session),
             notes: notesMember(session),

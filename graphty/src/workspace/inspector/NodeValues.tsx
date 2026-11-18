@@ -3,6 +3,7 @@ import {
     DataRow,
     DataRowHeader,
     PANEL_GRID,
+    PanelField,
     SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
@@ -11,19 +12,20 @@ import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { writeCondition } from "../data-place/filterCards";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { focusInspectorTitle } from "../frame/focus";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { edgeEnds } from "../table/columns";
 import { timeValue } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
 import { groupInspected, neighborhoodKey, nodeKey } from "./inspected";
-import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
+import { finishedRuns, hidden, selectNode, takeValuesFocus } from "./reads";
 import {
     attributeSummary,
     count,
     DEGREE_ROW_WORDS,
+    degreeLabel,
     edgeName,
     formatNumber,
     groupName,
@@ -175,7 +177,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     return (
         <>
             <ControlSection label="Summary" collapsible={false} headingLevel={3}>
-                <div // NOSONAR(S6819): an ARIA group naming the rows of label and value; a fieldset is for form controls
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the rows of label and value; a fieldset is for form controls
                     ref={summary}
                     role="group"
                     aria-label="Summary values"
@@ -186,7 +188,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                     <Tooltip label={DEGREE_ROW_WORDS} position="left">
                         <div ref={degree}>
                             <DataRow
-                                name="Degree"
+                                name={degreeLabel(session)}
                                 value={connections}
                                 description={DEGREE_ROW_WORDS}
                                 trailing={<UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />}
@@ -265,7 +267,7 @@ async function showNeighborhood(
     session: GraphSession,
     store: WorkspaceStore,
     center: NodeId,
-    hops: 1 | 2 | 3,
+    hops: number,
     direction: SelectionDirection,
 ): Promise<void> {
     await session.selection.apply({ neighborsOf: [center], depth: hops, direction }, "replace", { cause: "user" });
@@ -273,7 +275,7 @@ async function showNeighborhood(
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({
         inspected: { kind: "neighborhood", id: neighborhoodKey(center, hops, direction) },
-        announcement: neighborhoodWords(session.data.name(center) ?? String(center), around, hops),
+        announcement: neighborhoodWords(session.data.nodeName(center).name, around, hops),
     });
 }
 
@@ -283,8 +285,8 @@ async function showNeighborhood(
  * tie value beside it), read whole from graphty-element's `data.neighbors()`. Each name selects
  * that node; Back to the center, or Esc, returns to the node at the center.
  *
- * Its header picks how far out (Hops 1 | 2 | 3) and, on a directed graph, which way edges are
- * followed (Follow: Out | In | All); a change reselects and relists. Past one hop it lists the
+ * Its header picks how far out (Hops, a whole number from 1) and, on a directed graph, which way
+ * edges are followed (Follow: Out | In | All); a change reselects and relists. Past one hop it lists the
  * selected nodes other than the center, under the same heading form. Filter to neighbors adds
  * one filter step keeping the same neighborhood, or turns that step back on; only the step's
  * checkbox in Filters turns it off.
@@ -301,43 +303,36 @@ export function NeighborList({
 }: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     // Filter to neighbors reads the steps, so it follows each change to them.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const heading = useRef<HTMLElement>(null);
-    // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
-    // shortcut on the region, so it is listened for on the region's own element. A Hops or
-    // Follow change keeps focus on the control that made it.
+    const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
+    // The list takes focus as it opens. A Hops or Follow change keeps focus on the control that
+    // made it.
     useEffect(() => {
         const region = heading.current;
         if (region === null || session === null) {
-            return undefined;
+            return;
         }
-        // Focus goes to the checked Hops choice: a control, never a ring around the whole list,
-        // and never a neighbor row, which would read as a pick nobody made. After a Hops or
-        // Follow change it goes back to the choice in the control that made it.
-        const control = refocusControl === null ? "" : `[aria-labelledby="${CSS.escape(refocusControl)}"] `;
+        // Focus goes to the Hops field: a control, never a ring around the whole list, and never
+        // a neighbor row, which would read as a pick nobody made. After a Hops or Follow change it
+        // goes back to the control that made it (Follow's checked choice).
+        const label = CSS.escape(refocusControl ?? hopsLabel);
         refocusControl = null;
         if (!region.contains(document.activeElement)) {
-            region.querySelector<HTMLElement>(`${control}input:checked`)?.focus();
+            region
+                .querySelector<HTMLElement>(
+                    `input[aria-labelledby="${label}"], [aria-labelledby="${label}"] input:checked`,
+                )
+                ?.focus();
         }
-        const onKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                returnToDegree = true;
-                selectNode(session, center);
-            }
-        };
-        region.addEventListener("keydown", onKeyDown);
-        return () => {
-            region.removeEventListener("keydown", onKeyDown);
-        };
-    }, [center, session]);
+    }, [center, session, hopsLabel]);
     if (session === null) {
         return null;
     }
-    const reach = hops === 2 || hops === 3 ? hops : 1;
+    const reach = Number.isInteger(hops) && hops >= 1 ? hops : 1;
     const { directed } = session.status;
     const follow = directed ? direction : "all";
-    const centerName = session.data.name(center) ?? String(center);
+    const centerName = session.data.nodeName(center).name;
 
     let words: string;
     let rows: React.JSX.Element[];
@@ -345,7 +340,7 @@ export function NeighborList({
     if (reach > 1) {
         const around = session.selection.nodes
             .filter((node) => node !== center)
-            .map((node) => ({ node, name: session.data.name(node) ?? String(node) }))
+            .map((node) => ({ node, name: session.data.nodeName(node).name }))
             .sort((a, b) => BY_NAME.compare(a.name, b.name));
         // The Hops control under the heading shows the reach, so the heading leaves it out; the
         // status line after a change still says it.
@@ -364,8 +359,9 @@ export function NeighborList({
         try {
             // By name, as past one hop, where there are no tie values to rank by.
             page = session.data.neighbors(center, { limit: Infinity, direction: follow, sort: { by: "name" } });
-        } catch {
+        } catch (error) {
             // E_UNKNOWN_ELEMENT: the node left the graph.
+            hidden("data.neighbors", error, "E_UNKNOWN_ELEMENT");
             return null;
         }
         tie = page.measuredBy?.attribute;
@@ -394,11 +390,21 @@ export function NeighborList({
     // That step already on at the reach shown: a press would change nothing, so the command is drawn
     // disabled and its tooltip says why (data-disabled, so the tooltip still shows on hover).
     const applied = filtered?.on === true && filtered.rule.kind === "neighborhood" && filtered.rule.depth === reach;
-    const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
     return (
-        <section ref={heading}>
+        // Esc anywhere in the list returns to the center node, unless a control used it first (the
+        // Hops field takes back what was typed).
+        <section // eslint-disable-line jsx-a11y/no-static-element-interactions -- Esc is a shortcut on the list, not a control; every control in it is native
+            ref={heading}
+            onKeyDown={(event) => {
+                if (event.key === "Escape" && !event.defaultPrevented) {
+                    event.preventDefault();
+                    returnToDegree = true;
+                    selectNode(session, center);
+                }
+            }}
+        >
             {/* The way back to the node's own Values, for a pointer; Esc is the keyboard's. */}
             <Button
                 variant="subtle"
@@ -420,15 +426,24 @@ export function NeighborList({
                         <Text size="sm" id={hopsLabel} w={44}>
                             Hops
                         </Text>
-                        <SegmentedControl
+                        {/* A number field, so any reach can be asked for: the walk stops on its own once
+                            it has reached everything connected. Arrow keys step it, as typing does. */}
+                        <PanelField
+                            label="Hops"
                             aria-labelledby={hopsLabel}
-                            fullWidth
-                            style={{ flex: 1 }}
-                            value={String(reach)}
-                            data={["1", "2", "3"]}
+                            kind="number"
+                            width="fill"
+                            value={reach}
+                            min={1}
+                            step={1}
+                            decimalScale={0}
                             onChange={(picked) => {
+                                const next = Number(picked);
+                                if (next === reach || !Number.isInteger(next) || next < 1) {
+                                    return;
+                                }
                                 refocusControl = hopsLabel;
-                                void showNeighborhood(session, store, center, Number(picked) as 1 | 2 | 3, follow);
+                                void showNeighborhood(session, store, center, next, follow);
                             }}
                         />
                     </Group>
@@ -656,7 +671,11 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
                     <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />
                 )}
                 {statistics.degree !== undefined && (
-                    <DataRow stat name="Degree" value={rangeWords(statistics.degree.min, statistics.degree.max)} />
+                    <DataRow
+                        stat
+                        name={degreeLabel(session)}
+                        value={rangeWords(statistics.degree.min, statistics.degree.max)}
+                    />
                 )}
                 {summaryRows(session, statistics).map(({ path, name, value }) => (
                     <DataRow key={path} stat name={name} value={value} />

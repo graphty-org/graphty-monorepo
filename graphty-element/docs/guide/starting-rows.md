@@ -14,7 +14,6 @@ await session.data.addNodes([{ id: "a" }, { id: "b" }]);
 await session.config.set({ startingRows: true });
 for (const row of session.styles.tree()) console.log(row.name, row.pin);
 // Everything bottom, Selected top, Hovered top
-// (with the timeline experiment on: Everything bottom, Ghost top, Selected top, Hovered top)
 
 // Hovered is an ordinary row: give it a glow, and it follows the pointer.
 const hovered = session.styles.tree().find((row) => row.name === "Hovered")!;
@@ -67,11 +66,18 @@ rewrite it, and it stays that way: no setting adds, removes or rewrites a starti
 and writing `startingRows: true` while it is already on writes nothing. To get a row back, add it
 with `styles.addRow` like any other row.
 
-## A Ghost row
+## A Timeline Hidden row
 
-With the timeline experiment on, the starting rows include a Ghost row, pinned to the top below
-Pinned, Selected and Hovered. It paints the nodes and edges a time window has ghosted, with the
-selector `{ match: "state", state: "ghosted" }`. With the timeline off there is no Ghost row.
+With `startingRows` on, the timeline adds one more row the first time it turns on (a time field is
+set with `session.time.setField`, data that declares one is loaded, or `startingRows` turns on
+while a field is set): Timeline Hidden, pinned to the top below Pinned, Selected and Hovered. It
+paints the nodes and edges outside the time window, with the selector
+`{ match: "state", state: "outsideWindow" }`: hidden by default, or grey and faint with
+`timelineHiddenLook: "ghost"`. A project without a timeline never gets it.
+
+The row is added once. The project setting `timelineHiddenAdded` records that it was, so turning
+the timeline off and on again, or deleting the row, does not bring it back; set it to `true`
+beforehand and the row is never added.
 
 ## A Pinned row
 

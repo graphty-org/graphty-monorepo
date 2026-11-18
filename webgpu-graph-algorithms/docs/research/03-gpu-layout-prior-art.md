@@ -3,7 +3,7 @@
 Purpose: enough kernel-level detail about existing GPU force-directed layouts
 to design the WebGPU layout slice of this package (the owner's first need).
 Everything below was read from cloned source or downloaded papers under
-`/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/repos/`
+`<staging>/tmp/webgpu-plan/repos/`
 (commit hashes recorded per project). Where a fact could not be verified it is
 marked UNVERIFIED. Plain ASCII throughout.
 
@@ -880,10 +880,10 @@ developer.nvidia.com/discover/cluster-analysis.
 
 Project files consulted (read-only):
 
-- /home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md
+- design/graph-format/graph-format-design.md
   (sections 10 and 14.3)
-- /home/apowers/Projects/graphty-monorepo/tmp/graph-format-design/03-layout-needs.md
+- tmp/graph-format-design/03-layout-needs.md
   (section 12), 09-webgpu-requirements.md (limits table),
   04-graphty-element-usage.md
-- /home/apowers/Projects/graphty-monorepo/layout/src/layouts/force-directed/forceatlas2.ts
-- /home/apowers/Projects/graphty-monorepo/graphty-element/src/layout/NGraphLayoutEngine.ts
+- layout/src/layouts/force-directed/forceatlas2.ts
+- graphty-element/src/layout/NGraphLayoutEngine.ts

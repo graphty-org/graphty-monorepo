@@ -64,7 +64,7 @@ export type GraphtyErrorCode =
      * missing result (`missing: { value }`), which would ask the element to paint elements the run
      * never measured. Without `missing`, such a layer is accepted: an element with no result is
      * not painted. The caller scopes the layer to the
-     * elements that carry the run's result.
+     * elements that carry the run's result: the problem's `scope` is that selector.
      */
     | "E_UNSCOPED_RUN_ENCODING"
     /**
@@ -110,7 +110,6 @@ export type GraphtyErrorCode =
      * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
      * `stepBy` or `seek` with no attribute given. The caller designates one with
      * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-     * @experimental timeline
      * @beta
      */
     | "E_NO_TIME_FIELD"
@@ -835,12 +834,6 @@ export type GraphtyWarningCode =
      * @experimental cosmograph
      */
     | "W_OBJECT_CAP"
-    /**
-     * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
-     * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
-     * size sits, and `params.value` the size.
-     */
-    | "W_TEXT_TOO_SMALL"
     /**
      * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
      * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,

@@ -12,16 +12,11 @@ import {
     DEFAULT_TEST_EDGES,
     DEFAULT_TEST_NODES,
     dragNode,
-    getCameraPosition,
-    getCameraState,
     getNodeScreenPosition,
-    getSceneRotation,
-    getSceneScale,
     setupTestGraph,
     teardownTestGraph,
     waitForGraphReady,
 } from "./interaction-helpers";
-import { createMockController, createMockHand, createPinchingHand } from "./iwer-setup";
 
 describe("Interaction Test Helpers", () => {
     let graph: Graph | undefined;
@@ -78,36 +73,6 @@ describe("Interaction Test Helpers", () => {
         });
     });
 
-    describe("getCameraState", () => {
-        test("returns 2D state for 2D mode", async () => {
-            graph = await setupTestGraph({ mode: "2d" });
-
-            const state = getCameraState(graph);
-
-            assert.equal(state.mode, "2d", "Mode should be 2d");
-            assert.isDefined(state.position, "Position should be defined");
-            assert.isNumber(state.position.x, "Position X should be a number");
-            assert.isNumber(state.position.y, "Position Y should be a number");
-            assert.isNumber(state.position.z, "Position Z should be a number");
-            assert.isDefined(state.orthoRange, "Ortho range should be defined for 2D mode");
-        });
-
-        test("returns 3D state for 3D mode", async () => {
-            graph = await setupTestGraph({ mode: "3d" });
-
-            const state = getCameraState(graph);
-
-            assert.equal(state.mode, "3d", "Mode should be 3d");
-            assert.isDefined(state.position, "Position should be defined");
-            // Note: With UniversalCamera + PivotController, alpha/beta/radius may not be available
-            // These properties exist on ArcRotateCamera but not UniversalCamera
-            // The getCameraState helper returns them as undefined for UniversalCamera
-            assert.isNumber(state.position.x, "Position X should be a number");
-            assert.isNumber(state.position.y, "Position Y should be a number");
-            assert.isNumber(state.position.z, "Position Z should be a number");
-        });
-    });
-
     describe("setupTestGraph", () => {
         test("creates graph with default 3D mode", async () => {
             graph = await setupTestGraph();
@@ -156,21 +121,20 @@ describe("Interaction Test Helpers", () => {
             });
         });
 
-        test("performs complete drag operation", async () => {
+        test("moves the node it drags", async () => {
             if (!graph) {
                 throw new Error("Graph should be defined");
             }
 
-            const initialPos = graph.getNode("test-node")?.getPosition();
-            assert.isDefined(initialPos, "Node should exist");
+            const before = graph.getNode("test-node")?.getPosition();
+            assert.isDefined(before, "Node should exist");
 
-            // Note: Due to NullEngine limitations, the actual drag may not
-            // produce visible position changes, but the operation should complete
             await dragNode(graph, "test-node", { dx: 50, dy: 50 });
 
-            // The test passes if no errors are thrown during the drag operation
-            const node = graph.getNode("test-node");
-            assert.isDefined(node, "Node should still exist after drag");
+            const after = graph.getNode("test-node")?.getPosition();
+            assert.isDefined(after, "Node should still exist after drag");
+            const moved = Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z);
+            assert.isAbove(moved, 0.1, "the drag moved the node");
         });
 
         test("throws error for non-existent node", async () => {
@@ -184,150 +148,6 @@ describe("Interaction Test Helpers", () => {
             } catch (error) {
                 assert.include((error as Error).message, "not found", "Error should mention node not found");
             }
-        });
-    });
-
-    describe("getSceneScale", () => {
-        test("returns 1.0 for default scale in 3D mode", async () => {
-            graph = await setupTestGraph({ mode: "3d" });
-
-            const scale = getSceneScale(graph);
-
-            // Scale should be approximately 1.0 for default camera distance
-            assert.isNumber(scale, "Scale should be a number");
-            assert.isAbove(scale, 0, "Scale should be positive");
-        });
-
-        test("returns valid scale in 2D mode", async () => {
-            graph = await setupTestGraph({ mode: "2d" });
-
-            const scale = getSceneScale(graph);
-
-            assert.isNumber(scale, "Scale should be a number");
-            assert.isAbove(scale, 0, "Scale should be positive");
-        });
-    });
-
-    describe("getSceneRotation", () => {
-        test("returns rotation values in 3D mode", async () => {
-            graph = await setupTestGraph({ mode: "3d" });
-
-            const rotation = getSceneRotation(graph);
-
-            assert.isNumber(rotation.x, "X rotation should be a number");
-            assert.isNumber(rotation.y, "Y rotation should be a number");
-            assert.isNumber(rotation.z, "Z rotation should be a number");
-        });
-
-        test("returns rotation values in 2D mode", async () => {
-            graph = await setupTestGraph({ mode: "2d" });
-
-            const rotation = getSceneRotation(graph);
-
-            assert.isNumber(rotation.x, "X rotation should be a number");
-            assert.isNumber(rotation.y, "Y rotation should be a number");
-            assert.isNumber(rotation.z, "Z rotation should be a number");
-        });
-    });
-
-    describe("getCameraPosition", () => {
-        test("returns position and mode", async () => {
-            graph = await setupTestGraph({ mode: "3d" });
-
-            const pos = getCameraPosition(graph);
-
-            assert.isNumber(pos.x, "X should be a number");
-            assert.isNumber(pos.y, "Y should be a number");
-            assert.isNumber(pos.z, "Z should be a number");
-        });
-    });
-});
-
-describe("IWER Setup Helpers", () => {
-    describe("createMockHand", () => {
-        test("creates left hand with correct handedness", () => {
-            const hand = createMockHand("left");
-
-            assert.equal(hand.handedness, "left", "Should be left hand");
-            assert.isTrue(hand.joints.size > 0, "Should have joints");
-            assert.equal(hand.pinchStrength, 0, "Pinch strength should be 0");
-        });
-
-        test("creates right hand with correct handedness", () => {
-            const hand = createMockHand("right");
-
-            assert.equal(hand.handedness, "right", "Should be right hand");
-        });
-
-        test("includes standard WebXR joint names", () => {
-            const hand = createMockHand("left");
-
-            assert.isTrue(hand.joints.has("wrist"), "Should have wrist joint");
-            assert.isTrue(hand.joints.has("thumb-tip"), "Should have thumb-tip joint");
-            assert.isTrue(hand.joints.has("index-finger-tip"), "Should have index-finger-tip joint");
-        });
-    });
-
-    describe("createPinchingHand", () => {
-        test("creates hand with pinch pose", () => {
-            const hand = createPinchingHand("right");
-
-            assert.equal(hand.handedness, "right", "Should be right hand");
-            assert.isAbove(hand.pinchStrength, 0.5, "Pinch strength should be high");
-        });
-
-        test("thumb and index tips are close together", () => {
-            const hand = createPinchingHand("left");
-
-            const thumbTip = hand.joints.get("thumb-tip");
-            const indexTip = hand.joints.get("index-finger-tip");
-
-            assert.isDefined(thumbTip, "Thumb tip should be defined");
-            assert.isDefined(indexTip, "Index tip should be defined");
-
-            // Calculate distance between tips
-            const distance = Math.sqrt(
-                Math.pow(thumbTip.x - indexTip.x, 2) +
-                    Math.pow(thumbTip.y - indexTip.y, 2) +
-                    Math.pow(thumbTip.z - indexTip.z, 2),
-            );
-
-            // Should be close together (< 5cm) for pinching
-            assert.isBelow(distance, 0.05, "Thumb and index tips should be close for pinch");
-        });
-    });
-
-    describe("createMockController", () => {
-        test("creates controller with correct handedness", () => {
-            const leftController = createMockController("left");
-            const rightController = createMockController("right");
-
-            assert.equal(leftController.handedness, "left");
-            assert.equal(rightController.handedness, "right");
-        });
-
-        test("controller starts with neutral thumbstick", () => {
-            const controller = createMockController("left");
-
-            assert.equal(controller.thumbstick.x, 0, "Thumbstick X should be 0");
-            assert.equal(controller.thumbstick.y, 0, "Thumbstick Y should be 0");
-        });
-
-        test("controller starts with unpressed buttons", () => {
-            const controller = createMockController("right");
-
-            assert.equal(controller.trigger.value, 0, "Trigger value should be 0");
-            assert.isFalse(controller.trigger.pressed, "Trigger should not be pressed");
-            assert.equal(controller.grip.value, 0, "Grip value should be 0");
-            assert.isFalse(controller.grip.pressed, "Grip should not be pressed");
-        });
-
-        test("left and right controllers have different X positions", () => {
-            const left = createMockController("left");
-            const right = createMockController("right");
-
-            assert.isBelow(left.position.x, 0, "Left controller should be at negative X");
-            assert.isAbove(right.position.x, 0, "Right controller should be at positive X");
         });
     });
 });

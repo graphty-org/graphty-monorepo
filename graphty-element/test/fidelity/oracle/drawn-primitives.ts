@@ -78,6 +78,20 @@ export function inkedLines(d: DrawnLabel, box: PBox): PBox {
     return { ...box, x0, x1 };
 }
 
+/**
+ * The class of a label panel's outline: a disc, a rounded rectangle or a rectangle.
+ * @param bg - the panel
+ * @param bg.circle - whether it is a disc
+ * @param bg.rounded - whether its corners are rounded
+ * @returns the class
+ */
+function panelShape(bg: { circle: boolean; rounded: boolean }): "ellipse" | "roundrect" | "rect" {
+    if (bg.circle) {
+        return "ellipse";
+    }
+    return bg.rounded ? "roundrect" : "rect";
+}
+
 function textOf(d: DrawnLabel): PText {
     // the words' own box, as an SVG text's box is its letters', not the plane they are drawn on with its margins
     const b = d.textBox ?? d.box;
@@ -123,7 +137,7 @@ function textOf(d: DrawnLabel): PText {
                                     dash: null,
                                     dashClass: "solid",
                                 },
-                      shape: bg.rounded ? "roundrect" : "rect",
+                      shape: panelShape(bg),
                   },
     };
 }

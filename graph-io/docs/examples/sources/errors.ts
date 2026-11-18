@@ -2,7 +2,7 @@ import { defineSource, ImportError, loadFromSource, replayFetch } from "@graphty
 
 const people = defineSource({
     id: "people",
-    records: (params: { team: string }, ctx) => ctx.fetchJson(`/api/people?team=${params.team}`),
+    records: (params: { team: string }, ctx) => ctx.fetchJson(`/api/people?team=${encodeURIComponent(params.team)}`),
 });
 
 const fetch = replayFetch([{ url: "https://example.com/api/people?team=core", status: 401 }]);

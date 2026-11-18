@@ -1,5 +1,5 @@
 /**
- * The `group-by-key-row` kernel body (design 8.6; the per-row group-by-key): for every listed row `v`, the arcs of
+ * The `group-by-key-row` kernel body (the per-row group-by-key): for every listed row `v`, the arcs of
  * the row are grouped by the key of their target (`keyIn[colIdx[a]]`), the weights are summed per key, and the key
  * with the largest sum wins. A tie goes to the row's OWN key (`keyIn[v]`) when it is among the tied keys -- label
  * propagation keeps a label that ties for the lead -- and otherwise to the LOWEST key. Either way the order is strict,
@@ -21,7 +21,7 @@
  * slot pairs (key, sum) starting at word `rows[P.basesBase + g]` of `hashRegion`, cleared by the workgroup itself;
  * a key is claimed by a bounded compare-exchange loop with linear probing, and a lane that exhausts its bound raises
  * `hashRegion[0]`, which the driver reads and refuses. Every barrier is reached in uniform control flow: the only
- * early return keys on the workgroup id and a uniform. Body only (spec 3.5, D9); normative text.
+ * early return keys on the workgroup id and a uniform. Body only; normative text.
  */
 export const groupByKeyRowWgsl = /* wgsl */ `
 var<workgroup> shMax: array<f32, WG>;

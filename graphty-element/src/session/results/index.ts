@@ -33,6 +33,8 @@ export {
     type HistogramOptions,
     type Normalization,
     type NumericColumnView,
+    type PathParts,
+    pathParts,
     type RankingEntry,
     type ReadingCode,
     type ReadingOptions,

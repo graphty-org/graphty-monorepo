@@ -2,8 +2,7 @@
 // and edge of every stylesheet in that directory, read back with `ele.style(property)` from a headless core with
 // styles on. The test compares graph-io's Cytoscape.js style engine with these values; it never loads Cytoscape.js.
 //
-// Usage, from the repository root after `pnpm install` (Cytoscape.js is a dependency of
-// cytoscape-extensions and is hoisted to the root node_modules):
+// Usage, from the repository root after `pnpm install` (Cytoscape.js is a devDependency of graph-io):
 //   node graph-io/scripts/cyjs-golden.cjs
 const { readdirSync, readFileSync, statSync, writeFileSync } = require("node:fs");
 const { join, relative } = require("node:path");

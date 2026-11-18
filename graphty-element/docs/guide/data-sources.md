@@ -983,9 +983,6 @@ words for it:
   no place for), or none (self-loops).
 - `count` is how many nodes, edges, values or columns are affected, or `null` when not counted.
 
-`lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
-release.
-
 ### Exporting part of the graph
 
 Without a `scope`, an export writes the whole graph. With one, it writes only the nodes the scope

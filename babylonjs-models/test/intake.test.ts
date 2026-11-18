@@ -16,6 +16,7 @@ import {
     DEFAULT_MODEL_LIMITS,
     fetchModelSet,
     isKnownWebPage,
+    listModels,
     listParts,
     mainFileOf,
     ModelError,
@@ -200,6 +201,30 @@ describe("checking a set", () => {
         assert.strictEqual(skipped?.find((p) => p.name === "cube.png")?.state, "skipped");
         const drawn = withSkips(files, ["cube.png"], true);
         assert.strictEqual(drawn.size, files.size + 1, "a skipped picture is drawn white");
+    });
+
+    it("lists every model of a set with the files each uses", () => {
+        const files = new Map([
+            ["a/rack.gltf", fixture("gltf-textured", "cube.gltf")],
+            ["a/cube.bin", fixture("gltf-textured", "cube.bin")],
+            ["a/cube.png", fixture("gltf-textured", "cube.png")],
+            ["b/cube.obj", fixture("obj-mtl-png", "cube.obj")],
+            ["b/cube.mtl", fixture("obj-mtl-png", "cube.mtl")],
+            ["c.glb", fixture("glb", "cube.glb")],
+            ["c.stl", fixture("glb", "cube.glb")],
+            ["notes.txt", new TextEncoder().encode("hello")],
+        ]);
+        assert.deepStrictEqual(listModels(files, DEFAULT_MODEL_LIMITS), [
+            { main: "a/rack.gltf", format: "gltf", files: ["a/rack.gltf", "a/cube.bin", "a/cube.png"] },
+            // The .mtl names cube.png, which only the other folder holds: matched by its base name, as the checks would.
+            { main: "b/cube.obj", format: "obj", files: ["b/cube.obj", "b/cube.mtl", "a/cube.png"] },
+            { main: "c.glb", format: "glb", files: ["c.glb"] },
+        ]);
+        const one = new Map([["cube.glb", fixture("glb", "cube.glb")]]);
+        assert.deepStrictEqual(
+            listModels(one, DEFAULT_MODEL_LIMITS).map((m) => m.main),
+            ["cube.glb"],
+        );
     });
 
     it("unpacks a zip and checks what it holds", async () => {

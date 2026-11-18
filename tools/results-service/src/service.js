@@ -243,15 +243,14 @@ function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
     return out;
 }
 
-function failureRows(invocation, failures, root, nowMs) {
+function failureRows(invocation, failures, nowMs) {
     if (!Array.isArray(failures) || failures.length > ROWS_MAX)
         refuse(400, `failures must be a list of at most ${ROWS_MAX}`);
-    if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
         // cut before hashing, as the clients cut what they send, so a longer message costs no CPU and signs the same
         const message = f.message.slice(0, VALUE_MAX);
-        const { line, key, signature, status } = failureHashes(message, f.file, root);
+        const { line, key, signature, status } = failureHashes(message, f.file);
         return [invocation, f.file, f.name, status, signature, key, line, message, nowMs];
     });
 }
@@ -343,7 +342,7 @@ async function postInvocation(body, who, db, nowMs) {
             db,
             "failure",
             FAILURE_COLUMNS,
-            failureRows(body.id, body.failures ?? [], body.root, nowMs),
+            failureRows(body.id, body.failures ?? [], nowMs),
             "INSERT OR REPLACE",
         ),
     ]);
@@ -419,7 +418,7 @@ async function closeIssue(body, db, nowMs) {
 async function postFailures(body, who, db, nowMs) {
     if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.invocation, who);
-    const rows = failureRows(body.invocation, body.failures ?? [body], body.root, nowMs);
+    const rows = failureRows(body.invocation, body.failures ?? [body], nowMs);
     // D1 refuses an empty batch
     if (rows.length) await db.batch(inserts(db, "failure", FAILURE_COLUMNS, rows));
     return { stored: rows.length };

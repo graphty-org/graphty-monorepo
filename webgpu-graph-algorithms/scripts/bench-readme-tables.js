@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * bench:readme -- regenerates the target tables of the README's Performance section (issue #277) from
+ * bench:readme -- regenerates the target tables of the Performance section of benchmarks/README.md (issue #277) from
  * benchmarks/results/targets.json and the checked-in results files, so the README is never hand-edited to say whether a
  * target is met.
  *
- * Each table sits between `<!-- targets-table:<class> -->` and `<!-- /targets-table:<class> -->` in README.md; only the
+ * Each table sits between `<!-- targets-table:<class> -->` and `<!-- /targets-table:<class> -->` in benchmarks/README.md; only the
  * text between the two markers is rewritten. A row's figure is the best median any session of its results file has
  * recorded -- the pinned baseline bench:compare measures a run against: the Node rows from benchmarks/results/<class>.json, the Chromium rows (the `-browser` groups, which
  * Chromium's redacted driver string files under a class of their own) from benchmarks/results/<browser class>.json. A
  * row that no checked-in session carries reads "not yet measured". The status is the one bench:compare prints
  * (scripts/bench-targets.js), and the reasons of the class's known misses are listed under its table.
  *
- * Usage: `pnpm run bench:readme` rewrites README.md; `--check` exits 1 when README.md differs from the generated text.
+ * Usage: `pnpm run bench:readme` rewrites benchmarks/README.md; `--check` exits 1 when it differs from the generated text.
  * test/benchmarks.test.ts runs the same check, so a results file or targets.json changed without regenerating fails
  * the node suite.
  */
@@ -129,7 +129,7 @@ function renderReadme(readme, resultsDir) {
         const start = text.indexOf(open);
         const end = text.indexOf(close);
         if (start < 0 || end < start) {
-            throw new Error(`README.md lacks the ${open} ... ${close} markers`);
+            throw new Error(`benchmarks/README.md lacks the ${open} ... ${close} markers`);
         }
         text = `${text.slice(0, start + open.length)}\n\n${renderTable(targets, resultsDir, table)}\n\n${text.slice(end)}`;
     }
@@ -138,16 +138,16 @@ function renderReadme(readme, resultsDir) {
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-    const file = join(root, "README.md");
+    const file = join(root, "benchmarks", "README.md");
     const readme = readFileSync(file, "utf8");
     const generated = renderReadme(readme, join(root, "benchmarks/results"));
     if (process.argv.includes("--check")) {
         if (generated !== readme) {
-            console.error("README.md's targets tables are stale: run `pnpm run bench:readme`");
+            console.error("benchmarks/README.md's targets tables are stale: run `pnpm run bench:readme`");
             process.exitCode = 1;
         }
     } else if (generated !== readme) {
         writeFileSync(file, generated);
-        console.log("README.md: targets tables regenerated");
+        console.log("benchmarks/README.md: targets tables regenerated");
     }
 }

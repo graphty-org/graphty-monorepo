@@ -12,13 +12,15 @@
 // 3. The budget (README section 8.1 items 1, 4 and 7): the first example of each point in
 //    simple-tier.md section 4, with its "use it" block, is at most 20 author lines (non-blank,
 //    non-comment, not import) and names no internal concept.
-// ./extend is checked as the element's own ./extend plus the proposed simple tier (simple.d.ts), so
-// a simple-tier example is checked against the normative declarations it depends on, and a
-// simple-tier name that collides with a published one fails the check.
+// ./extend is checked as the element's own ./extend plus the part of the proposed simple tier
+// (simple.d.ts) the element does not ship yet, so a simple-tier example is checked against the
+// element's real declarations where they exist and the normative ones where they do not.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+
+import ts from "typescript";
 
 const root = resolve(import.meta.dirname, "../..");
 const specDir = join(root, "design/extensions");
@@ -49,11 +51,21 @@ for (const name of readdirSync(specDir).filter((file) => file.endsWith(".md"))) 
     });
 }
 
+// The element now ships part of the simple tier itself, so simple.d.ts adds only the names its ./extend
+// does not export yet; a name both declare is the element's, exported once (#8494).
+const exportsOf = (file) => {
+    const program = ts.createProgram([file], { noEmit: true, skipLibCheck: true });
+    const checker = program.getTypeChecker();
+    const module = checker.getSymbolAtLocation(program.getSourceFile(file));
+    return new Set(checker.getExportsOfModule(module).map((symbol) => symbol.name));
+};
+const shipped = exportsOf(join(root, "graphty-element/extend.ts"));
+const proposed = [...exportsOf(join(specDir, "simple.d.ts"))].filter((name) => !shipped.has(name));
 writeFileSync(
     join(out, "_extend.ts"),
     [
         `export * from ${JSON.stringify(join(root, "graphty-element/extend"))};`,
-        `export * from ${JSON.stringify(join(specDir, "simple"))};`,
+        `export { ${proposed.join(", ")} } from ${JSON.stringify(join(specDir, "simple"))};`,
         "",
     ].join("\n"),
 );

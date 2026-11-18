@@ -10,6 +10,7 @@ export const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>
     node: [
         "selection.neighborhood",
         "analyze.path",
+        "analyze.simulate-removing",
         "view.frame-selection",
         "style.layer-from-selection",
         "notes.add",
@@ -17,10 +18,17 @@ export const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>
         "node.expand",
         "node.collapse",
     ],
-    edge: ["selection.endpoints", "view.frame-selection", "style.layer-from-selection", "notes.add"],
+    edge: [
+        "selection.endpoints",
+        "analyze.simulate-removing",
+        "view.frame-selection",
+        "style.layer-from-selection",
+        "notes.add",
+    ],
     several: [
         "selection.neighborhood",
         "analyze.path",
+        "analyze.simulate-removing",
         "view.frame-selection",
         "style.layer-from-selection",
         "notes.add",

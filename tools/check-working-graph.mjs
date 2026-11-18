@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * The ratchet on readers that ignore the working graph (design/working-graph/design.md section 9).
- * The owner's agreement (2026-11-07): every reader uses the view -- what the filter and the time
- * window leave shown -- and only a reader that must see everything reads the whole graph, by name.
+ * The owner's agreement (2026-11-07): every reader uses the view -- what the filters leave shown;
+ * the time window hides by style and never changes the working graph -- and only a reader that
+ * must see everything reads the whole graph, by name.
  *
  * graphty-element/test/contracts/working-graph-readers.test.ts walks the session's public API from
  * its API report and proves every reader reads the view, except the ones listed, with the agreed

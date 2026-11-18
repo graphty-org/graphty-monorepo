@@ -18,7 +18,7 @@ import type { GraphSnapshot, NodeMask } from "./extend-snapshot";
  * AS BUILT in 2.6.1 this list omits "spiral" and "planar", which the catalogue publishes as
  * built-in arrangements (README section 5 item 4); adding them is an additive fix.
  * "force-2d" is deprecated (see DEPRECATED_LAYOUT_IDS): it is no longer in `catalog.layouts()` and
- * is read as "force" drawn by its `arf` engine, until the next major release removes it.
+ * is read as "force" drawn by its `arf` engine, until an ordinary release that announces it removes it.
  */
 export declare const KNOWN_LAYOUT_IDS: readonly [
     "force",
@@ -35,7 +35,7 @@ export declare const KNOWN_LAYOUT_IDS: readonly [
     "random",
 ];
 
-/** The built-in layout ids kept only as aliases, removed at the next major release. */
+/** The built-in layout ids kept only as aliases, removed in an ordinary release that announces it. */
 export declare const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
 
 /** A layout id: a built-in name or a registered one. OPEN UNION. */
@@ -93,7 +93,11 @@ export interface LayoutDescriptor {
     plainName: string;
     technicalName: string;
     description: string;
-    /** A grouping for pickers, e.g. "force-directed", "geometric", "hierarchical". */
+    /**
+     * The layout's family, a fact about its method: e.g. "force-directed", "geometric",
+     * "hierarchical". Whether and how a picker groups by it is the application's choice
+     * (2026-10-03 presentation-neutral rule), not graphty-element's.
+     */
     family: string;
     /** live: stepped until settled. batch: placed in one pass. */
     kind: "live" | "batch";

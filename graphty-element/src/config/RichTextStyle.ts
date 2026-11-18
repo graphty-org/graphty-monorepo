@@ -99,7 +99,7 @@ export const RichTextStyle = z.strictObject({
 
     // Font settings
     font: z.string().default("Verdana").optional(),
-    fontSize: z.number().default(48).optional(),
+    fontSize: z.number().min(1).default(48).optional(),
     // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
     size: z.number().positive().optional(),
     // How tall the letters (one font size) are drawn in the scene; set, it decides the label's size over size.
@@ -109,6 +109,8 @@ export const RichTextStyle = z.strictObject({
     wrapWidth: z.number().min(0).optional(),
     // Whether a space after each word counts toward wrapWidth; unset, only the words do.
     wrapTrailingSpace: z.boolean().optional(),
+    // With wrapTrailingSpace, whether a line's last word is measured without a space after it; unset, with one.
+    wrapSkipEndSpace: z.boolean().optional(),
     // Whether a line wider than wrapWidth is cut to fit with an ellipsis after it, in place of wrapping.
     wrapEllipsis: z.boolean().optional(),
     // Whether a line may break between any two letters, not only at its spaces.
@@ -117,6 +119,8 @@ export const RichTextStyle = z.strictObject({
     wrapSpaceCount: z.number().min(0).optional(),
     // The most lines drawn; the last one kept ends in an ellipsis when more were cut. Unset, every line.
     maxLines: z.number().int().min(1).optional(),
+    // Whether the last line maxLines keeps runs on, cut with an ellipsis; false, the rest is dropped. Unset, true.
+    maxLinesEllipsis: z.boolean().optional(),
     // Whether a blank line before or between lines of words is one line tall; unset, it takes no height.
     keepBlankLines: z.boolean().optional(),
     // Where runs of different sizes in one line meet: their alphabetic baselines, hanging baselines or middles.
@@ -126,6 +130,12 @@ export const RichTextStyle = z.strictObject({
     fontWeight: z.string().default("normal").optional(),
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),
+    // What one line is as tall as before lineHeight: its font's ascent plus descent, its font size, or its letters' ink.
+    lineBox: z.enum(["font", "size", "glyphs"]).optional(),
+    // Where the border is drawn: past the panel's edge, or centered on it.
+    borderAlign: z.enum(["outside", "center"]).optional(),
+    // The panel's shape: a rectangle, or a disc as wide as its shorter side.
+    backgroundShape: z.enum(["rectangle", "circle"]).optional(),
     // Below how many screen pixels tall the letters are drawn the label is hidden; unset, never.
     minScreenSize: z.number().min(0).optional(),
     // Whether this node label is hidden where it overlaps a label kept first, and which is kept
@@ -277,23 +287,14 @@ export type RichTextStyleType = z.infer<typeof RichTextStyle>;
 export const defaultRichTextLabelStyle: RichTextStyleType = RichTextStyle.parse({});
 
 /**
- * The smallest font size that draws any text. A size under it (0, or a negative number, which
- * the schema accepts) draws no text at all, and a layer that writes one is told so with
- * `W_TEXT_TOO_SMALL`.
- */
-export const MIN_DRAWN_FONT_SIZE = 1;
-
-/**
- * Whether a resolved text block draws: switched on, and at a size that draws text.
+ * Whether a resolved text block draws: switched on.
  * @param block - The resolved label, tooltip or caption block.
  * @returns The block when it draws, else undefined.
  */
 export function drawnText<T extends Pick<RichTextStyleType, "enabled" | "fontSize">>(
     block: T | undefined,
 ): T | undefined {
-    return block?.enabled === true && (block.fontSize === undefined || block.fontSize >= MIN_DRAWN_FONT_SIZE)
-        ? block
-        : undefined;
+    return block?.enabled === true ? block : undefined;
 }
 
 /**

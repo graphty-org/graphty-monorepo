@@ -7,15 +7,10 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { setDefaultFeatures } from "../../src/features/resolve";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
+import { windowNodeIds } from "../helpers/time-window";
 
 /** Twenty nodes, node i timed i, on a path. */
 const COUNT = 20;
@@ -116,10 +111,12 @@ describe("a layout over only what the filter shows while time plays", () => {
         await made.waitForSettled();
         assert.strictEqual(layouts(), 0, "a window step lays nothing out");
 
-        const shownBefore = [...made.session.visibility.nodes];
+        const shownBefore = windowNodeIds(made.session);
+        const visibleBefore = made.session.visibility.summary;
         made.session.time.play({ motion: "steps", interval: 0, loop: true });
         await steps(made, 5);
-        assert.notDeepEqual([...made.session.visibility.nodes], shownBefore, "the play moved the window");
+        assert.notDeepEqual(windowNodeIds(made.session), shownBefore, "the play moved the window");
+        assert.deepEqual(made.session.visibility.summary, visibleBefore, "and hid nothing from the data");
         made.session.time.pause();
         await made.waitForSettled();
 

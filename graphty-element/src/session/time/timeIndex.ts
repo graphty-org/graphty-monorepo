@@ -154,7 +154,7 @@ export interface KindPlan {
     readonly read: (row: number) => unknown;
     /** The unit the designation gave; absent, the values decide, then `"ms"`. */
     readonly unit: TimeUnit | undefined;
-    /** The zone text with no offset reads in; absent, text reads as it does with the timeline off. */
+    /** The zone text with no offset reads in; absent, strict text reads in UTC. */
     readonly zone: string | undefined;
     /** The kind's end column, as a column and how it reads. */
     readonly end?: SpanColumn;

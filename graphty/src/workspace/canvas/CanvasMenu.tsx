@@ -5,9 +5,9 @@ import type { NodeId } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
 import { Sections } from "../frame/menus";
-import { useSessionVersion } from "../inspector/hooks";
 import { resolveInspected } from "../inspector/inspected";
 import { MENUS } from "../inspector/kindMenus";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { motionCommandId } from "../settings/commands";
 import { useShaderSettings } from "../settings/shaderPreferences";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -36,7 +36,7 @@ const KEYBOARD_ECHO_MS = 500;
 export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     const { session, element } = useWorkspace();
     // The menu's rows read the selection, which the press changes after the menu opens.
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     // The Motion row follows the motion the element draws with: the reader's preference, which
     // another door may change, and the platform's reduced-motion preference.
     useShaderSettings();

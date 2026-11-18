@@ -430,11 +430,11 @@ export function narrowedAtCompileTime(parts: {
     // @ts-expect-error `Graph.operationQueue` is private
     const _queue = graph.operationQueue;
     // @ts-expect-error the node map is read-only
-    dataManager.nodes.set(node.id, node);
+    const _setNode = dataManager.nodes.set;
     // @ts-expect-error the edge map is read-only
-    dataManager.edges.delete(edge.id);
+    const _deleteEdge = dataManager.edges.delete;
     // @ts-expect-error the pair list is read-only
-    dataManager.getEdgesBetween(edge.srcId, edge.dstId).push(edge);
+    const _pushPair = dataManager.getEdgesBetween(edge.srcId, edge.dstId).push;
     // @ts-expect-error the row index is read-only
     dataManager.edgesByIndex[0] = edge;
     // @ts-expect-error a node's id is read-only
@@ -454,9 +454,9 @@ export function narrowedAtCompileTime(parts: {
     // @ts-expect-error pinning on the engine is protected
     engine.pin(node);
     // @ts-expect-error the store's coordinates are read-only
-    session.data.store.positions.write(0, 1, 2, 3);
+    const _writeStore = session.data.store.positions.write;
     // @ts-expect-error and so are the session's
-    session.positions.setPinned(0, true);
+    const _setPinned = session.positions.setPinned;
 }
 
 describe("strict state: pins", () => {

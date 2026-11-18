@@ -32,7 +32,7 @@
  * submission becomes visible to a step() issued in the same tick and so change how the frame loop coalesces.
  * It deliberately does NOT run in GpuContext.create:
  * a context that only compiles -- Dawn's null backend, which computes nothing by design -- must stay usable, and
- * `src/context.ts` may not import a primitive (the layer rule of spec 3.2).
+ * `src/context.ts` may not import a primitive (the package's layer rule, test/layers.test.ts).
  */
 
 import { WebGpuGraphError } from "../errors.js";

@@ -1,7 +1,9 @@
 // Tests of tools/full-run.mjs: the full run's candidate pick and its verdict (channels design, sections 5 and 6).
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -31,6 +33,7 @@ import {
     flakyStoryBody,
     greenCloses,
     heldLine,
+    heldNow,
     holdAction,
     isOnNightly,
     LANES,
@@ -643,7 +646,8 @@ describe("the held candidate", () => {
         assert.equal(holdAction({ held: "", sha: "s", state: "green-clean" }), "none");
         assert.equal(holdAction({ held: "s", sha: "s", state: "green-clean" }), "update");
         assert.equal(holdAction({ held: "t", sha: "s", state: "red" }), "none", "a master slot never replaces it");
-        assert.equal(holdAction({ held: "unknown", sha: "s", state: "red" }), "none");
+        assert.equal(holdAction({ held: "unknown", sha: "s", state: "red" }), "unknown");
+        assert.equal(holdAction({ held: "unknown", sha: "s", state: "green-images" }), "unknown");
     });
     it("replaces a held head with a newer green run, even one awaiting the owner's review (#5052, #6604)", () => {
         const at = (state, heldState, newer = true) => holdAction({ held: "t", sha: "s", state, heldState, newer });
@@ -1234,5 +1238,49 @@ describe("the ordering-only pick rule (early-capture.md 4e)", () => {
         assert.equal(pick({ ...base, mode: "restart", store: sites }).sha, "c3");
         assert.equal(pick({ ...base, mode: "candidate", store: sites }).run, false);
         assert.equal(pick({ ...base, mode: "full", store: null }).sha, "c3");
+    });
+});
+
+describe("heldNow (#5597)", () => {
+    // a store that answers HTTP 500 to the first `fails` reads of /v1/candidate, then the hold
+    const store = async (fails) => {
+        let reads = 0;
+        const server = createServer((req, res) => {
+            reads++;
+            if (reads <= fails) {
+                res.writeHead(500, { "content-type": "application/json" }).end('{"error":"internal error"}');
+                return;
+            }
+            const hold = { base: "b", head: "h" };
+            res.writeHead(200, { "content-type": "application/json" }).end(
+                JSON.stringify({ hold, recent: [{ sha: "h", state: "green-images" }] }),
+            );
+        });
+        server.listen(0, "127.0.0.1");
+        await once(server, "listening");
+        const cfg = { url: `http://127.0.0.1:${server.address().port}`, token: "t", retryMs: [0, 0, 0, 0] };
+        return { cfg, reads: () => reads, close: () => server.close() };
+    };
+
+    it("waits out a store that answers 5xx longer than one call's own retries", async () => {
+        const s = await store(3);
+        try {
+            assert.deepEqual(await heldNow(s.cfg), { head: "h", base: "b", state: "green-images" });
+            assert.equal(s.reads(), 4);
+        } finally {
+            s.close();
+        }
+    });
+
+    it("says unknown, never 'nothing held', when every read fails, and the verdict then decides nothing", async () => {
+        const s = await store(Infinity);
+        try {
+            const now = await heldNow(s.cfg);
+            assert.equal(now.head, "unknown");
+            assert.equal(s.reads(), 5);
+            assert.equal(holdAction({ held: now.head, sha: "s", state: "green-images", newer: true }), "unknown");
+        } finally {
+            s.close();
+        }
     });
 });

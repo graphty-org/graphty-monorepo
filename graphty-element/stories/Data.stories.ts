@@ -45,13 +45,11 @@ type Story = StoryObj<StoryArgs>;
  * Every story in this file exists to prove ONE importer produces the graph its own document
  * declares, so every one of them asserts the same two things and differs only in the two numbers.
  *
- * WHY THE NUMBERS ARE THE WHOLE POINT. Nothing here used to check them. `waitForDataLoaded`
- * resolves on a five-second timer with the comment "Data may already be loaded (e.g., inline
- * data) or failed", and the project-level check asks only whether any node arrived -- so a GraphML
- * fetch that returned three nodes of thirty-four, or a CSV importer that quietly dropped every row
- * with a quoted field, rendered a picture and passed. The importer's own report is read beside
- * them, because an edge whose endpoints the store would not take is a dropped row the counts alone
- * cannot always show.
+ * WHY THE NUMBERS ARE THE WHOLE POINT. The project-level check asks only whether any node
+ * arrived, so a GraphML fetch that returned three nodes of thirty-four, or a CSV importer that
+ * dropped every row with a quoted field, would still render a picture and pass it. The importer's
+ * own report is read beside the counts, because an edge whose endpoints the store would not take
+ * is a dropped row the counts alone cannot always show.
  * @param canvasElement - Where the story was rendered.
  * @param story - Which importer this is, for the failure message.
  * @param nodes - The nodes the story's document declares.
@@ -82,7 +80,7 @@ export const Basic: Story = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data3.json (77 nodes) with ngraph
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
         await imported(canvasElement, "Basic", 6, 6);
@@ -119,7 +117,7 @@ export const ModifiedJson: Story = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data2.json (80 nodes) with ngraph
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data2.json (77 nodes) with ngraph
     },
     play: async ({ canvasElement }) => {
         await imported(canvasElement, "ModifiedJson", 77, 254);

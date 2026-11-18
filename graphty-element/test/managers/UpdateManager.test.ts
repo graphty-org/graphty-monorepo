@@ -1,7 +1,6 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { Graph, renderManagerOf } from "../../src/Graph";
 import { nodeFramingBox, styleBudgetFor, UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
@@ -14,8 +13,6 @@ describe("UpdateManager", () => {
     beforeEach(async () => {
         graph = await createTestGraph();
 
-        const graphAny = graph as unknown as Record<string, unknown>;
-
         // Every test below pumps frames by hand (`update`, `stepFrames`) and reads what a pass left
         // behind, so the live render loop `init` started must not run passes of its own in between.
         // Left running, it frames the graph the first time an animation frame lands between the
@@ -24,7 +21,7 @@ describe("UpdateManager", () => {
         // 295 ms on a loaded CI shard, where "zoom to fit has not completed yet" was already false
         // before the test began. Held frames are skipped whole, so nothing below observes a pass it
         // did not run itself.
-        releaseFrames = (graphAny.renderManager as RenderManager).holdFrames();
+        releaseFrames = renderManagerOf(graph).holdFrames();
 
         // Add test data with explicit positions for fixed layout
         // Positions need to create a bounding box larger than minBoundingBoxSize (0.1)

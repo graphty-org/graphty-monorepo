@@ -6,6 +6,7 @@
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graph } from "../../src/Graph.js";
+import { dataManagerInternals } from "../../src/managers/DataManager.js";
 import { dispatcherOf } from "../../src/session/GraphSession.js";
 
 /** The graphs the running test made, disposed after it. */
@@ -51,7 +52,7 @@ function twoLoads(graph: Graph): { first: { data: string }; second: { data: stri
 
     const first = { data: JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [] }) };
     const second = { data: JSON.stringify({ nodes: [{ id: "c" }], edges: [] }) };
-    const ids = (graph.getDataManager() as unknown as { loadIds: WeakMap<object, number> }).loadIds;
+    const ids = dataManagerInternals.loadIds(graph.getDataManager());
     ids.set(first, 7);
     ids.set(second, 8);
     return { first, second, heard };

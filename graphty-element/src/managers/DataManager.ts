@@ -349,6 +349,10 @@ interface ExistingEdge {
  * read-only to everything else, and nodes and edges arrive through the data doors.
  */
 export const dataManagerInternals = {} as {
+    /** The styles the manager reads now; see `DataManager.updateStyles`. */
+    styles(manager: DataManager): Styles;
+    /** The load id each data source's configuration was read under; see `DataManager.loadIds`. */
+    loadIds(manager: DataManager): WeakMap<object, number>;
     /** Register a node under its id. */
     adoptNode(manager: DataManager, node: Node): void;
     /** Register an edge under its id, its endpoint pair and, when it has one, its row. */
@@ -744,6 +748,8 @@ export class DataManager implements Manager {
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.loadIds = (manager) => manager.loadIds;
+        dataManagerInternals.styles = (manager) => manager.styles;
         dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
         dataManagerInternals.nodesLive = (manager) => manager.nodeMap.builtView().size;
         dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;
@@ -2088,7 +2094,6 @@ export class DataManager implements Manager {
                 }
             },
             progress: (change) => this.dispatcher?.services.progress?.(change),
-            timeline: () => this.dispatcher?.services.timeline?.() === true,
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
                     const { loadId } = this;
@@ -2400,6 +2405,9 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        // Rows stored under "batched" with no `Node`: the node map counts them, so a disposed graph held them.
+        this.unbuilt.clear();
+        this.unbuiltIds.clear();
         this.unbuiltEdges.clear();
         this.unbuiltEdgeIds.clear();
         this.nodeVersion++;
@@ -3288,11 +3296,13 @@ export class DataManager implements Manager {
                 ? (this.graph.slice.edges.get(edgeIdOf(stored.edgeId)) ?? IN_SLICE)
                 : stored.record;
         const edge = this.makeEdge({ ...stored, record }, false, queue);
-        const paint = lined ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
-        if (paint !== null) {
+        const paint = queue ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
+        // A row a style hides draws no line to pull, but its `Edge` must not read as drawn until the next frame.
+        if (paint !== null && (lined || paint.style.visible === false)) {
             edge.applySessionPaint(paint);
         }
 
+        this.graphContext?.getUpdateManager?.().adoptBuiltEdge(edge);
         return edge;
     }
 

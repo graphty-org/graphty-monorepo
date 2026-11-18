@@ -1,6 +1,12 @@
+import { KEYMAP_DESCRIPTORS, type KeymapAction } from "@graphty/graphty-element/catalog";
+import { attachKeymap, type GraphSession, type KeymapReport } from "@graphty/graphty-element/session";
 import { useEffect } from "react";
 
 import { switchedOff } from "../commands/registry";
+import { historyNotice } from "../frame/historyWords";
+import { selectionClearedWords } from "../inspector/words";
+import { errorWords } from "../project/words";
+import type { WorkspaceStore } from "../state/store";
 import type { WorkspaceValue } from "../state/WorkspaceContext";
 import { firesWhileTyping, hasPendingEdit, isSingleKey, isTypingTarget, matchesKey, trackPendingEdits } from "./keys";
 
@@ -86,35 +92,89 @@ function assistantEscape(event: KeyboardEvent, key: string): boolean {
     return key === "Escape" && event.target instanceof Element && event.target.closest(".ws-assistant") !== null;
 }
 
+/** The keys graphty-element's keymap answers (Escape, Undo, Redo): never dispatched as commands here. */
+const GRAPH_KEYS = new Set(KEYMAP_DESCRIPTORS.flatMap((entry) => entry.keys));
+
 /**
- * Runs a built command when one of its keys is pressed anywhere in the window.
+ * Whether a key press stays where it was pressed rather than running the key's command or graph
+ * action: a modal dialog is open, the reader types in a field, a menu or list is open, single keys
+ * are switched off, or it is Escape in an inspector field or on the Assistant panel.
+ * @param event - the key press.
+ * @param key - the key string it matched.
+ * @param workspace - the workspace context value.
+ * @returns true when it stays.
+ */
+function keptFromWorkspace(event: KeyboardEvent, key: string, workspace: WorkspaceValue): boolean {
+    const typing = isTypingTarget(event.target);
+    const overlayOpen = overlayShown() || pressedInOverlay(event.target, OVERLAY);
+    const modalOpen = overlayShown(MODAL) || pressedInOverlay(event.target, MODAL);
+    const pending = hasPendingEdit(event.target);
+    return (
+        modalOpen ||
+        (typing && !firesWhileTyping(key, pending)) ||
+        (overlayOpen && !firesWhileTyping(key, (typing && pending) || overlayShown(HISTORY_OVERLAY))) ||
+        (!workspace.store.get().singleKeyShortcuts && isSingleKey(key)) ||
+        inspectorEscape(event, key) ||
+        assistantEscape(event, key)
+    );
+}
+
+/**
+ * Says what graphty-element's keymap did on the status line: "Selection cleared", "Undid Size by
+ * PageRank", or the failure, as the Clear selection, Undo and Redo commands do.
+ * @param session - the element's session.
+ * @param store - the workspace store the words are posted to.
+ * @returns the keymap's report handler.
+ */
+function sayKeymapAction(session: GraphSession, store: WorkspaceStore): (report: KeymapReport) => void {
+    return (report) => {
+        if (report.action === "deselect") {
+            // Says what went, so an Escape pressed for something else is not silent; a rule in the
+            // find box stays there, so Enter brings the selection back.
+            store.set({
+                notice: { message: selectionClearedWords(report.nodes, report.edges), endsWithSelection: true },
+            });
+            return;
+        }
+        const undo = report.action === "undo";
+        const say = historyNotice(session, undo, store);
+        report.done.then(say, (error: unknown) => {
+            store.set({ notice: { message: errorWords(`${undo ? "Undo" : "Redo"} failed`, error) } });
+        });
+    };
+}
+
+/**
+ * Runs a built command when one of its keys is pressed anywhere in the window, and answers
+ * graphty-element's graph keys (Escape, Undo, Redo) through its keymap under the same rules.
  * @param workspace - the workspace context value.
  */
 export function useCommandKeys(workspace: WorkspaceValue): void {
     useEffect(() => {
         const stopTracking = trackPendingEdits();
+        const { session } = workspace;
+        const detachKeymap =
+            session === null
+                ? () => undefined
+                : attachKeymap(session, globalThis, {
+                      ignore: (event: KeyboardEvent, action: KeymapAction) => {
+                          const keys = KEYMAP_DESCRIPTORS.find((entry) => entry.action === action)?.keys ?? [];
+                          const key = keys.find((combo) => matchesKey(event, combo));
+                          return key === undefined || keptFromWorkspace(event, key, workspace);
+                      },
+                      onAction: sayKeymapAction(session, workspace.store),
+                  });
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.defaultPrevented || event.isComposing) {
                 return;
             }
             const typing = isTypingTarget(event.target);
-            const overlayOpen = overlayShown() || pressedInOverlay(event.target, OVERLAY);
-            const modalOpen = overlayShown(MODAL) || pressedInOverlay(event.target, MODAL);
-            const { singleKeyShortcuts } = workspace.store.get();
             for (const command of workspace.registry.live) {
                 const key = command.keys?.find((combo) => matchesKey(event, combo));
-                if (key === undefined || switchedOff(command, workspace)) {
+                if (key === undefined || GRAPH_KEYS.has(key) || switchedOff(command, workspace)) {
                     continue;
                 }
-                const pending = hasPendingEdit(event.target);
-                const blocked =
-                    modalOpen ||
-                    (typing && !firesWhileTyping(key, pending)) ||
-                    (overlayOpen && !firesWhileTyping(key, (typing && pending) || overlayShown(HISTORY_OVERLAY))) ||
-                    (!singleKeyShortcuts && isSingleKey(key)) ||
-                    inspectorEscape(event, key) ||
-                    assistantEscape(event, key);
-                if (blocked) {
+                if (keptFromWorkspace(event, key, workspace)) {
                     return;
                 }
                 event.preventDefault();
@@ -130,6 +190,7 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
         };
         globalThis.addEventListener("keydown", onKeyDown);
         return () => {
+            detachKeymap();
             stopTracking();
             globalThis.removeEventListener("keydown", onKeyDown);
         };

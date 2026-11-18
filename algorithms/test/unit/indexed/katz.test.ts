@@ -78,7 +78,7 @@ describe("indexed.katzCentrality", () => {
         s.validate({ checksum: true });
     });
 
-    it("throws on a graph of spectral radius 10 at the default alpha, and converges below 1 / 10", () => {
+    it("throws on a graph of spectral radius 10 at alpha 0.1, and its derived default converges below 1 / 10", () => {
         // The complete graph on 11 nodes has spectral radius 10, so alpha 0.1 sits on the divergence bound.
         const g = new Graph({ directed: false });
         for (let u = 0; u < 11; u++) {
@@ -87,8 +87,9 @@ describe("indexed.katzCentrality", () => {
             }
         }
         const s = checksummedSnapshot(g);
-        expect(() => katzCentrality(s)).toThrow(expect.objectContaining({ code: "E_NOT_CONVERGED" }));
-        const r = katzCentrality(s, { alpha: 0.05, normalized: false });
+        expect(() => katzCentrality(s, { alpha: 0.1 })).toThrow(expect.objectContaining({ code: "E_NOT_CONVERGED" }));
+        // The radius bound is 10 here, so an omitted alpha derives 1 / (2 * 10) = 0.05.
+        const r = katzCentrality(s, { normalized: false });
         expect(r.converged).toBe(true);
         // x = alpha * 10x + beta: x = 1 / (1 - 0.5) = 2.
         expect(r.scores[0]).toBeCloseTo(2, 5);
@@ -133,7 +134,8 @@ describe("indexed.katzCentrality", () => {
             // index. That is a floating-point difference, not an algorithmic one.
             // Where the series does not converge, legacy returned the rescaled diverged vector and the
             // port throws, so only the converged runs are compared.
-            for (const options of [{}, { alpha: 0.05, beta: 0.5, normalized: false }]) {
+            // The legacy function's default alpha was 0.1, so it is passed explicitly.
+            for (const options of [{ alpha: 0.1 }, { alpha: 0.05, beta: 0.5, normalized: false }]) {
                 const ported = katzOrError(s, options);
                 const legacy = legacyResult() as CentralityResult;
                 const expected = ported instanceof ConvergenceError ? [] : Object.keys(legacy);

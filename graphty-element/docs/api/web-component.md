@@ -102,6 +102,7 @@ The Web Component provides these methods for imperative control:
 | `canCaptureScreenshot(options?)`    | `ScreenshotOptions` | `Promise<CapabilityCheck>`  | Check screenshot support |
 | `captureAnimation(options)`         | `AnimationOptions`  | `Promise<AnimationResult>`  | Capture video            |
 | `cancelAnimationCapture()`          | -                   | `boolean`                   | Cancel ongoing capture   |
+| `stopAnimationCapture()`            | -                   | `boolean`                   | Stop and keep the video  |
 | `isAnimationCapturing()`            | -                   | `boolean`                   | Check if capturing       |
 | `estimateAnimationCapture(options)` | `AnimationOptions`  | `Promise<CaptureEstimate>`  | Estimate capture         |
 

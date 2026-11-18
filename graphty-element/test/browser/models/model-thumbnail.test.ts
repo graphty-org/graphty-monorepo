@@ -4,6 +4,8 @@
  * the model's own code when it cannot be drawn.
  */
 
+import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
@@ -124,5 +126,22 @@ describe("modelThumbnail", () => {
         assert.equal(noBin.state, "rejected");
         const error = await element.modelThumbnail(noBin.id, { standInMissing: true }).catch((e: unknown) => e);
         assert.isTrue(isGraphtyError(error) && error.code === "E_MODEL_MISSING_FILE");
+    });
+    it("keeps a mesh the graph builds while a thumbnail draws", async () => {
+        // A node mesh built in the frame the thumbnail draws in (the first model a layer asks for,
+        // while the Shape field draws its picture) must stay in the scene.
+        const element = await mount();
+        const ball = await element.session.assets.add({ files: new Map([["ball.glb", sphereGlb(8, 4)]]) });
+        const { scene } = element.graph;
+        let built: Mesh | undefined;
+        const observer = scene.onBeforeRenderObservable.add(() => {
+            if (built === undefined && scene.activeCamera?.name === "graphty-node-thumbnail") {
+                built = CreateBox("built-during-thumbnail", { size: 1 }, scene);
+            }
+        });
+        await element.modelThumbnail(ball.id, { size: 32 });
+        scene.onBeforeRenderObservable.remove(observer);
+        assert.isDefined(built, "a mesh was built while the thumbnail drew");
+        assert.include(scene.meshes, built, "and is still in the scene");
     });
 });

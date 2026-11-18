@@ -14,7 +14,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { RenderManager } from "../../src/managers/RenderManager.js";
+import { renderManagerOf } from "../../src/Graph.js";
 
 const COUNT = 12;
 const NODES = Array.from({ length: COUNT }, (_unused, index) => ({ id: `n${String(index)}` }));
@@ -40,7 +40,7 @@ describe("a stable frame after work that arrived behind the pass", () => {
 
     it("is not announced while the layout that work started is running", async () => {
         const { graph } = element;
-        const { renderManager } = graph as unknown as { renderManager: RenderManager };
+        const renderManager = renderManagerOf(graph);
         const scene = graph.getScene();
         let announced = 0;
         const listener = graph.eventManager.addListener("graph-frame-stable", () => {
@@ -50,7 +50,7 @@ describe("a stable frame after work that arrived behind the pass", () => {
         // After the frame's pass, before it is drawn: the layout starts and the view moves.
         await new Promise<void>((resolve) => {
             scene.onBeforeRenderObservable.addOnce(() => {
-                graph.getLayoutManager().running = true;
+                graph.setRunning(true);
                 graph.getUpdateManager().viewMoved();
                 scene.onAfterRenderObservable.addOnce(() => {
                     resolve();
@@ -62,6 +62,6 @@ describe("a stable frame after work that arrived behind the pass", () => {
         assert.strictEqual(announced, 0, "the frame drawn while the layout runs is not called final");
         graph.eventManager.removeListener(listener);
         await element.waitForStableFrame();
-        assert.isFalse(graph.getLayoutManager().running, "the stable frame waited for the layout to rest");
+        assert.isFalse(graph.isRunning(), "the stable frame waited for the layout to rest");
     });
 });

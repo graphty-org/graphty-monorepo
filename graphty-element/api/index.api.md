@@ -2702,7 +2702,7 @@ export type FeatureId = "assistant" | "data-management" | "location-map" | "cosm
 export interface FigureOptions {
     download?: boolean;
     downloadFilename?: string;
-    format?: "svg";
+    format?: "svg" | "pdf";
     legend?: ScreenshotOptions["legend"];
     transparentBackground?: boolean;
 }

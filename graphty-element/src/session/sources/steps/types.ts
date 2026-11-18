@@ -10,8 +10,16 @@
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
 
+import type { JoinReduce } from "../../types";
+
 /** One cell of a row as read. */
 export type CellValue = string | number | boolean | null;
+
+/** A built element's value for one cell: a cell as read, or the list an `aggregate` of `list` gathers. */
+export type Value = CellValue | readonly CellValue[];
+
+/** Per working column, how a step settles the rows of one repeated key (3.3); other columns follow `repeated`. */
+export type Aggregate = Readonly<Record<string, JoinReduce>>;
 
 /** One row as read, keyed by its column names. */
 export type Row = Readonly<Record<string, CellValue | undefined>>;
@@ -154,6 +162,8 @@ export interface MergeStep extends StepChoices, Translating {
     readonly op: "join.merge";
     readonly read: NodeStepRead;
     readonly repeated?: "first" | "last";
+    /** Settles the merged values of every node 2 folding into one node 1. */
+    readonly aggregate?: Aggregate;
     readonly unmatchedFrom?: "keep" | "drop";
 }
 
@@ -162,6 +172,7 @@ export interface NodeValuesStep extends StepChoices, Translating {
     readonly op: "join.node-values";
     readonly read: NodeStepRead;
     readonly repeated?: "first" | "last";
+    readonly aggregate?: Aggregate;
     readonly unmatchedRows?: "add" | "leave-out";
 }
 
@@ -198,6 +209,8 @@ export interface EdgesStep extends StepChoices, Translating {
     readonly viaEnd?: "source" | "target";
     /** Two rows naming one end pair: absent leaves them to the graph's `repeatedEdges`. */
     readonly repeated?: "first" | "last" | "both";
+    /** Makes one edge per end pair, as `repeated` does, with these columns reduced over its rows. */
+    readonly aggregate?: Aggregate;
     readonly unmatchedRows?: "add" | "leave-out";
 }
 
@@ -234,7 +247,7 @@ export interface BuildInput {
 
 /** One source's value for one cell. */
 export interface OwnValue {
-    readonly v: CellValue;
+    readonly v: Value;
     readonly step: number;
     readonly row: number;
 }
@@ -265,7 +278,7 @@ export interface BuiltElement {
     loads: string[];
     /** The sources that only named it (3.1). */
     named: string[];
-    values: Record<string, CellValue>;
+    values: Record<string, Value>;
     /** The source whose value each cell shows, or `rule:mean` for a computed one. */
     origin: Record<string, string>;
     own: Record<string, Record<string, OwnValue>>;
@@ -285,7 +298,7 @@ export interface BuiltNode extends BuiltElement {
     /** The `{ space, key }` of node 2s merged into it, and of its own former place. */
     aliases: { space: string; key: string; type: string | null }[];
     /** Values a repeat of one source left in the provenance only. */
-    alt?: { src: string; col: string; v: CellValue; from?: string }[];
+    alt?: { src: string; col: string; v: Value; from?: string }[];
     /** Sources whose edge ends reach it; settled into `loads` or `named` after the build. */
     ends?: string[];
 }

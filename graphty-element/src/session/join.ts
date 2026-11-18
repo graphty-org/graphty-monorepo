@@ -885,7 +885,7 @@ function columnsOf(table: JoinTable, choices: JoinChoices): string[] {
  * @param values - The values, blanks dropped, in table order.
  * @returns The value, or undefined when there is none.
  */
-function reduce(rule: JoinReduce, values: readonly unknown[]): unknown {
+export function reduce(rule: JoinReduce, values: readonly unknown[]): unknown {
     if (rule === "count") {
         return values.length;
     }

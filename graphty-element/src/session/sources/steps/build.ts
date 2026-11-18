@@ -9,6 +9,8 @@
  * the DOM.
  */
 
+import { reduce } from "../../join";
+import type { JoinReduce } from "../../types";
 import type {
     AddStep,
     BuildInput,
@@ -34,6 +36,7 @@ import type {
     StepStats,
     TableName,
     TypeEntry,
+    Value,
 } from "./types";
 
 /**
@@ -67,7 +70,7 @@ export const ownSpace = (sourceId: string): string => `source:${sourceId}`;
 export const nodeSpace = (src: Source): string => src.mapping.nodes?.space ?? ownSpace(src.id);
 
 const escapeKey = (k: string): string => k.replaceAll(/[\\|]/g, String.raw`\$&`);
-const isEmpty = (v: CellValue | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
+const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
 interface MatchOptions {
@@ -255,7 +258,17 @@ function ruleFor(step: Step, column: string): ClashRule {
     return c ?? "keep";
 }
 
-type Held = [origin: string, value: CellValue];
+/**
+ * The `aggregate` rule a step sets for one working column.
+ * @param step - The step.
+ * @param column - A working column name.
+ * @returns The rule, or undefined when the column follows `repeated`.
+ */
+function aggregateFor(step: Step, column: string): JoinReduce | undefined {
+    return "aggregate" in step ? step.aggregate?.[column] : undefined;
+}
+
+type Held = [origin: string, value: Value];
 const numbers = (all: Held[]): [string, number][] | undefined =>
     all.every(([, v]) => !isEmpty(v) && !Number.isNaN(Number(v))) ? all.map(([s, v]) => [s, Number(v)]) : undefined;
 const pickBy = (all: Held[], better: (a: number, b: number) => boolean): Held | undefined => {
@@ -281,7 +294,7 @@ const FUSE: Partial<Record<ClashRule, (all: Held[]) => Held | undefined>> = {
     },
     vote: (all) => {
         // the value most sources hold; a tie keeps the held (first) value
-        const counts = new Map<CellValue, number>();
+        const counts = new Map<Value, number>();
         for (const [, v] of all) {
             counts.set(v, (counts.get(v) ?? 0) + 1);
         }
@@ -449,6 +462,8 @@ class Builder {
     // `<source>#<table>` -> the rows a filtered step read, for the no-step fate
     private readonly reads = new Map<string, { src: string; table: TableName; n: number; read: Set<number> }>();
     private readonly types: readonly TypeEntry[];
+    // the rows each `aggregate` column read so far, per element (see gather)
+    private readonly gathered = new WeakMap<BuiltElement, Map<string, Value[]>>();
 
     constructor(
         private readonly input: BuildInput,
@@ -550,13 +565,18 @@ class Builder {
     }
 
     // Writes one cell from one source by the step's clash rule (3.3, 3.10).
-    private write(el: BuiltElement, col: string, v: CellValue | undefined, at: WriteAt): void {
+    private write(el: BuiltElement, col: string, v: Value | undefined, at: WriteAt): void {
         if (isEmpty(v)) {
             return;
         }
         const { src, st, step } = at;
         el.own[src] ??= {};
         const mine = el.own[src][col] as OwnValue | undefined;
+        const agg = aggregateFor(step, col);
+        if (agg !== undefined) {
+            this.writeOwn(el, col, this.gather(el, col, v, at, agg), at);
+            return;
+        }
         if (mine) {
             // a repeat within one source: `repeated` decides, absent means first (3.3)
             if (mine.v !== v) {
@@ -566,6 +586,25 @@ class Builder {
                 return;
             }
         }
+        this.writeOwn(el, col, v, at);
+    }
+
+    // Each row an `aggregate` column read for one element, per step and source, reduced so far (3.3).
+    private gather(el: BuiltElement, col: string, v: Value, at: WriteAt, rule: JoinReduce): Value {
+        const k = `${at.si}\u0001${at.src}\u0001${col}`;
+        let byKey = this.gathered.get(el);
+        if (!byKey) {
+            byKey = new Map();
+            this.gathered.set(el, byKey);
+        }
+        const all = [...(byKey.get(k) ?? []), v];
+        byKey.set(k, all);
+        return (reduce(rule, all) as Value | undefined) ?? null;
+    }
+
+    // Sets one source's value for a cell, then settles the cell against other sources by the clash rule.
+    private writeOwn(el: BuiltElement, col: string, v: Value, at: WriteAt): void {
+        const { src, st, step } = at;
         el.own[src][col] = { v, step: at.si, row: at.row };
         const heldFrom = el.origin[col] as string | undefined;
         if (heldFrom === undefined || heldFrom === src) {
@@ -591,7 +630,7 @@ class Builder {
     }
 
     // 3.8: a clash column holds its source's own value, so that source's section reads it
-    private clashColumn(el: BuiltElement, col: string, v: CellValue, at: WriteAt): void {
+    private clashColumn(el: BuiltElement, col: string, v: Value, at: WriteAt): void {
         const c = `${col} (${at.src})`;
         el.values[c] = v;
         el.origin[c] = at.src;
@@ -996,7 +1035,7 @@ class Builder {
         const { w, meaning, weightDefault, timeCol } = edgeRoles(a);
         const existing = this.edges.get(id);
         if (existing) {
-            this.repeatEdge(existing, step, si, a, timeCol);
+            this.repeatEdge(existing, step, si, st, a, timeCol);
             return;
         }
         const policy = a.repeated === undefined ? (this.input.repeatedEdges ?? "keep") : "keep";
@@ -1053,18 +1092,25 @@ class Builder {
     }
 
     // A second row with an existing edge's key: the step's `repeated`, else E_EDGE_KEY_COLLISION (3.3).
-    private repeatEdge(existing: BuiltEdge, step: Step, si: number, a: EdgeArgs, timeCol: string | null): void {
+    private repeatEdge(
+        existing: BuiltEdge,
+        step: Step,
+        si: number,
+        st: StepStats,
+        a: EdgeArgs,
+        timeCol: string | null,
+    ): void {
         span(existing, a, timeCol);
-        if (a.repeated === undefined) {
+        const aggregates = "aggregate" in step && step.aggregate !== undefined;
+        if (a.repeated === undefined && !aggregates) {
             this.issues.push({ code: "E_EDGE_KEY_COLLISION", params: { load: a.load, key: a.key, steps: [si] } });
             return;
         }
         this.touch(existing, step, si, a.table, a.row, a.index);
-        if (a.repeated !== "last") {
-            return;
-        }
         for (const [c, v] of a.values) {
-            if (!isEmpty(v)) {
+            if (aggregateFor(step, c) !== undefined) {
+                this.write(existing, c, v, { src: a.load, si, row: a.index, step, st });
+            } else if (a.repeated === "last" && !isEmpty(v)) {
                 existing.values[c] = v;
             }
         }
@@ -1186,11 +1232,25 @@ class Builder {
         }
     }
 
+    // Every row of every node 2 is one value of the merge source's aggregate columns.
+    private foldAggregates(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
+        for (const [col, cell] of Object.entries(n2.own[at.src] ?? {})) {
+            if (aggregateFor(at.step, col) !== undefined) {
+                for (const r of rows) {
+                    this.write(n1, col, r[col], { ...at, row: cell.row });
+                }
+            }
+        }
+    }
+
     private foldValues(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
         const last = "repeated" in at.step && at.step.repeated === "last";
         const pick = last ? [...rows].reverse() : rows;
+        this.foldAggregates(n1, n2, at, rows);
+        const aggregated = (src: string, col: string): boolean =>
+            src === at.src && aggregateFor(at.step, col) !== undefined;
         for (const [src, cells] of Object.entries(n2.own)) {
-            for (const [col, cell] of Object.entries(cells)) {
+            for (const [col, cell] of Object.entries(cells).filter(([c]) => !aggregated(src, c))) {
                 const v = pick.map((r) => r[col]).find((x) => !isEmpty(x)) ?? cell.v;
                 const had = n1.own[src]?.[col] as OwnValue | undefined;
                 n1.alt ??= [];
@@ -1231,7 +1291,7 @@ function edgeStepKey(s: EdgesStep, src: Source, r: Row, i: number, from: BuiltNo
         const v = r[s.read.edgeId];
         return isEmpty(v) ? keyless : `${s.part}/${text(v)}`;
     }
-    if (s.repeated !== undefined) {
+    if (s.repeated !== undefined || s.aggregate !== undefined) {
         return `${s.part}/${escapeKey(from.key)}|${escapeKey(to.key)}`;
     }
     return keyless;

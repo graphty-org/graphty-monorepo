@@ -2,13 +2,15 @@
  * The skinned and animated sample files readers bring (Fox, CesiumMan, BrainStem) draw on nodes
  * and in pictures, and play: a skinned file with no normals or indices builds (Fox.glb, issue
  * #8607), an unnamed clip is listed by the
- * name that plays it (issue #8609), and a playing skinned model is framed and boxed at its own size.
+ * name that plays it (issue #8609), a playing skinned model is framed and boxed at its own size, and
+ * a model whose clip travels (aerobatic_plane.glb's flight paths) is framed at its own size, not
+ * the size of its path.
  */
 
 import { assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
-import { glb, unpackGlb } from "../../fixtures/models/fixtures";
+import { glb, gltfPair, TRIANGLE_BIN, triangleGltf, unpackGlb, utf8 } from "../../fixtures/models/fixtures";
 import foxUrl from "../../fixtures/models/Fox.glb?url";
 import { drawModel, filesOf, type Frame, mount, pixelsChanged, readFrame } from "./helpers";
 
@@ -59,6 +61,48 @@ async function coverage(url: string): Promise<number> {
     return drawn;
 }
 
+/**
+ * One triangle, alone or with a clip that carries it 100 times its size away and back.
+ * @param travels - Whether it has the clip.
+ * @returns The file set.
+ */
+function triangle(travels: boolean): Map<string, Uint8Array> {
+    if (!travels) {
+        return gltfPair();
+    }
+
+    const times = new Float32Array([0, 1, 2]);
+    const places = new Float32Array([0, 0, 0, 100, 0, 0, 0, 0, 0]);
+    const bin = new Uint8Array(36 + 12 + 36);
+    bin.set(TRIANGLE_BIN, 0);
+    bin.set(new Uint8Array(times.buffer), 36);
+    bin.set(new Uint8Array(places.buffer), 48);
+    const json = triangleGltf({
+        accessors: [
+            { bufferView: 0, componentType: 5126, count: 3, type: "VEC3", min: [0, 0, 0], max: [1, 1, 0] },
+            { bufferView: 1, componentType: 5126, count: 3, type: "SCALAR", min: [0], max: [2] },
+            { bufferView: 2, componentType: 5126, count: 3, type: "VEC3" },
+        ],
+        bufferViews: [
+            { buffer: 0, byteLength: 36 },
+            { buffer: 0, byteOffset: 36, byteLength: 12 },
+            { buffer: 0, byteOffset: 48, byteLength: 36 },
+        ],
+        buffers: [{ uri: "tri.bin", byteLength: bin.length }],
+        animations: [
+            {
+                name: "Fly",
+                samplers: [{ input: 1, output: 2 }],
+                channels: [{ sampler: 0, target: { node: 0, path: "translation" } }],
+            },
+        ],
+    });
+    return new Map([
+        ["tri.gltf", utf8(JSON.stringify(json))],
+        ["tri.bin", bin],
+    ]);
+}
+
 describe("skinned sample files", () => {
     it("draws Fox.glb, skinned with no normals and no indices, on a node and in a thumbnail", async () => {
         const element = await mount();
@@ -83,6 +127,26 @@ describe("skinned sample files", () => {
             );
             assert.isAbove(posed, still * 0.6, `${clip} is drawn about as large as the still fox`);
         }
+    });
+
+    it("frames a model whose clip travels at its own size, not the size of its path", async () => {
+        const element = await mount();
+        const still = await element.session.assets.add({ files: triangle(false) });
+        const travels = await element.session.assets.add({ files: triangle(true) });
+        assert.deepEqual(
+            element.session.assets.inspect(travels.id).animations.map((clip) => clip.name),
+            ["Fly"],
+        );
+        const alone = await coverage(await element.modelThumbnail(still.id, { size: 96 }));
+        // Held at the clip's start, where the triangle stands as the still one does.
+        const flying = await coverage(
+            await element.modelThumbnail(travels.id, {
+                size: 96,
+                style: { "node.modelAnimation": "Fly", "node.modelAnimationOffset": 0, "node.modelAnimationSpeed": 0 },
+            }),
+        );
+        // Framed by the whole path, the triangle was a hundredth of the picture across.
+        assert.isAbove(flying, alone * 0.6, `the travelling triangle covers ${String(flying)} of ${String(alone)}`);
     });
 
     it("boxes a node drawing a playing Fox at the model's fitted size, not the file's units (#8607)", async () => {

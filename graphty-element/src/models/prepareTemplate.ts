@@ -885,7 +885,8 @@ async function build(
     // the model's triangles (section 3.8), and a group is culled only when the whole model is.
     const size = lockBounds(meshes, fit, animation?.bounds);
     if (animation !== null) {
-        // From the moving vertices themselves: the corners of their box would be its diagonal.
+        // From the moving vertices themselves: the corners of their box would be its diagonal. The
+        // still pose's reach, not every frame's: a clip that travels would shrink the model to a speck.
         radius = Math.max(radius, animation.radius);
     }
 

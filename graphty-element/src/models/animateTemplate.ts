@@ -66,7 +66,11 @@ export interface TemplateAnimation {
     readonly notes: readonly CodedFact[];
     /** Every moving part's reach over every frame, in the unit box: what the node is picked and culled by. */
     readonly bounds: { readonly min: Vector3; readonly max: Vector3 };
-    /** The furthest any moving vertex gets from the center over every frame. */
+    /**
+     * The furthest any moving vertex is from the center in the pose drawn while no clip plays (the
+     * first frame of the first clip): what the model is framed and its edges trimmed by. Not every
+     * frame's reach, which for a clip that travels (a plane's flight path) is many times the model.
+     */
     readonly radius: number;
     /**
      * Have a node's instances play a clip.
@@ -332,6 +336,8 @@ interface Reach {
     readonly min: Vector3;
     readonly max: Vector3;
     radius: number;
+    /** The radius the first frame written reaches. */
+    first?: number;
 }
 
 /**
@@ -385,6 +391,9 @@ function writeFrame(
             }
         }
     }
+
+    // The bounds start empty, so after the first frame they are its reach alone.
+    bounds.first ??= bounds.radius;
 }
 
 /**
@@ -559,7 +568,7 @@ function animationFor(
         fps: baked.fps,
         notes: baked.notes,
         bounds: { min: baked.bounds.min, max: baked.bounds.max },
-        radius: baked.bounds.radius,
+        radius: baked.bounds.first ?? 0,
         play(owner, instances, clip, speed, offset) {
             const range = (clip === null ? undefined : baked.ranges.get(clip)) ?? first;
             const length = range.end - range.start + 1;

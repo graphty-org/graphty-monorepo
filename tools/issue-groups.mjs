@@ -87,6 +87,8 @@ const WAIT_LIMIT_MS = 24 * HOUR;
 const RED_PR_IDLE_MS = 6 * HOUR;
 const HISTORY_KEEP = 30;
 const CLASS_GUARD_MIN = 10;
+// Grouping by the rubric went live at this time; pull requests grouped before it are left out of the grouped stats.
+const RUBRIC_LIVE = "2026-11-16T21:00:00Z";
 const POINTS = { low: 1, medium: 2, high: 3 };
 const TESTS = ["T1", "T1-fold", "T2", "T3", "T4", "T5", "T6"];
 const LIVE = new Set(["proposed", "started", "ready", "frozen"]);
@@ -1759,15 +1761,18 @@ const share = (part, whole) => (whole ? Number((part / whole).toFixed(3)) : null
 
 /**
  * Throughput and guardrails (design section "Monitoring") from the ledger and the pull requests closed in the window.
- * A pull request is grouped when it closes two or more issues or its ledger group has two or more members.
+ * A pull request is grouped when it closes two or more issues or its ledger group has two or more members; one
+ * grouped before `groupedSince` (the rubric going live) counts as neither grouped nor single.
  * @param ledger the ledger
  * @param prs `[{ number, state, createdAt, mergedAt, closedAt, closes, lastCommitAt }]`
  * @param now ms
+ * @param groupedSince ISO time or ms
  * @returns the metrics record
  */
-export function metrics(ledger, prs, now) {
+export function metrics(ledger, prs, now, groupedSince = RUBRIC_LIVE) {
     const groupedPr = new Set(ledger.groups.filter((g) => g.pr && size(g).issues >= 2).map((g) => g.pr));
-    const isGrouped = (p) => p.closes >= 2 || groupedPr.has(p.number);
+    const multi = (p) => p.closes >= 2 || groupedPr.has(p.number);
+    const isGrouped = (p) => multi(p) && Date.parse(p.createdAt) >= new Date(groupedSince).getTime();
     const stats = (list) => {
         const merged = list.filter((p) => p.mergedAt);
         const unmerged = list.filter((p) => !p.mergedAt);
@@ -1782,7 +1787,7 @@ export function metrics(ledger, prs, now) {
         };
     };
     const grouped = stats(prs.filter((p) => isGrouped(p)));
-    const single = stats(prs.filter((p) => !isGrouped(p)));
+    const single = stats(prs.filter((p) => !multi(p)));
     // A grouped pull request outside the ledger counts as source, the strictest class.
     const prClass = new Map(ledger.groups.filter((g) => g.pr).map((g) => [g.pr, groupClass(g)]));
     const byClass = Object.fromEntries(
@@ -1957,9 +1962,35 @@ const SEARCH_QUERY = (q, after) => {
     const page = after ? `, after: "${after}"` : "";
     return `query { search(query: "${q}", type: ISSUE, first: 100${page}) {
   pageInfo { hasNextPage endCursor }
-  nodes { ... on PullRequest { number state createdAt mergedAt closedAt closingIssuesReferences(first: 1) { totalCount }
-    commits(last: 1) { nodes { commit { committedDate } } } } } } }`;
+  nodes { ... on PullRequest { number state createdAt mergedAt closedAt closingIssuesReferences(first: 20) { nodes { number } }
+    commits(last: 50) { nodes { commit { committedDate message parents { totalCount } } } } } } } }`;
 };
+
+// A merge of master into the branch (to clear a conflict or an inherited failure) is not a change to the work.
+const isMasterMerge = (c) => c.parents?.totalCount >= 2 && /\bmaster\b/.test(c.message.split("\n")[0]);
+const FIXES_LINE = /\b(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)\s+#(\d+)/gi;
+
+/**
+ * One search result as a metrics() record: `closes` counts the issues closed by the body's closing links and by the
+ * Fixes/Closes/Resolves lines of the commit messages; `lastCommitAt` skips merges of master.
+ * @param p the search node
+ * @returns the record
+ */
+export function prRecord(p) {
+    const commits = (p.commits?.nodes ?? []).map((n) => n.commit).filter((c) => !isMasterMerge(c));
+    const closes = new Set((p.closingIssuesReferences?.nodes ?? []).map((i) => i.number));
+    for (const c of commits) for (const m of c.message.matchAll(FIXES_LINE)) closes.add(Number(m[1]));
+    const dates = commits.map((c) => c.committedDate).sort();
+    return {
+        number: p.number,
+        state: p.state,
+        createdAt: p.createdAt,
+        mergedAt: p.mergedAt,
+        closedAt: p.closedAt,
+        closes: closes.size,
+        lastCommitAt: dates.at(-1) ?? null,
+    };
+}
 
 /**
  * Pull requests closed (merged or not) in the last 7 days, one paged search.
@@ -1975,16 +2006,7 @@ export function fetchClosedPrs(now, run = graphql) {
     do {
         const page = run(SEARCH_QUERY(q, after)).search;
         for (const p of page.nodes) {
-            if (!p?.number) continue;
-            out.push({
-                number: p.number,
-                state: p.state,
-                createdAt: p.createdAt,
-                mergedAt: p.mergedAt,
-                closedAt: p.closedAt,
-                closes: p.closingIssuesReferences?.totalCount ?? 0,
-                lastCommitAt: p.commits?.nodes?.[0]?.commit?.committedDate ?? null,
-            });
+            if (p?.number) out.push(prRecord(p));
         }
         after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : undefined;
     } while (after);

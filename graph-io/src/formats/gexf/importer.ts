@@ -655,6 +655,14 @@ class GexfReader implements XmlHandler {
     /** GEXF 1.0 only: nodes added for edges read before `<nodes>`, until their `<node>` declares them. */
     private readonly implicitNodes = new Map<number, NodeId>();
 
+    /**
+     * The rows of each temporal table, written to the sink in element order at the end: a node
+     * declared twice, or declared after an edge created it, would otherwise split its rows, and the
+     * exporter writes each element's rows together.
+     */
+    // ponytail: holds every timed row until the end; append directly while in order if memory matters
+    private readonly timedRows = new Map<ExtensionHandle, (readonly unknown[])[]>();
+
     /** GEXF 1.0 only: `<edges>` came before `<nodes>`, so an edge's ends are added until `<node>` declares them. */
     private edgesFirst = false;
 
@@ -972,6 +980,13 @@ class GexfReader implements XmlHandler {
      * Apply what the root and `<meta>` gave to the sink; called once the graph's header is read.
      */
     finish(): void {
+        for (const [table, rows] of this.timedRows) {
+            rows.sort((a, b) => (a[0] as number) - (b[0] as number));
+            for (const row of rows) {
+                this.sink.addExtensionRow(table, row);
+            }
+        }
+        this.timedRows.clear();
         if (!this.graphSeen) {
             this.report.fail(NO_GRAPH_CODE, "the document has no <graph> element");
         }
@@ -1458,6 +1473,15 @@ class GexfReader implements XmlHandler {
     private isDuplicateAttribute(domain: "node" | "edge", id: string, where: IssueLocation): boolean {
         const { report } = this;
         const tracked = domain === "node" ? this.nodeAttrs : this.edgeAttrs;
+        if (this.unknownAttributes.has(`${domain}:${id}`)) {
+            report.warning(
+                "missing-value",
+                UNKNOWN_ATTRIBUTE_CODE,
+                `${domain} attribute "${id}" is declared after values that use it; those values were read as text and this declaration is ignored (declare <attributes> before <nodes>)`,
+                where,
+            );
+            return true;
+        }
         if (tracked.has(id) || (domain === "edge" && this.weightAttr !== null && this.weightAttr.id === id)) {
             report.warning(
                 "validation-error",
@@ -1466,14 +1490,6 @@ class GexfReader implements XmlHandler {
                 where,
             );
             return true;
-        }
-        if (this.unknownAttributes.has(`${domain}:${id}`)) {
-            report.warning(
-                "missing-value",
-                UNKNOWN_ATTRIBUTE_CODE,
-                `${domain} attribute "${id}" is declared after values that use it; those values were dropped (declare <attributes> before <nodes>)`,
-                where,
-            );
         }
         return false;
     }
@@ -1760,6 +1776,7 @@ class GexfReader implements XmlHandler {
                 this.ctx.push(Ctx.Parents);
                 return;
             case "spells":
+            case "slices": // GEXF 1.1's name for <spells>
                 this.spellPairs = [];
                 this.spellOpen = [];
                 this.spellsWhere = frame.where;
@@ -2113,11 +2130,10 @@ class GexfReader implements XmlHandler {
      */
     private dropUndeclaredNodes(): void {
         const { sink, report } = this;
-        const removable = sink as GraphSink & { removeNodeByIndex?: (index: number) => ArrayLike<number> };
         for (const [index, id] of this.implicitNodes) {
             report.error("validation-error", "E_UNKNOWN_NODE", `edge references undeclared node "${String(id)}"`);
-            if (typeof removable.removeNodeByIndex === "function") {
-                const edges = removable.removeNodeByIndex(index);
+            if (sink.removeNodeByIndex !== undefined) {
+                const edges = sink.removeNodeByIndex(index);
                 report.counts.nodes--;
                 report.counts.edges -= edges.length;
                 report.counts.skippedEdges += edges.length;
@@ -2148,27 +2164,7 @@ class GexfReader implements XmlHandler {
             return undefined;
         }
         // a blank weight="" is an absent weight (common/weights.ts), as a blank weight attvalue is
-        const weight = parseWeightText(text, this.report);
-        this.checkOverflow(text, where);
-        return weight;
-    }
-
-    /**
-     * Report (once) a weight text too large for a double, stored as Infinity; `INF` itself is a
-     * legal weight (design section 3.7) and is not reported.
-     * @param text - the weight text
-     * @param where - the location
-     */
-    private checkOverflow(text: string, where: IssueLocation): void {
-        if (overflowsToInfinity(text)) {
-            this.report.warnOnce(
-                "precision",
-                PRECISION_CODE,
-                `weight ${text.trim()} is beyond the double range and is stored as Infinity`,
-                where,
-                `${PRECISION_CODE}:weight`,
-            );
-        }
+        return parseWeightText(text, this.report);
     }
 
     /**
@@ -2197,6 +2193,7 @@ class GexfReader implements XmlHandler {
                 this.ctx.push(Ctx.Attvalues);
                 return;
             case "spells":
+            case "slices": // GEXF 1.1's name for <spells>
                 this.spellPairs = [];
                 this.spellOpen = [];
                 this.spellsWhere = edge.where;
@@ -2328,9 +2325,14 @@ class GexfReader implements XmlHandler {
             return;
         }
         const tracked = domain === "node" ? this.nodeAttrs : this.edgeAttrs;
-        const attribute = tracked.get(forId);
+        let attribute = tracked.get(forId);
+        if (attribute === undefined && this.declareUnknownAttribute(domain, forId)) {
+            // the new declaration may have claimed the weight (an edge attribute titled weightFrom)
+            this.writeAttvalue(domain, forId, attrs, value, index);
+            return;
+        }
+        attribute ??= tracked.get(forId);
         if (attribute === undefined) {
-            this.warnUnknownAttribute(domain, forId);
             return;
         }
         if (isTimed(attrs)) {
@@ -2341,22 +2343,37 @@ class GexfReader implements XmlHandler {
     }
 
     /**
-     * Warn, once per attribute, about an `<attvalue>` naming an undeclared attribute.
+     * The first `<attvalue>` naming an undeclared attribute: warn once and declare it as a string
+     * attribute titled by its id, so its values are kept as text (as Gephi and graphology do).
      * @param domain - node or edge
      * @param forId - the attribute id
+     * @returns true when this call declared it (the caller writes the value again)
      */
-    private warnUnknownAttribute(domain: "node" | "edge", forId: string): void {
+    private declareUnknownAttribute(domain: "node" | "edge", forId: string): boolean {
         const key = `${domain}:${forId}`;
         if (this.unknownAttributes.has(key)) {
-            return;
+            return false;
         }
-        this.unknownAttributes.add(key);
         this.report.warning(
             "missing-value",
             UNKNOWN_ATTRIBUTE_CODE,
-            `<attvalue for="${forId}"> names an undeclared ${domain} attribute; its values are dropped`,
+            `<attvalue for="${forId}"> names an undeclared ${domain} attribute; its values are kept as text`,
             { ...this.valueWhere, element: forId },
         );
+        this.declareOne({
+            domain,
+            dynamic: false,
+            attrs: new Map([
+                ["id", forId],
+                ["type", "string"],
+            ]),
+            line: this.valueWhere.line,
+            defaultText: null,
+            optionsText: null,
+        });
+        // marked after declaring, so a later <attribute> of this id is reported as late
+        this.unknownAttributes.add(key);
+        return true;
     }
 
     /**
@@ -2375,7 +2392,6 @@ class GexfReader implements XmlHandler {
             // blank is absent (common/weights.ts), as a blank weight="" XML attribute is
             return;
         }
-        this.checkOverflow(text, where);
         if (edge.xmlWeight !== null) {
             this.report.warning(
                 "validation-error",
@@ -2523,7 +2539,7 @@ class GexfReader implements XmlHandler {
         if (temporalValue) {
             row.push(valueText ?? undefined);
         }
-        sink.addExtensionRow(attribute.table, row);
+        this.addTimedRow(attribute.table, row);
     }
 
     /**
@@ -2564,7 +2580,21 @@ class GexfReader implements XmlHandler {
         }
         const row = this.temporalRow(attrs, index, value, where);
         if (row !== null) {
-            sink.addExtensionRow(weightAttr.table, row);
+            this.addTimedRow(weightAttr.table, row);
+        }
+    }
+
+    /**
+     * Queue a temporal table row for finish().
+     * @param table - the table
+     * @param row - the row, its element index first
+     */
+    private addTimedRow(table: ExtensionHandle, row: readonly unknown[]): void {
+        const rows = this.timedRows.get(table);
+        if (rows === undefined) {
+            this.timedRows.set(table, [row]);
+        } else {
+            rows.push(row);
         }
     }
 
@@ -2778,7 +2808,7 @@ class GexfReader implements XmlHandler {
      * @param line - the line
      */
     private startInSpells(name: string, local: string, attrs: ReadonlyMap<string, string>, line: number): void {
-        if (local !== "spell") {
+        if (local !== "spell" && local !== "slice") {
             this.unknownElement(name, line);
             return;
         }

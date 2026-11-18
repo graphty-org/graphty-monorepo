@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, registerSource } from "../../session";
+import { GraphtyError } from "../../src/errors/GraphtyError";
 
 /** The network source's reads held back, by size, until the test releases them. */
 const heldTeams = new Map<string, Promise<void>>();
@@ -56,6 +57,10 @@ describe("session.data loads that overlap", () => {
     const arrived = new Map<string, () => void>();
 
     const answer = (name: string, response: ServerResponse): void => {
+        if (name === "corrupt.gsnp.gz") {
+            response.end("not a graph");
+            return;
+        }
         if (!existsSync(resolve(DATA, name))) {
             response.statusCode = 404;
             response.end();
@@ -190,6 +195,8 @@ describe("session.data loads that overlap", () => {
         const [first] = await Promise.allSettled([stalled]);
         await newer;
         assert.strictEqual(first.status, "rejected");
+        // A cancel is reported as the abort it is, not as a download that failed.
+        assert.strictEqual(first.status === "rejected" && (first.reason as Error).name, "AbortError");
         assert.strictEqual(session.data.snapshot().nodeCount, 7);
         release("karate");
         session.dispose();
@@ -205,7 +212,30 @@ describe("session.data loads that overlap", () => {
         const [first] = await Promise.allSettled([older, newer]);
         await newer;
         assert.strictEqual(first.status, "rejected");
+        // A 404 answers the same on every retry.
+        const missing = first.status === "rejected" ? first.reason : undefined;
+        assert.instanceOf(missing, GraphtyError);
+        assert.strictEqual(missing.code, "E_FETCH_FAILED");
+        assert.strictEqual(missing.recoverable, false);
+        assert.strictEqual(missing.details?.status, 404);
         assert.strictEqual(session.data.snapshot().nodeCount, 34);
+        session.dispose();
+    });
+
+    it("reports a downloaded file that cannot be read as E_PARSE_FAILED, and a bad name as E_UNKNOWN_DATASET", async () => {
+        const session = createGraphSession();
+        const [corrupt, badName] = await Promise.allSettled([
+            session.data.loadDataset("corrupt", { baseUrl }),
+            session.data.loadDataset("Not A Name", { baseUrl }),
+        ]);
+        const parse = corrupt.status === "rejected" ? corrupt.reason : undefined;
+        assert.instanceOf(parse, GraphtyError);
+        assert.strictEqual(parse.code, "E_PARSE_FAILED");
+        assert.strictEqual(parse.recoverable, false);
+        const unknown = badName.status === "rejected" ? badName.reason : undefined;
+        assert.instanceOf(unknown, GraphtyError);
+        assert.strictEqual(unknown.code, "E_UNKNOWN_DATASET");
+        assert.strictEqual(session.data.snapshot().nodeCount, 0);
         session.dispose();
     });
 });

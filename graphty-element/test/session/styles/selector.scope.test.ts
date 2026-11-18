@@ -137,18 +137,22 @@ describe("the scope selector", () => {
             set: { "node.color": "#ff0000" },
         });
         // An id never issued is a typo, refused at the door rather than painting nothing forever.
-        let refused = false;
+        let refused: unknown = null;
         try {
             await h.session.styles.add({
                 name: "never",
                 selector: { match: "member", of: { set: "set_nowhere" } },
                 set: { "node.color": "#00ff00" },
             });
-        } catch {
-            refused = true;
+        } catch (error) {
+            refused = error;
         }
 
-        assert.isTrue(refused, "a set id never issued is refused");
+        assert.strictEqual(
+            isGraphtyError(refused) ? refused.code : refused,
+            "E_BAD_COMMAND",
+            "a set id never issued is refused",
+        );
         await h.session.styles.add({
             name: "above",
             selector: { match: "ids", nodes: ["c"] },
@@ -201,7 +205,6 @@ describe("the scope selector", () => {
 
         assert.deepStrictEqual(report.applied, []);
         assert.strictEqual(report.unbound.length, 1);
-        assert.match(report.unbound[0].reason, /detached/);
         assert.strictEqual(report.unbound[0].fact.code, "layer.detached");
         assert.deepStrictEqual(report.unbound[0].fact.params, {
             layerId: report.unbound[0].layerId,

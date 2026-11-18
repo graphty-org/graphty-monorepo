@@ -17,7 +17,6 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { Graph } from "../../src/Graph";
 import { assertPlaced } from "../helpers/placed-position";
 import { nextFrame } from "../helpers/real-input";
-import type { TestGraph } from "../helpers/testSetup";
 
 // Test data
 const TEST_NODES = [
@@ -69,7 +68,7 @@ describe("Node position preservation during style changes (regression)", () => {
      */
     function getNodePositions(): Map<string, { x: number; y: number; z: number }> {
         const positions = new Map<string, { x: number; y: number; z: number }>();
-        const { dataManager } = graph as unknown as TestGraph;
+        const dataManager = graph.getDataManager();
 
         for (const [id, node] of dataManager.nodes) {
             assertPlaced(node.mesh.position, `node ${String(id)}`);

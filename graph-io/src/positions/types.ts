@@ -147,7 +147,6 @@ export interface ImporterPositions extends PositionColumnExtra {
     /**
      * How far one node's center is from its stored coordinate, spelled like the coordinates, or null for none: a node
      * the program draws from another point than its neighbors are drawn from (vis-network's top-left `circularImage`).
-     * Simple form only.
      */
     readonly centerOffset?: (row: number) => readonly [number, number] | null;
     /**

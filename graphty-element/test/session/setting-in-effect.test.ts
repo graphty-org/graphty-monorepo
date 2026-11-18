@@ -6,7 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
-import { createGraphSession } from "../../src/session";
+import { createElementSession, createGraphSession } from "../../src/session";
 
 describe("whether a graph setting is in effect", () => {
     it("answers that the 2D view ignores lighting and depth, and keeps the rest", async () => {
@@ -26,10 +26,27 @@ describe("whether a graph setting is in effect", () => {
             code: "setting.notIn2d",
             params: { setting: "lighting" },
         });
-        assert.isFalse(session.config.inEffect("node.depthIndependentSize").inEffect);
+        assert.isFalse(session.config.inEffect("node.sizeSpace").inEffect);
         assert.isTrue(session.config.inEffect("labels.declutter").inEffect);
         assert.isTrue(session.config.inEffect("node.outlineWidth").inEffect);
         assert.isTrue(session.config.inEffect("background").inEffect);
+        session.dispose();
+    });
+
+    it("answers that the 2D view keeps a node size space of screen, and ignores pivot", async () => {
+        let space: string | undefined = "screen";
+        const session = createElementSession({}, { nodeSizeSpace: () => space });
+        await session.data.addNodes([{ id: "a" }]);
+        await session.layout.setDimension("2d");
+        assert.isTrue(session.config.inEffect("node.sizeSpace").inEffect);
+        space = "pivot";
+        assert.deepStrictEqual(session.config.inEffect("node.sizeSpace"), {
+            inEffect: false,
+            code: "setting.notIn2d",
+            params: { setting: "node.sizeSpace" },
+        });
+        await session.layout.setDimension("3d");
+        assert.isTrue(session.config.inEffect("node.sizeSpace").inEffect);
         session.dispose();
     });
 

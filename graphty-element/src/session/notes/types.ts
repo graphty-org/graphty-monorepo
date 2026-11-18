@@ -93,6 +93,8 @@ export interface Note {
      * graphty-element. Absent: not done. Set and cleared with `update(id, { done })`.
      */
     readonly done?: string;
+    /** Words the writer files the note under: distinct, each 1 to 256 characters, at most 64. */
+    readonly tags?: readonly string[];
 }
 
 /**
@@ -113,6 +115,8 @@ export interface NoteInput {
     readonly mediaType?: string;
     /** Plain JSON under reverse-domain keys, at most 32 levels deep and 64 KB saved. */
     readonly extensions?: Readonly<Record<string, unknown>>;
+    /** Words to file the note under: each 1 to 256 characters, at most 64; a repeat is kept once. */
+    readonly tags?: readonly string[];
 }
 
 /** A field left out is unchanged. `null` clears an optional field; `cites: []` clears the cites. */
@@ -132,6 +136,8 @@ export interface NotePatch {
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     /** True marks the note done, stamping the time; a note already done keeps its time. False clears it. */
     readonly done?: boolean;
+    /** The new tags, replacing the old ones; `null` or `[]` clears them. */
+    readonly tags?: readonly string[] | null;
 }
 
 /** What one target of a note points at now. */
@@ -172,7 +178,7 @@ export interface NoteChange {
     /** OPEN UNION. */
     readonly change: "created" | "updated" | "removed";
     /** Which fields an "updated" change touched; empty otherwise. OPEN UNION. */
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done" | "tags")[];
     /** The frozen record after the change; null after removal. Not in the DOM event's detail. */
     readonly note: Note | null;
     /** OPEN UNION: a write, a history move, or a saved project being opened. */
@@ -196,6 +202,8 @@ export interface NoteListOptions {
     readonly missing?: boolean;
     /** True: only notes marked done; false: only notes not marked done. */
     readonly done?: boolean;
+    /** Only notes carrying exactly this tag. */
+    readonly tag?: string;
 }
 
 /**
@@ -217,12 +225,19 @@ export interface NotesDocument {
     readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
-/** One thing a report says about a document: where, why, and its code. */
+/**
+ * One thing a report says about a document: where, its code, and the facts behind it.
+ *
+ * - `W_FUTURE_TIME`: a note's time is more than a day after it was opened; kept as written.
+ *   `details.field` names it (`"time"`, `"edited"`, `"done"`).
+ * - `W_UNKNOWN_MEMBER`: a field this release does not know. `details.field` names it; under
+ *   `/notes/<n>/` it is kept and written back, at the member's top level it is ignored.
+ * - `E_BAD_DOCUMENT`: the note at `what` is skipped. `details` are the refusal's own: its `code`
+ *   and the details it carried.
+ */
 export interface Problem {
     /** Where: a JSON pointer into the document (`/notes/3/time`). */
     readonly what: string;
-    /** One sentence a person can act on. */
-    readonly reason: string;
     /** More about it, by code. */
     readonly details?: Readonly<Record<string, unknown>>;
     /** The error or warning code. */
@@ -294,6 +309,8 @@ export interface NotesApi {
     status(id: NoteId): NoteStatus;
     /** @returns The distinct authors of the session's notes, in the order of their first note. */
     authors(): readonly string[];
+    /** @returns The distinct tags of the session's notes, in the order of their first note. */
+    tags(): readonly string[];
     /** @returns How many notes, and how many distinct nodes and edges in the graph have at least one. */
     counts(): {
         /** How many notes. */

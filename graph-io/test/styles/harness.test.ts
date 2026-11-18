@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { type ExtractedStyles, extractStyles, type StyleRule } from "../../src/styles/internal.js";
+import { type ExtractedStyles, readFileStyles, type StyleRule } from "../../src/styles/internal.js";
 import { editJsonNodeFill } from "./formats/json.js";
 import {
     checkInput,
@@ -73,7 +73,7 @@ describe.each([...SCALE_POINTS].map(([large, small]) => [large, small] as const)
                 throw new Error(`${name} is not a harness input`);
             }
             const loaded = await input.load();
-            return extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+            return readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         };
         const kinds = ruleKinds(await load(large));
         expect(kinds.length).toBeGreaterThan(2);
@@ -123,7 +123,7 @@ describe("the checks", () => {
     it("fail on an injected wrong rule, naming the element and the property", async () => {
         const { input } = await byGroup();
         const loaded = await input.load();
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         const truth = styleTruth(loaded);
         if (ex === null || truth === null) {
             throw new Error("no styles");
@@ -158,7 +158,7 @@ describe("the checks", () => {
         if (loaded === undefined) {
             throw new Error("the roles inputs are missing");
         }
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         const truth = styleTruth(loaded);
         if (ex === null || truth === null) {
             throw new Error("no styles");
@@ -181,7 +181,7 @@ describe("the checks", () => {
     it("fail on more than 16 rules, a long predicate and a note code that is not a style code", async () => {
         const { input } = await byGroup();
         const loaded = await input.load();
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         if (ex === null) {
             throw new Error("no styles");
         }

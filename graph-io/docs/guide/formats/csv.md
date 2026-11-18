@@ -153,7 +153,8 @@ Dev
 - The delimiter is detected from the first rows (`,`, tab, `;`, `|` or space) unless you pass
   `delimiter`. Excel's `sep=;` first line is understood. A space delimiter reads the format of SNAP
   and KONECT files: runs of spaces and tabs are one separator.
-- The first row is a header when it names known columns or is all text above a row of numbers
+- The first row is a header when it names known columns, has a name ending in id (`person_id`,
+  `personId`), or is all text above a row of numbers
   (`header` overrides this). The column names decide what each column is; the next section lists
   every name graph-io recognizes. A header whose names it does not recognize (`s,t,weight`) fails
   with `E_CSV_NO_ENDPOINT_COLUMNS`: pass `sourceColumn` and `targetColumn` to name the columns.
@@ -175,7 +176,9 @@ Dev
 - Lines starting with `#` or `%` before the first row are comments.
 - The `nodes` option takes a node table to read alongside the edge list (a string, bytes, a stream,
   or a `File` or `Blob`); its ids become nodes and its other columns node attributes. A node table
-  on its own is read when the header has an id column but no source and target.
+  on its own is read when the header has no source and target but has an `id`, `node`, `name` or
+  `key` column, or a column ending in id whose values are distinct and appear in no other column
+  (an edge list headed `user_id,friend_id` names the same ids in both columns, and fails).
 - `header` and `delimiter` apply to both tables, the input and the `nodes` table. A node table whose
   shape differs (an edge list without a header next to a node table with one) cannot be read in one
   call: load the node table yourself, or add the missing header line to the edge list first. With
@@ -229,15 +232,15 @@ those labels.
 
 <!-- generated:begin headers:csv -->
 
-| Column               | Header names                                                                                     | To name another column |
-| -------------------- | ------------------------------------------------------------------------------------------------ | ---------------------- |
-| Edge source          | `source`, `src`, `from`, `start`, `source_id`, `sourceid`, `fromnodeid`, `start_id`, `:start_id` | `sourceColumn`         |
-| Edge target          | `target`, `dst`, `dest`, `to`, `end`, `target_id`, `targetid`, `tonodeid`, `end_id`, `:end_id`   | `targetColumn`         |
-| Node id (node table) | `id`, `node`, `name`, `key`                                                                      | `idColumn`             |
-| Edge id (edge table) | `id`                                                                                             |                        |
-| Label                | `label`                                                                                          |                        |
-| Edge weight          | `weight`, or the name you pass as `weightFrom`                                                   | `weightFrom`           |
-| Edge direction       | `Type`, only in a Gephi table (a header with exactly `Source` and `Target`)                      | `typeColumn`           |
+| Column               | Header names                                                                                            | To name another column |
+| -------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Edge source          | `source`, `src`, `from`, `start`, `source_id`, `sourceid`, `fromnodeid`, `start_id`, `:start_id`        | `sourceColumn`         |
+| Edge target          | `target`, `dst`, `dest`, `to`, `end`, `target_id`, `targetid`, `tonodeid`, `end_id`, `:end_id`          | `targetColumn`         |
+| Node id (node table) | `id`, a column ending in `id` (`person_id`), `node`, `key`, `name`: the first whose values are distinct | `idColumn`             |
+| Edge id (edge table) | `id`                                                                                                    |                        |
+| Label                | `label`                                                                                                 |                        |
+| Edge weight          | `weight`, or the name you pass as `weightFrom`                                                          | `weightFrom`           |
+| Edge direction       | `Type`, only in a Gephi table (a header with exactly `Source` and `Target`)                             | `typeColumn`           |
 
 <!-- generated:end -->
 
@@ -337,7 +340,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 - <a id="import-sourcecolumn"></a>`sourceColumn`: The source column, by name or 0-based position. The default is the column whose header is a recognized source name (`source`, `from`, `src` and others; the CSV format page lists them all); in a file without a header, the first column. A header with no recognized source and target names needs this option and `targetColumn`.
 - <a id="import-targetcolumn"></a>`targetColumn`: The target column, by name or 0-based position. The default is the column whose header is a recognized target name (`target`, `to`, `dst` and others; the CSV format page lists them all); in a file without a header, the second column.
 - <a id="import-typecolumn"></a>`typeColumn`: The column that gives each edge's direction (Directed / Undirected / Mutual), by name or position. The default is the `Type` column of a Gephi table (one whose header has exactly `Source` and `Target`); null reads no such column.
-- <a id="import-idcolumn"></a>`idColumn`: The id column of a node table, by name or position. The default is the column the header names `id` (or `node`, `name`, `key`).
+- <a id="import-idcolumn"></a>`idColumn`: The id column of a node table, by name or position. The default is the first of these whose values are all present and distinct: the column named `id`, a column whose name ends in `id` (`person_id`, `personId`), then `node`, `key`, `name`. When none is, the nodes are numbered by row (`W_CSV_NO_UNIQUE_ID`). A node table passed as `nodes` beside an edge table is keyed by the column named `id` (or `node`, `name`, `key`), since the edges name its nodes by it.
 - <a id="import-labelcolumn"></a>`labelColumn`: The label column of a node table, by name or position. The default is the column the header names `label` (in any case). With `nodeIdFrom: "label"`, the node ids come from this column, and the edge table must name its nodes by these labels too.
 - <a id="import-nodes"></a>`nodes`: A node table to read before the edges: its ids become nodes and its other columns node attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (for example, the second file a user picked).
 - <a id="import-rownumberids"></a>`rowNumberIds`: Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`. It applies to the `nodes` table when you pass one, else to the input. Under `header: "auto"` that table's first row is then read as a header; under `header: false` the option is ignored with a warning, because a table without a header takes its ids from its first column.
@@ -346,19 +349,21 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                           | Type                                | Default   |
-| -------------------------------- | ----------------------------------- | --------- |
-| [`dialect`](#export-dialect)     | `"gephi" \| "generic"`              | `"gephi"` |
-| [`table`](#export-table)         | `"adjacency" \| "nodes" \| "edges"` | `"edges"` |
-| [`delimiter`](#export-delimiter) | `string`                            | `","`     |
-| [`newline`](#export-newline)     | `"\n" \| "\r\n"`                    | `"\n"`    |
-| [`header`](#export-header)       | `boolean`                           | `true`    |
+| Option                                       | Type                                | Default   |
+| -------------------------------------------- | ----------------------------------- | --------- |
+| [`dialect`](#export-dialect)                 | `"gephi" \| "generic"`              | `"gephi"` |
+| [`table`](#export-table)                     | `"adjacency" \| "nodes" \| "edges"` | `"edges"` |
+| [`delimiter`](#export-delimiter)             | `string`                            | `","`     |
+| [`newline`](#export-newline)                 | `"\n" \| "\r\n"`                    | `"\n"`    |
+| [`header`](#export-header)                   | `boolean`                           | `true`    |
+| [`spreadsheetSafe`](#export-spreadsheetsafe) | `boolean`                           | `false`   |
 
 - <a id="export-dialect"></a>`dialect`: The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's direction in `Type`; "generic" writes `source,target,...,weight` and no direction column. A JSON dialect name, from an options object shared with JSON saves, is ignored.
 - <a id="export-table"></a>`table`: Which table to write. "edges": one edge per row, with the edge attributes; isolated nodes and node attributes are not in it. "nodes": one node per row, with the node attributes and no edges. "adjacency": a node and its neighbors per row, which keeps every node and the node order but no attributes (read it back with `table: "adjacency"`). To keep both nodes and edges, write the node table and the edge table to two files and read them back with the `nodes` import option.
 - <a id="export-delimiter"></a>`delimiter`: The field delimiter.
 - <a id="export-newline"></a>`newline`: The line terminator.
 - <a id="export-header"></a>`header`: Whether to write the header row (an adjacency table never has one). A file without a header is read back by position: source, target, weight, then unnamed columns. checkExport() returns `W_CSV_HEADERLESS` when the table has other columns; for a plain headerless edge list, pass `dialect: "generic"` and write a graph whose edges have only weights.
+- <a id="export-spreadsheetsafe"></a>`spreadsheetSafe`: Whether to keep spreadsheets from running cells as formulas: a cell starting with `=`, `+`, `-`, `@`, a tab or a CR (other than a plain number such as `-5`) is written with a leading `'`. Turn it on for a file someone may open in Excel or LibreOffice when the graph came from a source you do not trust: a label such as `=HYPERLINK("http://x","click")` otherwise runs as a formula, quoted or not. The prefixed cells read back with the `'`, so the round trip is no longer exact.
 
 ## Import issue codes
 
@@ -373,6 +378,7 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_CSV_NO_ENDPOINT_COLUMNS` (error): The header names no source and target columns and no id column. Pass `sourceColumn` and `targetColumn` to name the columns. The import stops.
 - `E_CSV_NO_ID_COLUMN` (error): The node table has no id column. Pass `idColumn` to name it, or `rowNumberIds: true` to number the rows. The import stops.
+- `W_CSV_NO_UNIQUE_ID` (warning): Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table by one of them anyway.
 - `E_CSV_FIELD_COUNT` (error): A row with a different number of fields than the header; the row is skipped. An adjacency list read without `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
 - `E_MISSING_ENDPOINT` (error): An edge row with a blank source or target.
 - `E_MISSING_ID` (error): A node row with a blank id.
@@ -398,10 +404,11 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `W_CSV_TRAILING_HEADER_DELIMITER` (warning): The header ends in a delimiter; rows without the empty last cell are complete.
 - `W_CSV_SINGLE_COLUMN` (warning): Every row is one cell another delimiter would split (a likely wrong delimiter option).
 - `W_CSV_AMBIGUOUS_COLUMN` (warning): Several header columns name one role; the one not chosen is a plain attribute.
-- `W_CSV_PADDED_ID` (warning): An id that is not quoted has spaces at its start or end; they are kept, so it is a different id from the trimmed text. Reported once per import.
+- `W_CSV_PADDED_ID` (warning): An id that is not quoted starts or ends in whitespace other than spaces and tabs (a no-break space); it is kept, so it is a different id from the trimmed text. Spaces and tabs around an id that is not quoted are trimmed. Reported once per import.
 - `W_CSV_COMMENT_LIKE_RECORD` (warning): A leading # / % line skipped as a comment has the fields of a record.
 - `W_CSV_TRAILING_DELIMITER` (warning): Every data row ends in one extra delimiter; the empty last cell is dropped. Reported once per import.
 - `W_CSV_WEIGHT_AS_ATTRIBUTE` (warning): In a file without a header, the third column holds text, so it is read as an attribute, not as the edge weight. Reported once per import.
+- `W_CSV_POSSIBLE_HEADER` (warning): The first row was read as data, but every cell is a word of three or more characters that no other row repeats, so it may be a header of names graph-io does not know. Pass `header: true` if it is one.
 
 Like every format, it can also record the codes for unreadable input and for elements the graph refuses: [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED), [`E_INVALID_ID`](../codes.md#E_INVALID_ID), [`E_UNKNOWN_NODE`](../codes.md#E_UNKNOWN_NODE), [`E_INVALID_WEIGHT`](../codes.md#E_INVALID_WEIGHT), [`E_DUPLICATE_EDGE`](../codes.md#E_DUPLICATE_EDGE), [`E_SELF_LOOP`](../codes.md#E_SELF_LOOP).
 
@@ -410,6 +417,7 @@ Like every format, it can also record the codes for unreadable input and for ele
 The codes `checkExport(snapshot, "csv", options)` can return before a save, also exported as `CSV_LOSS` from `@graphty/graph-io/csv`. An `E_` code means the save throws unless you change the graph or the options.
 
 - `E_ID_TEXT_COLLISION` (error, the save throws): Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with `E_INVALID_ID`.
+- `E_ID_CHARSET` (error, the save throws): An edge touches the node whose id is the empty string: an edge table reads a blank endpoint, quoted or not, as a missing one, so the save fails with `E_INVALID_ID`. The node table and the adjacency table keep the id.
 - `W_ID_TEXT_TYPE` (warning): Ids that read back as a different type, such as the text "7" as the number 7.
 - `W_CSV_DIRECTION_DROPPED` (warning): The generic dialect has no direction column; an undirected or mixed graph reads back as directed. The Gephi dialect loses the direction of an undirected graph without edges (no row carries a Type cell).
 - `W_MUTUAL_EXPANDED` (warning): Mutual pairs are written as two directed rows.
@@ -426,6 +434,6 @@ The codes `checkExport(snapshot, "csv", options)` can return before a save, also
 - `W_CSV_EDGE_COLUMNS` (warning): An adjacency table holds no edge column but the weight: edge ids, labels and attributes are not written.
 - `W_CSV_HEADERLESS` (warning): `header: false` with columns a file without a header cannot name: graph-io reads such a file by position (source, target, weight, then columns it names column4, column5, ...), so these columns read back under other names or in the wrong place (for example, an edge id in the weight's place). Write the header, or write only source, target and weight with `dialect: "generic"`.
 
-When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_ID_CHARSET`](../codes.md#E_ID_CHARSET), [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](../codes.md#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](../codes.md#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](../codes.md#W_EDGE_IDS_GENERATED), [`W_EMPTY_COLUMN_DROPPED`](../codes.md#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](../codes.md#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](../codes.md#W_ID_MANGLED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_AS_UNDIRECTED`](../codes.md#W_MUTUAL_AS_UNDIRECTED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](../codes.md#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_ROLE_DROPPED`](../codes.md#W_ROLE_DROPPED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_TEMPORAL_DROPPED`](../codes.md#W_TEMPORAL_DROPPED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED), [`W_WEIGHT_KEY_CLASH`](../codes.md#W_WEIGHT_KEY_CLASH).
+When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](../codes.md#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](../codes.md#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](../codes.md#W_EDGE_IDS_GENERATED), [`W_EMPTY_COLUMN_DROPPED`](../codes.md#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](../codes.md#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](../codes.md#W_ID_MANGLED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_ID_TEXT_RENAMED`](../codes.md#W_ID_TEXT_RENAMED), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_AS_UNDIRECTED`](../codes.md#W_MUTUAL_AS_UNDIRECTED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](../codes.md#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_ROLE_DROPPED`](../codes.md#W_ROLE_DROPPED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_TEMPORAL_DROPPED`](../codes.md#W_TEMPORAL_DROPPED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED), [`W_WEIGHT_KEY_CLASH`](../codes.md#W_WEIGHT_KEY_CLASH).
 
 <!-- generated:end -->

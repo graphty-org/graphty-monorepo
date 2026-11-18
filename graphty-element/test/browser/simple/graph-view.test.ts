@@ -12,6 +12,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { workingGraphOfSession } from "../../../src/session/GraphSession";
 import { viewSourceOf } from "../../../src/simple/source";
 import type { GraphView, NodeId, NodeView } from "../../../src/simple/types";
 import { createGraphView, viewWarnings } from "../../../src/simple/view";
@@ -74,7 +75,10 @@ describe("the graph view over a rendered graph", () => {
      * @returns The view.
      */
     function view(directed = false): GraphView {
-        return createGraphView(viewSourceOf(graph.getSession()), { id: "acme-test", directed });
+        return createGraphView(
+            viewSourceOf(graph.getSession(), workingGraphOfSession(graph.getSession()).view().snapshot),
+            { id: "acme-test", directed },
+        );
     }
 
     it("holds every node and every edge with the element's own ids", () => {

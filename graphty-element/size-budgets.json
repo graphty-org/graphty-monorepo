@@ -4,24 +4,24 @@
     "minimumHeadroomBytes": 1024,
     "entries": {
         ".": 1012700,
-        "./session": 619509,
+        "./session": 632330,
         "./schema": 15956,
-        "./catalog": 249754,
+        "./catalog": 163425,
         "./commands": 1635,
-        "./extend": 113604,
+        "./extend": 125075,
         "./format": 1267,
         "./logging": 11037,
         "./react": 1044,
-        "./webgpu": 5820,
+        "./webgpu": 12812,
         "./ai": 344068,
         "./credentials": 6130,
         "./bundle": 5035579
     },
     "lazyChunks": {
         "models": {
-            "source": "src/models/chunk.ts",
-            "external": ["@babylonjs/core"],
-            "budget": 40900
+            "source": "src/models/loadModel.ts",
+            "external": ["@babylonjs/core", "../decoders", "../files", "./files"],
+            "budget": 58456
         }
     }
 }

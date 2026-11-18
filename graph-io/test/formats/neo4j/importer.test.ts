@@ -34,6 +34,7 @@ import {
 } from "../../../src/formats/neo4j/importer.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../../src/types.js";
 import { inputShapes } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 import { expectSameSnapshot } from "../../helpers/roundtrip.js";
 import { neo4jText } from "./fixtures.js";
 
@@ -58,13 +59,7 @@ async function importError(
     options?: Neo4jImportOptions & CommonImportOptions,
 ): Promise<ImportError> {
     const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
-    try {
-        await neo4jImporter.import(input, builder, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected an ImportError");
+    return expectImportError(() => neo4jImporter.import(input, builder, options), { format: "neo4j" });
 }
 
 function codes(report: ImportReport): string[] {
@@ -247,12 +242,12 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(snapshot.nodes.value("name", list.dst[0])).toBe("acme");
         });
 
-        it("warns on a duplicate node and lets the later properties win", async () => {
+        it("warns on a duplicate node and keeps the first row, as neo4j-admin does", async () => {
             const { snapshot, report } = await importText(":ID,name\n1,a\n1,b\n");
             expect(snapshot.nodeCount).toBe(1);
-            expect(snapshot.nodes.value("name", 0)).toBe("b");
-            // one node in the sink, counted once
-            expect(report.counts.nodes).toBe(1);
+            expect(snapshot.nodes.value("name", 0)).toBe("a");
+            // one node in the sink, counted once; the repeated row is skipped
+            expect(report.counts).toMatchObject({ nodes: 1, skippedNodes: 1 });
             expect(report.issues[0]).toMatchObject({
                 category: "merged",
                 severity: "warning",
@@ -644,18 +639,20 @@ describe("neo4jImporter (design 8.4)", () => {
                 builder.lockDirected();
                 return builder;
             };
-            await expect(neo4jImporter.import(RELS, locked())).rejects.toThrow(ImportError);
-            try {
-                await neo4jImporter.import(RELS, locked());
-            } catch (err) {
-                const { report } = err as ImportError;
-                expect(report.issues[0]).toMatchObject({
-                    code: DIRECTION_REFUSED_CODE,
-                    category: "coercion",
-                    severity: "warning",
-                });
-                expect(report.issues[1]).toMatchObject({ code: DIRECTION_REFUSED_CODE, severity: "error", line: 2 });
-            }
+            const refused = await expectImportError(() => neo4jImporter.import(RELS, locked()), {
+                format: "neo4j",
+                code: DIRECTION_REFUSED_CODE,
+            });
+            expect(refused.report.issues[0]).toMatchObject({
+                code: DIRECTION_REFUSED_CODE,
+                category: "coercion",
+                severity: "warning",
+            });
+            expect(refused.report.issues[1]).toMatchObject({
+                code: DIRECTION_REFUSED_CODE,
+                severity: "error",
+                line: 2,
+            });
             const builder = locked();
             const report = await neo4jImporter.import(RELS, builder, { onMixedDirection: "undirected" });
             expect(builder.directed).toBe(false);
@@ -679,8 +676,8 @@ describe("neo4jImporter (design 8.4)", () => {
         it('reports merges under ids: "number" and rejects non-numeric text', async () => {
             const { snapshot, report } = await importText(":ID\n1\n01\nabc\n", { ids: "number" });
             expect(snapshot.ids.toArray()).toEqual([1]);
-            // 01 merged into 1: one node, counted once
-            expect(report.counts).toMatchObject({ nodes: 1, skippedNodes: 1 });
+            // 01 merged into 1: one node, counted once; the merged row and abc are skipped
+            expect(report.counts).toMatchObject({ nodes: 1, skippedNodes: 2 });
             expect(report.issues.map((i) => [i.code, i.category, i.severity, i.line])).toEqual([
                 [ID_MERGED_CODE, "coercion", "warning", 3],
                 [DUPLICATE_NODE_CODE, "merged", "warning", 3],
@@ -736,13 +733,15 @@ describe("neo4jImporter (design 8.4)", () => {
             expect([...list.dst]).toEqual([1, 0]);
         });
 
-        it("skips a row whose typed cell does not parse, without touching the sink", async () => {
+        it("keeps a row whose typed cell does not parse, with that property unset", async () => {
             const text =
                 ":ID,age:int,flag:boolean\n1,x,true\n2,3,maybe\n3,4,false\n:START_ID,:END_ID,n:int\n1,3,1.5\n3,3,2\n";
             const { snapshot, report } = await importText(text);
-            expect(snapshot.ids.toArray()).toEqual([3]);
-            expect(snapshot.edgeCount).toBe(1);
-            expect(report.counts).toMatchObject({ nodes: 1, edges: 1, skippedNodes: 2, skippedEdges: 1 });
+            expect(snapshot.ids.toArray()).toEqual([1, 2, 3]);
+            expect([0, 1, 2].map((i) => snapshot.nodes.value("age", i))).toEqual([undefined, 3, 4]);
+            expect([0, 1, 2].map((i) => snapshot.nodes.value("flag", i))).toEqual([true, undefined, false]);
+            expect(snapshot.edgeCount).toBe(2);
+            expect(report.counts).toMatchObject({ nodes: 3, edges: 2, skippedNodes: 0, skippedEdges: 0 });
             expect(report.issues.map((i) => [i.code, i.category, i.line, i.element])).toEqual([
                 ["E_COLUMN_TYPE", "validation-error", 2, "1 age"],
                 ["E_COLUMN_TYPE", "validation-error", 3, "2 flag"],
@@ -766,7 +765,8 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(err.code).toBe("E_IMPORT");
             expect(err.report.truncated).toBe(true);
             expect(err.report.errorCount).toBe(4);
-            expect(err.report.counts.skippedNodes).toBe(3);
+            // the fourth row's node is in the sink when its bad cell ends the import, and is counted
+            expect(err.report.counts.nodes).toBe(4);
             expect(err.report.format).toBe("neo4j");
         });
 
@@ -788,8 +788,8 @@ describe("neo4jImporter (design 8.4)", () => {
 
         it.each([
             ["a,b\n1,2\n", ":ID column"],
-            [":ID,:ID\n1,1\n", "more than one :ID"],
-            [":START_ID\n1\n", "exactly one :START_ID and one :END_ID"],
+            [":ID(A),:ID(B)\n1,1\n", "different id spaces"],
+            [":START_ID\n1\n", "needs a :START_ID and an :END_ID"],
             [":ID,:START_ID,:END_ID\n", "mixes :ID"],
             [":START_ID,:END_ID,:LABEL\n", "cannot have a :LABEL"],
             [":ID,:TYPE\n", "cannot have a :TYPE"],
@@ -798,7 +798,7 @@ describe("neo4jImporter (design 8.4)", () => {
             ["pid:ID,pid\n", "declared twice"],
             [":ID,x:string(S)\n", "id space"],
             [":ID,:double\n", "needs a name"],
-            [":ID,name\n1,a\n:START_ID\n", "exactly one :START_ID"],
+            [":ID,name\n1,a\n:START_ID\n", "needs a :START_ID and an :END_ID"],
         ])("aborts on the malformed header %j", async (text, message) => {
             const err = await importError(text);
             expect(err.code).toBe("E_IMPORT");
@@ -901,12 +901,9 @@ describe("neo4jImporter (design 8.4)", () => {
             [{ delimiter: ";", arrayDelimiter: ";" as const }],
             [{ delimiter: '"' }],
         ])("rejects the syntax options %j", async (options) => {
-            await expect(importText(":ID\n1\n", options)).rejects.toThrow(GraphFormatError);
-            try {
-                await importText(":ID\n1\n", options);
-            } catch (err) {
-                expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
-            }
+            const rejected = expect(importText(":ID\n1\n", options)).rejects;
+            await rejected.toThrow(GraphFormatError);
+            await rejected.toMatchObject({ code: "E_UNSUPPORTED" });
         });
     });
 

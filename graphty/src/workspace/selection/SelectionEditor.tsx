@@ -77,6 +77,7 @@ import {
 } from "./model";
 import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
+import { StyleOpenLine } from "./StyleOpenLine";
 import { useSteps } from "./useSteps";
 import {
     type Host,
@@ -97,6 +98,7 @@ import {
     rowTest,
     rowWords,
     shortCount,
+    shownWords,
     stepWords,
     VERB_WORDS,
 } from "./words";
@@ -127,8 +129,6 @@ interface SelectionEditorProps {
     readonly ownerName?: string;
     /** Selects the first step on arrival (a filter card opened on a value). */
     readonly openFirst?: boolean;
-    /** A filter condition being edited: what it would remove stays drawn, faint, while picking (spec 9). */
-    readonly hold?: string;
     /** The title row's name: a filter card's name; "Which nodes" when absent. */
     readonly title?: string;
     /** Opens the value picker on the first group at once (a new filter card). */
@@ -208,7 +208,6 @@ function afterPaint(work: () => void): void {
  * @param props.onChange - takes the next rule, which the host writes
  * @param props.onDone - the workspace closed, or Escape on the sidebar outline: the host may fold it
  * @param props.openFirst - opens the workspace on the first step on arrival
- * @param props.hold - the filter condition being edited
  * @param props.title - the title row's name
  * @param props.ownerName - what the selection belongs to, after its name in the workspace's title
  * @param props.openPicker - opens the workspace with the value picker on the first group at once
@@ -232,7 +231,6 @@ export function SelectionEditor({
     onChange: handOn,
     onDone,
     openFirst = false,
-    hold,
     title,
     ownerName,
     openPicker = false,
@@ -383,6 +381,9 @@ export function SelectionEditor({
     );
     const multi = rule.branches.length > 1 || (keepShape && rule.branches.length === 1);
     const { of } = reading.total;
+    // A filter's count reads the full graph; beside other filters it can count nodes that are not
+    // drawn, so the header says which graph it counts and how many are shown.
+    const wsCountWhere = host === "filter" && reading.total.shown < reading.total.count ? " in full graph" : "";
     const say = (words: string): void => {
         store.set({ announcement: words });
     };
@@ -523,6 +524,8 @@ export function SelectionEditor({
                 ? []
                 : [`[data-row="${CSS.escape(from)}"]`, `[data-selects="${CSS.escape(from)}"]`]),
             `[data-row="${TITLE}"]`,
+            // A style layer's sidebar has no rows, only its Style Nodes... line (issue #6810).
+            "[data-edit]",
         ];
     };
     closeRef.current = close;
@@ -660,16 +663,13 @@ export function SelectionEditor({
                 edges: true,
                 rule: JSON.parse(viewKey) as UnionLeaf,
                 rest: "faint",
-                // A filter card counts on the full graph, so it is drawn there: the other cards'
-                // removals are lifted, and drawn faint, while it is edited.
-                ...(host === "filter" ? { base: "full" as const } : {}),
-                ...(hold === undefined ? {} : { hold }),
+                // Only what is shown is drawn: the working graph draws no node outside it.
             });
         } else {
             view.current?.end();
             view.current = null;
         }
-    }, [previewing, viewKey, session, hold, host]);
+    }, [previewing, viewKey, session]);
     useEffect(
         () => () => {
             view.current?.end();
@@ -740,7 +740,7 @@ export function SelectionEditor({
             const rows = [...root.querySelectorAll<HTMLElement>(ROW)];
             target = rows[Math.min(want, rows.length - 1)];
         } else if (want === PANE_FOCUS) {
-            target = paneTarget(root);
+            target = paneTarget(root, selected);
         } else {
             target = (typeof want === "string" ? [want] : want)
                 .map((each) => root.querySelector<HTMLElement>(each))
@@ -768,7 +768,7 @@ export function SelectionEditor({
         reading.branches.find((branch) => branch.id === id);
 
     const focusPane = (): boolean => {
-        const target = paneTarget(wsBox.current);
+        const target = paneTarget(wsBox.current, selected);
         if (target === undefined) {
             return false;
         }
@@ -1167,6 +1167,35 @@ export function SelectionEditor({
      */
     const outline = (where: "rest" | "ws"): React.JSX.Element => {
         const ws = where === "ws";
+        if (!ws && host === "selector") {
+            // A style layer's selection at rest is one line that opens the workspace (issue #6810);
+            // a step whose run was removed keeps its Run beside it (cardruns.md 3).
+            return (
+                <StyleOpenLine
+                    side={side}
+                    onOpen={() => {
+                        openAt(TITLE, EDIT);
+                    }}
+                >
+                    {!open && waitingSteps.length > 0 && (
+                        <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            data-run-waiting=""
+                            leftSection={<GLYPHS.play size={12} aria-hidden />}
+                            aria-label={`Run ${name}`}
+                            onClick={() => {
+                                for (const id of waitingSteps) {
+                                    session.scope.allowRun(reading.rule, id);
+                                }
+                            }}
+                        >
+                            Run
+                        </Button>
+                    )}
+                </StyleOpenLine>
+            );
+        }
         // While the workspace is open the sidebar keeps only the title row, marked as being edited,
         // with no outline and no count: the workspace's header is the one place the count is drawn
         // (spec 3.0, the owner's review, ws-polish 2).
@@ -1274,7 +1303,7 @@ export function SelectionEditor({
                             }
                         >
                             <Text size="sm" className="sel-count" ml="auto">
-                                {`${shortCount(reading.total.count)} of ${shortCount(of)}`}
+                                {`${shortCount(reading.total.count)} of ${shortCount(of)}${shownWords(reading.total)}`}
                             </Text>
                         </Tooltip>
                     )}
@@ -1316,7 +1345,7 @@ export function SelectionEditor({
                     const branchId = branch.id ?? "";
                     const newOp = adding?.op ?? newVerb(branch);
                     return (
-                        <div // NOSONAR(S6819): a tree's subtree is an ARIA group of treeitems; a fieldset is not one
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a tree's subtree is an ARIA group of treeitems; a fieldset is not one
                             key={branch.id}
                             role="group"
                             className="sel-group"
@@ -1329,7 +1358,7 @@ export function SelectionEditor({
                                     disabled={!ws || !previewing || underOf(at).length === 0}
                                     openDelay={500}
                                 >
-                                    <div // NOSONAR(S6848): a treeitem; rowProps gives its role, tab stop and keys
+                                    <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- a treeitem; rowProps gives its role, tab stop and keys
                                         {...rowProps(
                                             branchId,
                                             branchId,
@@ -1420,7 +1449,7 @@ export function SelectionEditor({
                             )}
                             {/* Hidden while a step is added to the group: the new step's row says what it starts from. */}
                             {allRow(branch) && !(ws && adding?.branch === branch.id) && (
-                                <div // NOSONAR(S6848): a pointer shortcut; its group's own row above is the keyboard stop
+                                <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- a pointer shortcut; its group's own row above is the keyboard stop
                                     {...(multi
                                         ? { "data-selects": branchId, className: "sel-row sel-all-row" }
                                         : {
@@ -1694,8 +1723,6 @@ export function SelectionEditor({
                     host={host}
                     of={of}
                     first={index === 0}
-                    last={index === branch.steps.length - 1}
-                    total={reading.total.count}
                     hostPicks={hostPicks}
                     adds={
                         natural ? undefined : (
@@ -1704,7 +1731,6 @@ export function SelectionEditor({
                             </Text>
                         )
                     }
-                    cards
                     done={
                         index === 0 ? undefined : (
                             <TargetTooltip label="Remove">
@@ -1724,18 +1750,6 @@ export function SelectionEditor({
                     onStep={(patch) => {
                         lastEdited.current = id;
                         onChange(editStep(rule, branchId, id, patch));
-                    }}
-                    onMove={(by) => {
-                        moveStepBy(branch, id, by);
-                    }}
-                    onToggle={() => {
-                        toggle(branch, id);
-                    }}
-                    onDuplicate={() => {
-                        duplicate(branch, id);
-                    }}
-                    onRemove={() => {
-                        removeStepAt(branch, id);
                     }}
                 />
             </div>
@@ -2262,7 +2276,7 @@ export function SelectionEditor({
                   <PopoutManager>
                       <DrawnSwatches.Provider value={!colors}>
                           <div className="sel-ws-scrim" aria-hidden />
-                          <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
+                          <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches keys and presses bubbling from its own controls
                               ref={wsBox}
                               role="dialog"
                               aria-modal="true"
@@ -2315,7 +2329,7 @@ export function SelectionEditor({
                                       />
                                   )}
                                   <Text size="sm" className="sel-count">
-                                      {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
+                                      {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${shownWords(reading.total)}`}
                                   </Text>
                                   {(drawing || starting || closing || !warm) && (
                                       <Group gap={4} wrap="nowrap" className="sel-state" data-drawing="">
@@ -2378,7 +2392,6 @@ export function SelectionEditor({
                                               rule={reading.rule}
                                               title={name}
                                               branch={stripBranch}
-                                              modal
                                           />
                                       )}
                                   </div>
@@ -2399,14 +2412,16 @@ export function SelectionEditor({
 }
 
 /**
- * The control focus goes to in the workspace's pane: the first of {@link PANE_FOCUS} that can take
- * focus (a box inside a collapsed Advanced cannot).
+ * The control focus goes to in the selected step's card: the first of {@link PANE_FOCUS} that can
+ * take focus.
  * @param root - the workspace.
+ * @param step - the selected step, whose card is searched; with none, the first card that has one.
  * @returns the control, or undefined when none can take focus.
  */
-function paneTarget(root: HTMLElement | null): HTMLElement | undefined {
+function paneTarget(root: HTMLElement | null, step: string | null): HTMLElement | undefined {
+    const card = step === null ? "" : `[data-step-pane="${CSS.escape(step)}"] `;
     for (const selector of PANE_FOCUS) {
-        const found = [...(root?.querySelectorAll<HTMLElement>(selector) ?? [])].find(
+        const found = [...(root?.querySelectorAll<HTMLElement>(card + selector) ?? [])].find(
             (each) => canFocus(each) && each.tabIndex >= 0,
         );
         if (found !== undefined) {
@@ -2450,12 +2465,12 @@ const TEST_FOCUS: readonly string[] = [
     ".sel-ws-cards .sel-test-box input:not([type=hidden])",
 ];
 
-/** Where focus goes in a pane that was entered: its first box to type in, else its first control. */
+/** Where focus goes in a step's card that was entered: its test's first box to type in, else its first control. */
 const PANE_FOCUS: readonly string[] = [
-    ".sel-pane-box [data-first-focus]",
-    ".sel-pane-box input:not([type=hidden], [type=checkbox], [type=radio], [readonly])",
-    ".sel-pane-box input:not([type=hidden])",
-    ".sel-pane-box button",
+    ".sel-test-box [data-first-focus]",
+    ".sel-test-box input:not([type=hidden], [type=checkbox], [type=radio], [readonly])",
+    ".sel-test-box input:not([type=hidden])",
+    ".sel-test-box button",
 ];
 
 /**

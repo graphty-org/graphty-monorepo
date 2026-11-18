@@ -49,6 +49,9 @@ async function mounted(): Promise<Graphty> {
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    // The halo is read by its gold showing through at 40%, far from the node's blue; the default
+    // halo is solid blue (#811), so that look is set.
+    element.selectionStyle = { color: "#FFD700", opacity: 0.4 };
     await element.session.styles.add({
         name: "More to fetch",
         target: "node",

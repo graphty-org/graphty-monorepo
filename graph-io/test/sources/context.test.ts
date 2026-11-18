@@ -393,6 +393,36 @@ describe("pacing", () => {
         await all;
         expect(peak).toBe(2);
     });
+
+    it("rejects a request waiting for a slot as soon as its load aborts or times out", async () => {
+        let started = 0;
+        const held: (() => void)[] = [];
+        const fetch = (): Promise<Response> => {
+            started++;
+            return new Promise((resolve) => held.push(() => resolve(new Response("{}"))));
+        };
+        const extra = {
+            endpoint: API,
+            id: "paced-abort",
+            descriptor: { plainName: "P", params: [], rateLimit: { requests: 100, perMs: 1000, concurrent: 1 } },
+        };
+        // one load holds the only slot; the next two queue behind it
+        const holder = bareContext({ fetch }, extra).ctx.fetch("/a");
+        const controller = new AbortController();
+        const aborted = bareContext({ fetch, signal: controller.signal }, extra).ctx.fetch("/a");
+        const timed = bareContext({ fetch, limits: { timeoutMs: 5 } }, extra);
+        const timedOut = rejection(timed.ctx.fetch("/a"));
+        await new Promise((r) => setImmediate(r));
+        controller.abort("user");
+        await expect(aborted).rejects.toBe("user");
+        expect((await timedOut).issue?.code).toBe("E_SOURCE_TIMEOUT");
+        timed.dispose();
+        // the queued loads left the queue: neither was sent, and the slot passes to no one
+        expect(started).toBe(1);
+        held.shift()?.();
+        await holder;
+        expect(started).toBe(1);
+    });
 });
 
 describe("the blocked request diagnosis (browser)", () => {

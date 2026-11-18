@@ -2,7 +2,7 @@
  * Fade by age, drawn: with `ageFade: 0.2` an edge starting at the window's first instant draws at
  * about a fifth of its opacity and one near its end at nearly full, a line behind a faded one
  * shows through it, the lines keep drawing while the program switches, an opaque line does not
- * fade, a step uploads no edge slot, and at 1 the picture is the one the timeline-off element draws.
+ * fade, a step uploads no edge slot, and at 1 the picture is the one drawn with no time field.
  * The canvas pixels are the measure: a black line over the background leaves
  * `1 - pixel / background` of its alpha there.
  */
@@ -43,16 +43,14 @@ interface Point {
 /**
  * An element with an old and a new horizontal edge, and two crossings of an old and a new edge:
  * in one the old edge is nearer the camera, in the other the new one.
- * @param features - The experiments it runs with.
  * @param set - What the edge layer writes besides black, thick lines.
  * @returns The element, drawn.
  */
-async function element(features: string[], set: Record<string, unknown> = {}): Promise<Graphty> {
+async function element(set: Record<string, unknown> = {}): Promise<Graphty> {
     const graphty = document.createElement("graphty-element");
     graphty.style.display = "block";
     graphty.style.width = `${String(WIDTH)}px`;
     graphty.style.height = `${String(HEIGHT)}px`;
-    graphty.features = features;
     document.body.appendChild(graphty);
     mounted = graphty;
     await graphty.updateComplete;
@@ -195,7 +193,7 @@ async function canvasBytes(graphty: Graphty): Promise<Uint8Array> {
 
 describe("fade by age", () => {
     it("fades the oldest edge in the window to the setting, and a line behind it shows through", async () => {
-        const graphty = await element(["timeline"]);
+        const graphty = await element();
         await windowed(graphty);
         await graphty.session.time.setSettings({ ageFade: 0.2 });
         await drawn(graphty);
@@ -224,7 +222,7 @@ describe("fade by age", () => {
     });
 
     it("draws the fade on a graph drawn on demand once the frame is stable", async () => {
-        const graphty = await element(["timeline"]);
+        const graphty = await element();
         await graphty.setRenderSettings({ onDemand: true });
         await windowed(graphty);
         await graphty.session.time.window({ from: OLD - 1, to: NEW + 1, step: 1 });
@@ -244,7 +242,7 @@ describe("fade by age", () => {
     });
 
     it("keeps the lines drawn through the switch", async () => {
-        const graphty = await element(["timeline"]);
+        const graphty = await element();
         await windowed(graphty);
         await drawn(graphty);
         const scene = graphty.graph.getScene();
@@ -263,15 +261,17 @@ describe("fade by age", () => {
     });
 
     it("leaves an opaque line unfaded", async () => {
-        const graphty = await element(["timeline"], { "edge.blending": false });
+        const graphty = await element({ "edge.blending": false });
         await windowed(graphty);
         await graphty.session.time.setSettings({ ageFade: 0.2 });
         await drawn(graphty);
         assert.closeTo(await alphaAt(graphty, screen(graphty, 0, 5)), 1, ALPHA_TOLERANCE);
     });
 
-    it("leaves a straight dashed line unfaded", async () => {
-        const graphty = await element(["timeline"], { "edge.style": "dash" });
+    // A straight dashed line is a joined line whose shader draws its dashes (issue #7404), so it fades as a solid one
+    // does; drawn as pattern elements it used to stay at full strength.
+    it("fades a straight dashed line as a solid one", async () => {
+        const graphty = await element({ "edge.style": "dash" });
         await windowed(graphty);
         await graphty.session.time.setSettings({ ageFade: 0.2 });
         await drawn(graphty);
@@ -281,11 +281,11 @@ describe("fade by age", () => {
             alpha = Math.max(alpha, await alphaAt(graphty, screen(graphty, x, 5)));
         }
 
-        assert.closeTo(alpha, 1, ALPHA_TOLERANCE);
+        assert.closeTo(alpha, 0.2, ALPHA_TOLERANCE);
     });
 
     it("a step writes the uniform and no edge slot", async () => {
-        const graphty = await element(["timeline"]);
+        const graphty = await element();
         await windowed(graphty);
         await graphty.session.time.window({ from: OLD - 1, to: NEW + 1, step: 1 });
         await graphty.session.time.setSettings({ ageFade: 0.2 });
@@ -301,12 +301,12 @@ describe("fade by age", () => {
         assert.isBelow(await alphaAt(graphty, screen(graphty, 0, 5)), before - 0.02, "the old edge is older now");
     });
 
-    it("at 1 draws what the element without the timeline draws", async () => {
-        const off = await element([]);
+    it("at 1 draws what the element with no time field draws", async () => {
+        const off = await element();
         const before = await canvasBytes(off);
         off.remove();
 
-        const on = await element(["timeline"]);
+        const on = await element();
         await on.session.time.setField({ edges: { start: "t", unit: "ordinal" } });
         await drawn(on);
         for (const defines of lineDefines(on)) {

@@ -6,25 +6,27 @@
  */
 
 import { type AttributeDescriptor, sourceDescriptors } from "@graphty/graphty-element/catalog";
-import type {
-    CodedFact,
-    ColumnRef,
-    ColumnRole,
-    Endpoint,
-    GraphSession,
-    JoinShape,
-    LeftOutEdge,
-    LoadedSource,
-    LocationKind,
-    LocationUnused,
-    LocationUsing,
-    TableMapping,
-    TableMappingRead,
+import {
+    type CodedFact,
+    type ColumnRef,
+    type ColumnRole,
+    type Endpoint,
+    type GraphSession,
+    type JoinShape,
+    type LeftOutEdge,
+    type LoadedSource,
+    type LocationKind,
+    type LocationUnused,
+    type LocationUsing,
+    pathParts,
+    type Run,
+    type TableMapping,
+    type TableMappingRead,
 } from "@graphty/graphty-element/session";
 
-import { formatNumber, valueText } from "../inspector/words";
+import { count, formatNumber, valueText } from "../inspector/words";
 import { kindName } from "../server/words";
-import { formatCount } from "../settings/numberFormat";
+import { failureWords } from "../style/words";
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
 export type TypeGlyph = "category" | "text" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
@@ -44,16 +46,6 @@ export interface AttributeRow {
     readonly fill: string | null;
     /** The row's second line, which a screen reader hears after the name: the type word, then the fill. */
     readonly description: string;
-}
-
-/**
- * A count and its noun, singular for one.
- * @param n - the count.
- * @param noun - the singular noun.
- * @returns such as "1 node" or "34 nodes".
- */
-export function count(n: number, noun: string): string {
-    return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /**
@@ -239,6 +231,19 @@ export function attributeRows(
         });
 }
 
+/** Why an attribute's verbs cannot run: it went away under the open menu. */
+export const GONE_WORD = "No longer in the data";
+
+/**
+ * A notice for a filter change the element refused, with its reason when the app has words for
+ * the element's code.
+ * @param error - what the element threw.
+ * @returns "The filter could not be changed: its layer is locked."
+ */
+export function filterFailureWords(error: unknown): string {
+    return failureWords("The filter", "changed", error);
+}
+
 /**
  * Why an attribute cannot be a label, in words, from the element's coded refusal
  * (`styles.proposeEncoding`).
@@ -363,8 +368,8 @@ function formatWord(source: LoadedSource): string {
  * @returns such as "Id" or "symbol".
  */
 function graphValueWord(graph: string): string {
-    const plain = graph.replace(/^data\./, "");
-    return plain === graph && graph !== "" ? `${graph.charAt(0).toUpperCase()}${graph.slice(1)}` : plain;
+    const parts = pathParts(graph);
+    return parts?.from === "data" ? parts.column : `${graph.charAt(0).toUpperCase()}${graph.slice(1)}`;
 }
 
 /** What a load's details say besides its own entry. */
@@ -777,4 +782,29 @@ export function namesOnce(names: readonly string[]): string {
         counts.set(name, (counts.get(name) ?? 0) + 1);
     }
     return [...counts].map(([name, count]) => (count > 1 ? `${name} x${String(count)}` : name)).join(", ");
+}
+
+/**
+ * A result's methods text, for a write-up: what ran, over what, with which settings, and which
+ * versions computed it, all read from the run's record.
+ * @param session - the element's session.
+ * @param run - the result.
+ * @returns the text.
+ */
+export function methodsWords(session: GraphSession, run: Run): string {
+    const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
+    const name = descriptor === undefined ? run.algorithm : `${descriptor.plainName} (${descriptor.technicalName})`;
+    const settings = Object.entries(run.params).map(
+        ([key, value]) => `${key} = ${typeof value === "string" ? value : JSON.stringify(value)}`,
+    );
+    const over = `${count(run.scope.nodeCount, "node")} and ${count(run.scope.edgeCount, "edge")}`;
+    const withSettings = settings.length === 0 ? "" : `, with ${settings.join(", ")}`;
+    const lines = [
+        `${name} was computed over ${over}${withSettings}.`,
+        `Computed by graphty-element ${run.engine.element} with @graphty/algorithms ${run.engine.algorithms}.`,
+    ];
+    if (run.record.seed !== null) {
+        lines.push(`Seed: ${String(run.record.seed)}.`);
+    }
+    return lines.join(" ");
 }

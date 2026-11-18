@@ -45,7 +45,7 @@ export interface CytoscapeRules {
     readonly rules: StyleRule[];
     /**
      * Style columns by key: a passthrough whose file values Cytoscape reads differently from their plain reading
-     * (a 0..255 transparency, `ROUND_RECTANGLE`) reads its values from `cytoscape.<property>` instead.
+     * (a 0..255 transparency, `ROUND_RECTANGLE`) reads its values from `drawn.<property>` instead.
      */
     readonly columns: Map<string, StyleColumn>;
 }
@@ -183,7 +183,7 @@ interface MappingRead {
 /**
  * A parsed Cytoscape mapping as a neutral mapping. A passthrough stays a passthrough over the file's column when
  * the planner's reading of every value equals Cytoscape's; otherwise Cytoscape's values are copied into the style
- * column `cytoscape.<property>`, which the passthrough reads.
+ * column `drawn.<property>`, which the passthrough reads.
  * @param m - the parsed mapping
  * @param property - the first property it sets
  * @param parse - Cytoscape's parser for the property
@@ -223,7 +223,7 @@ function neutralMapping(
     if (same) {
         return { kind: "passthrough", by };
     }
-    const key = `cytoscape.${property}`;
+    const key = `drawn.${property}`;
     columns.set(key, values);
     return { kind: "passthrough", by: { style: key } };
 }

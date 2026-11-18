@@ -13,7 +13,7 @@
 // warning fails the sheet, except the ones in EXPECTED_WARNINGS, which the specimens exist to show.
 //
 // GRAPHVIZ_BIN: the directory holding dot, neato and gml2gv
-// (default <repo>/tmp/style-fidelity/tools/conda-graphviz/bin). Text is measured with the
+// (default <main checkout>/tmp/style-fidelity/tools/conda-graphviz/bin). Text is measured with the
 // repository's pinned fonts (visual-fonts/), so no host font changes a layout, and in the face a browser draws
 // the SVG's text in (graphviz-fonts.conf), so each node is sized for the label its SVG shows.
 // Then run rasterize.mjs on the written SVGs for the PNGs.
@@ -26,13 +26,13 @@ import { fileURLToPath } from "node:url";
 import console from "node:console";
 import process from "node:process";
 
+import { mainCheckout } from "./main-checkout.mjs";
 import { isYedDrawing } from "./own-drawing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const oracles = resolve(here, "..");
 const repo = resolve(here, "../../../../..");
 const testDir = resolve(here, "../../..");
-const mainCheckout = resolve(repo, "../..");
 const bin = process.env.GRAPHVIZ_BIN ?? join(mainCheckout, "tmp/style-fidelity/tools/conda-graphviz/bin");
 // graphviz-fonts.conf with its paths filled in, and a cache of its own: its scan rules change what is cached.
 const fontDir = mkdtempSync(join(tmpdir(), "graphviz-fonts-"));

@@ -12,14 +12,16 @@ import {
     OPENALEX_SOURCE_ID,
     REST_SOURCE_ID,
     SPARQL_SOURCE_ID,
+    URL_SOURCE_ID,
 } from "./ids.js";
 import { NDEX_DESCRIPTOR } from "./ndex/descriptor.js";
 import { OPENALEX_DESCRIPTOR, REST_DESCRIPTOR } from "./rest/descriptor.js";
 import { SPARQL_DESCRIPTOR } from "./sparql/descriptor.js";
 import { type LazySource } from "./types.js";
+import { URL_DESCRIPTOR } from "./url/descriptor.js";
 
 /**
- * The seven built-in sources, each loading its subpath on first use.
+ * The eight built-in sources, each loading its subpath on first use.
  * @returns the lazy sources, in catalog order
  */
 export function builtinSources(): readonly LazySource[] {
@@ -58,6 +60,11 @@ export function builtinSources(): readonly LazySource[] {
             id: SPARQL_SOURCE_ID,
             descriptor: SPARQL_DESCRIPTOR,
             load: async () => (await import("./sparql/index.js")).sparqlSource,
+        },
+        {
+            id: URL_SOURCE_ID,
+            descriptor: URL_DESCRIPTOR,
+            load: async () => (await import("./url/index.js")).urlSource,
         },
     ];
 }

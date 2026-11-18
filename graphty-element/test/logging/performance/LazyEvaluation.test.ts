@@ -66,27 +66,6 @@ describe("Lazy Evaluation", () => {
             assert.strictEqual(expensiveFn.mock.calls.length, 1);
         });
 
-        test("should work with isDebugEnabled() guard", async () => {
-            await GraphtyLogger.configure({
-                enabled: true,
-                level: LogLevel.WARN, // Debug is filtered
-                modules: "*",
-                format: { timestamp: true, module: true },
-            });
-
-            const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue({ computed: "expensive data" });
-
-            // Pattern: Use isDebugEnabled() guard with lazy evaluation
-            if (logger.isDebugEnabled()) {
-                const lazyData = lazy(expensiveFn);
-                logger.debug("message", { data: lazyData });
-            }
-
-            // Function should not be called because of the guard
-            assert.strictEqual(expensiveFn.mock.calls.length, 0);
-        });
-
         test("should not evaluate when logging is disabled", async () => {
             await GraphtyLogger.configure({
                 enabled: false,

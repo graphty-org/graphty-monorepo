@@ -10,12 +10,16 @@ import {
     type LayoutImplementation,
     type OptionDescriptor,
 } from "@graphty/graphty-element/catalog";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { layoutRefusalWords } from "./refusalWords";
+import { LAYOUT_DESCRIPTIONS } from "./words";
+
+const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
 /**
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
@@ -45,12 +49,15 @@ const LAYOUT_NAMES: Readonly<Record<string, string>> = {
  */
 export const LAYOUT_SEED = 1;
 
+/** The location map's id: its form names the columns it read, and the map rule sizes its nodes on screen. */
+export const MAP_LAYOUT = "location-map";
+
 /**
  * A new random layout seed.
  * @returns a non-negative 31-bit integer.
  */
 export function randomSeed(): number {
-    return Math.floor(Math.random() * 2 ** 31); // NOSONAR(S2245): a layout seed, not a security value
+    return Math.floor(Math.random() * 2 ** 31); // eslint-disable-line sonarjs/pseudo-random -- a layout seed, not a security value
 }
 
 /**
@@ -86,6 +93,17 @@ export function layoutName(descriptor: LayoutDescriptor): string {
 }
 
 /**
+ * The line under a layout's name: the app's words for the layout, or for the engine drawing it when
+ * that is not the default; nothing for a layout the app has no words for.
+ * @param descriptor - the element's layout descriptor, as a row of the list hands it to the form.
+ * @returns the line, or "".
+ */
+export function layoutDescription(descriptor: LayoutDescriptor): string {
+    const engine = otherEngine(descriptor)?.engine;
+    return LAYOUT_DESCRIPTIONS[engine === undefined ? descriptor.id : `${descriptor.id}:${engine}`] ?? "";
+}
+
+/**
  * Whether a layout is drawn by Graphviz, which the list says beside its name.
  * @param descriptor - the layout.
  * @returns true for a Graphviz engine.
@@ -107,7 +125,6 @@ function withEngine(descriptor: LayoutDescriptor, implementation: LayoutImplemen
         engine: implementation.engine,
         options: implementation.options,
         maxDimensions: implementation.maxDimensions,
-        description: implementation.description,
         ...(implementation.requires === undefined ? {} : { requires: implementation.requires }),
     };
 }
@@ -131,7 +148,7 @@ function keyOption(descriptor: LayoutDescriptor, type: "node-id" | "partition"):
  * @returns the layouts.
  */
 export function useLayouts(session: GraphSession | null): readonly LayoutDescriptor[] {
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, TOOLBAR_EVENTS);
     const [resolved, setResolved] = useState<{
         session: GraphSession;
         layouts: readonly LayoutDescriptor[];
@@ -155,7 +172,13 @@ export function useLayouts(session: GraphSession | null): readonly LayoutDescrip
                     setResolved({ session, layouts });
                 }
             },
-            () => undefined,
+            (error: unknown) => {
+                // The list keeps the layouts it read before; the refusal is an element defect.
+                logger.error(
+                    "catalog.optionsFor failed; the layout list was not refreshed",
+                    error instanceof Error ? error : undefined,
+                );
+            },
         );
         return () => {
             live = false;
@@ -201,13 +224,12 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
     const values: Record<string, unknown> = descriptor.options.some((option) => option.name === "seed")
         ? { seed: LAYOUT_SEED }
         : {};
-    // On a map the app keeps nodes one size on screen, so zooming to a region pulls apart the nodes
-    // a world view draws on top of one another (the element's own default scales them with zoom),
-    // and draws the map, flat or globe, six times larger than the element's default under the same
-    // nodes and edges, so a dense region (the United States, Europe) is not one grey patch. That
-    // leaves a flat map's nodes too small to see, so they are drawn twice that size: still apart.
-    if (descriptor.id === "location-map") {
-        values.nodeScale = "screen";
+    // On a map the app draws the map, flat or globe, six times larger than the element's default
+    // under the same nodes and edges, so a dense region (the United States, Europe) is not one grey
+    // patch. With nodes one size on screen (Settings, "Map layout automatically enables
+    // depth-independent size", frame/ElementHost.tsx) that leaves a flat map's nodes too small to
+    // see, so they are drawn twice that size: still apart.
+    if (descriptor.id === MAP_LAYOUT) {
         values.mapScale = 6;
         values.flatNodeScale = 2;
     }
@@ -286,7 +308,7 @@ export const LAYOUT_SECTIONS: readonly { readonly family: string; readonly title
  * @returns the section's heading.
  */
 export function sectionOf(family: string): string {
-    const last = LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1]; // NOSONAR(S7755): .at() would widen the type to undefined
+    const last = LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1]; // eslint-disable-line unicorn/prefer-at -- .at() would widen the type to undefined
     return (LAYOUT_SECTIONS.find((section) => section.family === family) ?? last).title;
 }
 
@@ -306,7 +328,7 @@ function choiceOf(session: GraphSession, descriptor: LayoutDescriptor, recommend
         descriptor,
         key: engine === undefined ? descriptor.id : `${descriptor.id}:${engine}`,
         name: layoutName(descriptor),
-        description: descriptor.description,
+        description: layoutDescription(descriptor),
         graphviz: isGraphviz(descriptor),
         current: isDrawn(session, descriptor),
         recommended,

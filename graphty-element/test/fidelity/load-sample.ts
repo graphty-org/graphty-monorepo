@@ -10,7 +10,7 @@ import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graphty } from "../../index.js";
 import packageJson from "../../package.json";
 import { readDrawn } from "./drawn-scene";
-import { extractScene } from "./extract-scene";
+import { comparerEdgeIds, extractScene } from "./extract-scene";
 
 /** The force layout's seed, for a sample whose file does not place every node. */
 export const SEED = 42;
@@ -55,6 +55,9 @@ export function createSampleElement(width: number, height: number): Graphty {
     element.style.cssText = `display:block;width:${String(width)}px;height:${String(height)}px`;
     // The samples are drawn with their file's styles, the file styles experiment.
     element.features = ["file-styles"];
+    // The working graph off: the programs a file came from lay out and draw every element, hidden
+    // ones included, so the drawing is compared over the whole graph.
+    element.workingGraph = false;
     element.viewMode = "2d";
     element.layoutConfig = { seed: SEED };
     // Run the layout before the first frame, as the File Styles stories do: drawing every step
@@ -86,13 +89,10 @@ export async function importSample(
     imageBaseUrl?: string,
 ): Promise<string> {
     await element.updateComplete;
-    // session.data.import rather than loadFromUrl, for two reasons. loadFromUrl has no layout
-    // option, so a file's own coordinates were thrown away for the seeded force layout and
-    // every position scored 0 against references that keep them; `layout: "recommended"` is
-    // the public way to keep them (graphty-element picks "fixed" when every node carries a
-    // coordinate, else a computed layout). And loadFromUrl always passes the element's
-    // nodeIdPath ("id" by default) to the JSON reader, which then skips its Cytoscape.js
-    // dialect and loads nothing (E_EMPTY_LOAD): a graphty-element defect.
+    // session.data.import, which takes the format's own reader options (formatOptions) that
+    // loadFromUrl does not. `layout: "recommended"` keeps a file's own coordinates (graphty-element
+    // picks "fixed" when every node carries one, else a computed layout), so positions are scored
+    // against references that keep them.
     const config = { ...formatOptions, ...(graphName === undefined ? { url } : { url, graphName }) };
     const named =
         (graphName === undefined ? "" : `, graphName: ${JSON.stringify(graphName)}`) +
@@ -132,11 +132,13 @@ export async function importSample(
  * @returns the scene
  */
 export function drawnScene(element: Graphty, sha256: string, command: string): Scene {
-    return extractScene(element, readDrawn(element.graph), {
+    const scene = extractScene(element, readDrawn(element.graph), {
         version: `${packageJson.version} (source)`,
         command,
         sourceSha256: sha256,
     });
+    const ids = comparerEdgeIds(element.session.data.edges());
+    return { ...scene, edges: scene.edges.map((e) => ({ ...e, id: ids.get(e.id) ?? e.id })) };
 }
 
 /**

@@ -48,8 +48,9 @@ import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import { builtinSources } from "./sources/builtins.js";
+import { defaultCatalog, type SourceCatalog } from "./sources/catalog.js";
 import { type SourceParamsMap } from "./sources/params.js";
-import { SourceRegistry } from "./sources/registry.js";
+import { type SourceBuilding, SourceRegistry } from "./sources/registry.js";
 import {
     type ExpandRequest,
     type GraphSource,
@@ -331,6 +332,21 @@ const REGISTRY_KEYS: ReadonlySet<string> = new Set([
     "styles",
 ]);
 
+/** How every registry's sources build and freeze a graph. */
+const SOURCE_BUILDING: SourceBuilding = {
+    newBuilder: (options, format) => seededBuilder(options as ImportGraphOptions, format),
+    freeze: (format, builder, report, options) =>
+        result(
+            { importer: { format } as GraphImporter, sniff: null, source: "", peeked: null, warnings: [] },
+            builder,
+            report,
+            options as ImportGraphOptions,
+        ),
+};
+
+/** The source list the FormatRegistry being built takes instead of a new one: set only while the default registry is built. */
+let adoptedCatalog: SourceCatalog | undefined;
+
 /**
  * A registry of importers and exporters by format name. Registration order is the tie-break
  * order of sniffing; the default registry lists the built-in formats in the
@@ -342,16 +358,7 @@ export class FormatRegistry {
 
     private readonly exporterMap = new Map<string, GraphExporter>();
 
-    private readonly sources = new SourceRegistry(this, {
-        newBuilder: (options, format) => seededBuilder(options as ImportGraphOptions, format),
-        freeze: (format, builder, report, options) =>
-            result(
-                { importer: { format } as GraphImporter, sniff: null, source: "", peeked: null, warnings: [] },
-                builder,
-                report,
-                options as ImportGraphOptions,
-            ),
-    });
+    private readonly sources = new SourceRegistry(this, SOURCE_BUILDING, adoptedCatalog);
 
     /**
      * Register a network source, or a lazy one whose code loads on first use. Source ids are their
@@ -660,7 +667,7 @@ export class FormatRegistry {
         const { request, ...rest } = opts;
         const signal = request?.signal ?? rest.signal ?? null;
         const method = request?.method ?? "GET";
-        const where = `${method} ${String(url)}`;
+        const where = `${method} ${shownUrl(url)}`;
         let response: Response;
         try {
             response = await fetch(url, { signal: rest.signal, ...request });
@@ -1110,7 +1117,20 @@ export class FormatRegistry {
  * @category Formats and detection
  */
 export function createRegistry(): FormatRegistry {
-    const formats = new FormatRegistry()
+    const formats = withBuiltinFormats(new FormatRegistry());
+    for (const source of builtinSources()) {
+        formats.registerSource(source);
+    }
+    return formats;
+}
+
+/**
+ * Register every built-in importer and exporter, in the order of GRAPH_FORMATS.
+ * @param formats - the registry
+ * @returns the registry
+ */
+function withBuiltinFormats(formats: FormatRegistry): FormatRegistry {
+    return formats
         .registerImporter(jsonImporter)
         .registerExporter(jsonExporter)
         .registerImporter(graphmlImporter)
@@ -1137,17 +1157,27 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(oboExporter)
         .registerImporter(cysImporter)
         .registerExporter(cysExporter);
-    for (const source of builtinSources()) {
-        formats.registerSource(source);
+}
+
+/**
+ * The default registry: every built-in format, holding the default source list that
+ * `listSources()` and `registerSource()` read and write without building this registry.
+ * @returns the registry
+ */
+function createDefaultRegistry(): FormatRegistry {
+    adoptedCatalog = defaultCatalog;
+    try {
+        return withBuiltinFormats(new FormatRegistry());
+    } finally {
+        adoptedCatalog = undefined;
     }
-    return formats;
 }
 
 /**
  * The default registry: every built-in format.
  * @category Formats and detection
  */
-export const registry: FormatRegistry = /* @__PURE__ */ createRegistry();
+export const registry: FormatRegistry = /* @__PURE__ */ createDefaultRegistry();
 
 /**
  * Read a graph from a string, bytes or a stream. The format is the one you name in `format`, else
@@ -1282,7 +1312,7 @@ export function checkExport(
  * @throws ImportError when the file could not be loaded; `err.issue?.code` is "E_FETCH" for a
  *   network failure, a CORS refusal or a status outside 200-299 (`err.details.url`,
  *   `err.details.status` -- null for a network failure -- and `err.details.cause`, fetch's own
- *   error), "E_UNKNOWN_FORMAT" when no format recognizes the file (pass `format`), or the code of
+ *   error rebuilt without the URL's secrets), "E_UNKNOWN_FORMAT" when no format recognizes the file (pass `format`), or the code of
  *   the parse error
  * @throws GraphFormatError with code E_UNSUPPORTED when `format` names no registered importer
  * @throws the signal's reason when `signal` aborts
@@ -1477,7 +1507,7 @@ export function sniff(hints: SniffHints): SniffResult | null {
  * @param url - the URL
  * @param message - the message
  * @param status - the HTTP status, or null for a network failure
- * @param cause - fetch's own error, or null
+ * @param cause - fetch's own error, or null; attached with the URL's secrets taken out
  * @returns never; always throws
  */
 function fetchFailed(
@@ -1488,7 +1518,61 @@ function fetchFailed(
     cause: unknown,
 ): never {
     const format = options.format === undefined || options.format === "auto" ? "unknown" : options.format;
-    return new ImportReportBuilder(format, 0).fail(FETCH_CODE, message, undefined, { url: String(url), status, cause });
+    return new ImportReportBuilder(format, 0).fail(FETCH_CODE, withoutSecrets(url, message), undefined, {
+        url: shownUrl(url),
+        status,
+        cause: redactedError(url, cause, 0),
+    });
+}
+
+/**
+ * fetch's error rebuilt with the URL's secrets taken out: its name, message, `code` and cause
+ * chain, never its stack or other fields, since runtimes put the URL as given in all of those (Node
+ * does for a URL with user info).
+ * @param url - the URL fetch was called with
+ * @param err - what fetch threw, or null
+ * @param depth - how many causes deep this is
+ * @returns the redacted error, or null for null
+ */
+function redactedError(url: string | URL, err: unknown, depth: number): Error | null {
+    if (err === null || err === undefined) {
+        return null;
+    }
+    const { name, message, code, cause } = (typeof err === "object" ? err : {}) as Record<string, unknown>;
+    const out = new Error(withoutSecrets(url, typeof message === "string" ? message : messageOf(err)));
+    out.name = typeof name === "string" ? name : "Error";
+    if (typeof code === "string") {
+        Object.assign(out, { code: withoutSecrets(url, code) });
+    }
+    // three levels hold what undici and browsers nest; deeper is dropped rather than walked
+    const inner = depth < 3 ? redactedError(url, cause, depth + 1) : null;
+    if (inner !== null) {
+        out.cause = inner;
+    }
+    return out;
+}
+
+/**
+ * Text with every spelling of a URL's secrets replaced: the URL as given and as resolved become
+ * its shownUrl(), and any user info, query string or fragment left over is removed.
+ * @param url - the URL
+ * @param text - the text to clean
+ * @returns the text without the URL's secrets
+ */
+function withoutSecrets(url: string | URL, text: string): string {
+    const shown = shownUrl(url);
+    let out = text.replaceAll(String(url), shown);
+    try {
+        const absolute = new URL(url);
+        out = out.replaceAll(absolute.href, shown);
+        const user = absolute.username + (absolute.password === "" ? "" : `:${absolute.password}`);
+        for (const secret of [user === "" ? "" : `${user}@`, absolute.search, absolute.hash]) {
+            out = secret === "" ? out : out.replaceAll(secret, "");
+        }
+    } catch {
+        // a relative URL: shownUrl() already cut its query string and fragment
+    }
+    return out;
 }
 
 /**
@@ -1537,6 +1621,23 @@ function fetchErrorText(url: string | URL, err: unknown): string {
     const cause = (err as { cause?: { message?: unknown } } | null)?.cause?.message;
     const detail = typeof cause === "string" && cause !== "" ? ` (${cause})` : "";
     return `the server could not be reached, or (in a browser) it does not allow this page to read the file (CORS)${detail}`;
+}
+
+/**
+ * A URL as errors show it: origin and path, never the query string, fragment or user info, which
+ * can hold a signature or a key.
+ * @param url - the URL, absolute or relative
+ * @returns the URL without its secrets
+ */
+function shownUrl(url: string | URL): string {
+    try {
+        const absolute = new URL(url);
+        return `${absolute.protocol}//${absolute.host}${absolute.pathname}`;
+    } catch {
+        const text = String(url);
+        const cut = text.search(/[?#]/);
+        return cut === -1 ? text : text.slice(0, cut);
+    }
 }
 
 /**
@@ -1668,6 +1769,7 @@ function result(
         styles = extractStyles(chosen.importer, frozen.snapshot, report, {
             signal: options.signal,
             toolDefaults: typeof wanted === "object" ? wanted.toolDefaults : undefined,
+            viewport: typeof wanted === "object" ? wanted.viewport : undefined,
         });
     }
     const read =
@@ -2236,23 +2338,5 @@ export function validateSource<P>(
     return registry.validateSource(source, params as Readonly<Record<string, unknown>>, seen, options);
 }
 
-/**
- * Register a network source in the default registry, so loadFromSource() and graphty-element
- * find it by id. Throws an ImportError with E_SOURCE_INVALID for a malformed source or an id
- * already taken. Experimental.
- * @param source - the source, or a lazy source that loads its code on first use
- * @category Network sources
- */
-export function registerSource<P>(source: GraphSource<P> | LazySource): void {
-    registry.registerSource(source);
-}
-
-/**
- * Every source in the default registry with its descriptor (what a form asks for), loading no
- * source code. Experimental.
- * @returns one entry per source: id, descriptor, whether its code is loaded
- * @category Network sources
- */
-export function listSources(): readonly SourceInfo[] {
-    return registry.listSources();
-}
+// The default source list lives apart from the default registry, so listing sources loads no importer.
+export { listSources, registerSource } from "./sources/catalog.js";

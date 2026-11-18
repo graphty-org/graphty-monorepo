@@ -3,7 +3,7 @@ import { type GraphSnapshot, type U32 } from "@graphty/graph-format";
 import { withCode } from "../errors.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
-/** A partition of the node set (graph-format design 14.2's result table, line 3738). @public */
+/** A partition of the node set: one label per node. @public */
 export interface LabelResult {
     /** Dense label per node index, in first-seen order. */
     readonly labels: U32;

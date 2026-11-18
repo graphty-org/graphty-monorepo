@@ -1,0 +1,160 @@
+{
+    "asset": {
+        "version": "2.0",
+        "generator": "graphty variant fixtures"
+    },
+    "scene": 0,
+    "scenes": [
+        {
+            "nodes": [0]
+        }
+    ],
+    "nodes": [
+        {
+            "mesh": 0
+        }
+    ],
+    "meshes": [
+        {
+            "primitives": [
+                {
+                    "attributes": {
+                        "POSITION": 0,
+                        "NORMAL": 1
+                    },
+                    "material": 0,
+                    "indices": 2
+                }
+            ]
+        }
+    ],
+    "materials": [
+        {
+            "name": "cube",
+            "pbrMetallicRoughness": {
+                "baseColorTexture": {
+                    "index": 0,
+                    "extensions": {
+                        "KHR_texture_transform": {
+                            "scale": [1, 1]
+                        }
+                    }
+                },
+                "metallicRoughnessTexture": {
+                    "index": 1
+                },
+                "metallicFactor": 0,
+                "roughnessFactor": 1
+            },
+            "extensions": {
+                "KHR_materials_transmission": {
+                    "transmissionFactor": 1
+                }
+            },
+            "normalTexture": {
+                "index": 2
+            }
+        }
+    ],
+    "accessors": [
+        {
+            "bufferView": 0,
+            "componentType": 5126,
+            "count": 24,
+            "type": "VEC3",
+            "min": [-0.5, -0.5, -0.5],
+            "max": [0.5, 0.5, 0.5]
+        },
+        {
+            "bufferView": 1,
+            "componentType": 5126,
+            "count": 24,
+            "type": "VEC3"
+        },
+        {
+            "bufferView": 2,
+            "componentType": 5123,
+            "count": 36,
+            "type": "SCALAR"
+        }
+    ],
+    "bufferViews": [
+        {
+            "buffer": 0,
+            "byteOffset": 0,
+            "byteLength": 288,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 288,
+            "byteLength": 288,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 576,
+            "byteLength": 72,
+            "target": 34963
+        }
+    ],
+    "buffers": [
+        {
+            "byteLength": 648,
+            "uri": "cube.bin"
+        }
+    ],
+    "extensionsUsed": [
+        "EXT_texture_webp",
+        "KHR_materials_transmission",
+        "KHR_materials_variants",
+        "KHR_texture_transform"
+    ],
+    "extensionsRequired": ["EXT_texture_webp", "KHR_materials_transmission", "KHR_texture_transform"],
+    "images": [
+        {
+            "uri": "base.webp",
+            "mimeType": "image/webp"
+        },
+        {
+            "uri": "orm.webp",
+            "mimeType": "image/webp"
+        },
+        {
+            "uri": "normal.webp",
+            "mimeType": "image/webp"
+        }
+    ],
+    "textures": [
+        {
+            "extensions": {
+                "EXT_texture_webp": {
+                    "source": 0
+                }
+            }
+        },
+        {
+            "extensions": {
+                "EXT_texture_webp": {
+                    "source": 1
+                }
+            }
+        },
+        {
+            "extensions": {
+                "EXT_texture_webp": {
+                    "source": 2
+                }
+            }
+        }
+    ],
+    "extensions": {
+        "KHR_materials_variants": {
+            "variants": [
+                {
+                    "name": "Default"
+                }
+            ]
+        }
+    }
+}

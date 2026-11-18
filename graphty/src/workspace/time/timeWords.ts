@@ -7,6 +7,7 @@
 import type {
     CodedFact,
     TimeNoticeCode,
+    TimePlayMode,
     TimeResultsPolicy,
     TimeStep,
     TimeUnit,
@@ -123,12 +124,27 @@ export function unitLabel(unit: TimeUnit): string {
     return UNIT_CHOICES.find((choice) => choice.value === unit)?.label ?? unit;
 }
 
-/** The algorithm-results choices, as the Time section's menu words them. */
+/** The menu that says what an algorithm result does when the window moves. */
+export const RESULTS_LABEL = "When window moves";
+
+/** What the results menu decides. */
+export const RESULTS_NOTE = `${RESULTS_LABEL}: what happens to an algorithm result run on what was showing.`;
+
+/** The algorithm-results choices, as the results menu words them. */
 export const RESULTS_CHOICES: readonly { readonly value: TimeResultsPolicy; readonly label: string }[] = [
-    { value: "stale", label: "Mark out of date" },
+    { value: "stale", label: "Flag to rerun" },
     { value: "keep", label: "Keep" },
-    { value: "rerun", label: "Re-run" },
+    { value: "rerun", label: "Rerun automatically" },
 ];
+
+/** How a play moves the window, as the Animation section's Mode control words it. */
+export const MODE_CHOICES: readonly { readonly value: TimePlayMode; readonly label: string }[] = [
+    { value: "sliding", label: "Slide" },
+    { value: "cumulative", label: "Grow" },
+];
+
+/** What the two modes do. */
+export const MODE_NOTE = "Slide moves the whole window along. Grow keeps its start, so everything up to now stays.";
 
 /** The unit choices for a number column. */
 export const UNIT_CHOICES: readonly { readonly value: TimeUnit; readonly label: string }[] = [
@@ -137,12 +153,6 @@ export const UNIT_CHOICES: readonly { readonly value: TimeUnit; readonly label: 
     { value: "s", label: "Epoch s" },
     { value: "ordinal", label: "Number" },
 ];
-
-/** The Outside choices: whether elements outside the window are hidden or drawn as ghosts. */
-export const OUTSIDE_CHOICES = [
-    { value: "hide", label: "Hide" },
-    { value: "ghost", label: "Ghost" },
-] as const;
 
 const UTC = "UTC";
 

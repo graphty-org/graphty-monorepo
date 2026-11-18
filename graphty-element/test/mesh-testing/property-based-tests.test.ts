@@ -234,9 +234,15 @@ describe("Property-Based Tests", () => {
                             { styleId: nextStyleId(), width: 20, color: "#FFFFFF" },
                             { line: { type, patternCount } },
                             ctx.scene,
-                        ) as PatternedLineMesh;
+                        );
 
-                        assert.equal(edge.elements.length, patternCount);
+                        // a joined line's shader draws a dot, star, box, dash or diamond line's elements (issue #7404)
+                        if (edge instanceof PatternedLineMesh) {
+                            assert.equal(edge.elements.length, patternCount);
+                        } else {
+                            const meta = edge.metadata as { pattern?: { count?: number } } | null;
+                            assert.equal(meta?.pattern?.count, patternCount);
+                        }
                     },
                 ),
                 { numRuns: 30 },
@@ -267,12 +273,7 @@ describe("Property-Based Tests", () => {
                     hexColor,
                     fc.float({ min: 0, max: 1, noNaN: true }),
                     (type, size, color, opacity) => {
-                        const cap = EdgeMesh.createArrowHead(
-                            ctx.cache,
-                            nextStyleId(),
-                            { type, width: 1, color, size, opacity },
-                            ctx.scene,
-                        );
+                        const cap = EdgeMesh.createArrowHead({ type, width: 1, color, size, opacity }, ctx.scene);
 
                         assert.isNotNull(cap);
                         // The geometry is the batch's, shared by every cap of this appearance;

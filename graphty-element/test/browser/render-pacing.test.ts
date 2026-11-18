@@ -3,12 +3,12 @@ import "../../src/graphty-element";
 import type { Engine } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { operationQueueOf } from "../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { RenderManager } from "../../src/managers/RenderManager";
 
 /**
- * The render loop must not draw a frame while the GPU is still drawing the one before it.
+ * The render loop must not draw a frame while the GPU is still drawing the two before it.
  *
  * Without that, the browser queues about twenty frames, and on a software GPU a frame of a few
  * hundred nodes costs 40 ms, so a still graph kept the GPU close to a second behind and a
@@ -112,12 +112,45 @@ describe("render loop pacing", () => {
         canvas.remove();
     });
     /**
+     * A frame's commands reach the GPU only when its update-and-draw task ends, so the very next
+     * tick always found the last fence unsignalled and skipped, one to two ticks per frame at
+     * 10,000 nodes on an idle card (issue #7945). The loop draws the next frame while one is
+     * unfinished and holds once two are, so the queue stays bounded.
+     */
+    it("draws a second frame while the first is unfinished, and none past two", async () => {
+        const canvas = document.createElement("canvas");
+        document.body.appendChild(canvas);
+        manager = new RenderManager(canvas, new EventManager());
+        const gl = (manager.engine as Engine)._gl;
+        const real = gl.getSyncParameter.bind(gl);
+        gl.getSyncParameter = (sync: WebGLSync, pname: GLenum): unknown =>
+            pname === gl.SYNC_STATUS ? gl.UNSIGNALED : real(sync, pname);
+        let drawn = 0;
+        manager.startRenderLoop(() => {
+            drawn++;
+        });
+        await frames(10);
+        assert.strictEqual(drawn, 2, "two frames are drawn before the unfinished ones hold the loop");
+        // A wait for the final picture asks this, so it cannot end while an older frame is still
+        // on the GPU (issues #8344, #8346).
+        const last = manager.fencedFrames();
+        assert.strictEqual(last, 2, "each frame drawn is fenced");
+        assert.isFalse(manager.gpuFinishedFrame(1), "a frame whose fence is unsignalled is not finished");
+        gl.getSyncParameter = real;
+        while (!manager.gpuFinishedFrame(last)) {
+            await frames(1);
+        }
+        assert.isTrue(manager.gpuFinishedFrame(1), "a frame before a finished one is finished");
+
+        canvas.remove();
+    });
+    /**
      * A fence the GPU has not been told about signals only when Chromium flushes on its own, about
      * every 18 ms, so a batched frame that takes 1 ms measured 18. Under renderPath "batched" the
      * loop flushes right after each frame's fence; under "objects" it stays as it was.
      */
     for (const flushes of [true, false]) {
-        it(`${flushes ? "flushes" : "does not flush"} after each frame's fence when asked ${flushes ? "to" : "not to"}, and still keeps one frame in flight`, async () => {
+        it(`${flushes ? "flushes" : "does not flush"} after each frame's fence when asked ${flushes ? "to" : "not to"}, and still bounds the frames in flight`, async () => {
             const canvas = document.createElement("canvas");
             document.body.appendChild(canvas);
             manager = new RenderManager(canvas, new EventManager(), { flushesFrameFence: () => flushes });
@@ -156,8 +189,12 @@ describe("render loop pacing", () => {
         try {
             await element.updateComplete;
             await operationQueueOf(element.graph).waitForCompletion();
-            const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+            // Named, not the default: the forced-batched project makes "batched" the default.
+            element.graph.setRenderPath("objects");
+            const renderManager = renderManagerOf(element.graph);
             const fenced = recordFences((renderManager.engine as Engine)._gl);
+            await frames(2);
+            fenced();
 
             await frames(5);
             const objects = fenced();

@@ -12,10 +12,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables with the starting rows, Degree, Louvain and Closeness, at the given window size.
@@ -107,9 +112,11 @@ describe("value popovers", () => {
         await settled(dialog);
         const after = dialog.getBoundingClientRect();
         const grown = after.height - before.height;
-        // It grows down from where it was, or, already on the window's bottom, up by what it grew.
+        // It grows down from where it was, or, already on the window's bottom (less the 6 px a
+        // pop-out keeps off it), up by what it grew.
         const kept = Math.round(after.top) === Math.round(before.top);
-        const pinned = Math.round(after.bottom) === Math.round(window.innerHeight);
+        const pinned =
+            Math.round(after.bottom) === Math.round(before.bottom) && window.innerHeight - after.bottom <= 6.5;
         assert.isTrue(kept || pinned, `top ${String(before.top)} -> ${String(after.top)}`);
         assert.isAtMost(before.top - after.top, grown + 0.5, "never moves more than it grew");
         assert.isAtLeast(after.top, before.top - grown - 0.5);

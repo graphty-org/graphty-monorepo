@@ -1,15 +1,21 @@
-import { INVALID_INDEX } from "@graphty/graph-format";
+import { katzAlpha } from "@graphty/algorithms";
 import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
-import type { ResultElementValues } from "../session/results";
 import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { releaseOnAccelerator, type ScopeInputDeclaration } from "./input/ScopedInput";
-import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import {
+    converged,
+    convergenceOptions,
+    convergenceZodOptions,
+    endpointsOption,
+    endpointsZodOption,
+    readScores,
+} from "./metrics/powerIteration";
 import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
 import { refuseEndpoints } from "./utils/graphUtils";
@@ -19,10 +25,11 @@ import { refuseEndpoints } from "./utils/graphUtils";
  */
 const katzCentralityOptionsSchema = defineOptions({
     alpha: {
-        schema: z.number().min(0.01).max(0.5).default(0.1),
+        schema: z.number().min(0.01).max(0.5).nullable().default(null),
         meta: {
             label: "Alpha (Attenuation)",
-            description: "Attenuation factor - must be less than 1/λmax",
+            description:
+                "Attenuation factor - must be less than 1/lambda_max (empty = 0.1, or less wherever 0.1 could diverge on this graph)",
             step: 0.01,
         },
     },
@@ -43,22 +50,7 @@ const katzCentralityOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    tolerance: {
-        schema: z.number().min(1e-10).max(0.01).default(1e-6),
-        meta: {
-            label: "Tolerance",
-            description: "Convergence threshold",
-            advanced: true,
-        },
-    },
-    normalized: {
-        schema: z.boolean().default(true),
-        meta: {
-            label: "Normalized",
-            description: "Whether to normalize the final scores",
-            advanced: true,
-        },
-    },
+    ...convergenceZodOptions,
     mode: {
         schema: z.enum(["in", "out", "total"]).default("total"),
         meta: {
@@ -68,23 +60,15 @@ const katzCentralityOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    endpoints: {
-        schema: z.boolean().default(false),
-        meta: {
-            label: "Include Endpoints",
-            description:
-                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
-            advanced: true,
-        },
-    },
+    ...endpointsZodOption,
 });
 
 /**
  * Options for the Katz Centrality algorithm
  */
 interface KatzCentralityOptions extends Record<string, unknown> {
-    /** Attenuation factor - must be less than 1/λmax */
-    alpha: number;
+    /** Attenuation factor - must be less than 1/lambda_max; null derives one that converges on the graph */
+    alpha: number | null;
     /** Base centrality added to each node */
     beta: number;
     /** Maximum iterations */
@@ -122,12 +106,14 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
     static readonly optionsSchema: OptionsSchema = {
         alpha: {
             type: "number",
-            default: 0.1,
+            default: null,
             label: "Alpha (Attenuation)",
-            description: "Attenuation factor - must be less than 1/λmax",
+            description:
+                "Attenuation factor - must be less than 1/lambda_max (empty = 0.1, or less wherever 0.1 could diverge on this graph)",
             min: 0.01,
             max: 0.5,
             step: 0.01,
+            required: false,
         },
         beta: {
             type: "number",
@@ -148,22 +134,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             max: 1000,
             advanced: true,
         },
-        tolerance: {
-            type: "number",
-            default: 1e-6,
-            label: "Tolerance",
-            description: "Convergence threshold",
-            min: 1e-10,
-            max: 0.01,
-            advanced: true,
-        },
-        normalized: {
-            type: "boolean",
-            default: true,
-            label: "Normalized",
-            description: "Whether to normalize the final scores",
-            advanced: true,
-        },
+        ...convergenceOptions,
         mode: {
             type: "select",
             default: "total",
@@ -177,14 +148,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             ],
             advanced: true,
         },
-        endpoints: {
-            type: "boolean",
-            default: false,
-            label: "Include Endpoints",
-            description:
-                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
-            advanced: true,
-        },
+        ...endpointsOption,
     };
 
     /**
@@ -202,7 +166,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
      * @returns One score per node, scaled as the options asked for.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        const { alpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
+        const { alpha: chosenAlpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
         refuseEndpoints("Katz centrality", endpoints);
 
         /* `"total"`, the default: every neighbour counts as an influence, whichever way the record
@@ -215,17 +179,24 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
         // Built here, per run and uncached, so it is released here: an accelerator that uploaded it
         // would otherwise hold it until its device is torn down.
         const transposed = mode === "out" && direction === "directed" ? snapshot.transpose().snapshot : null;
+        // The algorithms package derives the alpha a run without one uses; resolved here so the caveat names it.
+        const alpha = katzAlpha(transposed ?? snapshot, { alpha: chosenAlpha ?? undefined });
 
-        context.report({
-            phase: "iterating",
-            completed: 0,
-            total: nodeIds.length,
-            message: `Attenuated path sums, up to ${String(maxIterations)} passes.`,
-        });
+        context.report({ phase: "iterating", completed: 0, total: nodeIds.length, params: { maxIterations } });
         let outcome;
         try {
-            outcome = await run((dispatch, s) =>
-                dispatch.katzCentrality(transposed ?? s, { alpha, beta, maxIterations, tolerance, normalized }),
+            outcome = await converged(
+                context,
+                {
+                    algorithm: `${KatzCentralityAlgorithm.namespace}:${KatzCentralityAlgorithm.type}`,
+                    name: "Katz centrality",
+                    advice: "Leave alpha empty to derive one that converges, or lower it below 1 / lambda_max of the graph; or raise maxIterations or loosen tolerance. Then run it again.",
+                    maxIterations,
+                    tolerance,
+                },
+                run((dispatch, s) =>
+                    dispatch.katzCentrality(transposed ?? s, { alpha, beta, maxIterations, tolerance, normalized }),
+                ),
             );
         } finally {
             if (transposed !== null) {
@@ -234,13 +205,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
         }
         const { value: result, precision } = outcome;
         context.signal.throwIfAborted();
-
-        const { ids } = snapshot;
-        const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const index = ids.indexOf(nodeId);
-            nodes.push({ id: nodeId, values: index === INVALID_INDEX ? {} : { value: result.scores[index] } });
-        });
+        const nodes = await readScores(context, nodeIds, snapshot.ids, result.scores);
 
         return {
             nodes,
@@ -259,7 +224,6 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
                     caveat("katz.attenuation", { beta, alpha }),
                     caveat("katz.direction", { mode }),
                     caveat("iteration.stop-rule", { tolerance, maxIterations }),
-                    ...(result.converged ? [] : [caveat("iteration.cap-reached", { maxIterations })]),
                     caveat("weights.unread"),
                 ]),
             },

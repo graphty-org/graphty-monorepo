@@ -12,6 +12,7 @@ algorithms:
 used_by_workflows:
     - W12
     - W16
+    - W23
 implemented_by_components:
     - statistics-panel
 requirements:

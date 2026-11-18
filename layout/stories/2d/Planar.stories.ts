@@ -44,7 +44,7 @@ interface PlanarArgs {
 function apollonianGraph(nodeCount: number, seed: number): GeneratedGraph {
     const g = randomApollonianGraph({ n: nodeCount, seed });
     return {
-        nodes: Array.from({ length: g.nodeCount }, (_, i) => ({ id: i, label: String(i), x: 0, y: 0 })),
+        nodes: Array.from({ length: g.nodeCount }, (_, i) => ({ id: i, label: String(i) })),
         edges: Array.from(g.src, (s, e) => ({ source: s, target: g.dst[e] })),
     };
 }

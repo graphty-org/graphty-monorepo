@@ -1,8 +1,7 @@
 /**
  * Semantic audit of the Pajek importer against the corpus files themselves (facts derived here by
  * manual line parsing of the raw text) and against the quirks graphty-element's PajekDataSource,
- * NetworkX's pajek.py and research note 07 section 2.5 describe. Tests named "DEFECT:" pin a
- * defect and fail until the importer is fixed.
+ * NetworkX's pajek.py and research note 07 section 2.5 describe.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";

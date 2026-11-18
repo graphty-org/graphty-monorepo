@@ -4,19 +4,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { expectKnownWriteFailure, hostileProblems, writeProblems, writeSlice } from "./harness-cases.js";
+import { hostileProblems, writeProblems, writeSlice } from "./harness-cases.js";
 
-describe.each(writeSlice(0))("%s", (_format, writer, { pass, fail, hostile }) => {
+describe.each(writeSlice(0))("%s", (_format, writer, { pass, hostile }) => {
     it.each(pass)("%s writes styles that read back as the same rules and values", async (_name, input) => {
         expect(await writeProblems(writer, input)).toEqual([]);
     });
     it.each(hostile)("%s ignores a hostile graphty.styles block in the written file", async (_name, input) => {
         expect(await hostileProblems(writer, input)).toEqual([]);
     });
-    if (fail.length > 0) {
-        it.each(fail)(
-            "%s writes styles that read back as the same rules and values but its label offsets (known failure #7365)",
-            (_name, input) => expectKnownWriteFailure(writer, input),
-        );
-    }
 });

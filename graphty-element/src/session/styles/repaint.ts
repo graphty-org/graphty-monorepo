@@ -171,6 +171,13 @@ export interface RepaintSources {
      */
     readonly hideUnpainted?: () => boolean;
     /**
+     * The elements drawn hidden (`visible: false`) whatever the layers paint: the nodes
+     * `session.hidden` holds and the edges touching them. Read after the layers in every pass.
+     * @param target - Nodes or edges.
+     * @returns One byte per element, 1 to hide, or null while none is.
+     */
+    readonly hidden?: (target: "node" | "edge") => Uint8Array | null;
+    /**
      * Whether a pass may fill the mesh keys of a dirty set in one go when every mesh-keying
      * channel is absent or the same over it, interning one sequence instead of one per element.
      * Read at the start of every interning; absent is off. The element turns it on under
@@ -186,6 +193,12 @@ export interface RepaintSources {
      * @returns Milliseconds.
      */
     readonly now?: () => number;
+    /**
+     * Called once per layer and code when a pass finds a layer that paints nothing, so a host
+     * can publish it. Absent says nothing; `problems()` still holds it.
+     * @param problem - The layer and why.
+     */
+    readonly onProblem?: (problem: RepaintProblem) => void;
 }
 
 /**
@@ -1219,7 +1232,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /** The layers the pass in progress could not paint. */
     let problems: RepaintProblem[] = [];
     /**
-     * The problems already said on the console, by layer and code. `problems()` is internal, so
+     * The problems already handed to `onProblem`, by layer and code. `problems()` is internal, so
      * without this a layer the pass refused -- a palette with fewer colours than the groups --
      * would paint nothing and tell no one why.
      */
@@ -1711,7 +1724,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         });
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw context.signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         const back = now();
@@ -1947,7 +1960,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
-     * Prepare one layer, recording (and warning once about) a layer that paints nothing.
+     * Prepare one layer, recording (and reporting once) a layer that paints nothing.
      * @param entry - The layer.
      * @returns The prepared layer, or null when it has nothing to paint.
      */
@@ -1959,9 +1972,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             const key = `${layer.problem.layerId}\u0000${layer.problem.code}`;
             if (!reported.has(key)) {
                 reported.add(key);
-                console.warn(
-                    `[graphty] The style layer "${entry.layer.name}" paints nothing: ${layer.problem.message} (${layer.problem.code})`,
-                );
+                sources.onProblem?.(layer.problem);
             }
 
             return null;
@@ -1986,6 +1997,27 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         for (let at = 0; at < store.dirtyCount; at++) {
             const index = store.dirty[at];
             if (reached[index] === 0) {
+                writeColumn(column, index, false, false);
+            }
+        }
+    };
+
+    /**
+     * Hide every dirty element the hidden rows name, over whatever the layers painted.
+     * @param store - The store.
+     */
+    const hideHidden = (store: TargetStore): void => {
+        const rows = sources.hidden?.(store.target) ?? null;
+        if (rows === null) {
+            return;
+        }
+
+        const channel: Channel = `${store.target}.visible`;
+        const column = columnFor(store, channel);
+        store.meshWritten = store.meshWritten || meshChannelsFor(store.target).includes(channel);
+        for (let at = 0; at < store.dirtyCount; at++) {
+            const index = store.dirty[at];
+            if (rows[index] === 1) {
                 writeColumn(column, index, false, false);
             }
         }
@@ -2043,6 +2075,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         }
 
         hideUnreached(store, reached);
+        hideHidden(store);
 
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
         // mesh, which is the ordinary case: a colour encoding moves no element to another mesh.
@@ -2075,7 +2108,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         problems = [];
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw context.signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         const { node: nodes, edge: edges } = stores;

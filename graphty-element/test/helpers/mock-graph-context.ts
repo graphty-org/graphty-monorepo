@@ -43,8 +43,11 @@ export interface MockGraphContextOptions {
      * command reads and the row a selector reads both come from it, so they always agree.
      */
     nodeData?: (index: number) => Record<string, unknown>;
-    /** An edge's own fields, in place of the default `weight`. */
-    edgeData?: (index: number) => Record<string, unknown>;
+    /**
+     * An edge's own fields, in place of the default `weight` of `(index % 10) / 10`. Like
+     * `nodeData`, the record a command reads and the row a selector reads both come from it.
+     */
+    edgeData?: (index: number, srcId: string, dstId: string) => Record<string, unknown>;
     /** A node's id, in place of the default `node-<index>`. */
     nodeId?: (index: number) => string;
     /** An edge's source and target node ids, in place of the default chain node i to node i + 1. */
@@ -132,8 +135,11 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         });
     }
 
-    // Create mock edges
+    // Create mock edges. Each edge's fields are made once, so the record a command reads and the
+    // row a selector reads agree; the default weight is fixed rather than random, so a selector
+    // that compares against it selects the same edges on every run.
     const mockEdges = new Map<string, MockEdgeData>();
+    const edgeRows: Readonly<Record<Path, unknown>>[] = [];
     const nodeIds = Array.from(mockNodes.keys());
     for (let i = 0; i < edgeCount; i++) {
         const id = `edge-${i}`;
@@ -142,12 +148,9 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             source: nodeIds[i % nodeIds.length],
             target: nodeIds[(i + 1) % nodeIds.length],
         };
-        mockEdges.set(id, {
-            id,
-            srcId: ends.source,
-            dstId: ends.target,
-            data: edgeData ? { id, ...edgeData(i) } : { id, weight: Math.random() },
-        });
+        const fields = { id, ...(edgeData ? edgeData(i, ends.source, ends.target) : { weight: (i % 10) / 10 }) };
+        mockEdges.set(id, { id, srcId: ends.source, dstId: ends.target, data: fields });
+        edgeRows.push(rowOf(fields));
     }
 
     // Current layout type (mutable for testing layout changes)
@@ -210,9 +213,22 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         }
     }
 
+    const removers = new Map<symbol, () => void>();
     const mockEventManager = {
-        addListener(type: string, listener: (event: { type: string }) => void): void {
+        addListener(type: string, listener: (event: { type: string }) => void): symbol {
             listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+            const id = Symbol(type);
+            removers.set(id, () => {
+                listeners.set(
+                    type,
+                    (listeners.get(type) ?? []).filter((l) => l !== listener),
+                );
+            });
+            return id;
+        },
+        removeListener(id: symbol): boolean {
+            removers.get(id)?.();
+            return removers.delete(id);
         },
         emit(type: string): void {
             announce(type);
@@ -227,17 +243,6 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             nodeData
                 ? rowOf({ id: nodeId(i), ...nodeData(i) })
                 : { "data.id": nodeId(i), "data.label": `Node ${i}`, "data.type": getNodeType(i) },
-        );
-    }
-
-    const edgeRows: Readonly<Record<Path, unknown>>[] = [];
-    for (let i = 0; i < edgeCount; i++) {
-        // Fixed rather than random, so a selector that compares against a weight selects the
-        // same edges on every run.
-        edgeRows.push(
-            edgeData
-                ? rowOf({ id: `edge-${i}`, ...edgeData(i) })
-                : { "data.id": `edge-${i}`, "data.weight": (i % 10) / 10 },
         );
     }
 
@@ -348,6 +353,8 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             },
             setDimension: (dimension: "2d" | "3d") => mockGraph.setViewMode(dimension),
         },
+        // The whole graph, not a working subset, so every node and edge above is read.
+        workingGraph: false,
         // What the assistant's facts about the graph read: counts, attributes, runs, the selection.
         status: {
             counts: { nodes: nodeCount, edges: edgeCount, visibleNodes: nodeCount, visibleEdges: edgeCount },

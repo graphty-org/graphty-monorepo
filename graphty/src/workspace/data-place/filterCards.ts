@@ -5,14 +5,15 @@
  * their counts are graphty-element's; the app holds only a card not yet written (the draft).
  */
 
-import type {
-    CodedFact,
-    FilterCondition,
-    GraphSession,
-    HistoryCode,
-    NodeId,
-    RuleTree,
-    UnionLeaf,
+import {
+    type CodedFact,
+    type FilterCondition,
+    type GraphSession,
+    type HistoryCode,
+    type NodeId,
+    pathParts,
+    type RuleTree,
+    type UnionLeaf,
 } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
@@ -21,7 +22,17 @@ import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, type Side } from "../style/cards";
 import { panelsInView } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
-import { sourceName } from "./words";
+import { filterFailureWords, sourceName } from "./words";
+
+/**
+ * A path's column name when it reads a data column, and the path itself otherwise.
+ * @param path - the path.
+ * @returns the name.
+ */
+function dataColumn(path: string): string {
+    const parts = pathParts(path);
+    return parts?.from === "data" ? parts.column : path;
+}
 
 /**
  * Reads attribute and node names from the session, as the card words show them.
@@ -36,7 +47,8 @@ function namerOf(session: GraphSession): Namer {
                 ? "Node id"
                 : (attributes.find((a) => a.path === path)?.plainName ??
                   session.data.structureValues().find((value) => value.path === path)?.plainName ??
-                  path.replace(/^data\./, "")),
+                  session.data.readableValues().find((value) => value.path === path)?.plainName ??
+                  dataColumn(path)),
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
@@ -56,17 +68,6 @@ function namerOf(session: GraphSession): Namer {
 export function conditionWords(session: GraphSession, rule: RuleTree): string {
     // A selection is said as its rows say it, so the card's name, remove and undo never differ.
     return rule.kind === "union" ? selectionWords(session, rule) : ruleWords(rule, namerOf(session));
-}
-
-/** The Filters row, and the inspected id, of the time window. */
-export const TIME_ROW = "time-window";
-
-/**
- * Opens the time window's card in the inspector on the Data place.
- * @param store - the chrome store.
- */
-export function openTimeCard(store: WorkspaceStore): void {
-    store.set({ page: "panels", place: "data", inspected: { kind: "filter-step", id: TIME_ROW }, ...panelsInView() });
 }
 
 /** `openFilterDraft`'s target that opens the Filters section's "+" list. */
@@ -121,8 +122,8 @@ export async function writeCondition(store: WorkspaceStore, change: () => Promis
     try {
         await change();
         return true;
-    } catch {
-        store.set({ notice: { message: "The filter could not be changed.", error: true } });
+    } catch (error) {
+        store.set({ notice: { message: filterFailureWords(error), error: true } });
         return false;
     }
 }

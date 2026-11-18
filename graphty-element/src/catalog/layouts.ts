@@ -24,32 +24,11 @@
  * placement that visits each node once rates "any", an iterative all-pairs force rates 2000.
  */
 
-import type { OptionsSchema } from "../config/OptionsSchema";
-import { ArfLayout } from "../layout/ArfLayoutEngine";
-import { BfsLayout } from "../layout/BfsLayoutEngine";
-import { BipartiteLayout } from "../layout/BipartiteLayoutEngine";
-import { CircularLayout } from "../layout/CircularLayoutEngine";
-import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
-import { FixedLayout } from "../layout/FixedLayoutEngine";
-import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { GRAPHVIZ_PACKAGE, type GraphvizEngine } from "../layout/graphviz/engines";
-import { GRAPHVIZ_LAYOUTS } from "../layout/GraphvizLayoutEngine";
-import { GridLayout } from "../layout/GridLayoutEngine";
-import { KamadaKawaiLayout } from "../layout/KamadaKawaiLayoutEngine";
-import { LocationMapLayout } from "../layout/LocationMapLayoutEngine";
-import { MultipartiteLayout } from "../layout/MultipartiteLayoutEngine";
-import { NGraphEngine } from "../layout/NGraphLayoutEngine";
-import { PlanarLayout } from "../layout/PlanarLayoutEngine";
-import { RadialLayout } from "../layout/RadialLayoutEngine";
-import { RandomLayout } from "../layout/RandomLayoutEngine";
-import { ShellLayout } from "../layout/ShellLayoutEngine";
-import { SpectralLayout } from "../layout/SpectralLayoutEngine";
-import { SpiralLayout } from "../layout/SpiralLayoutEngine";
-import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
-import { SpringLayout } from "../layout/SpringLayoutEngine";
+import { GRAPHVIZ_PACKAGE, type GraphvizEngine, graphvizLayoutId } from "../layout/graphviz/engines";
 import type { CodedFact } from "../session/shared";
+import { layoutFacts } from "./engineFacts";
 import { registeredLayoutById } from "./layoutRegistry";
-import { optionsFromZod } from "./optionsFromZod";
+import { withDescriptionIds } from "./options";
 import type {
     DEPRECATED_LAYOUT_IDS,
     KNOWN_LAYOUT_IDS,
@@ -73,10 +52,17 @@ export interface LayoutImplementation {
     plainName: string;
     technicalName: string;
     /**
-     * What this engine draws, in one sentence: catalog data, like a layout's own description.
+     * What this engine draws, in one English sentence.
      * @since 3.37.0
+     * @deprecated Word the engine from {@link LayoutImplementation.descriptionId} in the application.
      */
     description: string;
+    /**
+     * A stable id for what this engine draws, which an application keys its own words on:
+     * `layout.<layout id>:<engine>`, such as "layout.force:d3". Present on every built-in engine.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     kind: "live" | "batch";
     maxDimensions: 2 | 3;
     /** True for the engine the element runs when this layout is asked for by name. */
@@ -153,20 +139,27 @@ export type LayoutImplementationCode =
  * An implementation as it is authored here. Which one is the default is decided by position, and
  * its fact is built from its code.
  */
-type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact"> & {
+type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact" | "descriptionId"> & {
     code: LayoutImplementationCode;
 };
 
 /**
  * Finish one authored implementation.
+ * @param layoutId - The arrangement it draws.
  * @param spec - The implementation as authored.
  * @param isDefault - Whether it is the arrangement's default engine.
  * @returns The published implementation.
  */
-function implementation(spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
+function implementation(layoutId: string, spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
     const { code, ...authored } = spec;
 
-    return { ...authored, isDefault, fact: { code, params: { engine: spec.engine } } };
+    return {
+        ...authored,
+        descriptionId: `layout.${layoutId}:${spec.engine}`,
+        options: withDescriptionIds(`layout.${spec.engine}`, spec.options),
+        isDefault,
+        fact: { code, params: { engine: spec.engine } },
+    };
 }
 
 /** One semantic layout, with every engine that can draw it. */
@@ -215,17 +208,13 @@ const LOCATION_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     longitude: { type: "attribute", on: "node" },
 };
 
-/**
- * Emit one engine's options as plain JSON.
- * @param schema - The engine's Zod options schema.
- * @param overrides - Descriptor fields the schema cannot express, by option name.
- * @returns One option descriptor per option the engine declares.
- */
-function engineOptions(
-    schema: OptionsSchema,
-    overrides: Readonly<Record<string, Partial<OptionDescriptor>>> = {},
-): readonly OptionDescriptor[] {
-    return optionsFromZod(schema, { overrides });
+/** Everything about a layout that is not its default engine, as an entry is authored. */
+interface LayoutBase extends Omit<
+    LayoutDescriptor,
+    "engine" | "options" | "honoursWeights" | "scoped" | "description" | "descriptionId"
+> {
+    /** What the layout does, in English: written to the published descriptor's deprecated field. */
+    description: string;
 }
 
 /**
@@ -237,22 +226,23 @@ function engineOptions(
  * @returns The finished entry.
  */
 function entry(
-    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights" | "scoped">,
+    base: LayoutBase,
     primary: LayoutImplementationSpec,
     alternates: readonly LayoutImplementationSpec[] = [],
 ): LayoutCatalogEntry {
     return {
         descriptor: {
             ...base,
+            descriptionId: `layout.${base.id}`,
             engine: primary.engine,
-            options: primary.options,
+            options: withDescriptionIds(`layout.${primary.engine}`, primary.options),
             honoursWeights: primary.honoursWeights,
             scoped: primary.scoped,
             ...(primary.requires === undefined ? {} : { requires: primary.requires }),
         },
         implementations: [
-            implementation(primary, true),
-            ...alternates.map((alternate) => implementation(alternate, false)),
+            implementation(base.id, primary, true),
+            ...alternates.map((alternate) => implementation(base.id, alternate, false)),
         ],
     };
 }
@@ -274,9 +264,7 @@ const ngraph: LayoutImplementationSpec = {
         "nodes and 1.8 seconds at a hundred thousand, so from two thousand nodes the element " +
         "draws this same arrangement on an accelerator instead, whenever one is attached.",
     code: "implementation.default-processor",
-    options: engineOptions(NGraphEngine.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: NGraphEngine.honoursWeights,
-    scoped: NGraphEngine.scoped,
+    ...layoutFacts("ngraph", FORCE_OVERRIDE),
 };
 
 const d3: LayoutImplementationSpec = {
@@ -290,9 +278,7 @@ const d3: LayoutImplementationSpec = {
         "Choose it for d3's own tuning vocabulary -- alpha, alpha decay, velocity decay -- when " +
         "the arrangement has to match a d3 drawing elsewhere in the product.",
     code: "implementation.d3-tuning",
-    options: engineOptions(D3GraphEngine.zodOptionsSchema, CLUSTER_OVERRIDE),
-    honoursWeights: D3GraphEngine.honoursWeights,
-    scoped: D3GraphEngine.scoped,
+    ...layoutFacts("d3", CLUSTER_OVERRIDE),
 };
 
 const forceAtlas2: LayoutImplementationSpec = {
@@ -306,9 +292,7 @@ const forceAtlas2: LayoutImplementationSpec = {
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
         "It keeps running until the layout settles and reheats on a drag or a pin.",
     code: "implementation.gephi-look",
-    options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: ForceAtlas2Layout.honoursWeights,
-    scoped: ForceAtlas2Layout.scoped,
+    ...layoutFacts("forceatlas2", FORCE_OVERRIDE),
 };
 
 const spring: LayoutImplementationSpec = {
@@ -322,9 +306,7 @@ const spring: LayoutImplementationSpec = {
         "Choose it when the arrangement must be reproducible from a seed: the same seed gives " +
         "the same settled shape.",
     code: "implementation.seed-reproducible",
-    options: engineOptions(SpringLayout.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: SpringLayout.honoursWeights,
-    scoped: SpringLayout.scoped,
+    ...layoutFacts("spring", FORCE_OVERRIDE),
 };
 
 const springElectrical: LayoutImplementationSpec = {
@@ -339,9 +321,7 @@ const springElectrical: LayoutImplementationSpec = {
         "routes to on a graph big enough to need it. Ask for it by name to have it at any size: " +
         "it then needs an accelerator and says so when there is none.",
     code: "implementation.accelerator-only",
-    options: engineOptions(SpringElectricalLayout.zodOptionsSchema, FORCE_OVERRIDE),
-    honoursWeights: SpringElectricalLayout.honoursWeights,
-    scoped: SpringElectricalLayout.scoped,
+    ...layoutFacts("spring-electrical", FORCE_OVERRIDE),
     requires: { accelerator: true },
 };
 
@@ -356,9 +336,7 @@ const kamadaKawai: LayoutImplementationSpec = {
         "Choose it for a small graph whose drawn distances should match its graph distances. It " +
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
     code: "implementation.distance-faithful",
-    options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
-    honoursWeights: KamadaKawaiLayout.honoursWeights,
-    scoped: KamadaKawaiLayout.scoped,
+    ...layoutFacts("kamada-kawai", SEED_OVERRIDE),
 };
 
 const arf: LayoutImplementationSpec = {
@@ -375,9 +353,7 @@ const arf: LayoutImplementationSpec = {
         "it spreads nodes evenly over a disc and groups show faintly if at all. The deprecated " +
         "layout name `force-2d` is this engine.",
     code: "implementation.two-dimensional",
-    options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
-    honoursWeights: ArfLayout.honoursWeights,
-    scoped: ArfLayout.scoped,
+    ...layoutFacts("arf", SEED_OVERRIDE),
 };
 
 const circular: LayoutImplementationSpec = {
@@ -389,9 +365,7 @@ const circular: LayoutImplementationSpec = {
     description: "Places every node on one circle, in the order the nodes were loaded.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(CircularLayout.zodOptionsSchema),
-    honoursWeights: CircularLayout.honoursWeights,
-    scoped: CircularLayout.scoped,
+    ...layoutFacts("circular"),
 };
 
 const shell: LayoutImplementationSpec = {
@@ -403,9 +377,7 @@ const shell: LayoutImplementationSpec = {
     description: "Places each group of nodes on its own ring, around a shared center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(ShellLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
-    honoursWeights: ShellLayout.honoursWeights,
-    scoped: ShellLayout.scoped,
+    ...layoutFacts("shell", GROUP_BY_OVERRIDE),
 };
 
 const radial: LayoutImplementationSpec = {
@@ -417,9 +389,7 @@ const radial: LayoutImplementationSpec = {
     description: "Places a root at the center and every other node on a ring by its distance from it.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(RadialLayout.zodOptionsSchema),
-    honoursWeights: RadialLayout.honoursWeights,
-    scoped: RadialLayout.scoped,
+    ...layoutFacts("radial"),
 };
 
 const grid: LayoutImplementationSpec = {
@@ -431,9 +401,7 @@ const grid: LayoutImplementationSpec = {
     description: "Places nodes in evenly spaced rows and columns, in the order the nodes were loaded.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(GridLayout.zodOptionsSchema),
-    honoursWeights: GridLayout.honoursWeights,
-    scoped: GridLayout.scoped,
+    ...layoutFacts("grid"),
 };
 
 const spiral: LayoutImplementationSpec = {
@@ -445,9 +413,7 @@ const spiral: LayoutImplementationSpec = {
     description: "Places nodes one after another along a spiral winding out from the center.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(SpiralLayout.zodOptionsSchema),
-    honoursWeights: SpiralLayout.honoursWeights,
-    scoped: SpiralLayout.scoped,
+    ...layoutFacts("spiral"),
 };
 
 const spectral: LayoutImplementationSpec = {
@@ -459,9 +425,7 @@ const spectral: LayoutImplementationSpec = {
     description: "Places nodes by the eigenvectors of the graph's Laplacian, so close-knit groups sit together.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(SpectralLayout.zodOptionsSchema),
-    honoursWeights: SpectralLayout.honoursWeights,
-    scoped: SpectralLayout.scoped,
+    ...layoutFacts("spectral"),
 };
 
 const planar: LayoutImplementationSpec = {
@@ -473,9 +437,7 @@ const planar: LayoutImplementationSpec = {
     description: "Places nodes so that no two edges cross, for the graphs where that is possible.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(PlanarLayout.zodOptionsSchema, SEED_OVERRIDE),
-    honoursWeights: PlanarLayout.honoursWeights,
-    scoped: PlanarLayout.scoped,
+    ...layoutFacts("planar", SEED_OVERRIDE),
 };
 
 const bfs: LayoutImplementationSpec = {
@@ -489,9 +451,7 @@ const bfs: LayoutImplementationSpec = {
         "The only engine that draws this arrangement. It orders each row by breadth-first " +
         "arrival and does not reduce edge crossings between rows.",
     code: "implementation.only-uncrossed-rows",
-    options: engineOptions(BfsLayout.zodOptionsSchema),
-    honoursWeights: BfsLayout.honoursWeights,
-    scoped: BfsLayout.scoped,
+    ...layoutFacts("bfs"),
 };
 
 const bipartite: LayoutImplementationSpec = {
@@ -503,9 +463,7 @@ const bipartite: LayoutImplementationSpec = {
     description: "Places the two groups of nodes in two facing columns.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(BipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
-    honoursWeights: BipartiteLayout.honoursWeights,
-    scoped: BipartiteLayout.scoped,
+    ...layoutFacts("bipartite", GROUP_BY_OVERRIDE),
 };
 
 const multipartite: LayoutImplementationSpec = {
@@ -517,9 +475,7 @@ const multipartite: LayoutImplementationSpec = {
     description: "Places each group of nodes in its own column, in the order the groups are given.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(MultipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
-    honoursWeights: MultipartiteLayout.honoursWeights,
-    scoped: MultipartiteLayout.scoped,
+    ...layoutFacts("multipartite", GROUP_BY_OVERRIDE),
 };
 
 const fixed: LayoutImplementationSpec = {
@@ -531,9 +487,7 @@ const fixed: LayoutImplementationSpec = {
     description: "Leaves every node exactly where the loaded data placed it.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(FixedLayout.zodOptionsSchema),
-    honoursWeights: FixedLayout.honoursWeights,
-    scoped: FixedLayout.scoped,
+    ...layoutFacts("fixed"),
 };
 
 const random: LayoutImplementationSpec = {
@@ -545,9 +499,7 @@ const random: LayoutImplementationSpec = {
     description: "Places every node at a random point.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(RandomLayout.zodOptionsSchema, SEED_OVERRIDE),
-    honoursWeights: RandomLayout.honoursWeights,
-    scoped: RandomLayout.scoped,
+    ...layoutFacts("random", SEED_OVERRIDE),
 };
 
 const locationMap: LayoutImplementationSpec = {
@@ -559,9 +511,7 @@ const locationMap: LayoutImplementationSpec = {
     description: "Places every node at the place its data names, on a flat map or a globe.",
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(LocationMapLayout.zodOptionsSchema, LOCATION_OVERRIDE),
-    honoursWeights: LocationMapLayout.honoursWeights,
-    scoped: LocationMapLayout.scoped,
+    ...layoutFacts("location-map", LOCATION_OVERRIDE),
 };
 
 /** What each Graphviz engine is, as the catalogue describes it. */
@@ -642,11 +592,11 @@ const GRAPHVIZ_ENTRIES: Readonly<
  * @returns the entry
  */
 function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
-    const cls = GRAPHVIZ_LAYOUTS[engine];
+    const id = graphvizLayoutId(engine);
     const { plainName, technicalName, description, family, sizeRating } = GRAPHVIZ_ENTRIES[engine];
     return entry(
         {
-            id: cls.type,
+            id,
             plainName,
             technicalName,
             description,
@@ -657,16 +607,14 @@ function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
             structuralInputs: [],
         },
         {
-            engine: cls.type,
+            engine: id,
             plainName,
             technicalName,
             kind: "batch",
             maxDimensions: 2,
             reason: "Graphviz's own engine, compiled to WebAssembly and run in a Worker.",
             code: "implementation.graphviz",
-            options: engineOptions(cls.zodOptionsSchema, SEED_OVERRIDE),
-            honoursWeights: cls.honoursWeights,
-            scoped: cls.scoped,
+            ...layoutFacts(id, SEED_OVERRIDE),
             description,
             requires: { package: GRAPHVIZ_PACKAGE },
         },

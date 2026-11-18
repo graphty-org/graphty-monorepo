@@ -60,7 +60,7 @@ master. **No breaking change is needed.** Two changes are optional and held for 
 
 A row is an object row for one of two reasons. _Paint or view_: `batchableOf(paint, view)`, one pure function in
 `managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting
-(until stage 14 also `depthIndependentSize` and a map's `nodeScale`, which a batched row now carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
+(until stage 14 also a view-following node size, now `node.sizeSpace`, which a batched row carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
@@ -295,7 +295,7 @@ leaves the ramp as the object row draws it. Nothing else changed: `batchLook` al
 gradient inside `texture`.
 
 As built (stage 14, seventh pull request: screen-scale size): `batchableOf` no longer turns every row into
-an object under `depthIndependentSize` or a map's `nodeScale: "screen"`; `BatchView` keeps only the flat
+an object under a view-following node size (now `node.sizeSpace`); `BatchView` keeps only the flat
 outline. The update loop still scales each node every frame through `Node.drawnScale`, which scales the
 anchor and re-measures the row as before, and now also keeps `Node.wholeScale`, the view's scale without a
 particle shrink (the shrink is the row table's w). When it changes, `NodeBatches.rescale` writes the
@@ -313,7 +313,11 @@ The join shader reads six points as attributes. A new define `EDGE_PULLED` build
 `gl_VertexID`, an edge table texture of two row numbers (8 MB at a million) and `texelFetch`; every later line is untouched, so the line
 draws the same pixels (0 on all four renderer and API pairs), and a million-edge move uploads 1.5 MB, not 80 MB. **Pulled edges are one
 non-instanced `gl_VertexID` draw on every renderer, never instanced**: instancing gains nothing on the RTX and is 4 to 6 times slower on
-SwiftShader. The 14-vertex form needs an index buffer, 120 MB at capacity 2^20; expanded lines take 1,408 MB.
+SwiftShader. The draw is unindexed (stage 123, #6389): `gl_VertexID / 30` is the draw slot and the rest the corner, which
+the shader's own copy of the template's index list turns into a template vertex (6 corners for the lean and animated programs).
+Correction: this section said the 14-vertex form needs an index buffer, 120 MB at capacity 2^20; it needs none. While pieces
+of two widths interleave, a draw order table (a float a slot, `edgeOrder`) names the piece each slot draws, which the index
+list's order did before (#6392); with one width no table is read. Expanded lines take 1,408 MB.
 
 `repeatPerVertex` is deleted at stage 16, once pulled edges are the path: expanded lines die past 524,288 pieces on SwiftShader, which is why
 software renderers cannot load a million edges. Object lines there then draw instanced as on hardware: 0 pixels different, 15-53% slower.
@@ -1124,6 +1128,68 @@ a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout tran
 outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves. The box's
 eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the whole box in view as the camera turns.
 
+As built (cosmos-gap stage 119): a landing copied on the card is no longer also published on the CPU. Before, every
+layout frame still ran the CPU publish beside the copy: `publishColumn` over every row, the table's repack of every
+row, and the skip-mask walk, 49 ms of an 82 ms CPU frame at 1M + 1M. Now, when the landing goes up by copy, the
+simulation engine copies it, sends the transform and owes the lane its publish (`ElementPositions.owe`). The first read
+or write of a row writes it: `view`, `read`, `isPlaced`, `write`, `grow`, `remap`, `setPinned`, and on the table
+`rowPosition`, `rowBounds` and `centerOf` (`RowTable.catchUp`), so a pick, a node's position, a drag and a freeze see
+the rows the card shows. The store's snapshot is different: it lends the lane by reference as its `position` column and
+a cached snapshot comes back without a lane accessor, and the store's own `getSnapshot` runs on every frame, so it
+cannot write the publish. The two readers that hand the snapshot's coordinates on write it instead: the consumer copy
+behind `session.data.snapshot()` and the read-only store's `getSnapshot` (an export), and an algorithm's input
+(`Algorithm.input`, which every run reads the graph through, `AStar`'s heuristic and the off-thread copy included). The rows come from the newest landing, with the transform that landing drew with.
+`generation` and `changes` do not trigger it, so a frame that only checks whether the lane moved writes nothing. Owing
+moves the public `generation` once per landing, since the coordinates a reader would get have changed (a consumer
+polling it re-reads, and the read writes the publish); `changes` moves only when the publish is written. A pinned row
+is one the publish leaves alone, so `RowTable.centerOf` of a pinned, placed row (`ElementPositions.keeps`) reads it
+without writing the rest. The undo history's question is different: whether the lane moved since its last capture (`Arrangement.moved`) writes the owed publish first, so a rest point (a pause), an undo or redo, or a `positions.set` during a run seals the arrangement the card shows; those are not per frame. A
+flush that has touched rows to send writes the owed publish first, because rows go up in whole texture lines. The skip
+walk runs only when something can have changed it: a fixed row, a hold or followers, or a table write to a row it
+keeps (`RowTable.ownRowWrites`). Three things are left. The envelope is still measured on every landing, because it is
+the transform the next batches draw with; that is two read-only passes over the read-back (13 ms a frame at 1M rows).
+While a publish is owed, the zoom-to-fit of a running layout frames the envelope's sphere (target centre plus or minus
+the scaling radius) grown by every pinned or dragged row, as a written publish grows its box, instead of the rows' own
+box, which can frame a little more loosely. And a built `Node`, a label on
+one, or anything else that reads a row on every frame still writes the publish on every frame, at today's cost.
+Counted in `shared-device-drawn.test.ts`: across three copied landings, `ElementPositions.changes`,
+`RowTable.repackedRows` and the engine's `rowsWalked` do not move; reading a node's position then publishes the rows,
+and the texture equals the CPU copy, while `generation` moves once a landing. A `session.data.snapshot()` taken
+while landings are owed writes the publish and carries the node's current position (`test/algorithms/owed-publish.test.ts`
+pins the algorithm input). A node pinned at x 500 stays inside the
+box framed while landings are owed, and the pinned node's per-frame read writes no row. Measured on paced WebGPU, interleaved, load average 16-20: the layout frame went
+from 169 ms to 86 ms at 1M + 1M and from 114 ms to 73 ms at 100k + 1M. Both are now GPU-bound, on the line draw plus
+the layout's own passes on the shared device.
+
+As built (cosmos-gap stage 119, correction): `RowTable`'s copied-landing flag stayed true across frames once a
+publish was owed, since an owed landing writes no lane row and so no repack cleared it. A lane write then settles
+first, the settle copies the owed landing again, and the write that asked for it moves the lane; the next repack
+copied the new rows into the CPU copy and sent none, so a layout switched to mid-run (ForceAtlas2 to circular) was
+never drawn and the texture rested on the old landing. The table now remembers the lane's `changes` at the copy
+(`copiedAt`) instead of a flag: a repack of exactly that lane sends nothing, a lane written since sends every row.
+Counted in `shared-device-drawn.test.ts` ("draws a layout switched to while a landing is owed on the card": the
+texture equals the CPU copy after the switch; worst difference 57.8 before the fix).
+
+As built (cosmos-gap stage 128): the same owed publish now covers a renderer that does not share the layout's device
+(WebGL, or WebGPU on its own device), under renderPath "batched" only. Before, every landing there ran the CPU publish:
+`publishColumn` over every row, the repack and the upload, about 43 ms of a 134 ms layout frame at 1M + 1M. Now
+`Graph.getDrawnTarget` offers the table on any renderer under "batched", with `device` null when it is not shared; the
+simulation sets its drawn ring with `readBack: true` (`DrawnOutput.readBack` in webgpu-graph-algorithms), so the ring is
+filled on the layout's own device exactly as on a shared one and each batch adds its landed slot to the same mapped
+readback as the scene rows (one map a batch, 16 more bytes a row), offered as `landedDrawnRows`. The publish hands those
+rows to `RowTable.uploadLanded`, which sends them to the `rowPosition` texture as they came (two `updateTextureData`
+calls, whole lines and the last partial one) without writing the CPU copy, and marks the lane's `changes` as copied, as
+`copyLanded` does; the lane is then owed the publish exactly as in the paragraph above, and the told-row resend, skip
+mask, transform and owed box are the same code. A shared engine whose device is not ready still gets no target, so it
+publishes by upload. Counted in `test/gpu-loss/separate-device-drawn.test.ts` (WebGL renderer, GPU layout on its own
+device): across three landings `ElementPositions.changes`, `RowTable.repackedRows` and the engine's `rowsWalked` do not
+move while `RowTable.landedUploads` does; a node read publishes the rows and the texture equals the CPU copy; a layout
+switched to while a landing is owed is drawn; under "objects" there is no table and every landing writes the lane.
+What is left per landing on the CPU is the envelope (two read-only passes over the read-back, about 15 ms a frame at
+1M rows, the next cost to move to the GPU) and the readback's own copy. Measured on WebGL, interleaved against
+origin/master with the GPU lock held, load average 11-35: the 1M + 1M layout frame median went from 134, 172 and 176 ms
+to 97, 99 and 104 ms, short of the 90 ms target by the envelope's share.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,
@@ -1190,6 +1256,50 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   (`slice.nodes`, `slice.edges`, read by `Node.data` and every record reader), so loading without one means
   holding records as columns and building them on demand, which is stage 29's "records into columns", conditional
   on stage 30's harness run. Stage 28 builds nothing more for it.
+  Records into columns (stage 29, built): under `"batched"`, `importColumns` copies its columns into a row source
+  (`session/project/recordMap.ts`) and keeps no record from the load: the load still builds each row's record
+  (short-lived, some rows two or three times) as the record doors read it, and drops it. The journal's `add-nodes` and `add-edges` commands
+  hold the columns and hand out `records` as a getter that builds a plain frozen array of plain records on read
+  (kept by a `WeakRef` only while the reader holds it), so `JournalEntry.command` stays plain data: it clones,
+  deep-freezes and reads the same record twice, as on the objects path; the graph slice's maps are a `RecordMap` (a `Map` subclass)
+  holding a row number per column record, as do the op log's `nodes` and `edges` ranges; rows stored with no `Node`
+  or `Edge` keep a marker and read the record from the slice. Corrections to this section and to the stage note:
+  the record had four holders, not two (the journal's command and the data manager's unbuilt rows besides the
+  slice and the op log), and a record is built on every read and never kept, not "built on demand and kept":
+  something reads every record after a load, so keeping what was built held the whole 90 MB (859 MB after GC
+  against 874 MB on master); built per read it is 775 MB, under the 800 MB target (1M + 1M, RTX, 2026-11-14). A
+  built `Node` still keeps its own record as `Node.data`; a second read of a column row's slice record is an equal
+  object, not the same one. The objects path keeps its records as before. Correction to the section 13 row's
+  proving tests: the load builds records, so "records built during an eligible file import counted at 0" is
+  proven as records kept after it counted at 0 (`RecordMap.heldRecords`, every build counted beside it), and
+  the digest-and-fingerprint half compares both on every corpus file, generator and sample dataset. The first
+  pull request is the heap half.
+  Second pull request (built): `columnsEligible(load)` in `session/project/ingest.ts` decides, with a test table
+  (`test/session/records-into-columns.test.ts`). Under `"batched"`, an `addNodes` or `addEdges` whose records
+  qualify is read once into columns (`recordsSource` in `recordMap.ts`: one array per key and, per row, which keys
+  it has, in its order) and dispatched as a `rowsView`, so the slice, the op log and the journal keep no record of
+  it, as for `importColumns`; one that does not qualify is dispatched as it came, whole. Correction to cosmos-gap.md
+  section 6: the column form keeps every key a record has, so it reproduces each record exactly and needs no typed
+  endpoint or weight column; the endpoint, weight and repeat conditions are kept as specified, so the reasons are
+  the ones documented, but none is needed for the graph to come out the same. `nodeData`/`edgeData` and
+  `session.data.import` are not routed: they are loads from a data source and keep their own route (above). The
+  report: a batched push of edge records (`addEdges`, and `importColumns`' edge add) seals its `LoadReport` with
+  `path`, `PATH_COLUMNS` when its records came through columns, else `PATH_RECORDS` with the first failed
+  condition (`"records"` when they qualify but came through a door that does not read columns). Under
+  `"objects"` the report has no `path` (rollback: the objects path's report is unchanged), so reason `"objects"`
+  is returned by `columnsEligible` but never written. `importColumns` resolves to that report, deep-equal to the
+  one `addNodes` and `addEdges` give for the same rows on either path. The headless session's ingest host now
+  reports `batched`, as the element's always did.
+  Record maps hold rows by counter (stage 127, built): under `"batched"` the graph slice's `RecordMap`s hold a
+  forward add's rows in an array by counter (the edge counter, or a node id that is a non-negative integer number)
+  instead of one `Map.set` each; a write a `Map` would place anywhere but last moves the run into the `Map` first, in
+  order, so every read answers as a `Map` does, insertion order included (`test/session/record-map-dense.test.ts`).
+  The objects path never starts a run. Correction to profile-6's cost 2 (`tmp/cosmos-profile-6/comparison.md`):
+  the harness's record arrays reach the element as `nodeData`/`edgeData`, which are not routed through columns
+  (above), so they are held as frozen copies, not row numbers; the per-row `Map.set` (`put`, 0.8 s self at
+  100k + 1M) was the part shared with the column path and is the part removed. What is left of record-array ingest
+  is the per-row `frozenRecord` copy (about 1.0 s self at 1M + 1M), the four endpoint reads per edge and the lazy-row
+  bookkeeping.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the
@@ -1271,6 +1381,81 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   Interleaved, same session: 100k + 1M first frame master 5.35 s and 5.15 s, branch 4.975 s and 5.003 s (load average
   3.6-3.9 in the first round, 1.8-2.0 in the second), so the typed 5 s target is met by one run and missed by 3 ms in the
   other; 100k + 1k is unchanged at about 0.90 s against its 0.8 s target.
+- **Every feeder through the column door (cosmos-gap.md G8), fifth pull request: a batched load's node paint.** A
+  frame's node batch is sized by the last batch's speed (`UpdateManager.nodeBatchSize`), and the speed counted only the
+  rows that came back with a `Node`. On `"batched"` a row the batches draw has none, so the speed was 0 and every batch
+  was the floor, a 32nd of the graph: a 100,000-node load painted over 32 frames, about 60% of them idle. Under
+  `"batched"` the speed now counts every row taken (`takeNodeBatch` returns `{ painted, taken }`); and while the draw
+  is held there (`DataManager.drawHeld`), no frame shows the paint, so a repaint gets 48 ms a frame rather than 16
+  (`styleBudgetFor(frameMs, heldBatched)`; on its own this did not move the measurement). The objects path counts and
+  budgets as before. Proof: `test/browser/held-load-paint-batches.test.ts` (the second batch of a 4,096-node batched
+  load is larger than the floor; it was the floor before). Interleaved, same session, against the fourth pull
+  request's build (same element source as master): 100k + 1k first frame master 1.03, 0.98, 1.26 and 1.06 s, branch
+  0.63, 0.68, 0.87 and 0.80 s (load average 20-22 in the first two rounds, 13-16 in the last two), so the 0.8 s target
+  is met in three runs of four; 100k + 1M typed master 5.93 and 6.07 s, branch 5.83 and 6.77 s (load average 7.6-13.8),
+  unchanged: its first frame waits on edge work, the duplicate-edge checks (stage 117) and `publishPositions`. Correction (sixth pull request): the duplicate-edge checks were already gone (stage 117, see the first pull request's note), and `publishPositions` costs a few ms; what is profiled under it (0.5-0.66 s) is the first snapshot freeze it asks for, mostly identity completion (`GraphStore.writeSessionColumnsWhole`). Session edges' hashes now read each node's hash once (`withNodeHashes` in `edgeIdentity.ts`) instead of hashing both end ids per edge: 450 to 355 ms of CPU at 100k + 1M, equal hashes on both render paths (`test/data/edgeIdentity.test.ts`, node id hashes counted).
+- **Every feeder through the column door (cosmos-gap.md G8), seventh pull request: an edge's ends asked once.** A row
+  line cannot end at a 2D node below z-index 0 (`Node.isDrawnBehindEdges`), so `UpdateManager.unbuiltEdgePainted` asks
+  each end, and for a row drawn with no `Node` that read the row's look from `NodeBatches.lookOf`, a map read per end:
+  2M at 100k + 1M, 0.44 s of CPU in one profiled load. `NodeBatches.paintedBehindEdges` is now set the first time any
+  row is painted below z-index 0 and never cleared; until then no look is read. Under `"objects"` there are no node
+  batches and the answer was already false. Proof: `test/browser/edge-row-lines.test.ts` (a 2D lean load reads no
+  look; it read 6 before), and a 2D lean load with every row at z-index -1 still builds each edge's `Edge`. The time
+  left in the edge paint is `EdgeRowLines.paintRow`: its `unpaintRow` reads the 1M-entry line map for a row it never
+  drew, and `PulledLineBatch.grow` rebuilds the index buffer at 1M pieces (0.2-0.3 s).
+- **Every feeder through the column door (cosmos-gap.md G8), eighth pull request: row lines held by row.**
+  `EdgeRowLines` held each row's line in a map keyed by edge row, and every `paintRow` first asks that map for the
+  row (`unpaintRow`), a miss on a 1M-entry map for each newly painted row: 0.2 s of CPU in one profiled 100k + 1M
+  load. Edge rows are dense, so the lines are now an array indexed by row with a count beside it; `rows()` comes back
+  in row order (its callers only iterate it). Only `"batched"` has row lines. Proof: `test/browser/edge-row-lines.test.ts`
+  pins the store for rows painted out of order, far apart, repainted, unpainted, moved by a freeze and cleared (it
+  passed on the map too: this is a store swap with no count to change). Profiled, one load each: `unpaintRow` 203 ms
+  before, absent after; `paintRow` 549 ms inclusive before, 450 ms after. Left in the edge paint:
+  `PulledLineBatch.grow`'s one index buffer of 1M pieces (0.16-0.23 s) and `unbuiltEdgeEnds` (a map read per row).
+- **Every feeder through the column door (cosmos-gap.md G8), ninth pull request: edges stored with no `Edge` held by
+  row.** Correction to the eighth's note: the time under `unbuiltEdgeEnds` was not its two end-id lookups (12 ms of
+  its 145-230 ms profiled) but `DataManager.unbuiltEdges`, a `Map<number, StoredEdge>` of 1M entries read once per
+  painted row and written once per stored edge (`storeUnbuiltEdge`, 160-290 ms self). It is now a `RowMap`
+  (`src/data/RowMap.ts`, an array by row with a count), which walks in row order instead of the order rows were set;
+  and `unbuiltEdgeEnds` reads the store's `edgeEndpoints(row)`, keeping the id lookup only for a row the store has let
+  go and not yet reconciled. Only `"batched"` stores an edge with no `Edge`. Proof:
+  `test/managers/DataManager.test.ts` ("reads each row's end rows from the store's edge, looking up no end id": 4
+  id lookups before, 0 after) and `test/data/RowMap.test.ts`. Profiled, one 100k + 1M typed load each, load average
+  21-25: `unbuiltEdgeEnds` 228-255 ms and `storeUnbuiltEdge` 233-293 ms self before, neither in the top 25 after.
+- **The first frame's `readPixels` (stage 120): the harness's, not the element's.** Correction to the notes above
+  that list "the first frame's `readPixels` 0.4-0.5 s" as left in the element's load: graphty-element makes no
+  synchronous readback in a load (its only `readPixels` calls are the shader guard's fenced pixel-buffer read, the
+  shader runtime's test frame, the group outline pass and screenshots, none on the load path). Every profiled
+  `readPixels` sample sat under the comparison page's `finish` (`benchmarks/compare/main.js`), a blocking 1-pixel
+  read the page made after every frame the element drew, because its still-frame flag was on during the load too. A
+  batched load spans several frames, so each one waited for the GPU on the main thread, which the element's own fence
+  pacing (`RenderManager.gpuBehind`) would have overlapped with ingest. The page now turns that flag off for the
+  load and reads one pixel after the first complete frame only, as its cosmos.gl load does, so `firstFrameMs` still
+  includes that frame's GPU work. Profiled, 100k + 1M typed, two loads each, load average 20-39: `readPixels` self
+  378 and 491 ms, all under `finish`, before; after, 270 and 311 ms under the one first-frame read (the GPU drawing
+  and uploading the first complete frame: 1M pulled lines) and 75-78 ms under `finish` for still frames drawn after
+  the load returned, inside the profile window.
+- **The first freeze and layout start (stage 121).** Under `"batched"` an edge added in the session with no file id
+  is no longer completed at the freeze: its ordinal and among already read -1 by default, and its row is marked in an
+  internal u8 edge column, `graphty.edgeHashDeferred` (`GraphStore.recordIngestedEdge`, `deferMinted`), declared only
+  when the first such edge is recorded, so an objects-path store never carries it. `identityColumnsOf` fills the hash
+  of every marked row from the `graphty.edgeId` counter the first time a snapshot's identity is read (a saved set
+  binding, a membership digest), undo completes a marked edge again as a new one, and the data digest reads the
+  filled hashes and leaves the marker out, so both paths give the same hashes and digests. The marker, not an unset
+  hash cell, says a hash is deferred: a hash column written whole (a file import) has no unset cells, and a snapshot
+  frozen while a load is open has unset cells that are not deferred
+  (`test/session/import-columns.test.ts`, minted ids hashed while a batched load freezes: 0). The objects path
+  hashes at the freeze as before. Profiled, 100k + 1M, interleaved, load average 17-22: `getSnapshot` 946 to 247 ms
+  (identity completion 782 to 11 ms); what is left is graph-format's own freeze (143-222 ms). Correction to the stage
+  note "starting a layout at 1M + 1M rebuilds the snapshot in about 1.2 s": the layout reads the snapshot the load
+  froze and freezes nothing (`test/browser/batched-layout-start.test.ts`). Its cost was the rows drawn with no
+  `Node` gathered into a set three times (`LayoutManager.columnRows`, about 0.25 s at 1M) and the undirected view a
+  simulation loads (`GraphStore.undirected`, graph-format `toUndirected`, 0.26-0.46 s profiled), derived once per
+  snapshot and already reused by the next layout. The rows are now a mask, gathered once, and not at all for the
+  `Node` filter when a batched load built none. `setLayout` to first frame at 1M + 1M, unprofiled, interleaved: master
+  1.21 and 1.23 s, branch 0.96 and 0.95 s; the 0.5 s target is missed by the undirected derive, which only a
+  derive ahead of the layout (more heap held for every batched load, against stage 111's target) or a cheaper
+  symmetrization in graph-format would remove.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.
@@ -1418,7 +1603,7 @@ Options that change a picture stay off. Existing tests, unedited, prove `"object
    pixels, or at most one level per channel, the value the batch spike measured (gradients), set once and never widened to pass. Stage 8
    first runs `"objects"` against itself: a story not byte-stable between two loads is seeded, or listed by name with its reason
    (`stories/Layout.stories.ts:301`, D3 physics). Fixtures add a mid-transition frame with animation parked, flat lighting set live, and a
-   zoom on a `nodeScale: "screen"` map. The 6-vertex program also runs on the RTX (`GRAPHTY_BROWSER_GPU=nvidia`), locally, for the Proof.
+   zoom on a map with `node.sizeSpace: "screen"`. The 6-vertex program also runs on the RTX (`GRAPHTY_BROWSER_GPU=nvidia`), locally, for the Proof.
 2. **`forced-batched`**, a new test project: the browser, interaction and `xr` suites under `"batched"`. A file that inspects mesh
    structure goes on a committed list with a reason each. Real-input tests and `rowCounts` carry the proof.
 3. **Where they run.** Neither joins a pull request or the full run. A stage runs the files it touches locally. The whole of both runs by
@@ -1461,6 +1646,59 @@ object per element. Stages 26 to 28 remove that reason.
   renderer process within about 20 s: its memory climbs past 4 GB, V8's pointer-compression heap cage, which
   `--max-old-space-size` does not lift. That is about 8 KB of heap per node on the records path, roughly ten times the
   estimate. The heap measurement and its fix stay with G9 and G11; a million rows cannot load before them.
+- **G9 measured** (correction to the line above): a million rows load before G11. On the batched path with `limits`
+  raised, 1M + 10k and 1M + 1M load in about 5.4 s and 11-12.5 s, holding 753-776 MB and 1,296-1,308 MB of heap after a
+  forced collection (cosmos-gap.md G9, `benchmarks/results/cosmos-gap/`). G11 still has a target to meet (800 MB at
+  1M + 1M); what it no longer has to do is make the load possible.
+- **G11, first pull request** (corrections from the 2026-11-11 heap snapshots, `tmp/cosmos-profile-4/runs/`). The
+  pulled-line batch now keeps its index list on the GPU only (120 B an edge; a restored context indexes it again).
+  The caller's `nodeData` and `edgeData` arrays (72 B a node, 24 B an edge) are not kept by the add mutation's own
+  code: they are kept by the session journal, whose entry holds "the command, exactly as it ran" (`JournalEntry.command`,
+  public, at least the newest entry since `journal.cap` is at least 1), and were also kept by an abort listener the
+  dispatcher left on a long-lived caller signal (fixed, both render paths). Releasing them means the journal entry of
+  an add stops holding its records, a change to what a public API returns, so it waits for that decision. `groupOf`
+  is keyed by the node object, not by id; the row-indexed typed arrays for it and `slotOf` are the next pull request.
+- **G11, second pull request** (correction to the bullet above). A batch's `slotOf` is now an `Int32Array` by row
+  (4 B a row against about 45 for a Map entry). `groupOf` needed no typed array: a row with no `Node` (`ColumnRow`)
+  never changes source mesh, since a new paint makes a new one, so its group is the group of its source while the
+  group still holds it, and the Map keeps an entry only for a row with a `Node`. A typed array by row would have had
+  to follow every row renumbering; reading the group from the source has nothing to keep in step.
+- **G11, third pull request.** The batched row lines (`EdgeRowLines`) keep four `Int32Array` columns by edge row and
+  one batch per look, not a four-field object per edge (about 43 B an edge). Correction to the 2026-11-11 heap table:
+  its "edit history, one op object per node and per edge" row predates the op log's range entries (`NodeRange`,
+  `EdgeRange` in `graphOps.ts`), which a batched add already writes, so that row is no longer a per-element cost.
+  Measured after this pull request (1M + 1M typed, `batched`, ceilings at 2,000,000, 2 runs, load average 1.3-2.8):
+  1,153-1,154 MB after a forced collection, against 1,296-1,308 MB at G9. The 800 MB target is not met yet; the
+  largest per-row holders left are the lazy-row maps (`unbuilt`, `unbuiltIds`, `unbuiltEdges`, `unbuiltEdgeIds`),
+  the `ColumnRow` per node, the graph builder's `idToIndex` Map and the ingest duplicate-pair index.
+- **G11, fourth pull request.** The ingest duplicate-pair index (`storedPairs`, one Set per source node) is only
+  reused by the next chunk of the same load, but a batch outside a load (`addEdges`, `importColumns`, `edgeData`)
+  kept it until the next batch. Such a batch now drops it when it ends. Measured (1M + 1M typed, `batched`,
+  ceilings at 2,000,000, 2 runs, load average 2.2 before, 1.0 after): 1,098 MB after a forced collection, against
+  1,153-1,154 MB after the third pull request. Still above 800 MB; next are the lazy-row maps and the `ColumnRow`
+  per node.
+- **G11, fifth pull request** (from a heap snapshot of 1M + 1M typed after a forced collection, before it: 1,162 MB).
+  Five per-row holders go, all under `"batched"` only:
+    - `importColumns` freezes the records it builds, so the graph slice keeps them as they are instead of a frozen copy
+      beside the journal's (about 112 MB: a node record with its position array, and an edge record).
+    - A row's paint is shared by every row of its look painted the same color (`StylePainter.rowPaint`, up to 1,024
+      colors a look), not a paint and a color object per row (52 MB).
+    - The op log's node range keeps each seed as three numbers in one column, not an array per node (53 MB to 24 MB).
+    - The lazy-row maps: a row with no `Node` keeps its id and record in two arrays by row (`RowIdRecords`), an edge
+      row is found by its id's counter in an array (`EdgeIdRows`, which also drops a second copy of each id string),
+      and the batches keep the `ColumnRow` of each row in an array by row (about 75 MB together). `unbuiltIds`, by
+      node id, stays: a node id is any value.
+    - `ColumnRow` reads its two constant fields from its prototype (8 MB).
+
+    Measured (benchmarks/compare `lean-l-columns`, `batched`, ceilings at 2,000,000, 2 runs each, alternated, load
+    average 16.8-29.7): 1,163 MB on master, 939 MB on this branch, after a forced collection; the load's first frame
+    went from 18.9-20.7 s to 13.2-13.6 s. Measured without the fourth pull request (58 MB more to come off when both
+    are in). Still above 800 MB. The next holders: GPU-side mirrors kept as `Float32Array`s (117 MB, textures of 48, 32
+    and 16 MB among them), the shared node and edge records themselves (about 90 MB, stage 29's "records into
+    columns"), the graph builder's growable columns (83 MB, up to twice their rows), the op log's ranges (67 MB),
+    the row-indexed slot arrays of `RowMap`s (53 MB), the style resolver's per-row columns (54 MB), one `ColumnRow` per
+    node (28 MB) and the layout's scratch coordinates (24 MB).
+
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or
@@ -1476,6 +1714,29 @@ object per element. Stages 26 to 28 remove that reason.
   `limits-warning` once a repaint settles, and again only when the number held plain changes. The app's
   `fitsInBrowser` and `isLarge` take the limits as an optional parameter, defaulting to `DEFAULT_LIMITS`; no caller
   passes raised ones yet, because the app does not raise `limits` on the element.
+- **Stage 124, the gaps stage 30 left** (corrections to the bullet above, batched only). The rows held plain are
+  counted by what draws them, not by sets of row numbers in `UpdateManager`: `NodeBatches.plainRowCount` (column
+  rows whose paint key starts `plain|`) and `EdgeRowLines.plainCount` (rows in a batch made for a plain paint).
+  Those follow every unpaint, removal, renumbering freeze and clear, so `W_OBJECT_CAP`'s `wanted` after a removal
+  is exact, and a clear resets what was last reported, so a reload past the budget reports again. Setting
+  `limits` queues every plain row for a repaint (`UpdateManager.limitsChanged`): a raised budget gives each row it
+  has room for its object, and a row that has its object keeps it. Under 3D `flat` lighting, which batches no
+  row, a plain paint is still drawable by a batch, drawn without the outline only a `Node` draws; and a view
+  change that drops column rows from their batch now repaints them (`NodeBatchHost.repaint`), where before
+  they drew nothing until some other paint reached them. A plain row whose own paint has a label carries
+  `labelled` on its plain paint; while label sampling is on (section 4.7) it is a candidate by row and
+  position (`RowTable.centerOf`), and when it wins its cell its `Node` is built (`UpdateManager.buildPlainRow`)
+  and its label drawn as any other, through the glyph atlas when `labelText` is `"glyphs"`. With sampling
+  off a plain row still draws no label: the label is what its object would have held. A `Node` built for a
+  label stays when a later pass drops the label, so the objects grow by the rows that ever won a cell.
+- **Stage 125, the app raises the limits** (correction to the stage 30 bullet's "the app does not raise `limits` on
+  the element"). Under the cosmograph experiment only, the graphty app sets the element's `limits` beside
+  `renderPath = "batched"` (`ElementHost.tsx`, `COSMOGRAPH_LIMITS`): `renderCeiling`, `edgesDrawn`, `objectRows` and
+  `objectEdges` all 1,000,000, so a million nodes and a million edges load and each may draw as an object of its own.
+  With the experiment off the app writes no `limits` and the element's defaults stand. The start page's
+  `fitsInBrowser` and `isLarge` still run on `DEFAULT_LIMITS`: they are called before an element exists, so they
+  have no session to read raised limits from. `CosmographFlag.real-element.test.tsx` loads 100,001 nodes and 100,000
+  edges into the workspace with the experiment on and reads every row drawn from `rowCounts`.
 
 ## 9. Edge-case rulings (input -> expected result)
 
@@ -1937,6 +2198,17 @@ one loop per function. The framing walk at a layout's start and settle still all
 not per frame. `test/browser/batched-still-frame-allocates-nothing-per-row.test.ts` counts the bytes a still frame
 allocates at two sizes.
 
+Stage 122 (still-frame collection at 1M) found the same at 1M + 1M, on master f6a0dc7ebc (WebGL drawing, `lean`,
+batched, `renderCeiling` and `edgesDrawn` 2,000,000), so it changes no code. Counted with the sampling heap profiler
+(64-byte interval, collected objects kept) over 120 still frames after a 300-frame warm-up, a still frame allocates
+about 13.9 KB at 1M + 1M and the same at 100k + 1M (1.62 MB and 1.63 MB over the stage): nothing per row, the same
+fixed work stage 116 named. Correction to the 2026-11-12 comparison: its 2.4 ms of collection per still frame at
+1M + 1M was again the memory reducer, one major collection of the loaded heap (a single `MajorGC` of 52 ms in a
+trace, `GCFinalizeMCReduceMemory`, 653 MB to 618 MB; 39-199 ms over the stage across three profiles, each time one
+burst) that lands in the first still frames after a load. After the warm-up the still frames spent 0.6-1.3 ms
+collecting over 120 frames, 0.005-0.011 ms a frame, under the 0.5 ms target. What that one collection costs scales
+with the live heap, which is stage 111's target, not a still frame's.
+
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0   | Done: baseline, spikes              | all                             | Harness, `baseline` run, section 5                                                                                                                                                                                                                                                                      | --                                                                                                                                               | L   | None                                                                                                                                                                                                 | Harness and `baseline` committed                                                                                                                                                                                                                                                                                                                                                                 |
@@ -1979,3 +2251,67 @@ allocates at two sizes.
 | 36  | Done: collision force               | #3256                           | Pull request 5806                                                                                                                                                                                                                                                                                       | 0                                                                                                                                                | M   | None                                                                                                                                                                                                 | Merged                                                                                                                                                                                                                                                                                                                                                                                           |
 | 37  | In pull request 5812: cluster force | #3257                           | Section 4.8                                                                                                                                                                                                                                                                                             | 0                                                                                                                                                | M   | Layout step within 15% of off, 100,000 nodes                                                                                                                                                         | Community spread falls on a known graph; off byte-equal                                                                                                                                                                                                                                                                                                                                          |
 | 38  | Close out                           | all, #1910                      | Full matrix into the research note; guide page; misses listed                                                                                                                                                                                                                                           | 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39 | L   | Final numbers; both defaults to the owner                                                                                                                                                            | Docs example compiled against published types                                                                                                                                                                                                                                                                                                                                                    |
+
+### Stage 38: final numbers per target
+
+Measured 2026-11-15 with the full matrix, `benchmarks/results/close-out/summary.md`: master b717d5ecb2 under `"batched"`
+(record arrays, and the column door where named), the reference build 57c0ee700e rebuilt and re-measured in the same
+session, and cosmos.gl 3.5.1, interleaved, every counted run at a one-minute load of 8 or lower. Load alone moved the
+first frame by up to 1.53x and every other figure by 10% or less, so a miss smaller than that is within noise. Medians;
+p99 where the target is p99. 2D lean at 100,000 nodes and 1,000,000 edges unless named.
+
+| Stage | Target                                                          | Measured                                                            | Verdict                                         |
+| ----- | --------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------- |
+| 1     | Step with readback 40 ms                                        | 45.8 ms (43.9-46.8); cosmos.gl 8.0 ms                               | Missed by 5.8 ms (15%)                          |
+| 2     | Drag frame (no number)                                          | 73.5 ms, reference 467 ms                                           | Met: 6.4x faster                                |
+| 4     | Repack and upload 3 ms                                          | 0.9 ms; 9.8 ms at 1M nodes                                          | Met                                             |
+| 10    | Hover flat 10k to 100k within 3 ms                              | 0.95 ms at 10k + 100k, 1.75 ms at 100k + 1M                         | Met                                             |
+| 11    | Still 90 ms                                                     | 73.3 ms, p99 79.8 ms                                                | Met                                             |
+| 12    | Moving 130 ms; 10k still 8 ms                                   | 73.5 ms; 0.90 ms at 10k + 100 (7.75 ms at 10k + 100k)               | Met, both                                       |
+| 15    | 1M long edges 83 ms (default lines)                             | still p99 79.8 ms                                                   | Met                                             |
+| 16    | Moving 90 ms; layout frame 90 ms                                | 73.5 ms; 77.5 ms                                                    | Met                                             |
+| 18    | Hover 20 ms                                                     | 1.75 ms; cosmos.gl 28.6 ms                                          | Met                                             |
+| 23    | Lasso over 100,000 rows 2 ms                                    | 5.9 ms at 100k + 1k, 13.9 ms at 100k + 1M (whole `selection.apply`) | Missed by 3.9 ms and 11.9 ms                    |
+| 27    | First frame per cosmos-gap.md 5.1 (4.7-6.3 s); heap 600 MB      | 3.47 s; 461 MB                                                      | Met, both                                       |
+| 28    | Typed: first frame per cosmos-gap.md 5.1 (3.5-5 s); heap 400 MB | 4.02 s; 405 MB                                                      | First frame met; heap missed by 5 MB (1%)       |
+| 30    | 1M nodes and edges, typed: first frame 6 s                      | 9.81 s (column door), 9.97 s (records)                              | Missed by 3.8 s (1.6x)                          |
+| 30    | frames 100 ms                                                   | still 76.3 ms, p99 79.6 ms                                          | Met                                             |
+| 30    | hover 30 ms                                                     | 6.35 ms                                                             | Met                                             |
+| 30    | heap 800 MB                                                     | 871 MB (column door), 1,058 MB (records)                            | Missed by 71 MB (9%)                            |
+| 30    | layout frame 120 ms                                             | 127 ms (records; the column door run uses the static layout)        | Missed by 7 ms (6%), within noise of the target |
+| 30    | lasso 15 ms                                                     | 83.4 ms (column door), 84.7 ms (records)                            | Missed by 68 ms (5.6x)                          |
+
+Not measured by this matrix, so their stage Proofs stand: 5 (synthetic scan), 7, 9, 14, 19, 20, 22 and 26 (counted in CI,
+not timed), 13 (the app), 15's 6-vertex and no-antialiasing figures, 17 (3D), 21 (curves), 24, 25 and 30's
+`renderer="webgpu"` figures (WebGPU), 31-33 (labels), 37 (cluster force) and 39 (engine loss).
+
+Why each miss:
+
+- **Stage 1, step with readback.** At 100k nodes and a million edges one step plus the readback of 100,000 positions
+  takes 45.8 ms, against cosmos.gl's 8.0 ms for the same measure; at 10k nodes the two are 5.6 ms and 3.1 ms. The step
+  was not split further in this run; the stage 25 GPU fill and stage 24 device sharing Proofs hold the per-part figures.
+- **Stage 23 and stage 30, lasso.** The figure is the whole `selection.apply` (walk, the 5,000-row cap's truncation and
+  the delta), as stage 23 recorded. It grows with the rows under the region: 4,156 at 10k nodes, and at 100k and 1M more
+  than the cap, which then cuts each result to 5,000. The walk alone was never timed; the target assumed a scan of a
+  column, and the apply does more than that.
+- **Stage 28, heap.** 405 MB against 400 MB, 1%: within what a heap reading moves between builds. No heap profile was taken.
+- **Stage 30, first frame and heap.** The million-node load is the per-row work the session keeps, ten times over:
+  the derivation pass, the style repaint's column writes, the position repack and the builder (cosmos-gap.md 5.4).
+  Measured, it lands well under that document's 8.5-14.5 s projection at 1M + 10k (4.38 s) and at 9.8 s for 1M + 1M,
+  where the million edges add their own per-row share. The heap misses for the same reason, by 9% through the column
+  door.
+- **Stage 30, layout frame.** 127 ms against 120: 6%, inside the 10% load alone moves a frame figure, so this is not
+  shown to be a miss.
+
+Correction from stage 38: the column door is not faster to load than record arrays, against cosmos-gap.md 5.1's
+projection. Measured in the same rounds, 100k + 1M loads in 4.02 s through the column door and 3.47 s from record
+arrays; 100k + 1k in 0.56 s and 0.47 s; 1M + 10k in 5.07 s and 4.38 s. Only 1M + 1M is level (9.81 s and 9.97 s). The
+column door's heap is lower (405 MB and 461 MB at 100k + 1M; 871 MB and 1,058 MB at 1M + 1M). Why typed input is not
+faster was not profiled here.
+
+Correction from stage 38: `graph.getNodes()` on the batched path builds every node the element left unbuilt, so a
+consumer that walks the nodes of a million-node batched graph takes the renderer to about 6 GB and can crash the tab.
+That is issue #8169, open.
+
+Defaults: this stage changes none. The owner decides whether `renderPath` defaults to `"batched"` and whether
+`renderCeiling` defaults to 1,000,000; the evidence for and against each is in the stage's Proof and in issue #1910.

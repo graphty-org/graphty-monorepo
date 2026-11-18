@@ -81,3 +81,65 @@ describe("ColorPickerPanel change-end", () => {
         expect(onChangeEnd).toHaveBeenCalledWith("#00FF00FF");
     });
 });
+
+describe("ColorPickerPanel formats and sliders", () => {
+    /**
+     * Pick a format from the format list.
+     * @param name - the format's name
+     */
+    async function chooseFormat(name: string): Promise<void> {
+        await userEvent.click(screen.getByRole("combobox", { name: "Color format" }));
+        await userEvent.click(screen.getByRole("option", { name }));
+    }
+
+    /**
+     * Type a value into the value box and commit it with Enter.
+     * @param text - what to type
+     */
+    async function typeValue(text: string): Promise<void> {
+        const box = screen.getByRole("textbox", { name: "Color value" });
+        await userEvent.click(box);
+        await userEvent.keyboard(`{Control>}a{/Control}${text}{Enter}`);
+    }
+
+    it("shows and takes a color in HSB, RGB and HSL", async () => {
+        const onChange = vi.fn();
+        renderPanel(<ColorPickerPanel value="#FF0000FF" onChange={onChange} />);
+
+        await chooseFormat("HSB");
+        expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("0, 100, 100");
+        await typeValue("120, 100, 100");
+        expect(onChange).toHaveBeenLastCalledWith("#00FF00FF");
+
+        await chooseFormat("RGB");
+        await typeValue("0, 0, 255");
+        expect(onChange).toHaveBeenLastCalledWith("#0000FFFF");
+
+        await chooseFormat("HSL");
+        await typeValue("60, 100, 50");
+        expect(onChange).toHaveBeenLastCalledWith("#FFFF00FF");
+    });
+
+    it("refuses a value with the wrong count of numbers", async () => {
+        const onChange = vi.fn();
+        renderPanel(<ColorPickerPanel value="#FF0000FF" onChange={onChange} />);
+        await chooseFormat("RGB");
+        await typeValue("1, 2");
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("leaves the color as it was when the eyedropper is closed without a pick", async () => {
+        vi.stubGlobal(
+            "EyeDropper",
+            class {
+                open(): Promise<{ sRGBHex: string }> {
+                    return Promise.reject(new Error("AbortError"));
+                }
+            },
+        );
+        const onChange = vi.fn();
+        renderPanel(<ColorPickerPanel value="#FF0000FF" onChange={onChange} />);
+        await userEvent.click(screen.getByRole("button", { name: "Sample color" }));
+        expect(onChange).not.toHaveBeenCalled();
+    });
+});

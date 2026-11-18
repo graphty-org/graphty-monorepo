@@ -63,7 +63,12 @@ export interface LinkPredictionResult extends NodePairs {
     readonly scores: F64;
 }
 
-/** The best-F1 threshold's precision and recall, that F1, and the ranking AUC. @public */
+/**
+ * The best-F1 threshold's precision and recall, that F1, and the ranking AUC. Pairs with equal
+ * scores are never split by a threshold, and a held-out edge tied with a non-edge counts half in
+ * the AUC, so a score that ties every pair reports an AUC of 0.5.
+ * @public
+ */
 export interface LinkPredictionMetrics {
     readonly precision: number;
     readonly recall: number;
@@ -256,8 +261,10 @@ function candidatesOf(s: GraphSnapshot, u: number, o: CandidateOptions, score: P
 }
 
 /**
- * Rank held-out edges against non-edges by score (stable, edges first among equal scores), then
- * report the threshold with the best F1 and the AUC; the AUC is 0.5 when either side is empty.
+ * Rank held-out edges against non-edges by score, then report the threshold with the best F1 and
+ * the AUC. Pairs with equal scores fall on the same side of every threshold, so thresholds sit only
+ * between distinct scores, and the AUC counts an edge tied with a non-edge as half a win
+ * (Mann-Whitney). The AUC is 0.5 when either side is empty.
  * @param edges - The scores of the held-out edges
  * @param nonEdges - The scores of the non-edges
  * @returns The metrics
@@ -267,28 +274,31 @@ function rankingMetrics(edges: F64, nonEdges: F64): LinkPredictionMetrics {
     const order = Array.from(all, (_, k) => k).sort((a, b) => all[b] - all[a]);
     let tp = 0;
     let fp = 0;
-    let bestF1 = 0;
-    let bestPrecision = 0;
-    let bestRecall = 0;
+    let best = { precision: 0, recall: 0, f1Score: 0 };
     let auc = 0;
-    for (const k of order) {
-        if (k < edges.length) {
-            tp++;
-        } else {
-            auc += tp;
-            fp++;
+    for (let i = 0; i < order.length;) {
+        const score = all[order[i]];
+        let e = 0;
+        let f = 0;
+        for (; i < order.length && all[order[i]] === score; i++) {
+            if (order[i] < edges.length) {
+                e++;
+            } else {
+                f++;
+            }
         }
+        auc += f * (tp + e / 2);
+        tp += e;
+        fp += f;
         const precision = tp / (tp + fp);
         const recall = tp / edges.length;
-        const f1 = precision + recall > 0 ? (2 * (precision * recall)) / (precision + recall) : 0;
-        if (f1 > bestF1) {
-            bestF1 = f1;
-            bestPrecision = precision;
-            bestRecall = recall;
+        const f1Score = precision + recall > 0 ? (2 * (precision * recall)) / (precision + recall) : 0;
+        if (f1Score > best.f1Score) {
+            best = { precision, recall, f1Score };
         }
     }
     auc = tp > 0 && fp > 0 ? auc / (tp * fp) : 0.5;
-    return { precision: bestPrecision, recall: bestRecall, f1Score: bestF1, auc };
+    return { ...best, auc };
 }
 
 /**

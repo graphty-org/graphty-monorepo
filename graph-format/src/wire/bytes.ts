@@ -31,17 +31,17 @@ import { GraphFormatError } from "../errors.js";
 import { type GraphSnapshot } from "../snapshot/graph-snapshot.js";
 import { type FromWireOptions, type ToBytesOptions, type TypedArrayData, type U8 } from "../types/index.js";
 import { alignUp, padTo4 } from "../util/typed-array.js";
+import { badWire } from "./bad-wire.js";
 import {
-    badWire,
     bufferRegion,
     checkManifestVersions,
     decodeManifest,
     isSharedArrayBuffer,
     type LocatedRange,
-    parseGuardedJson,
     resolveFromWireOptions,
     type WireRegion,
 } from "./from-wire.js";
+import { parseGuardedJson } from "./json-tags.js";
 import { collectWire, type ContainerSegment, encodeManifest, WireLayout } from "./to-wire.js";
 
 // ============================================================ constants

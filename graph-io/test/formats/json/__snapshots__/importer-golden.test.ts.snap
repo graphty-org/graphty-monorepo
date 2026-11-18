@@ -941,6 +941,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -967,6 +968,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -993,6 +995,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -1039,6 +1042,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -1117,6 +1121,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -1143,6 +1148,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -1169,6 +1175,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -1215,6 +1222,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -1293,6 +1301,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -1319,6 +1328,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -1345,6 +1355,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -1391,6 +1402,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -1469,6 +1481,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -1495,6 +1508,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -1521,6 +1535,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -1567,6 +1582,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -1680,6 +1696,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -1790,6 +1807,7 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -3477,6 +3495,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaultDir
       "w": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -3513,6 +3532,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaultDir
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -3568,6 +3588,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaultDir
       "c": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -3627,6 +3648,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaults) 
       "w": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -3663,6 +3685,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaults) 
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -3718,6 +3741,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaults) 
       "c": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -3777,6 +3801,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (error limi
       "w": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -3813,6 +3838,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (error limi
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -3868,6 +3894,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (error limi
       "c": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -3927,6 +3954,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (no missing
       "w": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -3963,6 +3991,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (no missing
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -4018,6 +4047,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (no missing
       "c": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -4119,6 +4149,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (nodeIdKey 
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -4203,6 +4234,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (number ids
       "w": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -4239,6 +4271,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (number ids
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -4294,6 +4327,7 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (number ids
       "c": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -4404,6 +4438,7 @@ exports[`JSON importer golden output > cytoscape: bad positions (defaultDirected
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -4523,6 +4558,7 @@ exports[`JSON importer golden output > cytoscape: bad positions (defaults) 1`] =
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -4648,6 +4684,7 @@ exports[`JSON importer golden output > cytoscape: bad positions (no missing node
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -4767,6 +4804,7 @@ exports[`JSON importer golden output > cytoscape: bad positions (nodeIdKey name,
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -4882,6 +4920,7 @@ exports[`JSON importer golden output > cytoscape: bad positions (number ids) 1`]
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -5362,6 +5401,7 @@ exports[`JSON importer golden output > cytoscape: object without elements (defau
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -5450,6 +5490,7 @@ exports[`JSON importer golden output > cytoscape: object without elements (defau
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -5538,6 +5579,7 @@ exports[`JSON importer golden output > cytoscape: object without elements (error
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -5626,6 +5668,7 @@ exports[`JSON importer golden output > cytoscape: object without elements (no mi
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -5714,6 +5757,7 @@ exports[`JSON importer golden output > cytoscape: object without elements (nodeI
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -5802,6 +5846,7 @@ exports[`JSON importer golden output > cytoscape: object without elements (numbe
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -5976,6 +6021,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "list",
           "dynamic": false,
@@ -6001,6 +6047,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -6032,6 +6079,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -6100,6 +6148,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "list",
           "dynamic": false,
@@ -6137,6 +6186,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -6169,6 +6219,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "locked": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -6201,6 +6252,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -6233,6 +6285,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "parent": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "u32",
           "dynamic": false,
@@ -6265,6 +6318,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -6314,6 +6368,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "selected": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -6346,6 +6401,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "source": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -6378,6 +6434,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "target": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -6532,6 +6589,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "list",
           "dynamic": false,
@@ -6557,6 +6615,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -6588,6 +6647,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -6656,6 +6716,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "list",
           "dynamic": false,
@@ -6693,6 +6754,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -6725,6 +6787,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "locked": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -6757,6 +6820,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -6789,6 +6853,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "parent": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "u32",
           "dynamic": false,
@@ -6821,6 +6886,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -6870,6 +6936,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "selected": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -6902,6 +6969,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "source": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -6934,6 +7002,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "target": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -7094,6 +7163,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "list",
           "dynamic": false,
@@ -7119,6 +7189,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -7150,6 +7221,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -7218,6 +7290,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "list",
           "dynamic": false,
@@ -7255,6 +7328,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -7287,6 +7361,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "locked": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -7319,6 +7394,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -7351,6 +7427,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "parent": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "u32",
           "dynamic": false,
@@ -7383,6 +7460,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -7432,6 +7510,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "selected": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -7464,6 +7543,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "source": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -7496,6 +7576,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "target": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -7650,6 +7731,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "list",
           "dynamic": false,
@@ -7675,6 +7757,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -7698,6 +7781,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -7729,6 +7813,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -7797,6 +7882,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "list",
           "dynamic": false,
@@ -7834,6 +7920,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -7866,6 +7953,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "locked": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -7898,6 +7986,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -7930,6 +8019,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "parent": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "u32",
           "dynamic": false,
@@ -7962,6 +8052,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -8011,6 +8102,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "selected": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "bool",
           "dynamic": false,
@@ -8043,6 +8135,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "source": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -8075,6 +8168,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "target": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -8261,6 +8355,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (numb
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "list",
           "dynamic": false,
@@ -8282,6 +8377,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (numb
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -8306,6 +8402,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (numb
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -8363,6 +8460,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (numb
       "classes": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "list",
           "dynamic": false,
@@ -8384,6 +8482,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (numb
       "parent": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "u32",
           "dynamic": false,
@@ -8405,6 +8504,7 @@ exports[`JSON importer golden output > cytoscape: sections with everything (numb
       "position": {
         "meta": {
           "components": 3,
+          "coordinates": null,
           "domain": "node",
           "dtype": "f64",
           "dynamic": false,
@@ -10715,6 +10815,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -10744,6 +10845,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -10773,6 +10875,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -10802,6 +10905,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -10863,6 +10967,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -10923,6 +11028,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "extra#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -10950,6 +11056,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -11099,6 +11206,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -11127,6 +11235,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -11155,6 +11264,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -11183,6 +11293,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -11239,6 +11350,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -11298,6 +11410,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "extra#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -11324,6 +11437,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -11478,6 +11592,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -11505,6 +11620,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -11532,6 +11648,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -11559,6 +11676,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -11610,6 +11728,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -11668,6 +11787,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "extra#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -11693,6 +11813,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -11840,6 +11961,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -11868,6 +11990,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -11896,6 +12019,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -11924,6 +12048,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -11980,6 +12105,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -12039,6 +12165,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "extra#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -12065,6 +12192,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -12261,6 +12389,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (number ids)
       "key": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -12285,6 +12414,7 @@ exports[`JSON importer golden output > graphology: mixed with flags (number ids)
       "name": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "string",
           "dynamic": false,
@@ -12873,6 +13003,7 @@ exports[`JSON importer golden output > jgf: all edges undirected (defaultDirecte
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -12897,6 +13028,7 @@ exports[`JSON importer golden output > jgf: all edges undirected (defaultDirecte
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -13853,6 +13985,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -13880,6 +14013,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -13907,6 +14041,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -13934,6 +14069,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -13961,6 +14097,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -13988,6 +14125,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "relation": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -14039,6 +14177,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "m": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -14101,6 +14240,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -14129,6 +14269,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -14157,6 +14298,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -14298,6 +14440,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -14324,6 +14467,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -14350,6 +14494,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -14376,6 +14521,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -14402,6 +14548,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -14428,6 +14575,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "relation": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -14474,6 +14622,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "m": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -14535,6 +14684,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -14562,6 +14712,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -14589,6 +14740,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -14735,6 +14887,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -14760,6 +14913,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -14785,6 +14939,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "graphty.weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "f32",
           "dynamic": false,
@@ -14810,6 +14965,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -14835,6 +14991,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -14860,6 +15017,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "relation": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -14901,6 +15059,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "m": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -14961,6 +15120,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -14987,6 +15147,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -15013,6 +15174,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -15152,6 +15314,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -15178,6 +15341,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -15204,6 +15368,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -15230,6 +15395,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -15256,6 +15422,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "relation": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -15282,6 +15449,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "weight": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "i32",
           "dynamic": false,
@@ -15328,6 +15496,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "m": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -15389,6 +15558,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -15416,6 +15586,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -15443,6 +15614,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "x": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "i32",
           "dynamic": false,
@@ -15639,6 +15811,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (number ids) 1`] = `
       "id": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -15660,6 +15833,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (number ids) 1`] = `
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -15681,6 +15855,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (number ids) 1`] = `
       "relation": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "string",
           "dynamic": false,
@@ -15705,6 +15880,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (number ids) 1`] = `
       "m": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "graph",
           "dtype": "i32",
           "dynamic": false,
@@ -15760,6 +15936,7 @@ exports[`JSON importer golden output > jgf: keyed nodes (number ids) 1`] = `
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16247,6 +16424,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaultDirected and 
       "graphty.directed": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "bool",
           "dynamic": false,
@@ -16271,6 +16449,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaultDirected and 
       "graphty.pair": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "edge",
           "dtype": "u32",
           "dynamic": false,
@@ -16339,6 +16518,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaultDirected and 
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16363,6 +16543,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaultDirected and 
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16476,6 +16657,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaults) 1`] = `
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16500,6 +16682,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaults) 1`] = `
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16613,6 +16796,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (error limit 2) 1`] =
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16637,6 +16821,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (error limit 2) 1`] =
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16750,6 +16935,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (no missing nodes add
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16774,6 +16960,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (no missing nodes add
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16887,6 +17074,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (nodeIdKey name, weig
       "id#element": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -16911,6 +17099,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (nodeIdKey name, weig
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,
@@ -17048,6 +17237,7 @@ exports[`JSON importer golden output > jgf: v1 array nodes (number ids) 1`] = `
       "label": {
         "meta": {
           "components": 1,
+          "coordinates": null,
           "domain": "node",
           "dtype": "string",
           "dynamic": false,

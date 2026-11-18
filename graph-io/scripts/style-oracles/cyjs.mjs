@@ -101,7 +101,12 @@ for (const file of files) {
         continue;
     }
     const g = await importStyled(bytes, "json", filename);
-    if (g === null || g.snapshot.meta.extra?.json?.dialect !== "cytoscape") {
+    if (g.error) {
+        tally.importFailed(file, g.error);
+        continue;
+    }
+    // not a Cytoscape.js document: another JSON dialect, not this oracle's to compare
+    if (g.snapshot.meta.extra?.json?.dialect !== "cytoscape") {
         continue;
     }
     if (!g.styled) {

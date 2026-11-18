@@ -4,7 +4,7 @@
  * drag and drop, and virtualization. Every key here is a real key press through Playwright.
  */
 import { Menu, ScrollArea } from "@mantine/core";
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
@@ -19,6 +19,8 @@ import {
     type TreeNodeData,
 } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
+import { moveBy, moveTo, press, release } from "../../harness/mouse";
+import { touchEnd, touchMoveBy, touchMoveTo, touchStart } from "../../harness/touch";
 
 afterEach(resetHarness);
 
@@ -930,38 +932,25 @@ describe("Tree: pointer drag (touch, mouse)", () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     });
-    afterEach(() => {
+    afterEach(async () => {
         vi.useRealTimers();
+        await release();
     });
 
     /**
-     * Send one pointer event at a point, to whatever is drawn there.
-     * @param type - the event type
-     * @param x - client x
-     * @param y - client y
-     * @param pointerType - touch, mouse or pen
+     * Run input and render everything it changed before going on, so a check that something is
+     * absent sees the tree after the input, not before it.
+     * @param input - the real input to send
      */
-    function send(type: string, x: number, y: number, pointerType = "touch"): void {
-        const target = document.elementFromPoint(x, y) ?? document.body;
-        target.dispatchEvent(
-            new PointerEvent(type, {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clientX: x,
-                clientY: y,
-                pointerId: 7,
-                pointerType,
-                isPrimary: true,
-                button: type === "pointermove" ? -1 : 0,
-                buttons: type === "pointerup" ? 0 : 1,
-            }),
-        );
+    async function settled(input: () => Promise<void>): Promise<void> {
+        await act(input);
     }
-    const middle = (name: string): { x: number; y: number } => {
-        const box = row(name).getBoundingClientRect();
-        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-    };
+    /** Step the fake clock past the hold, rendering what the hold changed. */
+    function hold(): void {
+        act(() => {
+            vi.advanceTimersByTime(HOLD);
+        });
+    }
     // Low in row C: the drop lands after it.
     const afterC = (): { x: number; y: number } => {
         const box = row("C").getBoundingClientRect();
@@ -971,19 +960,13 @@ describe("Tree: pointer drag (touch, mouse)", () => {
     it("lifts a row held half a second and then moved, and reports one move", async () => {
         const onMove = vi.fn();
         await renderThemed(<Tree items={FLAT} onMove={onMove} />);
-        const a = middle("A");
-        send("pointerdown", a.x, a.y);
-        vi.advanceTimersByTime(HOLD);
-        send("pointermove", a.x, a.y + 12);
-        await vi.waitFor(() => {
-            expect(row("A")).toHaveAttribute("data-dragging");
-        });
-        const to = afterC();
-        send("pointermove", to.x, to.y);
-        await vi.waitFor(() => {
-            expect(screen.getByTestId("tree-drop-line")).toBeInTheDocument();
-        });
-        send("pointerup", to.x, to.y);
+        await touchStart(row("A"));
+        hold();
+        await settled(() => touchMoveBy(0, 12));
+        expect(row("A")).toHaveAttribute("data-dragging");
+        await settled(() => touchMoveTo(afterC()));
+        expect(screen.getByTestId("tree-drop-line")).toBeInTheDocument();
+        await settled(touchEnd);
         expect(onMove).toHaveBeenCalledTimes(1);
         expect(onMove).toHaveBeenCalledWith({ id: "a", parentId: null, index: 2 });
     });
@@ -991,28 +974,27 @@ describe("Tree: pointer drag (touch, mouse)", () => {
     it("moves nothing on a swipe that starts before the hold elapses", async () => {
         const onMove = vi.fn();
         await renderThemed(<Tree items={FLAT} onMove={onMove} />);
-        const a = middle("A");
-        send("pointerdown", a.x, a.y);
-        send("pointermove", a.x, a.y + 20);
-        vi.advanceTimersByTime(HOLD);
-        const to = afterC();
-        send("pointermove", to.x, to.y);
+        await touchStart(row("A"));
+        await settled(() => touchMoveBy(0, 20));
+        hold();
+        await settled(() => touchMoveTo(afterC()));
+        expect(row("A")).not.toHaveAttribute("data-dragging");
         expect(screen.queryByTestId("tree-drop-line")).toBeNull();
-        send("pointerup", to.x, to.y);
+        await settled(touchEnd);
         expect(onMove).not.toHaveBeenCalled();
     });
 
     it("shows no drop line and moves nothing where canDrop refuses", async () => {
         const onMove = vi.fn();
         await renderThemed(<Tree items={FLAT} onMove={onMove} canDrop={() => false} />);
-        const a = middle("A");
-        send("pointerdown", a.x, a.y);
-        vi.advanceTimersByTime(HOLD);
-        send("pointermove", a.x, a.y + 12);
-        const to = afterC();
-        send("pointermove", to.x, to.y);
+        await touchStart(row("A"));
+        hold();
+        await settled(() => touchMoveBy(0, 12));
+        // The row lifts; only the drop is refused.
+        expect(row("A")).toHaveAttribute("data-dragging");
+        await settled(() => touchMoveTo(afterC()));
         expect(screen.queryByTestId("tree-drop-line")).toBeNull();
-        send("pointerup", to.x, to.y);
+        await settled(touchEnd);
         expect(onMove).not.toHaveBeenCalled();
     });
 
@@ -1020,14 +1002,12 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         const onMove = vi.fn();
         const items = FLAT.map((n) => (n.id === "a" ? { ...n, movable: false } : n));
         await renderThemed(<Tree items={items} onMove={onMove} />);
-        const a = middle("A");
-        send("pointerdown", a.x, a.y);
-        vi.advanceTimersByTime(HOLD);
-        send("pointermove", a.x, a.y + 12);
+        await touchStart(row("A"));
+        hold();
+        await settled(() => touchMoveBy(0, 12));
         expect(row("A")).not.toHaveAttribute("data-dragging");
-        const to = afterC();
-        send("pointermove", to.x, to.y);
-        send("pointerup", to.x, to.y);
+        await settled(() => touchMoveTo(afterC()));
+        await settled(touchEnd);
         await tabIn();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
         expect(onMove).not.toHaveBeenCalled();
@@ -1041,19 +1021,18 @@ describe("Tree: pointer drag (touch, mouse)", () => {
                 rowMenu={(node) => <Menu.Item>Delete {node.name}</Menu.Item>}
             />,
         );
-        const b = middle("B");
-        send("pointerdown", b.x, b.y);
-        vi.advanceTimersByTime(HOLD);
+        await touchStart(row("B"));
+        hold();
         await vi.waitFor(() => {
             expect(screen.getByRole("menuitem", { name: "Delete B" })).toBeVisible();
         });
         // Moving the held finger on lifts the row and closes the menu.
-        send("pointermove", b.x, b.y + 12);
+        await touchMoveBy(0, 12);
         await vi.waitFor(() => {
             expect(screen.queryByRole("menuitem", { name: "Delete B" })).toBeNull();
             expect(row("B")).toHaveAttribute("data-dragging");
         });
-        send("pointerup", b.x, b.y + 12);
+        await touchEnd();
     });
 
     it("opens no menu for a row whose rowMenu is null", async () => {
@@ -1069,30 +1048,35 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         });
     });
 
-    it("starts a mouse drag after 4px, and Escape cancels it", async () => {
+    it("does not start a mouse drag within 4px", async () => {
         const onMove = vi.fn();
         await renderThemed(<Tree items={FLAT} onMove={onMove} />);
-        const a = middle("A");
-        const to = afterC();
-        send("pointerdown", a.x, a.y, "mouse");
-        send("pointermove", a.x, a.y + 3, "mouse");
+        await press(row("A"));
+        await settled(() => moveBy(0, 3));
         expect(row("A")).not.toHaveAttribute("data-dragging");
-        send("pointermove", a.x, a.y + 6, "mouse");
-        send("pointermove", to.x, to.y, "mouse");
-        await vi.waitFor(() => {
-            expect(screen.getByTestId("tree-drop-line")).toBeInTheDocument();
-        });
-        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-        await vi.waitFor(() => {
-            expect(screen.queryByTestId("tree-drop-line")).toBeNull();
-        });
-        send("pointerup", to.x, to.y, "mouse");
+        await settled(release);
+        expect(row("A")).not.toHaveAttribute("data-dragging");
+        expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it("starts a mouse drag past 4px, and Escape cancels it", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Tree items={FLAT} onMove={onMove} />);
+        const to = afterC();
+        await press(row("A"));
+        await settled(() => moveBy(0, 5));
+        expect(row("A")).toHaveAttribute("data-dragging");
+        await settled(() => moveTo(to));
+        expect(screen.getByTestId("tree-drop-line")).toBeInTheDocument();
+        await settled(() => userEvent.keyboard("{Escape}"));
+        expect(screen.queryByTestId("tree-drop-line")).toBeNull();
+        await settled(release);
         expect(onMove).not.toHaveBeenCalled();
 
-        send("pointerdown", a.x, a.y, "mouse");
-        send("pointermove", a.x, a.y + 6, "mouse");
-        send("pointermove", to.x, to.y, "mouse");
-        send("pointerup", to.x, to.y, "mouse");
+        await press(row("A"));
+        await settled(() => moveBy(0, 6));
+        await settled(() => moveTo(to));
+        await settled(release);
         expect(onMove).toHaveBeenCalledWith({ id: "a", parentId: null, index: 2 });
     });
 });
@@ -1152,6 +1136,43 @@ describe("PageList: keyboard and pointer", () => {
         await userEvent.keyboard("{F2}Two{Enter}");
         expect(onRename).toHaveBeenCalledWith("p2", "Two");
         expect(document.activeElement).toBe(screen.getAllByRole("gridcell")[1]);
+    });
+
+    it("goes to the last page with End and back up with ArrowUp, past the divider", async () => {
+        await renderThemed(<PageList items={PAGES} defaultCurrent="p1" />);
+        const cells = screen.getAllByRole("gridcell");
+        await tabIn();
+        await userEvent.keyboard("{End}");
+        expect(document.activeElement).toBe(cells[3]);
+        await userEvent.keyboard("{ArrowUp}");
+        expect(document.activeElement).toBe(cells[1]);
+    });
+
+    it("renames on double-click, and reports nothing for a name left as it was or emptied", async () => {
+        const onRename = vi.fn();
+        await renderThemed(<PageList items={PAGES} onRename={onRename} />);
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Enter}");
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
+        expect(onRename).not.toHaveBeenCalled();
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Control>}a{/Control}First{Enter}");
+        expect(onRename).toHaveBeenCalledExactlyOnceWith("p1", "First");
+    });
+
+    it("does not rename without onRename, by F2 or by double-click, and a divider neither switches nor renames", async () => {
+        const onCurrentChange = vi.fn();
+        await renderThemed(<PageList items={PAGES} defaultCurrent="p1" onCurrentChange={onCurrentChange} />);
+        await userEvent.dblClick(screen.getByText("Page 2"));
+        expect(screen.queryByRole("textbox")).toBeNull();
+        expect(onCurrentChange).toHaveBeenLastCalledWith("p2", expect.anything());
+        await userEvent.keyboard("{F2}");
+        expect(screen.queryByRole("textbox")).toBeNull();
+        const calls = onCurrentChange.mock.calls.length;
+        await userEvent.dblClick(screen.getAllByRole("gridcell")[2]);
+        expect(onCurrentChange).toHaveBeenCalledTimes(calls);
+        expect(screen.getAllByRole("gridcell")[1]).toHaveAttribute("aria-current", "page");
     });
 });
 
@@ -1309,7 +1330,7 @@ describe("Tree: row parts and row keys", () => {
 
     it("draws the swatch between the glyph and the name, and the count before the toggles", async () => {
         await renderThemed(<Tree items={PARTS} />);
-        const pr = row("PageRank");
+        const pr = row("PageRank 77");
         const kind = within(pr).getByTestId("kind").getBoundingClientRect();
         const ramp = within(pr).getByTestId("tree-swatch").getBoundingClientRect();
         const name = pr.querySelector(".cm-tree-name")!.getBoundingClientRect();
@@ -1325,15 +1346,21 @@ describe("Tree: row parts and row keys", () => {
         expect(getComputedStyle(count).opacity).toBe("1");
     });
 
-    it("describes the row by its count and its state, and keeps the name alone as its name", async () => {
+    it("names the row by its name and count, and describes it by its state", async () => {
+        // The name holds the text the row shows (WCAG 2.5.3, axe label-content-name-mismatch).
         await renderThemed(<Tree items={PARTS} />);
-        expect(row("PageRank")).toHaveAccessibleDescription("77 Running");
+        expect(row("PageRank 77")).toHaveAccessibleDescription("Running");
         expect(row("Degree")).toHaveAccessibleDescription("Failed: no edges");
+    });
+
+    it("keeps a given label as the whole name, and describes the row by its count", async () => {
+        await renderThemed(<Tree items={[{ id: "pr", name: "PageRank", label: "PageRank, 77 nodes", count: "77" }]} />);
+        expect(row("PageRank, 77 nodes")).toHaveAccessibleDescription("77");
     });
 
     it("draws a progress line, determinate or not", async () => {
         await renderThemed(<Tree items={PARTS} />);
-        const determinate = within(row("PageRank")).getByRole("progressbar", { name: "PageRank" });
+        const determinate = within(row("PageRank 77")).getByRole("progressbar", { name: "PageRank" });
         expect(determinate).toHaveAttribute("aria-valuenow", "25");
         const box = determinate.getBoundingClientRect();
         expect(box.height).toBeCloseTo(2, 1);
@@ -1563,5 +1590,47 @@ describe("Tree: one Tab stop with row toggles, and a right-click that selects", 
         await screen.findByRole("menuitem", { name: "Rename" });
         expect(onSelect).not.toHaveBeenCalled();
         expect(row("Row 0")).toHaveAttribute("aria-selected", "true");
+    });
+});
+
+describe("Tree: keys and clicks that change nothing", () => {
+    it("leaves the selection alone on a right-click when there is no row menu", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultSelected={["leaf"]} onSelect={onSelect} />);
+        await userEvent.click(row("Other"), { button: "right" });
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(row("Leaf")).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("does not rename on double-click without onRename", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.dblClick(row("Leaf"));
+        expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("keeps focus on a closed top-level row on ArrowLeft", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultSelected={["leaf"]} />);
+        await tabIn();
+        expect(focused()).toBe("leaf");
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(focused()).toBe("leaf");
+    });
+
+    it("extends from the focused row with Shift+ArrowDown once the anchor has been taken out of the selection", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.click(row("Frame"));
+        await userEvent.click(row("Frame"), { modifiers: ["Control"] });
+        expect(row("Frame")).toHaveAttribute("aria-selected", "false");
+        await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
+        expect(row("Frame")).toHaveAttribute("aria-selected", "true");
+        expect(row("Other")).toHaveAttribute("aria-selected", "true");
+        expect(row("Leaf")).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("with revealSelected, opens nothing for a selection whose folders are already open", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} selected={["rect"]} revealSelected />);
+        expect(row("Rect")).toHaveAttribute("aria-selected", "true");
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        expect(row("Other")).toHaveAttribute("aria-expanded", "false");
     });
 });

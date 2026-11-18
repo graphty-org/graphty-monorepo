@@ -7,7 +7,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { fileStyleOf, type GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -51,15 +51,23 @@ function styledGexf(): File {
 }
 
 /**
- * The layers a file's styles made.
+ * The layers that paint a node one of the file's own colors (red or blue): a layer a load added is
+ * an ordinary layer, so it is known by what it paints, never by a mark of where it came from.
  * @param session - the element's session.
  * @returns their ids.
  */
 function fileLayers(session: GraphSession): string[] {
-    return session.styles
-        .list()
-        .filter((layer) => fileStyleOf(layer) !== null)
-        .map((layer) => layer.id);
+    const painted = ["n0", "n1"].flatMap((node) =>
+        session.styles
+            .explain({ node })
+            .contributions.filter((each) => {
+                const value = each.values["node.color"] as { hex?: string } | string | undefined;
+                const hex = (typeof value === "string" ? value : value?.hex)?.slice(0, 7).toLowerCase();
+                return hex === "#ff0000" || hex === "#0000ff";
+            })
+            .map((each) => each.layerId),
+    );
+    return [...new Set(painted)];
 }
 
 /**
@@ -162,8 +170,6 @@ describe("import styles from files, on the real element", () => {
         });
         assert.equal(colorOf(session, "n1"), "#ff0000");
         assert.equal(colorOf(session, "n0"), "#0000ff");
-        // The paint tree words each of the file's layers from its facts.
-        assert.isNotEmpty(await screen.findAllByText(/from the file/i, {}));
         // Gephi's disc is drawn as the flat ellipse of the same name, so the load names no shape drawn as a nearest one.
         assert.isNull(screen.queryByText(/drawn as the nearest one graphty has \(node shape\)/));
     });

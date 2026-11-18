@@ -1,7 +1,6 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { Graph, renderManagerOf } from "../../src/Graph";
 import { nodeFramingBox, styleBudgetFor, UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
@@ -14,8 +13,6 @@ describe("UpdateManager", () => {
     beforeEach(async () => {
         graph = await createTestGraph();
 
-        const graphAny = graph as unknown as Record<string, unknown>;
-
         // Every test below pumps frames by hand (`update`, `stepFrames`) and reads what a pass left
         // behind, so the live render loop `init` started must not run passes of its own in between.
         // Left running, it frames the graph the first time an animation frame lands between the
@@ -24,7 +21,7 @@ describe("UpdateManager", () => {
         // 295 ms on a loaded CI shard, where "zoom to fit has not completed yet" was already false
         // before the test began. Held frames are skipped whole, so nothing below observes a pass it
         // did not run itself.
-        releaseFrames = (graphAny.renderManager as RenderManager).holdFrames();
+        releaseFrames = renderManagerOf(graph).holdFrames();
 
         // Add test data with explicit positions for fixed layout
         // Positions need to create a bounding box larger than minBoundingBoxSize (0.1)
@@ -41,7 +38,7 @@ describe("UpdateManager", () => {
         // Set fixed layout
         await graph.setLayout("fixed");
 
-        updateManager = graphAny.updateManager as UpdateManager;
+        updateManager = graph.getUpdateManager();
     });
 
     afterEach(() => {
@@ -391,10 +388,18 @@ describe("UpdateManager", () => {
 });
 
 describe("styleBudgetFor", () => {
-    it("keeps a short frame's repaint to 16 ms and gives a slow frame a share of its length", () => {
+    it("keeps a short frame's repaint to 16 ms, a longer one's to a quarter, and gives a slow frame its own length", () => {
         assert.strictEqual(styleBudgetFor(16), 16);
         assert.strictEqual(styleBudgetFor(33), 16);
-        assert.strictEqual(styleBudgetFor(400), 100, "a slow frame's repaint takes a quarter of it");
-        assert.strictEqual(styleBudgetFor(4000), 1000, "a frame of seconds is no reason to draw more of them");
+        assert.strictEqual(styleBudgetFor(80), 20, "a frame under 100 ms grows by a quarter at most");
+        assert.strictEqual(styleBudgetFor(400), 400, "a slow frame's repaint takes as long as the frame drew");
+        assert.strictEqual(styleBudgetFor(4000), 4000, "a frame of seconds is no reason to draw more of them");
+    });
+
+    it("gives a batched repaint that no frame shows three frames' worth, and a slow frame its own length as before", () => {
+        assert.strictEqual(styleBudgetFor(16, true), 48, "a held draw shows nothing, so no frame waits on it");
+        assert.strictEqual(styleBudgetFor(33, true), 48);
+        assert.strictEqual(styleBudgetFor(400, true), 400, "a slow frame's repaint takes as long as the frame drew");
+        assert.strictEqual(styleBudgetFor(16, false), 16, "a shown frame keeps its 16 ms");
     });
 });

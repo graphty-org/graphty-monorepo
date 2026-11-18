@@ -13,6 +13,7 @@ import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableDefinition } from "../project/Dispatcher";
 import type { RowUpdate } from "../types";
 import { serviceOf } from "./data";
+import { refreshDerivedAfter } from "./derive";
 
 /** `data.source-expand`: one expansion from a network source, rows included. */
 export interface SourceExpandCommand {
@@ -64,6 +65,7 @@ const sourceExpand: UndoableDefinition<SourceExpandCommand> = {
     byReference: ["nodes", "updates", "edges"],
     execute: (command, ctx) => {
         const service = serviceOf(ctx.services.data);
+        refreshDerivedAfter(ctx);
         service.apply({ kind: "add-nodes", records: command.nodes }, ctx.draft, ctx.after);
         if (command.updates.length > 0) {
             service.apply({ kind: "update-rows", target: "node", rows: command.updates }, ctx.draft, ctx.after);
@@ -98,6 +100,7 @@ const sourceCollapse: UndoableDefinition<SourceCollapseCommand> = {
     byReference: ["nodes", "edges"],
     execute: (command, ctx) => {
         const service = serviceOf(ctx.services.data);
+        refreshDerivedAfter(ctx);
         if (command.edges.length > 0) {
             service.apply({ kind: "remove-edges", ids: command.edges }, ctx.draft, ctx.after);
         }

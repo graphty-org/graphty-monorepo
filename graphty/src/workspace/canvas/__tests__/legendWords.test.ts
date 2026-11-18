@@ -28,14 +28,13 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         kind: "sequential",
         swatches: [],
         facts: [],
-        departures: [],
         ...over,
     };
 }
 
 const byLayer = { row: (b: LegendBlock) => b.layerId, entry: (b: LegendBlock) => b.layerId };
 
-const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ label: "x", value: 0, ...over });
+const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ value: 0, ...over });
 
 describe("the legend card's words", () => {
     it("titles a section with the property and the row", () => {
@@ -117,7 +116,7 @@ describe("the legend card's words", () => {
                 kind: "categorical",
                 swatches: [
                     swatch({ value: 1, color: "#4e79a7", count: 1200 }),
-                    swatch({ label: "x", role: "other", color: "#cccccc", count: 4 }),
+                    swatch({ role: "other", color: "#cccccc", count: 4 }),
                 ],
                 overflow: { hidden: 28 },
             }),
@@ -158,10 +157,10 @@ describe("the legend card's words", () => {
     });
 
     it("keys no value the binding hides, and no block whose every value is hidden", () => {
-        const shown = swatch({ label: "Group 1", value: 1, color: "#0072b2" });
+        const shown = swatch({ value: 1, color: "#0072b2" });
         const groups = block({
             kind: "categorical",
-            swatches: [shown, swatch({ label: "Group 2", value: 2, color: "#e69f00", hidden: true })],
+            swatches: [shown, swatch({ value: 2, color: "#e69f00", hidden: true })],
         });
         const gone = block({ layerId: "gone", kind: "categorical", swatches: [swatch({ value: 3, hidden: true })] });
         assert.deepEqual(keyBlocks([groups, gone]), [{ ...groups, swatches: [shown] }]);
@@ -184,6 +183,23 @@ describe("the legend card's words", () => {
         ];
         assert.deepEqual(keyBlocks(blocks), [halo]);
         assert.equal(sectionTitle(halo, "Key people"), "Halo: Key people");
+    });
+
+    it("keys no edge line shape: a route, bends or curve is drawn, not read", () => {
+        const color = block({ layerId: "color", channel: "edge.color", kind: "literal" });
+        const blocks = [
+            block({
+                layerId: "graphml",
+                channel: "edge.bends",
+                kind: "categorical",
+                swatches: [swatch({ value: "0 0 10 10" }), swatch({ value: "5 5" })],
+            }),
+            block({ layerId: "graphml", channel: "edge.curvature", kind: "literal" }),
+            block({ layerId: "graphml", channel: "edge.sourcePort", kind: "literal" }),
+            color,
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color]);
+        assert.deepEqual(keyBlocks(blocks.slice(0, 3)), []);
     });
 
     it("keys no layer whose every element a filter step hides, and keeps one that still reaches some", () => {
@@ -411,7 +427,6 @@ describe("the words for a block of some elements", () => {
         kind: "sequential",
         swatches: [],
         facts: [],
-        departures: [],
         scope: { count: 3, of: 24 },
         ...over,
     });

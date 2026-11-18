@@ -949,15 +949,18 @@
         "files": ["cube.blend"]
     },
     {
-        "geometry": "mesh",
-        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
-        "refused": null,
-        "upload": "files",
         "id": "bvh",
+        "upload": "files",
         "format": "bvh",
-        "encoding": "ascii",
         "color": "any",
-        "what": "BVH motion capture: a three-bone figure whose one clip turns it a quarter turn about Z",
+        "warnings": [],
+        "refused": {
+            "code": "E_MODEL_FORMAT_UNSUPPORTED",
+            "params": {
+                "format": "bvh"
+            }
+        },
+        "what": "BVH (refused)",
         "files": ["walk.bvh"]
     },
     {

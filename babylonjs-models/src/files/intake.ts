@@ -6,7 +6,6 @@
  * and nothing reaches Babylon.js or the DOM (design/rendering/node-models.md section 3).
  */
 
-import { scanBvh } from "./bvhChecks.js";
 import {
     BUILT_IN_MODEL_FORMATS,
     detectModelFormat,
@@ -1393,8 +1392,6 @@ function checkByFormat(
             findUsdParts(main.path, files, limits, findings);
             refuseMissing(findings);
             return scanUsd(main.path, main.format, files, limits);
-        case "bvh":
-            return scanBvh(bytes, limits);
         default:
             return refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
     }

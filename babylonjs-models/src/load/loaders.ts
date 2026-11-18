@@ -18,9 +18,8 @@
  *   without it;
  * - the OBJ loader (with its MTL reader), with a fix that keeps an OBJ's vertex colors;
  * - the TGA and DDS texture loaders, which Babylon would otherwise import lazily;
- * - the FBX loader (`.fbx`, binary and ASCII), the OpenUSD loader (`.usd`, `.usda`, `.usdc`,
- *   `.usdz`) and the BVH loader (motion capture, drawn as a figure by ./bvhFigure.ts), each
- *   registered by name and imported the first time a model of its format loads. The USD loader
+ * - the FBX loader (`.fbx`, binary and ASCII) and the OpenUSD loader (`.usd`, `.usda`, `.usdc`,
+ *   `.usdz`), each registered by name and imported the first time a model of its format loads. The USD loader
  *   runs OpenUSD in a worker whose files this package ships (src/decoders/usd.ts);
  *   ./loadModel.ts hands it the model's files itself. Every USD load shares one loader, one load
  *   at a time, so loads that follow one another start OpenUSD once ({@link usdTurn}).
@@ -101,7 +100,6 @@ import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Tools } from "@babylonjs/core/Misc/tools.js";
 import type { Scene } from "@babylonjs/core/scene.js";
-import { BVHFileLoaderMetadata } from "@babylonjs/loaders/BVH/bvhFileLoader.metadata.js";
 import { FBXFileLoaderMetadata } from "@babylonjs/loaders/FBX/fbxFileLoader.metadata.js";
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation.js";
 import { SolidParser } from "@babylonjs/loaders/OBJ/solidParser.js";
@@ -115,9 +113,9 @@ import { readStl } from "../files/readers/stl.js";
 import { buildContainer, type Part, type PartMaterial } from "../readers/container.js";
 
 /** The file extensions Babylon's own loaders read. */
-export type ModelExtension = ".glb" | ".gltf" | ".obj" | ".fbx" | ".usd" | ".usdz" | ".bvh";
+export type ModelExtension = ".glb" | ".gltf" | ".obj" | ".fbx" | ".usd" | ".usdz";
 
-// The FBX, USD and BVH loaders, by name and extensions: each one's code is imported when a model of
+// The FBX and USD loaders, by name and extensions: each one's code is imported when a model of
 // its format first loads, as each decoder is (Babylon's own loaders/dynamic.js registers them the
 // same way), so a page that draws only glTF never downloads them. The USD loader's worker and
 // WebAssembly are fetched from this package's own files (src/decoders/usd.ts).
@@ -149,13 +147,6 @@ RegisterSceneLoaderPlugin({
             loadAsync: (...args: Parameters<Loader["loadAsync"]>) =>
                 usdTurn(shared, own, given.signal, args[0], () => shared.loadAsync(...args)),
         });
-    },
-});
-RegisterSceneLoaderPlugin({
-    ...BVHFileLoaderMetadata,
-    createPlugin: async (options) => {
-        const { BVHFileLoader } = await import("@babylonjs/loaders/BVH/bvhFileLoader.pure.js");
-        return new BVHFileLoader(options[BVHFileLoaderMetadata.name]);
     },
 });
 

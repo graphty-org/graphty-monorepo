@@ -14,7 +14,7 @@ import { isSplatPly, readPlyHeader } from "./readers/ply.js";
 export type ModelFormat = string; // eslint-disable-line sonarjs/redundant-type-aliases -- published, documented name for the open union of model format ids
 
 /** The model formats this package reads itself. */
-export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "babylon" | "fbx" | "usdz" | "usd" | "bvh";
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "babylon" | "fbx" | "usdz" | "usd";
 
 /** The built-in formats, best first: the order a main file is chosen in. */
 export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.freeze([
@@ -27,7 +27,6 @@ export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.free
     "fbx",
     "usdz",
     "usd",
-    "bvh",
 ]);
 
 /** What {@link detectModelFormat} is given: a file name, its first bytes, or both. */
@@ -43,7 +42,7 @@ export interface ModelDetection {
     /**
      * The format: a {@link BuiltInModelFormat} (`"usd"` is any of `.usd`, `.usda` and `.usdc`),
      * `"zip"` for an archive that may hold a model, or a recognized format this package cannot load
-     * (`"dae"`, `"3mf"`, `"blend"`, and the Gaussian splat formats `"splat"`, `"spz"`,
+     * (`"dae"`, `"3mf"`, `"blend"`, `"bvh"`, and the Gaussian splat formats `"splat"`, `"spz"`,
      * `"sog"` and `"splat-ply"`, a PLY holding splats).
      */
     readonly format: ModelFormat;
@@ -59,6 +58,8 @@ const UNSUPPORTED_EXTENSIONS: Readonly<Record<string, string>> = {
     dae: "dae",
     "3mf": "3mf",
     blend: "blend",
+    // BVH motion capture: recognized, not loaded.
+    bvh: "bvh",
     // Gaussian splats: recognized, not loaded.
     splat: "splat",
     spz: "spz",
@@ -77,7 +78,6 @@ const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
     usda: "usd",
     usdc: "usd",
     usdz: "usdz",
-    bvh: "bvh",
 };
 
 /**
@@ -169,7 +169,10 @@ export function splatExtensionOf(head: Uint8Array): string | undefined {
 }
 
 /** Binary magic numbers of recognized formats this package does not load. */
-const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [["BLENDER", "blend"]];
+const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [
+    ["BLENDER", "blend"],
+    ["HIERARCHY", "bvh"],
+];
 
 /**
  * The answer for a file that starts `glTF`: a GLB, supported in version 1 (`KHR_binary_glTF`,
@@ -339,10 +342,6 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
         return { format: "usd", supported: true };
     }
 
-    if (startsWithAscii(head, "HIERARCHY")) {
-        return { format: "bvh", supported: true };
-    }
-
     for (const [magic, format] of UNSUPPORTED_MAGIC) {
         if (startsWithAscii(head, magic)) {
             return { format, supported: false };
@@ -377,8 +376,8 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
  * triangle long, an ASCII STL starts `solid` and holds a `facet`, a PLY starts `ply`, an OBJ has
  * `v` and `f` lines, a zip starts `PK` (a USDZ is one named `.usdz`, or with no name one whose
  * first entry is a USD layer), a binary FBX starts `Kaydara FBX Binary` and an ASCII one `; FBX`,
- * a binary USD starts `PXR-USDC` and a text one `#usda`, an SPZ is gzip named `.spz`, a BVH starts
- * `HIERARCHY`. With nothing in the bytes, the extension decides: a raw `.splat` is rows of 32
+ * a binary USD starts `PXR-USDC` and a text one `#usda`, an SPZ is gzip named `.spz`, a BVH (not
+ * loaded) starts `HIERARCHY`. With nothing in the bytes, the extension decides: a raw `.splat` is rows of 32
  * bytes and nothing more. Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY) are recognized
  * and not loaded.
  * @param input - The file name, the first bytes, or both.

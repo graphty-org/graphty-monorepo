@@ -62,7 +62,7 @@ compile per file.
 | STL                                        | 1                   | yes                   | no             | no                                | no          | no       | no     | no                        | no (usually millimeters, Z up)         | yes                                                              |
 | PLY                                        | 1                   | yes, or points        | vertex colors  | no                                | no          | no       | no     | no                        | no                                     | yes                                                              |
 | Gaussian splats (`.splat`, `.spz`, `.sog`) | 1                   | points, not triangles | n/a            | n/a                               | no          | no       | no     | no                        | no                                     | yes, but not loaded: refused (see below)                         |
-| BVH                                        | 1                   | no                    | no             | no                                | skeleton    | yes      | no     | yes (motion capture only) | no                                     | yes; drawn as a figure of one box per bone                       |
+| BVH                                        | 1                   | no                    | no             | no                                | skeleton    | yes      | no     | yes (motion capture only) | no                                     | yes, but not loaded: refused as an unsupported format            |
 | `.babylon`                                 | 1 (+ images)        | yes                   | yes            | separate                          | yes         | yes      | yes    | yes                       | Babylon's own                          | yes, in core                                                     |
 | FBX                                        | 1 (+ images)        | yes                   | yes            | embedded or separate              | yes         | yes      | yes    | yes                       | yes                                    | yes, `@babylonjs/loaders` (9.13+)                                |
 | USD / USDZ                                 | 1 (USDZ zip)        | yes                   | PBR            | embedded (USDZ)                   | yes         | yes      | yes    | yes                       | yes                                    | yes (9.26+), OpenUSD in WebAssembly, shipped by babylonjs-models |
@@ -89,9 +89,9 @@ summarize them and find their parts. The USD loader runs OpenUSD compiled to Web
 the worker, its glue and the 10 MB of WebAssembly and data (2.5 MB compressed, under OpenUSD's
 Tomorrow Open Source Technology License with oneTBB and zlib) ship in babylonjs-models' `dist/wasm/`
 and load only for a USD model, never from Babylon's CDN. Babylon 9's other loaders are BVH and
-SPLAT. **BVH** (motion capture) holds a skeleton and its motion and no shape: babylonjs-models draws
-it as a figure of one thin box per bone, skinned to the skeleton, and its motion as one clip
-(`BVH Animation`), so a node can show the motion. SPLAT (Gaussian splats) is refused below.
+SPLAT, and neither is registered. **BVH** (motion capture) holds a skeleton and its motion and no
+shape; it is refused as an unsupported format (`E_MODEL_FORMAT_UNSUPPORTED`, `format` `bvh`).
+SPLAT (Gaussian splats) is refused below.
 
 A point cloud's points are drawn as small solids, an 8-triangle octahedron per point in its color,
 sized by the points' spacing; more than 50,000 points are thinned evenly

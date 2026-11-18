@@ -10,16 +10,15 @@ Load 3D models into [Babylon.js](https://www.babylonjs.com/) scenes from a URL, 
 nothing is fetched from a CDN: the Draco decoder, the KTX2 transcoders and the OpenUSD importer ship
 inside the package.
 
-| Format           | Files                                                                                                                             |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| glTF 2.0 and 1.0 | `.glb`, `.gltf` with its `.bin` and pictures; Draco, meshopt and KTX2 compression; WebP and AVIF pictures                         |
-| OBJ              | `.obj` with its `.mtl` and the pictures the `.mtl` names (PNG, JPEG, TGA, DDS, BMP, GIF), vertex colors                           |
-| STL              | ASCII and binary, with VisCAM and Materialise colors                                                                              |
-| PLY              | ASCII and binary meshes and point clouds                                                                                          |
-| Babylon.js       | `.babylon` (geometry and diffuse materials)                                                                                       |
-| FBX              | binary and ASCII (6 and 7), with its pictures beside it or embedded; skins, blend shapes, clips, curves                           |
-| USD              | `.usda`, `.usdc`, `.usd` with the layers and pictures it references; `.usdz` packages; skins, clips                               |
-| BVH              | motion capture (a skeleton and its motion, no shape): drawn as a figure of one box per bone, its motion one clip, `BVH Animation` |
+| Format           | Files                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| glTF 2.0 and 1.0 | `.glb`, `.gltf` with its `.bin` and pictures; Draco, meshopt and KTX2 compression; WebP and AVIF pictures |
+| OBJ              | `.obj` with its `.mtl` and the pictures the `.mtl` names (PNG, JPEG, TGA, DDS, BMP, GIF), vertex colors   |
+| STL              | ASCII and binary, with VisCAM and Materialise colors                                                      |
+| PLY              | ASCII and binary meshes and point clouds                                                                  |
+| Babylon.js       | `.babylon` (geometry and diffuse materials)                                                               |
+| FBX              | binary and ASCII (6 and 7), with its pictures beside it or embedded; skins, blend shapes, clips, curves   |
+| USD              | `.usda`, `.usdc`, `.usd` with the layers and pictures it references; `.usdz` packages; skins, clips       |
 
 Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY, a glTF or GLB that uses
 `KHR_gaussian_splatting`, required or not) are recognized and refused with
@@ -113,7 +112,7 @@ its own language.
 | Code                                                                      | When                                                                                                                                                                                                                           |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `E_MODEL_FORMAT_UNKNOWN`                                                  | No file of the set is a model                                                                                                                                                                                                  |
-| `E_MODEL_FORMAT_UNSUPPORTED`                                              | A recognized format this package does not load (COLLADA, 3MF, .blend, Gaussian splats)                                                                                                                                         |
+| `E_MODEL_FORMAT_UNSUPPORTED`                                              | A recognized format this package does not load (COLLADA, 3MF, .blend, BVH, Gaussian splats)                                                                                                                                    |
 | `E_MODEL_AMBIGUOUS`                                                       | Several files could be the model: pass `main`                                                                                                                                                                                  |
 | `E_MODEL_MISSING_FILE`                                                    | A file the model names is not in the set (`name`, `role`)                                                                                                                                                                      |
 | `E_MODEL_PART_AMBIGUOUS`                                                  | Several files of the set match a name the model uses                                                                                                                                                                           |
@@ -170,8 +169,7 @@ transform) and a point instancer's positions put it. Its materials, skeletons an
 counted per layer. Its one clip is `USD Animation 1`, as Babylon's loader names it. An FBX file's
 curves (NURBS curves, lines) are drawn as thin tubes, one mesh per polyline, and each tube's
 meshes and triangles are counted against the limits. When a set holds a USD layer and the `.usdz`
-it references, the layer is the main file. A BVH file's
-summary describes the figure it is drawn as: one box (12 triangles) per bone, skinned.
+it references, the layer is the main file.
 
 ## License
 

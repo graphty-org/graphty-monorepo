@@ -51,7 +51,7 @@ function ruleOf(read: () => unknown): string {
 }
 
 describe("detecting the formats babylonjs-models reads", () => {
-    it("reads glTF 1.0, .babylon and BVH", () => {
+    it("reads glTF 1.0 and .babylon", () => {
         assert.deepStrictEqual(detectModelFormat({ head: fixture("glb1", "cube.glb") }), {
             format: "glb",
             supported: true,
@@ -63,10 +63,6 @@ describe("detecting the formats babylonjs-models reads", () => {
                 supported: true,
             },
         );
-        assert.deepStrictEqual(detectModelFormat({ head: fixture("bvh", "walk.bvh") }), {
-            format: "bvh",
-            supported: true,
-        });
     });
 
     it("does not support a glTF or GLB that uses Gaussian splatting", () => {

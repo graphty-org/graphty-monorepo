@@ -513,30 +513,17 @@ describe("the USD checks", () => {
     });
 });
 
-describe("the BVH checks", () => {
-    it("summarize the figure a motion capture file is drawn as", async () => {
-        const [head] = set("bvh", "walk.bvh").values();
-        assert.deepStrictEqual(detectModelFormat({ head }), { format: "bvh", supported: true });
-        const { summary, warnings } = await check(set("bvh", "walk.bvh"));
-        // Four bones (hips to chest, chest to arm, arm to its end, chest to the head's end): a box each.
-        assert.include(summary, { format: "bvh", triangles: 48, meshes: 1, skinned: true, encoding: "ascii" });
-        assert.deepStrictEqual(summary.animations, [{ name: "BVH Animation", seconds: 1 }]);
-        assert.deepStrictEqual(summary.bounds, { min: [0, 0, 0], max: [1.2, 1.5, 0] });
-        assert.deepInclude(warnings, { code: "W_MODEL_HAS_ANIMATIONS", params: { clips: ["BVH Animation"] } });
-    });
-
-    it("refuse a file whose frames hold fewer numbers than its channels need, or too many joints", async () => {
-        const [bytes] = set("bvh", "walk.bvh").values();
-        const text = new TextDecoder().decode(bytes);
-        const short = text.slice(0, text.lastIndexOf("90"));
-        assert.deepStrictEqual(await refusalOf(new Map([["walk.bvh", new TextEncoder().encode(short)]])), {
-            code: "E_MODEL_STRUCTURE",
-            params: { rule: "bvh" },
-        });
-        assert.deepInclude(await refusalOf(set("bvh", "walk.bvh"), { maxJoints: 2 }), {
-            code: "E_MODEL_TOO_LARGE",
-            params: { what: "count", item: "joints", found: 5, limit: 2 },
-        });
+describe("a BVH file", () => {
+    it("is refused as an unsupported format, by its bytes, its name, or inside a zip", async () => {
+        const files = set("bvh", "walk.bvh");
+        const [head] = files.values();
+        assert.deepStrictEqual(detectModelFormat({ head }), { format: "bvh", supported: false });
+        assert.deepStrictEqual(detectModelFormat({ filename: "walk.bvh" }), { format: "bvh", supported: false });
+        assert.notInclude(assetFileExtensions("model"), ".bvh");
+        assert.notInclude(BUILT_IN_MODEL_FORMATS, "bvh");
+        const refusal = { code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "bvh", fileName: "walk.bvh" } };
+        assert.deepStrictEqual(await refusalOf(files), refusal);
+        assert.deepStrictEqual(await refusalOf(new Map([["walk.zip", zipSync({ "walk.bvh": head })]])), refusal);
     });
 });
 

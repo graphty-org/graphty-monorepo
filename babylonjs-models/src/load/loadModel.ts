@@ -32,7 +32,6 @@ import type {
     ModelSummary,
 } from "../files/types.js";
 import { readUsdz } from "../files/usdChecks.js";
-import { bvhFigure } from "./bvhFigure.js";
 import { loadBabylonModel, type LoaderOptions, loadOwnModel, type ModelExtension, type OwnFormat } from "./loaders.js";
 import { guardRequests, REFUSED } from "./requestGuard.js";
 import { markWithoutPictures, takeOffByName, takeOffUsdPictures } from "./withoutPicture.js";
@@ -48,7 +47,6 @@ const READERS: Readonly<Record<BuiltInModelFormat, ModelExtension | OwnFormat>> 
     fbx: ".fbx",
     usd: ".usd",
     usdz: ".usdz",
-    bvh: ".bvh",
 };
 
 /**
@@ -632,8 +630,7 @@ function usdFiles(
 /**
  * What a format's loaded container still needs: an OBJ's faces drawn as faces, an FBX file's
  * curves as tubes and its embedded pictures drawn without taken off (they are named by their
- * file's base name, as the loader names them), a BVH file's skeleton drawn as a figure, a USD
- * model's stand-ins for its pictures drawn without taken off.
+ * file's base name, as the loader names them), a USD model's stand-ins for its pictures drawn without taken off.
  * @param container - The loaded model.
  * @param format - Its format.
  * @param hidden - Pictures drawn without.
@@ -650,8 +647,6 @@ async function finish(
     } else if (format === "fbx") {
         await curvesAsTubes(container);
         takeOffByName(container, hidden);
-    } else if (format === "bvh") {
-        bvhFigure(container);
     } else if (format === "usd" || format === "usdz") {
         takeOffUsdPictures(container, gone);
     }

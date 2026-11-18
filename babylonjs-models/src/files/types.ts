@@ -172,7 +172,7 @@ export interface ModelLimits {
     /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
     readonly maxBytes: number;
     /**
-     * Per OBJ, ASCII STL, ASCII PLY, ASCII FBX, text USD or BVH file, read as one string. Default 536,870,888 bytes (2^29 - 24),
+     * Per OBJ, ASCII STL, ASCII PLY, ASCII FBX, or text USD file, read as one string. Default 536,870,888 bytes (2^29 - 24),
      * the longest string a browser holds: longer text cannot be read at all.
      */
     readonly maxTextBytes: number;
@@ -196,7 +196,7 @@ export interface ModelLimits {
     readonly maxAnimations: number;
     /** Morph targets on one glTF primitive; an FBX file's blend shape channels, a USD stage's blend shapes. Default `Infinity`: no limit. */
     readonly maxMorphTargets: number;
-    /** Joints in one glTF or FBX skin, or in a BVH file. Default `Infinity`: no limit. */
+    /** Joints in one glTF or FBX skin. Default `Infinity`: no limit. */
     readonly maxJoints: number;
     /** Pixels per texture side; larger textures earn `W_MODEL_TEXTURES_REDUCED`. Default 2048. */
     readonly maxTextureSize: number;

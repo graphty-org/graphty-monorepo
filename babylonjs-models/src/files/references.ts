@@ -169,13 +169,16 @@ export function setKeyOf(joined: string): string | undefined {
  * @param ref - The reference as the file wrote it.
  * @param from - The path of the file that wrote it.
  * @param base - The main file's web address, for a model fetched by URL.
+ * @param fromUrl - The address of the file that wrote it, when it is itself outside the folder.
  * @returns The address without its fragment, or undefined when none is known.
  */
-function outsideUrl(ref: string, from: string, base: string | undefined): string | undefined {
+function outsideUrl(ref: string, from: string, base: string | undefined, fromUrl?: string): string | undefined {
     try {
         let url: URL;
         if (WEB_ADDRESS.test(ref)) {
-            url = new URL(ref, base ?? "https://host.invalid/");
+            url = new URL(ref, fromUrl ?? base ?? "https://host.invalid/");
+        } else if (fromUrl !== undefined) {
+            url = new URL(ref, fromUrl);
         } else if (base === undefined) {
             return undefined;
         } else {
@@ -319,6 +322,12 @@ export interface Findings {
     readonly found?: { readonly name: string; readonly role: PartRole; readonly file: string }[];
     /** The main file's web address, for a model fetched by URL: what a climbing path resolves against. */
     readonly base?: string;
+    /**
+     * The address of each file found outside the main file's folder, by its key: what the
+     * references that file makes resolve against (a layer reached through `../../wheels/w.usda`
+     * names its own parts from its own folder, which its clamped key no longer says).
+     */
+    readonly outside?: Map<string, string>;
 }
 
 /**
@@ -339,7 +348,7 @@ export function findReference(
     findings: Findings,
 ): Resolved | undefined {
     try {
-        const resolved = resolveReference(ref, from, files, findings.base);
+        const resolved = resolveReference(ref, from, files, findings.base, findings.outside);
         const used = resolved.substituted;
         if (used !== undefined && !findings.warnings.some((w) => w.params.name === used.params.name)) {
             findings.warnings.push(used);
@@ -393,6 +402,9 @@ function resolveDataUrl(ref: string): Resolved {
  * @param from - The path of the file that wrote it.
  * @param files - The file set.
  * @param base - The main file's web address, for a model fetched by URL.
+ * @param outside - The addresses of files found outside the folder, by key ({@link Findings}): a
+ *     reference from one of them is outside too, resolved against its address, and one found
+ *     outside is added.
  * @returns The file or the data URL's bytes.
  * @throws ModelError `E_MODEL_EXTERNAL_URL` for a scheme other than `http(s):` and `data:`,
  *     `E_MODEL_MISSING_FILE` for a file the set does not hold (with `url` for one outside the
@@ -403,6 +415,7 @@ export function resolveReference(
     from: string,
     files: ReadonlyMap<string, Uint8Array>,
     base?: string,
+    outside?: Map<string, string>,
 ): Resolved {
     if (/^data:/i.test(ref)) {
         return resolveDataUrl(ref);
@@ -430,8 +443,11 @@ export function resolveReference(
         inside = normalizePath(joined);
     }
 
-    if (inside === undefined) {
-        return resolveOutside(ref, from, files, setKeyOf(joined), base);
+    // A file outside the folder is held under a key that drops its climb: what it names is
+    // outside too, from its own address, never matched tolerantly against the main file's folder.
+    const fromUrl = outside?.get(from);
+    if (inside === undefined || (fromUrl !== undefined && !local)) {
+        return resolveOutside(ref, from, files, setKeyOf(joined), { base, fromUrl, outside });
     }
 
     const match = matchInSet(inside, files, local);
@@ -469,7 +485,10 @@ export function resolveReference(
  * @param from - The path of the file that wrote it.
  * @param files - The file set.
  * @param key - Its key in the set.
- * @param base - The main file's web address, for a model fetched by URL.
+ * @param where - Where it is.
+ * @param where.base - The main file's web address, for a model fetched by URL.
+ * @param where.fromUrl - The address of the file that wrote it, when that is outside the folder too.
+ * @param where.outside - Where the address of a file found is recorded.
  * @returns The file.
  */
 function resolveOutside(
@@ -477,18 +496,22 @@ function resolveOutside(
     from: string,
     files: ReadonlyMap<string, Uint8Array>,
     key: string | undefined,
-    base: string | undefined,
+    where: { base?: string; fromUrl?: string; outside?: Map<string, string> },
 ): Resolved {
     if (key === undefined) {
         refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
     }
 
+    const url = outsideUrl(ref, from, where.base, where.fromUrl);
     const bytes = files.get(key);
     if (bytes !== undefined) {
+        if (url !== undefined && where.outside?.has(key) === false) {
+            where.outside.set(key, url);
+        }
+
         return { path: key, bytes };
     }
 
-    const url = outsideUrl(ref, from, base);
     return refuse("E_MODEL_MISSING_FILE", {
         name: cut(key),
         referencedBy: cut(from),

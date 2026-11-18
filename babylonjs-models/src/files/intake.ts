@@ -1433,7 +1433,11 @@ async function checkFileSet(
         });
     }
 
-    const findings: Findings = { warnings: [], missing: [], ...(base === undefined ? {} : { base }) };
+    const findings: Findings = {
+        warnings: [],
+        missing: [],
+        ...(base === undefined ? {} : { base, outside: new Map() }),
+    };
     const checked = checkByFormat(main, files, limits, findings);
     return {
         files,

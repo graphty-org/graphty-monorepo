@@ -282,6 +282,32 @@ describe("fetching a model by URL", () => {
         assert.deepInclude(fewer.fact.params, { what: "count", item: "files", limit: 64 });
     });
 
+    it("fetches what a USD layer above the folder names from that layer's own folder", async () => {
+        const text = (body: string) => new TextEncoder().encode(`#usda 1.0\n${body}`);
+        const KIT = "https://models.example.com/kit/";
+        // The car kit's layout: a car two folders down references the shared wheels, whose
+        // variants name their meshes from the wheels' folder and a picture beside it.
+        const asked = serve({
+            [`${KIT}vehicles/sedan/car.usda`]: {
+                bytes: text('def "W" ( references = @../../wheels/wheels.usda@ ) {}\n'),
+            },
+            [`${KIT}wheels/wheels.usda`]: {
+                bytes: text('def "B" ( references = @./black/black.usda@ ) {}\nasset file = @./tex/tire.png@\n'),
+            },
+            [`${KIT}wheels/black/black.usda`]: { bytes: text('def Mesh "G"\n{\n int[] faceVertexCounts = [3]\n}\n') },
+            [`${KIT}wheels/tex/tire.png`]: { bytes: fixture("gltf-textured", "cube.png") },
+        });
+        const fetched = await fetchModelSet(new URL(`${KIT}vehicles/sedan/car.usda`), DEFAULT_MODEL_LIMITS);
+        assert.sameMembers(
+            [...fetched.given.keys()],
+            ["car.usda", "wheels/wheels.usda", "wheels/black/black.usda", "wheels/tex/tire.png"],
+        );
+        assert.isEmpty(
+            asked.filter((url) => url.includes("/sedan/wheels/")),
+            asked.join("\n"),
+        );
+    });
+
     it("sets no idle timer for a fetchTimeoutMs of Infinity, which setTimeout would fire at once", async () => {
         serve({
             [`${BASE}cube.gltf`]: { bytes: fixture("gltf-textured", "cube.gltf") },

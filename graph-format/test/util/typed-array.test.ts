@@ -20,6 +20,7 @@ import {
     STAGING_BYTE_GRANULE,
     STAGING_ELEMENT_GRANULE,
     STAGING_RESERVE_BYTES,
+    STAGING_RESIZABLE_MIN_BYTES,
     stagingByteLength,
     typedArrayCtorOf,
     type TypedDtype,
@@ -315,6 +316,9 @@ describe("staging growth arithmetic (design section 6.2)", () => {
     });
 });
 
+/** The smallest staging buffer that is resizable. */
+const K = STAGING_RESIZABLE_MIN_BYTES;
+
 describe("allocateStagingBuffer", () => {
     it("returns a plain fixed-length buffer when resizable is false", () => {
         const buffer = allocateStagingBuffer(64, false);
@@ -323,23 +327,29 @@ describe("allocateStagingBuffer", () => {
         expect(buffer.maxByteLength).toBe(64);
     });
 
+    it("returns a plain buffer under STAGING_RESIZABLE_MIN_BYTES even when resizable is true", () => {
+        const buffer = allocateStagingBuffer(STAGING_RESIZABLE_MIN_BYTES - 64, true);
+        expect(buffer.resizable).toBe(false);
+        expect(buffer.byteLength).toBe(STAGING_RESIZABLE_MIN_BYTES - 64);
+        expect(allocateStagingBuffer(0, true).byteLength).toBe(0);
+    });
+
     it("returns a resizable buffer with the reservation when resizable is true", () => {
-        const buffer = allocateStagingBuffer(64, true);
-        expect(buffer.byteLength).toBe(64);
+        const buffer = allocateStagingBuffer(K, true);
+        expect(buffer.byteLength).toBe(K);
         expect(buffer.resizable).toBe(true);
         expect(buffer.maxByteLength).toBe(STAGING_RESERVE_BYTES);
         const bigger = allocateStagingBuffer(STAGING_RESERVE_BYTES + 64, true);
         expect(bigger.maxByteLength).toBe(STAGING_RESERVE_BYTES + 64);
-        const small = allocateStagingBuffer(64, true, 1024);
-        expect(small.maxByteLength).toBe(1024);
-        expect(allocateStagingBuffer(0, true).byteLength).toBe(0);
+        const small = allocateStagingBuffer(K, true, 2 * K);
+        expect(small.maxByteLength).toBe(2 * K);
     });
 
     it("falls back to a reservation of exactly byteLength when the engine refuses the reservation", () => {
-        const buffer = allocateStagingBuffer(64, true, Number.MAX_SAFE_INTEGER);
+        const buffer = allocateStagingBuffer(K, true, Number.MAX_SAFE_INTEGER);
         expect(buffer.resizable).toBe(true);
-        expect(buffer.byteLength).toBe(64);
-        expect(buffer.maxByteLength).toBe(64);
+        expect(buffer.byteLength).toBe(K);
+        expect(buffer.maxByteLength).toBe(K);
     });
 
     it("propagates a RangeError that is not about the reservation", () => {
@@ -356,16 +366,16 @@ describe("growTypedArray", () => {
     });
 
     it("grows in place, keeping the same buffer, when the buffer is resizable and has room", () => {
-        const buffer = allocateStagingBuffer(64, true);
-        const array = new Uint32Array(buffer, 0, 16);
+        const buffer = allocateStagingBuffer(K, true);
+        const array = new Uint32Array(buffer, 0, K / 4);
         array.set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
-        const grown = growTypedArray(array, Uint32Array, 17, true);
+        const grown = growTypedArray(array, Uint32Array, K / 4 + 1, true);
         expect(grown).not.toBe(array);
         expect(grown.buffer).toBe(buffer);
-        expect(buffer.byteLength).toBe(128);
-        expect(grown.length).toBe(32);
+        expect(buffer.byteLength).toBe(2 * K);
+        expect(grown.length).toBe(K / 2);
         expect(Array.from(grown.subarray(0, 16))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
-        expect(Array.from(grown.subarray(16))).toEqual(new Array<number>(16).fill(0));
+        expect(grown.subarray(K / 4).every((v) => v === 0)).toBe(true);
         // the old view still sees the same memory
         grown[0] = 42;
         expect(array[0]).toBe(42);
@@ -384,17 +394,17 @@ describe("growTypedArray", () => {
     });
 
     it("reallocates a resizable buffer that has outgrown its reservation and copies the contents", () => {
-        const buffer = allocateStagingBuffer(64, true, 64); // maxByteLength 64: no room to grow in place
-        const array = new Uint8Array(buffer, 0, 64);
-        for (let i = 0; i < 64; i++) {
-            array[i] = i;
+        const buffer = allocateStagingBuffer(K, true, K); // maxByteLength K: no room to grow in place
+        const array = new Uint8Array(buffer, 0, K);
+        for (let i = 0; i < K; i++) {
+            array[i] = i % 256;
         }
-        const grown = growTypedArray(array, Uint8Array, 65, true);
+        const grown = growTypedArray(array, Uint8Array, K + 1, true);
         expect(grown.buffer).not.toBe(buffer);
         expect(grown.buffer.resizable).toBe(true);
         expect(grown.buffer.maxByteLength).toBeGreaterThanOrEqual(STAGING_RESERVE_BYTES);
-        expect(grown.length).toBe(128);
-        expect(Array.from(grown.subarray(0, 64))).toEqual(Array.from(array));
+        expect(grown.length).toBe(2 * K);
+        expect(Array.from(grown.subarray(0, K))).toEqual(Array.from(array));
     });
 
     it("copies rather than resizes when the array does not start at byteOffset 0", () => {
@@ -413,7 +423,7 @@ describe("growTypedArray", () => {
             const grown = growTypedArray(empty, Uint32Array, 1, resizable);
             expect(grown.length).toBe(16);
             expect(grown.buffer.byteLength).toBe(64);
-            expect(grown.buffer.resizable).toBe(resizable);
+            expect(grown.buffer.resizable).toBe(false); // under STAGING_RESIZABLE_MIN_BYTES
         }
     });
 

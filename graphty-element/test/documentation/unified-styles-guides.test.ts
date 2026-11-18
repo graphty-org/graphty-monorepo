@@ -54,7 +54,7 @@ const PAGES: readonly Page[] = [
     {
         file: "starting-rows.md",
         check: (session, printed) => {
-            assert.deepEqual(printed, ["Everything bottom", "Timeline Hidden top", "Selected top", "Hovered top", "1"]);
+            assert.deepEqual(printed, ["Everything bottom", "Selected top", "Hovered top", "1"]);
         },
     },
     {

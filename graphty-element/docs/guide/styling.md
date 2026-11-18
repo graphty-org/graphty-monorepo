@@ -892,8 +892,8 @@ pins, a reader's lock and hidden rows. The tree is the paint order. See
 Every graph starts with two layers the element owns, with `source: { by: "element" }`: the
 defaults every node and edge is drawn from (`reason: "default"`), and the one that paints the
 selection. How elements outside a time window look is never one of them: that is an ordinary
-layer selecting `{ match: "state", state: "outsideWindow" }`, such as the Timeline Hidden starting
-row. See [What lies outside the window](./timeline.md#what-lies-outside-the-window).
+layer selecting `{ match: "state", state: "outsideWindow" }`, such as the Timeline Hidden row the
+timeline adds. See [What lies outside the window](./timeline.md#what-lies-outside-the-window).
 
 They are `locked`: removing, editing or moving one is refused with `E_PROTECTED`, and `add()` will
 not mint an element source at all. You paint over them by adding your own layer on top, which is

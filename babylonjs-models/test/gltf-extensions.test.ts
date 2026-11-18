@@ -56,3 +56,22 @@ describe("glTF extensions", () => {
         assert.deepStrictEqual(both, [], "left out, yet registered");
     });
 });
+
+describe("clear coat and sheen under a hemispheric light with no specular color", () => {
+    it("have the light's direction to read (patches/@babylonjs__core@9.37.0.patch)", async () => {
+        // Unpatched, Babylon sets a hemispheric light's L, H and VdotH only when some light has a
+        // specular color, yet clear coat and sheen read them: under graphty-element's lights (black
+        // specular) a clear-coated part, the StainedGlassLamp's glass or the ToyCar's body, drew white.
+        const { ShaderStore } = await import("@babylonjs/core/Engines/shaderStore.js");
+        await import("@babylonjs/core/Shaders/ShadersInclude/pbrDirectLightingSetupFunctions.js");
+        await import("@babylonjs/core/ShadersWGSL/ShadersInclude/pbrDirectLightingSetupFunctions.js");
+        for (const store of [ShaderStore.IncludesShadersStore, ShaderStore.IncludesShadersStoreWGSL]) {
+            const source = store.pbrDirectLightingSetupFunctions ?? "";
+            const hemispheric = source.slice(source.indexOf("computeHemisphericPreLightingInfo"));
+            assert.match(
+                hemispheric,
+                /#if defined\(SPECULARTERM\) \|\| defined\(CLEARCOAT\) \|\| defined\(SHEEN\)\nresult\.L=/,
+            );
+        }
+    });
+});

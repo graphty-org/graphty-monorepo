@@ -175,11 +175,12 @@ const TRANSMISSION_FLOOR = 0.2;
 /**
  * Draw each transmissive material see-through: alpha blended, its opacity scaled by one minus its
  * transmission factor (with {@link TRANSMISSION_FLOOR}). Drawn opaque, a watch's glass would hide
- * its dial and hands.
+ * its dial and hands. A solid volume keeps its color (see {@link blendTransmissive}).
+ * Exported for its test only.
  * @param json - The glTF's JSON, changed in place.
  * @returns The names of the materials made see-through.
  */
-function seeThrough(json: Record<string, unknown>): Set<string> {
+export function seeThrough(json: Record<string, unknown>): Set<string> {
     const names = new Set<string>();
     const materials = Array.isArray(json.materials) ? (json.materials as unknown[]) : [];
     for (const material of materials) {
@@ -203,23 +204,39 @@ function seeThrough(json: Record<string, unknown>): Set<string> {
  */
 function blendTransmissive(entry: Record<string, unknown>): boolean {
     const extensions = entry.extensions as Record<string, unknown> | undefined;
-    const transmission = extensions?.KHR_materials_transmission as { transmissionFactor?: unknown } | undefined;
+    const transmission = extensions?.KHR_materials_transmission as
+        { transmissionFactor?: unknown; transmissionTexture?: unknown } | undefined;
     const factor = typeof transmission?.transmissionFactor === "number" ? transmission.transmissionFactor : 0;
-    // A volume with thickness is a solid body (in glTF, thickness 0 means thin-walled glass). Drawn
-    // without its volume it is opaque, as an object with no transmission is: made see-through by
-    // its transmission factor, the amber DragonAttenuation dragon was a white ghost at 20%.
-    const volume = extensions?.KHR_materials_volume as { thicknessFactor?: unknown } | undefined;
-    const solid = typeof volume?.thicknessFactor === "number" && volume.thicknessFactor > 0;
-    if (factor <= 0 || solid) {
-        return false;
-    }
-
     const pbr = (
         typeof entry.pbrMetallicRoughness === "object" && entry.pbrMetallicRoughness !== null
             ? entry.pbrMetallicRoughness
             : {}
     ) as Record<string, unknown>;
     const base = Array.isArray(pbr.baseColorFactor) ? (pbr.baseColorFactor as number[]) : [1, 1, 1, 1];
+    // A volume with thickness is a solid body (in glTF, thickness 0 means thin-walled glass). Drawn
+    // without its volume it is opaque, as an object with no transmission is: made see-through by
+    // its transmission factor, the amber DragonAttenuation dragon was a white ghost at 20%. Its
+    // color is the light its volume lets through, so it takes its attenuation color: left white,
+    // the dragon stated no color and was drawn in the node's.
+    const volume = extensions?.KHR_materials_volume as
+        { thicknessFactor?: unknown; attenuationColor?: unknown } | undefined;
+    const solid = typeof volume?.thicknessFactor === "number" && volume.thicknessFactor > 0;
+    if (solid && Array.isArray(volume.attenuationColor)) {
+        const tint = volume.attenuationColor as unknown[];
+        pbr.baseColorFactor = [0, 1, 2, 3].map((i) => {
+            const own = typeof base[i] === "number" ? base[i] : 1;
+            return i < 3 && typeof tint[i] === "number" ? own * tint[i] : own;
+        });
+        entry.pbrMetallicRoughness = pbr;
+    }
+
+    // A transmission picture says which parts are clear: the StainedGlassLamp's lead is opaque and
+    // its glass clear. One opacity for the whole material faded the lead away with the glass, so
+    // such a material is drawn as authored, as Khronos's own no-extension copy of the lamp is.
+    if (factor <= 0 || solid || transmission?.transmissionTexture !== undefined) {
+        return false;
+    }
+
     const alpha = typeof base[3] === "number" ? base[3] : 1;
     pbr.baseColorFactor = [base[0] ?? 1, base[1] ?? 1, base[2] ?? 1, alpha * Math.max(TRANSMISSION_FLOOR, 1 - factor)];
     entry.pbrMetallicRoughness = pbr;

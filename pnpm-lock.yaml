@@ -59,7 +59,7 @@ overrides:
 
 patchedDependencies:
   '@babylonjs/core@9.37.0':
-    hash: fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d
+    hash: 94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02
     path: patches/@babylonjs__core@9.37.0.patch
   '@mantine/core@8.3.18':
     hash: 4d46aecd05e300ebc202d529cab88d03dbe72870b28631081ee379fd14fe8848
@@ -352,7 +352,7 @@ importers:
     devDependencies:
       '@babylonjs/core':
         specifier: ^9.37.0
-        version: 9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d)
+        version: 9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02)
       '@types/ngeohash':
         specifier: ^0.6.8
         version: 0.6.8
@@ -379,7 +379,7 @@ importers:
     dependencies:
       '@babylonjs/ktx2decoder':
         specifier: 9.37.0
-        version: 9.37.0(@babylonjs/core@9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d))
+        version: 9.37.0(@babylonjs/core@9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02))
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
@@ -389,10 +389,10 @@ importers:
     devDependencies:
       '@babylonjs/core':
         specifier: ^9.37.0
-        version: 9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d)
+        version: 9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02)
       '@babylonjs/loaders':
         specifier: 9.37.0
-        version: 9.37.0(@babylonjs/core@9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d))(babylonjs-gltf2interface@9.37.0)
+        version: 9.37.0(@babylonjs/core@9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02))(babylonjs-gltf2interface@9.37.0)
       '@gltf-transform/core':
         specifier: ^4.5.1
         version: 4.5.1
@@ -769,7 +769,7 @@ importers:
     devDependencies:
       '@babylonjs/core':
         specifier: ^9.37.0
-        version: 9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d)
+        version: 9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02)
       '@codemirror/commands':
         specifier: 6.11.1
         version: 6.11.1
@@ -965,10 +965,10 @@ importers:
     devDependencies:
       '@babylonjs/core':
         specifier: ^9.37.0
-        version: 9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d)
+        version: 9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02)
       '@babylonjs/loaders':
         specifier: 9.37.0
-        version: 9.37.0(@babylonjs/core@9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d))(babylonjs-gltf2interface@9.37.0)
+        version: 9.37.0(@babylonjs/core@9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02))(babylonjs-gltf2interface@9.37.0)
       '@graphty/remote-logger':
         specifier: workspace:^
         version: link:../remote-logger
@@ -10602,15 +10602,15 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
-  '@babylonjs/core@9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d)': {}
+  '@babylonjs/core@9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02)': {}
 
-  '@babylonjs/ktx2decoder@9.37.0(@babylonjs/core@9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d))':
+  '@babylonjs/ktx2decoder@9.37.0(@babylonjs/core@9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02))':
     dependencies:
-      '@babylonjs/core': 9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d)
+      '@babylonjs/core': 9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02)
 
-  '@babylonjs/loaders@9.37.0(@babylonjs/core@9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d))(babylonjs-gltf2interface@9.37.0)':
+  '@babylonjs/loaders@9.37.0(@babylonjs/core@9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02))(babylonjs-gltf2interface@9.37.0)':
     dependencies:
-      '@babylonjs/core': 9.37.0(patch_hash=fc29f2e028501c1a7c172648b027be84068c2f9db516afb57a2c686679e1640d)
+      '@babylonjs/core': 9.37.0(patch_hash=94f97790b6302a5037780706daa57fce9cde80604bac1b0ad66acf4a917b5b02)
       babylonjs-gltf2interface: 9.37.0
 
   '@bcoe/v8-coverage@1.0.2': {}

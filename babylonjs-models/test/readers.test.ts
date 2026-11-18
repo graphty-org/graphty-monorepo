@@ -21,7 +21,7 @@ import { isGltf1, readGlb1, upgradeGltf1 } from "../src/files/readers/gltf1.js";
 import { readPly } from "../src/files/readers/ply.js";
 import { readStl, stlFacts } from "../src/files/readers/stl.js";
 import { imageSize, textureBytesOf } from "../src/files/references.js";
-import { hasReader } from "../src/load/loadModel.js";
+import { hasReader, seeThrough } from "../src/load/loadModel.js";
 
 const VARIANTS = join(dirname(fileURLToPath(import.meta.url)), "fixtures/variants");
 
@@ -418,5 +418,37 @@ describe("the transmission family", () => {
             code: "W_MODEL_EXTENSION_IGNORED",
             params: { extension: "KHR_materials_transmission" },
         });
+    });
+
+    it("keeps each material's look: thin glass fades, a textured one and a solid volume keep their color", () => {
+        const [TRANSMISSION, VOLUME] = ["KHR_materials_transmission", "KHR_materials_volume"];
+        const transmission = { [TRANSMISSION]: { transmissionFactor: 1 } };
+        const materials: Record<string, unknown>[] = [
+            { name: "glass", pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] }, extensions: transmission },
+            {
+                name: "stained",
+                alphaMode: "MASK",
+                extensions: {
+                    [TRANSMISSION]: { transmissionFactor: 1, transmissionTexture: { index: 0 } },
+                },
+            },
+            {
+                name: "amber",
+                pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] },
+                extensions: {
+                    ...transmission,
+                    [VOLUME]: { thicknessFactor: 2, attenuationColor: [0.9, 0.6, 0.1] },
+                },
+            },
+        ];
+        assert.deepStrictEqual([...seeThrough({ materials })], ["glass"]);
+        assert.strictEqual(materials[0]?.alphaMode, "BLEND");
+        assert.deepStrictEqual(materials[0]?.pbrMetallicRoughness, { baseColorFactor: [1, 1, 1, 0.2] });
+        assert.strictEqual(materials[1]?.alphaMode, "MASK", "the stained glass keeps its own coverage");
+        assert.deepStrictEqual(
+            materials[2]?.pbrMetallicRoughness,
+            { baseColorFactor: [0.9, 0.6, 0.1, 1] },
+            "the dragon states its amber",
+        );
     });
 });

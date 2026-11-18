@@ -17,7 +17,7 @@ import type { GLYPHS } from "../../glyphs";
  * theirs from the channel (R1, R5, R7); an enum line names its rule; `field` draws today's field
  * (a list, an asset, a text source, a value bound to data).
  */
-export type Rule = "R1" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "field";
+export type Rule = "R1" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "R13" | "R14" | "field";
 
 /** One line of the panel or a pop-over. */
 export interface LineSpec {
@@ -39,6 +39,8 @@ export interface LineSpec {
     readonly unit?: readonly (readonly [string, Channel])[];
     /** A boolean modifying the line, drawn as a toggle in its modifier slot (R6). */
     readonly toggle?: Channel;
+    /** The toggle's glyph, when not a lock (italic beside a font weight). */
+    readonly toggleGlyph?: keyof typeof GLYPHS;
 }
 
 /** One named sub-group of a pop-over, added from its "+". */
@@ -170,8 +172,8 @@ function backdrop(of: "underlay" | "overlay"): ThingRubric {
 
 /**
  * Each node thing's rubric (design 7.1), by thing id, or `id:channel` for a family member whose
- * row's main channel is that channel (a model in the Shape row, a gradient in the Fill row). Text
- * things are not here yet: their rows keep today's settings.
+ * row's main channel is that channel (a model in the Shape row, a gradient in the Fill row). A
+ * label, external label and tooltip edit their label style field by field (`labelRubric.ts`).
  */
 export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     shape: {
@@ -429,6 +431,18 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
+    glyph: {
+        common: [{ channel: "node.glyphColor", name: null }],
+        main: [
+            { channel: "node.glyphSize", name: "Size" },
+            { channel: "node.glyphFont", name: "Font", rule: "R13" },
+            { channel: "node.glyphWeight", name: "Weight" },
+        ],
+    },
+    record: {
+        main: [],
+        groups: [{ name: "Table", lines: [{ channel: "node.labelTable", name: "Table", rule: "field" }] }],
+    },
 };
 
 /**
@@ -484,24 +498,39 @@ export const LINE_WIDTHS = { panelNamed: 96, panelFull: 176, popoverNamed: 120, 
  * @returns the width.
  */
 export function segmentsWidth(options: readonly OptionName[]): number {
-    const pictured = options.every((option) => option.glyph !== undefined);
-    return options.reduce((sum, option) => sum + (pictured ? 28 : Math.max(40, option.name.length * 7 + 16)), 0);
+    const pictured = isPictured(options);
+    const words = (option: OptionName): number => Math.max(40, option.name.length * 7 + 16);
+    return options.reduce((sum, option) => sum + (pictured && option.glyph !== undefined ? 28 : words(option)), 0);
+}
+
+/**
+ * Whether a segment line draws icons (design 6, "Pictured"): every option has a glyph, or every
+ * one but a last "Auto", which stays a word.
+ * @param options - its options.
+ * @returns true when it draws icons.
+ */
+export function isPictured(options: readonly OptionName[]): boolean {
+    const last = options.at(-1);
+    const icons = last?.glyph === undefined && last?.name === "Auto" ? options.slice(0, -1) : options;
+    return icons.length > 0 && icons.every((option) => option.glyph !== undefined);
 }
 
 /**
  * A segment line's options, in the element's order.
  * @param line - the line.
  * @param values - the element's value ids for its channel.
+ * @param table - the option-name table, keyed by the line's channel (or label style field).
  * @returns each option's value and name, or undefined where the table names none.
  */
 export function segmentOptions(
-    line: LineSpec,
+    line: Pick<LineSpec, "unit"> & { readonly channel: string },
     values: readonly string[],
+    table: Readonly<Record<string, Readonly<Record<string, OptionName>> | undefined>> = OPTION_NAMES,
 ): readonly (OptionName & { readonly value: string })[] | undefined {
     if (line.unit !== undefined) {
         return line.unit.map(([name, channel]) => ({ value: channel, name }));
     }
-    const names = OPTION_NAMES[line.channel];
+    const names = table[line.channel];
     if (names === undefined) {
         return undefined;
     }

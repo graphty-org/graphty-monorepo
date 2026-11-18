@@ -14,6 +14,8 @@ import { shownChannel } from "../offered";
 import { Field, type RowContext } from "../PropertyRow";
 import { layerWord, removeLine } from "../row";
 import { failureWords } from "../words";
+import { LabelRow } from "./LabelRow";
+import { TEXT_THINGS } from "./labelRubric";
 import { rubricChannels, rubricOf } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ThingPopover } from "./ThingPopover";
@@ -119,6 +121,23 @@ export function ThingRow({
             });
     };
     const removeLabel = `Remove ${title.toLowerCase()}`;
+    const text = ctx.side === "node" ? TEXT_THINGS[thing.id] : undefined;
+    if (text !== undefined) {
+        return (
+            <div data-thing={thing.id}>
+                <LabelRow
+                    ctx={ctx}
+                    kind={text}
+                    name={thing.name}
+                    title={title}
+                    channels={channels}
+                    pending={pending}
+                    removeLabel={removeLabel}
+                    onRemove={remove}
+                />
+            </div>
+        );
+    }
     return (
         <div data-thing={thing.id}>
             {rubric?.row === undefined ? (

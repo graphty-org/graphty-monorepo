@@ -1,12 +1,14 @@
 /**
  * Style panel v2's rubric (style/v2/rubric.ts, design/ui/style-panel-v2/design.md section 6): every
  * segment line's options are the element's values, and its segments fit the width where it sits;
- * no sub-group passes 8 lines and no "+" menu 12 sub-groups; no name says "Scene" or "World".
+ * no sub-group passes 8 lines and no "+" menu 12 sub-groups; no name says "Scene" or "World". The
+ * label rubric (style/v2/labelRubric.ts, design 7.3) is held to the same.
  */
 
-import { channelDescriptor } from "@graphty/graphty-element/catalog";
+import { channelDescriptor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
+import { LABEL_OPTION_NAMES, LABEL_RUBRIC, labelFieldDescriptor, labelLineFields } from "../v2/labelRubric";
 import { LINE_WIDTHS, type LineSpec, NODE_RUBRIC, OPTION_NAMES, segmentOptions, segmentsWidth } from "../v2/rubric";
 
 /** Every line of every rubric, with where it sits. */
@@ -86,6 +88,71 @@ describe("Style panel v2's control rubric", () => {
             ...Object.values(OPTION_NAMES).flatMap((options) => Object.values(options ?? {}).map((o) => o.name)),
             ...LINES.flatMap(({ line }) => [line.name ?? "", ...(line.unit ?? []).map(([name]) => name)]),
             ...Object.values(NODE_RUBRIC).flatMap((rubric) => (rubric.groups ?? []).map((group) => group.name)),
+        ];
+        for (const name of names) {
+            assert.notMatch(name, /\b(scene|world)\b/i, name);
+        }
+    });
+});
+
+describe("Style panel v2's label rubric", () => {
+    const lines = [
+        ...LABEL_RUBRIC.common.map((line) => ({ line, place: "panel" as const })),
+        ...[...LABEL_RUBRIC.main, ...LABEL_RUBRIC.groups.flatMap((group) => group.lines)].map((line) => ({
+            line,
+            place: "popover" as const,
+        })),
+    ];
+
+    it("every line edits a label style field graphty-element describes", () => {
+        for (const { line } of lines) {
+            for (const field of labelLineFields(line)) {
+                assert.include(LABEL_STYLE_FIELDS, field, `${line.field}: ${field}`);
+            }
+        }
+        for (const group of LABEL_RUBRIC.groups) {
+            if (group.on !== undefined) {
+                assert.equal(labelFieldDescriptor(group.on)?.accepts, "boolean", `${group.name} switches on`);
+            }
+        }
+    });
+
+    it("every segment line names the element's values and fits where it sits", () => {
+        const segments = lines.filter(
+            ({ line }) => line.unit !== undefined || line.rule === "R8" || line.rule === "R8f",
+        );
+        assert.isAbove(segments.length, 8);
+        for (const { line, place } of segments) {
+            const values = line.unit === undefined ? (labelFieldDescriptor(line.field)?.values ?? []) : [];
+            if (line.unit === undefined) {
+                assert.sameMembers(Object.keys(LABEL_OPTION_NAMES[line.field] ?? {}), [...values], line.field);
+            }
+            const options =
+                line.unit === undefined
+                    ? segmentOptions({ channel: line.field }, values, LABEL_OPTION_NAMES)
+                    : line.unit.map((unit) => ({ name: unit.name }));
+            assert.isDefined(options, `${line.field} has a name for every option`);
+            const width = segmentsWidth(options ?? []);
+            const full = line.name === null || line.rule === "R8f";
+            const room =
+                place === "panel"
+                    ? LINE_WIDTHS[full ? "panelFull" : "panelNamed"]
+                    : LINE_WIDTHS[full ? "popoverFull" : "popoverNamed"];
+            assert.isAtMost(width, room, `${line.field} (${String(width)} px)`);
+        }
+    });
+
+    it("Main and every sub-group hold at most 8 lines, '+' holds 12, and nothing says Scene or World", () => {
+        assert.isAtMost(LABEL_RUBRIC.common.length, 2);
+        assert.isAtMost(LABEL_RUBRIC.main.length, 8);
+        assert.equal(LABEL_RUBRIC.groups.length, 12, "design 7.3's twelve sub-groups");
+        for (const group of LABEL_RUBRIC.groups) {
+            assert.isAtMost(group.lines.length, 8, group.name);
+        }
+        const names = [
+            ...Object.values(LABEL_OPTION_NAMES).flatMap((options) => Object.values(options ?? {}).map((o) => o.name)),
+            ...lines.flatMap(({ line }) => [line.name ?? "", ...(line.unit ?? []).map((unit) => unit.name)]),
+            ...LABEL_RUBRIC.groups.map((group) => group.name),
         ];
         for (const name of names) {
             assert.notMatch(name, /\b(scene|world)\b/i, name);

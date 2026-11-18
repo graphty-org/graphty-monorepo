@@ -70,12 +70,17 @@ function ThingSection({
     const shown = things
         .flat()
         .filter(({ thing, channels }) => waiting.includes(thing.id) || channels.some((c) => setOn(ctx, c)));
+    // A one-only thing leaves the menu once set; Label stays, disabled, until a node can hold several
+    // labels (design 7.4: list-valued labels are not in graphty-element yet).
     const groups: AddOption[][] = things.map((group) =>
-        group.flatMap(({ thing }) =>
-            shown.some((each) => each.thing === thing) ? [] : [{ key: thing.id, label: thing.name }],
-        ),
+        group.flatMap(({ thing }) => {
+            if (!shown.some((each) => each.thing === thing)) {
+                return [{ key: thing.id, label: thing.name }];
+            }
+            return thing.id === "label" ? [{ key: thing.id, label: thing.name, disabled: true }] : [];
+        }),
     );
-    const options = groups.flat();
+    const options = groups.flat().filter((option) => option.disabled !== true);
     const add = (id: string): void => {
         setMenu(false);
         const found = things.flat().find((each) => each.thing.id === id);

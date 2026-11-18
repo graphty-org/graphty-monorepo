@@ -2431,3 +2431,10 @@ export function shownRule(session: GraphSession, rule: string): string {
         return plainRule(rule);
     }
 }
+
+/** The font families offered: the browser's generic families, which every platform has. */
+export const FONTS = [
+    ["sans-serif", "Sans serif"],
+    ["serif", "Serif"],
+    ["monospace", "Monospace"],
+] as const;

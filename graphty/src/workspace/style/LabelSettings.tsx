@@ -13,6 +13,7 @@ import { Group, SimpleGrid, Stack, TextInput } from "@mantine/core";
 import React, { useId } from "react";
 
 import { ControlLabel } from "./ControlLabel";
+import { FONTS } from "./words";
 
 /** A field of the label style as the popover draws it. */
 type Field =
@@ -56,13 +57,6 @@ const choice = (key: keyof LabelStyle, word: string, options: readonly (readonly
 const toggle = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "switch" });
 const words = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "text" });
 const colors = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "colors" });
-
-/** The font families offered: the browser's generic families, which every platform has. */
-const FONTS = [
-    ["sans-serif", "Sans serif"],
-    ["serif", "Serif"],
-    ["monospace", "Monospace"],
-] as const;
 
 const SIDES = [
     ["top", "Top"],

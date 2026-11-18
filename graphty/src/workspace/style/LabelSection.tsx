@@ -504,7 +504,7 @@ function WordsInput({
  * @param props.children - the trigger
  * @returns The pop-out
  */
-function SourcePicker({
+export function SourcePicker({
     target,
     channel,
     opened,

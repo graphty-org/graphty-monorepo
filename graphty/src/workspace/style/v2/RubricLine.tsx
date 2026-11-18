@@ -5,7 +5,7 @@
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import { ComboInput, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
 import type { Channel, ChannelDescriptor, ChannelValue } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Checkbox, Group, Tooltip, VisuallyHidden } from "@mantine/core";
 import React from "react";
@@ -17,9 +17,9 @@ import { ValueListbox } from "../parts/ValueListbox";
 import { Field, FieldLine, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { channelWord, failureWords, fieldName, isPercent } from "../words";
+import { channelWord, failureWords, fieldName, FONTS, isPercent } from "../words";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
-import { type LineSpec, type Rule, segmentOptions } from "./rubric";
+import { isPictured, type LineSpec, type Rule, segmentOptions } from "./rubric";
 import { setOn } from "./things";
 import { sectionsOf } from "./valueSections";
 
@@ -33,28 +33,34 @@ export interface RowSlots {
 /**
  * A number field as the rubric draws one (R5): no caret, empty when unset; clearing it unsets.
  * @param props - Component props
- * @param props.descriptor - its channel
+ * @param props.descriptor - its channel, or a label style field described as one
+ * @param props.label - its accessible name, when not its channel's
+ * @param props.percent - reads and types as a percent, when not its channel's say
  * @param props.value - the value set, if any
  * @param props.glyph - its in-field glyph or letter
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
-function NumberLine({
+export function NumberLine({
     descriptor,
+    label,
+    percent,
     value,
     glyph,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
+    label?: string;
+    percent?: boolean;
     value: unknown;
     glyph?: React.ReactNode;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
-    const scale = isPercent(descriptor) ? 100 : 1;
+    const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
     const { min, max } = descriptor;
     return (
         <ComboInput
-            label={fieldName(descriptor.channel)}
+            label={label ?? fieldName(descriptor.channel)}
             width="100%"
             numeric
             options={[]}
@@ -80,26 +86,32 @@ function NumberLine({
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - its channel
+ * @param props.label - its accessible name, when not its channel's
+ * @param props.presets - its presets, when not the element's values for its channel
  * @param props.value - the value set, if any
  * @param props.onWrite - writes a value
  * @returns The field
  */
-function PresetLine({
+export function PresetLine({
     ctx,
     descriptor,
+    label,
+    presets,
     value,
     onWrite,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
+    label?: string;
+    presets?: readonly { readonly id: string; readonly plainName: string }[];
     value: unknown;
     onWrite: (value: ChannelValue) => void;
 }>): React.JSX.Element {
-    const values = ctx.session.catalog.channelValues(descriptor.channel);
+    const values = presets ?? ctx.session.catalog.channelValues(descriptor.channel);
     const named = values.find((each) => each.id === value)?.plainName;
     return (
         <ComboInput
-            label={fieldName(descriptor.channel)}
+            label={label ?? fieldName(descriptor.channel)}
             width="100%"
             options={values.map((each) => ({ value: each.id, label: each.plainName }))}
             value={named ?? (typeof value === "number" ? value : "")}
@@ -124,7 +136,7 @@ function PresetLine({
  * @param props.onPick - writes an option
  * @returns The control
  */
-function SegmentsLine({
+export function SegmentsLine({
     label,
     options,
     value,
@@ -135,7 +147,7 @@ function SegmentsLine({
     value: string;
     onPick: (value: string) => void;
 }>): React.JSX.Element {
-    const pictured = options.every((option) => option.glyph !== undefined);
+    const pictured = isPictured(options);
     return (
         <SegmentedControl
             label={label}
@@ -347,6 +359,54 @@ function valueControl(args: ControlArgs): React.ReactNode {
     );
 }
 
+/**
+ * A font (R13): today's font list, and the font the layer holds when it is not on the list.
+ * @param props - Component props
+ * @param props.label - its accessible name
+ * @param props.value - the font set, if any
+ * @param props.onPick - writes a font
+ * @returns The select
+ */
+export function FontSelect({
+    label,
+    value,
+    onPick,
+}: Readonly<{ label: string; value: unknown; onPick: (font: string) => void }>): React.JSX.Element {
+    const held = typeof value === "string" && value !== "" ? value : undefined;
+    const fonts: readonly (readonly [string, string])[] = FONTS;
+    const listed = held === undefined || fonts.some(([font]) => font === held) ? fonts : [...fonts, [held, held]];
+    return (
+        <PanelField
+            label={label}
+            kind="select"
+            width="fill"
+            data={listed.map(([font, word]) => ({ value: font, label: word }))}
+            value={held ?? null}
+            onChange={(next) => {
+                onPick(String(next));
+            }}
+        />
+    );
+}
+
+/**
+ * A font (R13).
+ * @param args - the line.
+ * @returns The control
+ */
+function fontControl(args: ControlArgs): React.ReactNode {
+    const { descriptor, value, label, write } = args;
+    return (
+        <FontSelect
+            label={label}
+            value={value}
+            onPick={(font) => {
+                write(descriptor.channel, font);
+            }}
+        />
+    );
+}
+
 /** Each rule's control. */
 const CONTROLS: Readonly<Record<Exclude<Rule, "field">, (args: ControlArgs) => React.ReactNode>> = {
     R1: valueControl,
@@ -357,6 +417,9 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field">, (args: ControlArgs) => R
     R8f: segmentsControl,
     R9: valueControl,
     R10: listControl,
+    R13: fontControl,
+    // Free text (R14): today's text field, which commits on Enter or blur.
+    R14: valueControl,
 };
 
 /**
@@ -372,11 +435,12 @@ function modifierOf(
     write: (to: Channel, value: ChannelValue | undefined) => void,
 ): React.ReactNode {
     const toggle = line.toggle === undefined ? undefined : shownChannel(ctx.session, ctx.side, line.toggle, false);
+    const Glyph = GLYPHS[line.toggleGlyph ?? "lock"];
     return toggle === undefined ? null : (
         <ToggleIconButton
             size="sm"
             label={channelWord(toggle.channel)}
-            icon={<GLYPHS.lock size={14} aria-hidden />}
+            icon={<Glyph size={14} aria-hidden />}
             checked={lineIn(ctx, toggle.channel)?.value === true}
             onChange={(on) => {
                 write(toggle.channel, on);
@@ -442,18 +506,75 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
             unsetIn(ctx, channels).catch(fail);
         });
     return (
-        <div className="ws-row" data-line={channel} data-set={set ? "" : undefined} data-rule={rule}>
-            <FieldLine name={named ? (line.name ?? channelWord(channel)) : null} settings={null}>
+        <LineFrame
+            line={channel}
+            name={named ? (line.name ?? channelWord(channel)) : null}
+            set={set}
+            rule={rule}
+            control={control}
+            modifier={row?.slot ?? modifierOf(ctx, line, write)}
+            removeName={set || row !== undefined ? removeName : undefined}
+            onRemove={onRemove}
+        />
+    );
+}
+
+/**
+ * A minus with its tooltip.
+ * @param props - Component props
+ * @param props.label - its name ("Remove width")
+ * @param props.onClick - what it removes
+ * @returns The button
+ */
+export function RemoveButton({ label, onClick }: Readonly<{ label: string; onClick: () => void }>): React.JSX.Element {
+    return (
+        <Tooltip label={label}>
+            <ActionIcon variant="subtle" size="sm" aria-label={label} onClick={onClick}>
+                <GLYPHS.remove size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
+/**
+ * One line's frame (design 2.2): its name, its control, its modifier slot and its minus.
+ * @param props - Component props
+ * @param props.line - what the line edits, for `data-line`
+ * @param props.name - its name, or null for none
+ * @param props.set - whether the layer sets it
+ * @param props.rule - its rubric rule
+ * @param props.control - its control
+ * @param props.modifier - its modifier slot's contents
+ * @param props.removeName - its minus's name; none draws no minus
+ * @param props.onRemove - what its minus does
+ * @returns The line
+ */
+export function LineFrame({
+    line,
+    name,
+    set,
+    rule,
+    control,
+    modifier,
+    removeName,
+    onRemove,
+}: Readonly<{
+    line: string;
+    name: string | null;
+    set: boolean;
+    rule: string;
+    control: React.ReactNode;
+    modifier: React.ReactNode;
+    removeName: string | undefined;
+    onRemove: () => void;
+}>): React.JSX.Element {
+    return (
+        <div className="ws-row" data-line={line} data-set={set ? "" : undefined} data-rule={rule}>
+            <FieldLine name={name} settings={null}>
                 <div className="ws-field-control">{control}</div>
-                <span className="ws-slot ws-vary">{row?.slot ?? modifierOf(ctx, line, write)}</span>
+                <span className="ws-slot ws-vary">{modifier}</span>
                 <span className="ws-slot">
-                    {set || row !== undefined ? (
-                        <Tooltip label={removeName}>
-                            <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={onRemove}>
-                                <GLYPHS.remove size={14} aria-hidden />
-                            </ActionIcon>
-                        </Tooltip>
-                    ) : null}
+                    {removeName === undefined ? null : <RemoveButton label={removeName} onClick={onRemove} />}
                 </span>
             </FieldLine>
         </div>

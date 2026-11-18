@@ -7,9 +7,13 @@
 import type { ReadableValueKind } from "@graphty/graphty-element/catalog";
 import {
     Activity,
+    AlignCenter,
+    AlignLeft,
+    AlignRight,
     ArrowDown,
     ArrowDownToLine,
     ArrowDownUp,
+    ArrowLeft,
     ArrowLeftToLine,
     ArrowRight,
     ArrowRightToLine,
@@ -420,6 +424,15 @@ export const GLYPHS = {
     repeatBoth: Grid2x2,
     repeatAcross: Columns2,
     repeatDown: Rows2,
+    // How a label's lines line up: to the left, centered, to the right.
+    alignLeft: AlignLeft,
+    alignCenter: AlignCenter,
+    alignRight: AlignRight,
+    // Which way a label's speech-bubble pointer points.
+    pointUp: ArrowUp,
+    pointDown: ArrowDown,
+    pointLeft: ArrowLeft,
+    pointRight: ArrowRight,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

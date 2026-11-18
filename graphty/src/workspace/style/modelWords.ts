@@ -121,22 +121,14 @@ function tooLargeTip(p: CodedFact["params"]): string {
     return both(size(p.found), word, "over", size(p.limit));
 }
 
-/** The formats graphty-element names Gaussian splats by (`E_MODEL_FORMAT_UNSUPPORTED`'s `params.format`). */
-const SPLAT_FORMATS: ReadonlySet<string> = new Set(["splat", "spz", "sog", "splat-ply"]);
-
 /**
- * Whether a refusal is of Gaussian splats: a splat format, or a glTF that uses the Gaussian
- * splatting extension. No other format is worth suggesting for one, since every splat is refused.
+ * Whether a refusal is of Gaussian splats (graphty-element says so with `params.kind`). No other
+ * format is worth suggesting for one, since every splat is refused.
  * @param fact - the refusal.
  * @returns true for splats.
  */
 export function isSplatRefusal(fact: CodedFact): boolean {
-    const { format, extension } = fact.params;
-    return (
-        fact.code === "E_MODEL_FORMAT_UNSUPPORTED" &&
-        ((typeof format === "string" && SPLAT_FORMATS.has(format)) ||
-            (typeof extension === "string" && extension.startsWith("KHR_gaussian_splatting")))
-    );
+    return fact.code === "E_MODEL_FORMAT_UNSUPPORTED" && fact.params.kind === "splat";
 }
 
 /** What a reader of `E_MODEL_STRUCTURE` is told, by `params.rule`; any other rule is a damaged file. */

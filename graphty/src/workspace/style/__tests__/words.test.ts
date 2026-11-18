@@ -388,17 +388,21 @@ describe("model variant words", () => {
         } as const;
         assert.equal(modelChip(required).tip, "EXT_foo");
         assert.match(modelWords(required), /needs EXT_foo/);
-        // Splats, in any format, are said to be splats and not supported, never a raw format code.
+        // Splats, in any format graphty-element marks as one (kind "splat"), are said to be splats
+        // and not supported, never a raw format code.
         const splats: readonly Readonly<Record<string, string>>[] = [
-            { format: "spz" },
-            { format: "splat-ply" },
-            { format: "gltf", extension: "KHR_gaussian_splatting" },
-            { format: "gltf", extension: "KHR_gaussian_splatting_compression_spz" },
+            { format: "spz", kind: "splat" },
+            { format: "splat-ply", kind: "splat" },
+            { format: "some-new-splat", kind: "splat" },
+            { format: "gltf", extension: "KHR_gaussian_splatting", kind: "splat" },
+            { format: "gltf", extension: "EXT_some_splatting", kind: "splat" },
         ];
         for (const params of splats) {
             const splat = { code: "E_MODEL_FORMAT_UNSUPPORTED", params } as const;
             assert.deepEqual(modelChip(splat), { word: "Not loaded", tip: "Gaussian splats are not supported" });
             assert.equal(modelWords(splat), "Gaussian splats are not supported.");
         }
+        // The app keeps no list of splat formats: without the element's kind, it is any refused format.
+        assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "spz" } }).word, "SPZ not read");
     });
 });

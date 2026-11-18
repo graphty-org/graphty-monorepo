@@ -448,7 +448,8 @@ export function addedLines(diff) {
     for (const l of diff.split("\n")) {
         if (l.startsWith("+++ ")) {
             lines = l === "+++ /dev/null" ? null : new Set();
-            if (lines) out.set(l.replace(/^\+\+\+ b\//, ""), lines);
+            // git ends the line with a tab when the name holds a space
+            if (lines) out.set(l.replace(/^\+\+\+ b\//, "").replace(/\t$/, ""), lines);
             continue;
         }
         const h = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(l);
@@ -463,13 +464,27 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         if (!args[1]) throw new Error("--diff needs a base ref");
         const diff = execFileSync(
             "git",
-            ["diff", "--unified=0", "--no-color", "--no-ext-diff", "--diff-filter=d", `${args[1]}...HEAD`],
+            [
+                "-c",
+                "core.quotePath=false",
+                "diff",
+                "--unified=0",
+                "--no-color",
+                "--no-ext-diff",
+                "--diff-filter=d",
+                `${args[1]}...HEAD`,
+            ],
             { maxBuffer: 1 << 28 },
         ).toString();
         let bad = 0;
         for (const [f, lines] of addedLines(diff)) {
             if (SKIP.test(f)) continue;
-            const text = readFileSync(f, "utf8");
+            let text;
+            try {
+                text = readFileSync(f, "utf8");
+            } catch {
+                continue; // a directory or a submodule
+            }
             if (text.includes("\u0000")) continue; // binary
             for (const p of problems(f, text).filter((q) => lines.has(q.line))) {
                 bad++;

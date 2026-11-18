@@ -61,6 +61,11 @@ const diff = [
     "",
 ].join("\n");
 assert.deepEqual(addedLines(diff), new Map([["a.md", new Set([2, 3, 7])]]));
+assert.deepEqual(
+    addedLines("+++ b/a b.md\t\n@@ -0,0 +1 @@\n+x\n"),
+    new Map([["a b.md", new Set([1])]]),
+    "a name with a space loses the tab git ends its line with",
+);
 const changed = "the colour\nthe color\nthe colour\n";
 const onAdded = (file, text) => problems(file, text).filter((p) => addedLines(diff).get(file).has(p.line));
 assert.deepEqual(onAdded("a.md", changed), [{ line: 3, words: ["colour"] }], "line 1 is untouched, line 3 is added");

@@ -299,7 +299,9 @@ function build(bundler, out) {
             return { root: out, page: "index.html" };
         }
         case "rollup": {
-            execFileSync("npx", ["rollup", "-c", "rollup.config.mjs"], {
+            // Rollup's own bin, installed in the scratch app; run with node so the workspace's
+            // dependency check does not read it as a binary the workspace should list.
+            execFileSync(process.execPath, ["node_modules/rollup/dist/bin/rollup", "-c", "rollup.config.mjs"], {
                 cwd: app,
                 env: { ...process.env, OUT: out },
                 stdio: "pipe",

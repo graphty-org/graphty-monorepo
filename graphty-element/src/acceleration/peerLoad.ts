@@ -16,7 +16,7 @@
 import { GraphtyError } from "../errors";
 
 /** The optional peer the root entry point loads. */
-export const WEBGPU_PEER = "@graphty/webgpu-graph-algorithms";
+const WEBGPU_PEER = "@graphty/webgpu-graph-algorithms";
 
 /** The registered name of the accelerator built over {@link WEBGPU_PEER}. */
 const ACCELERATOR = "webgpu-graph-algorithms";

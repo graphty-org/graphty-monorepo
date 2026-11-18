@@ -165,10 +165,20 @@ a mesh whose faces are only time samples by its largest sample, and a `.usdz` a 
 `@./pkg.usdz[geo.usda]@`) with the rest; a prim that writes its own type over the Mesh it
 references (`def Xform` referencing a `def Mesh`) draws none of its faces, as in OpenUSD. A USD
 stage's bounds are those of every use, where its `xformOp`s (translate, scale, rotate, orient,
-transform) and a point instancer's positions put it. Its materials, skeletons and blend shapes are
+transform) and a point instancer's positions put it. A text layer's variant sets count only the
+variant selected (`variants = { string geo = "high" }`, a stronger layer's selection winning). Its materials, skeletons and blend shapes are
 counted per layer. Its one clip is `USD Animation 1`, as Babylon's loader names it. An FBX file's
 curves (NURBS curves, lines) are drawn as thin tubes, one mesh per polyline, and each tube's
-meshes and triangles are counted against the limits. When a set holds a USD layer and the `.usdz`
+meshes and triangles are counted against the limits; its bounds are those of its meshes and
+curves where its models' translation, rotation and scaling put them.
+
+A USD mesh is drawn as written: its `subdivisionScheme` (Catmull-Clark, Loop, creases and
+corners) is not applied, so a subdivision surface is drawn as its control cage.
+
+A glTF summary's bounds are those of its meshes where the scene's node transforms put them (a
+skinned mesh where Babylon's loader puts it, in its rest pose). A PLY file does not say its up axis:
+its `upAxis` is guessed from its extent, `"z"` when its Y extent is its thinnest and less than half
+its Z extent, else `"y"`, with `W_MODEL_UP_GUESSED` saying which; an STL file's is `"z"`. When a set holds a USD layer and the `.usdz`
 it references, the layer is the main file.
 
 ## License

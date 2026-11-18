@@ -32,6 +32,7 @@ import {
     textureBytesOf,
 } from "./references.js";
 import type { ModelCompression, ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
+import { type Affine, compose, IDENTITY, opTransform, placeBox } from "./usdTransforms.js";
 
 /** How deep a glTF's JSON and node tree may nest, so reading it cannot exhaust the stack. */
 const MAX_DEPTH = 64;
@@ -731,7 +732,8 @@ interface MeshTally {
     morphTargets: number;
     /** The most morph targets one primitive has. */
     mostTargets: number;
-    bounds: Bounds | undefined;
+    /** The box around each mesh's positions, in its own frame. */
+    readonly boxes: (Bounds | undefined)[];
 }
 
 /**
@@ -806,6 +808,102 @@ function mergeBounds(bounds: Bounds | undefined, accessor: Record<string, unknow
 }
 
 /**
+ * A node's own transform: its `matrix` (column by column), else its translation, rotation and scale.
+ * @param node - The node.
+ * @returns The transform.
+ */
+function localOf(node: Record<string, unknown>): Affine {
+    const numbers = (value: unknown, length: number): number[] | undefined =>
+        Array.isArray(value) && value.length === length && value.every((v) => typeof v === "number")
+            ? value
+            : undefined;
+    const m = numbers(node.matrix, 16);
+    if (m !== undefined) {
+        return [m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14]];
+    }
+    const t = numbers(node.translation, 3) ?? [0, 0, 0];
+    const r = numbers(node.rotation, 4);
+    const sc = numbers(node.scale, 3) ?? [1, 1, 1];
+    return compose(
+        opTransform("translate", t) ?? IDENTITY,
+        compose(
+            r === undefined ? IDENTITY : (opTransform("orient", r) ?? IDENTITY),
+            opTransform("scale", sc) ?? IDENTITY,
+        ),
+    );
+}
+
+/**
+ * The node a skinned mesh is drawn under, as Babylon's glTF loader places it: the parent of the
+ * skeleton root (`skin.skeleton`, else the joints' nearest common ancestor), or the mesh node's own
+ * parent when that is the mesh node itself; -1 for the scene root.
+ * @param n - The mesh node.
+ * @param skin - Its skin.
+ * @param parent - Each node's parent.
+ * @returns The node.
+ */
+function skinnedParent(n: number, skin: Record<string, unknown>, parent: Int32Array): number {
+    const joints = Array.isArray(skin.joints) ? (skin.joints as number[]) : [];
+    const chain = (j: number): number[] => {
+        const out: number[] = [];
+        for (let at = j; at !== -1; at = parent[at]) {
+            out.unshift(at);
+        }
+        return out;
+    };
+    let root = typeof skin.skeleton === "number" ? skin.skeleton : -1;
+    if (root === -1 && joints.length > 0) {
+        const paths = joints.map((j) => chain(j));
+        for (let i = 0; paths.every((p) => p[i] !== undefined && p[i] === paths[0][i]); i++) {
+            root = paths[0][i];
+        }
+    }
+    const above = root === -1 ? -1 : parent[root];
+    return above === n ? parent[n] : above;
+}
+
+/**
+ * The box around what the scene's nodes draw, each mesh where its node's transforms put it.
+ * ponytail: the rest pose; GPU instances, morph targets and a skin's joints are left out.
+ * @param reached - The scene's nodes.
+ * @param nodes - The glTF's nodes.
+ * @param skins - Its skins.
+ * @param boxes - Each mesh's box, in its own frame.
+ * @returns The box, or undefined when no mesh says its bounds.
+ */
+function sceneBounds(
+    reached: readonly number[],
+    nodes: readonly Record<string, unknown>[],
+    skins: readonly Record<string, unknown>[],
+    boxes: readonly (Bounds | undefined)[],
+): Bounds | undefined {
+    const parent = parentsOf(nodes);
+    const worlds = new Map<number, Affine>();
+    const worldOf = (n: number): Affine => {
+        if (n === -1) {
+            return IDENTITY;
+        }
+        let world = worlds.get(n);
+        if (world === undefined) {
+            world = compose(worldOf(parent[n]), localOf(nodes[n]));
+            worlds.set(n, world);
+        }
+        return world;
+    };
+    let out: Bounds | undefined;
+    for (const n of reached) {
+        const box = typeof nodes[n].mesh === "number" ? boxes[nodes[n].mesh] : undefined;
+        if (box === undefined) {
+            continue;
+        }
+        const skin = typeof nodes[n].skin === "number" ? skins[nodes[n].skin] : undefined;
+        const placed = placeBox(box, skin === undefined ? worldOf(n) : worldOf(skinnedParent(n, skin, parent)));
+        out = mergeBounds(out, { min: placed.min, max: placed.max });
+    }
+    return out;
+}
+
+/**
  * Check a primitive's morph targets: every accessor index in range.
  * @param targets - The targets.
  * @param accessors - How many accessors the glTF has.
@@ -857,7 +955,7 @@ function tallyPrimitive(
     tally.triangles[m] += trianglesOf(primitive.mode ?? 4, count);
 
     if (position !== undefined) {
-        tally.bounds = mergeBounds(tally.bounds, accessors[position]);
+        tally.boxes[m] = mergeBounds(tally.boxes[m], accessors[position]);
     }
 }
 
@@ -900,7 +998,7 @@ function tallyMeshes(
         triangles: new Float64Array(meshes.length),
         morphTargets: 0,
         mostTargets: 0,
-        bounds: undefined,
+        boxes: [],
     };
     meshes.forEach((mesh, m) => {
         const primitives = Array.isArray(mesh.primitives) ? (mesh.primitives as unknown[]) : [];
@@ -1316,13 +1414,14 @@ export function checkGltf(input: GltfInput): GltfChecked {
 
     // Every index the loader follows.
     checkNodes(nodes, meshes.length, skins.length, cameras.length, accessors);
-    const { triangles, morphTargets, mostTargets, bounds } = tallyMeshes(
+    const { triangles, morphTargets, mostTargets, boxes } = tallyMeshes(
         meshes,
         accessors,
         materials.length,
         views.length,
     );
     const drawn = drawnTriangles(reached, nodes, triangles, limits, accessors);
+    const bounds = sceneBounds(reached, nodes, skins, boxes);
 
     cap("nodes", nodes.length, limits.maxNodes);
     cap("meshes", meshes.length, limits.maxMeshes);

@@ -120,6 +120,8 @@ interface PrimFacts {
     order?: readonly string[];
     /** Its type, when it writes one. */
     type?: string;
+    /** The variant it selects in each of its variant sets (`variants = { string geo = "a" }`). */
+    selections?: ReadonlyMap<string, string>;
 }
 
 /** What one layer says about the stage. */
@@ -284,7 +286,8 @@ function usePicture(facts: LayerFacts, ref: string, material: string | undefined
 /** What a prim of each counted type adds to a layer's facts. */
 const PRIM_COUNTS: Readonly<Record<string, (facts: LayerFacts, name: string, path: string) => void>> = {
     Mesh: (facts, _name, path) => {
-        primOf(facts, path).meshes++;
+        // An `over` in a variant writes the same mesh again: it is still one mesh.
+        primOf(facts, path).meshes = 1;
     },
     Material: (facts, name) => {
         facts.materials.push(cut(name));
@@ -517,25 +520,31 @@ function usdaMeta(text: string, facts: LayerFacts): void {
 
 /**
  * Walks a text layer's lines, keeping which prims are open: to tell which material a picture is
- * in, and which prim each line writes (a prim's metadata, before its `{`, is its own).
+ * in, and which prim each line writes (a prim's metadata, before its `{`, is its own). A variant
+ * is written as a prim of its own under the prim holding its set, named `{set=variant}`, so
+ * `/A/{geo=high}/shape` is the `shape` that variant `high` of `/A` writes.
  */
 class UsdaPrims {
     private readonly stack: (string | null)[] = [];
     /** The open prims' paths; a brace that opens no prim repeats its parent's. */
     private readonly paths: string[] = [];
+    /** For each open brace, the variant set it opens, if it opens one. */
+    private readonly sets: (string | undefined)[] = [];
     private readonly materials: string[] = [];
     private pending: { type: string; path: string } | null = null;
+    /** A `variantSet "name" =` whose `{` is next. */
+    private pendingSet: string | undefined;
+    /** Open parentheses (metadata), and braces opened inside them (dictionaries, not prims). */
+    private parens = 0;
+    private dictionaries = 0;
     /** The prim each line writes, by line. */
     readonly owners: string[] = [];
 
     constructor(private readonly facts: LayerFacts) {}
 
     line(raw: string): void {
-        const def = /^\s*(?:def|over|class)\s+(\w+)?\s*"([^"]*)"/.exec(raw);
-        if (def !== null) {
-            this.pending = { type: def[1] ?? "", path: `${this.paths.at(-1) ?? ""}/${def[2]}` };
-            countPrim(this.facts, this.pending.type, this.pending.path);
-        }
+        this.opening(raw);
+        this.pendingSet = /^\s*variantSet\s+"([^"]*)"\s*=/.exec(raw)?.[1] ?? this.pendingSet;
         this.owners.push(this.pending?.path ?? this.paths.at(-1) ?? "");
 
         // Strings and asset paths may hold braces: they are taken out before braces are counted.
@@ -546,13 +555,48 @@ class UsdaPrims {
         }
 
         for (const c of line.replaceAll(/@[^@]*@/g, "")) {
-            if (c === "{") {
-                this.open();
-            } else if (c === "}") {
-                this.paths.pop();
-                if (this.stack.pop() !== null) {
-                    this.materials.pop();
-                }
+            this.character(c);
+        }
+    }
+
+    /**
+     * Note a prim (`def`, `over`, `class`) or a variant of an open variant set that a line starts.
+     * @param raw - The line.
+     */
+    private opening(raw: string): void {
+        const def = /^\s*(?:def|over|class)\s+(\w+)?\s*"([^"]*)"/.exec(raw);
+        const variant = /^\s*"([^"]*)"\s*(?:[({]|$)/.exec(raw);
+        const set = this.sets.at(-1);
+        const parent = this.paths.at(-1) ?? "";
+        if (def !== null) {
+            this.pending = { type: def[1] ?? "", path: `${parent}/${def[2]}` };
+            countPrim(this.facts, this.pending.type, this.pending.path);
+        } else if (variant !== null && set !== undefined && this.parens === 0) {
+            this.pending = { type: "", path: `${parent}/{${set}=${variant[1]}}` };
+        }
+    }
+
+    /**
+     * Follow one character of a line, strings and asset paths taken out: a brace inside
+     * parentheses (metadata) opens a dictionary, not a prim.
+     * @param c - The character.
+     */
+    private character(c: string): void {
+        if (c === "(") {
+            this.parens++;
+        } else if (c === ")") {
+            this.parens = Math.max(0, this.parens - 1);
+        } else if (c === "{" && this.parens > 0) {
+            this.dictionaries++;
+        } else if (c === "}" && this.dictionaries > 0) {
+            this.dictionaries--;
+        } else if (c === "{") {
+            this.open();
+        } else if (c === "}") {
+            this.paths.pop();
+            this.sets.pop();
+            if (this.stack.pop() !== null) {
+                this.materials.pop();
             }
         }
     }
@@ -561,10 +605,12 @@ class UsdaPrims {
         const opened = this.pending?.type === "Material" ? leafOf(this.pending.path) : null;
         this.stack.push(opened);
         this.paths.push(this.pending?.path ?? this.paths.at(-1) ?? "");
+        this.sets.push(this.pending === null ? this.pendingSet : undefined);
         if (opened !== null) {
             this.materials.push(opened);
         }
         this.pending = null;
+        this.pendingSet = undefined;
     }
 }
 
@@ -680,6 +726,11 @@ function usdaFacts(text: string): LayerFacts {
         bound(primOf(facts, ownerAt(match.index)), numbersIn(match[1]));
     }
     usdaTransforms(text, facts, ownerAt);
+    for (const match of text.matchAll(/\bvariants\s*=\s*\{([^}]*)\}/g)) {
+        primOf(facts, ownerAt(match.index)).selections = new Map(
+            [...match[1].matchAll(/\bstring\s+(\S+)\s*=\s*"([^"]*)"/g)].map((m) => [m[1], m[2]]),
+        );
+    }
     // ponytail: any displayColor counts, not only a mesh's; a prim of another type rarely has one.
     for (const match of text.matchAll(/\bprimvars:displayColor\s*=\s*\[([^\]]*)\]/g)) {
         facts.vertexColors ||= numbersIn(match[1]).some((v) => v !== 1);
@@ -946,6 +997,21 @@ export function findUsdParts(
     stageOf(path, files, limits, findings);
 }
 
+/** The variant chosen in each variant set, by set name. */
+type Selections = ReadonlyMap<string, string>;
+
+/**
+ * Selections as one string, the same for the same selections in any order.
+ * @param selections - The selections.
+ * @returns The string.
+ */
+function selectionKey(selections: Selections): string {
+    return [...selections]
+        .map(([set, variant]) => `${set}=${variant}`)
+        .sort((a, b) => a.localeCompare(b))
+        .join(";");
+}
+
 /** Meshes and triangles drawn, and the box around them. */
 interface Drawn {
     triangles: number;
@@ -999,10 +1065,20 @@ function drawn(stage: Stage): Drawn {
      * @param key - The layer's key.
      * @param path - The prim's path.
      * @param withoutOwn - Leave out its own faces (a prim that references it wrote another type).
+     * @param outer - The variant selections made above it, stronger than its own.
+     * @param ownOnly - Leave out its children (a variant's: they are its prim's).
      * @returns Its drawing and transform.
      */
-    const below = (key: string, path: string, withoutOwn = false): { drawn: Drawn; place: Affine } => {
-        const id = `${key}\0${path}\0${String(withoutOwn)}`;
+    const below = (
+        key: string,
+        path: string,
+        withoutOwn = false,
+        outer: Selections = new Map(),
+        ownOnly = false,
+    ): { drawn: Drawn; place: Affine } => {
+        const prim = stage.layers.get(key)?.facts.prims.get(path);
+        const selections: Selections = new Map([...(prim?.selections ?? []), ...outer]);
+        const id = `${key}\0${path}\0${String(withoutOwn)}\0${String(ownOnly)}\0${selectionKey(selections)}`;
         const known = memo.get(id);
         if (known !== undefined) {
             return known;
@@ -1015,15 +1091,42 @@ function drawn(stage: Stage): Drawn {
         }
         open.add(id);
         reached.add(key);
-        const prim = layer.facts.prims.get(path);
-        let place = prim?.order === undefined ? undefined : placement(prim.order, prim.ops);
+        const own = prim?.order === undefined ? undefined : placement(prim.order, prim.ops);
         if (prim !== undefined && !withoutOwn) {
             add(out, { triangles: prim.triangles, meshes: prim.meshes, box: prim.box }, 1);
             joinBox(out.box, prim.box);
         }
+        const brought = addArcs(out, key, layer, prim, selections);
+        const place = own ?? brought;
+        if (!ownOnly) {
+            addChildren(out, key, layer, path, selections);
+        }
+        open.delete(id);
+        const result = { drawn: out, place: place ?? IDENTITY };
+        memo.set(id, result);
+        return result;
+    };
+
+    /**
+     * Add what a prim's arcs bring in.
+     * @param out - Where it goes.
+     * @param key - The layer's key.
+     * @param layer - The layer.
+     * @param prim - The prim's facts.
+     * @param selections - The variant selections in force.
+     * @returns The transform its first reference brings, if any.
+     */
+    const addArcs = (
+        out: Drawn,
+        key: string,
+        layer: StageLayer,
+        prim: PrimFacts | undefined,
+        selections: Selections,
+    ): Affine | undefined => {
+        let place: Affine | undefined;
         for (const arc of prim?.arcs ?? []) {
             const target = arc.asset === undefined ? key : layer.found.get(arc.asset);
-            const brought = target === undefined ? undefined : through(target, arc, prim?.type);
+            const brought = target === undefined ? undefined : through(target, arc, prim?.type, selections);
             if (brought === undefined) {
                 continue;
             }
@@ -1036,27 +1139,50 @@ function drawn(stage: Stage): Drawn {
                 joinBox(out.box, instancesBox(placeBox(brought.drawn.box, brought.place), arc.at));
             }
         }
-        addChildren(out, key, layer, path);
-        open.delete(id);
-        const result = { drawn: out, place: place ?? IDENTITY };
-        memo.set(id, result);
-        return result;
+        return place;
     };
 
     /**
      * Add a prim's children, each where its transform puts it; a prototype under its instancer is
-     * drawn only as its instances.
+     * drawn only as its instances. A selected variant's own arcs are the prim's, and its children
+     * are the prim's children: a child that the prim and a variant both write is one prim.
+     * ponytail: such a child is drawn as the largest of its writings, not composed attribute by attribute.
      * @param out - Where they go.
      * @param key - The layer's key.
      * @param layer - The layer.
      * @param path - The prim's path.
+     * @param selections - The variant selections in force.
      */
-    const addChildren = (out: Drawn, key: string, layer: StageLayer, path: string): void => {
-        for (const child of childrenOf(key, layer).get(path) ?? []) {
+    const addChildren = (out: Drawn, key: string, layer: StageLayer, path: string, selections: Selections): void => {
+        const written = new Map<string, { path: string; selections: Selections }[]>();
+        const note = (child: string, chosen: Selections): void => {
             if (!layer.facts.prototypes.has(child)) {
-                const held = below(key, child);
-                add(out, held.drawn, 1);
-                joinBox(out.box, placeBox(held.drawn.box, held.place));
+                written.set(leafOf(child), [
+                    ...(written.get(leafOf(child)) ?? []),
+                    { path: child, selections: chosen },
+                ]);
+            }
+        };
+        const collect = (from: string, chosen: Selections): void => {
+            for (const child of childrenOf(key, layer).get(from) ?? []) {
+                const variant = /^\{([^=}]*)=([^}]*)\}$/.exec(leafOf(child));
+                if (variant === null) {
+                    note(child, chosen);
+                } else if (chosen.get(variant[1]) === variant[2]) {
+                    const own = below(key, child, false, chosen, true).drawn;
+                    add(out, own, 1);
+                    joinBox(out.box, own.box);
+                    collect(child, new Map([...(layer.facts.prims.get(child)?.selections ?? []), ...chosen]));
+                }
+            }
+        };
+        collect(path, selections);
+        for (const writings of written.values()) {
+            const held = writings.map((w) => below(key, w.path, false, w.selections));
+            out.triangles += Math.max(...held.map((h) => h.drawn.triangles));
+            out.meshes += Math.max(...held.map((h) => h.drawn.meshes));
+            for (const h of held) {
+                joinBox(out.box, placeBox(h.drawn.box, h.place));
             }
         }
     };
@@ -1067,14 +1193,20 @@ function drawn(stage: Stage): Drawn {
      * @param target - The target layer's key.
      * @param arc - The arc.
      * @param type - The referencing prim's type, when it writes one.
+     * @param selections - The variant selections in force.
      * @returns The target's drawing and transform.
      */
-    const through = (target: string, arc: Arc, type: string | undefined): { drawn: Drawn; place: Affine } => {
+    const through = (
+        target: string,
+        arc: Arc,
+        type: string | undefined,
+        selections: Selections,
+    ): { drawn: Drawn; place: Affine } => {
         const facts = stage.layers.get(target)?.facts;
         const path = arc.path === "" && facts?.defaultPrim !== undefined ? `/${facts.defaultPrim}` : arc.path;
         const retyped =
             arc.at === undefined && type !== undefined && type !== "Mesh" && facts?.prims.get(path)?.type === "Mesh";
-        return below(target, path, retyped);
+        return below(target, path, retyped, selections);
     };
 
     try {

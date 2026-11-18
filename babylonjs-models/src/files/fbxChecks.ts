@@ -27,6 +27,17 @@ import {
     textureBytesOf,
 } from "./references.js";
 import type { ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
+import {
+    type Affine,
+    type Box,
+    compose,
+    emptyBox,
+    growBox,
+    IDENTITY,
+    joinBox,
+    opTransform,
+    placeBox,
+} from "./usdTransforms.js";
 
 /** FBX time units per second (KTime). */
 const FBX_SECOND = 46_186_158_000;
@@ -165,19 +176,13 @@ function below(scene: Scene, id: string, name: string): FbxNode[] {
     return (scene.children.get(id) ?? []).map((c) => scene.byId.get(c)).filter((n): n is FbxNode => n?.name === name);
 }
 
-/** A running min/max box. */
-interface Bounds {
-    readonly min: [number, number, number];
-    readonly max: [number, number, number];
-}
-
 /**
  * Count a mesh's triangles, check its indices and bound its vertices.
  * @param node - The geometry (or an FBX 6 mesh model).
  * @param box - The box so far.
  * @returns Its triangles, or undefined for a node with no polygons.
  */
-function meshTriangles(node: FbxNode, box: Bounds): number | undefined {
+function meshTriangles(node: FbxNode, box: Box): number | undefined {
     const vertices = arrayOf(child(node, "Vertices"));
     const polygons = arrayOf(child(node, "PolygonVertexIndex"));
     if (vertices.length % 3 !== 0) {
@@ -213,16 +218,11 @@ function meshTriangles(node: FbxNode, box: Bounds): number | undefined {
  * Grow a box by a flat x, y, z list.
  * @param box - The box.
  * @param vertices - The points.
+ * @param stride - Numbers per point; its first three are x, y, z.
  */
-function grow(box: Bounds, vertices: ArrayLike<number>): void {
-    for (let i = 0; i + 2 < vertices.length; i += 3) {
-        const point = [vertices[i], vertices[i + 1], vertices[i + 2]];
-        if (point.every((v) => Number.isFinite(v))) {
-            for (const [axis, v] of point.entries()) {
-                box.min[axis] = Math.min(box.min[axis], v);
-                box.max[axis] = Math.max(box.max[axis], v);
-            }
-        }
+function grow(box: Box, vertices: ArrayLike<number>, stride = 3): void {
+    for (let i = 0; i + 2 < vertices.length; i += stride) {
+        growBox(box, vertices[i], vertices[i + 1], vertices[i + 2]);
     }
 }
 
@@ -511,6 +511,80 @@ function nurbsPolylines(node: FbxNode): number[] {
 }
 
 /**
+ * A property's three numbers (`Lcl Translation`, `Lcl Rotation`, ...).
+ * @param node - The object.
+ * @param name - The property's name.
+ * @param fallback - The value when it is not written.
+ * @returns The numbers.
+ */
+function vectorOf(node: FbxNode | undefined, name: string, fallback: number): number[] {
+    const block = child(node, "Properties70") ?? child(node, "Properties60");
+    const entry = block?.children.find((p) => p.values[0] === name);
+    const at = entry?.name === "Property" ? 3 : 4;
+    const values = [0, 1, 2].map((i) => numberOf(entry?.values[at + i]));
+    return values.every((v) => Number.isFinite(v)) ? values : [fallback, fallback, fallback];
+}
+
+/**
+ * A model's transform in the file's space: its parents' and its own translation, pre-rotation,
+ * rotation and scaling.
+ * ponytail: rotations in XYZ order, pivots and offsets left out; read RotationOrder and the pivots
+ * when a file's size comes out wrong for them.
+ * @param scene - The scene.
+ * @param id - The model's id.
+ * @param seen - The models walked already, against a cycle.
+ * @returns The transform.
+ */
+function modelWorld(scene: Scene, id: string, seen = new Set<string>()): Affine {
+    const model = scene.byId.get(id);
+    if (model?.name !== "Model" || seen.has(id)) {
+        return IDENTITY;
+    }
+    seen.add(id);
+    const up = (scene.parents.get(id) ?? []).find(
+        (p) => p.prop === undefined && scene.byId.get(p.id)?.name === "Model",
+    );
+    const turn = (name: string): Affine => opTransform("rotateXYZ", vectorOf(model, name, 0)) ?? IDENTITY;
+    const local = [
+        opTransform("translate", vectorOf(model, "Lcl Translation", 0)) ?? IDENTITY,
+        turn("PreRotation"),
+        turn("Lcl Rotation"),
+        opTransform("scale", vectorOf(model, "Lcl Scaling", 1)) ?? IDENTITY,
+    ].reduce((a, b) => compose(a, b), IDENTITY);
+    return compose(up === undefined ? IDENTITY : modelWorld(scene, up.id, seen), local);
+}
+
+/**
+ * Grow a box by a geometry's own box, once where each model using it puts it (once as it is when
+ * no model does); an FBX 6 mesh model is its own.
+ * @param scene - The scene.
+ * @param node - The geometry, or an FBX 6 mesh model.
+ * @param own - Its box, in its own frame.
+ * @param box - The box grown.
+ */
+function placeUses(scene: Scene, node: FbxNode, own: Box, box: Box): void {
+    const id = fbxId(node.values[0]);
+    const models =
+        node.name === "Model"
+            ? [id]
+            : (scene.parents.get(id) ?? []).filter((p) => scene.byId.get(p.id)?.name === "Model").map((p) => p.id);
+    for (const model of models.length > 0 ? models : [""]) {
+        joinBox(box, placeBox(own, modelWorld(scene, model)));
+    }
+}
+
+/**
+ * The box of a curve's control points (x, y, z, w for a NURBS curve), which the curve lies inside.
+ * @param node - The Line or NurbsCurve geometry.
+ * @returns The box, in its own frame.
+ */
+function curveBox(node: FbxNode): Box {
+    const own = emptyBox();
+    grow(own, arrayOf(child(node, "Points")), node.values[2] === "Line" ? 3 : 4);
+    return own;
+}
+
+/**
  * How many times a geometry is drawn: once per model that uses it, and at least once.
  * @param scene - The scene.
  * @param node - The geometry.
@@ -532,7 +606,7 @@ function usesOf(scene: Scene, node: FbxNode): number {
  */
 function countMeshes(
     scene: Scene,
-    box: Bounds,
+    box: Box,
     limits: ModelLimits,
 ): { triangles: number; meshes: number; vertexColors: boolean } {
     let triangles = 0;
@@ -542,10 +616,12 @@ function countMeshes(
     for (const node of scene.objects.filter(
         (o) => (o.name === "Geometry" && o.values[2] === "Mesh") || o.name === "Model",
     )) {
-        const counted = meshTriangles(node, box);
+        const own = emptyBox();
+        const counted = meshTriangles(node, own);
         if (counted === undefined) {
             continue;
         }
+        placeUses(scene, node, own, box);
 
         const uses = node.name === "Model" ? 1 : usesOf(scene, node);
         meshes += uses;
@@ -562,6 +638,9 @@ function countMeshes(
     )) {
         const polylines = node.values[2] === "Line" ? linePolylines(node) : nurbsPolylines(node);
         const uses = usesOf(scene, node);
+        if (polylines.length > 0) {
+            placeUses(scene, node, curveBox(node), box);
+        }
         meshes += polylines.length * uses;
         triangles += polylines.reduce((sum, points) => sum + tubeTriangles(points), 0) * uses;
         if (triangles > limits.maxTriangles) {
@@ -585,7 +664,7 @@ export function scanFbx(
 ): { summary: ModelSummary; warnings: readonly ModelFact[] } {
     const file = fbxOf(files.get(path) as Uint8Array, limits);
     const scene = sceneOf(file);
-    const box: Bounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+    const box = emptyBox();
     const models = scene.objects.filter((o) => o.name === "Model");
     const { triangles, meshes, vertexColors } = countMeshes(scene, box, limits);
     const materials = scene.objects.filter((o) => o.name === "Material");

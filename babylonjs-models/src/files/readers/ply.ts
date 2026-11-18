@@ -294,12 +294,13 @@ function readElement(element: PlyElement, next: NextValue): ElementData {
 }
 
 /**
- * Read every element of the body.
+ * Read the elements of the body, every one or up to one of them.
  * @param bytes - The file.
  * @param header - Its header.
+ * @param until - Stop after the element of this name.
  * @returns Each element's values, by name.
  */
-function readBody(bytes: Uint8Array, header: PlyHeader): Map<string, ElementData> {
+function readBody(bytes: Uint8Array, header: PlyHeader, until?: string): Map<string, ElementData> {
     const next =
         header.format === "ascii"
             ? asciiReader(bytes, header.bodyAt)
@@ -307,6 +308,9 @@ function readBody(bytes: Uint8Array, header: PlyHeader): Map<string, ElementData
     const out = new Map<string, ElementData>();
     for (const element of header.elements) {
         out.set(element.name, readElement(element, next));
+        if (element.name === until) {
+            break;
+        }
     }
 
     return out;
@@ -405,6 +409,20 @@ function fanIndices(face: ElementData, vertices: number): Uint32Array {
     }
 
     return Uint32Array.from(out);
+}
+
+/**
+ * A PLY's vertex positions in the file's own axes, reading the body only as far as its vertices.
+ * @param bytes - The file.
+ * @param header - Its header.
+ * @returns x, y, z per vertex, or undefined when it has none.
+ * @throws {ModelReadError} `ply` for a damaged body.
+ */
+export function readPlyPositions(bytes: Uint8Array, header: PlyHeader): Float32Array | undefined {
+    const vertex = readBody(bytes, header, "vertex").get("vertex");
+    return vertex === undefined
+        ? undefined
+        : interleave(vertex.count, [column(vertex, "x"), column(vertex, "y"), column(vertex, "z")]);
 }
 
 /** What {@link readPly} returns. */

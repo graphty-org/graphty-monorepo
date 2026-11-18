@@ -17,7 +17,14 @@
 import { parseGltfJson } from "./gltfChecks.js";
 import { babylonPictureUses, babylonTextureNames, embeddedPictureName, readBabylon } from "./readers/babylon.js";
 import { ModelReadError, pointsDrawn, TRIANGLES_PER_POINT } from "./readers/geometry.js";
-import { isSplatPly, plyGeometryKind, type PlyHeader, plyTextureFile, readPlyHeader } from "./readers/ply.js";
+import {
+    isSplatPly,
+    plyGeometryKind,
+    type PlyHeader,
+    plyTextureFile,
+    readPlyHeader,
+    readPlyPositions,
+} from "./readers/ply.js";
 import { stlFacts } from "./readers/stl.js";
 import {
     baseName,
@@ -626,6 +633,21 @@ function pointFacts(
 }
 
 /**
+ * The up axis a PLY is guessed to have, from its extent: a PLY does not say. Z when its Y extent is
+ * the thinnest and less than half its Z extent (a model lying flat in Y-up terms stands in Z), else Y.
+ * ponytail: a shape guess; a Y-up model that really is flat and deep is stood up wrongly.
+ * @param bounds - The box around its vertices.
+ * @returns The axis.
+ */
+function plyUpAxis(bounds: ModelSummary["bounds"]): "y" | "z" {
+    if (bounds === undefined) {
+        return "y";
+    }
+    const [x, y, z] = bounds.max.map((v, i) => v - bounds.min[i]);
+    return y < x && y * 2 < z ? "z" : "y";
+}
+
+/**
  * Look up the picture a PLY names in a `comment TextureFile` line.
  * @param path - The PLY's path in the set.
  * @param files - The set.
@@ -664,7 +686,14 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
         ["binary_little_endian", "binary"],
         ["binary_big_endian", "binaryBigEndian"],
     ] as const);
-    const warnings: ModelFact[] = [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: "y" } }];
+    const box = new Box();
+    const positions = asRefusal(() => readPlyPositions(bytes, header)) ?? [];
+    for (let i = 0; i + 2 < positions.length; i += 3) {
+        box.add(positions[i], positions[i + 1], positions[i + 2]);
+    }
+    const bounds = box.value;
+    const up = plyUpAxis(bounds);
+    const warnings: ModelFact[] = [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up } }];
     let triangles = face?.count ?? 0;
     let facts: Partial<ModelSummary> = { geometry: "mesh" };
     if (kind === "mesh") {
@@ -681,7 +710,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
     const texture = textureName === undefined ? undefined : resolveReference(textureName, path, files);
     return {
         summary: Object.freeze({
-            ...baseSummary("ply", "y"),
+            ...baseSummary("ply", up),
             triangles,
             meshes: 1,
             materials: Object.freeze([]),
@@ -696,6 +725,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
             ...facts,
             encoding: encoding.get(header.format as "ascii"),
             ...(names.has("red") || names.has("diffuse_red") ? { vertexColors: true } : {}),
+            ...(bounds === undefined ? {} : { bounds }),
         }),
         warnings,
     };

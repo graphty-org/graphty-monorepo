@@ -797,31 +797,39 @@ export function dataMember(
     }
 
     // A referenced load's row is written as a placeholder in its place, so positions hold on open.
-    // So is a row the last open held bare for a reference it could not read, while it is still
-    // bare and that load's alone, so a reference that comes back fills it.
+    // So is a row the last open held for a reference it could not read, while it is that load's
+    // alone: with the values the reader gave it since, which a reference that comes back keeps.
     const unread = unreadLoads(session);
-    const heldFor = (
-        supplied: readonly SourceKey[],
-        record: object,
-        bareKeys: readonly string[],
-    ): string | undefined =>
-        supplied.length === 1 &&
-        unread.has(supplied[0]) &&
-        Object.keys(record).every((name) => name === "_source.loads" || bareKeys.includes(name))
-            ? supplied[0]
-            : undefined;
-    const nodeRows: Record<string, unknown>[] = nodes.map((node) => {
-        const key = leaveOut?.nodes.get(node.id) ?? heldFor(session.data.sourcesOf(node.id), node, ["id"]);
-        return key === undefined ? node : { id: node.id, [REF_KEY]: file?.idOf(key) ?? key };
-    });
+    const heldFor = (supplied: readonly SourceKey[]): string | undefined =>
+        supplied.length === 1 && unread.has(supplied[0]) ? supplied[0] : undefined;
+    const placeholder = (
+        row: Record<string, unknown>,
+        bare: Record<string, unknown>,
+        key: string | undefined,
+        held: string | undefined,
+    ): Record<string, unknown> => {
+        if (key !== undefined) {
+            return { ...bare, [REF_KEY]: file?.idOf(key) ?? key };
+        }
+
+        if (held === undefined) {
+            return row;
+        }
+
+        const { "_source.loads": _loads, ...edited } = row;
+        return { ...edited, ...bare, [REF_KEY]: file?.idOf(held) ?? held };
+    };
+    const nodeRows: Record<string, unknown>[] = nodes.map((node) =>
+        placeholder(node, { id: node.id }, leaveOut?.nodes.get(node.id), heldFor(session.data.sourcesOf(node.id))),
+    );
     const links: Record<string, unknown>[] = edges.map(({ id, ...rest }) => {
         const edge: Record<string, unknown> = rest;
-        const key =
-            leaveOut?.edges.get(id) ??
-            heldFor(session.data.sourcesOf(id, { kind: "edge" }), edge, ["id", "source", "target"]);
-        return key === undefined
-            ? edge
-            : { source: edge.source, target: edge.target, [REF_KEY]: file?.idOf(key) ?? key };
+        return placeholder(
+            edge,
+            { source: edge.source, target: edge.target },
+            leaveOut?.edges.get(id),
+            heldFor(session.data.sourcesOf(id, { kind: "edge" })),
+        );
     });
 
     return {

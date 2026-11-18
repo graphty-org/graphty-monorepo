@@ -29,6 +29,7 @@ import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
 import type { CodedFact } from "../session/shared";
+import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
 import { buildParts, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
@@ -1621,7 +1622,9 @@ export class Autosaver {
             this.#restoringFlag = true;
             // The reader's own work coming back: a network load they ran stays live.
             report = await line.within(turn, () =>
-                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
+                openingKeptWork(this.#session, () =>
+                    this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
+                ),
             );
         } catch (error) {
             this.#restoringFlag = false;

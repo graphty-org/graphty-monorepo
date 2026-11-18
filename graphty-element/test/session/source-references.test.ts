@@ -8,8 +8,11 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, credentials, type GraphSession } from "../../session";
+import { Autosaver } from "../../src/autosave/Autosaver";
+import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
 import { GraphtyError } from "../../src/errors/GraphtyError";
 import { dataMember } from "../../src/session/projectFile";
+import { FakeClock, FakeLocks } from "../autosave/fakes";
 import { sessionWithRuns } from "../helpers/project-session";
 
 const URL_A = "https://data.example.com/graph.json";
@@ -353,6 +356,79 @@ describe("a project saved with a reference", () => {
         assert.deepEqual(problems, []);
         assert.deepEqual(labels(back), { a: "Ann", b: "Bob", c: "Cy" });
         assert.strictEqual(back.data.edges({ scope: "graph" }).length, 3);
+    });
+
+    it("keeps a reader's edit to a missing reference's node, and the reference's other values", async () => {
+        const GROUPED = JSON.stringify({
+            nodes: [
+                { id: "a", label: "Ann", group: 1 },
+                { id: "b", label: "Bob", group: 2 },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+        stubSite({ [URL_A]: GROUPED });
+        const session = createGraphSession({ features: ["source-references"] });
+        session.network.setPolicy("allow");
+        await session.data.import({ type: "json", config: { url: URL_A } });
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        const saved = await session.project.save();
+
+        stubSite({});
+        const { session: missing } = await reopen(saved.text);
+        await missing.data.updateNodes([{ id: "a", values: { label: "Edited" } }]);
+        const again = await missing.project.save();
+
+        stubSite({ [URL_A]: GROUPED });
+        const { session: back, problems } = await reopen(again.text);
+        assert.deepEqual(problems, []);
+        const a = back.data.nodes({ scope: "graph" }).find((node) => node.id === "a");
+        assert.strictEqual(a?.label, "Edited");
+        assert.strictEqual(a?.group, 1);
+        assert.deepEqual(labels(back), { a: "Edited", b: "Bob" });
+    });
+
+    it("brings back kept work with a missing reference without asking to fetch it", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = await twoLoads();
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        const saved = await session.project.save();
+
+        stubSite({});
+        const { session: missing } = await reopen(saved.text);
+        const store = memoryAutosaveStore();
+        const writer = new Autosaver({
+            key: "test.kept-reference",
+            session: missing,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        // A change after the open, so there is work to keep.
+        await missing.data.addNodes([{ id: "z" }]);
+        await writer.flush();
+        const id = writer.status.entry ?? "";
+        writer.stop();
+
+        // Every fetch would be asked about, and nothing answers: the restore must not ask.
+        const seen = stubSite({ [URL_A]: GRAPH });
+        const restored = createGraphSession({ features: ["source-references"] });
+        const reader = new Autosaver({
+            key: "test.kept-reference",
+            session: restored,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        await reader.restore(id, true);
+        reader.stop();
+        assert.strictEqual(seen.size, 0);
+        assert.deepEqual(labels(restored), { a: undefined, b: undefined, c: "Cy", d: "Dee", z: undefined });
+
+        // The reference is still unread, so a save writes its rows as the file held them.
+        const again = await restored.project.save();
+        assert.strictEqual(sourcesOf(again.text).data, "references");
+        assert.deepEqual(dataOf(again.text).nodes.slice(0, 2), dataOf(saved.text).nodes.slice(0, 2));
+        assert.deepEqual(dataOf(again.text).links.slice(0, 1), dataOf(saved.text).links.slice(0, 1));
     });
 
     it("keeps the selected edge when a changed reference no longer gives an edge before it", async () => {

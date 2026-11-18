@@ -407,13 +407,34 @@ const UNREAD = new WeakMap<GraphSession, ReadonlySet<string>>();
 
 /**
  * The references the last open could not read. Their rows opened as bare held rows (an id, or a
- * pair), so every member that names them still binds; a save writes each such row, still bare and
- * supplied by that load alone, back as its placeholder, so a reference that comes back fills it.
+ * pair), so every member that names them still binds; a save writes each such row supplied by
+ * that load alone back as its placeholder, with any values the reader gave it since, so a
+ * reference that comes back fills it under those values.
  * @param session - The session.
  * @returns The entries' ids, which are the loads' keys.
  */
 export function unreadLoads(session: GraphSession): ReadonlySet<string> {
     return UNREAD.get(session) ?? new Set();
+}
+
+/** The sessions whose open now brings back their autosave: its references stay as they were left. */
+const KEPT_WORK = new WeakSet<GraphSession>();
+
+/**
+ * Open a session's autosave. Kept work holds placeholders only for references the session could
+ * not read when it was written, so it opens with them still unread and fetches nothing: a restore
+ * never waits on a question about the network, and the next save still writes them as placeholders.
+ * @param session - The session.
+ * @param open - Opens the kept work.
+ * @returns What the open returned.
+ */
+export async function openingKeptWork<T>(session: GraphSession, open: () => Promise<T>): Promise<T> {
+    KEPT_WORK.add(session);
+    try {
+        return await open();
+    } finally {
+        KEPT_WORK.delete(session);
+    }
 }
 
 /** What filling an opened file's references did. */
@@ -549,7 +570,17 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
         (entry: unknown): entry is Record<string, unknown> =>
             isObject(entry) && typeof entry.id === "string" && typeof entry.rowsSha256 === "string",
     );
-    const reads = await readEntries(entries, input, unread, problems);
+    // Kept work coming back: its placeholders' loads were unread when it was written, and stay so.
+    const keptWork = KEPT_WORK.has(input.session);
+    if (keptWork) {
+        for (const row of [...input.nodes, ...input.links]) {
+            if (hasRef(row)) {
+                unread.add(String(row[REF_KEY]));
+            }
+        }
+    }
+
+    const reads = keptWork ? new Map<string, ReadRows>() : await readEntries(entries, input, unread, problems);
 
     const embeddedIds = new Set(input.nodes.filter((row) => !hasRef(row)).map((row) => String(row.id)));
     const nodesOf = new Map([...reads].map(([id, read]) => [id, new Map(read.nodes.map((n) => [String(n.id), n]))]));
@@ -567,8 +598,9 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
             return [{ ...held, [LOADS_KEY]: [ref] }];
         }
 
+        // What the reader changed on a row while its load could not be read is kept over the load's.
         const found = find(ref);
-        return found === undefined ? [] : [{ ...found, [LOADS_KEY]: [ref] }];
+        return found === undefined ? [] : [{ ...found, ...held, [LOADS_KEY]: [ref] }];
     };
     const nodes = input.nodes.flatMap((row) =>
         // A placeholder for an id the file also embeds is dropped: the embedded record wins.

@@ -334,6 +334,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "remap",
             "sourceSettings",
             "sourceInput",
+            "copies",
+            "setCopy",
         ],
         reason: "needs-host",
         kind: BY_DESIGN,

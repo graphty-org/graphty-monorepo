@@ -40,6 +40,9 @@ const NODE_SAFE_ENTRIES = [
     // Not an entry point yet, but the headless session's data write verbs will reach it, so it
     // is held to the same rule now: ingest must never need a renderer.
     "src/session/project/ingest.ts",
+    // The pure build of sources and steps (the `source-steps` experiment): a draft runs it on a
+    // copy, in Node as in a browser.
+    "src/session/sources/steps/build.ts",
 ];
 
 /**

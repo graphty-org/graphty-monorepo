@@ -87,6 +87,12 @@ With it off:
 A layer that writes one of the experiment's channels or values directly is still accepted and
 drawn, and a project saved with the experiment on opens with the styles it was saved with.
 
+### `source-steps`
+
+Several data sources in one graph: each source keeps its rows as read, and the graph is rebuilt
+from an ordered list of steps that add, merge and connect them. Work in progress; switching it on
+changes nothing yet. With it off, loads, joins and saved files are as before.
+
 ## What `@experimental` promises
 
 API marked `@experimental` in the reference may change or disappear in a minor release of

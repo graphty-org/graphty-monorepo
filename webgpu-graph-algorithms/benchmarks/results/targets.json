@@ -5,7 +5,7 @@
         "target": 10,
         "gatingRunnerClasses": ["gpu-linux-t4"],
         "knownMiss": {
-            "gpu-linux-t4": "host-side copy cost of a datacentre card behind a cloud vCPU (the README's CI-lane section); the 1M / 10M upload misses on the dev box too (docs/decisions/G1.md section 7)"
+            "gpu-linux-t4": "host-side copy cost of a datacenter card behind a cloud vCPU (the README's CI-lane section); the 1M / 10M upload misses on the dev box too (docs/decisions/G1.md section 7)"
         }
     },
     "upload/residency.core 1M/10M weighted hot prefix (164.0 MB, arena)": {
@@ -14,7 +14,7 @@
         "target": 100,
         "gatingRunnerClasses": ["gpu-linux-t4"],
         "knownMiss": {
-            "gpu-linux-t4": "host-side copy cost of a datacentre card behind a cloud vCPU; the row misses on the dev box too, the open owner decision of docs/decisions/G1.md section 7"
+            "gpu-linux-t4": "host-side copy cost of a datacenter card behind a cloud vCPU; the row misses on the dev box too, the open owner decision of docs/decisions/G1.md section 7"
         }
     },
     "roundtrip/degree + 400 KB readback at 100k (core resident)": {
@@ -23,7 +23,7 @@
         "target": 2,
         "gatingRunnerClasses": ["gpu-linux-t4"],
         "knownMiss": {
-            "gpu-linux-t4": "readback and submit latency of a datacentre card behind a cloud vCPU (the README's CI-lane section); met on the dev box"
+            "gpu-linux-t4": "readback and submit latency of a datacenter card behind a cloud vCPU (the README's CI-lane section); met on the dev box"
         }
     },
     "roundtrip/empty submit + 4-byte readU32 round trip": {

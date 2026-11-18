@@ -395,7 +395,7 @@ try {
 ```text
 read 27806 bytes
 107 nodes
-canceled
+cancelled
 ```
 
 <!-- generated:end -->

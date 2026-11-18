@@ -544,11 +544,14 @@ export class EdgeMesh {
         const dashLength = own ? style.line?.dashLength : undefined;
         const dashGap = own ? style.line?.dashGap : undefined;
         // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
-        // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
-        const dotShort = kind === "dot" ? (dashLength ?? 1) - 1 : 0;
+        // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference. A dot
+        // shorter than the line is wide cannot be a disc: it is drawn as the short square-ended dash it is
+        // (Cytoscape.js's dotted line, 1 px on and 1 px off at any width), else such dots would merge into a solid line.
+        const drawn = kind === "dot" && dashLength !== undefined && dashLength < 1 ? "dash" : kind;
+        const dotShort = drawn === "dot" ? (dashLength ?? 1) - 1 : 0;
         return {
-            kind,
-            elementLength: kind === "dash" ? width * (dashLength ?? 3) : width,
+            kind: drawn,
+            elementLength: drawn === "dash" ? width * (dashLength ?? 3) : width,
             count: style.line?.patternCount,
             gap: dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort),
         };

@@ -10,7 +10,9 @@
  * Requests are recorded three ways for the length of each load and its first draw: every
  * `fetch`, every `XMLHttpRequest.open` and every image `src` (which see `blob:` URLs too), and the
  * page's resource timing (which sees module scripts the dev server would serve for a lazy
- * `import()`). The fixtures are built here as bytes and handed over as `blob:` URLs, so any
+ * `import()`). A module worker started while recording (the OpenUSD importer runs in one) is
+ * started behind a module of the test's own that records the worker's `fetch` calls and resource
+ * timing the same way and reports them over a BroadcastChannel. The fixtures are built here as bytes and handed over as `blob:` URLs, so any
  * http(s) request at all is one the chunk made on its own.
  */
 
@@ -52,6 +54,81 @@ afterEach(() => {
 interface Recording {
     urls: string[];
     stop: () => string[];
+    /** Stop, after every module worker started while recording has reported all it requested. */
+    stopWithWorkers: () => Promise<string[]>;
+}
+
+/**
+ * The module run in a worker before the worker's own script: it reports every URL the worker
+ * fetches or loads, and answers a flush with `done` once everything before it has been sent.
+ * @param channelName - The BroadcastChannel the recording listens on.
+ * @returns The module's source.
+ */
+function workerRecorderSource(channelName: string): string {
+    return `
+const channel = new BroadcastChannel(${JSON.stringify(channelName)});
+const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) channel.postMessage({ url: entry.name });
+});
+observer.observe({ type: "resource", buffered: true });
+const originalFetch = self.fetch;
+self.fetch = (input, init) => {
+    channel.postMessage({ url: input instanceof Request ? input.url : String(input) });
+    return originalFetch(input, init);
+};
+channel.onmessage = (event) => {
+    if (event.data === "flush") {
+        for (const entry of observer.takeRecords()) channel.postMessage({ url: entry.name });
+        channel.postMessage({ done: true });
+    }
+};
+`;
+}
+
+/**
+ * A module worker script that runs the recorder's module and then the worker's own script, which
+ * runs as it would: a module's imports are evaluated in order before it.
+ * @param script - The worker's own script.
+ * @param channelName - The channel the recorder reports on.
+ * @returns The wrapper's blob: URL.
+ */
+function recordedWorkerScript(script: string, channelName: string): string {
+    const recorder = URL.createObjectURL(new Blob([workerRecorderSource(channelName)], { type: "text/javascript" }));
+    const wrapper = `import ${JSON.stringify(recorder)};\nimport ${JSON.stringify(script)};\n`;
+    return URL.createObjectURL(new Blob([wrapper], { type: "text/javascript" }));
+}
+
+/**
+ * Add every URL a recorded worker reports to `urls`.
+ * @param channelName - The channel the worker's recorder reports on.
+ * @param urls - Where the URLs go.
+ * @returns A flush: asks the worker for the rest, and settles once all of it has arrived.
+ */
+function listenToWorker(channelName: string, urls: string[]): () => Promise<void> {
+    const channel = new BroadcastChannel(channelName);
+    channel.onmessage = (event: MessageEvent<{ url?: string }>): void => {
+        if (event.data.url !== undefined) {
+            urls.push(event.data.url);
+        }
+    };
+    let report: Promise<void> | undefined;
+    return async (): Promise<void> => {
+        report ??= new Promise<void>((resolve) => {
+            channel.onmessage = (event: MessageEvent<{ url?: string; done?: boolean }>): void => {
+                if (event.data.url !== undefined) {
+                    urls.push(event.data.url);
+                } else if (event.data.done === true) {
+                    channel.close();
+                    resolve();
+                }
+            };
+            // A second channel object on the same name: a channel never hears its own messages.
+            const asker = new BroadcastChannel(channelName);
+            asker.postMessage("flush");
+            asker.close();
+        });
+        await report;
+    };
 }
 
 /**
@@ -95,17 +172,59 @@ function recordRequests(): Recording {
         },
     });
 
+    /** Each module worker's flush: settles once the worker has sent everything it requested. */
+    const flushes: (() => Promise<void>)[] = [];
+    const OriginalWorker = window.Worker;
+    window.Worker = class RecordedWorker extends OriginalWorker {
+        /** Ask the worker for the rest of its requests; settles when they have all arrived. */
+        readonly #flush: (() => Promise<void>) | undefined;
+
+        constructor(scriptURL: string | URL, options?: WorkerOptions) {
+            const script = new URL(String(scriptURL), location.href).href;
+            urls.push(script);
+            const channelName = options?.type === "module" ? `no-requests-${crypto.randomUUID()}` : undefined;
+            super(channelName === undefined ? scriptURL : recordedWorkerScript(script, channelName), options);
+            this.#flush = channelName === undefined ? undefined : listenToWorker(channelName, urls);
+            if (this.#flush !== undefined) {
+                flushes.push(this.#flush);
+            }
+        }
+
+        /** A worker its owner ends (the USD importer's is ended after each load) reports first. */
+        override terminate(): void {
+            if (this.#flush === undefined) {
+                super.terminate();
+                return;
+            }
+
+            void this.#flush().then(() => {
+                super.terminate();
+            });
+        }
+    };
+
+    const stop = (): string[] => {
+        for (const entry of observer.takeRecords()) {
+            urls.push(entry.name);
+        }
+        observer.disconnect();
+        window.fetch = originalFetch;
+        XMLHttpRequest.prototype.open = originalOpen;
+        Object.defineProperty(HTMLImageElement.prototype, "src", src);
+        window.Worker = OriginalWorker;
+        return urls;
+    };
+    cleanups.push(() => {
+        window.Worker = OriginalWorker;
+    });
+
     return {
         urls,
-        stop: (): string[] => {
-            for (const entry of observer.takeRecords()) {
-                urls.push(entry.name);
-            }
-            observer.disconnect();
-            window.fetch = originalFetch;
-            XMLHttpRequest.prototype.open = originalOpen;
-            Object.defineProperty(HTMLImageElement.prototype, "src", src);
-            return urls;
+        stop,
+        stopWithWorkers: async (): Promise<string[]> => {
+            const result = stop();
+            await Promise.all(flushes.map(async (flush) => await flush()));
+            return result;
         },
     };
 }
@@ -500,8 +619,13 @@ describe("the model chunk", () => {
         const files = new Map([["cube.usdz", await fixtureBytes("usdz", "cube.usdz")]]);
         const recording = recordRequests();
         const container = await loadModel(scene, files, "cube.usdz", "usdz");
-        const urls = recording.stop();
+        const urls = await recording.stopWithWorkers();
         assert.isAbove(container.meshes.length, 0, "the model has meshes");
+        // The importer fetches its WebAssembly inside its worker: seeing it proves the worker is watched.
+        assert.isTrue(
+            urls.some((url) => url.includes("babylon-usd-importer.wasm")),
+            "the worker's requests are recorded",
+        );
         const babylon = urls.filter((url) => /(^|\.)babylonjs\.com$/.test(new URL(url, location.href).hostname));
         assert.deepEqual(babylon, [], "nothing is requested from Babylon's hosts");
         const network = urls.filter((url) => !url.startsWith("blob:") && !url.startsWith("data:"));

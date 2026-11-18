@@ -1,24 +1,23 @@
 {
     // What a third party compiles against: the PUBLISHED declarations in dist/, not the sources.
     //
-    // The package name is mapped onto dist/ and "types" is emptied, so nothing ambient leaks into
-    // the program: the consumer files below must compile with only what the package publishes.
+    // The package name is mapped onto dist/ and "types" holds only @webgpu/types, so nothing else
+    // ambient leaks into the program: the consumer files below must compile with only what the
+    // package publishes, and the WebGPU types a consumer on TypeScript 5 needs for Babylon.js 9.
     //
-    // skipLibCheck is on, as in a consumer's project, because Babylon.js 9's own declarations
-    // (which every entry reaches, the Node-safe ones through their types) do not compile with it
-    // off: on TypeScript 5 they name WebGPU types only TypeScript 6's lib.dom declares (adding
-    // @webgpu/types conflicts with Babylon's augmentations of them), and on TypeScript 5 and 6
-    // TAAJitterMaterialPlugin.getUniforms fails exactOptionalPropertyTypes. docs/guide/installation.md
-    // says so to consumers. Until Babylon 9 they compiled: Babylon 8 declared the WebGPU types itself.
+    // skipLibCheck is off: it is the declarations themselves that are under test. Compile it with
+    // scripts/typecheck-strict-consumer.mjs, which fails on every error but those inside Babylon.js's
+    // and @webgpu/types' own declarations (Babylon 9's do not compile with skipLibCheck off; the
+    // script says why).
 
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "composite": false,
         "noEmit": true,
-        "skipLibCheck": true,
+        "skipLibCheck": false,
         "exactOptionalPropertyTypes": true,
         "noUncheckedIndexedAccess": true,
-        "types": [],
+        "types": ["@webgpu/types"],
         // The JSX type tests are React 19 consumers.
         "jsx": "react-jsx",
         "paths": {

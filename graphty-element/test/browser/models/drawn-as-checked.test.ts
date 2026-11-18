@@ -124,6 +124,23 @@ describe("a model's check counts what is drawn", () => {
         },
     );
 
+    it("an FBX curve's tube stays round when its node is scaled unevenly", async () => {
+        // The curve, laid flat in z = 0; a node scale of 1, 1, 10 must not stretch the tube's depth.
+        const set = await files("fbx-curves", "nurbs.fbx");
+        const text = new TextDecoder()
+            .decode(set.get("nurbs.fbx"))
+            .replace("2,0,1,1", "2,0,0,1")
+            .replace(
+                "Version: 232",
+                'Version: 232\n\t\tProperties70:  {\n\t\t\tP: "Lcl Scaling", "Lcl Scaling", "", "A",1,1,10\n\t\t}',
+            );
+        set.set("nurbs.fbx", new TextEncoder().encode(text));
+        const { drawn } = await checkedAndDrawn(set, "nurbs.fbx");
+        // The tube is 1/100 of the curve's extent across, so that is its thinnest side.
+        const thinnest = Math.min(...drawn.size) / Math.hypot(...drawn.size);
+        assert.approximately(thinnest, 1 / 100, 1 / 1000);
+    });
+
     it.each([
         ["packaged.usda", "pkg.usdz"],
         ["instancer.usdc"],

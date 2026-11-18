@@ -326,9 +326,28 @@ function withoutClimbs(
 }
 
 /**
+ * A line mesh's polylines. The loader writes each polyline as consecutive segments: a break starts a new path.
+ * @param indices - The line mesh's indices, two per segment.
+ * @returns Each polyline's vertex indices.
+ */
+function polylines(indices: ArrayLike<number>): number[][] {
+    const paths: number[][] = [];
+    for (let i = 0; i + 1 < indices.length; i += 2) {
+        const path = paths.at(-1);
+        if (path !== undefined && i > 0 && indices[i] === indices[i - 1]) {
+            path.push(indices[i + 1]);
+        } else {
+            paths.push([indices[i], indices[i + 1]]);
+        }
+    }
+    return paths;
+}
+
+/**
  * Draw an FBX file's curves as thin tubes. Babylon's FBX loader makes a curve a line mesh, which a
  * renderer that draws models as solids (graphty-element) cannot show; a file of NURBS curves then
- * drew nothing. Each polyline becomes a tube 1/200 of the curves' extent thick, in the curve's color.
+ * drew nothing. Each polyline becomes a tube 1/200 of the curves' extent thick, in the curve's color,
+ * built in world space so its cross-section stays round whatever the curve node's scale.
  * @param container - The loaded FBX.
  */
 async function curvesAsTubes(container: AssetContainer): Promise<void> {
@@ -344,8 +363,9 @@ async function curvesAsTubes(container: AssetContainer): Promise<void> {
     ]);
     let extent = 0;
     for (const mesh of lines) {
-        const { minimum, maximum } = mesh.getBoundingInfo();
-        extent = Math.max(extent, maximum.subtract(minimum).length());
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld, maximumWorld } = mesh.getBoundingInfo().boundingBox;
+        extent = Math.max(extent, maximumWorld.subtract(minimumWorld).length());
     }
 
     const radius = Math.max(extent, 1e-6) / 200;
@@ -353,18 +373,15 @@ async function curvesAsTubes(container: AssetContainer): Promise<void> {
         const scene = mesh.getScene();
         const positions = mesh.getVerticesData("position") ?? [];
         const indices = mesh.getIndices() ?? [];
+        // Points go to world space and the tube keeps no transform: a curve node's uneven scale
+        // would otherwise stretch the tube's round cross-section into a flat band.
+        const world = mesh.getWorldMatrix();
         const point = (i: number): InstanceType<typeof Vector3> =>
-            new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
-        // The loader writes each polyline as consecutive segments: a break starts a new path.
-        const paths: InstanceType<typeof Vector3>[][] = [];
-        for (let i = 0; i + 1 < indices.length; i += 2) {
-            const path = paths.at(-1);
-            if (path !== undefined && i > 0 && indices[i] === indices[i - 1]) {
-                path.push(point(indices[i + 1]));
-            } else {
-                paths.push([point(indices[i]), point(indices[i + 1])]);
-            }
-        }
+            Vector3.TransformCoordinates(
+                new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]),
+                world,
+            );
+        const paths = polylines(indices).map((path) => path.map((i) => point(i)));
 
         const material = new StandardMaterial(`${mesh.name} curve`, scene);
         material.diffuseColor = (mesh as unknown as { color: typeof material.diffuseColor }).color.clone();
@@ -373,17 +390,17 @@ async function curvesAsTubes(container: AssetContainer): Promise<void> {
         for (const [n, path] of paths.entries()) {
             const tube = CreateTube(`${mesh.name} ${String(n)}`, { path, radius, ...CURVE_TUBE }, scene);
             scene.removeMesh(tube);
-            tube.parent = mesh.parent;
-            tube.position.copyFrom(mesh.position);
-            tube.rotation.copyFrom(mesh.rotation);
-            tube.rotationQuaternion = mesh.rotationQuaternion?.clone() ?? null;
-            tube.scaling.copyFrom(mesh.scaling);
             tube.material = material;
             container.meshes.push(tube);
         }
 
+        // A child keeps where it is drawn: setParent carries the curve node's transform over to it.
         for (const child of mesh.getChildren()) {
-            (child as { parent: unknown }).parent = mesh.parent;
+            if (child instanceof TransformNode) {
+                child.setParent(mesh.parent);
+            } else {
+                child.parent = mesh.parent;
+            }
         }
         container.meshes.splice(container.meshes.indexOf(mesh), 1);
         mesh.dispose(true);

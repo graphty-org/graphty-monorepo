@@ -136,6 +136,16 @@ const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
 /** A row number no row has: the piece draws nothing. */
 export const NO_ROW = -1;
 
+/** The row table's textures a straight piece's shader reads its ends' shapes from, asked each frame. */
+export type PulledRowShapes = () => { readonly extentTexture: BaseTexture; readonly outlineTexture: BaseTexture };
+
+/** The row table's textures a pulled batch reads, asked each frame: the table replaces one when it grows. */
+export interface PulledRowTextures {
+    readonly positionTexture: BaseTexture;
+    readonly extentTexture: BaseTexture;
+    readonly outlineTexture: BaseTexture;
+}
+
 /**
  * Draw keys for `capacity` pieces, each piece's its own number: the key one width gives it, and the key of a piece
  * not yet handed out.
@@ -252,6 +262,9 @@ export class PulledLineBatch {
      * @param template.vertices - Its vertices.
      * @param switches - Whether {@link drawLinesLean} may switch it to the lean program: a straight
      *     batch drawing the join template, 2D or 3D.
+     * @param rowShapes - The row table's `rowExtent` and `rowOutline` textures, asked each frame, for a straight
+     *     piece's shader to stop at a translucent row's outline (`PULLED_TRIM_GLSL`); null for a shader that reads
+     *     neither (a curve's, whose ends are cut on the CPU).
      */
     constructor(
         mesh: Mesh,
@@ -260,6 +273,7 @@ export class PulledLineBatch {
         curve = false,
         private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
         switches = false,
+        private readonly rowShapes: PulledRowShapes | null = null,
     ) {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
@@ -566,6 +580,11 @@ export class PulledLineBatch {
     flush(): void {
         const material = this.mesh.material as ShaderMaterial | null;
         material?.setTexture("rowPosition", this.rowPositions());
+        if (this.rowShapes !== null) {
+            const { extentTexture, outlineTexture } = this.rowShapes();
+            material?.setTexture("rowExtent", extentTexture);
+            material?.setTexture("rowOutline", outlineTexture);
+        }
         this.flushRoutes();
         this.flushHidden();
         if (this.reorder) {

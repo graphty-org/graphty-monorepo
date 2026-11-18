@@ -56233,6 +56233,22 @@
                 "date": "2026-11-16"
             }
         },
+        "cys-annotation-example": {
+            "edge.route": {
+                "floor": 0.994,
+                "to": 0.989,
+                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
+                "date": "2026-11-18"
+            }
+        },
+        "cys-annotation-example@matched": {
+            "edge.route": {
+                "floor": 0.994,
+                "to": 0.989,
+                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
+                "date": "2026-11-18"
+            }
+        },
         "cys-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,

@@ -78,6 +78,12 @@ session at the view of the network graph-io reads from it (build graph-io first)
 load are read from the same network's other encoding, kept in `cytoscape-loads/` (its `SOURCES.md` says where each
 comes from).
 
+Java finds a font only by its own family name, never through a fontconfig alias, so without a font named Arial
+Cytoscape sets Arial text (annotations, labels) in Dialog, about 12% wider. Cytoscape's home
+(`tmp/style-fidelity/cytoscape-home`) holds Liberation Sans, which has Arial's metrics, renamed to the family Arial in
+`.local/share/fonts/Arial-*.ttf` (fontTools: name records 1, 2, 3, 4 and 6). At 20 px, "NAB2 upregulated " then
+measures 174.6 wide in Java, not Dialog's 195.6.
+
 ## One file by hand
 
 Every script takes the file as stored (a `.gz` file is read decompressed and hashed as stored):

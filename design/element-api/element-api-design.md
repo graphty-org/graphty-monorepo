@@ -1,6 +1,6 @@
 # The graphty-element 2.0 Public API
 
-Status: draft, for owner review
+Status: historical (the 2.0 design, superseded)
 Date: 2026-09-19
 Scope: the public API of `@graphty/graphty-element`, which ships today as 1.10.0
 (`graphty-element/package.json:3`). Version 2.0 breaks compatibility in many places. Every
@@ -8,6 +8,13 @@ break is named where it is introduced and collected in one table in section 9.
 
 Every claim about how the code behaves today carries a `path:line`, read on 2026-09-19 at repo
 root `/home/apowers/Projects/graphty-monorepo`.
+
+**Historical.** This is the 2.0 design (graphty-element 2.0.0 shipped on 2026-09-24); the
+current API is the committed report under `graphty-element/api/`. It predates the owner's
+2026-10-03 rule that graphty-element is neutral about presentation: every ready-to-render text
+field it specifies (a `summary`, `label`, `reason`, `basis`, `message` or `fix.label` string) is
+replaced by a code with its parameters, `{ code, params }`, and the application writes the words.
+Do not add text fields because this document shows them.
 
 ---
 

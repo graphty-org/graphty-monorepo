@@ -2,8 +2,11 @@
 
 `kind: "graphty-recipe"`, version 1, a member of a graphty document ([container.md](container.md)).
 Schema: [recipe.schema.json](recipe.schema.json). The shortest working example is README, "Your
-first recipe"; edge-case rulings are rows of [conformance.md](conformance.md). Recipes need
-graphty-element 3.0.0.
+first recipe"; edge-case rulings are rows of [conformance.md](conformance.md).
+
+Status: partly implemented. graphty-element writes a recipe (`session.recipe()`,
+`graphty-element/src/session/recipe.ts`) from the session's current state, not from a replayed
+journal, and does not yet read or replay one.
 
 ## Purpose
 
@@ -34,7 +37,7 @@ means nothing on the next dataset.
 | Run with an option naming a node, or on the selection, listed nodes or a kept set | no | the chosen nodes exist only in the data they were chosen from |
 | A run that was cancelled, failed or stopped partway | no | its numbers are not what the command computes |
 | Load data; select, drag or pin nodes; move the camera; change 2D or 3D | no | the data is what changes between replays; the rest is one-off or presentation |
-| Add, edit or remove style layers | no | appearance travels in a style member; a run's own colouring is kept as its `style` option |
+| Add, edit or remove style layers | no | appearance travels in a style member; a run's own coloring is kept as its `style` option |
 | Define a kept set, compute a column, randomise, fetch | no | later versions may add commands; an older reader stops at one it does not know ("Replaying" rule 4) |
 
 ## Data model
@@ -77,9 +80,9 @@ interface GraphFilter {
 
 interface AlgoRun {
     op: "algo.run";
-    algorithm: string; // catalogue key: "pagerank", "louvain", ...
+    algorithm: string; // catalog key: "pagerank", "louvain", ...
     as: string; // this run's name in the recipe: ^[a-z][a-z0-9_]*$, at most 64, no "__", unique
-    params?: Record<string, unknown>; // option values by catalogue option name ("Commands" rule 4)
+    params?: Record<string, unknown>; // option values by catalog option name ("Commands" rule 4)
     scope?: "graph" | "largest-component" | { where: string; on?: "nodes" | "edges" }; // default "graph"
     seed?: number; // integer, 0 to 2147483647
     sample?: number; // integer, the sample size of an approximate method
@@ -92,8 +95,8 @@ interface AlgoRun {
 
 interface LayoutSet {
     op: "layout.set";
-    id: string; // catalogue layout id: "force", "circular", ...
-    engine?: string; // the engine that draws it; default the catalogue's
+    id: string; // catalog layout id: "force", "circular", ...
+    engine?: string; // the engine that draws it; default the catalog's
     options?: Record<string, unknown>; // the engine's options, the seed among them
     description?: string;
 }
@@ -163,7 +166,7 @@ nests, so each filter keeps its place in the sequence.
    a recipe only when the command gives `sample`; without one it runs exactly and is never switched
    to sampling by the cost estimate, so it computes the same on every machine. The plan's `method`
    says which.
-8. **`style`** is the run's own suggested colouring: `true` paints it, `false` paints nothing, and
+8. **`style`** is the run's own suggested coloring: `true` paints it, `false` paints nothing, and
    `{ "size": true }` or `{ "size": [a, b] }` paints only the size part. Absent, it paints, unless
    a style member of the same file reads this run's results: then it paints nothing, and the plan
    says so. Its layers are added when the run completes, above every layer present then, and the
@@ -171,7 +174,7 @@ nests, so each filter keeps its place in the sequence.
    alone ("Recording" rule 6).
 9. **Unknown keys.** An algorithm key or layout id this installation has not registered skips the
    command with `E_UNKNOWN_ALGORITHM` or `E_UNKNOWN_LAYOUT`. A retired key graphty-element still
-   resolves (`scc`) runs, translated through the catalogue's legacy keys, and the report names the
+   resolves (`scc`) runs, translated through the catalog's legacy keys, and the report names the
    current key.
 10. **Dependencies.** A command depends on every earlier command whose `as` it reads and on every
     `graph.filter` before it. A command reading a later or unknown `as` is skipped with
@@ -180,7 +183,7 @@ nests, so each filter keeps its place in the sequence.
 11. A command whose scope matches no element is skipped with `E_SCOPE_EMPTY`.
 12. **Layouts.** A `layout.set` replaces the layout, so the last one decides the picture; the
     application's `remove()` restores the layout and positions it replaced while the recipe's is
-    still in force. It names its `engine` when that is not the catalogue's default. The applier
+    still in force. It names its `engine` when that is not the catalog's default. The applier
     dispatches it with the scope `"graph"`, so a recipe's layout draws the whole graph, the elements
     its filters hide included. A seed makes a layout start from the same positions, so a replayed
     picture is similar, not identical. A layout that takes lists of particular nodes
@@ -291,7 +294,7 @@ rules of README, "Applying to new data" rules 1 and 2. In a recipe:
 ## Finding algorithms and their options
 
 The algorithm keys, their options with types and defaults, their result fields and whether they can
-sample are graphty-element's catalogue, published by every release; so are the layouts, their
+sample are graphty-element's catalog, published by every release; so are the layouts, their
 engines and options. List them in a browser console, or in Node with `createGraphSession()` from
 `@graphty/graphty-element/session` in place of `element.session`:
 
@@ -319,7 +322,7 @@ for (const l of element.session.catalog.layouts()) {
 ```
 
 A layout's options differ by engine, so a `layout.set` is checked against its engine's own list.
-The same catalogue is published for every release as a generated page of graphty-element's
+The same catalog is published for every release as a generated page of graphty-element's
 documentation, so a person who runs no JavaScript can read each algorithm's options and whether it
 takes `weight`.
 
@@ -375,7 +378,7 @@ interface RecipeApplication {
     /** Binds against the graph as it is now and runs the commands not yet run; after a cancel, resumes. */
     run(options?: { capSeconds?: number; budget?: { totalSeconds?: number } }): Run<RecipeReport>;
     cancel(): void;
-    /** Removes every run it made and their colouring, and restores the filter and layout it replaced. One undoable step. */
+    /** Removes every run it made and their coloring, and restores the filter and layout it replaced. One undoable step. */
     remove(): void;
 }
 ```
@@ -391,7 +394,7 @@ the reader does something else.
 **Repeat application.** When a recipe with the same `id` has already been applied to the same data
 in this session and ran at least one command, a second application follows `onRepeat`: `"refuse"`
 (the default) fails with `E_REPEAT_APPLICATION`, naming both versions when they differ;
-`"replace"` keeps the earlier namespace, removes the earlier runs and their colouring, and runs
+`"replace"` keeps the earlier namespace, removes the earlier runs and their coloring, and runs
 again; `"add"` applies it again under a new namespace. New data starts afresh: an import that
 replaces the graph, or a data member that applies, is new data; merging a file, and adding,
 removing or updating elements, is the same data. A refused repeat still answers the file's styles:
@@ -411,7 +414,7 @@ their `results.<as>` paths bind to the runs of the earlier application.
    knows what `capSeconds` to consider; the applier never raises the cap from it.
 3. **Stopping at the cap.** A command still running when it reaches the cap is stopped, its partial
    result discarded, and reported with `E_CAP_EXCEEDED`; its dependants are skipped. An algorithm
-   whose cost the catalogue cannot bound over every option and graph shape is marked `unbounded`,
+   whose cost the catalog cannot bound over every option and graph shape is marked `unbounded`,
    and a recipe command naming it is skipped before anything runs.
 4. **The total budget.** One application has a total budget of 300 seconds by default. A recipe
    whose planned total is over it does not start: `run()` fails with `E_CAP_EXCEEDED` and the
@@ -503,7 +506,7 @@ interface RecipeReport {
         readonly weight?: { readonly column: string; readonly readAs: "distance" | "strength" };
         readonly seed?: number; // absent when one will be drawn at run time
         readonly recordedPrecision?: "f32" | "f64";
-        readonly style: boolean; // whether it will paint its suggested colouring
+        readonly style: boolean; // whether it will paint its suggested coloring
         readonly paints: readonly {
             readonly channel: string;
             readonly by: string;

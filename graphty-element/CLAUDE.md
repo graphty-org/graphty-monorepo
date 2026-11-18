@@ -25,6 +25,9 @@ npm run api:report                   # after build, when the public API changed
 
 ## Rules
 
+- No attribution or credit is ever drawn over the canvas (owner, 2026-11-15): map credits are data on
+  `basemapStatus.attribution` only; `test/browser/location-map-layout.test.ts` checks it.
+
 ### Entry points and imports
 
 - `./session`, `./schema`, `./catalog`, `./commands`, `./extend`, `./format`, `./logging` (and the empty `./react`)

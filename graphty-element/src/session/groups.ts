@@ -18,6 +18,7 @@ import type { SessionCommand } from "./planning";
 import type { RunRef } from "./results/types";
 import type { CodedFact } from "./shared";
 import type { GraphSession, HistoryCode, NodeRecord, PositionEntry } from "./types";
+import { wholeGraph } from "./working/graphs";
 
 /**
  * A group's value: what its members hold at the path they are grouped by.
@@ -255,7 +256,7 @@ export function createGroupsApi(
     const groupByOf = (ref: GroupRef): Path => ("run" in ref ? session.results.path(ref.run) : ref.groupBy);
     const nodeIdOf = (groupBy: Path, group: GroupValue): NodeId => `group:${groupBy}=${String(group)}`;
     const restoreOf = (node: NodeRecord | undefined): Restore | undefined => node?.[RESTORE] as Restore | undefined;
-    const indexOf = (id: NodeId): number => session.data.snapshot().ids.indexOf(id);
+    const indexOf = (id: NodeId): number => wholeGraph(session.data.store).ids.indexOf(id);
     const sum = (
         into: Map<string, Aggregate>,
         source: NodeId,
@@ -271,7 +272,7 @@ export function createGroupsApi(
      */
     const hiddenIn = (): Map<NodeId, NodeId> => {
         const held = new Map<NodeId, NodeId>();
-        for (const node of session.data.nodes()) {
+        for (const node of session.data.nodes({ scope: "graph" })) {
             for (const member of restoreOf(node)?.nodes ?? []) {
                 held.set(member.id, node.id);
             }
@@ -292,7 +293,7 @@ export function createGroupsApi(
         // ponytail: walks every edge per call; read each member's neighbours when graphs outgrow it.
         const edges: Record<string, unknown>[] = [];
         const aggregates = new Map<string, Aggregate>();
-        for (const edge of session.data.edges()) {
+        for (const edge of session.data.edges({ scope: "graph" })) {
             const fromInside = members.has(edge.source);
             const toInside = members.has(edge.target);
             if (!fromInside && !toInside) {
@@ -507,7 +508,7 @@ export function createGroupsApi(
             await edit(() => Promise.resolve(expandCommand(groupBy, ref.group)));
         },
         list(): readonly CollapsedGroup[] {
-            return session.data.nodes().flatMap((node) => {
+            return session.data.nodes({ scope: "graph" }).flatMap((node) => {
                 const restore = restoreOf(node);
                 return restore === undefined
                     ? []
@@ -576,12 +577,12 @@ export function expandedGraph(session: GraphSession): ExpandedGraph | null {
         return null;
     }
 
-    const all = session.data.nodes();
+    const all = session.data.nodes({ scope: "graph" });
     if (!all.some((node) => node[RESTORE] !== undefined)) {
         return null;
     }
 
-    const { ids } = session.data.snapshot();
+    const { ids } = wholeGraph(session.data.store);
     const point = { x: 0, y: 0, z: 0 };
     const nodes: NodeRecord[] = [];
     const positions: PositionEntry[] = [];
@@ -644,7 +645,7 @@ export function expandedGraph(session: GraphSession): ExpandedGraph | null {
     // edges is left out, one added to it is added again once the groups are collapsed.
     const edges: { id: EdgeId; record: Readonly<Record<string, unknown>> }[] = [];
     const added: Record<string, unknown>[] = [];
-    for (const edge of [...session.data.edges(), ...kept]) {
+    for (const edge of [...session.data.edges({ scope: "graph" }), ...kept]) {
         if (!stands.has(edge.source as NodeId) && !stands.has(edge.target as NodeId)) {
             const id = (edge.id as EdgeId | undefined) ?? `${RESTORE}:${String(edges.length)}`;
             edges.push({ id, record: edgeInput(edge) });

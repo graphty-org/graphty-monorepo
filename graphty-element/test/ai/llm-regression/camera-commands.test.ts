@@ -14,46 +14,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import { assertAction, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
-
-/**
- * Camera preset synonyms that map natural language to expected presets.
- */
-const CAMERA_PRESET_SYNONYMS: Record<string, string[]> = {
-    topView: ["topView", "top", "above", "bird's eye", "overhead"],
-    sideView: ["sideView", "side"],
-    frontView: ["frontView", "front"],
-    fitToGraph: ["fitToGraph", "fit", "all nodes", "zoom to fit"],
-    isometric: ["isometric", "iso"],
-};
-
-/**
- * Check if a camera preset matches expected values.
- *
- * @param actual - The actual preset from the LLM
- * @param expected - The base expected preset
- * @returns True if the preset matches expected or its synonyms
- */
-function isValidCameraPreset(actual: unknown, expected: string): boolean {
-    if (typeof actual !== "string") {
-        return false;
-    }
-
-    const normalizedActual = actual.toLowerCase().trim();
-    const normalizedExpected = expected.toLowerCase().trim();
-
-    // Direct match
-    if (normalizedActual === normalizedExpected) {
-        return true;
-    }
-
-    // Check synonyms for expected preset
-    const synonyms = CAMERA_PRESET_SYNONYMS[expected] as string[] | undefined;
-    if (synonyms) {
-        return synonyms.some((s) => normalizedActual.toLowerCase().includes(s.toLowerCase()));
-    }
-
-    return false;
-}
+import { isCameraView } from "./matchers";
 
 describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
@@ -79,7 +40,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
 
             // Verify preset is topView or similar
             const { preset } = call.arguments;
-            assert.ok(isValidCameraPreset(preset, "topView"), `Expected topView preset but got '${String(preset)}'`);
+            assert.ok(isCameraView(preset, "topView"), `Expected topView preset but got '${String(preset)}'`);
         });
 
         it("calls view camera for 'View from the side'", async () => {
@@ -90,7 +51,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
 
             // Verify preset is sideView or similar
             const { preset } = call.arguments;
-            assert.ok(isValidCameraPreset(preset, "sideView"), `Expected sideView preset but got '${String(preset)}'`);
+            assert.ok(isCameraView(preset, "sideView"), `Expected sideView preset but got '${String(preset)}'`);
         });
 
         it("calls view camera for 'Fit all nodes in view'", async () => {
@@ -103,10 +64,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             // A camera view, then fitToGraph
             if (call.arguments.action === "camera") {
                 const { preset } = call.arguments;
-                assert.ok(
-                    isValidCameraPreset(preset, "fitToGraph"),
-                    `Expected fitToGraph preset but got '${String(preset)}'`,
-                );
+                assert.ok(isCameraView(preset, "fitToGraph"), `Expected fitToGraph preset but got '${String(preset)}'`);
             }
         });
     });

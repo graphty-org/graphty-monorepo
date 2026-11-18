@@ -2,8 +2,10 @@
  * @file The layout of a session that draws nothing: what `session.layout.play()`, `pause()`,
  * `tick()` and `settle()` run when no renderer has handed the session its own layout service.
  *
- * It runs the chosen layout with `@graphty/layout` over the session's snapshot and writes the
- * coordinates into the session's positions lane, holding pinned nodes still. A live engine with a
+ * It runs the chosen layout with `@graphty/layout` over the session's working graph -- what the
+ * filters leave shown, or the whole graph when the session's `workingGraph` option is off -- and
+ * writes the coordinates into the session's positions lane, holding pinned nodes still. A hidden
+ * node is never laid out and keeps its position. A live engine with a
  * processor simulation in `@graphty/layout` (`forceatlas2`, `spring`) is stepped; the `force`
  * layout's two engines that have none there (`ngraph`, `d3`) are stepped as ForceAtlas2 with the
  * choice's `seed`; a one-shot engine is computed once. Nothing runs until a verb asks: choosing a
@@ -12,7 +14,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type DerivedGraph, type F32, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
+import { type DerivedGraph, type F32, type GraphSnapshot, makeMask, maskSet, type U32 } from "@graphty/graph-format";
 import {
     createSimulation,
     LAYOUTS,
@@ -27,10 +29,13 @@ import { GraphtyError } from "../errors/GraphtyError";
 import type { ArrangementEngine } from "./project/arrangement";
 import type { LayoutChoice } from "./project/state";
 import type { LayoutMotion } from "./types";
+import type { WorkingSnapshot } from "./working/graphs";
+import type { WorkingView } from "./working/view";
 
 /** What the runner reads and tells: the session's graph, lane, choice and motion. */
 export interface LayoutRunnerHost {
-    snapshot(): GraphSnapshot;
+    /** The graph to lay out: the working graph's view, the same object until its state changes. */
+    working(): WorkingView;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
     lane(): ElementPositions;
     choice(): LayoutChoice;
@@ -45,9 +50,35 @@ export interface LayoutRunnerHost {
 /** One loaded run: a simulation, or a one-shot arrangement already written. */
 interface Loaded {
     readonly choice: LayoutChoice;
-    readonly snapshot: GraphSnapshot;
+    readonly snapshot: WorkingSnapshot;
+    /** The lane's rows for the element's graph: what the cache compares. */
+    readonly lane: F32;
+    /** The coordinates the layout writes, by row of `snapshot`: `lane` itself when nothing is hidden. */
     readonly view: F32;
+    /** Row of `snapshot` -> the element's row, while something is hidden; else null. */
+    readonly origin: U32 | null;
+    /** The element's row count. */
+    readonly rows: number;
     readonly simulation: LayoutSimulation | null;
+}
+
+/**
+ * The coordinates of the shown rows, gathered from the lane into a buffer of their own.
+ * @param lane - The lane.
+ * @param origin - Shown row -> element row.
+ * @returns x, y, z per shown row; NaN for an unplaced one.
+ */
+function gather(lane: ElementPositions, origin: U32): F32 {
+    const out = new Float32Array(3 * origin.length).fill(Number.NaN);
+    const at = { x: 0, y: 0, z: 0 };
+    for (let row = 0; row < origin.length; row += 1) {
+        if (lane.isPlaced(origin[row])) {
+            lane.read(origin[row], at);
+            out.set([at.x, at.y, at.z], 3 * row);
+        }
+    }
+
+    return out;
 }
 
 /** The engines stepped as a simulation, by the `createSimulation` type that runs them. */
@@ -152,7 +183,7 @@ export class LayoutRunner implements ArrangementEngine {
                 this.stepOnce(simulation);
             }
 
-            this.host.lane().moved(this.loaded?.snapshot.nodeCount ?? 0);
+            this.publish();
             if (this.timer === null) {
                 this.host.motion(simulation.settled ? "settled" : "paused");
                 this.host.rest();
@@ -203,13 +234,13 @@ export class LayoutRunner implements ArrangementEngine {
             return;
         }
 
-        const { simulation, snapshot } = this.current();
+        const { simulation } = this.current();
         const start = performance.now();
         while (simulation !== null && !simulation.settled && performance.now() - start < BATCH_MS) {
             this.stepOnce(simulation);
         }
 
-        this.host.lane().moved(snapshot.nodeCount);
+        this.publish();
         if (simulation === null || simulation.settled) {
             this.host.motion("settled");
             this.host.rest();
@@ -217,6 +248,26 @@ export class LayoutRunner implements ArrangementEngine {
         }
 
         this.schedule();
+    }
+
+    /** Tell the lane the layout moved its rows, writing a working graph's rows back to the element's first. */
+    private publish(): void {
+        const { loaded } = this;
+        if (loaded === null) {
+            return;
+        }
+
+        const lane = this.host.lane();
+        const { origin, view } = loaded;
+        if (origin !== null) {
+            for (let row = 0; row < origin.length; row += 1) {
+                if (!lane.isPinned(origin[row]) && !Number.isNaN(view[3 * row])) {
+                    lane.write(origin[row], view[3 * row], view[3 * row + 1], view[3 * row + 2]);
+                }
+            }
+        }
+
+        lane.moved(loaded.rows);
     }
 
     private stepOnce(simulation: LayoutSimulation): void {
@@ -230,17 +281,19 @@ export class LayoutRunner implements ArrangementEngine {
      */
     private current(): Loaded {
         const choice = this.host.choice();
-        const snapshot = this.host.snapshot();
+        const working = this.host.working();
+        const { snapshot } = working;
         const lane = this.host.lane();
-        const view = lane.view(snapshot.nodeCount);
+        const rows = working.graph.nodeCount;
+        const elementRows = lane.view(rows);
         const { loaded } = this;
         if (
             loaded !== null &&
             !this.stale &&
             loaded.choice === choice &&
             loaded.snapshot === snapshot &&
-            loaded.view.buffer === view.buffer &&
-            loaded.view.length === view.length
+            loaded.lane.buffer === elementRows.buffer &&
+            loaded.lane.length === elementRows.length
         ) {
             return loaded;
         }
@@ -251,25 +304,34 @@ export class LayoutRunner implements ArrangementEngine {
 
         loaded?.simulation?.dispose();
         this.stale = false;
-        this.loaded = { choice, snapshot, view, simulation: this.load(choice, snapshot, lane, view) };
+        // A hidden node is not laid out: the layout runs over the shown rows, in a buffer of their own.
+        const origin = working.whole ? null : working.nodeOrigin;
+        const view = origin === null ? elementRows : gather(lane, origin);
+        const simulation = this.load(choice, snapshot, lane, view, origin, rows);
+        this.loaded = { choice, snapshot, lane: elementRows, view, origin, rows, simulation };
         return this.loaded;
     }
 
     /**
      * Build the engine for a choice and load the graph into it, or write a one-shot arrangement.
      * @param choice - The choice.
-     * @param snapshot - The graph.
+     * @param snapshot - The working graph.
      * @param lane - The positions lane.
-     * @param view - The lane's rows for the graph, written in place.
+     * @param view - The coordinates by row of `snapshot`, written in place.
+     * @param origin - Row of `snapshot` -> the element's row, or null when they are the same.
+     * @param rows - The element's row count.
      * @returns The simulation, or null for a one-shot arrangement (already written).
      */
     private load(
         choice: LayoutChoice,
-        snapshot: GraphSnapshot,
+        snapshot: WorkingSnapshot,
         lane: ElementPositions,
         view: F32,
+        origin: U32 | null,
+        rows: number,
     ): LayoutSimulation | null {
         const n = snapshot.nodeCount;
+        const elementRow = (row: number): number => (origin === null ? row : origin[row]);
         const graph = this.host.undirected(snapshot).snapshot;
         const options = optionsOf(choice);
         const dim = arrangedDimension(choice) === "2d" ? 2 : 3;
@@ -282,11 +344,11 @@ export class LayoutRunner implements ArrangementEngine {
             simulation.load(graph, view);
             const fixed = makeMask(n);
             for (let row = 0; row < n; row += 1) {
-                maskSet(fixed, row, lane.isPinned(row));
+                maskSet(fixed, row, lane.isPinned(elementRow(row)));
             }
 
             simulation.setFixed(fixed);
-            lane.moved(n);
+            lane.moved(rows);
             return simulation;
         }
 
@@ -308,8 +370,8 @@ export class LayoutRunner implements ArrangementEngine {
         ) => Parameters<typeof toPositionColumn>[0];
         const column = toPositionColumn(fn(graph, { ...options, dim }), Number(options.scalingFactor ?? 1), null);
         for (let row = 0; row < n; row += 1) {
-            if (!lane.isPinned(row)) {
-                lane.write(row, column[3 * row], column[3 * row + 1], column[3 * row + 2]);
+            if (!lane.isPinned(elementRow(row))) {
+                lane.write(elementRow(row), column[3 * row], column[3 * row + 1], column[3 * row + 2]);
             }
         }
 

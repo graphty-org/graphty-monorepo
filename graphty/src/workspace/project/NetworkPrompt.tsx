@@ -1,6 +1,6 @@
 import { ModalFooter } from "@graphty/compact-mantine";
 import type { NetworkRequest } from "@graphty/graphty-element/session";
-import { Button, Modal, Stack, Text } from "@mantine/core";
+import { Button, getDefaultZIndex, Modal, Stack, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import {
@@ -80,6 +80,8 @@ export function NetworkPrompt(): React.JSX.Element | null {
                 });
             }}
             title="Open a web address?"
+            // Asked while another dialog may be open (Load custom model's part rows): above it.
+            zIndex={getDefaultZIndex("modal") + 1}
         >
             {request === undefined ? null : (
                 <Stack gap="xs">

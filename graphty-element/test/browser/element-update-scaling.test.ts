@@ -40,8 +40,8 @@ async function settled(element: Graphty): Promise<void> {
 }
 
 /**
- * Mount a graphty-element with `size` nodes on a path, its render loop stopped and a static
- * layout, with one frame's update drawn so every edge has been placed once.
+ * Mount a graphty-element with `size` nodes on a path, its render loop stopped and a static,
+ * seeded layout, with one frame's update drawn so every edge has been placed once.
  * @param size - The node count.
  * @returns The element.
  */
@@ -57,7 +57,10 @@ async function mount(size: number): Promise<Graphty> {
     });
     const { graph } = element;
     graph.engine.stopRenderLoop();
-    await graph.setLayout("random");
+    // Seeded, so every run draws the same graph: unseeded, about one mount in sixty put two
+    // neighbours on the path so close that their spheres overlap, and an edge between overlapping
+    // nodes hides its arrowhead and never places it (#7759), so `Edge.update` saw it not move (#8466).
+    await graph.setLayout("random", { seed: 1 });
     const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);
     await graph.addNodes(ids.map((id) => ({ id })));
     await graph.addEdges(ids.slice(1).map((id, at) => ({ source: ids[at], target: id })));

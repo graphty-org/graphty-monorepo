@@ -275,7 +275,7 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                 summary: "one algorithm",
                 fields: {
                     name: inputKind(nameField(names, "Algorithm."), "algorithm", "Algorithm"),
-                    options: z.record(z.string(), z.unknown()).optional().describe("The algorithm's options by name."),
+                    options: z.record(z.string(), z.unknown()).optional().describe("Options by name."),
                     scope: z
                         .strictObject({
                             set: z.string().max(200).optional(),

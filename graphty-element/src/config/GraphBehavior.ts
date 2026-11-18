@@ -2,44 +2,62 @@ import { z } from "zod";
 
 import type { Graph } from "../Graph";
 import type { Node as GraphNode } from "../Node";
+import { NodeSizeSpaces } from "./NodeStyle";
 
-const NodeBehaviorOpts = z
-    .strictObject({
-        /*
-         * Whether dropping a dragged node fixes it where the reader put it.
-         *
-         * IT STAYS ON BY DEFAULT even though a pin now survives a layout change, a 2D/3D switch
-         * and a style template -- which means every node a reader has ever dragged stops being
-         * rearranged, with nobody opting in. A drag is a deliberate placement, and an arrangement
-         * that silently discards it is the defect this release is fixing, not a feature to
-         * preserve.
-         *
-         * What makes that defensible is that a pin can now be RELEASED: `element.pin`,
-         * `element.unpin` and `element.pinnedNodes` are public, so a reader who wants their
-         * placements back in the layout has a way to say so. Before those existed, leaving this
-         * on would have meant a session that froze one node per drag with no way out.
-         */
-        pinOnDrag: z.boolean().default(true),
+const NodeBehaviorShape = z.strictObject({
+    /*
+     * Whether dropping a dragged node fixes it where the reader put it.
+     *
+     * IT STAYS ON BY DEFAULT even though a pin now survives a layout change, a 2D/3D switch
+     * and a style template -- which means every node a reader has ever dragged stops being
+     * rearranged, with nobody opting in. A drag is a deliberate placement, and an arrangement
+     * that silently discards it is the defect this release is fixing, not a feature to
+     * preserve.
+     *
+     * What makes that defensible is that a pin can now be RELEASED: `element.pin`,
+     * `element.unpin` and `element.pinnedNodes` are public, so a reader who wants their
+     * placements back in the layout has a way to say so. Before those existed, leaving this
+     * on would have meant a session that froze one node per drag with no way out.
+     */
+    pinOnDrag: z.boolean().default(true),
 
-        /*
-         * Whether a node's drawn size ignores how far it is from the 3D camera.
-         *
-         * OFF BY DEFAULT (unset): a 3D view is a perspective, and a nearer node looks bigger, which is
-         * what a reader exploring a space expects. On, every node is drawn as if it stood at the
-         * depth of the point the camera turns about, so two drawn sizes compare as the two sizes a
-         * style gave them, at any angle -- what a size bound to data needs, because with depth a
-         * node 6% larger but 16% farther away is drawn smaller. Zooming still scales everything.
-         * The 2D view (orthographic) and an XR session ignore it.
-         */
-        depthIndependentSize: z.boolean().optional(),
+    /*
+     * How a node's drawn size follows the camera, for every node whose style sets no
+     * `node.sizeSpace` (see `NodeSizeSpaces`).
+     *
+     * UNSET BY DEFAULT, which is "scene": a 3D view is a perspective, and a nearer node looks
+     * bigger, which is what a reader exploring a space expects. "pivot" draws every node as if
+     * it stood at the depth of the point the camera turns about, so two drawn sizes compare as
+     * the two sizes a style gave them, at any angle; zooming still scales everything, and the
+     * 2D view ignores it. "screen" keeps every node one size on screen at any depth and zoom.
+     * An XR session draws every node at its scene size.
+     */
+    sizeSpace: NodeSizeSpaces.optional(),
 
-        /*
-         * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
-         * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
-         */
-        outlineWidth: z.number().positive().max(10).optional(),
-    })
-    .prefault({});
+    /*
+     * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
+     * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
+     */
+    outlineWidth: z.number().positive().max(10).optional(),
+});
+
+/**
+ * Read a saved `depthIndependentSize`, which `sizeSpace` replaced: true is `sizeSpace: "pivot"`
+ * (unless `sizeSpace` is set too), false is dropped. Old projects, tag attributes and
+ * `session.config.set` calls keep their look instead of failing the strict parse.
+ * @param value - The node behavior as given.
+ * @returns It, without the old key.
+ */
+function migrateDepthIndependent(value: z.input<typeof NodeBehaviorShape>): unknown {
+    if (typeof value !== "object" || value === null || !("depthIndependentSize" in value)) {
+        return value;
+    }
+
+    const { depthIndependentSize, ...rest } = value as { depthIndependentSize?: unknown; sizeSpace?: unknown };
+    return depthIndependentSize === true && rest.sizeSpace === undefined ? { ...rest, sizeSpace: "pivot" } : rest;
+}
+
+const NodeBehaviorOpts = z.preprocess(migrateDepthIndependent, NodeBehaviorShape).prefault({});
 
 const LabelBehaviorOpts = z
     .strictObject({
@@ -282,27 +300,18 @@ const GraphLayoutOpts = z.strictObject({
     groupsFollowMembers: z.boolean().optional(),
 
     /*
-     * Whether a layout runs over only what the visibility filter shows.
+     * Whether a layout runs over only what is shown: the working graph, what the filters leave
+     * shown. The time window is never part of it: a window step, a play and its pause hide
+     * elements by drawing and lay nothing out.
      *
-     * True: a node the filter hides takes no part in the layout -- it pushes and pulls nothing,
-     * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
-     * -- and it stays where it was, so taking the filter away shows it where it was. The layout
-     * runs again whenever what the filter shows changes, and when this is switched. Every layout
-     * honours it. Unset or false, the default, a layout runs over the whole graph, hidden nodes
-     * included.
+     * True: a node a filter hides takes no part in the layout -- it pushes and pulls nothing, its
+     * edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot -- and
+     * it stays where it was, so taking the filter away shows it where it was. The layout runs again
+     * whenever a filter changes what is shown, and when this is switched. Every layout honours it.
+     * False: a layout runs over the whole graph, hidden nodes included. Unset, the default: as the
+     * session's `workingGraph` option says.
      */
     visibleOnly: z.boolean().optional(),
-
-    /*
-     * What `visibleOnly` does while time plays, when the moving time window changes what the
-     * filter shows every frame.
-     *
-     * "follow": it runs again at every change, as it does when time is still -- a full layout per
-     * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
-     * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
-     * "follow". A layout over the whole graph ignores it.
-     */
-    visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

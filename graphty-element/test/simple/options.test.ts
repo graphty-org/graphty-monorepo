@@ -10,6 +10,7 @@ import { assert, describe, it } from "vitest";
 
 import { resolveOptionValues } from "../../src/catalog/options";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
+import { workingGraphOfSession } from "../../src/session/GraphSession";
 import { checkViewOptions, expandOptions } from "../../src/simple/options";
 import { viewSourceOf } from "../../src/simple/source";
 import { createGraphView, viewInputs } from "../../src/simple/view";
@@ -118,7 +119,10 @@ describe("the checks before the author's code runs", () => {
             [{ source: 0, target: "b", confidence: 0.9 }],
         );
 
-        return createGraphView(viewSourceOf(harness.session), { id: "acme-confidence-degree", directed: false });
+        return createGraphView(viewSourceOf(harness.session, workingGraphOfSession(harness.session).view().snapshot), {
+            id: "acme-confidence-degree",
+            directed: false,
+        });
     }
 
     const declared = expandOptions("defineAlgorithm", "acme-confidence-degree", {

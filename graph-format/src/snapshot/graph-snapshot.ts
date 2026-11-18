@@ -13,8 +13,9 @@
  * throws `E_DETACHED` once the core buffer was transferred away (`detached` is derived:
  * `rowPtr.length === 0`).
  *
- * Views are computed by views.ts, queries by queries.ts, derived graphs by derived.ts (which returns
- * SnapshotParts that this module wraps), invariant checks by validate.ts and hashes by hash.ts. The
+ * Views are computed by views.ts, queries by queries.ts, derived graphs by derived.ts and the
+ * derive-*.ts modules beside it (which return SnapshotParts that this module wraps), invariant
+ * checks by validate.ts and hashes by hash.ts. The
  * wire methods (`toWire`, `toBytes`, `toByteChunks`, `transferables`) call the wire module directly;
  * the wire module imports this one too, and the cycle is safe because each side reaches the other
  * only through hoisted function declarations invoked at call time, never at module load.
@@ -65,19 +66,10 @@ import { assertOneOf } from "../util/options.js";
 import { claimHolder } from "../util/shared-buffers.js";
 import { toByteChunks, toBytes } from "../wire/bytes.js";
 import { toWire, transferables } from "../wire/to-wire.js";
-import {
-    deriveContract,
-    type DerivedParts,
-    deriveFilterEdges,
-    deriveInducedSubgraph,
-    deriveRelabel,
-    deriveSimplified,
-    deriveToUndirected,
-    deriveTranspose,
-    deriveWithoutSelfLoops,
-    identityDerived,
-    withColumnsParts,
-} from "./derived.js";
+import { deriveContract } from "./derive-contract.js";
+import { deriveSimplified, deriveToUndirected, deriveTranspose } from "./derive-direction.js";
+import { deriveFilterEdges, deriveInducedSubgraph, deriveRelabel, deriveWithoutSelfLoops } from "./derive-subsets.js";
+import { type DerivedParts, identityDerived, withColumnsParts } from "./derived.js";
 import { contentHashOf, hashColumn, hashTypedArray } from "./hash.js";
 import { arcRangeIn, arcSourceIn, findArcIn, multiplicityIn, selfLoopsAtIn } from "./queries.js";
 import { validateFull, validateStructure } from "./validate.js";

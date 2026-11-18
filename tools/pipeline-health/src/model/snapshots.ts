@@ -136,6 +136,8 @@ export interface Snapshots {
     quarantine: QuarantineEntry[];
     codeowners: string[];
     "chronic-jobs": ChronicJob[];
+    /** The tests flaky.no_issue counts, as `file > name` (collector/flaky.ts). */
+    "flaky-no-issue": string[];
     /** The jobs allowed to fail (job-level continue-on-error in ci.yml), by name; `${{ }}` matches anything. */
     "non-gating": string[];
     /** Every job ci.yml on master defines, by name; `${{ }}` matches anything. */

@@ -357,7 +357,7 @@ Graph
     [context menu on focused set rows]
       Select members / Union / Subtract / Intersect / Exclude
   Styles
-    Community colors / Degree sizes / Base style
+    Community colors / Degree sizes / Everything
     [style-layer editor, opened from a layer's row]
       Selector / Encodings / Notes / Used by
   Views
@@ -739,9 +739,10 @@ structural ones, each with its reason:
   rows without changing a count (8.1).
 - **An inspector that shows the last-activated row:** a hidden mode; the canvas selection and the
   inspector would describe different things (`interaction-patterns.md` 3.1).
-- **App-defined algorithm families** ("paths and flow", "time", "anomaly"): families are the
-  element's categories, so every consumer sees one grouping. The old time family's outputs are
-  readings of a series result (`output-homes.md` 2).
+- **Algorithm families the element does not publish** ("paths and flow", "time", "anomaly") as
+  catalog data: an algorithm's family is a fact the element publishes, and the Catalog's grouping
+  and headings are the app's to choose from it (`CLAUDE.md`, "graphty-element is neutral about presentation"). The old time family's
+  outputs are readings of a series result (`output-homes.md` 2).
 - **Pattern search and a Matches item tab.** Withdrawn: the element has no pattern algorithm
   (`conceptual-model.md` 1.5). If one arrives, its occurrences are items and take the Items row.
 - **Layouts as Catalog rows:** a layout makes positions, not a result.
@@ -790,9 +791,9 @@ tests** on grayscale wireframes of the controls a tree test cannot score, the ve
 selection state among them, and a decision study of where the style stack lives (section 11),
 because a tree test removes the layout that "always visible" depends on;
 and a **comprehension test** of the state words and marks. Plus one study of the Catalog's
-grouping. **A result against the element's families is filed as an element need**
-(`element-needs.md`, element categories or catalog aliases), never as an app regrouping, because
-the families are the element's. Methods, bars, tasks, keys and schedule:
+grouping. **A result against the grouping is the app's to act on**, since grouping is presentation; a
+missing fact about an algorithm (a family it belongs to, an alias) is filed as an element need
+(`element-needs.md`, element categories or catalog aliases). Methods, bars, tasks, keys and schedule:
 `research/study-schedule.md`.
 
 **Findability at scale** validates that the structure holds as collections and graphs grow:

@@ -30,7 +30,7 @@ import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import type { RuleTree, TimePlayback, TimeWindow } from "../visibility/filter";
-import { RecordMap } from "./recordMap";
+import { edgeRecordMap, nodeRecordMap } from "./recordMap";
 
 /** One node or edge record as the graph holds it: the attributes it arrived with. */
 export type GraphRecord = Readonly<Record<string | number, unknown>>;
@@ -63,8 +63,8 @@ export function emptyGraphSlice(token = 0, epoch = 0): GraphSlice {
     return Object.freeze({
         token,
         epoch,
-        nodes: new RecordMap<NodeId>(),
-        edges: new RecordMap<EdgeId>(),
+        nodes: nodeRecordMap(),
+        edges: edgeRecordMap(),
         values: new Map(),
     });
 }

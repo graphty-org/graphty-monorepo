@@ -114,9 +114,6 @@ for (const swatch of block?.swatches ?? []) {
 }
 ```
 
-`SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
-group from `rank` in your own language instead.
-
 #### Hiding one group
 
 `styles.setValueHidden(layerId, channel, value, hidden)` takes one group out of a layer's paint
@@ -228,6 +225,24 @@ On an undirected graph every edge runs both ways, so `strongly-connected` finds 
 ```typescript
 await graph.runAlgorithm("graphty", "connected-components");
 ```
+
+#### What breaks if something is removed
+
+`removal-impact` works out what removing some nodes or edges would cut off, without removing
+anything: the graph is left as it was. Pass the nodes (`nodes`) and edges (`edges`) to imagine
+removed:
+
+```typescript
+const result = await element.session.runs.start("removal-impact", { nodes: ["hub"] });
+// The separate pieces before and after, and how many nodes are cut off from the rest of their piece.
+const { componentsBefore, componentsAfter, count } = result.graph;
+```
+
+Each node it cuts off carries `in: true`, which the suggested highlight layer paints. A piece that
+breaks keeps its largest part (the part holding the earliest node, on a tie); every other node of
+it is cut off. `cutOffShare` is the share of the remaining nodes cut off, read through its
+interpretation bands: `none`, `minor` (any), `severe` (more than a tenth). Pieces are weak: an
+edge joins its two nodes whichever way it was declared.
 
 ### Traversal Algorithms
 
@@ -343,8 +358,7 @@ if (run.partial) {
 }
 ```
 
-The codes are in the [table below](#why-a-run-stopped-early). `run.caveats.partialReason`, the
-same cause as an English sentence, is deprecated and removed in the next major.
+The codes are in the [table below](#why-a-run-stopped-early).
 
 ## What a result says
 
@@ -394,9 +408,9 @@ console.log(run.caveats.facts);
 //  { code: "pagerank.sums-to-one", params: {} }, { code: "weights.unread", params: {} }]
 ```
 
-A node id in `params` is the data's own id, a string or a number. `run.caveats.notes`, the same
-remarks as English sentences, is deprecated and removed in the next major; an algorithm registered
-from outside the element that writes its own `notes` in words has no facts for them.
+A node id in `params` is the data's own id, a string or a number. `run.caveats.notes` holds only
+the sentences an algorithm registered from outside the element wrote in its own words; it is empty
+for every built-in algorithm.
 
 | Code                                 | What it says, and its `params`                                                                                                                                                                  |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -414,6 +428,7 @@ from outside the element that writes its own `notes` in words has no facts for t
 | `scope.induced-subgraph`             | computed on the subgraph the scope's nodes induce: `{ nodes }`.                                                                                                                                 |
 | `scope.subgraph`                     | computed on the scope's nodes and edges: `{ nodes, edges }`.                                                                                                                                    |
 | `parallel-edges.merged`              | parallel edges were merged into one, every member of a group carrying the merged value: `{ count, policy }`, how many were merged and how their weights combined (`"sum"`, `"min"` or `"max"`). |
+| `direction.mixed`                    | the graph mixes directed and undirected edges, and the run read every edge alike, with the graph's default direction: `{ directed }`, true when it read them as directed.                       |
 | `input.empty`                        | the graph held nothing for the algorithm to measure.                                                                                                                                            |
 | `sampled.instead-of-exact`           | the run sampled rather than computed exactly: `{ method, name, sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the nodes it was drawn from.                 |
 | `sampled.exact-past-cap`             | an exact run was estimated past the cost cap, so the approximate method ran: `{ seconds, cap }`.                                                                                                |
@@ -579,9 +594,9 @@ console.log(name, run.distinguishedBy); // "Communities" { option: "resolution",
 console.log(run.siblingsDifferBy); // null: no other Communities run yet
 ```
 
-`run.label` ("Communities (resolution 1.5)") is the element's own English for the same facts. It is
-deprecated, with the `label` of a run's record, of a `ResultRoot` and of an `EncodingRun`, and
-removed in the next major.
+When a run paints layers and the call names none, the layers are named from these facts
+("Communities (resolution 1.5)"); `name` on `encode()`, `highlight()` and `mark()` names them
+yourself.
 
 Starting the same run again finds the same result: same algorithm, same name, and the same scope
 -- with `"visible"` and `"selection"` frozen to the filter and the selection in force when the run

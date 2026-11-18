@@ -382,14 +382,16 @@ describe("gmlExporter: graphics and positions", () => {
         const two = builder.freeze();
         // graphics x / y read back as an f64 column named position: the f32 values and the name change
         expect(codes(gmlExporter.check(two))).toEqual([LOSS.DTYPE, LOSS.COLUMN_NAME_CHANGED]);
-        expect(await gmlExporter.exportToString(two)).toContain("graphics [\n      x 1.0\n      y 2.0\n    ]");
+        // a column that declares no spelling is y up; GML's grows downward, so y is written flipped
+        expect(await gmlExporter.exportToString(two)).toContain("graphics [\n      x 1.0\n      y -2.0\n    ]");
         const wide = new GraphBuilder({ directed: false });
         wide.declareNodeColumn({ name: "pos", dtype: "f64", components: 4, role: "position" });
         wide.setNodeValue("pos", wide.addNode(1), [1, 2, 3, 4]);
         const four = wide.freeze();
         expect(codes(gmlExporter.check(four))).toEqual([POSITION_COMPONENTS_CODE, LOSS.COLUMN_NAME_CHANGED]);
+        // with a real z the flip turns the drawing about x, so z flips too
         expect(await gmlExporter.exportToString(four)).toContain(
-            "graphics [\n      x 1.0\n      y 2.0\n      z 3.0\n    ]",
+            "graphics [\n      x 1.0\n      y -2.0\n      z -3.0\n    ]",
         );
     });
 
@@ -414,20 +416,24 @@ describe("gmlExporter: graphics and positions", () => {
         only.setNodeValue("position", c, [1, 2, 3]);
         only.setNodeValue("graphics", c, { x: 9, w: 1 });
         const text = await gmlExporter.exportToString(only.freeze());
-        expect(text).toContain("graphics [\n      x 1.0\n      y 2.0\n      z 3.0\n      w 1\n    ]");
+        expect(text).toContain("graphics [\n      x 1.0\n      y -2.0\n      z -3.0\n      w 1\n    ]");
     });
 });
 
 describe("gmlExporter: ids", () => {
-    it("refuses non-integer ids by default and mangles them with the original kept", async () => {
+    it("mangles non-integer ids by default with the original kept, and refuses them under sanitizeIds error", async () => {
         const builder = new GraphBuilder({ directed: true });
         builder.addEdge("Little Rock, AR", 1.5);
         builder.addEdge(1.5, 7);
         const snapshot = builder.freeze();
-        expect(codes(gmlExporter.check(snapshot))).toEqual([LOSS.ID_CHARSET]);
-        await expectExportError(snapshot, undefined, "E_INVALID_ID");
-        const notes = gmlExporter.check(snapshot, { sanitizeIds: "mangle" });
-        expect(notes).toEqual([expect.objectContaining({ code: LOSS.ID_MANGLED, count: 2 })]);
+        expect(codes(gmlExporter.check(snapshot, { sanitizeIds: "error" }))).toEqual([LOSS.ID_CHARSET]);
+        await expectExportError(snapshot, { sanitizeIds: "error" }, "E_INVALID_ID");
+        for (const options of [undefined, { sanitizeIds: "mangle" } as const]) {
+            const notes = gmlExporter.check(snapshot, options);
+            expect(notes).toEqual([expect.objectContaining({ code: LOSS.ID_MANGLED, count: 2 })]);
+        }
+        const plain = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expectSameSnapshot(snapshot, plain.snapshot, { allowExtraColumns: false });
         const rt = await roundTrip(snapshot, gmlExporter, gmlImporter, { exportOptions: { sanitizeIds: "mangle" } });
         expect(rt.text).toContain(`id 0\n    ${ORIGINAL_ID_KEY} "Little Rock, AR"`);
         expect(rt.text).toContain(`id 1\n    ${ORIGINAL_ID_KEY} 1.5`);

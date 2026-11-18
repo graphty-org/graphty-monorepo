@@ -635,6 +635,23 @@ export class LabelDeclutter {
     }
 
     /**
+     * Move the labels for a camera a framing has just set, so the framing measures them where
+     * they are drawn from it (issue #8250). Only the labels' places change the room they take:
+     * hiding one (`declutter`) leaves its plane where it was, so nothing runs without
+     * `avoidNodesAndEdges`.
+     * @param camera - The camera the framing set.
+     * @returns True when labels were placed.
+     */
+    placeForFraming(camera: Camera): boolean {
+        if (!this.context.getStyles().config.behavior.labels.avoidNodesAndEdges) {
+            return false;
+        }
+
+        this.place(camera);
+        return true;
+    }
+
+    /**
      * One full pass: decide which labels are drawn, node labels first and then edge texts.
      * @param camera - The camera the frame is drawn from.
      */

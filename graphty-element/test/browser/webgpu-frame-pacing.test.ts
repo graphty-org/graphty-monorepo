@@ -22,9 +22,8 @@ import "../../webgpu";
 import type { WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, renderManagerOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
-import type { RenderManager } from "../../src/managers/RenderManager";
 import type { Node } from "../../src/Node";
 import type { HoverDrawn } from "../../src/session/types";
 import { hover, nextFrame } from "../helpers/real-input";
@@ -142,15 +141,6 @@ async function open(path: "batched" | "objects", accelerate = false, nodes = 300
     await graph.addNodes(data.nodes);
     await graph.addEdges(data.edges);
     return graph;
-}
-
-/**
- * The graph's render manager.
- * @param graph - The graph.
- * @returns Its render manager.
- */
-function renderManagerOf(graph: Graph): RenderManager {
-    return (graph as unknown as { renderManager: RenderManager }).renderManager;
 }
 
 /**

@@ -33,8 +33,10 @@ describe("positions round-trip exactly through every format that writes full dou
             const { snapshot } = await importGraph(bytes, { format });
             const position = snapshot.nodes.byRole("position");
             expect(position?.dtype).toBe("f64");
-            expect(Array.from(position?.value(0) as ArrayLike<number>)).toEqual([0.1, -10.5, 0]);
-            expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([1, 2, 0]);
+            // Pajek and GML store y growing downward: the writer flips it, exactly, and the column says so
+            const y = format === "pajek" || format === "gml" ? -1 : 1;
+            expect(Array.from(position?.value(0) as ArrayLike<number>)).toEqual([0.1, y * -10.5, 0]);
+            expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([1, y * 2, 0]);
         });
     }
 });

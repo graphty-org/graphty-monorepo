@@ -19,6 +19,11 @@ used_by_workflows:
     - W16
     - W17
     - W19
+    - W20
+    - W21
+    - W22
+    - W23
+    - W24
 implemented_by_components:
     - range-slider
     - filter-chip

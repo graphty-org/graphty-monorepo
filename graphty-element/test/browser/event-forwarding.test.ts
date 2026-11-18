@@ -181,6 +181,23 @@ describe("Event Forwarding Regression Tests", () => {
 
             cleanup(graphtyElement);
         });
+
+        test("error event stops at the element and never reaches the window (#8231)", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
+            const onElement = vi.fn();
+            const onWindow = vi.fn();
+            graphtyElement.addEventListener("error", onElement);
+            // Where window.onerror, error reporters and test runners listen.
+            window.addEventListener("error", onWindow);
+
+            graphtyElement.graph.eventManager.emitGraphError(graphtyElement.graph, new Error("refused"), "layout");
+
+            window.removeEventListener("error", onWindow);
+            assert.equal(onElement.mock.calls.length, 1);
+            assert.equal(onWindow.mock.calls.length, 0);
+
+            cleanup(graphtyElement);
+        });
     });
 
     describe("layout-initialized event", () => {
@@ -413,6 +430,31 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("real-world integration scenarios", () => {
+        test("a load forwards data-loaded, operation-queue-idle and graph-settled from real work", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
+            const seen = new Set<string>();
+            for (const type of ["data-loaded", "operation-queue-idle", "graph-settled"]) {
+                graphtyElement.addEventListener(type, () => seen.add(type));
+            }
+
+            graphtyElement.dataSource = "json";
+            graphtyElement.dataSourceConfig = {
+                data: JSON.stringify({
+                    nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+                    edges: [
+                        { source: "a", target: "b" },
+                        { source: "b", target: "c" },
+                    ],
+                }),
+            };
+
+            await vi.waitFor(() => {
+                assert.sameMembers([...seen], ["data-loaded", "operation-queue-idle", "graph-settled"]);
+            });
+
+            cleanup(graphtyElement);
+        });
+
         test("events fire during full graph lifecycle", async () => {
             const { element: graphtyElement } = await createGraphtyElement();
 

@@ -10,7 +10,7 @@
 # 3. tools/test-changed.mjs: the tests CI's selection would run, with CI's shard commands, no coverage; a
 #    browser shard CI runs whole runs only its selected files here, or nothing (issue #8042), unless
 #    --whole-browser-shards asks for the whole shard;
-# 4. tools/sonar-gate.mjs: SonarQube on the changed lines (off the owner's network it passes, warning);
+# 4. tools/duplicates-check.mjs: no new duplicate code between non-test files since the base;
 # 5. when webgpu-graph-algorithms is affected, its node tests on this machine's NVIDIA card;
 # 6. PR Integrity on HEAD (tools/pr-integrity.mjs --local: test integrity, breaking
 #    commits, baselines signed; Proof and the fresh review need the pull request and are left to CI);
@@ -58,7 +58,7 @@ done
 # GRAPHTY_RESULTS_TOKEN stay. A hook's GIT_DIR and friends go too.
 unset $(compgen -e | grep -E '^(PREPUSH_|TEST_LEDGER_)') TEST_SLOT_GATE GRAPHTY_TEST_QUARANTINE
 unset $(git rev-parse --local-env-vars)
-# sonar-gate.mjs measures "this push's changes" from the same base.
+# duplicates-check.mjs measures "this push's changes" from the same base.
 export PUSH_BASE_REF="$BASE"
 
 MB="$(git merge-base "$BASE" HEAD)" || { echo "no merge base with $BASE" >&2; exit 2; }
@@ -98,10 +98,11 @@ step "Formatting" formatting
 step "Build, lint and type-check (affected)" pnpm exec nx affected -t build lint typecheck --base="$BASE"
 # The tests read no developer git config (their git sandboxes would inherit signing, hooks, aliases).
 step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE" "${TEST_ARGS[@]}"
-step "SonarQube (changed lines)" node tools/sonar-gate.mjs
+step "Duplicate code" pnpm run check:duplicates
 # Captured, not piped into grep -q: under pipefail an early grep exit could SIGPIPE nx and skip the
-# GPU step, and a failing nx must not read as "not affected".
-AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE")" || FAILED+=("Affected projects (nx show projects)")
+# GPU step, and a failing nx must not read as "not affected". --json=false: nx 22 otherwise prints one
+# JSON array, which matches no project name, so every "when affected" step below was silently skipped.
+AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE" --json=false)" || FAILED+=("Affected projects (nx show projects)")
 affected() { grep -qx "$1" <<<"$AFFECTED"; }
 # graph-io's fidelity stories compile against graphty-element's source, but graph-io drops its project edge to
 # graphty-element (a build cycle), so an element-only change leaves graph-io's lint unrun. CI type-checks them
@@ -155,6 +156,7 @@ fi
 step "Migration count script" pnpm run check:migration-counts
 step "Legacy graph API use" pnpm run check:legacy-use
 step "No special style layers" pnpm run check:special-layers
+step "Readers honor the working graph" pnpm run check:working-graph
 step "No committed walk screenshots" pnpm run check:committed-images
 step "compact-mantine Figma lock" pnpm run check:figma-lock
 step "Saved-format exceptions" pnpm run check:saved-format-allowlist

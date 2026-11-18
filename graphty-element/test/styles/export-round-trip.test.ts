@@ -18,13 +18,14 @@ import { gunzipSync } from "node:zlib";
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, FILE_STYLE_ISSUE, fileStyleOf, type GraphSession, type LayerSpec } from "../../session";
+import { createGraphSession, FILE_STYLE_ISSUE, type GraphSession, type LayerSpec } from "../../session";
 import { type ExportResult, exportSession } from "../../src/data/export";
 import { GraphtyError } from "../../src/errors";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { ExplainTarget } from "../../src/session/styles/explain";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -72,6 +73,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.tooltip": ["tooltip"],
     "node.xlabel": ["xlabel"],
     "node.labelDeclutter": ["labelAvoidOverlap"],
+    "node.labelTextAlign": ["labelTextAlign"],
     "edge.color": ["color"],
     "edge.width": ["width"],
     "edge.opacity": ["opacity"],
@@ -91,6 +93,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
     "edge.xlabel": ["xlabel"],
+    "edge.labelTextAlign": ["labelTextAlign"],
 };
 const LABEL_PROPERTIES = [
     "labelColor",
@@ -101,6 +104,7 @@ const LABEL_PROPERTIES = [
     "labelPosition",
     "labelWrapWidth",
     "labelWrapTrailingSpace",
+    "labelWrapSkipEndSpace",
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -113,6 +117,7 @@ const LABEL_PROPERTIES = [
  */
 function sessionWithDegree(): GraphSession {
     const session: GraphSession = createGraphSession({
+        workingGraph: false,
         runs: {
             execute: (context: RunExecutionContext): Promise<RunOutcome> => {
                 const counts = new Map<string, number>();
@@ -372,11 +377,11 @@ function sample(dir: string): string[] {
  * @returns The session, or null when the file carries no styles the element draws.
  */
 async function corpusSession(type: string, path: string): Promise<GraphSession | null> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     const stored = new Uint8Array(readFileSync(path));
     const data = path.endsWith(".gz") ? new Uint8Array(gunzipSync(stored)) : stored;
     await session.data.import({ type, config: { data } }, { styles: "file" });
-    if (!session.styles.list().some((layer) => fileStyleOf(layer) !== null)) {
+    if (loadedLayers(session).length === 0) {
         session.dispose();
         return null;
     }
@@ -434,18 +439,20 @@ function picture(session: GraphSession): Record<"node" | "edge", Record<string, 
     };
 }
 
-/** A load's scope on its own elements and its file-style namespace, set aside when layers are compared. */
-const NAMESPACE = String.raw`graphty\.style\.(?:"[^"]*"|[A-Za-z0-9_-]+)`;
-const SCOPE = String.raw`${NAMESPACE}\.(?:node|edge)\.el\.load(?:\."?\d+"?)?`;
+/**
+ * A load's scope on its own elements, set aside when layers are compared: the data column `el_load`, or
+ * `el_load (<source>)` when that name was taken.
+ */
+const SCOPE = String.raw`data\.(?:"el_load[^"]*"|el_load(?: \([^)]*\))?)`;
 
 /**
- * A value with every file-style namespace in its strings written as `*`.
+ * A value with the ` (<source>)` a column name took when its own name was taken set aside.
  * @param value - The value.
- * @returns It, with the namespaces set aside.
+ * @returns It, with the suffixes set aside.
  */
 function anyNamespace(value: unknown): unknown {
     if (typeof value === "string") {
-        return value.replaceAll(new RegExp(`${NAMESPACE}\\.(node|edge)\\.`, "g"), "graphty.style.*.$1.");
+        return value.replaceAll(/ \([a-z0-9_-]+(?: \d+)?\)/g, "");
     }
 
     if (Array.isArray(value)) {
@@ -510,7 +517,9 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
     const property = String(note.params.property);
     // a label's style is one channel merged and several in a layer's contribution
     const properties =
-        /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|Location)$/.test(channel)
+        /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|Location)$/.test(
+            channel,
+        )
             ? LABEL_PROPERTIES
             : (PROPERTIES[channel] ?? []);
     // a rule whose column did not come back names the property it draws among its samples
@@ -596,7 +605,7 @@ async function write(
  * @returns The session.
  */
 async function loadBack(text: string, format: string): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.import({ type: format, config: { data: text } }, { styles: "file" });
     await session.styles.settled();
     return session;
@@ -611,8 +620,8 @@ async function loadBack(text: string, format: string): Promise<GraphSession> {
 async function dataIsStable(source: GraphSession, writer: (typeof WRITERS)[number]): Promise<boolean> {
     const plain = async (session: GraphSession): Promise<string> =>
         (await write(session, writer.format, writer.options, false)).text;
-    const first = createGraphSession();
-    const second = createGraphSession();
+    const first = createGraphSession({ workingGraph: false });
+    const second = createGraphSession({ workingGraph: false });
     try {
         await first.data.import({ type: writer.format, config: { data: await plain(source) } });
         const once = await plain(first);

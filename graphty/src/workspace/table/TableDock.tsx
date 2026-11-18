@@ -11,10 +11,10 @@ import type { DataIssue, GraphSession, IssueId, ScopeInput, SummaryGroup } from 
 import { ActionIcon, Button, Chip, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { runName } from "../runWords";
+import { TABLE_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -38,7 +38,6 @@ import { HeaderIcons, HeaderWarning, RenamePopover } from "./HeaderCell";
 import { HeaderMenu, type HeaderMenuActions } from "./HeaderMenu";
 import { MaximizedPanel } from "./MaximizedPanel";
 import { RecordTable } from "./RecordTable";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** The smallest table drawn, while the dock is being measured. */
 const MIN_TABLE_HEIGHT = 32;
@@ -591,7 +590,7 @@ function dockScope(session: GraphSession, tab: string, { members, all, rows }: A
     const { summary } = session.visibility;
     const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
     const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
-    const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
+    const narrowed: ScopeInput = all ? "graph" : "visible";
     // A reply's rows are listed whole, filter or not: they are the answer the reader asked to see.
     const shownRows = groupRun === undefined && rows?.kind === kind && rows.session === session ? rows : null;
     const membersScope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
@@ -787,11 +786,11 @@ export function TableDock(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const tab = useWorkspaceState((state) => state.dockTab);
     const maximized = useWorkspaceState((state) => state.dockMaximized);
-    useSessionVersion(session);
+    useSessionEvents(session, TABLE_EVENTS);
     // The reader's Number format respells the counts and the dock's chips.
     useNumberFormats();
     // A filter step changes which records the table lists.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const { ref: bodyRef, height: bodyHeight } = useBoxSize();
     const [renaming, setRenaming] = useState<string | null>(null);
     const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);
@@ -1083,7 +1082,7 @@ export function TableDock(): React.JSX.Element {
     return (
         // Escape in the grid leaves it for the toolbar's Table button, which opened it: a key that
         // always does its job, where nothing in the grid has an Escape of its own.
-        <div // NOSONAR(S6848): catches Escape as it bubbles from the grid's own focusable cells; the div takes no focus
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- catches Escape as it bubbles from the grid's own focusable cells; the div takes no focus
             className="ws-table"
             ref={root}
             onKeyDown={leaveGrid}

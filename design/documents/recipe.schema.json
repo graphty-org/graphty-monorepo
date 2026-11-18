@@ -150,7 +150,7 @@
                     "minLength": 1,
                     "maxLength": 128,
                     "pattern": "^[a-z][a-z0-9-]*$",
-                    "description": "The CSV shape, as graphty-element's catalogue names it (edge-list, node-list, ...). A reading whose variant is neo4j passes its header test when the first line holds :START_ID and :END_ID, or :ID, and then reads the file as that variant, whose header types its own structure (recipe.md, 'Table data' rule 3)."
+                    "description": "The CSV shape, as graphty-element's catalog names it (edge-list, node-list, ...). A reading whose variant is neo4j passes its header test when the first line holds :START_ID and :END_ID, or :ID, and then reads the file as that variant, whose header types its own structure (recipe.md, 'Table data' rule 3)."
                 },
                 "repeatedEdges": {
                     "enum": ["keep", "first", "last", "sum", "min", "max", "error"],
@@ -210,7 +210,7 @@
                     "const": "__proto__"
                 }
             },
-            "description": "Option values by the option names graphty-element's catalogue publishes for the algorithm or layout. An option of type attribute or partition may instead name an earlier run's result as {\"result\": \"<as>.<field>\"} (recipe.md, 'Commands' rule 4). The algorithm's own seed option is not given here: seed is (a command that gives it is skipped)."
+            "description": "Option values by the option names graphty-element's catalog publishes for the algorithm or layout. An option of type attribute or partition may instead name an earlier run's result as {\"result\": \"<as>.<field>\"} (recipe.md, 'Commands' rule 4). The algorithm's own seed option is not given here: seed is (a command that gives it is skipped)."
         },
         "scope": {
             "oneOf": [
@@ -250,7 +250,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "An algorithm key from graphty-element's catalogue, or one a plugin registered."
+                    "description": "An algorithm key from graphty-element's catalog, or one a plugin registered."
                 },
                 "as": {
                     "$ref": "#/$defs/as"
@@ -312,7 +312,7 @@
                             }
                         }
                     ],
-                    "description": "What the run paints when it completes: the run's RunStyle, as graphty-element's run option of the same name. true, the colouring its result suggests; false, nothing; the object form, only the parts it names. Absent, it paints unless a style member of the same file reads this run's results. The parts of the object form grow within version 1: a reader drops a part it does not know and paints the rest (recipe.md, 'Replaying' rule 3)."
+                    "description": "What the run paints when it completes: the run's RunStyle, as graphty-element's run option of the same name. true, the coloring its result suggests; false, nothing; the object form, only the parts it names. Absent, it paints unless a style member of the same file reads this run's results. The parts of the object form grow within version 1: a reader drops a part it does not know and paints the rest (recipe.md, 'Replaying' rule 3)."
                 },
                 "description": {
                     "$ref": "#/$defs/description"
@@ -331,17 +331,17 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "A layout id from graphty-element's catalogue, or one a plugin registered."
+                    "description": "A layout id from graphty-element's catalog, or one a plugin registered."
                 },
                 "engine": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "The engine that draws the layout; the catalogue's default engine for id when absent."
+                    "description": "The engine that draws the layout; the catalog's default engine for id when absent."
                 },
                 "options": {
                     "$ref": "#/$defs/params",
-                    "description": "The engine's options, by the names the catalogue publishes, the seed among them."
+                    "description": "The engine's options, by the names the catalog publishes, the seed among them."
                 },
                 "description": {
                     "$ref": "#/$defs/description"

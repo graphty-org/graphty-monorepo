@@ -1358,9 +1358,12 @@ export function planRuns(root, shards, selection) {
  * The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). At 8
  * min the bins were the pull request tail (#3448): Build ends about 4.6 min in, a Test job spends about 45 s on
  * setup, and its bin ran up to the limit (graphty-1: 22 files, vitest 430 s; graphty-element-storybook-1: 31 files,
- * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. 4 min bins end near 10 min.
+ * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. At 4 min a Test job spent about 1.45
+ * min outside its tests (setup, install, browsers): 181 of 535 Test job minutes in PR run 43872756475 (2026-11-16,
+ * 125 Test jobs), while the run's tail was its Story tests jobs at 27 min, not the Test bins (ended by 20 min).
+ * 6 min bins cut about a third of those jobs and their setup and still end before that tail (#5404).
  */
-export const BIN_LIMIT_MS = 4 * 60_000;
+export const BIN_LIMIT_MS = 6 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
 /**
@@ -1383,10 +1386,17 @@ export const FILE_OVERHEAD_MS = 5_000;
  *   one 1-minute run into ten bins.
  * - graphty-large-graph's files are each planned at about half the file guard (tools/ci-test-matrix.mjs), with
  *   no room for a second in a job: a whole bin of overhead gives each its own bin, recorded or not.
+ * - graphty-element-browser, re-fitted to PR runs 44077096553, 44102453358 and 44102973749 (2026-11-17, 6-min
+ *   bins, 96 bins of it and its features-on twin): 3.1 to 3.9 s per file (4.9 s at the 90th percentile) and
+ *   0.92 times the recorded time, so its bins of many short files ended at 2.5 to 3.5 min on a 6-minute plan;
+ *   4.5 s per file (#5404).
+ * A features-on twin (`<family>-features-on`) runs the same files with flags on, so it takes its family's cost:
+ * at the default 5 s a file, graphty-element-default-features-on planned 11 bins whose tests ran 30 to 137 s each,
+ * and graphty-element-storybook-features-on's bins ran 441 to 448 s on a 6-minute plan (same runs, #5404).
  * ponytail: constants re-fitted by hand; learn them from the store's invocation records if they drift.
  */
 export const FAMILY_BIN_COST = {
-    "graphty-element-browser": { overheadMs: 7_500, scale: 1 },
+    "graphty-element-browser": { overheadMs: 4_500, scale: 1 },
     "graphty-element-storybook": { overheadMs: 7_500, scale: 1 },
     graphty: { overheadMs: 2_000, scale: 1.35 },
     "graphty-element-default": { overheadMs: 500, scale: 1 },
@@ -1395,11 +1405,14 @@ export const FAMILY_BIN_COST = {
 };
 
 /**
- * A family's bin cost: FAMILY_BIN_COST's entry, or FILE_OVERHEAD_MS per file and the recorded ms as they are.
+ * A family's bin cost: FAMILY_BIN_COST's entry (a features-on twin's is its family's), or FILE_OVERHEAD_MS per
+ * file and the recorded ms as they are.
  * @param family a shard family
  * @returns `{ overheadMs, scale }`
  */
-export const binCost = (family) => FAMILY_BIN_COST[family] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
+export const binCost = (family) =>
+    FAMILY_BIN_COST[family] ??
+    FAMILY_BIN_COST[family.replace(/-features-on$/u, "")] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
 
 /**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
@@ -1823,6 +1836,14 @@ export function storiesReaching(dir, changed, gs) {
 export const STORY_BIN_LIMIT_MS = 3 * 60_000;
 
 /**
+ * Where a light-check Stories bin's limit starts (storyBins()), above STORY_BIN_LIMIT_MS (the rolling slices' bin,
+ * tools/channel/story-slices.mjs): at 3 min a Stories job spent about 1.5 min on setup for 1.6 min of capture (47
+ * jobs, 70 of 147 minutes outside capture, PR run 43872756475, 2026-11-16), and the Stories jobs ended by 10 min,
+ * far ahead of the run's 27-minute Story tests tail. 6 min halves the jobs and their setup (#5404).
+ */
+export const LIGHT_STORY_BIN_LIMIT_MS = 6 * 60_000;
+
+/**
  * The most Stories jobs a pull request's light check plans: past it, every bin's limit grows (in steps of 30 s, up to
  * STORY_BIN_MAX_MS) until the bins fit. It was 9 after 37 bins of 3 min queued for runners (2026-10-29), but the
  * organization runs up to 500 Linux jobs at once: in PR runs 41061566840, 41067254808 and 41073371165 (2026-10-30)
@@ -1849,8 +1870,12 @@ export const STORY_MS = {
     // each changed picture is shot twice (capture.mjs needsSecondShot: the reference, master's story-test capture,
     // never matches the built-Storybook capture byte for byte), and PR run 41005977433 (#4559, Stories
     // (graph-io-fidelity-1), both attempts) captured cx2 and cys Specimens at 6.1 to 6.5 s a story, graphology
-    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639)
-    "graph-io-fidelity": 6_500,
+    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639).
+    // PR runs 44227750388, 44233191243 and 44246676418 (2026-11-18) captured its 39 bins at 0.24 to 0.60 of their
+    // plan (0.43 in all, Samples, Specimens and the slow Specimens files alike; 0.93 at most on a change that
+    // differs from every baseline, #5404), so it and its STORY_FILE_MS rates are 0.6 of what they were: a bin
+    // captures in at most its plan, and in about 1.55 times it when every picture is shot twice
+    "graph-io-fidelity": 3_900,
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
@@ -1881,27 +1906,27 @@ export const STORY_FILE_MS = {
     // graph-io-fidelity's Samples files draw real datasets, about twice its Specimens stories (fit above, at
     // STORY_MS), and are shot twice while they differ from their baselines: 12.4 s, gexf's measured rate in PR run
     // 41005977433 (#4639); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
-    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
+    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 7_200,
     // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
     // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
     // both planned at about 175 s and the pull request's last job; less the Samples at 6.2 s, 6.8 s and 7.7 s a story
-    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 6_800,
+    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 4_100,
     // gexf's Specimens, measured in the same runs at 4.1 s a story
-    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
-    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
-    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 2_500,
+    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 4_600,
+    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 7_400,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;
@@ -1986,7 +2011,7 @@ export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
 
 /**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
+ * files packed into bins of at most LIGHT_STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
  * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
  * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
@@ -1997,7 +2022,7 @@ export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
  * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
  * @param [options] binning options
  * @param [options.jobBudget] the most bins before every bin's limit grows (STORY_JOB_BUDGET); Infinity keeps every
- *   bin at STORY_BIN_LIMIT_MS (the rolling slices, design/visual-testing/early-capture.md 4a)
+ *   bin at LIGHT_STORY_BIN_LIMIT_MS
  * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
  */
 export function storyBins(
@@ -2010,7 +2035,7 @@ export function storyBins(
 ) {
     const plans = storyUnitPlans(stories, projects, listFiles, durations, storiesIn);
     // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
-    let limit = STORY_BIN_LIMIT_MS;
+    let limit = LIGHT_STORY_BIN_LIMIT_MS;
     let packed = packStoryBins(plans, limit);
     while (packed.length > jobBudget && limit < STORY_BIN_MAX_MS) {
         limit += 30_000;

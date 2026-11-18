@@ -1,0 +1,117 @@
+/**
+ * The glTF checks refuse a file before Babylon reads it: broken JSON or GLB framing, indices out of
+ * range, node cycles, buffers shorter than they claim, extensions nothing here reads, and models
+ * over the limits.
+ */
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { assert, describe, it } from "vitest";
+
+import { checkModelFiles, DEFAULT_MODEL_LIMITS, type ModelLimits } from "../src/files/index.js";
+import { ModelError } from "../src/files/references.js";
+
+/** A glTF's JSON, edited by a test. */
+type Json = Record<string, unknown>;
+
+const VARIANTS = join(dirname(fileURLToPath(import.meta.url)), "fixtures/variants");
+
+/**
+ * A variant's file.
+ * @param id - The variant.
+ * @param name - The file.
+ * @returns Its bytes.
+ */
+function fixture(id: string, name: string): Uint8Array {
+    return new Uint8Array(readFileSync(join(VARIANTS, id, name)));
+}
+
+/**
+ * The textured cube's set, its JSON changed.
+ * @param change - Edits the JSON.
+ * @returns The set.
+ */
+function cubeWith(change: (json: Json) => void): Map<string, Uint8Array> {
+    const json = JSON.parse(new TextDecoder().decode(fixture("gltf-textured", "cube.gltf"))) as Json;
+    change(json);
+    return new Map([
+        ["cube.gltf", new TextEncoder().encode(JSON.stringify(json))],
+        ["cube.bin", fixture("gltf-textured", "cube.bin")],
+        ["cube.png", fixture("gltf-textured", "cube.png")],
+    ]);
+}
+
+/**
+ * What checking a set threw.
+ * @param files - The set.
+ * @param limits - The limits.
+ * @returns The first fact.
+ */
+async function refusalOf(files: Map<string, Uint8Array>, limits: ModelLimits = DEFAULT_MODEL_LIMITS) {
+    const error = await checkModelFiles(files, {}, limits).then(
+        () => assert.fail("the set was accepted"),
+        (e: unknown) => e,
+    );
+    assert.instanceOf(error, ModelError);
+    return error.fact;
+}
+
+describe("the glTF checks", () => {
+    it("accept the cube as it is", async () => {
+        const checked = await checkModelFiles(
+            cubeWith(() => undefined),
+            {},
+            DEFAULT_MODEL_LIMITS,
+        );
+        assert.strictEqual(checked.summary.triangles, 12);
+    });
+
+    it("refuse JSON that does not parse and a GLB cut short", async () => {
+        const broken = new Map([["cube.gltf", new TextEncoder().encode("{ not json")]]);
+        assert.strictEqual((await refusalOf(broken)).code, "E_MODEL_STRUCTURE");
+        const glb = fixture("glb", "cube.glb");
+        assert.strictEqual((await refusalOf(new Map([["cube.glb", glb.slice(0, 24)]]))).code, "E_MODEL_STRUCTURE");
+    });
+
+    it("refuse an index out of range, a node cycle and a buffer shorter than it claims", async () => {
+        const index = await refusalOf(
+            cubeWith((json) => {
+                (json.accessors as Json[])[0].bufferView = 99;
+            }),
+        );
+        assert.strictEqual(index.code, "E_MODEL_STRUCTURE");
+        const cycle = await refusalOf(
+            cubeWith((json) => {
+                json.nodes = [{ mesh: 0, children: [1] }, { children: [0] }];
+            }),
+        );
+        assert.strictEqual(cycle.code, "E_MODEL_STRUCTURE");
+        const short = await refusalOf(
+            cubeWith((json) => {
+                (json.buffers as Json[])[0].byteLength = 1_000_000;
+            }),
+        );
+        assert.strictEqual(short.code, "E_MODEL_STRUCTURE");
+    });
+
+    it("refuse a required extension nothing here reads", async () => {
+        const fact = await refusalOf(
+            cubeWith((json) => {
+                json.extensionsUsed = ["EXT_unknown_thing"];
+                json.extensionsRequired = ["EXT_unknown_thing"];
+            }),
+        );
+        assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED");
+    });
+
+    it("refuse a model over the triangle and texture limits", async () => {
+        const plain = cubeWith(() => undefined);
+        const triangles = await refusalOf(plain, { ...DEFAULT_MODEL_LIMITS, maxTriangles: 5 });
+        assert.deepInclude(triangles, { code: "E_MODEL_TOO_LARGE" });
+        assert.strictEqual(triangles.params.what, "triangles");
+        const textures = await refusalOf(plain, { ...DEFAULT_MODEL_LIMITS, maxTextureBytes: 10 });
+        assert.strictEqual(textures.params.what, "textureBytes");
+    });
+});

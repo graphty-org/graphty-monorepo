@@ -906,7 +906,97 @@ function leftOut(kind: string, pointer: string): DocumentProblem {
 const OBJECT_SETTINGS = new Set(["background", "selectionStyle", "pinnedStyle", "layoutTransition"]);
 
 /** The timeline playback members (spec 4.4). */
-const PLAYBACK_MEMBERS = ["mode", "step", "missing", "outside", "timeZone", "ageFade", "results"];
+const PLAYBACK_MEMBERS = ["mode", "step", "missing", "timeZone", "ageFade", "results"];
+
+/**
+ * A value with every `"ghosted"` state (a state selector or a rule leaf) reading `"outsideWindow"`.
+ * @param value - The value.
+ * @returns It rewritten.
+ */
+function ghostedOutside(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map((each) => ghostedOutside(each));
+    }
+
+    if (!isObject(value)) {
+        return value;
+    }
+
+    const out = Object.fromEntries(Object.entries(value).map(([key, each]) => [key, ghostedOutside(each)]));
+    const leaf = (out.match === "state" || out.kind === "state") && out.state === "ghosted";
+    return leaf ? { ...out, state: "outsideWindow" } : out;
+}
+
+/**
+ * Whether a session member is of a timed file saved before what lies outside the time window had
+ * a state of its own: no `outsideByLayers` mark, a time field, and a playback or a window saved
+ * (a file saved with the timeline off holds neither, and its `"ghosted"` meant a held condition).
+ * @param session - The session member.
+ * @returns True when it is.
+ */
+function savedBeforeOutsideWindow(session: JsonObject): boolean {
+    const visibility = isObject(session.visibility) ? session.visibility : {};
+    const played =
+        (visibility.playback !== undefined && visibility.playback !== null) ||
+        (visibility.window !== undefined && visibility.window !== null && visibility.windowRaw !== true);
+    const config = isObject(session.config) ? session.config : {};
+    const known = isObject(config.data) && isObject(config.data.knownFields) ? config.data.knownFields : {};
+    const timed = typeof known.nodeTimePath === "string" || typeof known.edgeTimePath === "string";
+    return visibility.outsideByLayers !== true && played && timed;
+}
+
+/**
+ * The members of a timed file saved before what lies outside the time window had a state of its
+ * own ({@link savedBeforeOutsideWindow}), brought up to date as a version 1 open does
+ * (projectFile.ts `outsideWindowLayers`). Its layers and
+ * rule sets reading `"ghosted"` meant what lay outside the window and read `"outsideWindow"`; the
+ * playback's `outside` (hidden unless `"ghost"`) is written to the enabled layers selecting that
+ * state, or to a new layer for a kind none selects, as `time.setSettings` writes it.
+ * @param members - The members by kind.
+ * @returns The members, changed when the file needs it.
+ */
+function outsideWindowMembers(members: ReadonlyMap<string, JsonObject>): ReadonlyMap<string, JsonObject> {
+    const session = members.get("graphty-session");
+    const style = members.get("graphty-style");
+    if (session === undefined || style === undefined || !savedBeforeOutsideWindow(session)) {
+        return members;
+    }
+
+    const { playback } = session.visibility as JsonObject;
+    const drawn = isObject(playback) && playback.outside === "ghost";
+    const layers = objectsOf(style.layers).map((layer) =>
+        isObject(layer.source) && layer.source.by === "element"
+            ? layer
+            : { ...layer, selector: ghostedOutside(layer.selector) },
+    );
+    for (const target of ["node", "edge"] as const) {
+        const visible = `${target}.visible`;
+        const own = layers.filter(
+            (layer) =>
+                layer.enabled !== false &&
+                layer.target === target &&
+                isObject(layer.selector) &&
+                layer.selector.match === "state" &&
+                layer.selector.state === "outsideWindow",
+        );
+        if (own.length === 0) {
+            layers.push({
+                id: `outside-window-${target}`,
+                name: "Outside the time window",
+                target,
+                selector: { match: "state", state: "outsideWindow" },
+                set: { [visible]: drawn },
+            });
+        }
+
+        for (const layer of own) {
+            layer.set = { ...(isObject(layer.set) ? layer.set : {}), [visible]: drawn };
+        }
+    }
+
+    const sets = objectsOf(session.sets).map((set) => ({ ...set, definition: ghostedOutside(set.definition) }));
+    return new Map([...members, ["graphty-style", { ...style, layers }], ["graphty-session", { ...session, sets }]]);
+}
 
 /**
  * The settings section: the session's config written flat, and the timeline playback. No `data.`
@@ -1428,7 +1518,7 @@ export function migrateDocument1(value: JsonObject, problems: DocumentProblem[])
     }
 
     const found: DocumentProblem[] = [...membersLeftOut(value, members)];
-    const sections = sectionsOf(members, generatorOf(value), found);
+    const sections = sectionsOf(outsideWindowMembers(members), generatorOf(value), found);
     const written = ORDER.filter((section) => sections[section] !== undefined);
     if (written.length === 0) {
         return undefined;

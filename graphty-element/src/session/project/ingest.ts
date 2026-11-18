@@ -847,6 +847,7 @@ export class Ingest<K extends KnownEdge> {
                     this.applyDeclaredDirection("data.apply", { directed, statedBy, conflictingEdges: 0 }, writer);
                 }
 
+                writer.store.reserveEdgeIds(mutation.reserve ?? []);
                 this.addEdges(mutation.records, addEdgesOptions(mutation), writer, mutation.ids);
                 return;
             case "set-attributes":

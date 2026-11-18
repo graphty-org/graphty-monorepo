@@ -692,9 +692,10 @@ a save and reopen, for every edge alike, by the data section's `edgeIds` member:
 the edge's `load`, each value an object from the edge's `key` to its id, every edge in graph order,
 an edge added to a node standing in for a group included (under `reader`). A writer writes every
 edge; a source that could not be fetched keeps the ids it was read with. A reader gives each edge
-the id saved for its (load, key) and continues its counter past the largest, so no new edge reuses
-one. An edge whose saved id another edge already holds gets a fresh id, and a value that is not a
-decimal id is not used; both are reported as `W_MEMBER_LEFT_OUT` (pointer
+the id saved for its (load, key) and continues its counter past the largest id the member names
+(those of a source it could not fetch included) before any edge gets a fresh one, so no new edge
+reuses one. An id the member names a second time, and a value that is not a decimal id below
+2147483648 (2^31), are not used, and that edge gets a fresh id; both are reported as `W_MEMBER_LEFT_OUT` (pointer
 `/edgeIds/<load>/<key>`). A file without `edgeIds`, or an edge it does not name, gets fresh ids.
 The id is never the edge's own id from its file (its `edgeId` column), which stays its key. An edge reference never names its ends:
 `key` is the record key, never NetworkX's multigraph key.
@@ -867,6 +868,10 @@ kind) is opened through a migration into the sections above:
   `version-1-loads`; the per-element values a session member's `fileStyles` holds outside the
   data are left out and reported (`W_MEMBER_LEFT_OUT`, pointer `/fileStyles`), since a version 2
   load holds a file's looks as ordinary columns of its source;
+- a timed file saved before what lies outside the time window had a state of its own (no
+  `outsideByLayers` mark, a time field, and a playback or a window saved) reads `"outsideWindow"`
+  where its layers and rule sets read `"ghosted"`, and its playback's `outside` is written to the
+  layers selecting that state (a new layer for a kind none selects), never to `playback`;
 - hidden columns go into view, `columns.types` into `conversions`, declared measurements and
   ordinal orders into the type schemas (one on a column no type carries is reported as dropped),
   ignored issues unchanged, kept pairs into `issues.kept`;

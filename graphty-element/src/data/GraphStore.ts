@@ -12,6 +12,7 @@ import {
 } from "@graphty/graph-format";
 
 import { hashNodeId } from "../catalog/sets/hash";
+import type { EdgeId } from "../catalog/types";
 import { type InputCounters, inputCountersOf } from "../session/attributes";
 import { retainArray } from "../session/project/strict";
 import type { DirectionProvenance } from "../session/types";
@@ -19,8 +20,10 @@ import {
     completeLoad,
     createEdgeCounter,
     DEFERRED_HASH_COLUMN,
+    EDGE_ID_CEILING,
     EDGE_ID_COLUMN,
     type EdgeCounter,
+    edgeCounterOf,
     IDENTITY_COLUMNS,
     type IdentityGraph,
     PAIRS_ORDERED_ATTRIBUTE,
@@ -986,7 +989,7 @@ export class GraphStore {
             wanted === undefined ||
             !Number.isSafeInteger(wanted) ||
             wanted < 0 ||
-            wanted >= INVALID_INDEX ||
+            wanted >= EDGE_ID_CEILING ||
             this.edgeIndexOf(wanted) !== INVALID_INDEX
         ) {
             return this.nextEdgeId();
@@ -995,6 +998,23 @@ export class GraphStore {
         this.requireAlive("takeEdgeId");
         resumeEdgeCounter(this.counter, wanted);
         return wanted;
+    }
+
+    /**
+     * Continue the counter past every id named, so no edge added later is given one of them fresh:
+     * ids a save file names for edges not added yet, or for a source that could not be fetched.
+     * An id {@link takeEdgeId} would not take is skipped.
+     * @param ids - The edge ids.
+     * @throws Error when the store has been disposed
+     */
+    reserveEdgeIds(ids: readonly EdgeId[]): void {
+        this.requireAlive("reserveEdgeIds");
+        for (const id of ids) {
+            const counter = edgeCounterOf(id);
+            if (counter < EDGE_ID_CEILING) {
+                resumeEdgeCounter(this.counter, counter);
+            }
+        }
     }
 
     /**

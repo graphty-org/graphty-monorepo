@@ -467,3 +467,44 @@ describe("a version 1 document of one kind, migrated", () => {
         ]);
     });
 });
+
+describe("a timed version 1 file saved before what lies outside the window had a state", () => {
+    it("draws what lies outside as the playback said, through layers selecting the state", async () => {
+        const session = createGraphSession({ features: ["save-files-v2"] });
+        await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+        const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `s${String(i)}`, step: i }));
+        await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
+        await session.time.setField({ nodes: { start: "step" } });
+        await session.time.window({ from: 3, to: 6 });
+        await session.time.setSettings({ outside: "ghost", missing: "outside" });
+        const { text } = await session.project.save({ format: 1 });
+        session.dispose();
+        // As an older writer wrote it: no outsideByLayers mark, the layers reading "ghosted" and
+        // setting no visible, and the playback saying how what lies outside draws.
+        const before = (outside: "hide" | "ghost"): string =>
+            text
+                .replace(',"outsideByLayers":true', "")
+                .replaceAll('"state":"outsideWindow"', '"state":"ghosted"')
+                .replaceAll(',"node.visible":true', "")
+                .replaceAll(',"edge.visible":true', "")
+                .replace('"playback":{"missing":"outside"}', `"playback":{"missing":"outside","outside":"${outside}"}`);
+        assert.include(before("ghost"), '"outside":"ghost"');
+
+        for (const outside of ["hide", "ghost"] as const) {
+            const opened = createGraphSession({ features: ["save-files-v2"] });
+            const report = await opened.project.open(before(outside), { migrate: true, rerun: false });
+            assert.notInclude(
+                report.problems.map((problem) => problem.code),
+                "W_UNKNOWN_MEMBER",
+            );
+            const rows = opened.styles.list().filter((layer) => layer.name === "Timeline Hidden");
+            assert.isNotEmpty(rows);
+            for (const layer of rows) {
+                assert.deepEqual(layer.selector, { match: "state", state: "outsideWindow" });
+            }
+
+            assert.strictEqual(opened.time.settings.outside, outside, `saved ${outside}`);
+            opened.dispose();
+        }
+    });
+});

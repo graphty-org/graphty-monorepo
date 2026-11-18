@@ -250,4 +250,117 @@ describe("edge ids in a version 2 save", () => {
         assert.include(ids, taken);
         opened.dispose();
     });
+
+    it("gives a saved id to its edge even when an earlier edge the file names no id for is added first", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\nb,c\nc,a\n" }, name: "abc.csv" });
+        const text = await save(session);
+        session.dispose();
+        const changed = withData(text, (section) => {
+            // The first edge is named no id, and the two after it the ids it would be given first.
+            const [[load, keys]] = Object.entries(section.edgeIds as Record<string, Record<string, EdgeId>>);
+            const [, second, third] = Object.keys(keys);
+            section.edgeIds = { [load]: { [second]: "0", [third]: "1" } };
+        });
+
+        const { session: opened, problems } = await open(changed);
+        assert.deepEqual(problems, []);
+        const ids = opened.data.edges({ scope: "graph" }).map((edge) => edge.id);
+        assert.includeMembers(ids, ["0", "1"]);
+        assert.strictEqual(new Set(ids).size, ids.length);
+        opened.dispose();
+    });
+
+    it("leaves out and reports a saved id near the end of the id range, and edges can still be added", async () => {
+        const session = await mixed();
+        const text = await save(session);
+        session.dispose();
+        let pointer = "";
+        const changed = withData(text, (section) => {
+            const [load, keys] = Object.entries(section.edgeIds as Record<string, Record<string, EdgeId>>)[0];
+            const [first] = Object.keys(keys);
+            keys[first] = "4294967294";
+            pointer = `/edgeIds/${load}/${first}`;
+        });
+
+        const { session: opened, problems } = await open(changed);
+        assert.deepEqual(problems, [{ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer } }]);
+        await opened.data.addEdges([
+            { source: "a", target: "e" },
+            { source: "e", target: "b" },
+        ]);
+        for (const edge of opened.data.edges({ scope: "graph" })) {
+            assert.isBelow(Number(edge.id), 2 ** 31);
+        }
+
+        opened.dispose();
+    });
+
+    it("never gives a new edge an id a source that could not be fetched keeps", async () => {
+        const session = await mixed();
+        const text = withData(await save(session), (section) => {
+            const record = (section.sources as JsonObject[]).find((each) =>
+                JSON.stringify(each).includes("cde.csv"),
+            ) as JsonObject;
+            delete record.copy;
+            delete record.columns;
+            (record.origin as JsonObject).path = "cde.csv";
+            (record.origin as JsonObject).copy = `sha256:${"a".repeat(64)}`;
+        });
+        session.dispose();
+
+        const { session: opened, problems } = await open(text);
+        assert.include(
+            problems.map((problem) => (problem as { code: string }).code),
+            "W_SOURCE_UNAVAILABLE",
+        );
+        await opened.data.addEdges([{ source: "a", target: "b" }]);
+        const saved = Object.values(data(await save(opened)).edgeIds as Record<string, Record<string, EdgeId>>).flatMap(
+            (keys) => Object.values(keys),
+        );
+        assert.strictEqual(new Set(saved).size, saved.length);
+        opened.dispose();
+    });
+
+    it("gives a fresh id to an edge added to a group's node saved with a collapsed member's id, and reports it", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [
+                        { id: "a", team: "x" },
+                        { id: "b", team: "x" },
+                        { id: "c", team: "y" },
+                        { id: "d", team: "y" },
+                    ],
+                    edges: [
+                        { source: "a", target: "b" },
+                        { source: "b", target: "c" },
+                        { source: "c", target: "d" },
+                    ],
+                }),
+            },
+            name: "teams.json",
+        });
+        const member = session.data.edges().find((edge) => edge.source === "a" && edge.target === "b");
+        assert.isDefined(member);
+        const node = await session.groups.collapse(TEAM_X);
+        await session.data.addEdges([{ source: node, target: "d" }]);
+        let pointer = "";
+        const text = withData(await save(session), (section) => {
+            const { reader } = section.edgeIds as Record<string, Record<string, EdgeId>>;
+            const [key] = Object.keys(reader);
+            reader[key] = member.id;
+            pointer = `/edgeIds/reader/${key}`;
+        });
+        session.dispose();
+
+        const { session: opened, problems } = await open(text);
+        assert.deepEqual(problems, [{ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer } }]);
+        const added = opened.data.edges({ scope: "graph" }).find((edge) => edge.target === "d" && edge.source === node);
+        assert.isDefined(added);
+        assert.notStrictEqual(added.id, member.id);
+        opened.dispose();
+    });
 });

@@ -33,10 +33,8 @@
  *   conversions leave values as read.
  */
 
-import { INVALID_INDEX } from "@graphty/graph-format";
-
 import type { EdgeId, NodeId } from "../../../catalog/types";
-import { edgeCounterOf } from "../../../data/edgeIdentity";
+import { EDGE_ID_CEILING, edgeCounterOf } from "../../../data/edgeIdentity";
 import type { ColumnSettings } from "../../commands/data";
 import type { LoadedSource, TransactionScope } from "../../types";
 import { token } from "../framing";
@@ -1007,7 +1005,8 @@ function loadOf(record: JsonObject, key: string, added: { nodes: number; edges: 
 
 /**
  * The `edgeIds` member (spec 6.2): each edge's element-assigned id by its load and key. A value
- * that is not an element-assigned id is left out and reported; a file without the member gives none.
+ * that is not an element-assigned id, one at or above {@link EDGE_ID_CEILING}, or one an earlier
+ * edge already names is left out and reported; a file without the member gives none.
  * @param value - The member.
  * @param problems - Collects what is left out.
  * @returns The ids.
@@ -1023,6 +1022,7 @@ function savedEdgeIds(value: unknown, problems: DocumentProblem[]): SavedEdgeIds
         return saved;
     }
 
+    const named = new Set<string>();
     for (const [load, keys] of Object.entries(value)) {
         if (!isPlainObject(keys)) {
             problems.push({
@@ -1035,7 +1035,9 @@ function savedEdgeIds(value: unknown, problems: DocumentProblem[]): SavedEdgeIds
         const ids = new Map<string, EdgeId>();
         saved.set(load, ids);
         for (const [key, id] of Object.entries(keys)) {
-            if (typeof id === "string" && edgeCounterOf(id) !== INVALID_INDEX) {
+            // Every edge has its own id: one the file names twice goes to the first edge only.
+            if (typeof id === "string" && edgeCounterOf(id) < EDGE_ID_CEILING && !named.has(id)) {
+                named.add(id);
                 ids.set(key, id);
             } else {
                 problems.push({
@@ -1240,6 +1242,9 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
     const edgesBefore = tx.data.edges({ scope: "graph" }).length;
     // Each edge takes the id it was saved with; a file saved before ids were kept names none.
     const wanted = built.edges.map((edge) => built.edgeIds.get(edge.ref.load)?.get(edge.ref.key));
+    // No edge given a fresh id may take one the file names for a later edge, a group's edge or a
+    // source that could not be fetched (whose ids the next save keeps).
+    const reserve = [...built.edgeIds.values()].flatMap((ids) => [...ids.values()]);
     await tx.execute({
         op: "data.apply",
         mutation: {
@@ -1249,6 +1254,7 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
             target: "target",
             directed: built.directed,
             ...(wanted.some((id) => id !== undefined) ? { ids: wanted } : {}),
+            ...(reserve.length === 0 ? {} : { reserve }),
         },
     });
     const edgeIds = tx.data

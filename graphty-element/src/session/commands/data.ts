@@ -95,6 +95,12 @@ export type DataMutation =
            * every id given, so none is issued twice. Default: every edge gets a fresh id.
            */
           readonly ids?: readonly (EdgeId | undefined)[];
+          /**
+           * Ids no edge given a fresh id may take: the counter continues past them before any edge
+           * is added (the ids a save file names, including those of a source it could not fetch).
+           * Default: none.
+           */
+          readonly reserve?: readonly EdgeId[];
           /** The record key weights are read from for this call, overriding `data.knownFields.edgeWeightPath`. */
           readonly weight?: string;
           /**

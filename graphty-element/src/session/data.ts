@@ -23,6 +23,7 @@ import {
 import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe } from "@graphty/graph-io";
 import {
     DATASET_NAMES,
+    DatasetError,
     fetchDataset,
     GENERATOR_CATALOG,
     type SampleGraph,
@@ -7225,7 +7226,7 @@ function datasetError(
         return error;
     }
     const mirror = baseUrl === undefined ? {} : { baseUrl };
-    if (status === undefined && error instanceof RangeError) {
+    if (error instanceof DatasetError && error.code === "E_DATASET_NAME") {
         return new GraphtyError({
             code: "E_UNKNOWN_DATASET",
             message: `"${name}" is not a dataset name.`,

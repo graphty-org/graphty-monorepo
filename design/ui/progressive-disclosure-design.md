@@ -1,5 +1,9 @@
 # Progressive Disclosure Design for Graphty Properties Sidebar
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 This document outlines research into Figma's property panel organization patterns and proposes solutions for reducing visual clutter in Graphty's properties sidebar, particularly for complex features like labels and tooltips.

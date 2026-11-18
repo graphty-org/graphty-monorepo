@@ -1,5 +1,9 @@
 # Data Loading Implementation Plan - SIMPLIFIED
 
+Status: historical record (2025). Importers and exporters now live in graph-io
+(`@graphty/graph-io`, 13 formats, one subpath per format); graphty-element reads files through it,
+for example `graphty-element/src/data/GraphMLDataSource.ts` imports `@graphty/graph-io/graphml`.
+
 ## Status Overview
 
 ### ✅ COMPLETED (Phases 1-5)

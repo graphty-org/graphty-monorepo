@@ -1,6 +1,12 @@
 # Implementation Plan for XR (VR/AR) Camera and Controls
 
-Status: historical plan, written in January 2026 before the testing rules. Do not copy its test code. Its examples use practices the repository now bans: fixed sleeps
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
+Do not copy its test code. Its examples use practices the repository now bans: fixed sleeps
 (`waitForTimeout`, `setTimeout` delays), local `timeout` deadlines, reads of private state
 (`activeCameraController`, `dataManager`, `node.mesh`), a fixed dev-server URL, and frame-rate
 assertions in functional tests. Tests now wait on the event or promise that settles the thing under

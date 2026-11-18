@@ -44,6 +44,12 @@ on:
                 description: "set by bisect.yml: <red sha>-<point sha>, this run's own concurrency group"
                 type: string
                 default: ""
+            # Every test file, not this run's rotating quarter of them (tools/test-rotation.mjs t4, issue #8916). The
+            # owner's shadow and legacy runs of release.yml run every file without it: see "Pick this run's T4 test files".
+            full:
+                description: "run every T4 test file, not this run's rotating slice"
+                type: boolean
+                default: false
     workflow_dispatch:
         inputs:
             # bisect.yml dispatches a point here, on a branch at the point, so the point runs with its own workflow files
@@ -55,6 +61,11 @@ on:
                 description: "set by bisect.yml: <red sha>-<point sha>, this run's own concurrency group"
                 type: string
                 default: ""
+            # a run by hand checks the whole lane unless asked otherwise
+            full:
+                description: "run every T4 test file, not a rotating slice"
+                type: boolean
+                default: true
             # which machine serves the T4 job. The default is a machine.dev on-demand T4 (spot from 2026-10-04 to 2026-10-08) (the Machine Provisioner app
             # is installed on the org; the "Driver up" step below measured Ubuntu 22.04.5, glibc 2.35, libegl1 1.4.0-1
             # present and no /usr/share/vulkan/icd.d, on run 35922927676, 2026-09-23 -- and that 22.04 is what blocks
@@ -91,9 +102,11 @@ env:
 jobs:
     test-gpu:
         name: Test (NVIDIA T4)
-        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the benchmark numbers)
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the benchmark numbers);
+        # actions: read finds and downloads the last run's T4 rotation record (release.yml and bisect.yml grant both)
         permissions:
             contents: read
+            actions: read
             id-token: write
         # On-demand by default (owner decision, 2026-10-08): spot ($0.0045/min against $0.018/min) was the default
         # from 2026-10-04, but reclaimed spot runners ("spot interrupted") failed the release train's T4 job and held
@@ -135,6 +148,11 @@ jobs:
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
             GRAPHTY_RUNNER_CLASS: gpu-linux-t4 # the benchmark runner class names the hardware (the T4), not the provider that ran it
             XDG_RUNTIME_DIR: /tmp
+            # each test step's record in the results store, run once as it would bare (tools/results/run-group.mjs,
+            # RESULTS_RECORD_ONLY: no retry, no quarantine, its exit code untouched; a retry here is paid T4 time)
+            RESULTS_URL: ${{ vars.RESULTS_URL }}
+            HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+            RESULTS_RECORD_ONLY: "1"
         defaults: { run: { working-directory: webgpu-graph-algorithms, shell: bash } }
         steps:
             # Bootstrap, and it must come BEFORE checkout: a bare ubuntu:24.04 has no git, so actions/checkout
@@ -207,7 +225,7 @@ jobs:
             - name: Use the workflow's own tools and actions
               working-directory: .
               env:
-                  OVERLAY: .github/actions
+                  OVERLAY: tools .github/actions # tools/: run-group.mjs records each test step
               run: |
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
@@ -238,12 +256,50 @@ jobs:
                   nvidia-smi
                   test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
                     || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
+            # Which test files this run executes (owner, 2026-11-18, issue #8916): a rotating quarter of
+            # webgpu-graph-algorithms' test files, so each runs at least once every four T4 runs at about a quarter of
+            # their T4 minutes, plus every file that failed the last time it ran, and every file when the GPU code, its
+            # workspace dependencies, the lockfile (Dawn) or this workflow changed since the last full T4 run, when no
+            # record is found, and when `full` is set (a run by hand defaults to it) or release.yml runs in its shadow or
+            # legacy mode (the caller's dispatch inputs are this run's github.event.inputs). Rules and reasons:
+            # tools/test-rotation.mjs. The canary, graphty-element's accelerated layout, the large-graph screenshots
+            # and the benchmarks run every time: each is one unit covering a whole consumer, and the benchmarks are a
+            # trend and a 3x gate that a quarter of the runs would leave three releases in four unguarded (the
+            # dashboard's sustained-regression rule compares the newest 3 results with the 10 before them).
+            # A bisect point runs only its files (every file when it names none) and neither reads nor writes the record.
+            - name: Find the last T4 rotation record
+              id: t4-state
+              if: ${{ !inputs.files && !inputs.bisect_point }}
+              working-directory: .
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  run=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts?name=t4-rotation-state&per_page=10" \
+                      | node -e 'const a = JSON.parse(require("fs").readFileSync(0, "utf8")).artifacts.find((x) => !x.expired); process.stdout.write(String(a?.workflow_run?.id ?? ""))') || run=""
+                  echo "run=$run" >> "$GITHUB_OUTPUT"
+            - uses: actions/download-artifact@v7
+              if: ${{ steps.t4-state.outputs.run }}
+              continue-on-error: true # no record runs every file
+              with:
+                  name: t4-rotation-state
+                  run-id: ${{ steps.t4-state.outputs.run }}
+                  github-token: ${{ github.token }}
+                  path: tmp/t4-state
+            - name: Pick this run's T4 test files
+              if: ${{ !inputs.files }}
+              working-directory: .
+              env:
+                  SLICES: ${{ vars.T4_SLICES || '4' }}
+                  # a bisect point with no file list runs every file, as before the rotation
+                  FULL: ${{ inputs.full || inputs.bisect_point != '' || github.event.inputs.mode == 'shadow' || github.event.inputs.mode == 'legacy' }}
+                  RUN_NUMBER: ${{ github.run_number }}
+              run: node tools/test-rotation.mjs t4 plan --state tmp/t4-state/state.json --out tmp/t4-selection.json
             # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
             # scripts/run-node-shard.js runs vitest under `ulimit -c 0`, but the kernel ignores RLIMIT_CORE when
             # core_pattern pipes to a program (core(5)); a plain file pattern makes the limit bind. core_pattern is
@@ -304,25 +360,26 @@ jobs:
                   set -- ${FILES//webgpu-graph-algorithms\//}
                   node scripts/run-node-shard.js --project=node --project=node-gpu-alone --project=node-device-errors --project=node-limits --passWithNoTests "$@"
                   GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone --project=node-device-errors --passWithNoTests "$@"
-            - if: ${{ !inputs.files }}
-              run: node scripts/run-node-shard.js --project=node --project=node-gpu-alone
+            - id: t4-node
+              if: ${{ !inputs.files }}
+              run: cd .. && node tools/results/run-group.mjs t4-node "cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node --project=node-gpu-alone $T4_ARGS"
             # The files that break a device on purpose: a worker they kill takes eleven files with it instead of
             # the whole lane.
             - if: ${{ !inputs.files }}
-              run: node scripts/run-node-shard.js --project=node-device-errors
+              run: cd .. && node tools/results/run-group.mjs t4-node-device-errors "cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node-device-errors $T4_ARGS"
             # The multi-gigabyte limit files (test/limits, oom-scope asks for exactly maxBufferSize), one at a
             # time and after the main suite, so an out-of-memory test never shares the GPU with ordinary tests
             # and a crash in one never takes the main suite's results with it (issue #274).
             - if: ${{ !inputs.files }}
-              run: node scripts/run-node-shard.js --project=node-limits
+              run: cd .. && node tools/results/run-group.mjs t4-node-limits "cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node-limits $T4_ARGS"
             # The twin pass, in two invocations because the device-error files are their own project now.
             # `--project=node` is 114 of the 125 node files; the second line is the remaining eleven, which without
             # it would run under the subgroups feature only -- and they are the device-loss and lifecycle paths,
             # where a missing-subgroup code path is most likely to behave differently.
             - if: ${{ !inputs.files }}
-              run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone
+              run: cd .. && node tools/results/run-group.mjs t4-node-no-subgroups "cd webgpu-graph-algorithms && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone $T4_ARGS"
             - if: ${{ !inputs.files }}
-              run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors
+              run: cd .. && node tools/results/run-group.mjs t4-node-no-subgroups-device-errors "cd webgpu-graph-algorithms && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors $T4_ARGS"
             # The key carries the container image, not just runner.os. Playwright downloads a browser build
             # matched to the distribution it detects, and every other lane keys on `Linux` alone -- so without
             # this the 22.04 build another job saved would be restored into a 24.04 container and run against the
@@ -346,13 +403,38 @@ jobs:
                   working-directory: webgpu-graph-algorithms
                   image: ${{ steps.t4-debs-key.outputs.key }}
             - name: Browser smoke on NVIDIA
-              if: ${{ !inputs.files }}
-              run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
+              if: ${{ !inputs.files && env.T4_BROWSER != 'false' }}
+              run: cd .. && node tools/results/run-group.mjs t4-browser "cd webgpu-graph-algorithms && node scripts/run-browser-project.js $T4_ARGS" # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
+            # The next run's record: this run's slice and the files still failing, from the JUnit reports every vitest
+            # run writes in CI. Only the release train's runs keep one (a run by hand or a bisect point tests some
+            # other commit), and only once the tests began: a run cut off before them repeats its slice next time, and
+            # so does a red run (COMPLETE), whose crashed or hung files write no report and whose later steps never ran.
+            - name: Record which T4 test files ran and failed
+              id: t4-record
+              if: ${{ !cancelled() && !inputs.bisect_point && !contains(github.workflow_ref, '/gpu.yml@') && (steps.t4-node.outcome == 'success' || steps.t4-node.outcome == 'failure') }}
+              working-directory: .
+              env:
+                  SHA: ${{ inputs.ref || github.sha }}
+                  # red: the next run repeats this slice, and a full run that stopped here is not the last full run
+                  COMPLETE: ${{ job.status == 'success' }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  mkdir -p tmp/t4-record
+                  node tools/test-rotation.mjs t4 record --state tmp/t4-state/state.json --selection tmp/t4-selection.json \
+                      --report test-results --out tmp/t4-record/state.json
+            - uses: actions/upload-artifact@v7
+              if: ${{ !cancelled() && steps.t4-record.outcome == 'success' }}
+              with:
+                  name: t4-rotation-state
+                  path: tmp/t4-record/state.json
+                  retention-days: 90
+                  if-no-files-found: ignore
+                  overwrite: true # a re-run's attempt replaces its first attempt's record
             - name: graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)
               if: ${{ !inputs.files }}
               working-directory: graphty-element
               timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
-              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples,babylonjs-map,babylonjs-models && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
+              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples,babylonjs-map,babylonjs-models && cd .. && node tools/results/run-group.mjs t4-element-layout "cd graphty-element && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts" # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
             # The large-graph stories of cytoscape-extensions' Storybook (ForceAtlas2, Fruchterman-Reingold and
             # spring-electrical at 2,000, 10,000 and 50,000 nodes) drawn WITH WebGPU on this card and compared, with
             # visual review's own comparison, against reference images made on the developer's RTX 4070 SUPER and

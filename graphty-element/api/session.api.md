@@ -497,7 +497,7 @@ export interface CaptureCapability {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
@@ -3547,7 +3547,6 @@ export interface LegendSwatch {
 
 // @public
 export interface Limits {
-    approximateAboveNodes: number;
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
@@ -3677,7 +3676,6 @@ export type LoadMapping = TableMapping | {
 
 // @public
 export interface LoadMappingRead {
-    // (undocumented)
     readonly tables: Readonly<Record<string, TableMappingRead>>;
 }
 
@@ -4451,11 +4449,8 @@ export type PlanEffect = {
 
 // @public
 export interface PositionEntry {
-    // (undocumented)
     readonly id: NodeId_2;
-    // (undocumented)
     readonly x: number;
-    // (undocumented)
     readonly y: number;
     readonly z?: number;
 }
@@ -4565,7 +4560,6 @@ export interface ProjectAssetChoice {
 export interface ProjectConfig {
     readonly author?: string;
     readonly background: GraphBackgroundConfig;
-    // (undocumented)
     readonly data: SessionDataConfig;
     readonly editableBase: boolean;
     readonly framing?: GraphFraming;
@@ -4593,9 +4587,7 @@ export interface ProjectConfig {
 // @public
 export interface ProjectConfigPatch {
     readonly author?: string | null;
-    // (undocumented)
     readonly background?: GraphBackgroundConfig;
-    // (undocumented)
     readonly data?: {
         readonly algorithms?: SessionDataConfig["algorithms"];
         readonly directed?: SessionDataConfig["directed"];
@@ -4603,16 +4595,13 @@ export interface ProjectConfigPatch {
     };
     readonly editableBase?: boolean;
     readonly framing?: GraphFraming;
-    // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     readonly layoutTransition?: LayoutTransitionConfig;
     readonly minMarkSize?: ProjectConfig["minMarkSize"];
     readonly name?: string | null;
     readonly pinnedStyle?: GraphSelectionStyleInput;
-    // (undocumented)
     readonly runAlgorithmsOnLoad?: boolean;
     readonly runPlacement?: RunPlacement;
-    // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
     readonly startingRows?: boolean;
     readonly timelineHiddenAdded?: boolean;
@@ -6205,7 +6194,6 @@ export interface SessionDataApi {
     }): RecordPage<EdgeRecord> & {
         readonly columns: readonly PageColumn[];
     };
-    // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(options?: {
         readonly scope?: "graph" | "visible";
@@ -6249,7 +6237,6 @@ export interface SessionDataApi {
     }): RecordPage<NodeRecord> & {
         readonly columns: readonly PageColumn[];
     };
-    // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(options?: {
         readonly scope?: "graph" | "visible";

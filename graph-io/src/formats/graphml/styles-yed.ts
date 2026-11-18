@@ -1558,17 +1558,33 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
  * @returns the `#rrggbb` color, or null when the table does not set it
  */
 function tableColor(real: Realizer, name: string, at: SiteOf): string | null {
+    const value = tableProperty(real, name);
+    return value === undefined ? null : (canonColor(value, "yed", at("stripeColors"))?.color ?? null);
+}
+
+/**
+ * A `y:TableNode`'s `yed.table.*` style property.
+ * @param real - the table realizer
+ * @param name - the property's name
+ * @returns its value, or undefined when the table does not set it
+ */
+function tableProperty(real: Realizer, name: string): string | undefined {
     const props = treeChildren(treeChild(real.r, "StyleProperties"), "Property");
-    const prop = props.find((p) => treeAttr(p, "name") === name);
-    return prop === undefined ? null : (canonColor(treeAttr(prop, "value"), "yed", at("stripeColors"))?.color ?? null);
+    return treeAttr(
+        props.find((p) => treeAttr(p, "name") === name),
+        "value",
+    );
 }
 
 /**
  * Reads a `y:TableNode` (a yEd table or BPMN pool) as bands over the node: its header (the table's top inset, or
- * its left one for columns side by side) in `yed.table.header.color.main`, then its rows top to bottom (or its
- * columns left to right) in `yed.table.lane.color.main` and `.alternating` by turns, then the opposite inset. A
+ * its left one for columns side by side) in the node's fill, then its rows top to bottom (or its columns left to
+ * right) in `yed.table.lane.color.main`, then the opposite inset. yEd 3.25.1 paints the table's own header in its
+ * fill and every lane in the main lane color however `yed.table.header.color.main` and
+ * `yed.table.lane.color.alternating` are set when the table names no `yed.table.lane.style`
+ * (`yed-graphml-specimen-groups`); with a lane style, its lanes take the main and alternating colors by turns. A
  * color the table does not set is the node's fill. The lines between the lanes and the row and column headers
- * (`yed.table.header.color.alternating`) are not drawn.
+ * (where `yed.table.header.color.*` is painted) are not drawn.
  * @param real - the realizer
  * @param put - receives the values
  * @param at - the sites
@@ -1590,10 +1606,11 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
     const fill =
         canonColor(treeAttr(treeChild(real.r, "Fill"), "color"), "yed", at("stripeColors"))?.color ?? "#ffffff";
     const main = tableColor(real, "yed.table.lane.color.main", at) ?? fill;
-    const alternating = tableColor(real, "yed.table.lane.color.alternating", at) ?? main;
-    const header = tableColor(real, "yed.table.header.color.main", at) ?? fill;
+    // ponytail: no specimen sets a lane style and an alternating color together, so the alternation is unmeasured
+    const styled = tableProperty(real, "yed.table.lane.style") !== undefined;
+    const alternating = (styled ? tableColor(real, "yed.table.lane.color.alternating", at) : null) ?? main;
     const bands = (
-        [[head, header], ...lanes.map((size, i) => [size, i % 2 === 0 ? main : alternating]), [tail, fill]] as [
+        [[head, fill], ...lanes.map((size, i) => [size, i % 2 === 0 ? main : alternating]), [tail, fill]] as [
             number,
             string,
         ][]
@@ -2230,6 +2247,38 @@ function readOutlineFaces(
 }
 
 /**
+ * Repaints a `y:GenericGroupNode` by its configuration, as yEd 3.25.1 draws it (`yed-graphml-specimen-groups`): a
+ * `PanelNode` in a ramp from white down into its fill, its line running from 0.8 of its color into it (drawn flat at
+ * 0.8, as yFiles' PanelNodeStyle is); a `DemoGroup` as a frame in its fill round an unpainted inside, with no line,
+ * whatever its `y:BorderStyle` and `headerBackground` say. yEd's frame is 1 wide on three sides and runs down under the
+ * header band; it is drawn as a line of 1.
+ * @param real - the realizer
+ * @param fill - its fill color, or null
+ * @param line - its border color as read, if any
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readGroupConfiguration(real: Realizer, fill: string | null, line: unknown, put: PutValue, at: SiteOf): void {
+    if (real.type !== "GenericGroupNode" || fill === null) {
+        return;
+    }
+    const conf = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
+    if (conf === "panelnode") {
+        put("fill", "#ffffff");
+        put("fillGradient", fill);
+        put("fillGradientAngle", 90);
+        if (typeof line === "string" && HEX_COLOR.test(line)) {
+            put("borderColor", hexOf(hexChannels(line).map((c) => Math.round(c * 0.8))));
+        }
+    } else if (conf === "demogroup") {
+        put("fillOpacity", 0);
+        put("borderColor", fill);
+        put("borderWidth", 1);
+        put("borderStyle", canonEnum("borderStyle", "line", "yed", at("borderStyle")));
+    }
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -2279,6 +2328,7 @@ function readNode(
         putOutline(outline, width, height, put);
     }
     const color = readOutlineFaces(r, outline, border, put, at);
+    readGroupConfiguration(real, color, painted.get("borderColor"), put, at);
     if (width !== null && height !== null && real.type === "GenericNode") {
         readMarks(real, outline, { width, height }, put, at);
     }

@@ -1,11 +1,12 @@
 /**
  * @file `JournalEntry.trigger`: the entries the session wrote on its own account -- a batch's held
- * suggestions released, the members of a project open -- say why, and a direct call says nothing.
+ * suggestions released, the members of a project open, the commands a load ran -- say why, and a
+ * direct call says nothing.
  */
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type JournalEntry, type RunChange } from "../../session";
+import { createGraphSession, type GraphSession, type JournalEntry, type RunChange } from "../../session";
 import { blankSession, fixtureSession } from "./history/fixture-session";
 
 describe("JournalEntry.trigger", () => {
@@ -139,6 +140,100 @@ describe("JournalEntry.callerKey", () => {
             heard.every((entry) => !("callerKey" in entry)),
             "the reader's own work carries none",
         );
+        session.dispose();
+    });
+});
+
+/**
+ * Every journal entry a session appends from now on.
+ * @param session - The session.
+ * @returns The entries, appended to as they arrive.
+ */
+function entriesOf(session: GraphSession): JournalEntry[] {
+    const heard: JournalEntry[] = [];
+    session.on("journal:appended", ({ entry }) => heard.push(entry));
+    return heard;
+}
+
+describe("JournalEntry.trigger load", () => {
+    it("marks the label path a graph file's load settles, as well as its import", async () => {
+        const session = createGraphSession();
+        const heard = entriesOf(session);
+        const data = JSON.stringify({ nodes: [{ id: "a", label: "A" }, { id: "b" }], edges: [] });
+
+        await session.data.import({ type: "json", config: { data } });
+
+        assert.includeMembers(
+            heard.map((entry) => entry.command.op),
+            ["config.set", "data.import"],
+            "the load settled its label path beside the import",
+        );
+        assert.deepEqual(
+            heard.filter((entry) => entry.trigger !== "load").map((entry) => entry.command.op),
+            [],
+        );
+        session.dispose();
+    });
+
+    it("marks the configuration a TSV draft's load settles", async () => {
+        const session = createGraphSession();
+        const heard = entriesOf(session);
+        const draft = await session.data.prepare({ type: "csv", config: { data: "source\ttarget\na\tb\n" } });
+
+        await draft.load({ directed: true, callerKey: "dropped" });
+
+        assert.include(
+            heard.map((entry) => entry.command.op),
+            "config.set",
+        );
+        assert.deepEqual(
+            heard.filter((entry) => entry.trigger !== "load" || entry.callerKey !== "dropped").map((e) => e.command.op),
+            [],
+        );
+        session.dispose();
+    });
+
+    it("marks a generated sample's load", async () => {
+        const session = createGraphSession();
+        const heard = entriesOf(session);
+
+        await session.data.generate("cycle", { n: 5 });
+
+        assert.isNotEmpty(heard);
+        assert.isTrue(heard.every((entry) => entry.trigger === "load"));
+        session.dispose();
+    });
+
+    it("stamps replaceSource's entries with load and the caller's key, and publishes no source:loaded", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" } });
+        const [first] = session.data.sources();
+        assert.isDefined(first);
+        const heard = entriesOf(session);
+        const loaded: unknown[] = [];
+        session.on("source:loaded", (event) => loaded.push(event));
+
+        await session.data.replaceSource(
+            first.key,
+            { type: "csv", config: { data: "source,target\na,b\nb,c\n" } },
+            { callerKey: "replaced" },
+        );
+
+        assert.isNotEmpty(heard, "the replace wrote entries");
+        assert.isTrue(heard.every((entry) => entry.trigger === "load" && entry.callerKey === "replaced"));
+        assert.lengthOf(loaded, 0);
+        session.dispose();
+    });
+
+    it("leaves the reader's own edit after a load unmarked", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" } });
+        const heard = entriesOf(session);
+
+        await session.config.set({ name: "Mine" });
+
+        assert.lengthOf(heard, 1);
+        assert.isFalse("trigger" in (heard[0] ?? {}));
         session.dispose();
     });
 });

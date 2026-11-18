@@ -243,7 +243,8 @@ const { blob, metadata } = await graph.captureAnimation({
 ```
 
 `metadata.format` is `"webm"` or `"mp4"` (the `VideoFormat` type); `VIDEO_FORMATS`, exported
-from `@graphty/graphty-element`, lists them.
+from `@graphty/graphty-element` and from `@graphty/graphty-element/session` (which loads no
+element), lists them.
 
 `metadata.framesCaptured` counts the frames the graph drew while recording (at most one in each
 1/fps interval), and `framesDropped` and `dropRate` the frames expected that it did not draw in

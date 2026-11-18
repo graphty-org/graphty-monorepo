@@ -1,10 +1,10 @@
 import { Alert, Button, Stack, Text, Title } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ErrorFallback } from "../components/ErrorFallback";
-import { initSentry, isSentryEnabled, sentryConfigured, testCaptureError } from "../lib/sentry";
+import { initSentry, sentryConfigured, stopSentry, testCaptureError } from "../lib/sentry";
 
 const meta: Meta<typeof ErrorFallback> = {
     title: "Sentry",
@@ -45,19 +45,23 @@ export const TriggerError: Story = {
 };
 
 export function SourceMapTestContent(): React.JSX.Element {
-    const sentryConfigured = isSentryEnabled();
+    const configured = sentryConfigured();
+    // Nothing starts Sentry without the reader's consent, Storybook included: pressing the button
+    // starts it for this story alone, and leaving the story stops it, so no later story sends.
+    useEffect(() => stopSentry, []);
 
     return (
         <Stack p="md">
             <Title order={2}>Source Map Verification Test</Title>
-            {!sentryConfigured && (
+            {!configured && (
                 <Alert color="yellow" title="Sentry Not Configured">
                     <Text>Set VITE_SENTRY_DSN environment variable to enable Sentry.</Text>
                 </Alert>
             )}
             <Button
-                disabled={!sentryConfigured}
+                disabled={!configured}
                 onClick={() => {
+                    initSentry();
                     testCaptureError();
                 }}
             >
@@ -68,15 +72,5 @@ export function SourceMapTestContent(): React.JSX.Element {
 }
 
 export const SourceMapTest: Story = {
-    // Nothing starts Sentry without the reader's consent, Storybook included; this story starts it
-    // itself when a DSN is built in, so it still shows source maps working.
-    loaders: [
-        () => {
-            if (sentryConfigured()) {
-                initSentry();
-            }
-            return {};
-        },
-    ],
     render: () => <SourceMapTestContent />,
 };

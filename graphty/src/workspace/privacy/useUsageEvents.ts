@@ -8,9 +8,11 @@
 
 import { sourceDescriptors } from "@graphty/graphty-element/catalog";
 import {
+    CAMERA_GESTURE_KINDS,
     type GraphSession,
     isGraphtyErrorCode,
     type RunStatus,
+    type SessionCommand,
     type SourceLoaded,
     TERMINAL_RUN_STATUSES,
 } from "@graphty/graphty-element/session";
@@ -19,7 +21,6 @@ import { useEffect } from "react";
 import { START_SAMPLES } from "../../data/sampleManifest";
 import {
     allowlisted,
-    appConfigWriting,
     count,
     detail,
     isGraphActionOp,
@@ -34,10 +35,13 @@ import type { WorkspaceStore } from "../state/store";
 
 /** A run's endings `algorithm_run` sends: the element's own terminal statuses. */
 const RUN_OUTCOMES: ReadonlySet<RunStatus> = new Set(TERMINAL_RUN_STATUSES);
-/** The camera gestures `camera_used` sends. */
-const CAMERA_KINDS: ReadonlySet<string> = new Set(["orbit", "pan", "zoom"]);
+/** The camera gestures `camera_used` sends: the element's own list. */
+const CAMERA_KINDS: ReadonlySet<string> = new Set(CAMERA_GESTURE_KINDS);
 /** The `style.patch` actions `graph_action` names. */
-const PATCH_ACTIONS: ReadonlySet<string> = new Set(["mark", "highlight"]);
+const PATCH_ACTIONS: ReadonlySet<string> = new Set<Extract<SessionCommand, { op: "style.patch" }>["action"]>([
+    "mark",
+    "highlight",
+]);
 
 /**
  * The ids `panel_opened` may send (section 4.2): every dialog id the app sets in the store, the
@@ -192,8 +196,9 @@ export function watchSession(session: GraphSession): () => void {
         session.on("journal:appended", ({ entry }) => {
             const { op } = entry.command;
             // Only the reader's own commands and suggestions applied as their own entries; a
-            // project open's members and any trigger not known yet are never sent.
-            if (entry.trigger !== undefined && entry.trigger !== "suggestion") {
+            // project open's members, any trigger not known yet and the app's own writes (they
+            // carry a callerKey) are never sent.
+            if ((entry.trigger !== undefined && entry.trigger !== "suggestion") || entry.callerKey !== undefined) {
                 return;
             }
             if (op === "positions.set") {
@@ -202,7 +207,7 @@ export function watchSession(session: GraphSession): () => void {
                 }
                 return;
             }
-            if (!isGraphActionOp(op) || (op === "config.set" && appConfigWriting())) {
+            if (!isGraphActionOp(op)) {
                 return;
             }
             if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey) {

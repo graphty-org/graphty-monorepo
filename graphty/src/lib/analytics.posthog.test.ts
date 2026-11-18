@@ -13,6 +13,7 @@ import { userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
 import {
+    count,
     postHog,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
@@ -218,6 +219,37 @@ describe("the real posthog-js chunk", () => {
         assert.strictEqual(reset.mock.calls.length, 0);
         assert.strictEqual(reload.mock.calls.length, 0);
         assert.isNull(localStorage.getItem(`ph_${KEY}_posthog`));
+        // PostHog's Logs extension posts console lines past before_send; nothing turned it on.
+        assert.notInclude(urls.join("\n"), "/i/v1/logs");
+    });
+
+    it("gives a reader who says No and later Share again new ids, never the ones from before the No", async () => {
+        startPostHog();
+        await vi.waitFor(() => {
+            assert.isDefined(postHog());
+        });
+        const client = postHog() as unknown as PostHog;
+        const oldDevice = String(client.get_property("$device_id"));
+        const oldDistinct = client.get_distinct_id();
+        assert.isNotEmpty(oldDevice);
+
+        stopPostHog();
+        startPostHog();
+        const from = bodies.length;
+        count("sample_loaded", { sample: "karate" });
+        await vi.waitFor(() => {
+            assert.include(bodies.slice(from).join("\n"), "sample_loaded");
+        });
+
+        const sent = bodies.slice(from).join("\n");
+        const stored = localStorage.getItem(`ph_${KEY}_posthog`) ?? "";
+        assert.include(stored, String(client.get_property("$device_id")), "the new id is the one kept");
+        for (const old of [oldDevice, oldDistinct]) {
+            assert.notInclude(sent, old);
+            assert.notInclude(stored, old);
+        }
+        assert.notInclude(urls.join("\n"), "/i/v1/logs");
+        stopPostHog();
     });
 
     it("never draws a survey of its own: only the app's survey card asks", async () => {

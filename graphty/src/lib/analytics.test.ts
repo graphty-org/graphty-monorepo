@@ -9,7 +9,7 @@ import type { CaptureResult, PostHog } from "posthog-js";
 import { afterEach, assert, beforeEach, describe, it, type Mock, vi } from "vitest";
 
 import { loadSiteConfig, resetSiteConfig, type SiteAnalytics, type SiteConfig } from "../siteConfig";
-import { forgetUsageAnswer } from "../workspace/privacy/usageData";
+import { answerUsageData, forgetUsageAnswer, setUsageSenderForTests } from "../workspace/privacy/usageData";
 import {
     allowlisted,
     bootQuery,
@@ -197,11 +197,13 @@ describe("Umami counts", () => {
         assert.match(view.payload.referrer, /^(|https?:\/\/[^/]+)$/);
     });
 
-    it("cuts URLs: unknown channel values to other, other sites to their origin", () => {
+    it("cuts URLs: unknown channel values to other, other sites to a fixed token", () => {
         const path = globalThis.location.pathname;
         assert.equal(cleanUrl(`${path}?utm_campaign=u_8f3k2q9&ref=HN`), `${path}?ref=hn&utm_campaign=other`);
         assert.equal(cleanUrl(`${path}?ref=<script>`), `${path}?ref=other`);
-        assert.equal(cleanUrl("https://private.example/SECRET.csv?x=1#y"), "https://private.example");
+        assert.equal(cleanUrl("https://private.example/SECRET.csv?x=1#y"), "external");
+        // Not even a server's origin: the address of a server the reader opens is theirs.
+        assert.equal(cleanUrl("https://neo4j.internal-hospital.example:7473/db"), "external");
         assert.equal(cleanUrl("blob:null/abc"), "blob:");
         assert.equal(cleanUrl("http://["), "");
     });
@@ -271,8 +273,10 @@ describe("the visit record", () => {
         // A regular reader whose first visit is over 395 days old stays a returning one.
         assert.equal(visitBucket(from(0), from(800), from(799)), "30+");
         assert.equal(visitBucket(from(0), from(800), from(400)), "reset");
-        // A date in the future, or one that does not parse, is a stale record.
-        assert.equal(visitBucket(from(0), from(5), from(6)), "reset");
+        // A last visit dated after today (a clock moved back, a trip west) keeps its record.
+        assert.equal(visitBucket(from(0), from(5), from(6)), "2-7");
+        assert.isNull(visitBucket(from(6), from(5), from(6)));
+        // A date that does not parse is a stale record.
         assert.equal(visitBucket("nonsense", from(5)), "reset");
     });
 
@@ -310,6 +314,15 @@ describe("the visit record", () => {
         localStorage.setItem(VISITS, JSON.stringify({ first: dayFromToday(-500), last: dayFromToday(-400) }));
         startPageCounts(config);
         assert.deepEqual(umamiNames(), ["pageview", "first_visit"]);
+    });
+
+    it("counts nothing again, and keeps the record, when the last visit is dated after today", async () => {
+        const config = await site({ umamiWebsiteId: UMAMI });
+        const record = { first: dayFromToday(-10), last: dayFromToday(1) };
+        localStorage.setItem(VISITS, JSON.stringify(record));
+        startPageCounts(config);
+        assert.deepEqual(umamiNames(), ["pageview"]);
+        assert.deepEqual(JSON.parse(localStorage.getItem(VISITS) ?? ""), record);
     });
 
     it("sends the page view only when storage throws", async () => {
@@ -496,6 +509,24 @@ describe("PostHog", () => {
         assert.isUndefined(postHog());
     });
 
+    it("never loads, and Sentry never starts, off the site's own host, even after Share", async () => {
+        const { imports } = serve();
+        installCalls({ importPostHog: imports, hostname: () => "localhost" });
+        const sentryInit = vi.fn();
+        setSentryCallsForTests({
+            init: sentryInit,
+            defaultConfig: { dsn: "https://public@o0.ingest.sentry.io/0" },
+        });
+        // The live sender, as the app runs it.
+        setUsageSenderForTests();
+        await site({ umamiWebsiteId: UMAMI, posthogKey: KEY, posthogHost: HOST });
+        answerUsageData("share");
+        startPostHog();
+        assert.equal(imports.mock.calls.length, 0);
+        assert.equal(sentryInit.mock.calls.length, 0);
+        assert.isUndefined(postHog());
+    });
+
     it("inits with exactly the privacy options, then opts in, and never registers", async () => {
         const { fake, loaded } = serve();
         await site({ posthogKey: KEY, posthogHost: HOST });
@@ -507,7 +538,7 @@ describe("PostHog", () => {
         assert.equal(key, KEY);
         const recording = options.session_recording as Record<string, unknown>;
         const maskRequest = recording.maskCapturedNetworkRequestFn as (request: { name: string }) => { name: string };
-        assert.equal(maskRequest({ name: "https://private.example/SECRET.csv?q=1" }).name, "https://private.example");
+        assert.equal(maskRequest({ name: "https://private.example/SECRET.csv?q=1" }).name, "external");
         assert.deepEqual(options, {
             api_host: HOST,
             defaults: "2026-08-30",
@@ -602,6 +633,8 @@ describe("PostHog", () => {
         startPostHog();
 
         assert.deepEqual(order, ["reset", "opt_in_capturing", "startSessionRecording"]);
+        // A new device id too, or the one held from before the No would come back.
+        assert.deepEqual(fake.reset.mock.calls, [[true]]);
         assert.equal(fake.init.mock.calls.length, 1);
     });
 

@@ -6,7 +6,7 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { count, resetAnalyticsForTests, setPostHogClientForTests } from "../../../lib/analytics";
+import { count, resetAnalyticsForTests, setPostHogClientForTests, SURVEYS_KEY } from "../../../lib/analytics";
 import { sampleTile } from "../../../test/samples-dialog";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { USE_CASE_SURVEY } from "../../privacy/__tests__/surveyFixtures";
@@ -38,12 +38,14 @@ beforeEach(async () => {
     await clearRecent();
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+    localStorage.removeItem(SURVEYS_KEY);
     initSentry.mockClear();
     stopSentry.mockClear();
 });
 afterEach(() => {
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+    localStorage.removeItem(SURVEYS_KEY);
     vi.unstubAllGlobals();
 });
 

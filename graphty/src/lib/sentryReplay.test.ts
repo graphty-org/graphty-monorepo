@@ -7,7 +7,7 @@
 import * as Sentry from "@sentry/react";
 import { afterAll, assert, it, vi } from "vitest";
 
-import { initSentry, resetSentryState, setSentryCallsForTests, stopSentry } from "./sentry";
+import { initSentry, resetSentryState, sentryStoppedForTests, setSentryCallsForTests, stopSentry } from "./sentry";
 
 afterAll(() => {
     stopSentry();
@@ -90,5 +90,54 @@ it("sends nothing while usage data is off, and an error's replay again after a l
     // The error captured while off was refused by the disabled client, never queued (the transport
     // sends in order, and the later error's envelopes are in), and it is not a breadcrumb of the later one.
     assert.notInclude(sent.join("\n"), "while off");
+    marker.remove();
+});
+
+it("sends an error's replay once, then buffers again under a new replay, never recording the session", async () => {
+    const live = Sentry.getReplay();
+    assert.isDefined(live);
+    await vi.waitFor(() => {
+        assert.strictEqual(live?.getRecordingMode(), "buffer");
+    });
+    const before = live?.getReplayId();
+    const from = sent.length;
+    Sentry.captureException(new Error("one shot"));
+    await replaySentAfter(from);
+
+    // Buffering again, as a new replay: Sentry's own handling would record the session from here.
+    await vi.waitFor(() => {
+        assert.strictEqual(live?.getRecordingMode(), "buffer");
+        assert.isDefined(live?.getReplayId());
+        assert.notStrictEqual(live?.getReplayId(), before);
+    });
+    // A buffer uploads nothing by itself: the change below stays on the page until another error.
+    const marker = document.createElement("span");
+    marker.className = "AFTER_ONE_SHOT_MARKER";
+    document.body.append(marker);
+    await Sentry.flush();
+    assert.notInclude(sent.slice(from).join("\n"), "AFTER_ONE_SHOT_MARKER");
+    marker.remove();
+});
+
+it("sends no pending replay segment once usage data is turned off, even while recording a session", async () => {
+    const live = Sentry.getReplay();
+    // The replay recording the session, as Sentry's own error handling would leave it: a pending
+    // segment must not be flushed by the stop.
+    await live?.flush();
+    await vi.waitFor(() => {
+        assert.strictEqual(live?.getRecordingMode(), "session");
+    });
+    await Sentry.flush();
+    const marker = document.createElement("span");
+    marker.className = "BEFORE_NO_MARKER";
+    document.body.append(marker);
+    const from = sent.length;
+
+    stopSentry();
+    await sentryStoppedForTests();
+    await Sentry.flush();
+
+    assert.isUndefined(live?.getRecordingMode(), "the replay stopped");
+    assert.notInclude(sent.slice(from).join("\n"), '"type":"replay_recording"');
     marker.remove();
 });

@@ -8,11 +8,16 @@
  * line holds whatever was logged, a fetch breadcrumb holds the URL with its query. So nothing is
  * sent because it was not removed; a field is sent only because it is named here.
  *
- * Kept: the error's type, its message and its stack (both with anything shaped like a key
- * removed), the SDK's own bookkeeping (event id, time, release, environment, trace and replay
+ * An error's message is the reader's data too: graphty-element's messages quote the column, node
+ * id or layer name they are about, and a JSON.parse error quotes the start of the file. So an error
+ * that carries one of graphty-element's error codes is sent as that code alone, and any other
+ * message is sent with every quoted run replaced.
+ *
+ * Kept: the error's type, its code or its message with quoted text removed, its stack (both with
+ * anything shaped like a key removed), the SDK's own bookkeeping (event id, time, release, environment, trace and replay
  * ids, the browser), and for a breadcrumb its kind and level, plus a request's method, status
  * and URL cut as the analytics cut it (`cleanUrl` in analytics.ts: this site's URLs keep their
- * path, any other site's keep only its origin, so a file's address never leaves). Dropped: every
+ * path, any other site's become "external", so a file's or server's address never leaves). Dropped: every
  * other error field, `extra`, `user`, other contexts and tags, request bodies, query strings,
  * console breadcrumbs, and the text of click and input breadcrumbs.
  *
@@ -21,9 +26,17 @@
  */
 
 import { redactSecrets } from "@graphty/graphty-element/logging";
-import type { Breadcrumb, BrowserOptions, Event, Exception, ReplayFrameEvent } from "@sentry/react";
+import type {
+    Breadcrumb,
+    BrowserOptions,
+    ErrorEvent,
+    Event,
+    EventHint,
+    Exception,
+    ReplayFrameEvent,
+} from "@sentry/react";
 
-import { cleanUrl as cutUrl } from "./analytics";
+import { cleanUrl as cutUrl, EXTERNAL_URL } from "./analytics";
 
 type Json = Record<string, unknown>;
 
@@ -93,6 +106,11 @@ function cleanUrl(url: unknown): string | undefined {
     if (typeof url !== "string") {
         return undefined;
     }
+    // Already cut: a breadcrumb is cleaned when it is added and again with the event that carries
+    // it, and "external" read as a relative URL would become this site's "/external".
+    if (url === EXTERNAL_URL) {
+        return url;
+    }
     const cut = cutUrl(url);
     return redactSecrets(cut.startsWith("/") ? globalThis.location.origin + cut : cut);
 }
@@ -107,6 +125,77 @@ function cleanText(text: unknown): string | undefined {
         return undefined;
     }
     return redactSecrets(text.replaceAll(/https?:\/\/[^\s"'<>]+/g, (url) => cleanUrl(url) ?? ""));
+}
+
+/** What every quoted run in a message becomes. */
+const QUOTED_TEXT = '"[quoted]"';
+/**
+ * Quoted runs: "...", `...` and '...' (a single quote only after a non-letter, so the apostrophe
+ * of "can't" opens none).
+ */
+const QUOTED = /"(?:[^"\\]|\\.)*"|`[^`]*`|(?<![\p{L}\d])'(?:[^'\\]|\\.)*'/gu;
+
+/**
+ * A message that is sent: {@link cleanText} with every quoted run replaced, as a quote is where a
+ * message names the reader's column, node, layer or file contents.
+ * @param text - the message.
+ * @returns the message safe to send.
+ */
+function cleanMessage(text: unknown): string | undefined {
+    return typeof text === "string" ? cleanText(text.replaceAll(QUOTED, QUOTED_TEXT)) : undefined;
+}
+
+/** Reads whether a value is one of graphty-element's error codes; loaded on the first error. */
+type CodeCheck = (value: unknown) => boolean;
+let codeCheck: Promise<CodeCheck> | undefined;
+/** The check once it has loaded: from then on an error is cleaned at once, not after an await. */
+let loadedCodeCheck: CodeCheck | undefined;
+
+/**
+ * graphty-element's own check for its error codes, loaded with its session entry when error
+ * reporting starts (see {@link preloadErrorCodes}) or on the first error, so the landing page never
+ * downloads it for error reporting alone.
+ * @returns the check, or one that knows no code when the entry cannot load.
+ */
+function loadCodeCheck(): Promise<CodeCheck> {
+    codeCheck ??= import("@graphty/graphty-element/session").then(
+        (session) => session.isGraphtyErrorCode,
+        () => () => false,
+    );
+    void codeCheck.then((check) => {
+        loadedCodeCheck = check;
+    });
+    return codeCheck;
+}
+
+/**
+ * Starts loading graphty-element's error code check, so errors are cleaned synchronously: an
+ * error captured while reporting is off is refused at once, and never sent by a quick Share after
+ * it while an await was pending. Called when error reporting starts.
+ */
+export function preloadErrorCodes(): void {
+    void loadCodeCheck();
+}
+
+/**
+ * The graphty-element error codes of an error and its causes, by their message.
+ * @param error - the error Sentry was handed.
+ * @param isCode - graphty-element's check for its codes.
+ * @returns each message that belongs to an error with a known code, and that code.
+ */
+function codesByMessage(error: unknown, isCode: CodeCheck): Map<string, string> {
+    const codes = new Map<string, string>();
+    const seen = new Set<unknown>();
+    let each: unknown = error;
+    while (each instanceof Error && !seen.has(each)) {
+        seen.add(each);
+        const { code } = each as { code?: unknown };
+        if (isCode(code)) {
+            codes.set(each.message, code as string);
+        }
+        each = each.cause;
+    }
+    return codes;
 }
 
 /**
@@ -136,25 +225,28 @@ function cleanBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
     } else if (crumb.category === "navigation") {
         out.data = { from: cleanUrl(data.from), to: cleanUrl(data.to) };
     } else if (crumb.category?.startsWith("sentry.")) {
-        // An event id, the SDK's own.
-        out.message = crumb.message;
+        // The event id, the SDK's own. Not its message: for an error, that is the error's message.
+        Object.assign(out, pick(crumb, ["event_id"]));
     }
     return out;
 }
 
 /**
- * An exception with only its type, message, stack and how it was caught.
+ * An exception with only its type, its code or cleaned message, its stack and how it was caught.
  * @param exception - one exception of the event.
+ * @param codes - the graphty-element codes of the error and its causes, by message.
  * @returns the exception safe to send.
  */
-function cleanException(exception: Exception): Json {
+function cleanException(exception: Exception, codes: ReadonlyMap<string, string>): Json {
+    const code = exception.value === undefined ? undefined : codes.get(exception.value);
     const frames = exception.stacktrace?.frames?.map((frame) => ({
         ...pick(frame, FRAME_FIELDS),
         filename: cleanUrl(frame.filename),
     }));
     return {
         ...pick(exception, ["type", "module"]),
-        value: cleanText(exception.value),
+        // A graphty-element error is its code alone; one whose code is not known sends no message.
+        value: code ?? (exception.type === "GraphtyError" ? undefined : cleanMessage(exception.value)),
         stacktrace: frames ? { frames } : undefined,
         mechanism: exception.mechanism ? pick(exception.mechanism, MECHANISM_FIELDS) : undefined,
     };
@@ -163,9 +255,10 @@ function cleanException(exception: Exception): Json {
 /**
  * Any event -- an error or a transaction -- with only the allowlisted fields.
  * @param event - the event Sentry is about to send.
+ * @param codes - the graphty-element codes of the error and its causes, by message.
  * @returns the event that is sent.
  */
-function cleanEvent<T extends Event>(event: T): T {
+function cleanEvent<T extends Event>(event: T, codes: ReadonlyMap<string, string> = new Map()): T {
     const contexts: Json = pick(event.contexts, CONTEXTS);
     if (event.contexts?.trace) {
         contexts.trace = {
@@ -178,11 +271,11 @@ function cleanEvent<T extends Event>(event: T): T {
         contexts,
         tags: pick(event.tags, ["replayId"]),
         transaction: cleanText(event.transaction),
-        message: cleanText(event.message),
+        message: cleanMessage(event.message),
         breadcrumbs: event.breadcrumbs?.map(cleanBreadcrumb).filter((crumb) => crumb !== null),
     };
     if (event.exception?.values) {
-        out.exception = { values: event.exception.values.map(cleanException) };
+        out.exception = { values: event.exception.values.map((each) => cleanException(each, codes)) };
     }
     if (event.request) {
         out.request = { url: cleanUrl(event.request.url), headers: pick(event.request.headers, ["User-Agent"]) };
@@ -222,7 +315,23 @@ export function beforeAddRecordingEvent(event: ReplayFrameEvent): ReplayFrameEve
 /** The hooks handed to `Sentry.init`. */
 // No beforeSendTransaction: sentry.ts sets up no tracing, and with tracing's lifecycle left at Sentry
 // 11's default (streamed spans) the hook is ignored and only logs a warning on every init.
+/**
+ * The error hook: the event cut to its allowlist, each graphty-element error sent as its code.
+ * @param event - the error event.
+ * @param hint - what Sentry was handed, the error with its causes.
+ * @returns the event that is sent.
+ */
+function cleanErrorEvent(event: ErrorEvent, hint: EventHint): ErrorEvent | Promise<ErrorEvent> {
+    if (!event.exception?.values) {
+        return cleanEvent(event);
+    }
+    if (loadedCodeCheck !== undefined) {
+        return cleanEvent(event, codesByMessage(hint.originalException, loadedCodeCheck));
+    }
+    return loadCodeCheck().then((isCode) => cleanEvent(event, codesByMessage(hint.originalException, isCode)));
+}
+
 export const privacyFilters: Pick<BrowserOptions, "beforeSend" | "beforeBreadcrumb"> = {
-    beforeSend: cleanEvent,
+    beforeSend: cleanErrorEvent,
     beforeBreadcrumb: cleanBreadcrumb,
 };

@@ -3219,7 +3219,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
             },
-            send: (command) => dispatcher.dispatch(command),
+            send: (command, stamp) => dispatcher.dispatch(command, stamp),
             emit: (event, detail) => {
                 publish(watchers, event, detail);
             },

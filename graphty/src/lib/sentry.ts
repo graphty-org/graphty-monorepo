@@ -8,7 +8,7 @@ import * as SentrySdk from "@sentry/react";
 
 import { siteConfig } from "../siteConfig";
 import { sentryMaskedAttributes } from "./analytics";
-import { beforeAddRecordingEvent, privacyFilters } from "./sentryPrivacy";
+import { beforeAddRecordingEvent, preloadErrorCodes, privacyFilters } from "./sentryPrivacy";
 
 /** The parts of Sentry's SDK this module calls. */
 export type SentryCalls = Pick<
@@ -48,6 +48,37 @@ let initialized = false;
  * off and on again in one visit, so it is made once and restarted.
  */
 let replay: ReturnType<typeof SentrySdk.replayIntegration> | undefined;
+/** True while an error's replay is being sent and the buffer restarted. */
+let sendingErrorReplay = false;
+/** The last stop of the replay, settled once it has stopped (see {@link sentryStoppedForTests}). */
+let stopping: Promise<void> = Promise.resolve();
+
+/**
+ * Sends the buffered replay of the moments before an error once, then starts a new buffer. Sentry's
+ * own handling would switch the replay to recording the whole session from here, uploading every
+ * segment for up to an hour and resuming after a reload: a second full-session recorder beside
+ * PostHog, which is not what the reader was told. Called from `beforeErrorSampling`, which then
+ * answers false so Sentry never converts the buffer itself.
+ */
+function sendErrorReplayOnce(): void {
+    const integration = replay;
+    if (integration === undefined || sendingErrorReplay || integration.getRecordingMode() !== "buffer") {
+        return;
+    }
+    sendingErrorReplay = true;
+    integration
+        .flush({ continueRecording: false })
+        .then(() => integration.stop({ flush: false }))
+        .then(() => {
+            if (initialized) {
+                integration.startBuffering();
+            }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+            sendingErrorReplay = false;
+        });
+}
 
 /**
  * Sentry's default integrations this page leaves out: release-health session pings (Umami and
@@ -119,6 +150,7 @@ export function initSentry(config?: SentryConfig): void {
         initialized = true;
         return;
     }
+    preloadErrorCodes();
     replay ??= Sentry.replayIntegration({
         maskAllText: true,
         maskAllInputs: true,
@@ -127,6 +159,16 @@ export function initSentry(config?: SentryConfig): void {
         // attribute but the few PostHog's replay keeps too (analytics.ts sentryMaskedAttributes).
         maskAttributes: sentryMaskedAttributes(),
         beforeAddRecordingEvent,
+        // An error sends its buffer once and buffering starts again; the session is never recorded.
+        beforeErrorSampling: () => {
+            sendErrorReplayOnce();
+            return false;
+        },
+        // A reload never resumes a replay of the page before it.
+        stickySession: false,
+        // An error in the first seconds of a buffer is sent too. Sentry's default (5 s) holds a
+        // shorter replay back for a later flush, which the one-shot stop above would cancel.
+        minReplayDuration: 0,
         ...(useCompression === undefined ? {} : { useCompression }),
     });
     const integration = replay;
@@ -169,13 +211,23 @@ export function stopSentry(): void {
         // The client is disabled, not closed: it stays the page's one client, so a later Share
         // enables it again (initSentry). Disabled at once, so nothing captured from here is sent;
         // close() would disable it only after a flush, and could undo a quick Share again.
-        replay?.stop().catch(() => undefined);
+        // flush: false, or the segment recorded before the No (the No click among it) is sent
+        // after it: the replay sends through the transport directly, past the disabled client.
+        stopping = replay?.stop({ flush: false }).catch(() => undefined) ?? Promise.resolve();
         const client = Sentry.getClient();
         if (client !== undefined) {
             client.getOptions().enabled = false;
         }
     }
     initialized = false;
+}
+
+/**
+ * Settles once the replay stopped by the last {@link stopSentry} has stopped. Only for testing.
+ * @returns the stop's promise.
+ */
+export function sentryStoppedForTests(): Promise<void> {
+    return stopping;
 }
 
 /**
@@ -192,6 +244,8 @@ export function isSentryEnabled(): boolean {
 export function resetSentryState(): void {
     initialized = false;
     replay = undefined;
+    sendingErrorReplay = false;
+    stopping = Promise.resolve();
 }
 
 /**

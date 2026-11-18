@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
-import { appConfigWrite } from "../lib/analytics";
+import { APP_CALLER_KEY } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ScoreDialog } from "./data-place/ScoreDialog";
@@ -162,7 +162,9 @@ export function Workspace({
         const defaults =
             project?.id === startProjectId || Object.keys(patch).length === 0
                 ? Promise.resolve()
-                : appConfigWrite(() => session.config.set(patch));
+                : session.transaction("Starting settings", (tx) => tx.config.set(patch), {
+                      callerKey: APP_CALLER_KEY,
+                  });
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
             void defaults.catch((error: unknown) => {

@@ -217,7 +217,7 @@ export function sourceLoadedEvent(
 }
 
 /** The site each name serves on: Umami counts only there. */
-const SITE_HOSTS: Readonly<Record<string, string>> = {
+const SITE_HOSTS: Readonly<Partial<Record<string, string>>> = {
     production: "graphty.app",
     nightly: "nightly.graphty.app",
     canary: "canary.graphty.app",
@@ -348,9 +348,12 @@ function channelParams(search: URLSearchParams): Record<string, string> {
     return out;
 }
 
+/** What any URL outside this site is sent as: a file's or a server's address, even its origin, never leaves. */
+export const EXTERNAL_URL = "external";
+
 /**
  * Cuts a URL to what may be sent: a same-origin URL to its path plus the cleaned channel
- * parameters, any other web URL to its origin, any other scheme to the scheme alone.
+ * parameters, any other web URL to {@link EXTERNAL_URL}, any other scheme to the scheme alone.
  * @param href - an absolute or relative URL.
  * @returns the URL to send ("" when it does not parse).
  */
@@ -365,7 +368,7 @@ export function cleanUrl(href: string): string {
         return url.protocol;
     }
     if (url.origin !== globalThis.location.origin) {
-        return url.origin;
+        return EXTERNAL_URL;
     }
     const query = new URLSearchParams(channelParams(url.searchParams)).toString();
     return url.pathname + (query === "" ? "" : `?${query}`);
@@ -521,8 +524,9 @@ function daysBetween(from: string, to: string): number {
  * @param first - the first visit's local date.
  * @param today - today's local date.
  * @param last - the last visit's local date; the first when absent.
- * @returns the bucket, null on the same day, or "reset" when the last visit was more than 395 days
- * ago, or either date is unreadable or in the future.
+ * @returns the bucket, null on the first visit's day (or when the first visit is dated later than
+ * today: a clock moved back or a trip west), or "reset" when the last visit was more than 395 days
+ * ago or either date is unreadable.
  */
 export function visitBucket(
     first: string,
@@ -531,10 +535,10 @@ export function visitBucket(
 ): "1" | "2-7" | "8-30" | "30+" | "reset" | null {
     const days = daysBetween(first, today);
     const sinceLast = daysBetween(last, today);
-    if (!Number.isFinite(days) || !Number.isFinite(sinceLast) || days < 0 || sinceLast < 0 || sinceLast > 395) {
+    if (!Number.isFinite(days) || !Number.isFinite(sinceLast) || sinceLast > 395) {
         return "reset";
     }
-    if (days === 0) {
+    if (days <= 0) {
         return null;
     }
     if (days === 1) {
@@ -567,7 +571,9 @@ function countVisit(): void {
             return;
         }
         visit = bucket ?? "first";
-        if (record.last !== today && bucket !== null) {
+        // A last visit dated today or later was already counted: a reader whose clock or time zone
+        // moved back is not counted again, and the record keeps its dates.
+        if (record.last < today && bucket !== null) {
             localStorage.setItem(VISITS_KEY, JSON.stringify({ first: record.first, last: today }));
             count("return_visit", { days: bucket });
         }
@@ -577,13 +583,24 @@ function countVisit(): void {
 }
 
 /**
+ * Whether the page is served from its site's own host. Nothing is sent from anywhere else: a local
+ * build or a studio server that answers with a real site's site.json must not count into that site.
+ * @param config - the site's configuration; the loaded one by default.
+ * @returns true on the host the site's name serves on.
+ */
+export function onOwnHost(config: SiteConfig = siteConfig()): boolean {
+    const host = SITE_HOSTS[config.site];
+    return host !== undefined && calls.hostname() === host;
+}
+
+/**
  * Starts Umami's counts for this page view: the page view, then the visit event, then removes the
  * channel parameters from the address bar. Sends nothing without a website id or off the site's own host.
  * @param config - the site's configuration.
  */
 export function startPageCounts(config: SiteConfig): void {
     const website = config.analytics?.umamiWebsiteId;
-    if (website !== undefined && calls.hostname() === SITE_HOSTS[config.site]) {
+    if (website !== undefined && onOwnHost(config)) {
         umamiWebsite = website;
         sendUmami(undefined);
         const { dnt, gpc } = calls.privacySignals();
@@ -711,31 +728,12 @@ export function setCommandAllowlist(ids: Iterable<string>): void {
     commandAllowlist = new Set(ids);
 }
 
-/** How many of the app's own `config.set` writes are under way (see {@link appConfigWrite}). */
-let appWrites = 0;
-
 /**
- * Runs a settings write the app makes for itself, not the reader (its starting choices for every
- * project, a project's name): its `config.set` journal entry is not sent as a `graph_action`.
- * @param write - the write.
- * @returns the write's promise.
+ * The `callerKey` the app passes to graphty-element for writes it makes for itself, not the reader
+ * (its starting choices for every project, a project's name). Every journal entry that carries a
+ * `callerKey` is the app's own and is never sent (workspace/privacy/useUsageEvents.ts).
  */
-export async function appConfigWrite<T>(write: () => Promise<T>): Promise<T> {
-    appWrites++;
-    try {
-        return await write();
-    } finally {
-        appWrites--;
-    }
-}
-
-/**
- * Whether one of the app's own settings writes is under way.
- * @returns true while {@link appConfigWrite} runs one.
- */
-export function appConfigWriting(): boolean {
-    return appWrites > 0;
-}
+export const APP_CALLER_KEY = "app";
 
 /** The attributes PostHog's replay keeps; every other attribute is masked. */
 const REPLAY_KEPT_ATTRIBUTES: ReadonlySet<string> = new Set([
@@ -1074,18 +1072,20 @@ function flushBuffer(): void {
  * then; a later start opts the same client in again with a fresh id.
  */
 export function startPostHog(): void {
-    const { analytics } = siteConfig();
-    const key = analytics?.posthogKey;
-    const host = calls.posthogHost ?? analytics?.posthogHost;
-    if (key === undefined || host === undefined) {
+    const config = siteConfig();
+    const key = config.analytics?.posthogKey;
+    const host = calls.posthogHost ?? config.analytics?.posthogHost;
+    if (key === undefined || host === undefined || !onOwnHost(config)) {
         return;
     }
     wanted = true;
     if (client !== undefined) {
         try {
             // reset() first: in posthog-js 1.445 it also clears the stored consent, so opting in
-            // after it holds. The id deleted at stop never returns.
-            client.reset();
+            // after it holds. reset(true) makes a new device id too: stop deleted the stored one,
+            // but posthog-js still holds it in memory, and a plain reset() would keep it and save
+            // it again, linking this reader to what was recorded before they said No.
+            client.reset(true);
             client.opt_in_capturing();
             client.startSessionRecording();
         } catch {
@@ -1215,5 +1215,4 @@ export function resetAnalyticsForTests(): void {
     buffer.length = 0;
     commandAllowlist = new Set();
     listeners.clear();
-    appWrites = 0;
 }

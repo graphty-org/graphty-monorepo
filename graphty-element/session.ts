@@ -218,6 +218,9 @@ export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
 export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
 export { attachKeymap } from "./src/session";
+// The recording formats, here too so a consumer can read them without loading the element.
+export type { VideoFormat } from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the

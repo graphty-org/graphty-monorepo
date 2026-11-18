@@ -263,18 +263,21 @@
             <h3>Sentry</h3>
             <ul>
                 <li>
-                    <b>Error reports:</b> the error message and stack, your browser and operating system, your browser's
-                    language and time zone, and the clicks and network requests just before the error, with any address
-                    cut to its site (or, on graphty's own site, to the page path).
+                    <b>Error reports:</b> the kind of error and where in the code it happened; for graphty's own errors
+                    their code, never their message; for any other error its message with everything in quotes removed.
+                    Also your browser and operating system, your browser's language and time zone, and the clicks and
+                    network requests just before the error, with any address on graphty's own site cut to the page path
+                    and any other address sent only as the word <code>external</code>.
                 </li>
                 <li>
                     <b>A replay of the moments before an error</b>, masked the same way: text, typing, names and media
-                    hidden. Sessions without an error are not recorded by Sentry.
+                    hidden. Only the moments before each error are sent: sessions are not recorded by Sentry.
                 </li>
             </ul>
             <p>
-                Every address sent to PostHog or Sentry is cut the same way as the page view: on graphty's own site to
-                the path and the channel, anywhere else to the site's origin.
+                Every address sent to PostHog or Sentry is cut the same way as the page view on graphty's own site, to
+                the path and the channel. An address anywhere else, a file's or a server's, is sent only as the word
+                <code>external</code>.
             </p>
 
             <h2 id="report">Problem reports</h2>
@@ -291,8 +294,8 @@
                 <li>Project names and note text.</li>
                 <li>A PostHog id, or anything at all to PostHog or Sentry, before you choose Share usage data.</li>
                 <li>
-                    A location from PostHog or Sentry: PostHog's IP location lookup is off and it discards your IP
-                    address. (Umami's approximate location is listed above, under Always sent.)
+                    A location from PostHog or Sentry: PostHog's IP location lookup is off, and Sentry is told never to
+                    record your IP address. (Umami's approximate location is listed above, under Always sent.)
                 </li>
             </ul>
             <p>

@@ -1528,6 +1528,10 @@ export interface SessionDataApi {
      * joins, the column settings and the load's key all stay; the load moves to the end of
      * `sources()`, as the newest. One undo brings the earlier data back.
      *
+     * It adds no load, so it publishes no `source:loaded`: the journal entries of the commands it
+     * ran carry `trigger: "load"` and the `callerKey` given in `choices`, and its returned report
+     * says what changed.
+     *
      * ```ts
      * const key = await session.data.matchesSource({ config: { file } });
      * if (key !== null) {
@@ -3451,7 +3455,8 @@ export interface ImportOptions {
      * An opaque value the caller chooses. The load does nothing with it but echo it as
      * {@link SourceLoaded.callerKey} on the `source:loaded` event, and as `JournalEntry.callerKey`
      * on the journal entries of the commands the load ran, so a caller can tell its own loads
-     * apart. It is never saved with the project.
+     * apart. It is never saved with the project. `replaceSource` and `reloadSource` add no load,
+     * so they publish no `source:loaded`; their journal entries carry the key.
      * @since 3.40.0
      */
     readonly callerKey?: string;

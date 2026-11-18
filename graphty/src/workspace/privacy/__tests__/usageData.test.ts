@@ -13,12 +13,14 @@ import {
 } from "../../../lib/analytics";
 import * as sentry from "../../../lib/sentry";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { act, renderHook } from "../../../test/test-utils";
 import {
     answerUsageData,
     forgetUsageAnswer,
     readUsageAnswer,
     setUsageSenderForTests,
     startUsageDataIfShared,
+    useUsageAnswer,
 } from "../usageData";
 
 /** Where sending would start and stop. */
@@ -51,6 +53,26 @@ describe("the usage data gate", () => {
         assert.equal(initSentry.mock.calls.length, 2);
     });
 
+    it("starts sending, and re-renders this tab's controls, when another tab says Share", () => {
+        // As the chip and the Settings switch read the answer.
+        const { result, unmount } = renderHook(() => useUsageAnswer());
+        assert.isNull(result.current);
+        localStorage.setItem("graphty.usageData.v1", "share");
+        act(() => {
+            globalThis.dispatchEvent(
+                new StorageEvent("storage", {
+                    key: "graphty.usageData.v1",
+                    oldValue: null,
+                    newValue: "share",
+                    storageArea: localStorage,
+                }),
+            );
+        });
+        assert.equal(initSentry.mock.calls.length, 1);
+        assert.equal(result.current, "share");
+        unmount();
+    });
+
     it("stops sending after a later No, and stays off at the next launch", () => {
         answerUsageData("share");
         answerUsageData("declined");
@@ -64,7 +86,6 @@ describe("the usage data gate", () => {
 
 describe("the live sender", () => {
     const sends: UmamiBody[] = [];
-    const close = vi.fn(() => Promise.resolve(true));
 
     beforeEach(async () => {
         setUsageSenderForTests();
@@ -72,7 +93,6 @@ describe("the live sender", () => {
         resetSiteConfig();
         forgetUsageAnswer();
         sends.length = 0;
-        close.mockClear();
         setAnalyticsCallsForTests({
             send: (body) => {
                 sends.push(body);
@@ -111,9 +131,11 @@ describe("the live sender", () => {
     });
 
     it("stops PostHog and error reporting when another tab says No", () => {
+        // The page's one client: a No disables it rather than closing it.
+        const options: { enabled?: boolean } = { enabled: true };
         sentry.setSentryCallsForTests({
             init: vi.fn(),
-            close,
+            getClient: () => ({ getOptions: () => options }),
             replayIntegration: vi.fn(() => ({ name: "Replay", stop: vi.fn(() => Promise.resolve()) })),
         } as unknown as Partial<sentry.SentryCalls>);
         sentry.initSentry({ dsn: "https://public@o0.ingest.sentry.io/0" });
@@ -132,7 +154,7 @@ describe("the live sender", () => {
             }),
         );
 
-        assert.equal(close.mock.calls.length, 1);
+        assert.isFalse(options.enabled);
         assert.equal(optOut.mock.calls.length, 1);
         assert.isNull(localStorage.getItem("ph_phc_x_posthog"));
         assert.equal(readUsageAnswer(), "declined");

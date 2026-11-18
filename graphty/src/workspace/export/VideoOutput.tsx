@@ -1,5 +1,6 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { AnimationOptions, CaptureEstimate } from "@graphty/graphty-element";
+import type { CaptureEstimate } from "@graphty/graphty-element";
+import { VIDEO_FORMATS } from "@graphty/graphty-element/session";
 import { Alert, Badge, Button, Input, Loader, MultiSelect, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
@@ -7,14 +8,8 @@ import { allowlisted, count } from "../../lib/analytics";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { animationOptions, failureWords, fileName, type VideoChoices } from "./choices";
 
-/**
- * The recorded formats `export_done` may name, typed against the element's own option, which has no
- * exported list (AnimationResult.metadata.format is a plain string).
- */
-const VIDEO_FORMATS: ReadonlySet<string> = new Set<Exclude<AnimationOptions["format"], "auto" | undefined>>([
-    "webm",
-    "mp4",
-]);
+/** The recorded formats `export_done` may name: the element's own list. */
+const VIDEO_FORMAT_IDS: ReadonlySet<string> = new Set(VIDEO_FORMATS);
 
 /** The camera views a tour starts with when no two views are saved. */
 const FIRST_TOUR = ["frontView", "isometric", "topView"];
@@ -128,7 +123,7 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
             const dropped = result.metadata.framesDropped;
             count("export_done", {
                 kind: "video",
-                format: allowlisted(result.metadata.format, VIDEO_FORMATS),
+                format: allowlisted(result.metadata.format, VIDEO_FORMAT_IDS),
                 destination: "download",
             });
             onDone(dropped > 0 ? `Exported ${file}, ${String(dropped)} frames dropped` : `Exported ${file}`, file);

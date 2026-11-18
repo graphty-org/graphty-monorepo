@@ -54,12 +54,15 @@ export interface JournalEntry {
      * Why the session ran this command, when it was not a direct call; absent for a direct call.
      * `"suggestion"`: an algorithm's suggested styles, applied as an entry of their own (a batch's
      * held paint released, or `applySuggestedStyles`). `"project"`: one of the commands that
-     * opening a project ran.
+     * opening a project ran. `"load"`: one of the commands a load ran -- the import and the
+     * configuration the load settled beside it, such as the label path a graph file names its
+     * nodes by -- for `data.import`, `data.loadDataset`, `data.generate`, a draft's `load`,
+     * `data.replaceSource` and `data.reloadSource`.
      *
      * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
      * @since 3.40.0
      */
-    readonly trigger?: "suggestion" | "project";
+    readonly trigger?: "suggestion" | "project" | "load";
     /**
      * The caller's own key for the work this command belongs to, echoed unchanged: the
      * `callerKey` a load was given (`ImportOptions.callerKey`) or a transaction was opened

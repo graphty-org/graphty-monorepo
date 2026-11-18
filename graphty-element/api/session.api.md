@@ -3294,7 +3294,7 @@ export interface JournalEntry {
     readonly id: JournalId;
     readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
     readonly runId?: RunId;
-    readonly trigger?: "suggestion" | "project";
+    readonly trigger?: "suggestion" | "project" | "load";
 }
 
 // @public
@@ -8116,6 +8116,12 @@ export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "f
 
 // @public
 export type ValueType = "text" | "number" | "boolean" | "date" | "category";
+
+// @public
+export const VIDEO_FORMATS: readonly VideoFormat[];
+
+// @public
+export type VideoFormat = "webm" | "mp4";
 
 // @public
 export interface VisibilityApi {

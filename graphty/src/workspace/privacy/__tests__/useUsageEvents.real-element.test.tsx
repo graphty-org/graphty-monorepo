@@ -14,7 +14,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import {
-    appConfigWrite,
+    APP_CALLER_KEY,
     onUsageEvent,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
@@ -219,8 +219,24 @@ describe("usage counts from the real element", () => {
         localStorage.removeItem(VISITS);
     });
 
+    it("never sends the app's own starting settings for a new project as a graph action", async () => {
+        // From the start page: the workspace writes its starting choices into every project it
+        // opens (a project it was handed at first render is left as its maker set it).
+        render(<Workspace store={createWorkspaceStore()} />);
+        await userEvent.click(await screen.findByRole("button", { name: "New project" }));
+        const { session } = await projectElement();
+        await waitFor(() => {
+            assert.isTrue(session.config.startingRows, "the starting settings are in");
+        });
+        assert.notInclude(actionOps(), "config.set");
+    });
+
     it("counts a start-screen sample tile as that sample, once, and nothing from the start page's graph", async () => {
         await openSampleFromStart("Les Miserables");
+        // The open names the project in the element: the app's own write, not the reader's.
+        const { session } = await projectElement();
+        assert.strictEqual(session.config.name, "Les Miserables");
+        assert.notInclude(actionOps(), "config.set");
         const loaded = sent("sample_loaded");
         assert.deepEqual(loaded.umami, [{ sample: "les-miserables" }]);
         assert.lengthOf(loaded.posthog, 1);
@@ -289,19 +305,19 @@ describe("usage counts from the real element", () => {
             `the load was journaled (${journaled.join(", ")})`,
         );
         const ops = actionOps();
-        for (const op of ["data.import", "data.import-source"]) {
+        // The load's own settings steps (its knownFields write) carry the element's "load" trigger.
+        for (const op of ["data.import", "data.import-source", "config.set"]) {
             assert.notInclude(ops, op);
         }
-        // Not checked here: graphty-element journals a load's own knownFields write (a step of the
-        // load's batch, session/data.ts) as an ordinary config.set entry with no trigger, so it
-        // still arrives as a graph action. That is the element's to mark, not the app's to guess.
         // The load is counted once, as the reader's own file.
         assert.lengthOf(sent("own_file_opened").posthog, 1);
 
         // A settings write the app makes for itself is not the reader's; the same write from a
         // reader's control is.
         const before = actionOps().length;
-        await appConfigWrite(() => session.config.set({ author: "App choice" }));
+        await session.transaction("App choice", (tx) => tx.config.set({ author: "App choice" }), {
+            callerKey: APP_CALLER_KEY,
+        });
         assert.lengthOf(actionOps(), before, "the app's own write sends nothing");
         const reader = next("graph_action");
         await session.config.set({ author: "Reader choice" });
@@ -339,6 +355,7 @@ describe("usage counts from the real element", () => {
         await session.positions.set([{ id: first.id, x: 1, y: 2, z: 0 }]);
         session.notes.add({ targets: [{ graph: true }], text: "SECRET_NOTE_TEXT" });
         await session.layout.setDimension("2d");
+        await session.runs.start("degree", {});
         const { text } = await session.project.save();
 
         umami.length = 0;
@@ -354,7 +371,8 @@ describe("usage counts from the real element", () => {
         // Not vacuous: the open journaled its members, data, a note and positions among them.
         const opened = members.map((entry) => entry.command.op);
         assert.isTrue(opened.some((op) => op.startsWith("data.")));
-        for (const name of ["graph_action", "own_file_opened", "sample_loaded", "nodes_dragged"]) {
+        assert.isNotEmpty(session.runs.list(), "the project file holds a run");
+        for (const name of ["graph_action", "own_file_opened", "sample_loaded", "nodes_dragged", "algorithm_run"]) {
             assert.isEmpty(sent(name).posthog, `${name} from a project open`);
             assert.isEmpty(sent(name).umami, `${name} from a project open`);
         }
@@ -501,10 +519,13 @@ describe("usage counts from the real element", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
         const recent = await screen.findByRole("gridcell", { name: /^SECRET_SAVED/ });
         const panelsBefore = sent("panel_opened").posthog.length;
+        const actionsBefore = actionOps().length;
         const reopened = next("project_reopened");
         await userEvent.click(recent);
         await reopened;
         await projectElement();
+        // The reopen's own writes (its members, the project's name) are not the reader's actions.
+        assert.notInclude(actionOps().slice(actionsBefore), "config.set");
         // The open set the place and page itself: no panel the reader opened.
         assert.lengthOf(sent("panel_opened").posthog, panelsBefore);
         assert.isEmpty(sent("project_reopened").umami);

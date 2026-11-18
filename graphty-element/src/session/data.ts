@@ -289,10 +289,12 @@ interface DataWrites {
      * @param options - The load's signal, and the caller's key its journal entries carry.
      * @param options.signal - Withdraws the load.
      * @param options.callerKey - Echoed on the load's journal entries.
+     * @param options.trigger - `"load"` for a load door: stamped on the load's journal entries.
      */
     importer(options?: {
         readonly signal?: AbortSignal;
         readonly callerKey?: string;
+        readonly trigger?: "load";
     }): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
@@ -315,7 +317,7 @@ interface DataWrites {
     /** The session's load line, shared with the graph's own loads, so loads land in call order. */
     readonly loadLine: LoadLine;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
-    send?(command: SessionCommand): Promise<unknown>;
+    send?(command: SessionCommand, stamp?: LoadStamp): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
     emit?<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
     /** The style stack and the finished runs now: what reads a column. */
@@ -1232,7 +1234,7 @@ export class SessionData implements SessionDataApi {
             // synchronously, and detecting the format may have to read the file or fetch the URL.
             await this.importVia(
                 this.keeping(
-                    this.writes.importer({ ...(signal === undefined ? {} : { signal }), ...callerKeyOf(options) }),
+                    this.writes.importer({ ...(signal === undefined ? {} : { signal }), ...loadStampOf(options) }),
                     source,
                 ),
                 source,
@@ -1284,7 +1286,7 @@ export class SessionData implements SessionDataApi {
      */
     async generate(name: string, params: GeneratorParams = {}, options: ImportOptions = {}): Promise<void> {
         this.requireLive("generate");
-        const send = this.writes.importer(callerKeyOf(options));
+        const send = this.writes.importer(loadStampOf(options));
         const descriptor = GENERATOR_CATALOG.find((each) => each.name === name);
         if (descriptor === undefined) {
             throw new GraphtyError({
@@ -1337,7 +1339,7 @@ export class SessionData implements SessionDataApi {
      */
     async loadDataset(name: string, options: DatasetLoadOptions = {}): Promise<void> {
         this.requireLive("loadDataset");
-        const send = this.writes.importer(callerKeyOf(options));
+        const send = this.writes.importer(loadStampOf(options));
         const { baseUrl, signal, ...load } = options;
         // The element names no host of its own: the caller says where the files are published
         // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
@@ -2137,7 +2139,7 @@ export class SessionData implements SessionDataApi {
                 },
                 inLine: async (run, choices) => {
                     const send = this.noting(
-                        this.keeping(this.writes.importer(callerKeyOf(choices ?? {})), source),
+                        this.keeping(this.writes.importer(loadStampOf(choices ?? {})), source),
                         () => bytesFacts(source.config),
                         undefined,
                         callerKeyOf(choices ?? {}),
@@ -3528,7 +3530,7 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
-        const send = this.sender("replace a load");
+        const send = this.sender("replace a load", loadStampOf(choices));
         const stored = this.storedSources();
         const at = this.sources().findIndex((each) => each.key === key);
         const entry = stored[at] as LoadedSource | undefined;
@@ -3697,7 +3699,7 @@ export class SessionData implements SessionDataApi {
         source: SourceInput,
         choices: LoadChoices & SourceLoadOptions,
     ): Promise<ReplaceReport> {
-        const send = this.sender("replace a load");
+        const send = this.sender("replace a load", loadStampOf(choices));
         const old = this.sources().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === old);
         const mode = record?.options.mode as SourceLoadOptions["mode"] | undefined;
@@ -4185,9 +4187,10 @@ export class SessionData implements SessionDataApi {
     /**
      * The session's dispatch, taken now, or a refusal for a session that cannot dispatch.
      * @param verb - the verb asking, for the error
+     * @param stamp - for a load door: what its journal entries carry
      * @returns the dispatch
      */
-    private sender(verb: string): (command: SessionCommand) => Promise<unknown> {
+    private sender(verb: string, stamp?: LoadStamp): (command: SessionCommand) => Promise<unknown> {
         const send = this.writes.send?.bind(this.writes);
         if (send === undefined) {
             throw new GraphtyError({
@@ -4197,7 +4200,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return send;
+        return (command) => send(command, stamp);
     }
 
     /**
@@ -7229,6 +7232,23 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
  */
 function callerKeyOf(options: { readonly callerKey?: string }): { callerKey?: string } {
     return options.callerKey === undefined ? {} : { callerKey: options.callerKey };
+}
+
+/** What a load door stamps on its journal entries: `trigger: "load"` and the caller's key. */
+interface LoadStamp {
+    readonly trigger: "load";
+    readonly callerKey?: string;
+}
+
+/**
+ * A load door's journal stamp, so a consumer can tell the commands a load ran (the configuration
+ * it settled as well as the import) from the ones a reader asked for.
+ * @param options - The load's options.
+ * @param options.callerKey - The caller's key.
+ * @returns `{ trigger: "load" }`, with the caller's key when it gave one.
+ */
+function loadStampOf(options: { readonly callerKey?: string }): LoadStamp {
+    return { trigger: "load", ...callerKeyOf(options) };
 }
 
 /**

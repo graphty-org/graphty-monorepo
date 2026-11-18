@@ -1,11 +1,15 @@
+import { GraphtyError } from "@graphty/graphty-element/session";
 import type { Breadcrumb, ErrorEvent, Event, ReplayFrameEvent } from "@sentry/react";
 import * as Sentry from "@sentry/react";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
+import { render, screen } from "../test/test-utils";
+import { PanelBoundary } from "../workspace/frame/PanelBoundary";
 import { initSentry, resetSentryState, stopSentry } from "./sentry";
 import { beforeAddRecordingEvent, privacyFilters } from "./sentryPrivacy";
 
-/** A file's address on another site: only its origin may leave the page. */
+/** A file's address on another site: not even its origin may leave the page. */
 const PRIVATE = "https://private.example/SECRET-PATIENT.csv?x=1";
 
 /** A provider key, and a graph value the reader never agreed to send. */
@@ -30,13 +34,17 @@ class ProviderError extends Error {
     }
 }
 
+/** The bodies of the envelopes Sentry hands its transport, as text. */
+const sent: string[] = [];
+
 /**
  * Starts error reporting as the app does, with a transport that records every envelope instead
- * of sending it.
- * @returns the bodies of the envelopes Sentry hands its transport, as text.
+ * of sending it. The page keeps one client and one replay (Sentry allows no second), so a later
+ * start enables the first client again, with its transport: the envelopes land in the same list.
+ * @returns the bodies of the envelopes sent from this start on, as text.
  */
 function startRecording(): string[] {
-    const sent: string[] = [];
+    sent.length = 0;
     initSentry({
         dsn: "https://public@o0.ingest.sentry.io/0",
         environment: "test",
@@ -52,7 +60,6 @@ function startRecording(): string[] {
 describe("what error reporting sends", () => {
     afterEach(() => {
         stopSentry();
-        resetSentryState();
     });
 
     it("sends a provider error's type, message and stack, and no key or graph value from anywhere", async () => {
@@ -82,9 +89,10 @@ describe("what error reporting sends", () => {
         // What is kept still says what failed, and where.
         assert.include(all, '"type":"AI_APICallError"');
         assert.include(all, "Incorrect API key provided: [redacted]");
-        // Console breadcrumbs are dropped; another site's URL keeps only its origin.
+        // Console breadcrumbs are dropped; another site's URL is not sent, not even its origin.
         assert.notInclude(all, '"category":"console"');
-        assert.include(all, '"url":"https://api.example.com"');
+        assert.notInclude(all, "api.example.com");
+        assert.include(all, '"url":"external"');
         // No tracing is set up, so no transaction is sent.
         assert.notInclude(all, '"type":"transaction"');
         // Sentry's server must not fill in the reader's IP address.
@@ -95,13 +103,78 @@ describe("what error reporting sends", () => {
     });
 });
 
+afterAll(() => {
+    resetSentryState();
+});
+
+/** Throws while `broken.now` is true, as a panel that reads a column the graph lacks. */
+const broken = { now: true };
+
+/**
+ * A panel that throws graphty-element's error for a column the graph has no column of, caused by
+ * the browser's own JSON.parse error, which quotes the start of the text it read.
+ * @returns the panel.
+ */
+function ColumnPanel(): React.JSX.Element {
+    if (broken.now) {
+        let cause: unknown;
+        try {
+            JSON.parse("SECRET_FILE_START is not json");
+        } catch (error) {
+            cause = error;
+        }
+        throw new GraphtyError({
+            code: "E_UNKNOWN_ATTRIBUTE",
+            message: 'No node column is named "SECRET_COLUMN"',
+            source: "data",
+            cause,
+        });
+    }
+    return <p>Panel content</p>;
+}
+
+describe("error messages", () => {
+    afterEach(() => {
+        stopSentry();
+    });
+
+    it("send a graphty-element error as its code, never the column, node or file text it quotes", async () => {
+        const sent = startRecording();
+        const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        broken.now = true;
+        render(
+            <PanelBoundary name="Inspector">
+                <ColumnPanel />
+            </PanelBoundary>,
+        );
+        await screen.findByText("This panel could not be shown");
+        await Sentry.flush();
+        // A later error carries the first one as a breadcrumb: its message must not ride along.
+        broken.now = false;
+        await userEvent.click(screen.getByRole("button", { name: "Reload panel" }));
+        await screen.findByText("Panel content");
+        Sentry.captureException(new Error('could not open the "SECRET_PROJECT" project'));
+        await Sentry.flush();
+        quiet.mockRestore();
+
+        const all = sent.join("\n");
+        for (const secret of ["SECRET_COLUMN", "SECRET_FILE_START", "SECRET_PROJECT"]) {
+            assert.notInclude(all, secret);
+        }
+        // Not vacuous: both errors were sent, the element's as its code, the other with its quote replaced.
+        assert.include(all, '"value":"E_UNKNOWN_ATTRIBUTE"');
+        assert.include(all, '"type":"SyntaxError"');
+        assert.include(all, 'could not open the \\"[quoted]\\" project');
+    });
+});
+
 describe("URLs of another site", () => {
-    it("keep only their origin in a breadcrumb, a message, a stack frame and the request", () => {
+    it("are replaced in a breadcrumb, a message, a stack frame and the request", async () => {
         const crumb = privacyFilters.beforeBreadcrumb?.(
             { category: "fetch", data: { method: "GET", url: PRIVATE } },
             {},
         );
-        const event = privacyFilters.beforeSend?.(
+        const event = (await privacyFilters.beforeSend?.(
             {
                 message: `could not read ${PRIVATE}`,
                 request: { url: PRIVATE },
@@ -116,22 +189,23 @@ describe("URLs of another site", () => {
                 },
             } as ErrorEvent,
             {},
-        ) as Event;
+        )) as Event;
         const all = JSON.stringify([crumb, event]);
 
         assert.notInclude(all, "SECRET");
-        assert.equal((crumb as Breadcrumb).data?.url, "https://private.example");
-        assert.equal(event.request?.url, "https://private.example");
-        assert.equal(event.exception?.values?.[0].stacktrace?.frames?.[0].filename, "https://private.example");
-        assert.equal(event.message, "could not read https://private.example");
+        assert.notInclude(all, "private.example");
+        assert.equal((crumb as Breadcrumb).data?.url, "external");
+        assert.equal(event.request?.url, "external");
+        assert.equal(event.exception?.values?.[0].stacktrace?.frames?.[0].filename, "external");
+        assert.equal(event.message, "could not read external");
     });
 
-    it("keeps this site's own script addresses whole, so source maps still match", () => {
+    it("keeps this site's own script addresses whole, so source maps still match", async () => {
         const own = `${globalThis.location.origin}/assets/index-abc.js`;
-        const event = privacyFilters.beforeSend?.(
+        const event = (await privacyFilters.beforeSend?.(
             { exception: { values: [{ type: "Error", stacktrace: { frames: [{ filename: own }] } }] } } as ErrorEvent,
             {},
-        ) as Event;
+        )) as Event;
         assert.equal(event.exception?.values?.[0].stacktrace?.frames?.[0].filename, own);
     });
 
@@ -151,7 +225,7 @@ describe("the error replay's recording events", () => {
     });
 
     for (const op of ["navigation.navigate", "resource.fetch", "resource.script"]) {
-        it(`cuts the URL of a ${op} span to its origin`, () => {
+        it(`replaces the URL of a ${op} span`, () => {
             const event = {
                 type: 5,
                 timestamp: 1,
@@ -162,7 +236,7 @@ describe("the error replay's recording events", () => {
             } as unknown as ReplayFrameEvent;
             const out = beforeAddRecordingEvent(event);
             assert.notInclude(JSON.stringify(out), "SECRET");
-            assert.equal((out?.data.payload as { description: string }).description, "https://private.example");
+            assert.equal((out?.data.payload as { description: string }).description, "external");
         });
     }
 });

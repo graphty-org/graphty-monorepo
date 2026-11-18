@@ -57,7 +57,10 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
 - **Work the session did on its own account says so.** `trigger: "suggestion"` marks the style
   entries of an algorithm's suggested styles applied as entries of their own: those a
   `session.runs.batch` paints once at its end, and those `graph.applySuggestedStyles()` writes.
-  `trigger: "project"` marks every entry that opening a project ran. A single run that paints its
+  `trigger: "project"` marks every entry that opening a project ran. `trigger: "load"` marks every
+  entry a load ran (`import`, `loadDataset`, `generate`, a draft's `load`, `replaceSource`,
+  `reloadSource`), including the settings it chose beside the import, such as the label path a
+  graph file names its nodes by. A single run that paints its
   suggestions paints inside its own `algo.run` entry, so it writes no style entry. More triggers
   may be added; treat one you do not know as work the reader did not ask for directly.
 

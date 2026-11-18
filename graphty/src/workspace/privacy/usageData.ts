@@ -7,7 +7,7 @@
 
 import { useSyncExternalStore } from "react";
 
-import { count, startPostHog, stopPostHog, stripQueryForRecorders } from "../../lib/analytics";
+import { count, onOwnHost, startPostHog, stopPostHog, stripQueryForRecorders } from "../../lib/analytics";
 import { initSentry, stopSentry } from "../../lib/sentry";
 
 /** The reader's answer to the usage data card. */
@@ -18,6 +18,10 @@ const listeners = new Set<() => void>();
 /** What Share and No switch on and off: the address bar's query is removed before either recorder starts. */
 const live = {
     start: (): void => {
+        // Off the site's own host (a local build serving a real site's site.json) nothing starts.
+        if (!onOwnHost()) {
+            return;
+        }
         stripQueryForRecorders();
         initSentry();
         startPostHog();
@@ -84,14 +88,21 @@ export function answerUsageData(answer: UsageAnswer): void {
     });
 }
 
-// Another tab's No (or a cleared answer) stops sending here too, or this tab would keep recording
-// and PostHog would write its id back after the other tab deleted it.
+// Every tab follows the latest answer. Another tab's No (or a cleared answer) stops sending here
+// too, or this tab would keep recording and PostHog would write its id back after the other tab
+// deleted it. Another tab's Share starts it here, so this tab's chip and Settings switch, which read
+// the stored answer, never say it sends while it does not.
 globalThis.addEventListener("storage", (event) => {
-    if ((event.key !== KEY && event.key !== null) || event.newValue === "share") {
+    if (event.key !== KEY && event.key !== null) {
         return;
     }
-    remembered = event.newValue === "declined" ? "declined" : null;
-    sending.stop();
+    if (event.newValue === "share") {
+        remembered = "share";
+        sending.start();
+    } else {
+        remembered = event.newValue === "declined" ? "declined" : null;
+        sending.stop();
+    }
     listeners.forEach((listener) => {
         listener();
     });

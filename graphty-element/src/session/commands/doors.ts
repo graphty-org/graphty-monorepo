@@ -4010,6 +4010,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeRemovalChangesNothing: READ,
             endPeek: exempt("The session's end clears a peek, which is view state."),
             hoverAt: exempt("The pointer resting on a node is view state, not a step, like the selection."),
+            byInput: exempt(
+                "It only labels the changes its callback makes with the input; they are steps of their own.",
+            ),
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,

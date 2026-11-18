@@ -27,6 +27,7 @@ import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
+import { declareKinds, kindColumnsOf } from "./declaredKinds.js";
 import type { DataLoadingError, ErrorAggregator } from "./ErrorAggregator.js";
 import { filePositionsOf } from "./filePositions.js";
 
@@ -816,6 +817,10 @@ export function toRecords(
     const { importer } = imported;
     if (reader !== undefined && importer !== undefined) {
         rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
+    }
+
+    if (reader !== undefined) {
+        declareKinds(reader, kindColumnsOf(imported.snapshot, mapping.path ?? copiedPath));
     }
 
     const { snapshot, declared } = imported;

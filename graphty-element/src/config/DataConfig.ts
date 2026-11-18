@@ -77,6 +77,9 @@ const GraphKnownFields = z.strictObject({
     nodeCountryPath: z.string().or(z.null()).optional(),
     nodeRegionPath: z.string().or(z.null()).optional(),
     nodeCityPath: z.string().or(z.null()).optional(),
+    // The column whose values name each node's kind (person, account, device), as `data.setRole`
+    // designates it or a file that declares kinds (Neo4j's :LABEL) sets it at load.
+    nodeKindPath: z.string().or(z.null()).optional(),
     // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
     // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
     // Naming an expression here settles the question and turns the probe off -- a record that does
@@ -115,6 +118,8 @@ const GraphKnownFields = z.strictObject({
     edgeTimeParseZone: z.string().or(z.null()).optional(),
     edgeTimeEndPath: z.string().or(z.null()).optional(),
     edgeTimeSpellsPath: z.string().or(z.null()).optional(),
+    // The column whose values name each edge's kind, as nodeKindPath (Neo4j's :TYPE, a JSON Graph Format relation).
+    edgeKindPath: z.string().or(z.null()).optional(),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses
     // every file-placed node onto the scene origin, which is indistinguishable from the NaN the

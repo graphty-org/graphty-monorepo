@@ -64,11 +64,11 @@ describe("kinds of node at load", () => {
     it("lists the roles a column takes in place and the ones it takes only when its rows load", () => {
         assert.sameMembers(
             [...COLUMN_ROLES.node.inPlace],
-            ["label", "weight", "time", "latitude", "longitude", "coordinates", "country", "region", "city"],
+            ["label", "weight", "time", "kind", "latitude", "longitude", "coordinates", "country", "region", "city"],
         );
-        assert.sameMembers([...COLUMN_ROLES.node.atLoad], ["key", "kind"]);
-        assert.sameMembers([...COLUMN_ROLES.edge.inPlace], ["weight", "time"]);
-        assert.sameMembers([...COLUMN_ROLES.edge.atLoad], ["source", "target", "edgeId", "kind"]);
+        assert.sameMembers([...COLUMN_ROLES.node.atLoad], ["key"]);
+        assert.sameMembers([...COLUMN_ROLES.edge.inPlace], ["weight", "time", "kind"]);
+        assert.sameMembers([...COLUMN_ROLES.edge.atLoad], ["source", "target", "edgeId"]);
     });
 
     it("reports the id that appears under two kinds, the same under either choice", async () => {

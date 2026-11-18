@@ -4328,6 +4328,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdFrames: RENDER,
             holdSmooth: RENDER,
             frameDrawn: RENDER,
+            fencedFrames: READ,
+            gpuFinishedFrame: READ,
             setPixelRatio: RENDER,
             resize: RENDER,
             drawHeld: RENDER,

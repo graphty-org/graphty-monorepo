@@ -33,7 +33,10 @@ export interface CredentialBind {
 export interface AwsSigV4Options {
     /** The AWS region ("us-east-1"). */
     readonly region: string;
-    /** The signing service: "neptune-db" (default) or "neptune-graph" for Neptune Analytics. */
+    /**
+     * The signing service: "neptune-db" (default), "neptune-graph" for Neptune Analytics, or "s3"
+     * for a private Amazon S3 bucket.
+     */
     readonly service?: string | undefined;
     /** The credentials, or a function returning fresh ones per request. */
     readonly credentials: AwsCredentials | (() => Promise<AwsCredentials>);
@@ -268,7 +271,7 @@ export const credentials = Object.freeze({
         return new SourceCredential({ kind: "api-key", header, query, value }, bind);
     },
     /**
-     * AWS Signature Version 4 (Amazon Neptune). The signer loads on first use.
+     * AWS Signature Version 4 (Amazon Neptune, Amazon S3). The signer loads on first use.
      * @param options - region, service and the credentials or a provider of them
      * @param bind - the origins it may be sent to
      * @returns the credential

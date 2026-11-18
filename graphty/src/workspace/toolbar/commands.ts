@@ -280,8 +280,8 @@ export const registration = defineRegistration({
             label: "Auto-rotate",
             group: "View",
             // graphty-element tells no caller whether auto-rotate turns the drawing now (it turns
-            // only the 3D view); the 2D check stays until it does (design/ui/camera-views-tours-
-            // and-capture.md, section 10). Reduced motion is the element's answer.
+            // only the 3D view); the 2D check stays until it does (graphty-element defect, issue
+            // #8850). Reduced motion is the element's answer.
             disabled: ({ session, element }) =>
                 nothingDrawn(session) ??
                 (session?.layout.dimension === "2d" ? "Only in 3D" : null) ??

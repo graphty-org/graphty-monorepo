@@ -896,6 +896,14 @@ describe("auto-merge stocks", () => {
         expect(s.autoMergeGreenStuck).toBe(2);
         expect(s.autoMergeArmedLong).toBe(2);
     });
+
+    it("leaves a green pull request that conflicts with its base out of green-but-not-merging (#8800)", () => {
+        const conflicting = { ...pr(30, "SUCCESS"), number: 8575, mergeable: "CONFLICTING" };
+        const unknown = { ...pr(3, "SUCCESS"), number: 8576, mergeable: "UNKNOWN" };
+        const s = prStocks([conflicting, unknown], NOW);
+        expect(s.prs.greenStuck).toEqual([8576]);
+        expect(s.prs.armedLong).toEqual([8575]);
+    });
 });
 
 describe("stress run state", () => {

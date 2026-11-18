@@ -439,6 +439,22 @@ describe("session.data.valueCounts()", () => {
 });
 
 describe("valueKind and field facts", () => {
+    it("reads a few repeated strings on a small graph as groups, and unique ones as text", async () => {
+        const session = createGraphSession();
+        const teams = ["red", "green", "blue"];
+        await session.data.addNodes(
+            Array.from({ length: 6 }, (_, i) => ({
+                id: `n${String(i)}`,
+                team: teams[i % 3],
+                name: `Person ${String(i)}`,
+            })),
+        );
+        const values = session.data.readableValues();
+        assert.strictEqual(entry(values, "data.team").kind, "category");
+        assert.strictEqual(entry(values, "data.team").valueCount, 3);
+        assert.strictEqual(entry(values, "data.name").kind, "text");
+    });
+
     it("reads each value's kind from its type, its measurement, a declared order and list values", async () => {
         const session = createGraphSession();
         await session.data.addNodes([

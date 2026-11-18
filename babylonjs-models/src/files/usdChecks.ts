@@ -21,6 +21,7 @@
 import { ModelReadError } from "./readers/geometry.js";
 import { type Crate, type CrateSpec, isTimeSamples, readCrate, SPEC, type ValueRep } from "./readers/usdc.js";
 import {
+    cap,
     cut,
     type Findings,
     findReference,
@@ -499,18 +500,6 @@ export function findUsdParts(
     findings: Findings,
 ): void {
     stageOf(path, files, limits, findings);
-}
-
-/**
- * Refuse a count over its cap.
- * @param item - What is counted.
- * @param found - How many.
- * @param limit - The cap.
- */
-function cap(item: string, found: number, limit: number): void {
-    if (found > limit) {
-        refuse("E_MODEL_TOO_LARGE", { what: "count", item, found, limit });
-    }
 }
 
 /**

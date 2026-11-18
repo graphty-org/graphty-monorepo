@@ -16,7 +16,16 @@
 
 import { type FbxFile, fbxId, fbxName, type FbxNode, type FbxValue, readFbx } from "./readers/fbx.js";
 import { ModelReadError } from "./readers/geometry.js";
-import { baseName, cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references.js";
+import {
+    baseName,
+    cap,
+    cut,
+    type Findings,
+    findReference,
+    refuse,
+    resolveReference,
+    textureBytesOf,
+} from "./references.js";
 import type { ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
 
 /** FBX time units per second (KTime). */
@@ -299,18 +308,6 @@ export function findFbxParts(
             seen.add(source.ref);
             findReference(source.ref, path, files, "texture", findings);
         }
-    }
-}
-
-/**
- * Refuse a count over its cap.
- * @param item - What is counted.
- * @param found - How many.
- * @param limit - The cap.
- */
-function cap(item: string, found: number, limit: number): void {
-    if (found > limit) {
-        refuse("E_MODEL_TOO_LARGE", { what: "count", item, found, limit });
     }
 }
 

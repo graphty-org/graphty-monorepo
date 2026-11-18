@@ -21,6 +21,7 @@
  */
 
 import {
+    cap,
     cut,
     dirOf,
     type Findings,
@@ -286,18 +287,6 @@ function integer(value: unknown, where: string, fallback?: number): number {
     }
 
     return value;
-}
-
-/**
- * Refuse a count over its cap.
- * @param item - What is counted.
- * @param found - How many.
- * @param limit - The cap.
- */
-function cap(item: string, found: number, limit: number): void {
-    if (found > limit) {
-        refuse("E_MODEL_TOO_LARGE", { what: "count", item, found, limit });
-    }
 }
 
 /**

@@ -75,6 +75,18 @@ export function refuse(code: string, params: Record<string, ModelFactParam>): ne
     throw new ModelError(code, params);
 }
 
+/**
+ * Refuse a count over its cap (`E_MODEL_TOO_LARGE`, `what: "count"`).
+ * @param item - What is counted.
+ * @param found - How many.
+ * @param limit - The cap.
+ */
+export function cap(item: string, found: number, limit: number): void {
+    if (found > limit) {
+        refuse("E_MODEL_TOO_LARGE", { what: "count", item, found, limit });
+    }
+}
+
 /** What a reference resolved to: a file in the set, or the bytes of a `data:` URL. */
 export type Resolved = {
     readonly path: string;

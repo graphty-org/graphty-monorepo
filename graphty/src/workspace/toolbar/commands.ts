@@ -3,9 +3,9 @@ import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
-import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
+import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords } from "../inspector/words";
+import { noGraph, nothingDrawn } from "./disabledReasons";
 import { togglePopover } from "./popover";
-import { noGraph, nothingDrawn } from "./useSessionVersion";
 
 /**
  * Why Neighborhood cannot run: it acts on a selected node.
@@ -67,7 +67,8 @@ export function immersiveMode(session: GraphSession | null): "vr" | "ar" | null 
 }
 
 /**
- * The Enter VR and Enter AR commands: disabled with the element's reason in the app's words;
+ * The Enter VR and Enter AR commands: disabled, saying only "Not available", when the element
+ * gives a reason the mode cannot be entered;
  * running one asks the element for the session (from 2D it switches to 3D in the same step), and
  * a refusal becomes a notice.
  * @param mode - VR or AR.
@@ -90,7 +91,7 @@ function enterImmersive(mode: "vr" | "ar"): {
             return (
                 nothingDrawn(session) ??
                 (active === null ? null : `Already in ${active.toUpperCase()}`) ??
-                (reason === null ? null : xrReasonWords(reason, mode))
+                (reason === null ? null : "Not available")
             );
         },
         run: async ({ session, workspace }) => {
@@ -106,6 +107,20 @@ function enterImmersive(mode: "vr" | "ar"): {
             }
         },
     };
+}
+
+/**
+ * The name Save view gives the camera: the first "View N" not saved yet. The reader's views are
+ * the element's (`session.views`), saved with the project.
+ * @param saved - the names already saved.
+ * @returns the name.
+ */
+function nextViewName(saved: ReadonlyMap<string, unknown>): string {
+    let n = 1;
+    while (saved.has(`View ${String(n)}`)) {
+        n += 1;
+    }
+    return `View ${String(n)}`;
 }
 
 /** The element's standard 3D views the Camera menu offers, with their keys (tier1-design.md 2.3). */
@@ -151,6 +166,7 @@ export const registration = defineRegistration({
             id: "view.auto-rotate",
             label: "Auto-rotate",
             group: "View",
+            keys: ["9"],
             // The element turns only the 3D view, and the host keeps it still for reduced motion.
             disabled: ({ session }) =>
                 nothingDrawn(session) ??
@@ -158,6 +174,30 @@ export const registration = defineRegistration({
                 (reducedMotion() ? "Reduced motion is on" : null),
             run: ({ workspace }) => {
                 workspace.set((state) => ({ autoRotate: !state.autoRotate }));
+            },
+        },
+        {
+            id: "view.follow-selection",
+            label: "Follow selection",
+            group: "View",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: ({ workspace }) => {
+                workspace.set((state) => ({ followSelection: !state.followSelection }));
+            },
+        },
+        {
+            // Keeps the camera under a name; Camera lists it to go back to. One undoable step.
+            id: "view.save",
+            label: "Save view",
+            group: "View",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: async ({ element, session, workspace }) => {
+                if (element === null || session === null) {
+                    return;
+                }
+                const name = nextViewName(session.views);
+                await session.views.save([{ name, camera: element.getCameraState() }]);
+                workspace.set({ announcement: `Saved ${name}` });
             },
         },
         {

@@ -275,7 +275,8 @@ describe("AiController", () => {
                 ["look"],
             );
             assert.strictEqual(second.at(-1)?.role, "tool");
-            assert.strictEqual(second.at(-1)?.toolCallId, "t1");
+            // The result answers the call the model was shown: the engine's id for it, not the provider's.
+            assert.strictEqual(second.at(-1)?.toolCallId, second.at(-2)?.toolCalls?.[0].id);
             assert.deepStrictEqual(JSON.parse(second.at(-1)?.content ?? "{}"), {
                 success: true,
                 message: "look servers",
@@ -333,9 +334,10 @@ describe("AiController", () => {
 
             assert.deepStrictEqual(skipped, []);
             const toolMessages = provider.asks[1].filter((message) => message.role === "tool");
+            const calls = provider.asks[1].find((message) => message.toolCalls)?.toolCalls ?? [];
             assert.deepStrictEqual(
                 toolMessages.map((message) => message.toolCallId),
-                ["t1", "t2"],
+                calls.map((call) => call.id),
             );
             assert.include(toolMessages[1].content, "Not run");
         });

@@ -8,24 +8,10 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { fromEdgeArrays } from "../../src/populate/from-edge-arrays.js";
 import { type GraphSnapshot } from "../../src/snapshot/graph-snapshot.js";
 import { fromBytes } from "../../src/wire/bytes.js";
-
-/** Run fn and return the GraphFormatError it throws, asserting the code. */
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 /** A 3-node directed path 0 -> 1 -> 2. */
 function pathBuilder(): GraphBuilder {
@@ -95,7 +81,7 @@ describe("wire: user JSON shaped like the $num tag of design 5.9 round-trips", (
         return b.freeze();
     }
 
-    it("a json cell { $num: 'text' } is a legal JSON value that must round-trip through toBytes / fromBytes (src/wire/from-wire.ts decodeJsonValue)", () => {
+    it("a json cell { $num: 'text' } is a legal JSON value that must round-trip through toBytes / fromBytes (src/wire/json-tags.ts decodeJsonValue)", () => {
         const s = withJsonCell({ $num: "text" });
         const back = fromBytes(s.toBytes());
         expect(back.nodes.require("j").value(0)).toEqual({ $num: "text" });
@@ -148,7 +134,7 @@ describe("builder: addGraph() is atomic", () => {
 });
 
 describe("derived graphs: integer column reducers never wrap", () => {
-    it("contract(..., edgeReducers: { w: 'sum' }) on a u8 column keeps 300 instead of wrapping to 44 (src/snapshot/derived.ts reduceNumericColumn)", () => {
+    it("contract(..., edgeReducers: { w: 'sum' }) on a u8 column keeps 300 instead of wrapping to 44 (src/snapshot/derive-reduce.ts reduceNumericColumn)", () => {
         const s = fromEdgeArrays({
             directed: true,
             nodeCount: 3,

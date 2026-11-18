@@ -273,12 +273,7 @@ describe("Property-Based Tests", () => {
                     hexColor,
                     fc.float({ min: 0, max: 1, noNaN: true }),
                     (type, size, color, opacity) => {
-                        const cap = EdgeMesh.createArrowHead(
-                            ctx.cache,
-                            nextStyleId(),
-                            { type, width: 1, color, size, opacity },
-                            ctx.scene,
-                        );
+                        const cap = EdgeMesh.createArrowHead({ type, width: 1, color, size, opacity }, ctx.scene);
 
                         assert.isNotNull(cap);
                         // The geometry is the batch's, shared by every cap of this appearance;

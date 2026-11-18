@@ -15,7 +15,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { layoutRefusalWords } from "./refusalWords";
 import { LAYOUT_DESCRIPTIONS } from "./words";
 
@@ -49,12 +49,15 @@ const LAYOUT_NAMES: Readonly<Record<string, string>> = {
  */
 export const LAYOUT_SEED = 1;
 
+/** The location map's id: its form names the columns it read, and the map rule sizes its nodes on screen. */
+export const MAP_LAYOUT = "location-map";
+
 /**
  * A new random layout seed.
  * @returns a non-negative 31-bit integer.
  */
 export function randomSeed(): number {
-    return Math.floor(Math.random() * 2 ** 31); // NOSONAR(S2245): a layout seed, not a security value
+    return Math.floor(Math.random() * 2 ** 31); // eslint-disable-line sonarjs/pseudo-random -- a layout seed, not a security value
 }
 
 /**
@@ -145,7 +148,7 @@ function keyOption(descriptor: LayoutDescriptor, type: "node-id" | "partition"):
  * @returns the layouts.
  */
 export function useLayouts(session: GraphSession | null): readonly LayoutDescriptor[] {
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, TOOLBAR_EVENTS);
     const [resolved, setResolved] = useState<{
         session: GraphSession;
         layouts: readonly LayoutDescriptor[];
@@ -221,13 +224,12 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
     const values: Record<string, unknown> = descriptor.options.some((option) => option.name === "seed")
         ? { seed: LAYOUT_SEED }
         : {};
-    // On a map the app keeps nodes one size on screen, so zooming to a region pulls apart the nodes
-    // a world view draws on top of one another (the element's own default scales them with zoom),
-    // and draws the map, flat or globe, six times larger than the element's default under the same
-    // nodes and edges, so a dense region (the United States, Europe) is not one grey patch. That
-    // leaves a flat map's nodes too small to see, so they are drawn twice that size: still apart.
-    if (descriptor.id === "location-map") {
-        values.nodeScale = "screen";
+    // On a map the app draws the map, flat or globe, six times larger than the element's default
+    // under the same nodes and edges, so a dense region (the United States, Europe) is not one grey
+    // patch. With nodes one size on screen (Settings, "Map layout automatically enables
+    // depth-independent size", frame/ElementHost.tsx) that leaves a flat map's nodes too small to
+    // see, so they are drawn twice that size: still apart.
+    if (descriptor.id === MAP_LAYOUT) {
         values.mapScale = 6;
         values.flatNodeScale = 2;
     }
@@ -306,7 +308,7 @@ export const LAYOUT_SECTIONS: readonly { readonly family: string; readonly title
  * @returns the section's heading.
  */
 export function sectionOf(family: string): string {
-    const last = LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1]; // NOSONAR(S7755): .at() would widen the type to undefined
+    const last = LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1]; // eslint-disable-line unicorn/prefer-at -- .at() would widen the type to undefined
     return (LAYOUT_SECTIONS.find((section) => section.family === family) ?? last).title;
 }
 

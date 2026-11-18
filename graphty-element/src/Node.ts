@@ -37,12 +37,20 @@ import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import {
+    batchableOf,
+    type BatchView,
+    bootstrapNodePaint,
+    type NodePaint,
+    type NodeSizeSpace,
+    shaderPartOf,
+} from "./managers/StylePainter";
+import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
-import { labelFitExtent } from "./meshes/labelFit";
+import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
 import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
@@ -118,7 +126,8 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
 /**
- * The picture a node that grows round its picture holds (`shape.labelFitImage`), once its size is known.
+ * The picture a node that grows round its picture holds (`shape.labelFitImage`), or takes the proportions of
+ * (`shape.imageAspect`), once its size is known.
  * @param o - The resolved style.
  * @param picture - A picture's own size, once read.
  * @returns Its size in pixels, or null when the node holds none or it is not known yet.
@@ -128,7 +137,18 @@ function heldPicture(
     picture: (src: string) => { width: number; height: number } | null,
 ): { width: number; height: number } | null {
     const src = o.image?.src ?? "";
-    return (o.shape?.labelFitImage ?? 0) > 0 && src !== "" ? picture(src) : null;
+    const held = (o.shape?.labelFitImage ?? 0) > 0 || o.shape?.imageAspect === true;
+    return held && src !== "" ? picture(src) : null;
+}
+
+/**
+ * Whether a node's size is fitted to what it holds: its label (`shape.labelFit`, a table) or its picture's proportions
+ * (`shape.imageAspect`).
+ * @param shape - The resolved shape block.
+ * @returns True when the node is fitted.
+ */
+function fitsNode(shape: NodeStyleConfig["shape"]): boolean {
+    return shape?.labelFit !== undefined || shape?.labelTable !== undefined || shape?.imageAspect === true;
 }
 
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
@@ -255,6 +275,29 @@ let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 
 /** Reads a node's own mesh in this module, where the consumer's {@link Node.mesh} is not read. */
 let ownAnchor: (node: Node) => TransformNode;
+
+/**
+ * The parts a node draws, as the tests that check its drawing read them, typed so a rename in
+ * `Node` fails to compile rather than at run time (issue #6988). The class fills it in; no entry
+ * point exports it.
+ */
+export const nodeInternals = {} as {
+    /**
+     * The node's border, outer border, shadow, underlay, overlay, selection halo and face
+     * decoration meshes and the look it last drew.
+     */
+    drawn(node: Node): {
+        border: Node["border"];
+        outerBorder: Node["outerBorder"];
+        drawnStyle: Node["drawnStyle"];
+        tableTexts: Node["tableTexts"];
+        shadow: Node["shadow"];
+        underlay: Node["underlay"];
+        overlay: Node["overlay"];
+        halo: Node["halo"];
+        decorations: Node["decorations"];
+    };
+};
 
 /**
  * Whether {@link Node.applySessionPaint} with this paint would dispose the node's mesh and build
@@ -430,6 +473,17 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        nodeInternals.drawn = (node) => ({
+            border: node.border,
+            outerBorder: node.outerBorder,
+            drawnStyle: node.drawnStyle,
+            tableTexts: node.tableTexts,
+            shadow: node.shadow,
+            underlay: node.underlay,
+            overlay: node.overlay,
+            halo: node.halo,
+            decorations: node.decorations,
+        });
         rebuildsFor = (node, paint) => {
             if (node.disposed) {
                 return false;
@@ -488,7 +542,7 @@ export class Node implements ModelUser {
     #modelMarked = false;
     /** The animation this node's model instances play from, to forget it when the model changes. */
     #playing: TemplateAnimation | null = null;
-    /** The view's scale on this node (`depthIndependentSize`, a map's `nodeScale: "screen"`), a shrink left out. */
+    /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
@@ -610,7 +664,43 @@ export class Node implements ModelUser {
     private fittedExtent: { width: number; height: number } | null = null;
 
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
-    private drawnStyle: NodeStyleConfig | null = null;
+    #drawnStyle: NodeStyleConfig | null = null;
+
+    /**
+     * The style the current mesh was built from.
+     * @returns The style, or null before the first.
+     */
+    private get drawnStyle(): NodeStyleConfig | null {
+        return this.#drawnStyle;
+    }
+
+    /**
+     * Take the style the mesh is now drawn with, and tell the frame loop whether its size follows
+     * the view (`node.sizeSpace`), so only such nodes are visited each frame.
+     * @param style - The style.
+     */
+    private set drawnStyle(style: NodeStyleConfig | null) {
+        this.#drawnStyle = style;
+        this.context.getUpdateManager?.().markViewSized(this, (style?.shape?.sizeSpace ?? "scene") !== "scene");
+    }
+
+    /**
+     * How this node's drawn size follows the camera, as its style sets it (`node.sizeSpace`);
+     * undefined when the style sets none, and `layoutBehavior.node.sizeSpace` applies.
+     * @returns The size space, or undefined.
+     * @internal
+     */
+    get sizeSpace(): NodeSizeSpace | undefined {
+        return this.#drawnStyle?.shape?.sizeSpace;
+    }
+
+    /** The last answer of {@link Node.compareDrawn}, and the two styles it compared. */
+    private comparedDrawn: {
+        style: NodeStyleConfig;
+        drawn: NodeStyleConfig | null;
+        equal: boolean;
+        equalButFill: boolean;
+    } | null = null;
     /** The model template this node's mesh instances, or null when it draws a built-in shape. */
     private drawnModel: ModelTemplate | null = null;
     /** The `node.texture` picture the built-in shape's mesh was built with, or null. */
@@ -913,8 +1003,8 @@ export class Node implements ModelUser {
             return round === null ? null : exactOf(round, this.roundRadiusValue);
         }
 
-        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
-        // camera turns, and its edges must stop at the surface it is drawn with.
+        // The scale too: `node.sizeSpace` rescales a node mesh as the camera moves, and its edges
+        // must stop at the surface it is drawn with.
         if (this.roundRadiusMesh === this.#anchor && this.roundRadiusScale === this.#anchor.scaling.x) {
             return this.roundRadiusValue;
         }
@@ -1778,7 +1868,14 @@ export class Node implements ModelUser {
             return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
         }
 
-        return this.#mesh === null ? null : (ray.intersectsMeshes([this.#mesh])[0]?.pickedPoint ?? null);
+        const mesh = this.#mesh;
+        if (mesh === null) {
+            return null;
+        }
+
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, not by a triangle search
+        const convex = convexRayHit(mesh, ray);
+        return convex === undefined ? (ray.intersectsMeshes([mesh])[0]?.pickedPoint ?? null) : convex;
     }
 
     /**
@@ -2074,6 +2171,15 @@ export class Node implements ModelUser {
      */
     get isDrawn(): boolean {
         return !this.#anchor.isDisposed() && this.#anchor.isEnabled();
+    }
+
+    /**
+     * Whether a selection highlight is drawn around the node now.
+     * @returns True while its halo is on the canvas.
+     * @internal
+     */
+    get drawnSelectionHalo(): boolean {
+        return this.halo !== null && !this.halo.isDisposed();
     }
 
     /**
@@ -2454,7 +2560,7 @@ export class Node implements ModelUser {
         const opacity = typeof painted === "object" ? (painted.opacity ?? 1) : 1;
         const color = this.drawnColor ?? { r: 255, g: 255, b: 255, a: 1 };
         const batch = this.drawnByBatch();
-        const halo = batch && this.renderState === "visible" ? this.haloLook() : null;
+        const halo = batch && this.getRenderState() === "visible" ? this.haloLook() : null;
         const haloColor = halo === null ? null : hexOf(halo.color, DEFAULT_SELECTION_STYLE.color);
         const outline = style.effect?.outline;
         const glow = style.effect?.glow;
@@ -2575,7 +2681,7 @@ export class Node implements ModelUser {
         // impostor's pick proxy must never share one, since the proxy's source is not drawn.
         const samePath = shaderPartOf(meshKey) === shaderPartOf(this.meshKey);
         const sameGeometry =
-            meshKey === this.meshKey || (samePath && isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
+            meshKey === this.meshKey || (samePath && this.compareDrawn(o).equal && isEqual(color, this.drawnColor));
         const model = this.modelFor(o);
         return (
             sameGeometry &&
@@ -2602,7 +2708,7 @@ export class Node implements ModelUser {
      * @returns True when the mesh has to be fitted again.
      */
     private fitIsStale(o: NodeStyleConfig): boolean {
-        if ((o.shape?.labelFit === undefined && o.shape?.labelTable === undefined) || this.drawnAsGroup) {
+        if (!fitsNode(o.shape) || this.drawnAsGroup) {
             return false;
         }
 
@@ -2623,7 +2729,7 @@ export class Node implements ModelUser {
         const { shape } = o;
         const table = this.drawnAsGroup ? null : readLabelTable(shape?.labelTable);
         this.tableTexts = null;
-        if ((shape?.labelFit === undefined && table === null) || this.drawnAsGroup) {
+        if ((shape?.labelFit === undefined && table === null && shape?.imageAspect !== true) || this.drawnAsGroup) {
             this.fittedFor = null;
             this.fittedExtent = null;
             return { meshKey, style: o };
@@ -2648,7 +2754,8 @@ export class Node implements ModelUser {
         const picture = (src: string): { width: number; height: number } | null => pictureSize(scene, src, this);
         const drawn = table === null ? null : layoutLabelTable(table, measure, picture);
         const box = drawn ?? measure(text);
-        const extent = labelFitExtent(shape, box, heldPicture(o, picture));
+        const held = heldPicture(o, picture);
+        const extent = labelFitExtent(shape, box, held) ?? imageAspectExtent(shape, held);
         const own = shape?.size ?? 0;
         const width = Number((extent?.width ?? shape?.width ?? own).toPrecision(6));
         const height = Number((extent?.height ?? shape?.height ?? own).toPrecision(6));
@@ -2831,6 +2938,32 @@ export class Node implements ModelUser {
     }
 
     /**
+     * How a style compares with the one the mesh was drawn from: deep-equal, and deep-equal but for
+     * its fill. One deep comparison answers both (the fill is one small subtree), and the answer is
+     * kept for the same two objects: a repaint asks `nodeRebuildsFor` about a paint and then draws
+     * it, and each asked `keepsMeshFor` and then `movesFor`, so a filter that ghosts every node
+     * compared every node's whole style four times, most of a repaint at 50,000 nodes (#7966). A
+     * paint's style is never written after it is built (as `reachOutline` relies on too),
+     * so the identity of the pair stands for what they hold.
+     * @param o - The resolved style.
+     * @returns Both answers; both false when nothing is drawn yet.
+     */
+    private compareDrawn(o: NodeStyleConfig): { equal: boolean; equalButFill: boolean } {
+        const drawn = this.drawnStyle;
+        const kept = this.comparedDrawn;
+        if (kept?.style === o && kept.drawn === drawn) {
+            return kept;
+        }
+
+        // The painter shares one style per look, so an unchanged node is handed the style it drew.
+        const same = drawn === o;
+        const equalButFill = same || (drawn !== null && isEqual(withoutFill(o), withoutFill(drawn)));
+        const equal = same || (equalButFill && isEqual(o.texture, drawn?.texture));
+        this.comparedDrawn = { style: o, drawn, equal, equalButFill };
+        return this.comparedDrawn;
+    }
+
+    /**
      * Whether a paint that does not keep this node's mesh can move the mesh onto its source instead
      * of building another (`moveInstance`): a paint that differs from the drawn one only in its
      * fill's color and opacity, which are in the source's material and `visibility` alone, so the
@@ -2850,7 +2983,7 @@ export class Node implements ModelUser {
             drawn !== null &&
             this.drawnModel === null &&
             shaderPartOf(meshKey) === shaderPartOf(this.meshKey) &&
-            isEqual(withoutFill(o), withoutFill(drawn)) &&
+            this.compareDrawn(o).equalButFill &&
             !this.fitIsStale(o) &&
             this.modelFor(o) === null &&
             this.imageFor(o) === this.drawnImage
@@ -3255,6 +3388,7 @@ export class Node implements ModelUser {
         this.#playing = null;
         this.rowTable?.drop(this.row);
         this.context.getNodeBatches?.()?.leave(this);
+        this.context.getUpdateManager?.().viewSizedNodeDisposed(this);
 
         this.pointerHandler?.dispose();
         this.pointerHandler = undefined;
@@ -3469,7 +3603,8 @@ export class Node implements ModelUser {
      * Draw or take down this node's halo from the selection and the layers as they now stand.
      */
     private syncHalo(): void {
-        const look = this.renderState === "visible" ? this.haloLook() : null;
+        // Drawn only while the node is: a layer hiding it (what lies outside a time window) hides its halo too.
+        const look = this.getRenderState() === "visible" ? this.haloLook() : null;
         this.syncModelMark();
         if (this.drawnModel !== null) {
             // A copy of one part, scaled out, is no halo for a model: its silhouette is marked instead.
@@ -3536,7 +3671,7 @@ export class Node implements ModelUser {
      */
     private syncModelMark(): void {
         const model = this.drawnModel;
-        const look = model === null || this.renderState !== "visible" ? null : this.modelMarkLook();
+        const look = model === null || this.getRenderState() !== "visible" ? null : this.modelMarkLook();
         if (look === null && !this.#modelMarked) {
             return;
         }

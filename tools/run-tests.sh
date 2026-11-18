@@ -22,7 +22,9 @@
 # browser shards (headless Chromium can crash at startup without it) and the runner's fonts
 # (visual-fonts/, through FONTCONFIG_FILE), and for the lavapipe shard the Mesa
 # lavapipe Vulkan ICD with GRAPHTY_GPU_ADAPTER=llvmpipe and GRAPHTY_GPU_REQUIRE=any. Install
-# mesa-vulkan-drivers for that one, or set VK_DRIVER_FILES yourself.
+# mesa-vulkan-drivers for that one, or set VK_DRIVER_FILES yourself. The graph-io shard validates exports
+# with the Python CI installs (tools/schema-python.sh, a venv in tmp/schema-python) and
+# GRAPH_IO_REQUIRE_SCHEMAS=1, or with GRAPH_IO_SCHEMA_PYTHON when set.
 #
 # A shard passes only when its command exits 0 AND its output holds the vitest run summary of each
 # run, and the reports it asks vitest for were written (tools/shard-verdict.mjs).
@@ -32,23 +34,23 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 
-# One line per shard: name, needs-browser, needs-lavapipe, command (tab separated).
+# One line per shard: name, needs-browser, needs-lavapipe, needs-schema-python, command (tab separated).
 # The path goes in the environment, not argv: ci-test-matrix.mjs runs its CLI when argv[1] is itself.
 SHARDS="$(MATRIX="$ROOT/tools/ci-test-matrix.mjs" node --input-type=module -e '
     const { SHARDS } = await import(process.env.MATRIX);
     for (const s of SHARDS) {
-        console.log([s.shard, s["needs-browser"] ? 1 : 0, s["needs-lavapipe"] ? 1 : 0, s["test-command"]].join("\t"));
+        console.log([s.shard, s["needs-browser"] ? 1 : 0, s["needs-lavapipe"] ? 1 : 0, s["needs-schema-python"] ? 1 : 0, s["test-command"]].join("\t"));
     }
 ')" || exit 1
 
 run_shard() {
-    local name="$1" given="${2:-}" line browser lavapipe cmd icd
+    local name="$1" given="${2:-}" line browser lavapipe schemas cmd icd
     line="$(awk -F'\t' -v n="$name" '$1 == n' <<<"$SHARDS")"
     if [ -z "$line" ]; then
         echo "tools/run-tests.sh: no shard named '$name' (--list shows them)" >&2
         return 2
     fi
-    IFS=$'\t' read -r _ browser lavapipe cmd <<<"$line"
+    IFS=$'\t' read -r _ browser lavapipe schemas cmd <<<"$line"
     cmd="${given:-$cmd}"
     (
         export CI=true
@@ -75,6 +77,13 @@ run_shard() {
                 export VK_DRIVER_FILES="$icd"
             fi
             export GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+        fi
+        if [ "$schemas" = 1 ]; then
+            # the same as CI's "Install the Python for graph-io's schema validation"
+            if [ -z "${GRAPH_IO_SCHEMA_PYTHON:-}" ]; then
+                GRAPH_IO_SCHEMA_PYTHON="$("$ROOT/tools/schema-python.sh" "$ROOT/tmp/schema-python")" || exit 1
+            fi
+            export GRAPH_IO_SCHEMA_PYTHON GRAPH_IO_REQUIRE_SCHEMAS=1
         fi
         echo "==> $name: $cmd"
         # Exit 0 alone is not a pass: a pnpm older than 10.29.1 on PATH reports a pnpm exec killed by a

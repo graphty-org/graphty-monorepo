@@ -12,8 +12,8 @@ import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { writeCondition } from "../data-place/filterCards";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { focusInspectorTitle } from "../frame/focus";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { edgeEnds } from "../table/columns";
@@ -177,7 +177,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     return (
         <>
             <ControlSection label="Summary" collapsible={false} headingLevel={3}>
-                <div // NOSONAR(S6819): an ARIA group naming the rows of label and value; a fieldset is for form controls
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the rows of label and value; a fieldset is for form controls
                     ref={summary}
                     role="group"
                     aria-label="Summary values"
@@ -303,7 +303,7 @@ export function NeighborList({
 }: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     // Filter to neighbors reads the steps, so it follows each change to them.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const heading = useRef<HTMLElement>(null);
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     // The list takes focus as it opens. A Hops or Follow change keeps focus on the control that
@@ -395,7 +395,7 @@ export function NeighborList({
     return (
         // Esc anywhere in the list returns to the center node, unless a control used it first (the
         // Hops field takes back what was typed).
-        <section // NOSONAR(S6848): Esc is a shortcut on the list, not a control; every control in it is native
+        <section // eslint-disable-line jsx-a11y/no-static-element-interactions -- Esc is a shortcut on the list, not a control; every control in it is native
             ref={heading}
             onKeyDown={(event) => {
                 if (event.key === "Escape" && !event.defaultPrevented) {

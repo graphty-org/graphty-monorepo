@@ -7,28 +7,11 @@
 
 import { rmSync } from "node:fs";
 
-import type { BrowserContext } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
-import { ENGINES, launch, profile } from "./engines";
-import { type Fixture, type LogEvent, startFixture } from "./fixture";
-
-/**
- * Opens the autosave database and keeps a read-write transaction on the "parts" store busy until
- * `window.__release` is set; resolves once the transaction runs.
- */
-const HOLD_PARTS = `new Promise((resolve, reject) => {
-    const req = indexedDB.open("graphty-autosave");
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => {
-        const db = req.result;
-        const tx = db.transaction(["parts"], "readwrite");
-        const store = tx.objectStore("parts");
-        window.__release = false;
-        const spin = () => { resolve(); if (!window.__release) store.count().onsuccess = spin; };
-        spin();
-    };
-})`;
+import { type Engine, ENGINES, launch, profile } from "./engines";
+import { type Fixture, HOLD_PARTS, keptWork, type LogEvent, startFixture } from "./fixture";
 
 let fx: Fixture;
 const open: { context: BrowserContext; dir: string }[] = [];
@@ -48,38 +31,59 @@ afterEach(async () => {
     }
 });
 
+/**
+ * Launch the engine and have tab A keep work, then close, which frees its entry.
+ * @param engine - The engine.
+ * @param key - The autosave key, and the tab label's start.
+ * @returns The context, the revision saved and its entry.
+ */
+async function keepWork(
+    engine: Engine,
+    key: string,
+): Promise<{ context: BrowserContext; probe: number; entry: string }> {
+    const dir = profile(engine);
+    const context = await launch(engine, dir);
+    open.push({ context, dir });
+    onTestFailed(() => {
+        console.log(`last reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(key)).slice(-25))}`);
+    });
+
+    const a = await context.newPage();
+    await a.goto(fx.url({ key, tab: `${key}.a`, webgl: "off" }));
+    await a.evaluate("fixture.ready()");
+    const probe = await a.evaluate<number>("fixture.next()");
+    const saved = (await fx.waitFor(
+        (e) => e.tab === `${key}.a` && e.type === "saved" && (e.revision as number) >= probe,
+    )) as LogEvent & { entry: string };
+    await a.close();
+    return { context, probe, entry: saved.entry };
+}
+
+/**
+ * A page of the same origin holds a read-write transaction on the parts and never finishes it.
+ * @param context - The browser context.
+ * @returns The holding page; `window.__release = true` in it lets go.
+ */
+async function holdParts(context: BrowserContext): Promise<Page> {
+    const holder = await context.newPage();
+    await holder.goto(`${fx.origin}/away.html`);
+    await holder.evaluate(HOLD_PARTS);
+    return holder;
+}
+
 describe.each(ENGINES)("%s", (engine) => {
     it("refuses a reopen the held database stalls, and reopens once it is let go", async () => {
         const key = `restore-stall-${engine}`;
-        const dir = profile(engine);
-        const context = await launch(engine, dir);
-        open.push({ context, dir });
-        onTestFailed(() => {
-            console.log(`last reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(key)).slice(-25))}`);
-        });
-
-        // Tab A keeps work, then closes, which frees its entry.
-        const a = await context.newPage();
-        await a.goto(fx.url({ key, tab: `${key}.a` }));
-        await a.evaluate("fixture.ready()");
-        const probe = await a.evaluate<number>("fixture.next()");
-        const saved = (await fx.waitFor(
-            (e) => e.tab === `${key}.a` && e.type === "saved" && (e.revision as number) >= probe,
-        )) as LogEvent & { entry: string };
-        await a.close();
+        const { context, probe, entry } = await keepWork(engine, key);
 
         // Tab B starts with the restore left to the page, as an app reopening a tab's project does.
         const b = await context.newPage();
         await b.goto(fx.url({ key, tab: `${key}.b`, restore: "manual" }));
         await b.evaluate("fixture.ready()");
 
-        // A page of the same origin holds a read-write transaction on the parts and never finishes it.
-        const holder = await context.newPage();
-        await holder.goto(`${fx.origin}/away.html`);
-        await holder.evaluate(HOLD_PARTS);
-
+        const holder = await holdParts(context);
         const refused = await b.evaluate<{ code: string; details: { afterMs: number; step: string } } | null>(
-            `fixture.el.autosaver.restore(${JSON.stringify(saved.entry)}, { discard: true }).then(
+            `fixture.el.autosaver.restore(${JSON.stringify(entry)}, { discard: true }).then(
                 () => null,
                 (e) => ({ code: e.code, details: e.details }),
             )`,
@@ -91,9 +95,26 @@ describe.each(ENGINES)("%s", (engine) => {
         // Let go: the entry was left as it was and its lock is free, so the same reopen opens it.
         await holder.evaluate("window.__release = true");
         const check = await b.evaluate<{ restored: { entry: string } | null; probes: unknown[] }>(
-            `fixture.restore(${JSON.stringify(saved.entry)})`,
+            `fixture.restore(${JSON.stringify(entry)})`,
         );
-        assert.strictEqual(check.restored?.entry, saved.entry);
+        assert.strictEqual(check.restored?.entry, entry);
         assert.deepStrictEqual(check.probes, [probe], "the kept work came back");
+    });
+
+    it("refuses the restore at the start while another tab holds the database, and keeps the work (#4148)", async () => {
+        // Safari on iOS: Safari reloads the old tab in the background as the reader opens the page
+        // again, and suspends it in the middle of its listing, so the reopened page's restore stalls.
+        const key = `start-stall-${engine}`;
+        const { context, probe, entry } = await keepWork(engine, key);
+        const holder = await holdParts(context);
+
+        const mark = fx.log.length;
+        const b = await context.newPage();
+        await b.goto(fx.url({ key, tab: `${key}.b`, webgl: "off" }));
+        const ready = await fx.waitFor((e) => e.seq >= mark && e.tab === `${key}.b` && e.type === "ready");
+        assert.isNull(ready.restored, "the restore could not write its attempt, so it opened nothing");
+        const kept = keptWork(ready, entry);
+        assert.isAtLeast(kept.revision, probe, "the entry still holds the saved revision");
+        await holder.evaluate("window.__release = true");
     });
 });

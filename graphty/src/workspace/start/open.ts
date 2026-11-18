@@ -13,12 +13,7 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import {
-    createGraphSession,
-    type DataSourceInput,
-    type GraphSession,
-    type LoadDraft,
-} from "@graphty/graphty-element/session";
+import type { DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -70,7 +65,6 @@ export function openProject(
         ends: null,
         pickedSource: null,
         dataTab: "loaded",
-        timeWindowCard: false,
     }));
 }
 
@@ -111,6 +105,10 @@ export async function openNetworkSample(
     signal: AbortSignal,
 ): Promise<void> {
     workspace.set({ notice: null });
+    // Loaded on first use rather than with the start page, which does not need a session to show.
+    // Through a module of the app's own: the start page imports graphty-element's session entry
+    // statically, and a dynamic import of a module already in the first load brings all of it.
+    const { createGraphSession } = await import("./scratchSession");
     const scratch = createGraphSession({ features: [...siteConfig().features] });
     try {
         const read = await scratch.data.readExample(source, example, { signal });
@@ -405,29 +403,9 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
  * @param url - the address.
  * @returns the source.
  */
-function urlSource(url: string): Incoming {
+export function urlSource(url: string): Incoming {
     const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
     return { name, source: { config: { url }, name } };
-}
-
-/**
- * Opens the graph file at a web address as a new project named after the file, drawn as a first
- * file is. The element reads the format from the address and the file.
- * @param workspace - the workspace store.
- * @param url - the address.
- */
-export function openUrl(workspace: WorkspaceStore, url: string): void {
-    openSeparate(workspace, urlSource(url));
-}
-
-/**
- * The graph file at a web address, added as any source is (Paste of an address, the Web address
- * box): on the start screen it opens as a new project; in a project it is added to it.
- * @param ctx - the command context.
- * @param url - the address.
- */
-export function addUrl(ctx: CommandContext, url: string): void {
-    addSource(ctx, urlSource(url));
 }
 
 /**
@@ -629,11 +607,12 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    if (pasted.kind === "url") {
-        addUrl(ctx, pasted.url);
-        return;
-    }
-    addSource(ctx, { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } });
+    addSource(
+        ctx,
+        pasted.kind === "url"
+            ? urlSource(pasted.url)
+            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
+    );
 }
 
 /**

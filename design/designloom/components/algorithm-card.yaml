@@ -13,6 +13,8 @@ implements_capabilities:
     - shortest-path
 used_in_workflows:
     - W03
+    - W21
+    - W23
 dependencies:
     - button
     - text-input

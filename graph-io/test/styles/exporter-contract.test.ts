@@ -20,6 +20,7 @@ import {
     type StyleProperty,
     type StyleRule,
     styleTag,
+    unsettledStyles,
 } from "../../src/styles/internal.js";
 import type { GraphExporter, LossNote } from "../../src/types.js";
 
@@ -156,7 +157,7 @@ describe('an exporter with block: "attributes"', () => {
         if (restyled === null || restyled === undefined) {
             throw new Error("no styles");
         }
-        expect(restyled.styles.rules).toEqual(JSON.parse(JSON.stringify(original.styles.rules)));
+        expect(unsettledStyles(restyled).styles.rules).toEqual(JSON.parse(JSON.stringify(original.styles.rules)));
         expect(restyled.styles.graph).toEqual(original.styles.graph);
         for (const [target, props] of Object.entries(WRITTEN) as ["node" | "edge", readonly StyleProperty[]][]) {
             for (const p of props) {

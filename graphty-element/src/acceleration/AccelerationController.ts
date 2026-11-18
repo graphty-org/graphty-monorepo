@@ -151,7 +151,12 @@ interface AccelerationControllerOptions {
     readonly registry?: AcceleratorRegistry;
     /** Whether a lost device is followed by an attempt to attach a fresh accelerator. Defaults to true. */
     readonly recoverOnDeviceLoss?: boolean;
-    /** How many consecutive recovery attempts to make before giving up. Defaults to 3. */
+    /**
+     * How many times to try attaching a fresh accelerator after a device loss before giving up.
+     * Defaults to 3. The first try follows the loss at once; each later one waits for the next
+     * {@link AccelerationController.plan} call or factory registration while the state is
+     * `"error"`. The count starts again once a reattached device has finished a piece of work.
+     */
     readonly maxRecoveryAttempts?: number;
     /**
      * Opens a span around every call-shaped accelerated run, returning what closes it.
@@ -353,6 +358,10 @@ export class AccelerationController {
     #recoveryAttempts = 0;
     /** The consumer's run time limit, or undefined for one scaled from each run's size. */
     #runTimeoutMs: number | undefined;
+    /** True while a reattach after a device failure is in flight, so a second one does not start. */
+    #recovering = false;
+    /** What happened to the last failed device, while recovery from it may still try. */
+    #failure: { readonly sentence: string; readonly code: "E_DEVICE_LOST" | "E_GPU_TIMEOUT" } | undefined;
     #disposed = false;
     #status: AccelerationStatus;
     #capabilities: AccelerationCapabilities;
@@ -483,6 +492,8 @@ export class AccelerationController {
 
         this.#policy = policy;
         this.#generation += 1;
+        this.#recoveryAttempts = 0;
+        this.#failure = undefined;
 
         if (policy === "off") {
             this.#detach();
@@ -684,6 +695,9 @@ export class AccelerationController {
 
         const { accelerator } = this;
         if (accelerator === null) {
+            // This work is planned without an accelerator either way; a reattach that succeeds
+            // serves the work after it.
+            this.#retryRecovery();
             return this.#withoutAccelerator(work, required);
         }
 
@@ -824,6 +838,7 @@ export class AccelerationController {
 
         try {
             const value = await this.#withDeadline(work, decision.accelerator, fn);
+            this.#workFinished(attachment);
             return { accelerated: true, value, precision: decision.precision };
         } catch (error) {
             // The one exit. Nothing below this line may produce a CPU result: the accelerator
@@ -860,6 +875,7 @@ export class AccelerationController {
             };
         }
 
+        const attachment = this.#attachment;
         this.#enterWork();
         let ended = false;
 
@@ -869,6 +885,7 @@ export class AccelerationController {
             }
 
             ended = true;
+            this.#workFinished(attachment);
             this.#leaveWork();
         };
     }
@@ -1085,7 +1102,7 @@ export class AccelerationController {
         this.#attachment = attachment;
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;
-        this.#recoveryAttempts = 0;
+        this.#failure = undefined;
 
         const { lost } = accelerator;
         if (lost !== undefined) {
@@ -1169,9 +1186,28 @@ export class AccelerationController {
         }
 
         this.#detach();
+        logger.warn("device failed", { code, reason: sentence, busy: this.#busy });
         this.#transition("error", sentence, code);
+        this.#failure = { sentence, code };
+        this.#retryRecovery();
+    }
 
+    /**
+     * Starts one more try at reattaching after a device loss or a run that got no answer, when
+     * the budget allows it.
+     *
+     * Called at the loss itself, and then on the next `plan()` and the next factory registration
+     * while the state is still `"error"`: a browser often has no adapter to hand out in the first
+     * moments after a GPU reset, and those events are the moments worth trying again. No timer.
+     */
+    #retryRecovery(): void {
+        const failure = this.#failure;
         if (
+            failure === undefined ||
+            this.#recovering ||
+            this.#disposed ||
+            this.#state !== "error" ||
+            this.#attachment !== null ||
             !this.#recoverOnDeviceLoss ||
             this.#policy === "off" ||
             this.#recoveryAttempts >= this.#maxRecoveryAttempts
@@ -1180,11 +1216,25 @@ export class AccelerationController {
         }
 
         this.#recoveryAttempts += 1;
-        void this.#recover(sentence, code);
+        this.#recovering = true;
+        void this.#recover(failure.sentence, failure.code).finally(() => {
+            this.#recovering = false;
+        });
     }
 
     /**
-     * Tries to attach a fresh accelerator after a device loss or a run that got no answer.
+     * Records that the attached device finished a piece of work, which is what proves a
+     * reattached device healthy and gives the next loss a full recovery budget again.
+     * @param attachment - The attachment the work ran on.
+     */
+    #workFinished(attachment: Attachment | null): void {
+        if (attachment !== null && attachment === this.#attachment) {
+            this.#recoveryAttempts = 0;
+        }
+    }
+
+    /**
+     * Makes one try at attaching a fresh accelerator after a device loss or a run that got no answer.
      *
      * The state stays `"error"` while this runs and when it fails: an accelerator that worked
      * and then died is a different thing from one that was never there, and flattening the two
@@ -1213,6 +1263,11 @@ export class AccelerationController {
      */
     #onRegistryChanged(): void {
         if (this.#disposed || this.#policy === "off" || this.#injected || this.#attachment !== null) {
+            return;
+        }
+
+        if (this.#state === "error") {
+            this.#retryRecovery();
             return;
         }
 
@@ -1435,6 +1490,8 @@ export class AccelerationController {
         }
 
         this.#status = next;
+        // The probe's answer, the device attached, a loss and a recovery all pass through here.
+        logger.info("status", { ...next });
         this.#capabilities = Object.freeze({ acceleration: next });
         for (const listener of [...this.#listeners]) {
             // A listener is consumer code, and one that throws must not stop the others from

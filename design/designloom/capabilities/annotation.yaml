@@ -9,6 +9,9 @@ used_by_workflows:
     - W06
     - W09
     - W15
+    - W21
+    - W22
+    - W25
 implemented_by_components:
     - annotation-toolbar
 requirements:

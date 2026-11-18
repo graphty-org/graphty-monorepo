@@ -18,6 +18,7 @@ import type { Note, NoteId, NoteMergeOptions, NotesDocument, Problem } from "./t
 import {
     checkExtensions,
     checkMediaType,
+    checkTags,
     checkText,
     codePoints,
     NOTE_LIMITS,
@@ -469,6 +470,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
     const text = checkText(raw.text);
     const mediaType = raw.mediaType === undefined ? undefined : checkMediaType(raw.mediaType);
     const extensions = raw.extensions === undefined ? undefined : checkExtensions(raw.extensions);
+    const tags = raw.tags === undefined ? undefined : checkTags(raw.tags);
 
     const extra = frozenCopy(unknownFields(raw)) as Record<string, unknown>;
     for (const key of Object.keys(extra)) {
@@ -495,6 +497,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
             cites: cites as Note["cites"],
             extensions,
             done: done as string | undefined,
+            tags,
         },
         extra,
     );

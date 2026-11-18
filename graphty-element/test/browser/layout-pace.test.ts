@@ -1,9 +1,8 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { type Graph, renderManagerOf } from "../../src/Graph";
 import type { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
-import type { RenderManager } from "../../src/managers/RenderManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
@@ -35,8 +34,7 @@ describe("layout pace", () => {
         msPerClockRead = 0,
     ): Promise<{ passes: number; steps: number; x: number }> {
         graph = await createTestGraph();
-        const inner = graph as unknown as { renderManager: RenderManager };
-        release = inner.renderManager.holdFrames();
+        release = renderManagerOf(graph).holdFrames();
 
         // A ring with chords: enough structure that ngraph needs close to a hundred steps.
         const count = 60;

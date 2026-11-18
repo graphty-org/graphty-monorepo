@@ -204,38 +204,40 @@ Why these rules exist, and the defects that showed it: graphty/CLAUDE.md, "graph
 
 ## Package Directory
 
-| Package | Location | Version | Description |
-|---------|----------|---------|-------------|
-| `@graphty/graph-format` | `graph-format/` | 1.1.2 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
-| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
-| `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
-| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
-| `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
-| `babylonjs-models` | `babylonjs-models/` | 0.0.0 | 3D models into Babylon.js scenes from URLs, files, folders or zips (unscoped, no graphs) |
-| `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
-| `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
-| `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.8.18 | React wrapper application (Mantine UI), published as the built static app |
-| `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
-| `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
-| `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
-| `@graphty/githerd` | `githerd/` | 0.1.0 | Retired 2026-10-18 (code kept, daemon not run). Was the repository pipeline daemon that turned master, pull request and issue events into jobs for Claude sessions; nothing uses it now |
+Each package's version is in its `package.json`.
+
+| Package | Location | Description |
+|---------|----------|-------------|
+| `@graphty/graph-format` | `graph-format/` | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
+| `@graphty/graph-io` | `graph-io/` | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | WebGPU-accelerated graph algorithms and layouts over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples` | `graph-samples/` | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
+| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
+| `babylonjs-map` | `babylonjs-map/` | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
+| `babylonjs-models` | `babylonjs-models/` | 3D models into Babylon.js scenes from URLs, files, folders or zips (unscoped, no graphs) |
+| `@graphty/algorithms` | `algorithms/` | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
+| `@graphty/layout` | `layout/` | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
+| `@graphty/graphty-element` | `graphty-element/` | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
+| `@graphty/graphty` | `graphty/` | React wrapper application (Mantine UI), published as the built static app |
+| `@graphty/remote-logger` | `remote-logger/` | Remote logging client and server for browser debugging |
+| `@graphty/compact-mantine` | `compact-mantine/` | Compact size variants for Mantine UI components, for dense UIs |
+| `@graphty/visual-review` | `visual-review/` | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/githerd` | `githerd/` | Retired 2026-10-18 (code kept, daemon not run). Was the repository pipeline daemon that turned master, pull request and issue events into jobs for Claude sessions; nothing uses it now |
 
 ## Where to read more
 
 This file holds only the rules every session needs. Read the rest when your task reaches it:
 
 - `tools/README.md` -- before running builds, tests, servers or any script under `tools/`: commands, the tools
-  table, the secret scan, SonarQube, starting servers, test projects, the full testing and quarantine rules, where a
-  change takes effect, parallel agents and the GitHub API budget.
+  table, the secret scan, lint and duplicate code findings, starting servers, test projects, the full testing and
+  quarantine rules, where a change takes effect, parallel agents and the GitHub API budget.
 - `.github/workflows/README.md` -- before touching CI, a release, versions, screenshots or the held nightly: the
   channels, every workflow, dead links, the full run and nightly, versions and npm, visual review, sites, the build
   system and grouping breaking changes.
 - The package's own `CLAUDE.md` -- before working in that package (Claude Code loads it there). graphty-element's
   holds WebGPU ownership, graph styling, algorithm styles, the public API review and the module system; graphty's
   holds the UI component rules.
-- `design/` -- architecture and design documents (start at `design/monorepo-design.md`); `.claudehistory/` --
+- `design/` -- architecture and design documents (start at `design/README.md`); `.claudehistory/` --
   transcripts of past sessions in this repository, for context from earlier work.
 
 `tools/claude-md-size.test.mjs` fails when this file passes 30 KB or a package `CLAUDE.md` passes 20 KB: move
@@ -253,9 +255,9 @@ pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to st
 ### TypeScript and modules
 
 - Strict mode in every package; never disable `@typescript-eslint/no-explicit-any`; use `import type`.
-- Packages are TypeScript project references (each extends `tsconfig.base.json` with `composite: true`), built in
-  the order graph-format -> graph-io -> webgpu-graph-algorithms -> graph-samples -> algorithms -> layout ->
-  graphty-element -> graphty. ES modules are the default.
+- There are no cross-package TypeScript project references: Nx builds packages in their `package.json` dependency
+  order: graph-format first, then graph-io and graph-samples (each needs only graph-format), algorithms and
+  layout (they need graph-samples), webgpu-graph-algorithms, graphty-element, graphty. ES modules are the default.
 
 ### WebGPU
 
@@ -304,10 +306,11 @@ pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to st
 
 - Tokens live in the root `.env` (gitignored); never read, print or put one on a command line. A secretlint false
   positive goes in `.secretlintignore`.
-- Run `node tools/sonar-gate.mjs` before `pr-open.sh` and fix every finding on your changed lines; a false positive
-  gets `// NOSONAR(<rule>): <reason>` (say so in your reply); a function you edit that scores 16 to 20 comes down
-  to 15 ("touch it, fix it"). Never bypass without saying so; report "SonarQube step cannot run" to the owner. Full
-  rules: tools/README.md, "SonarQube".
+- Fix every lint finding on your changed lines (SonarQube's rules run in ESLint); a false positive gets
+  `// eslint-disable-next-line <rule> -- <reason>` (say so in your reply). Never add to `eslint-suppressions.json`
+  to get a change through, except a deliberate legacy carry-over, and say so. A new duplicate found by
+  `pnpm run check:duplicates` (jscpd) is reused or extracted; a deliberate parallel goes in `.jscpd.json` with a
+  reason. Full rules: tools/README.md, "Lint and duplicate code findings".
 - Only the owner approves screenshots, releases and Figma changes. Agents never press Accept or Finish, never write
   under `visual-baselines/` or `visual-review-approvals/`, never edit `visual-review/passkeys.json`,
   `visual-review/trusted/` or the gate step and story-test jobs in ci.yml, and never make a visual check pass by

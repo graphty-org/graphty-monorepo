@@ -50,7 +50,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { blockHolds, fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
+import { blockHolds, describe, fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
 import { liveTickets, slotCount, slotDir } from "./test-slots.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -856,7 +856,15 @@ export function importScan(ledger, scan, now) {
     ledger.groups = keep;
     const counts = { groups: 0, issues: 0, unreasoned: 0 };
     for (const job of scan.jobs) importJob(ledger, job, taken, now, counts);
-    ledger.blocked = Array.isArray(scan.blocked) ? scan.blocked : [];
+    // A block blocked again keeps its earlier due time while that is still ahead, so a scan that writes "now + N"
+    // each time cannot push it on
+    const dueBefore = new Map(
+        (ledger.blocked ?? []).filter((b) => blockHolds(b, now) && b.due).map((b) => [b.issue, b.due]),
+    );
+    ledger.blocked = (Array.isArray(scan.blocked) ? scan.blocked : []).map((b) => {
+        const old = dueBefore.get(b.issue);
+        return old && b.due && Date.parse(old) < Date.parse(b.due) ? { ...b, due: old } : b;
+    });
     ledger.scannedAt = scan.builtAt ?? new Date(now).toISOString();
     return counts;
 }
@@ -1008,9 +1016,11 @@ const busyIssues = (ledger, now) => {
  * @param ledger the ledger
  * @param q the queue, from issue-queue.mjs queue()
  * @param now ms
- * @param options `{ everyMemberReviewed }`, default EVERY_MEMBER_REVIEWED
- * @returns `{ jobs, rescan, stale, unjustified }`, unjustified the critical and high issues the scan blocked with no
- *   `due` time and none of the reasons in JUSTIFIED_BLOCK
+ * @param options `{ everyMemberReviewed, urgent }`, everyMemberReviewed default EVERY_MEMBER_REVIEWED, urgent the
+ *   open critical and high issue numbers, in progress or not (default: those of q)
+ * @returns `{ jobs, rescan, stale, unjustified, openEnded }`, unjustified the critical and high issues the scan
+ *   blocked with no `due` time and none of the reasons in JUSTIFIED_BLOCK, openEnded the critical and high issues a
+ *   live wait with no `due` time holds
  */
 export function ledgerJobs(ledger, q, now, options = {}) {
     const pos = new Map(q.map((i, k) => [i.number, k]));
@@ -1045,9 +1055,17 @@ export function ledgerJobs(ledger, q, now, options = {}) {
     const blocked = new Set(holding.map((b) => b.issue));
     const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n));
     const unjustified = holding
-        .filter((b) => ["critical", "high"].includes(byNumber.get(b.issue)?.priority) && !b.due)
+        .filter((b) => URGENT.has(byNumber.get(b.issue)?.priority) && !b.due)
         .filter((b) => !JUSTIFIED_BLOCK.test(b.reason ?? ""))
         .map((b) => b.issue);
+    const urgent = options.urgent ?? new Set(q.filter((i) => URGENT.has(i.priority)).map((i) => i.number));
+    const openEnded = [
+        ...new Set(
+            liveWaits(ledger)
+                .filter((w) => !w.due && urgent.has(w.issue))
+                .map((w) => w.issue),
+        ),
+    ].sort((a, b) => a - b);
     const top = new Set(q.slice(0, 10).map((i) => i.number));
     let rescan = free.filter((n) => top.has(n));
     if (!rescan.length && !out.length && free.length) rescan = [free[0]];
@@ -1066,12 +1084,18 @@ export function ledgerJobs(ledger, q, now, options = {}) {
     const age = now - Date.parse(ledger.scannedAt ?? 0);
     const stale =
         Number.isNaN(age) || age > SCAN_STALE_MS ? `the last scan is older than 2 hours (${ledger.scannedAt})` : null;
-    return { jobs: out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead)), rescan, stale, unjustified };
+    return { jobs: out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead)), rescan, stale, unjustified, openEnded };
 }
+
+const URGENT = new Set(["critical", "high"]);
 
 // The reasons a critical or high issue may stay blocked with no end time (issue-round step 2): anything else needs a
 // `due` time in the scan, or the round sends the issue a diagnosis job.
-const JUSTIFIED_BLOCK = /owner-only|needs-decision|in flight|waits on (armable )?#\d+|collision with #\d+|recur/i;
+// The scan writes its own forms too (X6/X7/X9 exclusions, trackers, collisions and dependencies naming a pull
+// request, a T-test with an open group). A wait for a recurrence is not here: it needs a `due` like a measurement.
+// ponytail: a named #m is not checked for still being open; the scan is rebuilt from the open pull requests every 2 h
+const JUSTIFIED_BLOCK =
+    /^(owner-only|needs-decision|in flight|X[3-9]\b)|\btracker\b|waits on (armable )?#\d+|collision\b.*#\d+|depends on .*#\d+|\bT\d+ with open group/i;
 
 const hashes = (numbers) => numbers.map((n) => `#${n}`).join(" ");
 const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
@@ -1097,6 +1121,11 @@ export function jobLines(result) {
     if (result.unjustified?.length) {
         lines.push(
             `unjustified blocks: ${hashes(result.unjustified)} -- critical/high blocked with no due time and no allowed reason: diagnose each, or rescan with a due time`,
+        );
+    }
+    if (result.openEnded?.length) {
+        lines.push(
+            `open-ended waits: ${hashes(result.openEnded)} -- critical/high held by a wait with no due time: check its branch or pull request still moves, then wait again with --due or release it`,
         );
     }
     if (result.rescan.length || result.stale) {
@@ -1980,11 +2009,11 @@ export function idleVerdict(f) {
     const load = Math.round(f.load);
     let reason = "start jobs";
     if (f.startable === 0) reason = "nothing startable";
-    else if (!f.critHigh && f.critHighHeld) reason = "start jobs; no critical/high job is startable, say why";
     else if (f.running >= free) reason = "the running jobs fill the free slots";
     else if (f.slots.waitedMs > SLOT_WAIT_LIMIT_MS)
         reason = `a run has waited ${Math.round(f.slots.waitedMs / 60_000)} min for a slot`;
     else if (f.load >= f.cores) reason = "load is at or over the cores";
+    else if (!f.critHigh && f.critHighHeld) reason = "start jobs; no critical/high job is startable, say why";
     const idle = reason.startsWith("start jobs");
     const held = f.critHighHeld ? `, ${f.critHighHeld} held` : "";
     const ch = `critical/high ${f.critHigh ?? 0}${held}`;
@@ -2251,7 +2280,7 @@ const COMMANDS = {
     jobs: (c) => {
         const ledger = readLedger(c.ledgerPath);
         if (!ledger.groups.length) return c.fallback(c.o.json ? ["--json"] : []);
-        const result = ledgerJobs(ledger, c.fetchQueue(), c.now);
+        const result = ledgerJobs(ledger, c.fetchQueue(), c.now, { urgent: c.urgent() });
         return ok(c.o.json ? JSON.stringify(result, null, 2) : jobLines(result).join("\n"));
     },
     "combine-plan": (c) => {
@@ -2289,6 +2318,8 @@ export function main(argv, deps = {}) {
     const ledgerPath = deps.ledgerPath ?? (process.env.ISSUE_GROUPS_LEDGER || DEFAULT_LEDGER);
     const now = deps.now ?? Date.now();
     const run = deps.run ?? graphql;
+    let open;
+    const openIssues = () => (open ??= fetchOpen());
     let parsed;
     try {
         parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
@@ -2306,14 +2337,25 @@ export function main(argv, deps = {}) {
         ledgerPath,
         metricsLog: deps.metricsLog ?? `${dirname(ledgerPath)}/grouping-metrics.jsonl`,
         readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
-        fetchQueue: deps.fetchQueue ?? (() => queue(fetchOpen(), now).queue),
+        fetchQueue: deps.fetchQueue ?? (() => queue(openIssues(), now).queue),
+        // with a fetchQueue given (tests), undefined: ledgerJobs takes the critical and high issues of the queue
+        urgent:
+            deps.urgent ??
+            (() =>
+                deps.fetchQueue
+                    ? undefined
+                    : new Set(
+                          openIssues()
+                              .filter((i) => URGENT.has(describe(i, now).priority))
+                              .map((i) => i.number),
+                      )),
         isAncestor: deps.isAncestor ?? gitAncestor,
         fallback: deps.fallback ?? fallbackJobs,
         git: deps.git ?? GIT,
         guard: deps.guard ?? readGuard,
         change: (fn) => mutate(ledgerPath, fn),
         facts: (numbers) => fetchFacts(numbers, [], run).issues,
-        fetchOpen: deps.fetchOpen ?? (() => fetchOpen()),
+        fetchOpen: deps.fetchOpen ?? openIssues,
         session: deps.session ?? (() => lastRoundSession(ledgerPath)),
         markers: deps.markers ?? ((numbers) => fetchFacts(numbers, [], run, true).issues),
         machine: deps.machine ?? (() => ({ slots: slotFacts(now), load: loadavg()[0], cores: cpus().length })),

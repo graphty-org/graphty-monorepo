@@ -262,11 +262,11 @@ for c in $(git rev-list --no-merges "$base..HEAD"); do
 done
 if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$msgs"; then
     hold="it holds a breaking change (it bumps a published major)"
+elif [ "$author" != "$agent" ]; then
+    hold="it was opened by $author, not by $agent"
 elif guarded=$(git diff --name-only --no-renames "$base" HEAD | grep -E "$GUARD_PATHS"); then
     hold="it changes what guards the owner: $(echo $guarded)"
     next_step="pipeline-round arms it once green (pipeline-round step 7), unless it writes an approval the owner keeps"
-elif [ "$author" != "$agent" ]; then
-    hold="it was opened by $author, not by $agent"
 fi
 if [ -n "$hold" ]; then
     # On a re-run auto-merge may be on from before; it must not stay on.

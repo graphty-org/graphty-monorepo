@@ -1092,12 +1092,45 @@ describe("jobs", () => {
             { issue: 3, reason: "owner-only: visual-review/trusted" },
             { issue: 4, reason: "waits on armable #8465" },
             { issue: 5, reason: "stranded branch" },
+            { issue: 6, reason: "waits for a recurrence" },
+            { issue: 7, reason: "X6: depends on #3467's open #8465" },
+            { issue: 8, reason: "collision: graphty/src/app.tsx with open #8801" },
+            { issue: 9, reason: "the fix is owner-only" },
         ];
         importScan(l, { builtAt: new Date(NOW).toISOString(), jobs: [], blocked }, NOW);
-        const r = ledgerJobs(l, q([1, "high"], [2, "critical"], [3, "high"], [4, "high"], [5, "low"]), NOW);
+        const urgent = [2, 3, 4, 6, 7, 8, 9].map((n) => [n, n === 2 ? "critical" : "high"]);
+        const r = ledgerJobs(l, q([1, "high"], ...urgent, [5, "low"]), NOW);
         assert.deepEqual(r.rescan, [1]);
-        assert.deepEqual(r.unjustified, [2]);
-        assert.ok(jobLines(r).some((line) => /^unjustified blocks: #2 /.test(line)));
+        assert.deepEqual(r.unjustified, [2, 6, 9], "a recurrence wait needs a due time; reasons match at their start");
+        assert.ok(jobLines(r).some((line) => /^unjustified blocks: #2 #6 #9 /.test(line)));
+    });
+
+    it("names critical/high issues a live wait with no due time holds, in progress or not", () => {
+        const l = fresh();
+        addWait(l, { n: 1, on: "fix/1-x", why: "branch", now: NOW });
+        addWait(l, { n: 2, on: "fix/2-x", why: "branch", now: NOW, due: new Date(NOW + HOUR).toISOString() });
+        addWait(l, { n: 3, on: "fix/3-x", why: "branch", now: NOW });
+        addWait(l, { n: 4, on: "fix/4-x", why: "branch", now: NOW });
+        const r = ledgerJobs(l, q([3, "low"]), NOW, { urgent: new Set([1, 2, 4]) });
+        assert.deepEqual(r.openEnded, [1, 4]);
+        assert.ok(jobLines(r).some((line) => /^open-ended waits: #1 #4 /.test(line)));
+        assert.deepEqual(ledgerJobs(l, q([1, "high"], [3, "low"]), NOW).openEnded, [1], "default: the queue's");
+    });
+
+    it("keeps a re-blocked issue's earlier due time while it is still ahead", () => {
+        const l = fresh();
+        const at = (h) => new Date(NOW + h * HOUR).toISOString();
+        const scan = (due, now) =>
+            importScan(
+                l,
+                { builtAt: new Date(now).toISOString(), jobs: [], blocked: [{ issue: 1, reason: "r", due }] },
+                now,
+            );
+        scan(at(2), NOW);
+        scan(at(3), NOW + HOUR);
+        assert.equal(l.blocked[0].due, at(2));
+        scan(at(5), NOW + 3 * HOUR);
+        assert.equal(l.blocked[0].due, at(5), "a passed due time is not kept");
     });
 
     it("asks for a scan when the last one is over 2 hours old", () => {
@@ -1587,7 +1620,7 @@ describe("idle", () => {
             [{ load: 32 }, "load is at or over the cores"],
         ];
         for (const [change, reason] of cases) {
-            const v = idleVerdict({ ...base, ...change });
+            const v = idleVerdict({ ...base, critHigh: 0, critHighHeld: 7, ...change });
             assert.equal(v.idle, false, reason);
             assert.equal(v.reason, reason);
         }

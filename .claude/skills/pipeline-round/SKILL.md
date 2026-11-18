@@ -307,18 +307,13 @@ starts: issue-round counts the pull request's files again from then on.
   a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,
   always merge"). Instead, pipeline-round may revert the red part on the same branch by an ordinary commit.
 
-**Unarmed agent pull requests**, every round. One GraphQL query lists the open graphty-agent pull requests with
-`autoMergeRequest` and `timelineItems(itemTypes:[AUTO_MERGE_DISABLED_EVENT]){totalCount}`. This rule is only for a
-pull request whose `pr-open.sh` died before it armed auto-merge: one with auto-merge off and a `totalCount` of 0
-(auto-merge was never on). Auto-merge turned off on purpose is a hold (an owner wording approval, an owner budget
-review, an owner decision): any pull request with a non-zero `totalCount`, or with any recorded hold (a comment
-saying auto-merge stays off, or that it needs the owner), is never armed by this rule. For one that qualifies, do
-not copy pr-open.sh's hold rules: re-run `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` from the
-branch's worktree; it finds the open pull request and arms it only when none of its own checks (`GUARD_PATHS`,
-breaking commits and footers, `release-not-breaking.json`, renames, large file lists) holds it for the owner. pr-open's own "auto-merge is NOT on ... it changes what guards the owner"
-is not such a hold: a green, CLEAN graphty-agent pull request whose only hold is a `GUARD_PATHS` change, with no
-`AUTO_MERGE_DISABLED` event by the owner and no owner-approval file, is armed by step 7, critical before high before
-oldest (by its `Fixes` issues), one at a time and only while master is green. A
+**Unarmed agent pull requests**, every round: `node tools/armable-prs.mjs` (one paged GraphQL query) prints
+`armable: #n <priority>, ...`, the open graphty-agent pull requests that are CLEAN with checks SUCCESS, auto-merge
+off, never turned off by anyone but graphty-agent (pr-open.sh turns it off on each re-run, which is no hold), with no
+breaking commit and no file holding an approval the owner keeps, critical first, then high, then oldest by the
+issues each closes; and `green, held for the owner: ...` for the rest. While master is green, arm the first
+(`gh pr merge <n> --auto --merge`) unless a comment on it records a hold (auto-merge stays off, or it needs the
+owner); a `GUARD_PATHS` hold from pr-open alone is not one (step 7). One at a time: the next round arms the next. A
 green pull request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master`
 (same as a red one above). The round's last line names every pull request armed and every conflicted one sent to a
 fix, by number.

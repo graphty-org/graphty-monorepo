@@ -167,7 +167,7 @@ describe("list", () => {
         const { run, calls } = runner({ pages });
         const out = main(["list", "--limit", "1"], run, NOW).out.split("\n");
         assert.equal(calls.length, 2);
-        assert.equal(out.length, 3, "the issue line, the count line, the critical/high line");
+        assert.equal(out.length, 4, "the issue line, the count line, the critical/high line, the owner-rule line");
         assert.match(out[0], /^#1 high other effort:none 32d a$/);
     });
 });
@@ -280,20 +280,31 @@ describe("critical and high", () => {
                 issue(6, "d", ["bug", "in-progress", "priority:high"]),
                 issue(7, "e", ["bug", "ux-owner", "in-progress", "priority:high"]),
                 issue(8, "f", ["enhancement", "ux-owner", "priority:low"]),
+                issue(9, "g", ["bug", "blocked", "priority:high"]),
+                issue(10, "h", ["enhancement", "ux-owner", "priority:high"], {
+                    comments: { nodes: [{ ...issue(0, ""), body: "issue-round: stays owner's -- Figma-locked" }] },
+                }),
+                issue(11, "i", ["enhancement", "ux-owner", "priority:high"], {
+                    comments: {
+                        nodes: [{ ...issue(0, ""), author: user("mallory"), body: "issue-round: stays owner's -- x" }],
+                    },
+                }),
             ],
         ];
         const r = listJson(pages);
-        assert.deepEqual(r.critHigh, { queue: 1, alarms: 2, held: 4 });
+        assert.deepEqual(r.critHigh, { queue: 1, inProgress: 2, alarms: 2, held: 5 });
         assert.deepEqual(
             r.ownerRule.map((i) => [i.number, i.gate]),
             [
                 [5, "needs-decision"],
                 [4, "ux-owner"],
+                [11, "ux-owner"],
             ],
+            "blocked is no owner gate; a trusted stays-owner's comment decides one, an untrusted one does not",
         );
         const out = main(["list"], runner({ pages }).run, NOW).out;
-        assert.match(out, /critical\/high open 7: in the queue 1, alarms 2, held 4/);
-        assert.match(out, /owner-rule candidates 2 .*\n {2}#5 critical needs-decision/);
+        assert.match(out, /critical\/high open 10: in the queue 1, in progress 2, alarms 2, held 5/);
+        assert.match(out, /owner-rule candidates 3 undecided .*\n {2}#5 critical needs-decision/);
     });
 });
 

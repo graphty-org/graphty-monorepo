@@ -158,33 +158,38 @@ export function compare(a, b) {
     );
 }
 
-// Labels that hold an issue for the owner until a standing rule or his comment releases it (issue-round step 2).
-const OWNER_GATES = ["ux-owner", "needs-decision", "blocked"];
+// The owner labels a standing rule can release (design/owner-standing-rules.md); `blocked` is not one of them.
+const OWNER_GATES = ["ux-owner", "needs-decision"];
 const URGENT = new Set(["priority:critical", "priority:high"]);
+const STAYS_OWNERS = "issue-round: stays owner's";
+// Decided once: a trusted `issue-round: stays owner's` comment among the issue's last ten (LIST_QUERY).
+const decided = (i) => (i.comments?.nodes ?? []).some((c) => trustedText(c) && c.body?.startsWith(STAYS_OWNERS));
 
 /**
  * The queue from every open issue, plus where the open critical and high issues stand: `critHigh` counts them as
- * `queue` (offered), `alarms` (ci-budget and alarm titles: tools file and close these, so they are not burn-down
- * work), `held` (everything else); `ownerRule` lists the held ones behind an owner gate label, for the round to
- * release by a standing rule or to record why each stays the owner's.
+ * `queue` (offered), `inProgress` (claimed by a job), `alarms` (ci-budget and alarm titles: tools file and close
+ * these, so they are not burn-down work), `held` (everything else); `ownerRule` lists the held ones behind an owner
+ * gate label with no `issue-round: stays owner's` decision yet, for the round to release by a standing rule or to
+ * record once why each stays the owner's.
  * @param issues GraphQL Issues
  * @param now ms
- * @returns `{ queue, untrusted, critHigh: { queue, alarms, held }, ownerRule }`, the queue sorted
+ * @returns `{ queue, untrusted, critHigh: { queue, inProgress, alarms, held }, ownerRule }`, the queue sorted
  */
 export function queue(issues, now) {
     const kept = issues.filter(trustedText);
-    const critHigh = { queue: 0, alarms: 0, held: 0 };
+    const critHigh = { queue: 0, inProgress: 0, alarms: 0, held: 0 };
     const ownerRule = [];
     for (const i of kept) {
         const labels = labelsOf(i);
         if (!labels.some((l) => URGENT.has(l))) continue;
         const why = skipReason(i);
         if (!why) critHigh.queue++;
+        else if (labels.includes("in-progress")) critHigh.inProgress++;
         else if (labels.includes("ci-budget") || /alarm$/.test(why)) critHigh.alarms++;
         else {
             critHigh.held++;
             const gate = OWNER_GATES.find((l) => labels.includes(l));
-            if (gate && !labels.includes("in-progress")) ownerRule.push({ ...describe(i, now), gate });
+            if (gate && !decided(i)) ownerRule.push({ ...describe(i, now), gate });
         }
     }
     return {
@@ -227,13 +232,14 @@ export function listLines(result, limit) {
     lines.push(`${q.length} issues in the queue; ${untrusted} open issues dropped as untrusted (author or editor)`);
     if (result.critHigh) {
         const c = result.critHigh;
+        const open = c.queue + c.inProgress + c.alarms + c.held;
         lines.push(
-            `critical/high open ${c.queue + c.alarms + c.held}: in the queue ${c.queue}, alarms ${c.alarms}, held ${c.held}`,
+            `critical/high open ${open}: in the queue ${c.queue}, in progress ${c.inProgress}, alarms ${c.alarms}, held ${c.held}`,
         );
     }
-    if (result.ownerRule?.length) {
+    if (result.ownerRule) {
         lines.push(
-            `owner-rule candidates ${result.ownerRule.length} (release by a standing rule, or say why each stays the owner's):`,
+            `owner-rule candidates ${result.ownerRule.length} undecided (release by a standing rule, or write once "${STAYS_OWNERS} -- <reason>")${result.ownerRule.length ? ":" : ""}`,
         );
         for (const i of result.ownerRule)
             lines.push(ascii(`  #${i.number} ${i.priority} ${i.gate} ${i.ageDays}d ${i.title}`));
@@ -402,7 +408,10 @@ const LIST_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
-      nodes { number title createdAt ${TEXT} labels(first: 30) { nodes { name } } }
+      nodes {
+        number title createdAt ${TEXT} labels(first: 30) { nodes { name } }
+        comments(last: 10) { nodes { ${TEXT} } }
+      }
     }
   }
 }`;

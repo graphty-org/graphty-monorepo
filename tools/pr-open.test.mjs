@@ -497,11 +497,11 @@ describe("pr-open.sh", () => {
         assert.equal(armed().length, 0);
     });
 
-    it("never arms auto-merge on a pull request someone else opened", () => {
-        branch("fix/1245-owners");
+    it("never arms auto-merge on a pull request someone else opened, guarded path or not", () => {
+        branch("fix/1245-owners", { "tools/pr-open.sh": "#\n" });
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/9 apowers313" });
         assert.equal(r.code, 0, r.out);
-        assert.match(r.out, /opened by apowers313, not by graphty-agent/);
+        assert.match(r.out, /opened by apowers313, not by graphty-agent\. The owner merges it/);
         assert.equal(armed().length, 0);
     });
 

@@ -16,9 +16,9 @@ import { escapeXmlAttribute, quoteDotId, quotePajekLabel } from "../../src/commo
 import { createRegistry, type FormatRegistry, type ImportGraphOptions } from "../../src/registry.js";
 import {
     type ExtractedStyles,
-    extractStyles,
     isStyleValue,
     MAX_STYLE_RULES,
+    readFileStyles,
     resolveStyles,
     STYLE_PROPERTIES,
     StyleBudget,
@@ -29,6 +29,7 @@ import {
     type StyleTarget,
     type StyleValue,
     toolDefaults,
+    unsettledStyles,
     writeStyleBlock,
 } from "../../src/styles/internal.js";
 import { readStyleValues } from "../../src/styles/io/generic.js";
@@ -209,7 +210,12 @@ export async function importForStyles(
         if (report === null) {
             throw new Error(`${format}: the importer's import() was not called`);
         }
-        return { snapshot: result.snapshot, importer: real, report, imported: result.styles ?? null };
+        return {
+            snapshot: result.snapshot,
+            importer: real,
+            report,
+            imported: result.styles === null || result.styles === undefined ? null : unsettledStyles(result.styles),
+        };
     } finally {
         registry.registerImporter(real);
     }
@@ -719,8 +725,8 @@ export async function checkInput(input: StyleInput): Promise<StyleCheck> {
         // every corpus file is meant to import; a throw is an importer regression, not a row to accept
         return { result, failures: [`import threw ${result.import}`] };
     }
-    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
-    const again = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
+    const again = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
     const failures: string[] = [];
     if (stableJson(ex) !== stableJson(again)) {
         failures.push("two reads of the same file give different styles");

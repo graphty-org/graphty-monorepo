@@ -1,5 +1,11 @@
 # Shared Pivot Camera Architecture Design
 
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
 ## Overview
 
 This document describes a unified camera architecture that shares a single pivot-based approach across all camera types (Orbit 3D, 2D, and WebXR). By leveraging BabylonJS v8's support for parenting the XR camera to a TransformNode, we can eliminate redundant code and ensure consistent behavior across all viewing modes.

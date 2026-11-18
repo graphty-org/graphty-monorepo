@@ -18,8 +18,11 @@ import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
 import type { AutosaveStore } from "../../src/autosave/types";
 import { type GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
 import type { GraphSession } from "../../src/session/types";
+import { disposedAfterEach } from "../helpers/disposed-after-each";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
+
+const owned = disposedAfterEach();
 
 describe("the autosave key", () => {
     const base = { attribute: "", id: "", location: "/page?x=1#top", bareWithoutId: 1 };
@@ -90,7 +93,7 @@ async function started(
     env: AutosaveEnvironment,
     store: AutosaveStore,
 ): Promise<{ autosave: ElementAutosave; session: Awaited<ReturnType<typeof baseSession>> }> {
-    const session = await baseSession();
+    const session = owned(await baseSession());
     const autosave = new ElementAutosave(() => undefined, env);
     await autosave.start({
         session,
@@ -132,7 +135,7 @@ describe("persist: true", () => {
 
     it("is not asked for when the option is off, whatever the reader does", async () => {
         const { env, persistCalls } = page();
-        const session = await baseSession();
+        const session = owned(await baseSession());
         const autosave = new ElementAutosave(() => undefined, env);
         await autosave.start({
             session,
@@ -236,7 +239,7 @@ describe("while the page is hidden", () => {
             },
         };
         let onSaved: (() => void) | null = null;
-        const session = await baseSession();
+        const session = owned(await baseSession());
         const autosave = new ElementAutosave((type, detail) => {
             if (type === "graphty-autosave-status" && (detail as { state: string }).state === "saved") {
                 onSaved?.();
@@ -317,7 +320,7 @@ describe("a remount", () => {
             return autosave;
         };
 
-        const firstSession = await baseSession();
+        const firstSession = owned(await baseSession());
         const first = await startOn(firstSession);
         // The page's rows arrive as a load that has not settled when the reader edits: a large or a
         // busy page settles its load long after its rows are in, so the edit is held until then.
@@ -334,7 +337,7 @@ describe("a remount", () => {
         settle();
 
         // The remounted element is fresh: a graph it already held would keep the restore out (#3313).
-        const secondSession = sessionWithRuns();
+        const secondSession = owned(sessionWithRuns());
         const second = startOn(secondSession);
         open();
         const restored = await (await second).api.ready;
@@ -376,7 +379,7 @@ describe("a reload while this tab's work is being reopened", () => {
         };
 
         // The reader's work, written.
-        const firstSession = await baseSession();
+        const firstSession = owned(await baseSession());
         const first = await startOn(pageWithSession(), firstSession);
         await firstSession.config.set({ name: "The reader's work" });
         await first.api.flush();
@@ -386,7 +389,7 @@ describe("a reload while this tab's work is being reopened", () => {
 
         // The reload: the page that reopens it sets itself up before it restores the work, which
         // starts an entry of the page's own, written first.
-        const reopenSession = sessionWithRuns();
+        const reopenSession = owned(sessionWithRuns());
         // Setup holds nothing a file lacks: the page saves it here, as a page whose history is not
         // recording yet leaves it.
         const reopening = await startOn(pageWithSession(), reopenSession, async () => {

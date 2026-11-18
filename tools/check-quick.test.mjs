@@ -34,7 +34,6 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
     for (const f of ["step-log.mjs", "wait-log.mjs"])
         copyFileSync(new URL(`./${f}`, import.meta.url).pathname, join(repo, "tools", f));
     writeFileSync(join(repo, "tools/test-changed.mjs"), envDump(out("tests.json"), "STUB_RC_TESTS"));
-    writeFileSync(join(repo, "tools/sonar-gate.mjs"), envDump(out("sonar.json"), "STUB_RC_SONAR"));
     writeFileSync(join(repo, "tools/test-slots.mjs"), envDump(out("gpu.json"), "STUB_RC_GPU"));
     writeFileSync(join(repo, "tools/pr-integrity.mjs"), envDump(out("integrity.json"), "STUB_RC_INTEGRITY"));
     writeFileSync(join(repo, "tools/ci-budgets.mjs"), envDump(out("budgets.json"), "STUB_RC_BUDGETS"));
@@ -47,7 +46,10 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
     writeFileSync(
         join(dir, "bin/pnpm"),
         `#!/bin/sh\necho "$*" >> ${out("pnpm")}\n` +
-            `case "$*" in "exec nx show projects"*) printf "%s\\n" ${affected}; exit \${STUB_RC_SHOW:-0} ;; "exec nx affected"*) exit \${STUB_RC_NX:-0} ;; "exec nx run graphty:build") exit \${STUB_RC_APP:-0} ;; esac\n`,
+            // nx 22 prints one JSON array unless asked for --json=false, even to a pipe.
+            `case "$*" in "exec nx show projects"*--json=false*) printf "%s\\n" ${affected}; exit \${STUB_RC_SHOW:-0} ;; ` +
+            `"exec nx show projects"*) echo '${JSON.stringify(affected.split(" "))}'; exit \${STUB_RC_SHOW:-0} ;; ` +
+            `"exec nx affected"*) exit \${STUB_RC_NX:-0} ;; "exec nx run graphty:build") exit \${STUB_RC_APP:-0} ;; esac\n`,
         { mode: 0o755 },
     );
     const git = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8", env: isolatedGitEnv() });
@@ -84,7 +86,6 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
         r,
         pnpm: readFileSync(out("pnpm"), "utf8"),
         tests: read("tests.json"),
-        sonar: read("sonar.json"),
         gpu: read("gpu.json"),
         integrity: read("integrity.json"),
         dryRun: read("dryrun.json"),
@@ -112,8 +113,8 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
 }
 
 describe("tools/check-quick.sh", () => {
-    it("runs formatting, lint, the selected tests and SonarQube from the base, without the old gate's settings", () => {
-        const { r, pnpm, tests, sonar, gpu } = sandbox();
+    it("runs formatting, lint, the selected tests and the duplicate check from the base, without the old gate's settings", () => {
+        const { r, pnpm, tests, gpu } = sandbox();
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(pnpm, /^exec prettier --check --ignore-unknown changed\.ts$/m, "the changed file only");
         assert.match(pnpm, /^exec nx affected -t build lint typecheck --base=main$/m);
@@ -129,18 +130,18 @@ describe("tools/check-quick.sh", () => {
         }
         assert.equal(tests.env.GRAPHTY_TEST_SLOTS, "3", "the slot count stays");
         assert.equal(tests.env.GIT_CONFIG_GLOBAL, "/dev/null", "tests read no developer git config");
-        assert.equal(sonar.env.PUSH_BASE_REF, "main", "SonarQube measures from the same base");
+        assert.match(pnpm, /^run check:duplicates$/m, "the duplicate code check runs");
         assert.equal(gpu, undefined, "no GPU run when webgpu-graph-algorithms is not affected");
         assert.doesNotMatch(pnpm, /docs:build|check:bundle-size|run size/, "no docs or bundle step when unaffected");
         assert.match(r.stdout, /\[PASS\] quick check/);
     });
 
     it("logs each step's time and exit code, and the whole run's, to the step log", () => {
-        const { r, steps } = sandbox({ env: { STUB_RC_SONAR: "4" } });
+        const { r, steps } = sandbox({ env: { STUB_RC_INTEGRITY: "4" } });
         assert.equal(r.status, 1, r.stdout + r.stderr);
         const step = (what) => steps.find((s) => s.kind === "check-quick-step" && s.what === what);
         assert.equal(step("Selected tests")?.exit, 0);
-        assert.equal(step("SonarQube (changed lines)")?.exit, 4, "a failed step keeps its own exit code");
+        assert.equal(step("PR Integrity (local)")?.exit, 4, "a failed step keeps its own exit code");
         const ran = r.stdout.match(/^> /gm).length;
         assert.equal(steps.filter((s) => s.kind === "check-quick-step").length, ran, "one line per step that ran");
         const total = steps.filter((s) => s.kind === "check-quick");
@@ -190,9 +191,9 @@ describe("tools/check-quick.sh", () => {
     });
 
     it("runs every step after a failure and names each failed one", () => {
-        const { r, tests, sonar } = sandbox({ env: { STUB_RC_NX: "1", STUB_RC_TESTS: "1" } });
+        const { r, tests, integrity } = sandbox({ env: { STUB_RC_NX: "1", STUB_RC_TESTS: "1" } });
         assert.equal(r.status, 1);
-        assert.ok(tests && sonar, "the steps after the failures still ran");
+        assert.ok(tests && integrity, "the steps after the failures still ran");
         assert.match(
             r.stdout,
             /\[FAIL\] quick check: Build, lint and type-check \(affected\)\n\[FAIL\] quick check: Selected tests/,

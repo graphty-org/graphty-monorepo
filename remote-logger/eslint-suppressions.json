@@ -1,0 +1,65 @@
+{
+  "src/bundle/browser-entry.ts": {
+    "eslint-comments/require-description": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-global-this": {
+      "count": 9
+    }
+  },
+  "src/client/RemoteLogClient.ts": {
+    "sonarjs/pseudo-random": {
+      "count": 1
+    },
+    "unicorn/no-typeof-undefined": {
+      "count": 2
+    }
+  },
+  "src/mcp/tools/logs-search.ts": {
+    "unicorn/prefer-string-raw": {
+      "count": 1
+    }
+  },
+  "src/server/dual-server.ts": {
+    "eslint-comments/require-description": {
+      "count": 4
+    }
+  },
+  "src/server/log-server.ts": {
+    "eslint-comments/require-description": {
+      "count": 31
+    }
+  },
+  "src/server/log-storage.ts": {
+    "unicorn/prefer-string-raw": {
+      "count": 1
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "src/server/marker-utils.ts": {
+    "unicorn/prefer-array-find": {
+      "count": 1
+    }
+  },
+  "src/server/proxy.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 2
+    }
+  },
+  "src/ui/ConsoleCaptureUI.ts": {
+    "unicorn/prefer-global-this": {
+      "count": 4
+    },
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  }
+}

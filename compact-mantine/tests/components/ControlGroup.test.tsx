@@ -98,18 +98,6 @@ describe("ControlGroup", () => {
         });
     });
 
-    describe("the bleed", () => {
-        it("still accepts bleed, which no longer has anything to bleed", () => {
-            renderGroup(
-                <ControlGroup label="Appearance" bleed>
-                    <div>Content</div>
-                </ControlGroup>,
-            );
-
-            expect(screen.getByTestId("control-group-content")).toHaveTextContent("Content");
-        });
-    });
-
     describe("logical layout", () => {
         it("writes no physical left or right padding: the legend starts at the content edge", () => {
             renderGroup(

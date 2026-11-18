@@ -49,6 +49,11 @@ export interface TemplateOptions {
     readonly replace: boolean;
     /** `node.modelTint: "untextured"`: a part with no picture and no vertex colors draws flat. */
     readonly untextured?: boolean;
+    /**
+     * `node.modelTint: false`, set by a layer: the model keeps its own colors even when they are only
+     * plain grays, which otherwise draw in the node's color while the channel is unset.
+     */
+    readonly ownColors?: boolean;
     /** `node.unlit`: every material draws its own color with no light. */
     readonly unlit?: boolean;
     /** `node.wireframe`: every material draws as wires. */
@@ -194,6 +199,7 @@ export function optionsOf(
         fit: shape.modelFit ?? "contain",
         replace: shape.modelTint === "replace",
         untextured: shape.modelTint === "untextured",
+        ownColors: ownColors(shape),
         unlit: look.unlit === true,
         wireframe: look.wireframe === true,
         doubleSided: sidesOf(shape),
@@ -209,6 +215,17 @@ export function optionsOf(
 export function animationOf(shape: NodeStyleConfig["shape"]): string | null {
     const clip = shape?.modelAnimation;
     return typeof clip === "string" && clip !== "" ? clip : null;
+}
+
+/**
+ * Whether a layer set `node.modelTint` to false (read by name as well as by value), so a model of
+ * plain grays keeps them instead of taking the node's color.
+ * @param shape - The shape block.
+ * @returns True for an explicit false.
+ */
+function ownColors(shape: NonNullable<NodeStyleConfig["shape"]>): boolean {
+    const tint = shape.modelTint as unknown;
+    return tint === false || tint === "false";
 }
 
 /**
@@ -238,7 +255,7 @@ function keyOf(shape: NonNullable<NodeStyleConfig["shape"]>, look: ModelLook): s
         shape.modelTurn ?? 0,
         shape.modelCenter ?? "bounds",
         shape.modelFit ?? "contain",
-        shape.modelTint === "replace" || shape.modelTint === "untextured" ? shape.modelTint : false,
+        shape.modelTint === "replace" || shape.modelTint === "untextured" ? shape.modelTint : ownColors(shape),
         sidesOf(shape),
         animationOf(shape) !== null,
         look.unlit === true,

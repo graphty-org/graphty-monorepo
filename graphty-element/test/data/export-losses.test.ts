@@ -1,7 +1,7 @@
 /**
  * @file An export's losses as coded facts (`ExportResult.losses`): every built-in writer reports
- * codes from the documented set (`ExportLossCode`) with the same two params, beside the deprecated
- * English `lossNotes`, and each reports only what the table or file it writes loses.
+ * codes from the documented set (`ExportLossCode`) with the same two params, and each reports only
+ * what the table or file it writes loses.
  */
 
 import {
@@ -90,16 +90,11 @@ function lossy(): Harness {
 
 describe("export losses as coded facts", () => {
     for (const [format, options] of WRITERS) {
-        it(`${format} ${JSON.stringify(options)}: documented codes, the same params, one per loss note`, () => {
+        it(`${format} ${JSON.stringify(options)}: documented codes and the same params`, () => {
             const h = lossy();
             const result = exportSession(h.session, format, options);
 
             assert.isNotEmpty(result.losses, "the graph loses something");
-            assert.deepEqual(
-                result.losses.map((loss) => loss.code),
-                result.lossNotes.map((note) => note.code),
-                "one fact per note, in order",
-            );
             for (const loss of result.losses) {
                 assert.isTrue(DOCUMENTED.has(loss.code), `${loss.code} is documented`);
                 assert.deepEqual(Object.keys(loss.params).sort(), ["columns", "count"], loss.code);

@@ -4,16 +4,16 @@ import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantin
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { Box, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { Box, Checkbox, Stack, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, fileStylesOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
-import { GLYPHS } from "../glyphs";
-import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
+import { cosmographOn, fileStylesOn, nodeModelsOn } from "../features";
+import { findTreeRow, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, isBlankRow, writeKind } from "./cards";
+import { ControlLabel } from "./ControlLabel";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
 import { PartsPanel } from "./parts/PartsPanel";
@@ -23,8 +23,8 @@ import {
     beneathOf,
     EVERYTHING_LAYER,
     everythingRow,
+    hiddenByOf,
     type NewLayer,
-    paintedOverOf,
     rowLayers,
     selectedLayerRow,
     sourceName,
@@ -193,32 +193,28 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
  * @param props.rowId - the row
  * @returns The panel
  */
-function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowId: string }>): React.JSX.Element {
+function TreeRowPanel({
+    session,
+    rowId,
+}: Readonly<{ session: GraphSession; rowId: string }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const found = findTreeRow(session.styles.tree(), rowId);
     if (found === undefined) {
-        return <StateLine>This row is gone</StateLine>;
+        return null;
     }
     const row = treeRowLayers(session, rowId);
     // Every layer says which elements it paints, whoever made it: provenance never changes what a
     // layer offers. Keyed by the row, not its layers, so a change of kind keeps the editor open.
     return (
-        <>
-            {isHidden(found) && (
-                <StateLine icon={<GLYPHS.hide size={14} aria-hidden />}>
-                    Hidden: changes will not show until it is shown
-                </StateLine>
-            )}
-            <LockedGroup locked={isLocked(found)}>
-                <RowStyle
-                    key={rowId}
-                    session={session}
-                    row={row}
-                    below={rowId}
-                    kinds={row.length > 0 ? rowKinds(session, store, rowId) : undefined}
-                />
-            </LockedGroup>
-        </>
+        <LockedGroup locked={isLocked(found)}>
+            <RowStyle
+                key={rowId}
+                session={session}
+                row={row}
+                below={rowId}
+                kinds={row.length > 0 ? rowKinds(session, store, rowId) : undefined}
+            />
+        </LockedGroup>
     );
 }
 
@@ -307,11 +303,8 @@ function LockedGroup({
     };
     return (
         <>
-            {locked && (
-                <StateLine icon={<GLYPHS.lock size={14} aria-hidden />} id={reasonId}>
-                    This layer is locked
-                </StateLine>
-            )}
+            {/* Heard as each control's description; the Style sidebar draws no note (#8739). */}
+            {locked && <VisuallyHidden id={reasonId}>This layer is locked</VisuallyHidden>}
             <div
                 ref={box}
                 className={locked ? "ws-row-locked" : undefined}
@@ -330,27 +323,6 @@ function LockedGroup({
                 {children}
             </div>
         </>
-    );
-}
-
-/**
- * A line at the top of a panel saying the state of what it shows, at the panel's text size.
- * @param props - Component props
- * @param props.children - the words
- * @param props.icon - a glyph before the words (a lock, a closed eye)
- * @param props.id - an id, for controls the line describes
- * @returns The line
- */
-export function StateLine({
-    children,
-    icon,
-    id,
-}: Readonly<{ children: React.ReactNode; icon?: React.ReactNode; id?: string }>): React.JSX.Element {
-    return (
-        <Group gap={6} px="md" py={4} wrap="nowrap" id={id}>
-            {icon}
-            <Text size="sm">{children}</Text>
-        </Group>
     );
 }
 
@@ -429,12 +401,6 @@ export function RowStyle({
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];
     const styled = (side: Target): boolean => (kinds === undefined ? sides.includes(side) : kinds.state(side).on > 0);
-    // Whether the row paints the kind, as its header says it ("Edge layer"): a part with no look and
-    // no condition while the other part has one reads as not styled, as a layer with no part of the
-    // kind does, however the layer was made. A row with neither yet reads as the kinds it is on.
-    const painted = below === undefined ? undefined : paintedTarget(session, below);
-    const paints = (side: Target): boolean =>
-        styled(side) && (painted === undefined || painted === "both" || painted === side);
     const [tab, setTab] = useState<Target>(() => {
         // A new layer (nothing set, nothing picked) opens on its first kind, whichever tab was last open.
         if (below !== undefined && isBlankRow(session, below) && styled("node")) {
@@ -459,7 +425,7 @@ export function RowStyle({
     // A selection's row not written yet paints the selection: read beneath over it.
     const fresher = fresh !== undefined && fresh.selector.match !== "everything";
     const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
-    const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
+    const hiddenBy = treeRow === undefined || many !== undefined ? undefined : hiddenByOf(session, treeRow, row);
     const colors = documentColors(session);
     const sectionsOf = (side: Target): React.JSX.Element => {
         const ctx: RowContext = {
@@ -469,7 +435,7 @@ export function RowStyle({
             layers: rowLayers(session, row, side),
             fresh,
             beneath,
-            paintedOver,
+            hiddenBy,
             documentColors: colors,
             ...many?.(side),
         };
@@ -537,18 +503,7 @@ export function RowStyle({
             >
                 <Tabs.List aria-label="Style for">
                     {tabs.map((side) => (
-                        <Tabs.Tab
-                            key={side}
-                            value={side}
-                            rightSection={
-                                paints(side) || selectionWorkspaceOn(session) ? undefined : (
-                                    // The words the kind's own line uses: the layer styles none of this kind.
-                                    <Text span size="xs" c="var(--cm-text-secondary)">
-                                        not styled
-                                    </Text>
-                                )
-                            }
-                        >
+                        <Tabs.Tab key={side} value={side}>
                             {KIND_WORDS[side].tab}
                         </Tabs.Tab>
                     ))}
@@ -695,16 +650,16 @@ export function SelectionStyle(): React.JSX.Element | null {
         <Stack gap={8} p={8} data-testid="selection-style" role="group" aria-label="Highlight">
             {HIGHLIGHT_PARTS.map((part) => (
                 <Stack key={part.title} gap={2} role="group" aria-label={part.title}>
-                    <Text size="xs" fw={600} pl={4}>
+                    <ControlLabel size="xs" fw={600} pl={4}>
                         {part.title}
-                    </Text>
-                    <div // NOSONAR(S6819): an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
+                    </ControlLabel>
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
                         role="group"
                         aria-label="Color"
                     >
-                        <Text size="xs" aria-hidden>
+                        <ControlLabel size="xs" aria-hidden>
                             Color
-                        </Text>
+                        </ControlLabel>
                         <CompactColorInput
                             color={hex(current[part.color])}
                             defaultColor={hex(DEFAULT_SELECTION_STYLE[part.color])}
@@ -719,9 +674,9 @@ export function SelectionStyle(): React.JSX.Element | null {
                         />
                     </div>
                     <FieldRow>
-                        <Text size="xs" truncate>
+                        <ControlLabel size="xs" truncate>
                             Size
-                        </Text>
+                        </ControlLabel>
                         <ComboInput
                             label="Size"
                             width="100%"
@@ -797,11 +752,7 @@ export function GroupStyle({
         if (own !== undefined) {
             return <StylePanel rowId={own.row ?? own.id} />;
         }
-        return (
-            <Text size="xs" c="dimmed" p="md">
-                This run paints nothing by group
-            </Text>
-        );
+        return null;
     }
     const source = sourceName(session, { by: found.path }) ?? found.path;
     return (

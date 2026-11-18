@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import { CX_ISSUE, cxImporter, type CxImportOptions } from "../../src/formats/cx/index.js";
 import { importGraph, sniff } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
+import { codes, uniqueCodes } from "./helpers.js";
 
 type Options = CxImportOptions & CommonImportOptions;
 
@@ -48,8 +49,6 @@ async function failure(input: ImportInput, options?: Options): Promise<ImportErr
     }
     throw new Error("expected an ImportError");
 }
-
-const codes = (report: ImportReport): string[] => [...new Set(report.issues.map((i) => i.code))];
 
 const issuesOf = (report: ImportReport, code: string): ImportReport["issues"] =>
     report.issues.filter((i) => i.code === code);
@@ -218,7 +217,7 @@ describe("cx robustness: encodings", () => {
             { cyVisualProperties: [{ properties_of: "nodes", applies_to: 1, properties: { NODE_LABEL: "LONE" } }] },
         ]).replace(/LONE/g, "x\\udc00");
         const { snapshot, report } = await load(text);
-        expect(codes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX_ISSUE.BAD_VALUE)).toHaveLength(3);
         const repaired = `x${String.fromCharCode(0xfffd)}`;
         expect(snapshot.extensions.get("cx:citations")?.get("dc:title")?.value(0)).toBe(repaired);
@@ -419,7 +418,7 @@ describe("cx robustness: values", () => {
                 { edges: [{ "@id": 3, s: 1, t: 2, w: 3 }] },
             ]),
         );
-        expect(codes(report)).toEqual([CX_ISSUE.UNKNOWN_ELEMENT]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.UNKNOWN_ELEMENT]);
         expect(issuesOf(report, CX_ISSUE.UNKNOWN_ELEMENT).map((i) => i.element)).toEqual(["x", "zz", "w"]);
         expect(snapshot.nodeCount).toBe(2);
         expect(snapshot.edgeCount).toBe(1);
@@ -432,7 +431,7 @@ describe("cx robustness: values", () => {
                 { edges: [{ "@id": 3, s: 1, t: 2, i: 5 }] },
             ]),
         );
-        expect(codes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX_ISSUE.BAD_VALUE)).toHaveLength(3);
         expect(snapshot.nodeCount).toBe(2);
         expect(snapshot.edgeCount).toBe(1);
@@ -509,7 +508,7 @@ describe("cx robustness: values", () => {
         const { snapshot, report } = await load(
             cx([TWO_NODES, { nodeAttributes: types.map((d, i) => ({ po: 1, n: `a${i}`, v: "7", d })) }]),
         );
-        expect(codes(report)).toEqual([CX_ISSUE.UNKNOWN_ATTR_TYPE]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.UNKNOWN_ATTR_TYPE]);
         expect(issuesOf(report, CX_ISSUE.UNKNOWN_ATTR_TYPE)).toHaveLength(4);
         for (let i = 0; i < types.length; i++) {
             expect(value(snapshot, `a${i}`, 1)).toBe("7");
@@ -525,7 +524,7 @@ describe("cx robustness: values", () => {
                 { edgeAttributes: [{ po: 3, n: "interaction", v: ["p"], d: "list_of_string" }] },
             ]),
         );
-        expect(codes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX_ISSUE.BAD_VALUE)).toHaveLength(2);
         expect(value(snapshot, "name", 1)).toBe("a");
         expect(edgeValue(snapshot, "interaction", 0)).toBe("binds");
@@ -562,7 +561,7 @@ describe("cx robustness: values", () => {
             ]).replace("]},{", ',{"name":"cyGroups","elementCount":12345678901234567}]},{'),
         );
         // the 17-digit count is also kept in meta.extra.cx.metaData as the nearest double: W_PRECISION
-        expect(codes(report)).toEqual([CX_ISSUE.COUNT_MISMATCH, CX_ISSUE.PRECISION]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.COUNT_MISMATCH, CX_ISSUE.PRECISION]);
         const messages = issuesOf(report, CX_ISSUE.COUNT_MISMATCH).map((i) => i.message);
         expect(messages.filter((m) => /not checked/.test(m))).toHaveLength(3);
         expect(messages.filter((m) => /declares 12345678901234568 "cyGroups"/.test(m))).toHaveLength(1);
@@ -594,7 +593,7 @@ describe("cx robustness: layout, groups and structure", () => {
         const { snapshot, report } = await load(
             cx([TWO_NODES, { cartesianLayout: [5, null, { node: 1, x: 1, y: 1 }] }]),
         );
-        expect(codes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK]);
         expect(issuesOf(report, CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(2);
         expect(point(snapshot, 1)).toEqual([1, -1, 0]);
     });
@@ -696,7 +695,7 @@ describe("cx robustness: layout, groups and structure", () => {
         const { report } = await load(
             cx([TWO_NODES, { cyViews: [5, { "@id": "x" }] }, { cyNetworkRelations: [5, { c: "q" }] }]),
         );
-        expect(codes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK, CX_ISSUE.INVALID_ID]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK, CX_ISSUE.INVALID_ID]);
         expect(issuesOf(report, CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(2);
         expect(issuesOf(report, CX_ISSUE.INVALID_ID)).toHaveLength(2);
     });
@@ -752,7 +751,7 @@ describe("cx robustness: layout, groups and structure", () => {
                 },
             ]),
         );
-        expect(codes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
+        expect(uniqueCodes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX_ISSUE.BAD_VALUE)).toHaveLength(2);
         expect(snapshot.meta.name ?? null).toBeNull();
     });

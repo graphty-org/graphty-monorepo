@@ -56,26 +56,28 @@ export const States: Story = {
     render: () => (
         <StateGrid
             cells={[
-                { state: "rest", node: <FileInput aria-label="FileInput" placeholder="Pick a file" w={184} /> },
+                { state: "rest", node: <FileInput aria-label="Pick a file" placeholder="Pick a file" w={184} /> },
                 {
                     state: "hover",
-                    node: <FileInput aria-label="FileInput" placeholder="Pick a file" w={184} data-state="hover" />,
+                    node: <FileInput aria-label="Pick a file" placeholder="Pick a file" w={184} data-state="hover" />,
                 },
                 {
                     state: "focus",
-                    node: <FileInput aria-label="FileInput" placeholder="Pick a file" w={184} data-state="focus" />,
+                    node: <FileInput aria-label="Pick a file" placeholder="Pick a file" w={184} data-state="focus" />,
                 },
                 {
                     state: "disabled",
-                    node: <FileInput aria-label="FileInput" placeholder="Pick a file" w={184} disabled />,
+                    node: <FileInput aria-label="Pick a file" placeholder="Pick a file" w={184} disabled />,
                 },
                 {
                     state: "invalid",
-                    node: <FileInput aria-label="FileInput" placeholder="Pick a file" w={184} error="File too large" />,
+                    node: (
+                        <FileInput aria-label="Pick a file" placeholder="Pick a file" w={184} error="File too large" />
+                    ),
                 },
                 {
                     state: "outlined",
-                    node: <FileInput aria-label="FileInput" placeholder="Pick a file" w={184} variant="outlined" />,
+                    node: <FileInput aria-label="Pick a file" placeholder="Pick a file" w={184} variant="outlined" />,
                 },
                 { state: "with label", node: <FileInput label="Label" placeholder="Pick a file" w={184} /> },
             ]}

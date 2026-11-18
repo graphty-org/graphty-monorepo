@@ -1,7 +1,6 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
-    type FileLayout,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
@@ -10,6 +9,7 @@ import {
     ImportReportBuilder,
     loadFromSource,
     readText,
+    type RequestedLayout,
 } from "@graphty/graph-io";
 import { extractStyles } from "@graphty/graph-io/styles";
 import { z } from "zod";
@@ -36,7 +36,6 @@ import {
     readerImport,
     sourceGraph,
     toRecords,
-    withoutStyleSlots,
 } from "./graph-io-import.js";
 import { readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
@@ -282,24 +281,32 @@ export interface ImporterSourceOptions<Opts> {
      */
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
     /**
-     * The time field the file declares, which a load with the timeline experiment on designates
+     * The time field the file declares, which a load designates
      * (a custom `DataSource` declares one with its protected `declareTime` method). Return null
      * when the file declares none. Left out, no file declares one.
      * @param snapshot - the imported graph
      * @param report - the importer's report
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     readonly time?: (snapshot: GraphSnapshot, report: ImportReport) => TimeField | null;
 }
 
 /**
- * The readers a load with the timeline experiment on reads through: a reader in it keeps the time
- * data only the timeline reads (GEXF's lists of instants), so a load with the experiment off keeps
- * its records exactly as they were.
+ * The cancel signal of the load a reader is read for, set by the session before it reads: reading
+ * a file or fetching a URL stops on it, and rejects with its reason. Kept beside the reader, not
+ * in its config, which is the load's recorded options.
  */
-export const TIMELINE_READERS = new WeakSet();
+const READER_SIGNALS = new WeakMap<object, AbortSignal>();
+
+/**
+ * Sets the cancel signal of the load a reader is read for (see READER_SIGNALS).
+ * @param reader - the reader
+ * @param signal - the load's cancel signal
+ */
+export function setReaderSignal(reader: object, signal: AbortSignal): void {
+    READER_SIGNALS.set(reader, signal);
+}
 
 /**
  * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
@@ -514,8 +521,8 @@ export abstract class DataSource {
     private timeField: TimeField | null = null;
     /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
     private graphValues: Readonly<Record<string, unknown>> | null = null;
-    /** Backing field of {@link declaredFileLayout}; written only by {@link declareFileLayout}. */
-    private fileLayout: FileLayout | null = null;
+    /** Backing field of {@link requestedLayout}; written only by {@link declareRequestedLayout}. */
+    private requested: RequestedLayout | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -554,26 +561,34 @@ export abstract class DataSource {
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
         const last: { status?: number; timeoutMs?: number } = {};
+        const cancel = READER_SIGNALS.get(this);
 
         for (let attempt = 0; attempt < retries; attempt++) {
+            cancel?.throwIfAborted();
             try {
-                // Create AbortController for timeout
+                // Create AbortController for timeout, which the load's own cancel also fires
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
                     controller.abort();
                 }, timeout);
+                const abort = (): void => {
+                    controller.abort();
+                };
+                cancel?.addEventListener("abort", abort, { once: true });
 
                 try {
                     const response = await fetch(url, { signal: controller.signal });
-                    clearTimeout(timeoutId);
                     checkResponse(response, url, attempt, last);
                     return response;
                 } catch (error) {
-                    clearTimeout(timeoutId);
+                    cancel?.throwIfAborted();
                     throw attemptError(error, timeout, last);
+                } finally {
+                    clearTimeout(timeoutId);
+                    cancel?.removeEventListener("abort", abort);
                 }
             } catch (error) {
-                if (error instanceof GraphtyError) {
+                if (error instanceof GraphtyError || cancel?.aborted === true) {
                     throw error;
                 }
 
@@ -669,14 +684,20 @@ export abstract class DataSource {
             return toSourceInput(config.data);
         }
 
+        const cancel = READER_SIGNALS.get(this);
+        cancel?.throwIfAborted();
         if (config.file) {
             const { file } = config;
-            return new Uint8Array(await readOrRefuse(file.arrayBuffer(), { file: file.name }));
+            const bytes = await readOrRefuse(file.arrayBuffer(), { file: file.name });
+            cancel?.throwIfAborted();
+            return new Uint8Array(bytes);
         }
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            return new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url: config.url }));
+            const bytes = await readOrRefuse(response.arrayBuffer(), { url: config.url });
+            cancel?.throwIfAborted();
+            return new Uint8Array(bytes);
         }
 
         throw new GraphtyError({
@@ -869,7 +890,6 @@ export abstract class DataSource {
     /**
      * The time field the file declared, or null when it declared none. Read it after the last chunk.
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     get declaredTime(): TimeField | null {
@@ -877,12 +897,11 @@ export abstract class DataSource {
     }
 
     /**
-     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. With
-     * the timeline experiment on, the load designates it (`session.time.field`, and `time:field`
-     * fires) in the load's own step, unless a time field is already set; off, it is ignored. Call it
+     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. The
+     * load designates it (`session.time.field`, and `time:field` fires) in the load's own step,
+     * unless a time field is already set. Call it
      * only when the file itself says which columns hold time.
      * @param field - the field, with paths as the records name them
-     * @experimental timeline
      * @beta
      * @example
      * ```ts
@@ -894,23 +913,26 @@ export abstract class DataSource {
     }
 
     /**
-     * The layout the file asks to be drawn with, as graph-io's importer read it, or null when the
-     * file names none or the source has not parsed yet. Read it after the last chunk.
-     * @returns the layout
-     * @since 3.35.0
+     * The layout the data asks to be drawn with: a graphty layout id and its options, as graph-io's
+     * `requestedLayout()` gives it, or null when it asks for none or the source has not parsed yet.
+     * Read it after the last chunk.
+     * @returns the request
      */
-    get declaredFileLayout(): FileLayout | null {
-        return this.fileLayout;
+    get requestedLayout(): RequestedLayout | null {
+        return this.requested;
     }
 
     /**
-     * Record the layout the file being parsed asks for (graph-io's `importer.layout(snapshot)`). A
-     * load that asks for the recommended layout draws the file with it.
-     * @param layout - the layout, or null when the file names none
-     * @since 3.35.0
+     * Record the layout the data being parsed asks for. A load that asks for the recommended layout
+     * draws the graph with it when it can.
+     * @param layout - the request, or null when the data asks for none
+     * @example
+     * ```ts
+     * this.declareRequestedLayout({ layout: "circular", options: {} });
+     * ```
      */
-    protected declareFileLayout(layout: FileLayout | null): void {
-        this.fileLayout = layout;
+    protected declareRequestedLayout(layout: RequestedLayout | null): void {
+        this.requested = layout;
     }
 
     /**
@@ -924,14 +946,18 @@ export abstract class DataSource {
      * parses a file itself answers null. Not an extension point: a format gets styles by being
      * read with a graph-io importer.
      * @internal
-     * @param options - Whether the defaults of the program that wrote the file are added (true
-     *     by default), and a cancel signal.
-     * @param options.toolDefaults - Whether the writing program's defaults are added.
+     * @param options - Passed to graph-io as it reads the styles, uninterpreted.
+     * @param options.toolDefaults - Whether a property the file leaves unset gets its reader's default.
+     * @param options.viewport - The canvas the drawing is first framed in, in CSS px, or null without one.
      * @param options.signal - Cancels the reading.
      * @returns The styles, or null when the file carries none or nothing has been read yet.
      */
     async fileStyles(
-        options: { readonly toolDefaults?: boolean; readonly signal?: AbortSignal } = {},
+        options: {
+            readonly toolDefaults?: boolean;
+            readonly viewport?: { readonly width: number; readonly height: number } | null;
+            readonly signal?: AbortSignal;
+        } = {},
     ): Promise<FileStylesRead | null> {
         const pending = readerImport(this);
         if (pending === null) {
@@ -942,38 +968,25 @@ export abstract class DataSource {
         const { imported } = held;
         const extracted = extractStyles(imported.importer, imported.snapshot, imported.report, {
             ...(options.toolDefaults === undefined ? {} : { toolDefaults: options.toolDefaults }),
+            ...(options.viewport === undefined || options.viewport === null ? {} : { viewport: options.viewport }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
         });
         if (extracted === null) {
             return null;
         }
 
-        const { format, dialect } = extracted.styles.source;
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
-        const fit = positions?.viewerFit;
-        const box = positions?.bounds;
+        const padding = positions?.viewerFit?.padding;
         const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
             snapshot: imported.snapshot,
             ...(annotations.length === 0 ? {} : { annotations }),
             path: (kind, column) => held.path(kind, column),
-            // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
-            format: format === "json" && dialect !== null ? dialect : format,
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
-            ...(fit === undefined || box === null || box === undefined
-                ? {}
-                : {
-                      positionFit: {
-                          padding: fit.padding,
-                          width: box.max[0] - box.min[0],
-                          height: box.max[1] - box.min[1],
-                          center: [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2],
-                          ...(positions === null ? {} : { coords: positions.coords }),
-                      },
-                  }),
+            ...(padding === undefined ? {} : { framingPadding: padding }),
         };
     }
 
@@ -1217,14 +1230,7 @@ export abstract class DataSource {
                     this.declareTime(declared);
                 }
 
-                const { nodes, edges } = toRecords(
-                    imported,
-                    // A load drawing the file's styles leaves the file's own style slots to the layers.
-                    this.#config.styles === "file"
-                        ? withoutStyleSlots(snapshot, columnsMapping(snapshot))
-                        : columnsMapping(snapshot),
-                    this,
-                );
+                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this, this.#config.styles);
                 yield* this.chunkData(nodes, edges);
             }
         };
@@ -1272,7 +1278,7 @@ export abstract class DataSource {
                 }
                 let loaded: Awaited<ReturnType<typeof loadFromSource>>;
                 try {
-                    loaded = await loadFromSource(source as string | GraphSource, params, options); // NOSONAR(S4325): picks the overload; tsc refuses the call without it
+                    loaded = await loadFromSource(source as string | GraphSource, params, options); // picks the overload; tsc refuses the call without it
                 } catch (error) {
                     throw toGraphtyError(error);
                 }

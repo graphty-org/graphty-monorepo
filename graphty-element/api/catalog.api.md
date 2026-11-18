@@ -3133,6 +3133,9 @@ export interface StructureValue {
 }
 
 // @public
+export const STYLE_FAMILIES: readonly StyleFamilyDescriptor[];
+
+// @public
 export interface StyleDocument {
     // (undocumented)
     layers: readonly LayerSpec[];
@@ -3159,6 +3162,34 @@ export type StyleDocumentRow = ({
     locked?: boolean;
     hidden?: boolean;
 };
+
+// @public
+export function styleFamily(id: StyleFamilyId): StyleFamilyDescriptor | undefined;
+
+// @public
+export interface StyleFamilyDescriptor {
+    readonly field?: string;
+    // (undocumented)
+    readonly id: StyleFamilyId;
+    readonly members: readonly StyleFamilyMember[];
+    readonly plainName: string;
+    readonly shared: readonly string[];
+    readonly target: "node" | "edge" | "label" | "graph";
+}
+
+// @public
+export type StyleFamilyId = "node.shape" | "node.fill" | "edge.line" | "label.look" | "node.groupOutline" | "graph.background";
+
+// @public
+export interface StyleFamilyMember {
+    readonly id: string;
+    readonly keeps?: readonly string[];
+    readonly owns: readonly string[];
+    readonly place?: ShaderPlace;
+    readonly plainName: string;
+    readonly shader?: string;
+    readonly value?: string;
+}
 
 // @public
 export interface SuggestedName {

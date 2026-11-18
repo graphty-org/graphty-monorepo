@@ -1392,13 +1392,14 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
               run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
 
-            # American spelling in the prose and comments of the files a pull request changes (tools/check-spelling.mjs,
-            # #671; .husky/pre-push runs it too). `node tools/check-spelling.mjs --fix <file>` rewrites a file.
-            - name: American spelling (changed files)
+            # American spelling in the prose and comments of the lines a pull request adds (tools/check-spelling.mjs,
+            # #671; .husky/pre-push runs it too). Spelling already on untouched lines never blocks.
+            # `node tools/check-spelling.mjs --fix <file>` rewrites a file.
+            - name: American spelling (added lines)
               if: github.event_name == 'pull_request'
               env:
                   BASE_REF: ${{ github.base_ref }}
-              run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r node tools/check-spelling.mjs
+              run: node tools/check-spelling.mjs --diff "origin/$BASE_REF"
 
             - name: Bundle size (graphty-element)
               if: steps.scope.outputs.bundle == 'true'

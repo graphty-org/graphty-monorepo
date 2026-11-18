@@ -1,6 +1,6 @@
 // node tools/check-spelling.test.mjs
 import assert from "node:assert/strict";
-import { fixFile, problems, SKIP } from "./check-spelling.mjs";
+import { addedLines, fixFile, problems, SKIP } from "./check-spelling.mjs";
 
 assert.equal(
     fixFile("a.md", "The colour of the centred neighbours was normalised.\n"),
@@ -42,4 +42,27 @@ const fine =
 assert.deepEqual(problems("a.md", fine), []);
 assert.deepEqual(problems("a.md", "ok\nthe colour\n"), [{ line: 2, words: ["colour"] }]);
 assert.ok(SKIP.test("pnpm-lock.yaml") && SKIP.test("graph-io/test/corpus/dot/root.gv") && !SKIP.test("design/x.md"));
+// --diff: only the lines a branch adds count, so a British word already on an untouched line passes
+const diff = [
+    "diff --git a/a.md b/a.md",
+    "--- a/a.md",
+    "+++ b/a.md",
+    "@@ -1,0 +2,2 @@",
+    "+the color",
+    "+the colour",
+    "@@ -5 +7 @@",
+    "-old",
+    "+new",
+    "diff --git a/gone.md b/gone.md",
+    "--- a/gone.md",
+    "+++ /dev/null",
+    "@@ -1 +0,0 @@",
+    "-x",
+    "",
+].join("\n");
+assert.deepEqual(addedLines(diff), new Map([["a.md", new Set([2, 3, 7])]]));
+const changed = "the colour\nthe color\nthe colour\n";
+const onAdded = (file, text) => problems(file, text).filter((p) => addedLines(diff).get(file).has(p.line));
+assert.deepEqual(onAdded("a.md", changed), [{ line: 3, words: ["colour"] }], "line 1 is untouched, line 3 is added");
+assert.deepEqual(onAdded("a.md", "the colour\nthe color\nthe color\n"), [], "untouched British spelling passes");
 console.log("check-spelling: ok");

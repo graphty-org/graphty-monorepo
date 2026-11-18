@@ -3,6 +3,8 @@
 //
 //   node tools/check-spelling.mjs [file...]        fail on a British spelling in these files (default: every tracked file)
 //   node tools/check-spelling.mjs --fix [file...]  rewrite them in American spelling instead
+//   node tools/check-spelling.mjs --diff <base>     fail only on the lines this branch adds since it left <base>
+//                                                   (git diff <base>...HEAD), so spelling already in a file never blocks
 //
 // It reads Markdown whole, and only the comments of code (TypeScript and JavaScript), CSS, WGSL,
 // YAML, shell and HTML; other files (JSON, plain text, data, fixtures, test outputs) are not read. Left alone, as names and data that
@@ -11,7 +13,7 @@
 // URLs, link targets and file names, GitHub Actions' cancelled(), the Graph Modelling Language (GML's name), event names ending -cancelled, aria-labelledby, and
 // the paths in SKIP (lockfiles, changelogs, transcripts, screenshots, fixtures and test corpora, and the
 // files that guard the owner).
-// Runs in CI's lint job and in .husky/pre-push on the files a branch changes.
+// Runs with --diff in CI's lint job and in .husky/pre-push, on the lines a branch adds.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -231,8 +233,8 @@ const DOUBLE_L = [
 /** @type {Array<[RegExp, string]>} */
 export const RULES = [
     ...OUR.map((w) => [new RegExp(w, "gi"), w.replace(/our$/, "or")]),
-    ...ISE_STEMS.map((s) => [new RegExp(`(?<=${s})is(?=e[sdr]?s?\\b|ing|ation|able|ability)`, "gi"), "iz"]),
-    ...DOUBLE_L.map((w) => [new RegExp(`(?<=${w})l(?=ed|ing|ers?\\b)`, "gi"), ""]),
+    ...ISE_STEMS.map((s) => [new RegExp(String.raw`(?<=${s})is(?=e[sdr]?s?\b|ing|ation|able|ability)`, "gi"), "iz"]),
+    ...DOUBLE_L.map((w) => [new RegExp(String.raw`(?<=${w})l(?=ed|ing|ers?\b)`, "gi"), ""]),
     [/(?<=analy|paraly|cataly)s(?=e[dr]?s?\b|e\b|ing)(?!es\b)/gi, "z"],
     [/catalogu(?=ed|ing)/gi, "catalog"],
     [/catalogue/gi, "catalog"],
@@ -274,7 +276,12 @@ export const RULES = [
     [/jewellery/gi, "jewelry"],
 ];
 
-/** The same text with the case of `like` (all capitals, a leading capital or as given). */
+/**
+ * The same text with the case of `like` (all capitals, a leading capital or as given).
+ * @param to - the replacement
+ * @param like - the text it replaces
+ * @returns `to` in the case of `like`
+ */
 function keepCase(to, like) {
     if (to === "") return to;
     if (like.length > 1 && like === like.toUpperCase()) return to.toUpperCase();
@@ -283,17 +290,25 @@ function keepCase(to, like) {
     return to;
 }
 
-/** `text` with every British spelling replaced by its American form. */
+/**
+ * `text` with every British spelling replaced by its American form.
+ * @param text - any text
+ * @returns the text in American spelling
+ */
 export function fix(text) {
     let out = text;
     for (const [re, to] of RULES) out = out.replace(re, (m) => keepCase(to, m));
     return out;
 }
 
-/** Every British spelling in `text`, as { index, word } with the whole word it sits in. */
+/**
+ * Every British spelling in `text`, with the whole word it sits in.
+ * @param text - any text
+ * @returns one { index, word } per British spelling
+ */
 export function find(text) {
     const hits = [];
-    for (const [re, to] of RULES) {
+    for (const [re] of RULES) {
         for (const m of text.matchAll(re)) {
             let s = m.index;
             let e = m.index + m[0].length;
@@ -307,17 +322,17 @@ export function find(text) {
 
 export const SKIP = new RegExp(
     [
-        "(^|/)pnpm-lock\\.yaml$",
-        "package-lock\\.json$",
+        String.raw`(^|/)pnpm-lock\.yaml$`,
+        String.raw`package-lock\.json$`,
         "(^|/)CHANGELOG[^/]*$",
-        "^\\.claudehistory/",
+        String.raw`^\.claudehistory/`,
         "^visual-baselines/",
         "^visual-review-approvals/",
         "^visual-review/",
         "^visual-fonts/",
         "^graphty-element/test/saved-format/",
-        "\\.storybook/vitest\\.setup\\.",
-        "^\\.claude/settings\\.json$",
+        String.raw`\.storybook/vitest\.setup\.`,
+        String.raw`^\.claude/settings\.json$`,
         "^patches/",
         "(^|/)fixtures?/",
         "__fixtures__/",
@@ -326,48 +341,57 @@ export const SKIP = new RegExp(
         "^githerd/test/replay/data/",
         "^tmp/",
         "^graphty-element/api/",
-        "^\\.github/workflows/(release|pr-title)\\.yml$",
-        "^tools/(check-test-integrity|test-quarantine)\\.mjs$",
-        "^compact-mantine/(design/figma-spec\\.md|tests/figma/|tests/harness/(figma|measure)\\.ts|src/theme/(tokens|colors|styles/size-scale)\\.ts)",
+        String.raw`^\.github/workflows/(release|pr-title)\.yml$`,
+        String.raw`^tools/(check-test-integrity|test-quarantine)\.mjs$`,
+        String.raw`^compact-mantine/(design/figma-spec\.md|tests/figma/|tests/harness/(figma|measure)\.ts|src/theme/(tokens|colors|styles/size-scale)\.ts)`,
         "^tools/check-spelling",
-        "^graphty-element/jsx\\.ts$", // generated from graphty-element.ts by scripts/generate-jsx-types.ts
+        String.raw`^graphty-element/jsx\.ts$`, // generated from graphty-element.ts by scripts/generate-jsx-types.ts
     ].join("|"),
 );
 const KEEP =
     /```[\s\S]*?```|@(?:param|arg|argument|property|prop|template|typeParam)\s+(?:\{(?:[^{}]|\{[^{}]*\})*\}\s*)?\[?[\w.$]+|@\w+\s+\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|`[^`\n]*`|"[^"\n]*"|\{@link[^}]*\}|https?:\/\/[^\s)>\]"'`]+|\]\([^)\s]+\)|\b[\w./-]+\.(?:md|tsx?|mjs|js|json|png|html|ya?ml)\b|\b\w*(?:[a-z][A-Z]|_)\w*\b|\b[A-Z0-9]{2,}[A-Za-z0-9]*\b|\b[\w-]+-cancelled\b|\bcancelled\(\)|Graph Modelling Language|[Ll]abelled[Bb]y/g;
 
-/** Like fix, but leaves code, quotes, names and links alone. */
+const MARK = String.fromCodePoint(0); // a character no text holds, around each kept piece
+
+/**
+ * Like fix, but leaves code, quotes, names and links alone.
+ * @param text - prose
+ * @returns the prose in American spelling
+ */
 export function fixProse(text) {
     const kept = [];
-    const masked = text.replace(KEEP, (m) => {
+    const masked = text.replaceAll(KEEP, (m) => {
         kept.push(m);
-        return `\u0000${kept.length - 1}\u0000`;
+        return `${MARK}${kept.length - 1}${MARK}`;
     });
-    return fix(masked).replace(/\u0000(\d+)\u0000/g, (_, i) => kept[Number(i)]);
+    return fix(masked).replaceAll(new RegExp(String.raw`${MARK}(\d+)${MARK}`, "g"), (_, i) => kept[Number(i)]);
 }
 
 let ts;
 function codeComments(file, text) {
     ts ??= createRequire(import.meta.url)("typescript");
-    const kind = /\.[tj]sx$/.test(file)
-        ? ts.ScriptKind.TSX
-        : /\.[mc]?js$/.test(file)
-          ? ts.ScriptKind.JS
-          : ts.ScriptKind.TS;
+    let kind = ts.ScriptKind.TS;
+    if (/\.[tj]sx$/.test(file)) kind = ts.ScriptKind.TSX;
+    else if (/\.[mc]?js$/.test(file)) kind = ts.ScriptKind.JS;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, kind);
     const seen = new Map();
     const add = (rs) => rs?.forEach((r) => seen.set(r.pos, r.end));
     const visit = (n) => {
         add(ts.getLeadingCommentRanges(text, n.pos));
         add(ts.getTrailingCommentRanges(text, n.end));
-        n.getChildren(sf).forEach(visit);
+        for (const c of n.getChildren(sf)) visit(c);
     };
     visit(sf);
     return [...seen].sort((a, b) => a[0] - b[0]);
 }
 const spans = (text, re) => [...text.matchAll(re)].map((m) => [m.index, m.index + m[0].length]);
 
-/** The [start, end) ranges of `text` that are prose or comments, or null for a file this check does not read. */
+/**
+ * The ranges of `text` that are prose or comments.
+ * @param file - the file's path, which picks its kind
+ * @param text - the file's text
+ * @returns [start, end) pairs, or null for a file this check does not read
+ */
 export function proseRanges(file, text) {
     if (/\.(md|mdx|rst)$/i.test(file)) return [[0, text.length]];
     if (/\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/.test(file)) return codeComments(file, text);
@@ -382,7 +406,12 @@ export function proseRanges(file, text) {
     return null;
 }
 
-/** `text` with its prose and comments in American spelling. */
+/**
+ * `text` with its prose and comments in American spelling.
+ * @param file - the file's path, which picks its kind
+ * @param text - the file's text
+ * @returns the rewritten text
+ */
 export function fixFile(file, text) {
     let out = "";
     let at = 0;
@@ -394,7 +423,12 @@ export function fixFile(file, text) {
     return out + text.slice(at);
 }
 
-/** Each line of `text` whose prose or comments hold a British spelling, as { line, words }. */
+/**
+ * Each line of `text` whose prose or comments hold a British spelling.
+ * @param file - the file's path, which picks its kind
+ * @param text - the file's text
+ * @returns one { line, words } per line, numbered from 1
+ */
 export function problems(file, text) {
     const fixed = fixFile(file, text);
     if (fixed === text) return [];
@@ -403,8 +437,49 @@ export function problems(file, text) {
     return a.flatMap((l, i) => (l === b[i] ? [] : [{ line: i + 1, words: [...new Set(find(l).map((h) => h.word))] }]));
 }
 
+/**
+ * The lines each file gains in a diff.
+ * @param diff - the output of `git diff --unified=0`
+ * @returns Map from each file to the set of its new-side line numbers that the diff adds
+ */
+export function addedLines(diff) {
+    const out = new Map();
+    let lines = null;
+    for (const l of diff.split("\n")) {
+        if (l.startsWith("+++ ")) {
+            lines = l === "+++ /dev/null" ? null : new Set();
+            if (lines) out.set(l.replace(/^\+\+\+ b\//, ""), lines);
+            continue;
+        }
+        const h = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(l);
+        if (h && lines) for (let i = 0; i < Number(h[2] ?? 1); i++) lines.add(Number(h[1]) + i);
+    }
+    return out;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const args = process.argv.slice(2);
+    if (args[0] === "--diff") {
+        if (!args[1]) throw new Error("--diff needs a base ref");
+        const diff = execFileSync(
+            "git",
+            ["diff", "--unified=0", "--no-color", "--no-ext-diff", "--diff-filter=d", `${args[1]}...HEAD`],
+            { maxBuffer: 1 << 28 },
+        ).toString();
+        let bad = 0;
+        for (const [f, lines] of addedLines(diff)) {
+            if (SKIP.test(f)) continue;
+            const text = readFileSync(f, "utf8");
+            if (text.includes("\u0000")) continue; // binary
+            for (const p of problems(f, text).filter((q) => lines.has(q.line))) {
+                bad++;
+                console.error(
+                    `${f}:${p.line}: British spelling ${p.words.join(", ")} on a line this branch adds (American English)`,
+                );
+            }
+        }
+        process.exit(bad ? 1 : 0);
+    }
     const write = args[0] === "--fix";
     const named = write ? args.slice(1) : args;
     const files = (

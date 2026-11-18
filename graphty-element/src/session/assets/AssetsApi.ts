@@ -1212,6 +1212,20 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     };
 
     /**
+     * Hold a sample as pending until it settles, so every caller shares the one read.
+     * @param id - An id under `asset:sample/`.
+     * @param settled - Its settling record.
+     * @returns `settled`.
+     */
+    const holdSample = (id: AssetId, settled: Promise<AssetRecord>): Promise<AssetRecord> => {
+        samples.set(id, {
+            record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
+            settled,
+        });
+        return settled;
+    };
+
+    /**
      * Read one of the element's samples from the package once, shared by every caller.
      * @param id - An id under `asset:sample/`.
      * @returns Its settled record.
@@ -1258,11 +1272,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 throw error;
             }
         })();
-        samples.set(id, {
-            record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
-            settled,
-        });
-        return settled;
+        return holdSample(id, settled);
     };
 
     /**
@@ -2434,11 +2444,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
                 return given;
             })();
-            samples.set(id, {
-                record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
-                settled,
-            });
-            return settled;
+            return holdSample(id, settled);
         },
 
         bindUrl(ref, id) {

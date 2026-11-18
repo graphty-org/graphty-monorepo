@@ -32,7 +32,7 @@
 //   node tools/test-rotation.mjs llm record --state <record.json> --selection <selection.json> --report <vitest.json> --out <record.json>
 //       env SHA, RUN_URL; run from graphty-element (the report's paths are relative to it)
 //   node tools/test-rotation.mjs t4 record --state <record.json> --selection <selection.json> --report <test-results dir> --out <record.json>
-//       env SHA, RUN_URL; reads the JUnit reports every vitest run writes in CI (vitest.ci-junit.mjs)
+//       env SHA, RUN_URL, COMPLETE (false: a red step skipped later tests); reads the JUnit reports every vitest run writes in CI (vitest.ci-junit.mjs)
 //   node --test tools/test-rotation.test.mjs
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
@@ -155,7 +155,8 @@ export function caseResults(report, root = process.cwd()) {
 
 /**
  * Each GPU test file the JUnit reports of a directory ran (vitest.ci-junit.mjs's junit-<package>-...xml): failed
- * when any of its tests failed, or a hook or its loading did. A file whose every test was skipped is left out.
+ * when any of its tests failed, or a hook or its loading did, in either pass (the no-subgroups pass names its files
+ * no-subgroups/<file>: webgpu-graph-algorithms/vitest.config.ts). A file whose every test was skipped is left out.
  * @param dir the test-results directory
  * @returns `[{ name, status }]`, names repo-relative
  */
@@ -163,9 +164,13 @@ export function fileResults(dir) {
     const into = { files: new Map(), failures: [] };
     const names = existsSync(dir) ? readdirSync(dir).filter((n) => n.startsWith(`junit-${GPU_PACKAGE}-`)) : [];
     for (const n of names) parseJunit(readFileSync(join(dir, n), "utf8"), GPU_PACKAGE, into);
-    return [...into.files]
-        .filter(([, c]) => c.passed + c.failed > 0)
-        .map(([name, c]) => ({ name, status: c.failed ? "failed" : "passed" }));
+    const status = new Map();
+    for (const [name, c] of into.files) {
+        if (c.passed + c.failed === 0) continue;
+        const file = name.replace(`${GPU_PACKAGE}/no-subgroups/`, `${GPU_PACKAGE}/`);
+        if (status.get(file) !== "failed") status.set(file, c.failed ? "failed" : "passed");
+    }
+    return [...status].map(([name, s]) => ({ name, status: s }));
 }
 
 /**
@@ -176,9 +181,11 @@ export function fileResults(dir) {
  * @param o.results this run's caseResults or fileResults
  * @param o.sha the run's commit
  * @param o.run the run's URL
+ * @param o.complete false when some of the run's tests never ran (an earlier red step skipped them): a full run then
+ *   does not count as the last full run, so the next run executes every test again
  * @returns the new record
  */
-export function nextState({ prev, selection, results, sha, run }) {
+export function nextState({ prev, selection, results, sha, run, complete = true }) {
     const ran = new Set(results.map((r) => r.name));
     const failed = [
         ...(prev?.failed ?? []).filter((f) => !ran.has(f.name)),
@@ -188,7 +195,7 @@ export function nextState({ prev, selection, results, sha, run }) {
         sha,
         slice: selection.slice,
         slices: selection.slices,
-        lastFull: selection.full ? sha : (prev?.lastFull ?? ""),
+        lastFull: selection.full && complete ? sha : (prev?.lastFull ?? ""),
         failed,
     };
 }
@@ -296,7 +303,14 @@ export function main(laneName, argv) {
     if (command === "record") {
         const selection = readJson(o.selection);
         const results = laneName === "t4" ? fileResults(o.report) : caseResults(readJson(o.report) ?? {});
-        const next = nextState({ prev: state, selection, results, sha: process.env.SHA, run: process.env.RUN_URL });
+        const next = nextState({
+            prev: state,
+            selection,
+            results,
+            sha: process.env.SHA,
+            run: process.env.RUN_URL,
+            complete: process.env.COMPLETE !== "false",
+        });
         writeFileSync(o.out, JSON.stringify(next));
         const failed = results.filter((r) => r.status === "failed").length;
         summary([

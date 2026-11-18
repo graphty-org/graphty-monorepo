@@ -415,6 +415,8 @@ jobs:
               working-directory: .
               env:
                   SHA: ${{ inputs.ref || github.sha }}
+                  # a red step skipped the sliced steps after it: a full run that stopped there is not the last full run
+                  COMPLETE: ${{ job.status == 'success' }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
                   mkdir -p tmp/t4-record

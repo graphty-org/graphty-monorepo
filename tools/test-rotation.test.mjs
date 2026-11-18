@@ -129,6 +129,18 @@ describe("nextState", () => {
             "c",
         );
     });
+
+    it("keeps the last full run when a full run stopped before all its tests ran", () => {
+        const next = nextState({
+            prev: state,
+            selection: { ...selection, full: true },
+            results: [],
+            sha: "c",
+            run: "r",
+            complete: false,
+        });
+        assert.equal(next.lastFull, state.lastFull);
+    });
 });
 
 describe("release.yml's LLM job", () => {
@@ -300,7 +312,16 @@ describe("the T4 lane", () => {
                     '<testcase classname="test/a.test.ts" name="x"/>' +
                         '<testcase classname="test/b.test.ts" name="y"><failure message="no"/></testcase>' +
                         '<testcase classname="test/b.test.ts" name="z"/>' +
-                        '<testcase classname="test/c.test.ts" name="s"><skipped/></testcase>',
+                        '<testcase classname="test/c.test.ts" name="s"><skipped/></testcase>' +
+                        '<testcase classname="test/d.test.ts" name="w"/>',
+                ),
+            );
+            // the no-subgroups pass names its files no-subgroups/<file>; a failure in either pass fails the file
+            writeFileSync(
+                join(dir, "junit-webgpu-graph-algorithms-run2-13.xml"),
+                xml(
+                    '<testcase classname="no-subgroups/test/a.test.ts" name="x"><failure message="no"/></testcase>' +
+                        '<testcase classname="no-subgroups/test/d.test.ts" name="w"/>',
                 ),
             );
             writeFileSync(
@@ -308,8 +329,9 @@ describe("the T4 lane", () => {
                 xml('<testcase classname="test/g.test.ts" name="g"/>'),
             );
             assert.deepEqual(fileResults(dir), [
-                { name: "webgpu-graph-algorithms/test/a.test.ts", status: "passed" },
+                { name: "webgpu-graph-algorithms/test/a.test.ts", status: "failed" },
                 { name: "webgpu-graph-algorithms/test/b.test.ts", status: "failed" },
+                { name: "webgpu-graph-algorithms/test/d.test.ts", status: "passed" },
             ]);
         } finally {
             rmSync(dir, { recursive: true, force: true });
@@ -351,6 +373,7 @@ describe("gpu.yml's T4 job", () => {
         assert.match(record.if, /!inputs\.bisect_point/, "a bisect point keeps no record");
         assert.match(record.if, /!contains\(github\.workflow_ref, '\/gpu\.yml@'\)/, "a run by hand keeps no record");
         assert.match(record.if, /steps\.t4-node\.outcome == 'success' \|\| steps\.t4-node\.outcome == 'failure'/);
+        assert.equal(record.env.COMPLETE, "${{ job.status == 'success' }}");
     });
 
     it("finds the record, picks the slice and records each run for the next, as the steps run on a runner", () => {
@@ -424,7 +447,9 @@ describe("gpu.yml's T4 job", () => {
                 '<testsuites><testcase classname="test/limits/layout-1m.test.ts" name="lays out"><failure message="x"/></testcase>' +
                     '<testcase classname="test/index.test.ts" name="exports"/></testsuites>',
             );
-            run(record, { SHA: head, RUN_URL: "https://run/1" });
+            run(record, { SHA: head, RUN_URL: "https://run/1", COMPLETE: "false" });
+            assert.equal(JSON.parse(readFileSync(join(ws, "tmp/t4-record/state.json"), "utf8")).lastFull, "");
+            run(record, { SHA: head, RUN_URL: "https://run/1", COMPLETE: "true" });
             const recorded = JSON.parse(readFileSync(join(ws, "tmp/t4-record/state.json"), "utf8"));
             assert.deepEqual(recorded, {
                 sha: head,

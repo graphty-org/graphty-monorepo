@@ -88,6 +88,7 @@ describe("the text and plain binary formats", () => {
             const fact = await refusalOf(one(id, name));
             assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED", id);
             assert.strictEqual(fact.params.format, format, id);
+            assert.strictEqual(fact.params.kind, "splat", id);
         }
     });
 
@@ -103,6 +104,7 @@ describe("the text and plain binary formats", () => {
         assert.instanceOf(error, ModelError);
         assert.deepInclude(error.fact, { code: "E_MODEL_FORMAT_UNSUPPORTED" });
         assert.strictEqual(error.fact.params.format, "splat-ply");
+        assert.strictEqual(error.fact.params.kind, "splat");
     });
 
     it("refuse a glTF that requires Gaussian splatting", async () => {
@@ -114,8 +116,29 @@ describe("the text and plain binary formats", () => {
             });
             const fact = await refusalOf(text("splats.gltf", gltf));
             assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED", extension);
-            assert.deepInclude(fact.params, { format: "gltf", extension });
+            assert.deepInclude(fact.params, { format: "gltf", extension, kind: "splat" });
         }
+    });
+
+    it("say a glTF is a splat even when it also requires another extension it does not read", async () => {
+        const gltf = JSON.stringify({
+            asset: { version: "2.0" },
+            extensionsUsed: ["EXT_unknown", "KHR_gaussian_splatting"],
+            extensionsRequired: ["EXT_unknown", "KHR_gaussian_splatting"],
+        });
+        const fact = await refusalOf(text("splats.gltf", gltf));
+        assert.deepInclude(fact.params, { extension: "KHR_gaussian_splatting", kind: "splat" });
+    });
+
+    it("say nothing of splats for a glTF that requires an extension it does not read", async () => {
+        const gltf = JSON.stringify({
+            asset: { version: "2.0" },
+            extensionsUsed: ["EXT_unknown"],
+            extensionsRequired: ["EXT_unknown"],
+        });
+        const fact = await refusalOf(text("other.gltf", gltf));
+        assert.deepInclude(fact.params, { format: "gltf", extension: "EXT_unknown" });
+        assert.notProperty(fact.params, "kind");
     });
 
     it("refuse a glTF that uses Gaussian splatting without requiring it", async () => {
@@ -138,7 +161,7 @@ describe("the text and plain binary formats", () => {
         });
         const fact = await refusalOf(text("splats.gltf", gltf));
         assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED");
-        assert.deepInclude(fact.params, { format: "gltf", extension: splat });
+        assert.deepInclude(fact.params, { format: "gltf", extension: splat, kind: "splat" });
     });
 
     it("upgrade glTF 1.0 and refuse a GLB version 1 cut short", async () => {

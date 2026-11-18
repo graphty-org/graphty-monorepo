@@ -13,7 +13,7 @@ import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { allowed } from "../decoders/config.js";
-import type { BuiltInModelFormat, ModelFormat } from "../files/detect.js";
+import { type BuiltInModelFormat, type ModelFormat, splatKind } from "../files/detect.js";
 import { asciiFbxPictures } from "../files/fbxChecks.js";
 import { IGNORED_EXTENSIONS, readGlb, withoutGltfPictures } from "../files/gltfChecks.js";
 import { checkModelFiles, fetchModelSet, readModelFiles } from "../files/intake.js";
@@ -681,7 +681,7 @@ export async function loadModelFiles(
     options: LoadModelFilesOptions = {},
 ): Promise<AssetContainer> {
     if (!hasReader(format)) {
-        throw new ModelError("E_MODEL_FORMAT_UNSUPPORTED", { format, fileName: main });
+        throw new ModelError("E_MODEL_FORMAT_UNSUPPORTED", { format, fileName: main, ...splatKind(format) });
     }
 
     const skipped = options.skipped ?? [];

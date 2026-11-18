@@ -140,6 +140,22 @@ function headText(bytes: Uint8Array): string {
     return text;
 }
 
+/**
+ * The formats that hold Gaussian splats: recognized, never loaded. Their refusal, and that of a
+ * glTF using Gaussian splatting, carries `kind: "splat"` so a caller need not keep this list.
+ */
+const SPLAT_FORMATS: ReadonlySet<string> = new Set(["splat", "spz", "sog", "splat-ply"]);
+
+/**
+ * The `kind` param of a format's refusal: `{ kind: "splat" }` for Gaussian splats, else nothing.
+ * @param format - The format refused.
+ * @param splatExtension - The Gaussian splatting extension a glTF uses, if any.
+ * @returns The param to spread into the refusal.
+ */
+export function splatKind(format: string, splatExtension?: string): { kind?: "splat" } {
+    return splatExtension !== undefined || SPLAT_FORMATS.has(format) ? { kind: "splat" } : {};
+}
+
 /** A glTF that uses Gaussian splatting (`KHR_gaussian_splatting` and its compressions) is not loaded. */
 const SPLAT_EXTENSION = /"(KHR_gaussian_splatting[\w-]*)"/;
 

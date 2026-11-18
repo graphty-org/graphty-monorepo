@@ -53,8 +53,8 @@ latitude and longitude. Early: tiles, a globe and map sources are on the way. [V
 #### babylonjs-models
 
 Load 3D models into [Babylon.js](https://www.babylonjs.com/) scenes from a URL, files, a folder, a zip or bytes:
-glTF and GLB with Draco, meshopt and KTX2, OBJ with MTL, STL, PLY and `.babylon`, every file checked
-first and nothing fetched from a CDN. [View package](./babylonjs-models)
+glTF and GLB with Draco, meshopt and KTX2, OBJ with MTL, STL, PLY, `.babylon`, FBX, USD and USDZ, and BVH
+motion capture, every file checked first and nothing fetched from a CDN. [View package](./babylonjs-models)
 
 ### Graph computation
 

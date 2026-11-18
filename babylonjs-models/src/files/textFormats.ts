@@ -650,7 +650,7 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
     const bytes = files.get(path) as Uint8Array;
     const header = asRefusal(() => readPlyHeader(bytes));
     if (isSplatPly(header)) {
-        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "splat-ply", fileName: cut(path) });
+        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "splat-ply", fileName: cut(path), kind: "splat" });
     }
 
     const kind = plyGeometryKind(header);

@@ -14,6 +14,7 @@ import {
     isZip,
     type ModelFormat,
     splatExtensionOf,
+    splatKind,
 } from "./detect.js";
 import { findFbxParts, scanFbx } from "./fbxChecks.js";
 import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks.js";
@@ -1432,6 +1433,7 @@ async function checkFileSet(
             format: splat === undefined ? main.format : "gltf",
             fileName: cut(main.path),
             ...(splat === undefined ? {} : { extension: cut(splat) }),
+            ...splatKind(main.format, splat),
         });
     }
 

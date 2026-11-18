@@ -23,8 +23,8 @@ inside the package.
 
 Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY, a glTF or GLB that uses
 `KHR_gaussian_splatting`, required or not) are recognized and refused with
-`E_MODEL_FORMAT_UNSUPPORTED`: `params.format` is `splat`, `spz`, `sog` or `splat-ply`, and a glTF
-names the extension in `params.extension`. `detectModelFormat` answers `supported: false` for such a
+`E_MODEL_FORMAT_UNSUPPORTED`: `params.kind` is `"splat"` for every one of them, `params.format` is
+`splat`, `spz`, `sog` or `splat-ply`, and a glTF names the extension in `params.extension`. `detectModelFormat` answers `supported: false` for such a
 glTF or GLB when its first 4 KB name the extension.
 
 ```bash

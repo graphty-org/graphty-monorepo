@@ -9,6 +9,7 @@ import type { Material } from "@babylonjs/core/Materials/material.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
+import type { ProceduralTexture } from "@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture.js";
 
 import { WITHOUT_PICTURE_EXTRA } from "../files/gltfChecks.js";
 import { setKeyOf } from "../files/references.js";
@@ -103,7 +104,8 @@ const USD_SLOTS = [
 /**
  * After a USD load: take every white stand-in for a picture drawn without off every slot it
  * fills, so the part draws in its plain look. Babylon names a picture's texture by its file name,
- * and a picture it had to scale or bias first is a new 1 x 1 texture (the stand-in's size). A part
+ * and a picture it had to scale or bias first is a new procedural texture drawn from it, which
+ * holds the picture among its inputs. Any other texture, a real 1 x 1 map included, is kept. A part
  * that lost its color picture is marked; one that lost its glow picture stops glowing (the glow's
  * color was the picture's scale, white for the SoC-ElephantWithMonochord's emission map).
  * @param container - The loaded model.
@@ -118,13 +120,12 @@ export function takeOffUsdPictures(container: AssetContainer, gone: readonly str
     }
 
     const standIns = new Set(container.textures.filter((t) => names.has(baseName(t.name))));
-    const isStandIn = (texture: BaseTexture): boolean => {
-        if (standIns.has(texture)) {
-            return true;
-        }
-        const size = texture.getSize();
-        return !("url" in texture && texture.url) && standIns.size > 0 && size.width === 1 && size.height === 1;
-    };
+    // A scaled or biased picture is a texture processor's output; its inputs are on `_textures`.
+    const isStandIn = (texture: BaseTexture): boolean =>
+        standIns.has(texture) ||
+        Object.values((texture as Partial<Pick<ProceduralTexture, "_textures">>)._textures ?? {}).some((input) =>
+            standIns.has(input as BaseTexture),
+        );
     for (const material of container.materials) {
         if (!(material instanceof PBRMaterial)) {
             continue;

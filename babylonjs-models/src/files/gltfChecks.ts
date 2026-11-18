@@ -363,18 +363,19 @@ function checkExtensions(json: Record<string, unknown>): string[] {
     const required = Array.isArray(json.extensionsRequired)
         ? json.extensionsRequired.filter((e) => typeof e === "string")
         : [];
+    // Gaussian splat files list KHR_gaussian_splatting only in extensionsUsed (it is optional: a
+    // reader without it draws the splat centers as points), so a splat is refused on use, and
+    // before any other extension so its refusal always says it is a splat.
+    const used = Array.isArray(json.extensionsUsed) ? json.extensionsUsed.filter((e) => typeof e === "string") : [];
+    const splat = [...required, ...used].find((e) => e.startsWith("KHR_gaussian_splatting"));
+    if (splat !== undefined) {
+        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", extension: cut(splat), kind: "splat" });
+    }
+
     for (const extension of required) {
         if (!READABLE_EXTENSIONS.has(extension) && !IGNORED_EXTENSIONS.has(extension)) {
             refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", extension: cut(extension) });
         }
-    }
-
-    // Gaussian splat files list KHR_gaussian_splatting only in extensionsUsed (it is optional: a
-    // reader without it draws the splat centers as points), so a splat is refused on use.
-    const used = Array.isArray(json.extensionsUsed) ? json.extensionsUsed.filter((e) => typeof e === "string") : [];
-    const splat = used.find((e) => e.startsWith("KHR_gaussian_splatting"));
-    if (splat !== undefined) {
-        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", extension: cut(splat) });
     }
 
     return required;

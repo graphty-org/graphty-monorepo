@@ -798,6 +798,18 @@
         "warnings": ["W_MODEL_HAS_ANIMATIONS"],
         "refused": null,
         "upload": "files",
+        "id": "fbx-skinned-two-parts",
+        "format": "fbx",
+        "encoding": "binary",
+        "color": "blue",
+        "what": "binary FBX of two cubes skinned to one bone, each with its own bind matrix, one clip 'turn'",
+        "files": ["cube.fbx"]
+    },
+    {
+        "geometry": "mesh",
+        "warnings": ["W_MODEL_HAS_ANIMATIONS"],
+        "refused": null,
+        "upload": "files",
         "id": "fbx-morph-animated",
         "format": "fbx",
         "encoding": "binary",

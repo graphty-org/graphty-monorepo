@@ -1634,6 +1634,11 @@ async function main(): Promise<void> {
         "binary FBX skinned to one bone, whose one clip, 'turn', turns the bone about Z",
     );
     fbx(
+        "fbx-skinned-two-parts",
+        { color: BLUE, clip: "turn", secondPart: true },
+        "binary FBX of two cubes skinned to one bone, each with its own bind matrix, one clip 'turn'",
+    );
+    fbx(
         "fbx-morph-animated",
         { color: BLUE, clip: "grow" },
         "binary FBX whose one clip, 'grow', moves a blend shape channel from 0 to 100%",

@@ -295,7 +295,10 @@ function mapBones(parts: readonly AnimatedPart[], morphs: ReadonlyMap<AnimatedPa
 
         const { skeleton } = part.mesh;
         if (skeleton !== null && part.local.matricesIndices !== null) {
-            let offset = skeletons.get(skeleton);
+            // A skeleton that places its skin by each mesh's own pose matrix (FBX's
+            // needInitialSkinMatrix) gives each mesh matrices of its own: shared, the last mesh's
+            // overwrote the others', and ArcherRi01.fbx's body was drawn lying beside its bow.
+            let offset = skeleton.needInitialSkinMatrix ? undefined : skeletons.get(skeleton);
             if (offset === undefined) {
                 offset = count;
                 skeletons.set(skeleton, offset);

@@ -252,4 +252,44 @@ describe("model animation", () => {
         assert.isAbove(everyFrameAnimationsOn(element.graph.scene), 0, "a playing model draws every frame");
         assert.isAbove(await framesUntilMoved(element, moving), 0, "the picture moves while it plays");
     });
+
+    it("draws an FBX file's two skinned parts apart when its clip holds its first moment (ArcherRi01.fbx)", async () => {
+        const element = await mount();
+        const record = await element.session.assets.add({ files: await filesOf("fbx-skinned-two-parts") });
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        // Two cubes side by side, each skinned to the one bone with its own bind matrix: drawn
+        // still or at the clip's first moment, they stand apart, two runs of drawn columns.
+        for (const style of [{}, { "node.modelAnimation": "turn", "node.modelAnimationOffset": 0 }]) {
+            const picture = await element.modelThumbnail(record.id, { size: 96, style });
+            assert.strictEqual(await drawnColumnRuns(picture), 2, JSON.stringify(style));
+        }
+    });
 });
+
+/**
+ * How many runs of columns hold a drawn pixel: one for each part that stands apart from the others.
+ * @param url - The thumbnail.
+ * @returns The runs.
+ */
+async function drawnColumnRuns(url: string): Promise<number> {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    [canvas.width, canvas.height] = [image.width, image.height];
+    const context = canvas.getContext("2d");
+    assert.isNotNull(context);
+    context.drawImage(image, 0, 0);
+    const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let runs = 0;
+    let inRun = false;
+    for (let x = 0; x < width; x++) {
+        let drawn = false;
+        for (let y = 0; y < height && !drawn; y++) {
+            drawn = data[(y * width + x) * 4 + 3] > 0;
+        }
+        runs += drawn && !inRun ? 1 : 0;
+        inRun = drawn;
+    }
+    return runs;
+}

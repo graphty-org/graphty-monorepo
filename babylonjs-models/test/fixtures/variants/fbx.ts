@@ -60,6 +60,11 @@ export interface FbxCube {
     readonly vertexColors?: readonly [number, number, number];
     /** A clip: "spin" turns the cube, "turn" bends it by its one bone, "grow" pushes its faces out. */
     readonly clip?: "spin" | "turn" | "grow";
+    /**
+     * With clip "turn": a second cube, 3 to the right, skinned to the same bone, as a character's
+     * body and the bow in its hand are. Each mesh has its own bind matrix.
+     */
+    readonly secondPart?: boolean;
 }
 
 /**
@@ -299,7 +304,7 @@ export function fbxCube(cube: FbxCube, positions: readonly number[], uvs: readon
                         [
                             n("Type", [S("BindPose")]),
                             n("Version", [I(100)]),
-                            n("NbPoseNodes", [I(2)]),
+                            n("NbPoseNodes", [I(cube.secondPart === true ? 3 : 2)]),
                             n("PoseNode", [], [n("Node", [L(BONE)]), n("Matrix", [["d", identity]])]),
                             n("PoseNode", [], [n("Node", [L(MODEL)]), n("Matrix", [["d", identity]])]),
                         ],
@@ -312,6 +317,50 @@ export function fbxCube(cube: FbxCube, positions: readonly number[], uvs: readon
                     n("C", [S("OO"), L(CLUSTER), L(SKIN)]),
                     n("C", [S("OO"), L(BONE), L(CLUSTER)]),
                 );
+                if (cube.secondPart === true) {
+                    const [MODEL2, GEOMETRY2, SKIN2, CLUSTER2] = [110n, 210n, 1110n, 1210n];
+                    const moved = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3, 0, 0, 1];
+                    const geometry = objects.find((o) => o.name === "Geometry") as FbxNode;
+                    objects.push(
+                        n("Geometry", [L(GEOMETRY2), objectName("Second", "Geometry"), S("Mesh")], geometry.children),
+                        n(
+                            "Model",
+                            [L(MODEL2), objectName("Second", "Model"), S("Mesh")],
+                            [
+                                n("Version", [I(232)]),
+                                props([[S("Lcl Translation"), S("Lcl Translation"), S(""), S("A"), D(3), D(0), D(0)]]),
+                            ],
+                        ),
+                        n(
+                            "Deformer",
+                            [L(SKIN2), objectName("Skin2", "Deformer"), S("Skin")],
+                            [n("Version", [I(101)]), n("Link_DeformAcuracy", [D(50)])],
+                        ),
+                        n(
+                            "Deformer",
+                            [L(CLUSTER2), objectName("Cluster2", "SubDeformer"), S("Cluster")],
+                            [
+                                n("Version", [I(100)]),
+                                n("Indexes", [["i", Array.from({ length: 24 }, (_, i) => i)]]),
+                                n("Weights", [["d", Array.from({ length: 24 }, () => 1)]]),
+                                n("Transform", [["d", moved]]),
+                                n("TransformLink", [["d", identity]]),
+                            ],
+                        ),
+                    );
+                    const pose = objects.find((o) => o.name === "Pose") as FbxNode;
+                    (pose.children as FbxNode[]).push(
+                        n("PoseNode", [], [n("Node", [L(MODEL2)]), n("Matrix", [["d", moved]])]),
+                    );
+                    connections.push(
+                        n("C", [S("OO"), L(MODEL2), L(0)]),
+                        n("C", [S("OO"), L(GEOMETRY2), L(MODEL2)]),
+                        n("C", [S("OO"), L(MATERIAL), L(MODEL2)]),
+                        n("C", [S("OO"), L(SKIN2), L(GEOMETRY2)]),
+                        n("C", [S("OO"), L(CLUSTER2), L(SKIN2)]),
+                        n("C", [S("OO"), L(BONE), L(CLUSTER2)]),
+                    );
+                }
             }
         }
     }

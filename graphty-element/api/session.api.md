@@ -989,7 +989,7 @@ export const DEFAULT_SCOPE_SAMPLE = 10000;
 export const DEFAULT_SELECTION_CAP = 5000;
 
 // @public
-export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
+export type DefaultableLimits = Limits;
 
 // @public @deprecated
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
@@ -1655,6 +1655,7 @@ export interface GraphSession {
     acceleration: AccelerationPolicy;
     readonly annotations: SessionAnnotations;
     readonly assets: AssetsApi;
+    calibrate(options?: Pick<RunOptions, "signal">): Promise<Readonly<DefaultableLimits>>;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
     readonly capabilities: SessionCapabilities;
@@ -6148,7 +6149,7 @@ export interface SessionAnnotations {
 export type SessionAttributes = Readonly<Record<string, unknown>>;
 
 // @public
-export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
+export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "calibration"> & {
     readonly limits: Readonly<DefaultableLimits>;
 };
 

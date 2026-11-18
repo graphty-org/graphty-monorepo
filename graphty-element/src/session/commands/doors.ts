@@ -992,6 +992,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     project: READ,
     transaction: HISTORY,
     estimate: READ,
+    // Measures this machine for cost estimates; changes nothing a project file saves.
+    calibrate: READ,
     recommendLayout: READ,
     plan: READ,
     on: LISTEN,

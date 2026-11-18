@@ -808,6 +808,7 @@ export const READ_ONLY: readonly string[] = [
     "GraphContext.isRunning",
     "GraphContext.needsRayUpdate",
     "GraphContext.setRunning",
+    "GraphSession.calibrate",
     "GraphSession.estimate",
     "GraphSession.recommendLayout",
     "SessionLayout.locationColumns",

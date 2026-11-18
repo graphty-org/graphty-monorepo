@@ -22,6 +22,7 @@
         "./src/sources/github/index.ts",
         "./src/sources/s3/index.ts",
         "./src/sources/zenodo/index.ts",
+        "./src/sources/figshare/index.ts",
         "./src/sources/gremlin/index.ts",
         "./src/styles/index.ts",
         "./src/positions/index.ts",

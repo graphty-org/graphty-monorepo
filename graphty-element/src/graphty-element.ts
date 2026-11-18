@@ -385,7 +385,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const { session } = document.getElementById("g");
      *   await session.visibility.set({ kind: "degree", min: 3 });
@@ -541,7 +541,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   const run = g.run("betweenness");
@@ -570,7 +570,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   await g.select({ nodes: [1, 2, 3] });
@@ -4598,6 +4598,24 @@ export class Graphty extends LitElement {
      */
     cancelAnimationCapture(): boolean {
         return this.#graph.cancelAnimationCapture();
+    }
+
+    /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. Pair it with a long `duration` to record until
+     * the reader stops.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * const recording = el.captureAnimation({ duration: 300_000, cameraMode: "stationary", download: true });
+     * stopButton.onclick = () => el.stopAnimationCapture();
+     * await recording; // the video so far, downloaded
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.#graph.stopAnimationCapture();
     }
 
     /**

@@ -989,7 +989,7 @@ export const DEFAULT_SCOPE_SAMPLE = 10000;
 export const DEFAULT_SELECTION_CAP = 5000;
 
 // @public
-export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
+export type DefaultableLimits = Limits;
 
 // @public @deprecated
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
@@ -1655,6 +1655,7 @@ export interface GraphSession {
     acceleration: AccelerationPolicy;
     readonly annotations: SessionAnnotations;
     readonly assets: AssetsApi;
+    calibrate(options?: Pick<RunOptions, "signal">): Promise<Readonly<DefaultableLimits>>;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
     readonly capabilities: SessionCapabilities;
@@ -1749,7 +1750,7 @@ export class GraphtyError extends Error {
 export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
-* set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+* set together. `details` name the fields.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -2646,12 +2647,6 @@ export type GraphtyWarningCode =
 * @experimental cosmograph
 */
 | "W_OBJECT_CAP"
-/**
-* A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
-* which draws no text. `params.channel` is the channel, `params.path` where in the layer the
-* size sits, and `params.value` the size.
-*/
-| "W_TEXT_TOO_SMALL"
 /**
 * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
 * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
@@ -3929,7 +3924,7 @@ export interface ModelSummary {
 }
 
 // @public
-export type MultipleTestingCorrection = "benjamini-hochberg";
+export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "holm";
 
 // @public
 export interface NamedBlob {
@@ -4255,6 +4250,12 @@ export interface OverRepresentedGroup {
     readonly group: string | number | boolean;
     readonly size: number;
     readonly values: readonly OverRepresentedValue[];
+}
+
+// @public
+export interface OverRepresentedOptions {
+    readonly columns?: readonly Path[];
+    readonly correction?: MultipleTestingCorrection;
 }
 
 // @public
@@ -6154,7 +6155,7 @@ export interface SessionAnnotations {
 export type SessionAttributes = Readonly<Record<string, unknown>>;
 
 // @public
-export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
+export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "calibration"> & {
     readonly limits: Readonly<DefaultableLimits>;
 };
 
@@ -6254,9 +6255,7 @@ export interface SessionDataApi {
         readonly scope?: "graph" | "visible";
     }): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
-    overRepresented(groupBy: Path, options?: {
-        readonly columns?: readonly Path[];
-    }): OverRepresentedValues;
+    overRepresented(groupBy: Path, options?: OverRepresentedOptions): OverRepresentedValues;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;

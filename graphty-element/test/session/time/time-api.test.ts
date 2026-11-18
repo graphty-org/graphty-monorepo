@@ -1,6 +1,6 @@
 import { assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession, type RunChange } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
@@ -733,6 +733,57 @@ describe("session.time: what a window move does to finished runs", () => {
         await session.time.stepBy(1);
         assert.strictEqual(executions(), 2);
         assert.isNull(session.runs.get(id)?.stale);
+        session.dispose();
+    });
+
+    it("says on run:changed that the window re-ran them, and nothing for a caller's run", async () => {
+        const { session, id } = await withRun("rerun");
+        const changes: RunChange[] = [];
+        session.on("run:changed", (change) => changes.push(change));
+        // A run's end is announced after its pass, which can be after the promise that started it.
+        const nextEnd = (): Promise<RunChange> =>
+            new Promise((resolve) => {
+                const stop = session.on("run:changed", (change) => {
+                    if (change.run.id === id && change.phase === "end") {
+                        stop();
+                        resolve(change);
+                    }
+                });
+            });
+
+        let ended = nextEnd();
+        await session.time.stepBy(1);
+        assert.strictEqual((await ended).trigger, "timeline");
+        const rerun = changes.filter((change) => change.run.id === id);
+        assert.isTrue(
+            rerun.every((change) => change.trigger === "timeline"),
+            "every moment of the re-run",
+        );
+
+        changes.length = 0;
+        ended = nextEnd();
+        await session.runs.get(id)?.rerun();
+        assert.isFalse("trigger" in (await ended), "a caller's re-run carries none");
+        assert.isNotEmpty(changes);
+        assert.isTrue(changes.every((change) => !("trigger" in change)));
+        session.dispose();
+    });
+
+    it("says the timeline re-ran them when the policy flips to rerun", async () => {
+        const { session, id } = await withRun();
+        await session.time.stepBy(1);
+        assert.strictEqual(session.runs.get(id)?.stale?.reason, "window-moved");
+        // The re-run's end is announced after its pass, which can be after the setting's promise.
+        const ended = new Promise<RunChange>((resolve) => {
+            session.on("run:changed", (change) => {
+                if (change.run.id === id && change.phase === "end") {
+                    resolve(change);
+                }
+            });
+        });
+
+        await session.time.setSettings({ results: "rerun" });
+        assert.strictEqual((await ended).trigger, "timeline");
         session.dispose();
     });
 

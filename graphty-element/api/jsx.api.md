@@ -215,6 +215,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     // (undocumented)
+    "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
+    // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     // (undocumented)
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;

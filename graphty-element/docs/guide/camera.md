@@ -343,6 +343,29 @@ graph.on("camera-state-changed", ({ state }) => {
 });
 ```
 
+`camera-state-changed` fires for every move, the element's own included. To hear the reader's own
+camera gestures once each, listen on the session for `camera:gesture-end`:
+
+```typescript
+element.session.on("camera:gesture-end", ({ kind }) => {
+    console.log("the reader finished a camera gesture:", kind); // "orbit" | "pan" | "zoom"
+});
+```
+
+It fires once per gesture, never per frame, and the input decides when a gesture ends, never a
+timer:
+
+- A drag or a pinch ends at the pointer up that ends it. A click that moved nothing is no gesture.
+- A run of wheel events ends at the first frame with no new wheel event since the frame before.
+  Wheel events that arrive together, before a frame runs, are always one gesture.
+- A camera key ends when the last camera key held is released and the camera has come to rest
+  (in 2D, once its inertia has damped away). A key pressed before then continues the gesture.
+
+`kind` is `"orbit"` for a turn (a 3D drag, the arrow keys in 3D, a roll), `"pan"` for a sideways
+move and `"zoom"` for the wheel, a pinch or the zoom keys. Moves the element makes itself (a fit,
+a glide, `camera.autoRotate`) and calls such as `setCameraState` publish nothing. More kinds may
+be added.
+
 ## Minimap
 
 Turn on the `minimap` attribute and the element draws a minimap in its bottom-right corner: every

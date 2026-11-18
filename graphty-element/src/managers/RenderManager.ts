@@ -1083,6 +1083,10 @@ export class RenderManager implements Manager {
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
+        // A wheel run ends at a frame of its own, which a loop drawing on demand would not draw.
+        this.camera.requestFrame = () => {
+            this.requestFrame();
+        };
 
         // Store camera manager in scene metadata for access by other components
         this.scene.metadata = this.scene.metadata ?? {};

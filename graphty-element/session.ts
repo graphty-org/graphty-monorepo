@@ -201,6 +201,7 @@ export type {
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    SourceLoaded,
     StyleProblem,
     TableMapping,
     TableMappingRead,

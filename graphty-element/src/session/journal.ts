@@ -50,6 +50,15 @@ export interface JournalEntry {
     readonly runId?: RunId;
     /** The versions of the packages that ran it. */
     readonly engine: EngineVersions;
+    /**
+     * Why the session ran this command, when it was not a direct call; absent for a direct call.
+     * `"suggestion"`: an algorithm's suggested styles, applied as an entry of their own (a batch's
+     * held paint released, or `applySuggestedStyles`). `"project"`: one of the commands that
+     * opening a project ran.
+     *
+     * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     */
+    readonly trigger?: "suggestion" | "project";
 }
 
 /** The record of the commands a session ran: `session.journal`. */
@@ -211,7 +220,7 @@ export function createJournal(options: {
             view = null;
             byId.clear();
         },
-        append({ command, value, coalesceKey, durationMs }) {
+        append({ command, value, coalesceKey, durationMs, trigger }) {
             const op = command.op as SessionCommand["op"];
             const entry: JournalEntry = Object.freeze({
                 id: `journal_${String(next++)}`,
@@ -223,6 +232,7 @@ export function createJournal(options: {
                 // `algo.run` resolves with the id of the run it finished.
                 ...(op === "algo.run" && typeof value === "string" ? { runId: value } : {}),
                 engine: options.engine,
+                ...(trigger === undefined ? {} : { trigger }),
             });
             if (coalesceKey !== null && list.at(-1)?.coalesceKey === coalesceKey) {
                 byId.delete((list.pop() as JournalEntry).id);

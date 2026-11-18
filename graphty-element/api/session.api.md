@@ -3059,6 +3059,7 @@ export interface ImportColumnsInput {
 
 // @public
 export interface ImportOptions {
+    readonly callerKey?: string;
     readonly history?: "step" | "start";
     readonly layout?: "recommended" | "keep";
     readonly mode?: "replace" | "merge";
@@ -3286,6 +3287,7 @@ export interface JournalEntry {
     readonly id: JournalId;
     readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
     readonly runId?: RunId;
+    readonly trigger?: "suggestion" | "project";
 }
 
 // @public
@@ -5454,6 +5456,7 @@ export interface RunChange {
     readonly generation: number;
     readonly phase: RunPhase;
     readonly run: RunRecord;
+    readonly trigger?: "timeline";
 }
 
 // @public
@@ -5914,6 +5917,7 @@ export interface SelectionDelta {
     readonly truncated: boolean;
     readonly unmatched?: readonly string[];
     readonly unresolvedPaths: readonly Path[];
+    readonly via?: "click" | "box" | "keys";
 }
 
 // @public
@@ -6315,6 +6319,9 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
 // @public
 export interface SessionEventMap {
+    "camera:gesture-end": {
+        readonly kind: "orbit" | "pan" | "zoom";
+    };
     "canvas:element-click": {
         readonly node: NodeId_2;
     } | {
@@ -6382,6 +6389,7 @@ export interface SessionEventMap {
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
+    "source:loaded": SourceLoaded;
     "source:refreshed": {
         readonly load: string;
     };
@@ -6989,6 +6997,23 @@ export { SourceListing }
 export { SourceListItem }
 
 export { SourceListQuery }
+
+// @public
+export interface SourceLoaded {
+    readonly callerKey?: string;
+    readonly format?: FormatId;
+    readonly kind: LoadedSourceKind;
+    readonly mode: "replace" | "merge";
+    readonly sample?: {
+        readonly datasetId: string;
+    } | {
+        readonly generatorId: string;
+    } | {
+        readonly exampleId: string;
+    };
+    readonly source: SourceKey;
+    readonly sourceId?: string;
+}
 
 // @public
 export interface SourceLoadOptions extends LoadChoices {

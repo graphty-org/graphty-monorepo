@@ -22,7 +22,7 @@
 
 import type { EdgeId } from "../catalog/types";
 import type { Node, NodeIdType } from "../Node";
-import type { SelectionCause, SelectionOwner } from "../session/selection";
+import type { SelectionCause, SelectionOwner, SelectionVia } from "../session/selection";
 import type { HoverDrawn } from "../session/types";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
@@ -241,6 +241,20 @@ export class SelectionManager implements Manager {
         this.selectedNodes.set(node.id, node);
         node.setSelected(true);
         this.selection?.applyNow({ nodes: [node.id] }, "add", "user");
+    }
+
+    /**
+     * Run `fn` as the handling of one canvas input, so the selection changes it makes as the
+     * reader's carry `via` (see `SelectionOwner.byInput`).
+     * @param via - How the input was made.
+     * @param fn - The input's handling.
+     */
+    byInput(via: SelectionVia, fn: () => void): void {
+        if (this.selection === null) {
+            fn();
+        } else {
+            this.selection.byInput(via, fn);
+        }
     }
 
     /**

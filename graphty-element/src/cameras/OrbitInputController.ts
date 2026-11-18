@@ -2,6 +2,7 @@
 import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
+import { type CameraGestureKind, type GestureEndHooks, WheelRun } from "./gestureEnd";
 import { wheelZoomFactor } from "./InputUtils";
 import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
 
@@ -50,7 +51,18 @@ function axisOf(plus: boolean, minus: boolean): number {
  * Handles user input for the orbit camera controller.
  * Processes mouse, touch, and keyboard input for camera manipulation.
  */
-export class OrbitInputController {
+export class OrbitInputController implements GestureEndHooks {
+    /** Told once when a reader's camera gesture ends; see `camera:gesture-end`. */
+    public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
+    /** Asks the render loop for one more frame; see {@link WheelRun}. */
+    public requestFrame: (() => void) | null = null;
+    /** What the pointer drag under way has done, once it moved the camera. */
+    private dragKind: CameraGestureKind | null = null;
+    /** Whether the pinch under way has moved the camera. */
+    private pinched = false;
+    /** What the camera keys have been doing, until the camera comes to rest. */
+    private keyKind: CameraGestureKind | null = null;
+    private readonly wheelRun = new WheelRun();
     private readonly canvas: HTMLCanvasElement;
     private readonly controller: OrbitCameraController;
     private isPointerDown = false;
@@ -86,6 +98,7 @@ export class OrbitInputController {
             this.isPointerDown = true;
             this.isPanning = pans;
             this.panTravel = 0;
+            this.dragKind = null;
             if (evt.button === 1) {
                 // Not the browser's middle-click autoscroll
                 evt.preventDefault();
@@ -100,6 +113,12 @@ export class OrbitInputController {
     private readonly pointerUpHandler = (): void => {
         this.isPointerDown = false;
         this.isPanning = false;
+        // The pointer up ends the drag; a click that moved nothing is no gesture.
+        const kind = this.dragKind;
+        this.dragKind = null;
+        if (kind !== null) {
+            this.onGestureEnd?.(kind);
+        }
     };
 
     private readonly pointerMoveHandler = (evt: PointerEvent): void => {
@@ -113,6 +132,10 @@ export class OrbitInputController {
         const from = { x: this.lastX - rect.left, y: this.lastY - rect.top };
         this.lastX = evt.clientX;
         this.lastY = evt.clientY;
+        if (dx !== 0 || dy !== 0) {
+            this.dragKind = this.isPanning ? "pan" : "orbit";
+        }
+
         if (this.isPanning) {
             this.panTravel += Math.hypot(dx, dy);
             this.controller.pan(dx, dy);
@@ -177,6 +200,7 @@ export class OrbitInputController {
     // deltas add up to the same, and a pinch follows the fingers. See wheelZoomFactor.
     private readonly wheelHandler = (evt: WheelEvent): void => {
         evt.preventDefault();
+        this.wheelRun.wheel();
         const distance = this.controller.zoomDelta(wheelZoomFactor(evt, NOTCH_ZOOM));
         if (this.zoomToPointer) {
             const rect = this.canvas.getBoundingClientRect();
@@ -225,8 +249,17 @@ export class OrbitInputController {
             lastScale = ev.scale || 1;
         });
 
+        // A pinch and a twist are one gesture: whichever ends first ends it.
+        const endPinch = (): void => {
+            if (this.pinched) {
+                this.pinched = false;
+                this.onGestureEnd?.("zoom");
+            }
+        };
+
         this.hammer.on("pinchend rotateend", () => {
             this.isMultiTouch = false;
+            endPinch();
         });
 
         // Touches the browser cancels never end the gesture, and a gesture left open blocks every
@@ -234,10 +267,12 @@ export class OrbitInputController {
         this.hammer.on("pinchcancel rotatecancel", (ev: HammerInput) => {
             if (ev.eventType === Hammer.INPUT_CANCEL) {
                 this.isMultiTouch = false;
+                endPinch();
             }
         });
 
         this.hammer.on("pinchmove rotatemove", (ev: HammerInput) => {
+            this.pinched = true;
             // The distance follows the finger gap: spreading the fingers to twice the gap halves it
             this.controller.zoomBy(lastScale / ev.scale);
             lastScale = ev.scale;
@@ -312,6 +347,11 @@ export class OrbitInputController {
         this.canvas.removeEventListener("blur", this.releaseKeys);
         document.removeEventListener("visibilitychange", this.releaseKeys);
         this.releaseKeys();
+        // Input taken away (a node drag, another camera) ends nothing a reader can finish.
+        this.dragKind = null;
+        this.pinched = false;
+        this.keyKind = null;
+        this.wheelRun.reset();
 
         if (this.hammer) {
             this.hammer.destroy();
@@ -356,6 +396,21 @@ export class OrbitInputController {
         const zoom = axisOf(on("zoom-out"), on("zoom-in"));
         if (zoom !== 0) {
             cam.zoomBy((1 - this.config.keyboardZoomSpeed) ** -zoom);
+        }
+
+        // The keys move the camera with no inertia, so it is at rest the first frame they move
+        // nothing: a key gesture ends there, and a key pressed before then continues it.
+        const turns = yaw !== 0 || pitch !== 0 || on("roll-left") || on("roll-right");
+        if (turns || zoom !== 0) {
+            this.keyKind = turns ? "orbit" : (this.keyKind ?? "zoom");
+        } else if (this.keyKind !== null) {
+            const kind = this.keyKind;
+            this.keyKind = null;
+            this.onGestureEnd?.(kind);
+        }
+
+        if (this.wheelRun.frame(this.requestFrame)) {
+            this.onGestureEnd?.("zoom");
         }
 
         for (const [action, frames] of owed) {

@@ -1357,6 +1357,14 @@ class Session implements ElementSession {
     }
 
     /**
+     * Publishes `camera:gesture-end`.
+     * @param kind - What the gesture did.
+     */
+    cameraGestureEnd(kind: SessionEventMap["camera:gesture-end"]["kind"]): void {
+        publish(this.watchers, "camera:gesture-end", { kind });
+    }
+
+    /**
      * Records the layout's motion and publishes `layout:motion-changed` when it changed.
      * @param motion - The motion now.
      */

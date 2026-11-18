@@ -178,6 +178,22 @@ A load that left out edge rows naming a node no node row held (`unmatched: "leav
 that count on its entry as `leftOut: { rows, values }`: the rows left out, and how many distinct
 names they gave. The field is there only when at least one row was left out.
 
+### Knowing which load finished
+
+Every load method takes a `callerKey`: any string you choose. The load does nothing with it but
+hand it back on the `source:loaded` event it publishes once it is in, so you can tell your own
+loads apart. It is never saved with the project.
+
+```typescript
+session.on("source:loaded", ({ source, kind, callerKey }) => {
+    if (callerKey === "tutorial-graph") startTutorial(source);
+});
+await session.data.generate("cycle", { n: 12 }, { callerKey: "tutorial-graph" });
+```
+
+`import`, a prepared draft's `load()`, `loadExample`, `loadDataset` and `generate` all take it.
+See [graphty-source-loaded](./events#graphty-source-loaded) for what the event carries.
+
 ### Loads that overlap
 
 Loads land in the order you ask for them, whichever finishes reading first. Every door that loads

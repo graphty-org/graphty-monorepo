@@ -222,7 +222,10 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
 - `mode`: `"sliding"` (the default) or `"cumulative"`, a window that grows from the start of the data.
 - `results`: what a window move does to algorithm results computed over the visible graph.
   `"stale"` (the default) marks them out of date, `"keep"` leaves them current, and `"rerun"` runs
-  them again over each new window, a play waiting for them at every step.
+  them again over each new window, a play waiting for them at every step. A run the window re-ran
+  (a play, a step, a window drag, or switching to `"rerun"`) publishes `run:changed` with
+  `trigger: "timeline"`, so a listener can tell it from a run a caller started, which has no
+  `trigger`.
 - `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
   them.
 - `outside`: `"hide"` or `"ghost"`, read from and written to the style layers. See [What lies outside the window](#what-lies-outside-the-window).

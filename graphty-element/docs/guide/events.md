@@ -97,6 +97,13 @@ about that load -- `data-loading-progress`, `data-loading-complete`, `data-loadi
 `dataSource` / `dataSourceConfig` pair has an id too, on its events. When two loads overlap, the id
 says which one a report is about.
 
+### `source:loaded` or `data-loaded`
+
+Use the session's `source:loaded` (`graphty-source-loaded` on the element) to react to a load you
+or the reader asked for, and `data-loaded` to react to the graph's data changing for any reason.
+`data-loaded` also fires when undo, redo or a restore brings data back; `source:loaded` never does,
+and neither does opening a project. See [graphty-source-loaded](#graphty-source-loaded).
+
 ## JavaScript API
 
 Subscribe using the `on()` method on the Graph instance:
@@ -233,6 +240,11 @@ element.addEventListener("graphty-selection-change", (e) => {
     // `added` and `removed` are the ids that moved; `nodes` and `edges` are how many the
     // selection holds NOW.
     console.log(`${nodes} nodes and ${edges} edges selected`, added, removed);
+    // A reader's change on the canvas says how it was made: `cause` is "user" and `via` is
+    // "click" (a node, an edge or empty canvas), "box" (a Shift-drag region) or "keys" (Escape
+    // through attachKeymap). An API call has no `via`, even one made with { cause: "user" }.
+    const { cause, via } = e.detail;
+    if (cause === "user" && via !== undefined) console.log("the reader selected by", via);
 });
 
 // A filter, the time window or the context flag changed what is showing. Every producer arrives
@@ -311,6 +323,36 @@ element.addEventListener("graphty-project-status", (e) => {
 ```
 
 On the session the same change is `project:status`. See [Project Files](./project-file).
+
+### graphty-source-loaded
+
+A load you or the reader asked for added a source to the graph: one event per source added, once
+the load is in. The detail says which source it was and where it came from, never what it holds:
+no file name, URL or parameters.
+
+| Field       | What it is                                                                                          |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `source`    | The source's key in `session.data.sources()`                                                        |
+| `kind`      | `"file"`, `"url"`, `"server"`, `"sample"` or `"join"`, the same kind `sources()` lists              |
+| `format`    | For a file or a URL: the format read, such as `"graphml"`                                           |
+| `sourceId`  | For a network source: its id                                                                        |
+| `mode`      | `"replace"` or `"merge"`                                                                            |
+| `sample`    | For a catalog sample: `{ datasetId }`, `{ generatorId }` or, for a network example, `{ exampleId }` |
+| `callerKey` | The `callerKey` you passed to the load, unchanged                                                   |
+
+```javascript
+element.addEventListener("graphty-source-loaded", (e) => {
+    const { kind, format, sample, callerKey } = e.detail;
+    if (callerKey === "tutorial") showNextStep();
+    console.log(kind, format ?? sample);
+});
+```
+
+Every load method publishes it: `session.data.import`, a prepared draft's `load()`, `loadExample`,
+`loadDataset` and `generate`. Opening a project, undo, redo, a restore and
+`runPendingSourceLoad` (which fills a source a project already listed) publish none. A failed load
+publishes none; it ends `progress:changed` with an `error` instead. On the session the same event
+is `source:loaded`.
 
 ### Autosave events
 

@@ -21,6 +21,7 @@ import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
+import { ManagedRun } from "../runs/Run";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
@@ -2371,7 +2372,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             Promise.all(
                 runs.map(async (run) => {
                     try {
-                        await run.rerun();
+                        // Marked as the session's own re-run, so `run:changed` says the window did it.
+                        await (run instanceof ManagedRun ? run.rerun("timeline") : run.rerun());
                     } catch (error) {
                         sources.emit("time:rerun-failed", {
                             run: run.id,

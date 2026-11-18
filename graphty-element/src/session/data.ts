@@ -260,6 +260,7 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    SourceLoaded,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
@@ -1307,6 +1308,7 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, load.source, options, turn, {
                 ...load,
                 facts: { generator: name, params: { ...params } },
+                catalog: { generatorId: name },
             });
         } finally {
             turn.leave();
@@ -1358,6 +1360,7 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
+                catalog: { datasetId: name },
             });
         } finally {
             turn.leave();
@@ -1415,7 +1418,10 @@ export class SessionData implements SessionDataApi {
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing" | "signal">,
         turn: LoadTurn,
-        sample?: SampleLoad & { readonly facts: LoadFacts["sample"] },
+        sample?: SampleLoad & {
+            readonly facts: LoadFacts["sample"];
+            readonly catalog: NonNullable<SourceLoaded["sample"]>;
+        },
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
         const origin: LoadedSourceKind | undefined = sample === undefined ? undefined : "sample";
@@ -1424,6 +1430,10 @@ export class SessionData implements SessionDataApi {
             dispatch,
             () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample: sample.facts })),
             choiceOptions(options),
+            {
+                ...(sample === undefined ? {} : { sample: sample.catalog }),
+                ...callerKeyOf(options),
+            },
         );
         const mark = historyMark(options);
         const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> =>
@@ -1490,12 +1500,14 @@ export class SessionData implements SessionDataApi {
      * @param send - The dispatch, taken when the verb was called.
      * @param read - What the load's bytes were, read once it is in the graph.
      * @param options - The import choices given beside the source's own configuration.
+     * @param loaded - What the load door knows beside the source list, for `source:loaded`.
      * @returns The dispatch.
      */
     private noting(
         send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         read: () => Promise<Partial<LoadFacts>>,
-        options?: Readonly<Record<string, unknown>>,
+        options: Readonly<Record<string, unknown>> | undefined,
+        loaded: DoorFacts,
     ): (command: DataImportCommand | BatchCommand) => Promise<unknown> {
         return async (command) => {
             // Read before the dispatch, which takes its turn as soon as it is called.
@@ -1512,10 +1524,49 @@ export class SessionData implements SessionDataApi {
                 for (const each of added) {
                     this.loadFacts.set(each.key, facts);
                 }
+                this.publishAdded(before, facts.mode, loaded);
             }
 
             return result;
         };
+    }
+
+    /**
+     * Publish `source:loaded` for one source a load door added, once its load committed. Only
+     * the doors call it: a project open, undo, redo, restore and `runPendingSourceLoad` never do.
+     * @param record - The source as `sources()` lists it, so the event never disagrees with it.
+     * @param mode - Whether the load replaced the graph or merged into it.
+     * @param facts - What the door knows beside the source list.
+     */
+    private publishLoaded(record: LoadedSource, mode: "replace" | "merge", facts: DoorFacts): void {
+        const { kind, type } = record;
+        const format = (kind === "file" || kind === "url") && type !== undefined && type !== "" ? type : undefined;
+        const loaded: SourceLoaded = {
+            source: record.key,
+            kind,
+            mode,
+            ...(format === undefined ? {} : { format }),
+            ...(facts.sourceId === undefined ? {} : { sourceId: facts.sourceId }),
+            ...(facts.sample === undefined ? {} : { sample: Object.freeze({ ...facts.sample }) }),
+            ...(facts.callerKey === undefined ? {} : { callerKey: facts.callerKey }),
+        };
+        this.writes.emit?.("source:loaded", Object.freeze(loaded));
+    }
+
+    /**
+     * Publish `source:loaded` for every source the graph lists now and did not list before.
+     * @param before - The keys listed before the load dispatched.
+     * @param mode - Whether the load replaced the graph or merged into it.
+     * @param facts - What the door knows beside the source list.
+     */
+    private publishAdded(before: ReadonlySet<SourceKey>, mode: "replace" | "merge", facts: DoorFacts): void {
+        const listed = this.sources();
+        for (const each of this.storedSources()) {
+            const record = before.has(each.key) ? undefined : listed.find((entry) => entry.key === each.key);
+            if (record !== undefined) {
+                this.publishLoaded(record, mode, facts);
+            }
+        }
     }
 
     /**
@@ -1991,6 +2042,10 @@ export class SessionData implements SessionDataApi {
                       )
                     : writes.send(command),
             emit: (event, detail) => writes.emit?.(event, detail),
+            sourceKeys: () => new Set(this.storedSources().map((each) => each.key)),
+            loaded: (before, mode, facts) => {
+                this.publishAdded(before, mode, facts);
+            },
         };
     }
 
@@ -2051,9 +2106,12 @@ export class SessionData implements SessionDataApi {
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
-                inLine: async (run) => {
-                    const send = this.noting(this.keeping(this.writes.importer(), source), () =>
-                        bytesFacts(source.config),
+                inLine: async (run, choices) => {
+                    const send = this.noting(
+                        this.keeping(this.writes.importer(), source),
+                        () => bytesFacts(source.config),
+                        undefined,
+                        callerKeyOf(choices ?? {}),
                     );
                     const turn = this.loadLine.join();
                     try {
@@ -2073,7 +2131,11 @@ export class SessionData implements SessionDataApi {
                           joinGraph: () => this.joinGraph(),
                           joiner: () => {
                               const send = this.sender("join a table");
-                              return (table, choices, shape) => this.applyJoin(send, table, choices, shape);
+                              return async (table, choices, shape, callerKey) => {
+                                  const before = new Set(this.storedSources().map((each) => each.key));
+                                  await this.applyJoin(send, table, choices, shape);
+                                  this.publishAdded(before, "merge", callerKeyOf({ callerKey }));
+                              };
                           },
                       }
                     : {}),
@@ -6440,6 +6502,9 @@ function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
 const SAMPLE_ERROR_LIMIT = 100;
 
 /** What a generated graph or a dataset loads as; see `SessionData.sampleLoad`. */
+/** What a load door knows of its load beside what `sources()` records: for `source:loaded`. */
+type DoorFacts = Pick<SourceLoaded, "sourceId" | "sample" | "callerKey">;
+
 interface SampleLoad {
     readonly source: DataSourceInput;
     /** The first of {@link LABEL_COLUMNS} some node holds text in. */
@@ -7125,6 +7190,16 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
     }
 
     return {};
+}
+
+/**
+ * A caller's `callerKey`, as `{ callerKey }`, or nothing when it gave none.
+ * @param options - The load's options.
+ * @param options.callerKey - The caller's key.
+ * @returns `{ callerKey }` or `{}`.
+ */
+function callerKeyOf(options: { readonly callerKey?: string }): { callerKey?: string } {
+    return options.callerKey === undefined ? {} : { callerKey: options.callerKey };
 }
 
 /**

@@ -107,6 +107,7 @@ import type {
     ProjectConfigPatch,
     SessionCapabilities,
     SessionEventMap,
+    SourceLoaded,
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
@@ -281,6 +282,7 @@ export class Graphty extends LitElement {
     #unwatchProjectStatus: (() => void) | null = null;
     /** Unsubscribes the three network-source expansion mirrors. */
     #unwatchSource: (() => void) | null = null;
+    #unwatchSourceLoaded: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchModels: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
@@ -629,6 +631,19 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Mirror the session's `source:loaded` onto the DOM as `graphty-source-loaded`: which source a
+     * load a caller asked for added, never what it holds.
+     * @param session - The session to watch.
+     * @param session.on - Its event subscription.
+     * @returns Unsubscribes.
+     */
+    #mirrorSourceLoaded(session: { on: GraphSession["on"] }): () => void {
+        return session.on("source:loaded", (detail) => {
+            this.dispatchEvent(new CustomEvent("graphty-source-loaded", { detail, bubbles: true, composed: true }));
+        });
+    }
+
+    /**
      * Mirror the session's shader events onto the DOM as `graphty-shader-status`,
      * `graphty-shader-held`, `graphty-shader-approved` and `graphty-render-quality`.
      * @param session - The session to watch.
@@ -958,6 +973,8 @@ export class Graphty extends LitElement {
         });
         // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
         this.#unwatchSource ??= this.#mirrorSourceEvents(session);
+        // Which source a load a caller asked for added: kind, format and ids, never contents.
+        this.#unwatchSourceLoaded ??= this.#mirrorSourceLoaded(session);
         // A project shader's status, held shaders after a load, and approvals an application may remember.
         this.#unwatchShaders ??= this.#mirrorShaderEvents(session);
         // A shader nobody approved is compiled only once the work it could take down is saved.
@@ -1500,6 +1517,8 @@ export class Graphty extends LitElement {
         this.#unwatchProjectStatus = null;
         this.#unwatchSource?.();
         this.#unwatchSource = null;
+        this.#unwatchSourceLoaded?.();
+        this.#unwatchSourceLoaded = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
         this.#unwatchModels?.();
@@ -7616,6 +7635,7 @@ declare global {
         "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
         "graphty-source-expanded": CustomEvent<SourceExpanded>;
         "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
+        "graphty-source-loaded": CustomEvent<SourceLoaded>;
         "graphty-autosave-status": CustomEvent<AutosaveStatus>;
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
@@ -7625,34 +7645,10 @@ declare global {
         "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 
-    // Every one bubbles and is composed, so a listener on the document is typed the same way.
-    interface DocumentEventMap {
-        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
-        "graphty-progress-change": CustomEvent<ProgressChange>;
-        "graphty-selection-change": CustomEvent<SelectionDelta>;
-        "graphty-visibility-change": CustomEvent<VisibilityChange>;
-        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
-        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
-        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
-        "graphty-project-status": CustomEvent<ProjectStatus>;
-        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
-        "graphty-node-click": CustomEvent<NodeEventDetail>;
-        "graphty-node-hover": CustomEvent<NodeEventDetail>;
-        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
-        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
-        "graphty-label-change": CustomEvent<NodeLabelCounts>;
-        "graphty-features": CustomEvent<EnabledFeatures>;
-        "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
-        "graphty-source-expanded": CustomEvent<SourceExpanded>;
-        "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
-        "graphty-autosave-status": CustomEvent<AutosaveStatus>;
-        "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
-        "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
-        "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
-        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
-        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
-        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
-    }
+    // Every one bubbles and is composed, so a listener on the document is typed the same way: the
+    // document's map takes every graphty- entry of the element's map above.
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- merging into the global map needs an interface; its members are the supertype's
+    interface DocumentEventMap extends GraphtyElementEventMap {}
 }
 
 /**

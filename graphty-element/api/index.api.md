@@ -8182,6 +8182,7 @@ export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
     add(node: Node_2): void;
     bindSelection(selection: SelectionOwner): void;
+    byInput(via: SelectionVia, fn: () => void): void;
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
@@ -8430,6 +8431,23 @@ export { SourceListing }
 export { SourceListItem }
 
 export { SourceListQuery }
+
+// @public
+export interface SourceLoaded {
+    readonly callerKey?: string;
+    readonly format?: FormatId;
+    readonly kind: LoadedSourceKind;
+    readonly mode: "replace" | "merge";
+    readonly sample?: {
+        readonly datasetId: string;
+    } | {
+        readonly generatorId: string;
+    } | {
+        readonly exampleId: string;
+    };
+    readonly source: SourceKey;
+    readonly sourceId?: string;
+}
 
 // @public
 export interface SourceLoadOptions extends LoadChoices {

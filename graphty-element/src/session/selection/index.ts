@@ -18,6 +18,7 @@ export {
     createSelectionApi,
     DEFAULT_SELECTION_CAP,
     type RuleCheck,
+    selectByInput,
     type SelectionApi,
     type SelectionApplyOptions,
     type SelectionAttributeStatistics,
@@ -28,6 +29,7 @@ export {
     type SelectionSources,
     type SelectionStatistics,
     type SelectionStatisticsOptions,
+    type SelectionVia,
     SET_OPS,
     type UnknownRulePath,
 } from "./SelectionApi";

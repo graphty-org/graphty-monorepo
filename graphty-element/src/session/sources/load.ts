@@ -309,6 +309,8 @@ interface HeldRead {
     readonly options: SourceLoadOptions;
     /** How many nodes the source holds, when the caller knew (a sample's count). */
     readonly known?: number;
+    /** The example's id, for a read of one of the source's examples (`readExample`). */
+    readonly exampleId?: string;
 }
 
 /**
@@ -330,6 +332,7 @@ function refuseAboveCeiling(of: "nodes" | "edges", count: number, limit: number)
  * @param input - the source and its params
  * @param options - the load options; the import that takes the read keeps them
  * @param known - how many nodes the source holds, when the caller knows (a sample's count)
+ * @param exampleId - the example's id, for a read of one of the source's examples
  * @returns the read
  */
 export async function readSource(
@@ -337,13 +340,20 @@ export async function readSource(
     input: SourceInput,
     options: SourceLoadOptions,
     known?: number,
+    exampleId?: string,
 ): Promise<SourceRead> {
     const access = await accessFor(host, input.source, options, input.config);
     const read = await readRows(input.source, input.config, access, options);
     const { renderCeiling, edgesDrawn } = host.ceilings?.() ?? DEFAULT_LIMITS;
     refuseAboveCeiling("nodes", read.held.nodes.length, renderCeiling);
     refuseAboveCeiling("edges", read.held.edges.length, edgesDrawn);
-    const rows: HeldRead = { access, read, options, ...(known === undefined ? {} : { known }) };
+    const rows: HeldRead = {
+        access,
+        read,
+        options,
+        ...(known === undefined ? {} : { known }),
+        ...(exampleId === undefined ? {} : { exampleId }),
+    };
     return { ...input, nodes: read.held.nodes.length, edges: read.held.edges.length, rows };
 }
 
@@ -432,6 +442,7 @@ export async function networkDraft(
  * @param input - the source and its params, or what `readExample` read, which loads without a fetch
  * @param given - the load options
  * @param total - how many nodes the source holds, when the caller knows (a sample's count)
+ * @param exampleId - the example's id, for a load of one of the source's examples
  * @returns the load's record
  */
 export async function importSource(
@@ -439,6 +450,7 @@ export async function importSource(
     input: SourceInput | SourceRead,
     given: SourceLoadOptions,
     total?: number,
+    exampleId?: string,
 ): Promise<SourceLoadRecord> {
     const held = "rows" in input ? (input.rows as HeldRead) : undefined;
     const options = held === undefined ? given : { ...held.options, ...given };
@@ -457,6 +469,7 @@ export async function importSource(
     // The ledger keeps every record; `data.loads()` lists the ones whose rows the graph holds, so
     // undoing this load (or the load it replaces) takes its record away (or back) with the rows.
     const record = host.ledger.addLoad(loadFacts(input, read, access, options, total ?? held?.known));
+    const listed = host.sourceKeys?.() ?? new Set<SourceKey>();
     try {
         await dispatchRows(host, record.key, input, read, options);
     } catch (error) {
@@ -469,6 +482,13 @@ export async function importSource(
         throw error;
     }
 
+    // The caller's key is this call's own, never one a read was made with.
+    const example = exampleId ?? held?.exampleId;
+    host.loaded?.(listed, options.mode ?? "replace", {
+        sourceId: input.source,
+        ...(example === undefined ? {} : { sample: { exampleId: example } }),
+        ...(given.callerKey === undefined ? {} : { callerKey: given.callerKey }),
+    });
     return record;
 }
 
@@ -527,7 +547,7 @@ export async function loadExample(
     options: SourceLoadOptions,
 ): Promise<SourceLoadRecord> {
     const example = exampleRead(source, id, options);
-    return importSource(host, example.input, example.options, example.known);
+    return importSource(host, example.input, example.options, example.known, id);
 }
 
 /**
@@ -545,7 +565,7 @@ export async function readExample(
     options: SourceLoadOptions,
 ): Promise<SourceRead> {
     const example = exampleRead(source, id, options);
-    return readSource(host, example.input, example.options, example.known);
+    return readSource(host, example.input, example.options, example.known, id);
 }
 
 /**

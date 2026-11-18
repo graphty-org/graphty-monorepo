@@ -40,6 +40,7 @@ import type { SetService } from "../commands/sets";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
+import type { JournalEntry } from "../journal";
 import type { CodedFact, ProgressChange } from "../shared";
 import type { HistoryCode, HistoryStepId, ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp, mergeRowPatches } from "./arrangement";
@@ -157,7 +158,12 @@ interface DispatchOptions {
     readonly signal?: AbortSignal;
     /** A queued command that starts at once, beside the queue, instead of taking a slot. */
     readonly beside?: boolean;
+    /** Why the session ran it, when it was not a direct call: its journal entry's `trigger`. */
+    readonly trigger?: JournalTrigger;
 }
+
+/** Why the session ran a command: {@link JournalEntry.trigger}. */
+export type JournalTrigger = NonNullable<JournalEntry["trigger"]>;
 
 /** Dispatch one command, as a transaction's scope or a deferred member's origin does. */
 export type DispatchFunction = <C extends CommandLike>(
@@ -334,6 +340,8 @@ export interface TransactionOptions {
      * as a deferred member does.
      */
     readonly after?: HistoryStepId;
+    /** Stamped on every member's journal entry: why the session ran them. */
+    readonly trigger?: JournalTrigger;
 }
 
 /** What moved live project state. */
@@ -400,6 +408,8 @@ export interface ExecutedCommand {
     readonly coalesceKey: string | null;
     /** How long it executed, in milliseconds of the dispatcher's clock. */
     readonly durationMs: number;
+    /** Why the session ran it, when it was not a direct call. */
+    readonly trigger?: JournalTrigger;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -597,6 +607,8 @@ interface Job {
     readonly run: boolean;
     /** Dispatched inline by a running member of its group: it neither seals nor rolls back the group. */
     readonly inline: boolean;
+    /** Why the session ran it, when it was not a direct call. */
+    readonly trigger: JournalTrigger | undefined;
     readonly controller: AbortController;
     slot: ScheduledSlot | null;
     /** The group whose hold it is waiting on. */
@@ -654,6 +666,8 @@ interface Group {
     readonly onSeal: Map<string, (dispatch: DispatchFunction) => void>;
     /** A transaction's finished members, published to the journal when it records. */
     readonly executed: ExecutedCommand[];
+    /** Why the session ran its members, when it was not a direct call; their deferred work inherits it. */
+    readonly trigger: JournalTrigger | undefined;
     /** Its before-arrangement, once a member that needs one has started; see `History.open`. */
     arrangement: OpenArrangement | null;
     /** The graph epoch when it took its before-arrangement. */
@@ -666,6 +680,8 @@ interface DeferredOrigin {
     readonly setup: boolean;
     /** The origin's `Group.starts`: work a start load deferred is part of that load. */
     readonly starts: number | null;
+    /** The origin's `Group.trigger`. */
+    readonly trigger: JournalTrigger | undefined;
 }
 
 /** When a step was recorded and undone, and the op-log keys its group held. */
@@ -1149,7 +1165,11 @@ export class Dispatcher {
         if (via !== null) {
             // Already inside one command's group: the transaction's members join it.
             const scope: TransactionScope = {
-                dispatch: (command, dispatched) => via(command, dispatched),
+                dispatch: (command, dispatched) =>
+                    via(
+                        command,
+                        options.trigger === undefined ? dispatched : { trigger: options.trigger, ...dispatched },
+                    ),
                 transaction: (_label, body) => settle(() => body(scope, new AbortController().signal)),
             };
             return settle(() => fn(scope, new AbortController().signal));
@@ -1166,7 +1186,12 @@ export class Dispatcher {
                 status: "open",
                 controller,
             },
-            { setup: options.setup === true, compound: options.compound === true, starts: options.starts === true },
+            {
+                setup: options.setup === true,
+                compound: options.compound === true,
+                starts: options.starts === true,
+                trigger: options.trigger,
+            },
         );
         this.enter(group);
         if (options.moves === true) {
@@ -1845,7 +1870,14 @@ export class Dispatcher {
 
         const compound = definition.members?.(concrete);
         if (compound !== undefined) {
-            return this.compound(compound, tx, isSetup(concrete), options.beside === true, startsHistory(concrete));
+            return this.compound(
+                compound,
+                tx,
+                isSetup(concrete),
+                options.beside === true,
+                startsHistory(concrete),
+                options.trigger,
+            );
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1875,7 +1907,7 @@ export class Dispatcher {
         }
 
         const group = tx ?? this.groupOf(concrete, undoable, origin, state);
-        const job = this.job(concrete, keys, undoable, group, queuedKey);
+        const job = this.job(concrete, keys, undoable, group, queuedKey, false, options.trigger ?? group.trigger);
         for (const key of keys) {
             group.keys.add(key);
         }
@@ -1922,6 +1954,7 @@ export class Dispatcher {
      * @param beside - Whether its queued members start at once, beside the queue, as a
      *     synchronous door's must.
      * @param starts - Whether it starts the history.
+     * @param trigger - Why the session ran it, stamped on each member's journal entry.
      * @returns Settles when every member has.
      */
     private compound(
@@ -1930,8 +1963,12 @@ export class Dispatcher {
         setup: boolean,
         beside: boolean,
         starts = false,
+        trigger?: JournalTrigger,
     ): Promise<unknown> {
-        const options = beside ? { beside } : {};
+        const options: DispatchOptions = {
+            ...(beside ? { beside } : {}),
+            ...(trigger === undefined ? {} : { trigger }),
+        };
         if (tx !== null) {
             return Promise.all(steps.map((step) => settle(() => this.submit(step, tx, options))));
         }
@@ -1944,6 +1981,7 @@ export class Dispatcher {
                 compound: true,
                 fact,
                 starts,
+                trigger,
             },
         );
         // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
@@ -2056,6 +2094,7 @@ export class Dispatcher {
                 setup: isSetup(concrete) || origin?.setup === true,
                 starts: startsHistory(concrete),
                 startsAt: origin?.starts ?? null,
+                trigger: origin?.trigger,
             },
         );
     }
@@ -2287,6 +2326,7 @@ export class Dispatcher {
                 value,
                 coalesceKey: job.definition.undo.coalesce?.(job.command) ?? null,
                 durationMs: this.clock() - job.startedAt,
+                ...(job.trigger === undefined ? {} : { trigger: job.trigger }),
             };
             // A transaction member is published when the transaction records, and never when it
             // rolls back: what it did is undone then, so it did not happen.
@@ -2406,6 +2446,7 @@ export class Dispatcher {
                 stepId,
                 job.seq,
                 null,
+                { trigger: group.trigger },
             );
             if (recorded === null) {
                 deferred.named = true;
@@ -2577,7 +2618,7 @@ export class Dispatcher {
      * @param step - The step it recorded, or null when it recorded none.
      */
     private startDeferred(group: Group, step: string | null): void {
-        const origin: DeferredOrigin = { step, setup: group.setup, starts: group.starts };
+        const origin: DeferredOrigin = { step, setup: group.setup, starts: group.starts, trigger: group.trigger };
         const starts = [...group.onSeal.values()];
         group.onSeal.clear();
         for (const start of starts) {
@@ -3090,6 +3131,7 @@ export class Dispatcher {
      * @param flags.compound - A batch's transaction.
      * @param flags.starts - It is the load that starts the history.
      * @param flags.startsAt - For work a start load deferred, that load's `Group.starts`.
+     * @param flags.trigger - Why the session ran its members, when it was not a direct call.
      * @returns The group.
      */
     private group(
@@ -3104,11 +3146,13 @@ export class Dispatcher {
             compound = false,
             starts = false,
             startsAt = null,
+            trigger,
         }: {
             readonly setup?: boolean;
             readonly compound?: boolean;
             readonly starts?: boolean;
             readonly startsAt?: number | null;
+            readonly trigger?: JournalTrigger;
         } = {},
     ): Group {
         return {
@@ -3133,6 +3177,7 @@ export class Dispatcher {
             starts: starts ? seq : startsAt,
             onSeal: new Map(),
             executed: [],
+            trigger,
             arrangement: null,
             epoch: 0,
         };
@@ -3146,6 +3191,7 @@ export class Dispatcher {
      * @param group - The group it writes into.
      * @param queuedKey - Its queued coalesce key.
      * @param inline - Dispatched inline by a running job of its group.
+     * @param trigger - Why the session ran it, when it was not a direct call.
      * @returns The job.
      */
     private job(
@@ -3155,6 +3201,7 @@ export class Dispatcher {
         group: Group,
         queuedKey: string | null,
         inline = false,
+        trigger: JournalTrigger | undefined = group.trigger,
     ): Job {
         let yes: (value: unknown) => void = () => undefined;
         let no: (error: unknown) => void = () => undefined;
@@ -3175,6 +3222,7 @@ export class Dispatcher {
             queuedKey,
             run: !inline && definition.lane.kind === "queued" && definition.lane.category === RUN_CATEGORY,
             inline,
+            trigger,
             controller: new AbortController(),
             slot: null,
             blockedBy: null,

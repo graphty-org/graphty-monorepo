@@ -67,9 +67,10 @@ interface DraftHost {
     graph(): NonNullable<DataImportCommand["measure"]>;
     /**
      * Runs a load in the session's load line: `run` gets the dispatch, taken synchronously, which
-     * sends its command once every load asked for earlier has dispatched (issue #3382).
+     * sends its command once every load asked for earlier has dispatched (issue #3382). `choices`
+     * are the load's own, for the `source:loaded` it publishes.
      */
-    inLine(run: (send: DraftSend) => Promise<void>): Promise<void>;
+    inLine(run: (send: DraftSend) => Promise<void>, choices?: LoadChoices): Promise<void>;
     /** Runs an import in a scratch session with this configuration and returns its report. */
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** The draft has been disposed. */
@@ -80,7 +81,7 @@ interface DraftHost {
      * For a draft prepared `onto: "graph"`: taken synchronously, as `importer` is; joins a table
      * onto the graph as one step.
      */
-    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape) => Promise<void>;
+    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape, callerKey?: string) => Promise<void>;
 }
 
 /** A table to join, with the source it was read from. */
@@ -1064,12 +1065,12 @@ export class Draft implements LoadDraft {
             // Taken before the first await, as the importer is.
             const join = this.joinHost("load").joiner?.();
             const { table, shape } = this.joinTable("load", choices.join);
-            await join?.(table, choices.join, shape);
+            await join?.(table, choices.join, shape, choices.callerKey);
             this.dispose();
             return;
         }
 
-        await this.host.inLine((send) => this.loadVia(send, choices));
+        await this.host.inLine((send) => this.loadVia(send, choices), choices);
     }
 
     /**

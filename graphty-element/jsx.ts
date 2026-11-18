@@ -667,6 +667,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
+    "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     /**

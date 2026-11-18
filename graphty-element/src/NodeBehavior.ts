@@ -1119,11 +1119,13 @@ export class NodeDragHandler {
         // the selection stays whole; on any other node it selects that node, as a click does.
         const secondary = this.clickState?.pointerEvent?.button === 2;
         if (selectionManager && !(secondary && selectionManager.isSelected(this.node))) {
-            if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
-                selectionManager.toggle(this.node);
-            } else {
-                selectionManager.select(this.node);
-            }
+            selectionManager.byInput("click", () => {
+                if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
+                    selectionManager.toggle(this.node);
+                } else {
+                    selectionManager.select(this.node);
+                }
+            });
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user

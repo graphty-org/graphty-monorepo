@@ -3096,7 +3096,7 @@ class Runs implements SessionRunsApi {
             const runId = idOf(suggestion.spec.run);
 
             try {
-                const outcome = await via(suggestionCommand(suggestion, true));
+                const outcome = await via(suggestionCommand(suggestion, true), { trigger: "suggestion" });
                 record(
                     addedOutcome(
                         suggestion,
@@ -3179,11 +3179,12 @@ class Runs implements SessionRunsApi {
      * @param run - The run, or the batch.
      * @param run.record - Its record, which the observer is handed.
      * @param run.generation - Which execution of it this is.
+     * @param run.trigger - Why the session started that execution by itself, when it did.
      * @param phase - Which moment it reached.
      * @param cause - What moved it.
      */
     private announce(
-        run: { readonly record: RunRecord; readonly generation: number },
+        run: { readonly record: RunRecord; readonly generation: number; readonly trigger?: RunChange["trigger"] },
         phase: RunPhase,
         cause: RunChange["cause"] = "command",
     ): void {
@@ -3194,7 +3195,17 @@ class Runs implements SessionRunsApi {
         }
 
         try {
-            onChange(Object.freeze({ run: run.record, phase, cause, generation: run.generation }));
+            // An undo, a redo or a restore moved it, not the execution the trigger describes.
+            const trigger = cause === "command" ? run.trigger : undefined;
+            onChange(
+                Object.freeze({
+                    run: run.record,
+                    phase,
+                    cause,
+                    generation: run.generation,
+                    ...(trigger === undefined ? {} : { trigger }),
+                }),
+            );
         } catch {
             // A watcher's failure is the watcher's. The run carries on.
         }

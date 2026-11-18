@@ -137,6 +137,14 @@ export interface RunChange {
      * execution's `end` from a new one's.
      */
     readonly generation: number;
+    /**
+     * Present when the session re-ran this algorithm by itself rather than on a caller's request:
+     * `"timeline"` when the time window moved, or the time results policy changed to `"rerun"`.
+     * Absent for a run a caller started or re-ran.
+     *
+     * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     */
+    readonly trigger?: "timeline";
 }
 
 /**

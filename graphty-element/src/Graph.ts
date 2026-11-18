@@ -96,6 +96,7 @@ import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import type { CameraGestureKind } from "./cameras/gestureEnd";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
@@ -840,6 +841,19 @@ export class Graph implements GraphContext {
         this.#initialCameraStateOwed = false;
         this.updateManager.stopAutoZoomToFit();
     };
+    /**
+     * A reader's camera gesture ended: published as `camera:gesture-end`.
+     * @param kind - What the gesture did.
+     */
+    readonly #cameraGestureEnded = (kind: CameraGestureKind): void => {
+        this.session.cameraGestureEnd(kind);
+    };
+
+    /** Hooks the render manager's camera's reader input to the session. */
+    #hookCamera(): void {
+        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.camera.onGestureEnd = this.#cameraGestureEnded;
+    }
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     /**
      * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
@@ -1259,7 +1273,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
 
         // Initialize StatsManager
         this.statsManager = new StatsManager(this.eventManager);
@@ -2577,7 +2591,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
@@ -4513,7 +4527,8 @@ export class Graph implements GraphContext {
                         });
                     }
                 },
-                { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
+                // Every entry it writes, the layers and the moves stacking them, is the suggestion's.
+                { fact: { code: "style.suggested", params: { algorithms: [...keys] } }, trigger: "suggestion" },
             )
             .then(undefined, report);
         // Entered in the record of pending work until the layers are stacked, so
@@ -5820,7 +5835,9 @@ export class Graph implements GraphContext {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    this.handleBackgroundClick(pointerInfo.event);
+                    this.session.selection.byInput("click", () => {
+                        this.handleBackgroundClick(pointerInfo.event);
+                    });
                 }
             }
         });
@@ -5838,7 +5855,9 @@ export class Graph implements GraphContext {
                 }
             },
             select: (polygon) => {
-                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+                this.session.selection.byInput("box", () =>
+                    this.session.selection.applyNow({ region: { polygon } }, "add", "user"),
+                );
             },
         });
 

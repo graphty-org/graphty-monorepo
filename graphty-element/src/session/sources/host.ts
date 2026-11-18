@@ -6,7 +6,7 @@
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import type { DefaultableLimits } from "../limits";
 import type { SessionCommand } from "../planning";
-import type { SessionEventMap } from "../types";
+import type { SessionEventMap, SourceLoaded } from "../types";
 import type { SourceLedger } from "./ledger";
 import type { ExpandOptions, SourceLoadRecord } from "./types";
 
@@ -75,6 +75,23 @@ export interface SourceHost {
      * @param detail - what it carries
      */
     emit<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
+    /**
+     * The keys `data.sources()` stores now, read before a load door dispatches.
+     * @returns the keys
+     */
+    sourceKeys?(): ReadonlySet<SourceKey>;
+    /**
+     * Publish `source:loaded` for each source a load door's load added, once it committed. Only a
+     * load door calls it, never `runPendingSourceLoad`, a refresh or a next page.
+     * @param before - the keys {@link SourceHost.sourceKeys} read before the dispatch
+     * @param mode - whether the load replaced the graph or merged into it
+     * @param facts - what the door knows beside the source list
+     */
+    loaded?(
+        before: ReadonlySet<SourceKey>,
+        mode: "replace" | "merge",
+        facts: Pick<SourceLoaded, "sourceId" | "sample" | "callerKey">,
+    ): void;
     /**
      * A node's record, its id as the graph holds it.
      * @param id - the id, an integer id either way

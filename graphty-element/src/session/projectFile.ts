@@ -2950,6 +2950,7 @@ export function projectOf(
         const opening: TransactionOptions = {
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
+            trigger: "project",
         };
         const loads: SourcesRead = readSourcesMember(member, {
             pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,

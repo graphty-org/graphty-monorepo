@@ -7,6 +7,7 @@
  */
 
 import { type KeymapAction, keymapAction } from "../catalog/keymap";
+import { selectByInput } from "./selection";
 import type { GraphSession, HistoryOutcome } from "./types";
 
 /** What `attachKeymap` needs of a session. */
@@ -97,7 +98,7 @@ export function attachKeymap(session: KeymapSession, root: KeymapRoot, options: 
         }
         if (action === "deselect" && session.selection.size > 0) {
             const { nodes, edges } = session.selection;
-            session.selection.clear({ cause: "user" });
+            selectByInput(session.selection, "keys", () => session.selection.clear({ cause: "user" }));
             onAction?.({ action, nodes: nodes.length, edges: edges.length });
         } else if (action === "undo" && session.canUndo) {
             history(true);

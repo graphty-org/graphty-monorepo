@@ -2264,6 +2264,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
+            cameraGestureEnd: EVENTS,
             groupOutlineClick: EVENTS,
             layoutMotion: EVENTS,
         },

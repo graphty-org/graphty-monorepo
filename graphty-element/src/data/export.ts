@@ -600,8 +600,7 @@ export function buildExportSnapshot(
     // What the loaded file's reader recorded under `meta.extra` (DOT's `strict` and HTML labels), so
     // the writer of that format writes it again (issue #7600).
     const extra = dispatcherOf(session).state.graph.values.get(META_EXTRA_VALUE) as
-        | Readonly<Record<string, unknown>>
-        | undefined;
+        Readonly<Record<string, unknown>> | undefined;
     if (extra !== undefined) {
         builder.setMeta({ extra });
     }

@@ -208,7 +208,6 @@ const MODEL_CHUNK = [
     // and what it draws an FBX file's curves with.
     "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
     "@babylonjs/loaders/USD/usdFileLoader.pure.js",
-    "@babylonjs/loaders/BVH/bvhFileLoader.pure.js",
     "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
     "@babylonjs/core/Materials/standardMaterial.js",
 ];

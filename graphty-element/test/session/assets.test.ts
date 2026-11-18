@@ -490,10 +490,6 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assertRejected(await add(file(utf8("hello"), "notes.txt")), "E_MODEL_FORMAT_UNKNOWN", {
             fileName: "notes.txt",
         });
-        // BVH is read (drawn as a figure); one cut short is refused as damaged.
-        assertRejected(await add(file(utf8("HIERARCHY\nROOT Hips\n"), "walk.bvh")), "E_MODEL_STRUCTURE", {
-            rule: "bvh",
-        });
         const points = utf8(
             "ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n",
         );

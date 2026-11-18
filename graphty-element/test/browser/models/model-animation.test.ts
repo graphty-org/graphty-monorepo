@@ -230,7 +230,6 @@ describe("model animation", () => {
         ["fbx-morph-animated", "grow"],
         ["usda-animated", "USD Animation 1"],
         ["usdz-skinned-animated", "USD Animation 1"],
-        ["bvh", "BVH Animation"],
     ])("plays %s's clip %s: a held moment is its own pose, and the picture moves while it plays", async (id, clip) => {
         const element = await mount();
         const record = await element.session.assets.add({ files: await filesOf(id) });

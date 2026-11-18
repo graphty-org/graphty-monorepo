@@ -733,7 +733,7 @@ const FIELD_ROWS = {
     look: choice("Look", ["default", "card", "dark", "pill", "callout"] satisfies readonly LabelLookId[]),
     enabled: flag("Enabled"),
     font: text("Font"),
-    sizePx: num("Font Size"),
+    sizePx: num("Font Size", { min: 1 }),
     sizeMode: choice("Size Mode", ["world", "screen"] satisfies readonly LabelSizeMode[]),
     size: num("Size", { min: 0, exclusiveMin: true }),
     letterSize: num("Letter Size", { min: 0 }),

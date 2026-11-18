@@ -56,31 +56,36 @@ import {
 /** The section name, as every report names it. */
 const SECTION = "view";
 
-/** The body members, in the order they are written. */
-const MEMBERS = [
-    "camera",
-    "views",
-    "selection",
-    "pinned",
-    "groups",
-    "sets",
-    "visibility",
-    "timeline",
-    "viewRotation",
-    "framing",
-    "hiddenColumns",
-    "order",
-    "layers",
-    "runs",
-    "layout",
-] as const;
-
 /**
- * The members read from the live session where it has them (a renderer's camera, the timeline's
- * playhead) and otherwise kept from the open and written back: a session that draws nothing has
- * no camera, and one with no time window has no playhead.
+ * The body members, in the order they are written, each with whether it is read from the live
+ * session where it has them (a renderer's camera, the timeline's playhead) and otherwise kept from
+ * the open and written back: a session that draws nothing has no camera, and one with no time
+ * window has no playhead. Keys, not strings, so a member named like a graduated feature id is not
+ * taken for that id.
  */
-const HELD_ONLY = new Set<string>(["camera", "timeline"]);
+const MEMBER_HELD_ONLY = {
+    camera: true,
+    views: false,
+    selection: false,
+    pinned: false,
+    groups: false,
+    sets: false,
+    visibility: false,
+    timeline: true,
+    viewRotation: false,
+    framing: false,
+    hiddenColumns: false,
+    order: false,
+    layers: false,
+    runs: false,
+    layout: false,
+} as const;
+
+/** The body members, in the order they are written. */
+const MEMBERS = Object.keys(MEMBER_HELD_ONLY) as (keyof typeof MEMBER_HELD_ONLY)[];
+
+/** The members read from the live session where it has them. */
+const HELD_ONLY = new Set<string>(MEMBERS.filter((name) => MEMBER_HELD_ONLY[name]));
 
 /** The option types whose values name nodes. */
 const NODE_OPTION_TYPES = new Set(["node-id", "node-set"]);
@@ -360,7 +365,7 @@ function liveCamera(session: GraphSession): JsonObject | undefined {
 }
 
 /**
- * The `timeline` member: the playhead, where a seek would put the window in force -- its start
+ * The timeline member: the playhead, where a seek would put the window in force -- its start
  * when sliding, its end when cumulative -- or undefined with no window.
  * @param session - The session.
  * @returns The member.

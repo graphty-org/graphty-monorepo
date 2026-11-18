@@ -3,7 +3,8 @@ name: Data Preview
 category: data
 description: Preview a sample of graph data before committing to full import. Show detected format, field mapping,
     sample nodes and edges, and estimated total counts to let users verify the import will work as expected.
-status: planned
+status: implemented
+notes: "Ships: the table preview in graphty/src/workspace/data-page/DataPage.tsx."
 algorithms: []
 used_by_workflows:
     - W01

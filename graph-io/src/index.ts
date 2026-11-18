@@ -132,6 +132,7 @@ export {
 export { defineSource, sourceEndpoint, sourceFileName } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
+    FIGSHARE_SOURCE_ID,
     GITHUB_SOURCE_ID,
     NDEX_SOURCE_ID,
     NEO4J_SOURCE_ID,
@@ -346,6 +347,16 @@ export {
     pajekImporter,
     type PajekImportOptions,
 } from "./formats/pajek/index.js";
+export {
+    INTERACTION_COLUMN,
+    SIF_CAPABILITIES,
+    SIF_ISSUE,
+    SIF_LOSS,
+    sifExporter,
+    type SifExportOptions,
+    sifImporter,
+    type SifImportOptions,
+} from "./formats/sif/index.js";
 export {
     XGMML_ISSUE,
     XGMML_LOSS,

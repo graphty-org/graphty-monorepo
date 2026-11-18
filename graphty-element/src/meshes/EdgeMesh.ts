@@ -1,4 +1,3 @@
-import type { BaseTexture } from "@babylonjs/core";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Engine } from "@babylonjs/core/Engines/engine.js";
@@ -38,7 +37,7 @@ import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
 import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh, followRenderSize } from "./pulledAnimatedLine";
-import { LEAN_TEMPLATE, type LeanLines, PulledLineBatch } from "./PulledLineBatch";
+import { LEAN_TEMPLATE, type LeanLines, PulledLineBatch, type PulledRowTextures } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
@@ -586,7 +585,7 @@ export class EdgeMesh {
      * @param options - The line's look.
      * @param style - The resolved style.
      * @param scene - The scene.
-     * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @param rows - The row table's textures, asked each frame.
      * @param edge - How the edge is drawn.
      * @param edge.loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
      * @param edge.route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
@@ -600,7 +599,7 @@ export class EdgeMesh {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-        rowPositions: () => BaseTexture,
+        rows: () => PulledRowTextures,
         edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: LeanLines } = {},
     ): PulledLineBatch {
         const { loop = false, route = style.line?.route, lean = false } = edge;
@@ -609,9 +608,7 @@ export class EdgeMesh {
         const pass = this.pulledPass(style);
         const curve = this.pullsCurve(style, loop, route);
         if (!curve && style.line?.animationSpeed) {
-            return cache.getPulledBatch("edge-pulled|animated", () =>
-                this.createPulledAnimatedBatch(scene, rowPositions),
-            );
+            return cache.getPulledBatch("edge-pulled|animated", () => this.createPulledAnimatedBatch(scene, rows));
         }
 
         // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another
@@ -642,10 +639,11 @@ export class EdgeMesh {
             return new PulledLineBatch(
                 mesh,
                 scene,
-                rowPositions,
+                () => rows().positionTexture,
                 curve,
                 leanLine === false ? undefined : LEAN_TEMPLATE,
                 kind === true,
+                curve ? null : rows,
             );
         });
     }
@@ -699,10 +697,10 @@ export class EdgeMesh {
      * callback: it moves the one `scroll` uniform for every piece, each scrolling at its own speed, and parks it at 0
      * while the scene does not animate, as {@link EdgeMesh.applyAnimatedTexture} parks a greased line's texture.
      * @param scene - The scene.
-     * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @param rows - The row table's textures, asked each frame.
      * @returns The batch.
      */
-    private static createPulledAnimatedBatch(scene: Scene, rowPositions: () => BaseTexture): PulledLineBatch {
+    private static createPulledAnimatedBatch(scene: Scene, rows: () => PulledRowTextures): PulledLineBatch {
         const mesh = createPulledAnimatedLineMesh(scene);
         mesh.parent = scene.getTransformNodeByName("graph-root");
         const material = mesh.material as ShaderMaterial;
@@ -718,7 +716,7 @@ export class EdgeMesh {
             releaseFrames();
             stopFrames();
         });
-        return new PulledLineBatch(mesh, scene, rowPositions, false, ANIMATED_TEMPLATE);
+        return new PulledLineBatch(mesh, scene, () => rows().positionTexture, false, ANIMATED_TEMPLATE, false, rows);
     }
 
     /**

@@ -281,6 +281,29 @@ function shownStroke(n: PNode): PNode["stroke"] {
     return band === n.stroke.width ? n.stroke : { ...n.stroke, width: band };
 }
 
+/**
+ * Whether a node draws no body: no fill, outline, ring or picture of its own, only its words if any.
+ * @param n - the node, either side's
+ * @returns true when it draws no body
+ */
+const bodiless = (n: PNode): boolean =>
+    n.fill === null && n.stroke === null && (n.ring ?? null) === null && (n.pictures?.length ?? 0) === 0;
+
+/**
+ * The shape "none" of a node the program draws as its words alone (vis-network's `text`, Graphviz's `plaintext`):
+ * graphty draws it right when it draws no body either. An icon node's glyph is its body, which an oracle with no icon
+ * font cannot show (`endBox`), so it is not judged.
+ * @param o - the oracle's node
+ * @param g - graphty's node
+ * @returns 0 when both draw only words, 1 when graphty draws a body, null when the oracle's node is not words alone
+ */
+export function wordsOnlyShapeMiss(o: PNode, g: PNode): number | null {
+    if (o.label === null || o.endBox !== undefined || !bodiless(o)) {
+        return null;
+    }
+    return bodiless(g) ? 0 : 1;
+}
+
 /** One judged element. */
 export interface OracleJudged {
     id: string;
@@ -2194,6 +2217,11 @@ export function compareOracle(
         }
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
+        } else {
+            const miss = wordsOnlyShapeMiss(o, g);
+            if (miss !== null) {
+                j.add("node.shape", "node", id, miss, "none", miss === 0 ? "none" : g.shape);
+            }
         }
         // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
         // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)

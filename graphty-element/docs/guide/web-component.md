@@ -33,7 +33,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `layoutConfig`           | `layout-config`            | `object`                                                            | `{}`        | Layout algorithm options                                                                                                                                                                                                                                                            |
 | `layoutScope`            | `layout-scope`             | scope (JSON)                                                        | unset       | Lay out only these nodes and hold the rest still, such as `{"set":"set_team"}`; unset means the whole graph (see [Layouts](./layouts#laying-out-part-of-the-graph))                                                                                                                 |
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'`                                      | `'3d'`      | Rendering mode                                                                                                                                                                                                                                                                      |
-| `background`             | `background`               | `object`                                                            | whitesmoke  | A colour, or a skybox image                                                                                                                                                                                                                                                         |
+| `background`             | `background`               | `object`                                                            | whitesmoke  | A color, or a skybox image                                                                                                                                                                                                                                                          |
 | `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                                                                                                                                       |
 | `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                                                                                                                                          |
 | `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                                                                                                                                   |
@@ -57,7 +57,6 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `layoutBehavior`         | property only              | `object`                                                            | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions                                                                                                                                                            |
 | `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`                                           | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads))                                                                                                                   |
 | `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                                                           | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence                                                                                                                                                                                                                |
-| `debug`                  | `debug`                    | `boolean`                                                           | `false`     | Enable debug overlay                                                                                                                                                                                                                                                                |
 | `historyKeys`            | `history-keys`             | `boolean`                                                           | `true`      | Whether Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y on the focused canvas undo and redo; `history-keys="false"` turns them off (see [Undo and History](./undo#keyboard-shortcuts))                                                                                                              |
 
 ### How the element finds an edge's endpoints
@@ -68,8 +67,7 @@ decides once for a whole batch of records rather than once per record -- so a fi
 edge one way and the next edge another and have both silently accepted.
 
 A batch that answers none of the three fails the load with `E_EDGE_ENDPOINTS_UNRESOLVED`, naming
-the columns the records do carry. It never loads a graph with nodes and no edges in silence, which
-is what 1.x did to every file spelled the way the guides teach.
+the columns the records do carry. It never loads a graph with nodes and no edges in silence.
 
 Setting either attribute settles the question and turns the probe off. A record that then does not
 answer the column you named is rejected and counted rather than guessed at again.
@@ -94,7 +92,7 @@ layer.
 
 ```javascript
 element.selectionStyle = {
-    color: "#00BCD4", // any colour the element understands
+    color: "#00BCD4", // any color the element understands
     scale: 1.8, // how far past the node it stands, as a multiple of the node's size
     opacity: 0.55, // 0 to 1
 };

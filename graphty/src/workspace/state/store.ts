@@ -309,6 +309,8 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
+    /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
+    readonly recording: boolean;
     /**
      * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
@@ -447,6 +449,7 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
+    recording: "fresh: a recording ends with the page that ran it",
     followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
@@ -560,6 +563,7 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
+    recording: false,
     followSelection: true,
     exportOn: "image",
     exportSource: null,

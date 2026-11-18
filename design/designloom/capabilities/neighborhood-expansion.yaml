@@ -3,7 +3,8 @@ name: Neighborhood Expansion
 category: interaction
 description: Expand the view to show neighbors of selected nodes. Start with a focused view and progressively reveal
     more context by expanding neighborhoods. Essential for investigation workflows.
-status: planned
+status: implemented
+notes: "Ships: the session's expand for server-loaded nodes and graphty/src/workspace/server/NodeMenu.tsx."
 algorithms: []
 used_by_workflows:
     - W06

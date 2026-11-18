@@ -144,6 +144,21 @@ test("canCaptureScreenshot refuses WebP where the browser cannot encode it", asy
     assert.deepEqual(check.reason, { code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } });
 });
 
+test("canCaptureScreenshot refuses a transparent JPEG as the capture would, and allows PNG and WebP", async () => {
+    graph = await createTestGraphWithData();
+
+    const jpeg = await graph.canCaptureScreenshot({ format: "jpeg", transparentBackground: true });
+    assert.equal(jpeg.supported, false);
+    assert.deepEqual(jpeg.reason, {
+        code: "E_BAD_COMMAND",
+        params: { fields: ["transparentBackground", "format"], format: "jpeg" },
+    });
+    for (const format of ["png", "webp"] as const) {
+        const check = await graph.canCaptureScreenshot({ format, transparentBackground: true });
+        assert.equal(check.reason?.code === "E_BAD_COMMAND", false, format);
+    }
+});
+
 test("canCaptureScreenshot handles edge case: very small dimensions", async () => {
     graph = await createTestGraphWithData();
 

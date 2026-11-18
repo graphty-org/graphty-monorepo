@@ -193,7 +193,7 @@ export class ScreenshotCapture {
         }
 
         const options = typeof legend === "object" ? legend : {};
-        const bound = legendSections(this.readLegend());
+        const bound = options.sections ?? legendSections(this.readLegend());
         // "auto" draws only when a layer binds a value; true draws the heading even when none does.
         const sections =
             legend === "auto" && bound.length === 0

@@ -23,8 +23,10 @@ export interface CapabilityCheck {
     /**
      * Why the capture cannot be made, when it cannot: the `GraphtyError` code `captureScreenshot`
      * would throw with the same options, and that error's details as `params` (for example
-     * `E_TOO_LARGE` with `{ of: "pixels", width, height, count, limit }`, or `E_UNSUPPORTED` with
-     * `{ reason: "format", format }`).
+     * `E_TOO_LARGE` with `{ of: "pixels", width, height, count, limit }`, `E_UNSUPPORTED` with
+     * `{ reason: "format", format }`, or `E_BAD_COMMAND` with
+     * `{ fields: ["transparentBackground", "format"], format }` for a transparent background in a
+     * format other than PNG and WebP).
      */
     reason?: CodedFact<GraphtyErrorCode>;
     /** What may go wrong with a capture that can be made; absent when nothing may. */
@@ -80,6 +82,23 @@ export async function canCaptureScreenshot(
 
     const pixels = dims.width * dims.height;
     const memoryMB = (pixels * 4) / (1024 * 1024);
+
+    // The same rule captureScreenshot applies: only PNG and WebP keep a transparent background.
+    const format = finalOptions.format ?? "png";
+    if (
+        finalOptions.transparentBackground === true &&
+        finalOptions.backgroundColor === undefined &&
+        format !== "png" &&
+        format !== "webp"
+    ) {
+        return {
+            supported: false,
+            reason: { code: "E_BAD_COMMAND", params: { fields: ["transparentBackground", "format"], format } },
+            estimatedMemoryMB: memoryMB,
+            width: dims.width,
+            height: dims.height,
+        };
+    }
 
     if (finalOptions.format === "webp" && !(await supportsWebP())) {
         return {

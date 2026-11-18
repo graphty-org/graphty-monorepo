@@ -8,9 +8,13 @@ algorithms: []
 used_by_workflows:
     - W02
     - W05
+    - W20
+    - W21
+    - W23
 implemented_by_components:
     - graph-canvas
     - context-menu
+    - data-table-panel
 requirements:
     - Select single node with left-click
     - Add node to existing selection with Shift+click

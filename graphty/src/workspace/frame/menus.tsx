@@ -116,7 +116,7 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
 
 /**
  * The main menu, the app's one menu: Back to start | New project, Rename, Open, Open recent
- * | the File list | Custom model..., Add Shader... | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
+ * | the File list | Add custom model..., Add Shader... | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
  * out the rows that need a project (Back to start, the File list, Rename) rather than
  * drawing them disabled.
  * @param props - Component props

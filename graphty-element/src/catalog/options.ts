@@ -43,21 +43,35 @@ export function withDescriptionIds(prefix: string, options: readonly OptionDescr
 }
 
 /**
- * {@link withDescriptionIds} over each descriptor of a catalogue list.
+ * {@link withDescriptionIds} over each descriptor of a catalogue list. A described descriptor
+ * without a `descriptionId` gets `<kind>.<id>` too.
  * @param kind - The catalogue, such as "camera"; each descriptor's options get the prefix `<kind>.<id>`.
  * @param descriptors - The descriptors, each with an id and options.
  * @param idOf - A descriptor's id.
- * @returns The descriptors, their described options each carrying a `descriptionId`.
+ * @returns The descriptors, each described one and its described options carrying a `descriptionId`.
  */
-export function withEachDescriptionIds<T extends { readonly options: readonly OptionDescriptor[] }>(
-    kind: string,
-    descriptors: readonly T[],
-    idOf: (descriptor: T) => string,
-): T[] {
+export function withEachDescriptionIds<
+    T extends { readonly options: readonly OptionDescriptor[]; readonly descriptionId?: string },
+>(kind: string, descriptors: readonly T[], idOf: (descriptor: T) => string): T[] {
     return descriptors.map((descriptor) => ({
         ...descriptor,
+        ...("description" in descriptor && descriptor.descriptionId === undefined
+            ? { descriptionId: `${kind}.${idOf(descriptor)}` }
+            : {}),
         options: withDescriptionIds(`${kind}.${idOf(descriptor)}`, descriptor.options),
     }));
+}
+
+/**
+ * A catalogue entry's deprecated English `description`, which the element's own assistant tools
+ * and error messages still read this release: a model needs words, and the application words its
+ * readers' text from `descriptionId` instead. Goes when the field does (#7961).
+ * @param entry - An algorithm, layout, camera, log sink or format descriptor.
+ * @param entry.description - Its English sentence, when it has one.
+ * @returns The sentence, or "" when it has none.
+ */
+export function englishDescription(entry: { readonly description?: string }): string {
+    return entry.description ?? "";
 }
 
 /** Which extension point is being configured, which is what a failure message names. */

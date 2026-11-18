@@ -28,7 +28,7 @@ import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { deepEquals } from "../styles/predicate";
 import type { DirectionProvenance } from "../types";
 import { type Draft, frozenRecord, type OpLogEntry } from "./draft";
-import { RecordMap } from "./recordMap";
+import { edgeRecordMap, nodeRecordMap, RecordMap } from "./recordMap";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
 import { builderDrift, strictViolation, verifyRetainedArrays } from "./strict";
 
@@ -54,8 +54,6 @@ interface GraphHome {
     readonly strict: boolean;
     /** Whether a history lives here: false for a data manager built without a session. */
     readonly session: boolean;
-    /** Whether anything reads {@link GraphOps.rewrites}: the timeline's experiment is on. */
-    readonly countsRewrites?: () => boolean;
     /**
      * Whether the rows are drawn on the `"batched"` render path: a forward add then marks its
      * edges dirty as one range key, not one key per edge. Absent reads `false`.
@@ -260,8 +258,11 @@ interface EdgeRange {
     readonly records: (GraphRecord | number)[];
     /** The slice map that issued the places in `records`, or null. */
     readonly from: RecordMap<EdgeId> | null;
-    /** The file's own id per edge, or undefined. */
-    readonly fileIds: (string | number | undefined)[];
+    /**
+     * The file's own id per edge, or undefined; null while no edge of the run has one, which is
+     * every edge of most loads (8 MB a million edges).
+     */
+    fileIds: (string | number | undefined)[] | null;
     /** The endpoints an edge created, by its place in the run; most create none. */
     readonly created: Map<number, readonly NodeId[]>;
     /** The identity cells each edge was completed with, kept by the first undo for its redo. */
@@ -285,9 +286,20 @@ interface NodeRange {
      * (`readSeedPosition`), and three numbers in one array are not an array per node (53 MB at 1M).
      */
     readonly seeds: number[];
-    readonly existed: boolean[];
+    /** Whether node `at` existed before the add, one bit each (bit `at & 7` of byte `at >> 3`). */
+    existed: Uint8Array;
     /** The record the slice held before, by the node's place in the run; most had none. */
     readonly priors: Map<number, GraphRecord>;
+}
+
+/**
+ * Whether node `at` of a run existed before the add.
+ * @param range - The run.
+ * @param at - The node's place in it.
+ * @returns True when it did.
+ */
+function existedAt(range: NodeRange, at: number): boolean {
+    return (range.existed[at >> 3] & (1 << (at & 7))) !== 0;
 }
 
 /** One node added, as a node op holds it. */
@@ -316,7 +328,7 @@ function nodeAt(range: NodeRange, at: number): NodeOp {
         id: range.ids[at],
         record: recordIn(range, at),
         seed: seedAt(range.seeds, at),
-        existed: range.existed[at],
+        existed: existedAt(range, at),
         prior: range.priors.get(at),
     };
 }
@@ -378,16 +390,51 @@ export function resolveEdgeCapacity(record: Readonly<Record<string | number, unk
 }
 
 /**
- * Write an edge's capacity column from the record it holds now, so the column always reads what
- * {@link resolveEdgeCapacity} reads from that record. An edge with no row writes nothing.
+ * Resolve an edge's own direction: the record's boolean `directed` (GraphML's per-edge attribute),
+ * else its GEXF `type` (`directed`, or `undirected` and `mutual`, which are undirected), else none,
+ * so the edge takes the graph's direction.
+ * @param record - the raw edge record
+ * @returns true or false when the record states a direction, undefined when it does not
+ */
+function resolveEdgeDirected(record: Readonly<Record<string | number, unknown>>): boolean | undefined {
+    if (typeof record.directed === "boolean") {
+        return record.directed;
+    }
+
+    switch (record.type) {
+        case "directed":
+            return true;
+        case "undirected":
+        case "mutual":
+            return false;
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * Whether a new edge's record needs a column write: a fresh row already reads capacity 1 and the
+ * graph's direction.
+ * @param record - The record.
+ * @returns True when {@link writeEdgeColumns} would write something.
+ */
+function needsEdgeColumns(record: GraphRecord): boolean {
+    return resolveEdgeCapacity(record) !== 1 || resolveEdgeDirected(record) !== undefined;
+}
+
+/**
+ * Write an edge's capacity and direction columns from the record it holds now, so the columns
+ * always read what {@link resolveEdgeCapacity} and {@link resolveEdgeDirected} read from that
+ * record. An edge with no row writes nothing.
  * @param store - The store.
  * @param edgeId - The edge's element-assigned id.
  * @param record - Its record, or undefined for none.
  */
-function writeCapacity(store: GraphStore, edgeId: number, record: GraphRecord | undefined): void {
+function writeEdgeColumns(store: GraphStore, edgeId: number, record: GraphRecord | undefined): void {
     const row = store.edgeIndexOf(edgeId);
     if (row !== INVALID_INDEX) {
         store.builder.setEdgeValue(store.capacityColumn, row, resolveEdgeCapacity(record ?? {}));
+        store.writeEdgeDirected(row, resolveEdgeDirected(record ?? {}));
         store.account();
     }
 }
@@ -420,6 +467,8 @@ export interface GraphWriter {
      * @param weight - The resolved weight.
      * @param record - The record.
      * @param fileId - The file's own id for the edge, read at `edgeIdPath`, when it has one.
+     * @param reuse - An id the element assigned before, to give back to an edge removed earlier;
+     *     a fresh one when the graph holds it or the element never assigned it.
      * @returns The row and the id; INVALID_INDEX for both when either endpoint cannot be stored.
      */
     addEdge(
@@ -428,6 +477,7 @@ export interface GraphWriter {
         weight: number,
         record: GraphRecord,
         fileId?: string | number,
+        reuse?: number,
     ): { index: number; edgeId: number };
     /**
      * Fold a repeated edge record into the edge it repeats: a new weight, and for the `last`
@@ -443,9 +493,15 @@ export interface GraphWriter {
      * @param id - Its id.
      * @param values - The new values.
      * @param replace - The values are the whole new record: a key they lack is dropped.
-     * @returns False when the graph holds no such element.
+     * @returns False when the graph holds no such element. The sets watching the fields hear of
+     *     it at {@link GraphWriter.announce}, once the whole batch is written.
      */
     setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace?: boolean): boolean;
+    /**
+     * End a batch of attribute writes: tell the sets that watch the fields it changed, once, now
+     * that every record of the batch is written (design/sets 11).
+     */
+    announce(): void;
     /**
      * Set graph-level values: the import report, graph-level results.
      * @param values - The values by name.
@@ -584,19 +640,9 @@ export class GraphOps {
         return `${String(this.rewritten)}:${String(this.store?.renumberCount ?? 0)}`;
     }
 
-    /**
-     * Whether anything reads {@link GraphOps.rewrites}.
-     * @returns True with the timeline on.
-     */
-    get countsRewrites(): boolean {
-        return this.home.countsRewrites?.() === true;
-    }
-
     /** Count a change that is more than rows added at the end. */
     noteRewrite(): void {
-        if (this.countsRewrites) {
-            this.rewritten++;
-        }
+        this.rewritten++;
     }
 
     /**
@@ -876,7 +922,7 @@ function createdBy(op: GraphOp): readonly NodeId[] {
         case "edge":
             return op.created;
         case "nodes":
-            return op.ids.filter((_, at) => !op.existed[at]);
+            return op.ids.filter((_, at) => !existedAt(op, at));
         case "edges":
             return [...op.created.values()].flat();
         default:
@@ -899,7 +945,9 @@ export function reshapes(log: readonly OpLogEntry[]): boolean {
                     return !op.existed;
                 }
 
-                return op.kind === "nodes" ? op.existed.includes(false) : op.kind !== "record" && op.kind !== "value";
+                return op.kind === "nodes"
+                    ? op.ids.some((_, at) => !existedAt(op, at))
+                    : op.kind !== "record" && op.kind !== "value";
             }),
     );
 }
@@ -1242,7 +1290,15 @@ class GraphEntry implements OpLogEntry {
         if (last?.kind === "nodes" && last.from === from) {
             range = last;
         } else {
-            range = { kind: "nodes", ids: [], records: [], from, seeds: [], existed: [], priors: new Map() };
+            range = {
+                kind: "nodes",
+                ids: [],
+                records: [],
+                from,
+                seeds: [],
+                existed: new Uint8Array(16),
+                priors: new Map(),
+            };
             this.ops.push(range);
             this.retained += 48;
         }
@@ -1251,6 +1307,7 @@ class GraphEntry implements OpLogEntry {
             range.priors.set(range.ids.length, op.prior);
         }
 
+        const at = range.ids.length;
         range.ids.push(op.id);
         range.records.push(from?.stored(op.record) ?? op.record);
         if (op.seed === null) {
@@ -1259,9 +1316,17 @@ class GraphEntry implements OpLogEntry {
             range.seeds.push(op.seed[0], op.seed[1], op.seed[2]);
         }
 
-        range.existed.push(op.existed);
-        // Array slots and three seed numbers per node, not an op object or a seed array.
-        this.retained += 20 + recordBytes(op.record);
+        if (at >> 3 >= range.existed.length) {
+            const grown = new Uint8Array(2 * range.existed.length);
+            grown.set(range.existed);
+            range.existed = grown;
+        }
+
+        if (op.existed) {
+            range.existed[at >> 3] |= 1 << (at & 7);
+        }
+        // Array slots, three seed numbers and a bit per node, not an op object or a seed array.
+        this.retained += 16 + recordBytes(op.record);
     }
 
     /**
@@ -1284,7 +1349,7 @@ class GraphEntry implements OpLogEntry {
                 weights: [],
                 records: [],
                 from,
-                fileIds: [],
+                fileIds: null,
                 created: new Map(),
             };
             this.ops.push(range);
@@ -1299,9 +1364,19 @@ class GraphEntry implements OpLogEntry {
         range.targets.push(op.target);
         range.weights.push(op.weight);
         range.records.push(from?.stored(op.record) ?? op.record);
-        range.fileIds.push(op.fileId);
-        // Five array slots per edge, not an op object.
-        this.retained += 16 + recordBytes(op.record);
+        const at = range.records.length - 1;
+        if (op.fileId !== undefined && range.fileIds === null) {
+            range.fileIds = new Array<string | number | undefined>(at).fill(undefined);
+            this.retained += 4 * at;
+        }
+
+        if (range.fileIds !== null) {
+            range.fileIds[at] = op.fileId;
+            this.retained += 4;
+        }
+
+        // Four array slots per edge (five once a file id arrives), not an op object.
+        this.retained += 12 + recordBytes(op.record);
     }
 
     bytes(): number {
@@ -1338,6 +1413,9 @@ class GraphEntry implements OpLogEntry {
         for (let index = this.ops.length - 1; index >= 0; index--) {
             maps = this.undoOp(this.ops[index], maps, seen);
         }
+
+        // After every record is put back: the watching sets resolve against the whole step undone.
+        announceFields(store, seen);
 
         if (this.ops.some(movesRows)) {
             this.graph.touch(ROWS_MOVED);
@@ -1390,11 +1468,9 @@ class GraphEntry implements OpLogEntry {
                     op.target === "node" ? op.id : String(op.id),
                     op.prior,
                 );
-                // After the restore: the announcement resolves the watching sets at once, and they
-                // must read the record put back, not the one being undone.
                 bumpFields(store, op.target, op.next, op.prior, seen, true);
                 if (op.target === "edge") {
-                    writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
+                    writeEdgeColumns(store, edgeCounterOf(String(op.id)), op.prior);
                 }
 
                 this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
@@ -1568,7 +1644,7 @@ class GraphEntry implements OpLogEntry {
                             target: op.targets[at],
                             weight: op.weights[at],
                             record: recordIn(op, at),
-                            fileId: op.fileIds[at],
+                            fileId: op.fileIds?.[at],
                         };
                         this.redoEdge(edge, op.identities?.[at], edges, seen);
                     });
@@ -1622,6 +1698,8 @@ class GraphEntry implements OpLogEntry {
         }
 
         store.recordsChanged();
+        // After every record is put back, as in undo.
+        announceFields(store, seen);
         this.graph.restoreToken(this.tokenAfter);
     }
 
@@ -1668,8 +1746,8 @@ class GraphEntry implements OpLogEntry {
         }
 
         edges.set(edgeIdOf(op.edgeId), op.record);
-        if (resolveEdgeCapacity(op.record) !== 1) {
-            writeCapacity(store, op.edgeId, op.record);
+        if (needsEdgeColumns(op.record)) {
+            writeEdgeColumns(store, op.edgeId, op.record);
         }
         bumpFields(store, "edge", undefined, op.record, seen);
         this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
@@ -1690,10 +1768,9 @@ class GraphEntry implements OpLogEntry {
     ): void {
         const { store } = this;
         restore(op.target === "node" ? nodes : edges, op.target === "node" ? op.id : String(op.id), op.next);
-        // After the restore, as in undo: the watching sets resolve against the record put back.
         bumpFields(store, op.target, op.prior, op.next, seen, true);
         if (op.target === "edge") {
-            writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
+            writeEdgeColumns(store, edgeCounterOf(String(op.id)), op.next);
         }
 
         this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
@@ -1733,8 +1810,9 @@ class GraphEntry implements OpLogEntry {
  * @param prior - The record before, or undefined.
  * @param next - The record after, or undefined.
  * @param seen - The fields this batch (one command, one undo or redo of a step) bumped already.
- * @param announce - Whether to tell the sets that watch attributes, as an edit after load does.
- * A row added or removed announces nothing: the freeze that follows re-queues every watch.
+ * @param announce - Whether the sets that watch attributes are to hear of it, as of an edit after
+ * load: the fields wait in `seen` for {@link announceFields} at the end of the batch. A row added or
+ * removed announces nothing: the freeze that follows re-queues every watch.
  */
 function bumpFields(
     store: GraphStore,
@@ -1762,12 +1840,29 @@ function bumpFields(
 
     for (const field of fields) {
         seen[target].add(field);
+        if (announce) {
+            seen.unannounced[target].add(field);
+        }
     }
 
     const { inputs } = store;
     (target === "node" ? inputs.nodes : inputs.edges).bump(fields);
-    if (announce) {
-        inputs.tick.announce({ kind: "attributes", element: target, fields: [...fields] });
+}
+
+/**
+ * Tell the sets that watch attributes which fields a batch changed, once per element, after every
+ * record of it is written (design/sets 11), and forget them.
+ * @param store - The store whose owner's sets hear it.
+ * @param seen - The batch.
+ */
+function announceFields(store: GraphStore, seen: Bumped): void {
+    for (const element of ["node", "edge"] as const) {
+        const fields = seen.unannounced[element];
+        if (fields.size > 0) {
+            const moved = [...fields];
+            fields.clear();
+            store.inputs.tick.announce({ kind: "attributes", element, fields: moved });
+        }
     }
 }
 
@@ -1775,6 +1870,8 @@ function bumpFields(
 interface Bumped {
     readonly node: Set<string>;
     readonly edge: Set<string>;
+    /** The fields bumped by edits the watching sets have not heard of yet. */
+    readonly unannounced: { readonly node: Set<string>; readonly edge: Set<string> };
 }
 
 /**
@@ -1782,7 +1879,7 @@ interface Bumped {
  * @returns It.
  */
 function bumped(): Bumped {
-    return { node: new Set(), edge: new Set() };
+    return { node: new Set(), edge: new Set(), unannounced: { node: new Set(), edge: new Set() } };
 }
 
 /**
@@ -1804,7 +1901,7 @@ function restore<K, V>(map: Map<K, V>, key: K, value: V | undefined): void {
  * @returns The maps.
  */
 function emptyMaps(): GraphMaps {
-    return { nodes: new RecordMap<NodeId>(), edges: new RecordMap<EdgeId>(), values: new Map() };
+    return { nodes: nodeRecordMap(), edges: edgeRecordMap(), values: new Map() };
 }
 
 /**
@@ -1868,7 +1965,7 @@ class Writer implements GraphWriter {
         }
 
         // A record holding only the id, as a node an edge made is given, puts nothing in the row.
-        if (this.graph.countsRewrites && (prior !== undefined || (merged && Object.keys(record).length > 1))) {
+        if (prior !== undefined || (merged && Object.keys(record).length > 1)) {
             this.graph.noteRewrite();
         }
 
@@ -1877,7 +1974,7 @@ class Writer implements GraphWriter {
             nodes.set(id, record);
         } else {
             // A record built from columns is kept as its place, and built again when read.
-            lazy.put(id, lazy.stored(record));
+            lazy.put(id, lazy.stored(record), this.graph.touchesRanges);
         }
 
         bumpFields(this.store, "node", prior, record, this.bumped);
@@ -1907,6 +2004,7 @@ class Writer implements GraphWriter {
         weight: number,
         given: GraphRecord,
         fileId?: string | number,
+        reuse?: number,
     ): { index: number; edgeId: number } {
         if (!isStorableId(source) || !isStorableId(target)) {
             return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
@@ -1924,8 +2022,10 @@ class Writer implements GraphWriter {
             created.push(target);
         }
 
+        // Asked before the row is added, so the id is not read as the new row's own.
+        const reused = reuse !== undefined && this.store.mayReuseEdgeId(reuse);
         const index = builder.addEdge(source, target, weight);
-        const edgeId = this.store.nextEdgeId();
+        const edgeId = reused ? reuse : this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId, this.graph.touchesRanges);
         this.store.recordsChanged();
@@ -1933,11 +2033,11 @@ class Writer implements GraphWriter {
         if (edges === null) {
             (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         } else {
-            edges.put(edgeIdOf(edgeId), edges.stored(record));
+            edges.put(edgeIdOf(edgeId), edges.stored(record), this.graph.touchesRanges, edgeId);
         }
-        // A new row already reads the column default, 1: only another capacity costs a write.
-        if (resolveEdgeCapacity(record) !== 1) {
-            writeCapacity(this.store, edgeId, record);
+        // A new row already reads capacity 1 and the graph's direction: only another costs a write.
+        if (needsEdgeColumns(record)) {
+            writeEdgeColumns(this.store, edgeId, record);
         }
 
         bumpFields(this.store, "edge", undefined, record, this.bumped);
@@ -1968,7 +2068,7 @@ class Writer implements GraphWriter {
             const id = edgeIdOf(edgeId);
             const priorRecord = edges.get(id);
             edges.set(id, record);
-            writeCapacity(this.store, edgeId, record);
+            writeEdgeColumns(this.store, edgeId, record);
             bumpFields(this.store, "edge", priorRecord, record, this.bumped);
             this.record({ kind: "record", target: "edge", id, prior: priorRecord, next: record }, edgeKey(id), null);
         }
@@ -2008,7 +2108,7 @@ class Writer implements GraphWriter {
         const next = frozenRecord(replace ? values : { ...prior, ...values });
         map.set(key, next);
         if (target === "edge") {
-            writeCapacity(this.store, edgeCounterOf(String(key)), next);
+            writeEdgeColumns(this.store, edgeCounterOf(String(key)), next);
         }
 
         bumpFields(this.store, target, prior, next, this.bumped, true);
@@ -2020,6 +2120,10 @@ class Writer implements GraphWriter {
             null,
         );
         return true;
+    }
+
+    announce(): void {
+        announceFields(this.store, this.bumped);
     }
 
     graphValue(name: string): unknown {

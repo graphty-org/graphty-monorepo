@@ -175,12 +175,13 @@ import {
 import { SE_KARATE_FIXTURES, SE_NOISE_FIXTURES, SE_TOLERANCE_CAPS } from "./helpers/se-parity.js";
 import { SSSP_TOLERANCE_CAPS } from "./helpers/sssp.js";
 import { componentsOracle } from "./oracle/components.js";
+import { noiseFloorWriting } from "./setup/env.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
 // ---------------------------------------------------------------- the file, the set and the caps
 
 const NOISE_FLOOR_FILE = fileURLToPath(new URL("../benchmarks/results/noise-floor.json", import.meta.url));
-const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
+const WRITE = noiseFloorWriting();
 /** One f32 ulp: the smallest floor a tolerance is derived from (a bitwise agreement so far is not evidence the next adapter agrees bitwise). */
 const MIN_FLOOR = 2 ** -24;
 /** Distinct adapter classes every member must have committed: NVIDIA Dawn + lavapipe Dawn at G1 (SwiftShader Chromium joins through P1-T7). */

@@ -10,11 +10,13 @@
  * `probe` must equal the restored revision (design/work-protection/design.md, section 8).
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { afterAll, afterEach, assert, beforeAll, onTestFailed } from "vitest";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLE = path.resolve(here, "../../dist/graphty.bundle.js");
@@ -66,8 +68,22 @@ export interface Fixture {
     events(tab: string, type?: string): LogEvent[];
     /** The highest revision a tab logged as `saved`, or 0. */
     lastSaved(tab: string): number;
-    /** Wait until a report matching `predicate` has arrived. */
+    /**
+     * Wait until a report matching `predicate` has arrived. Fails at once on a `not-ready` report;
+     * prefer {@link Fixture.report}, which also fails on its tab's `page-error`.
+     */
     waitFor(predicate: (event: LogEvent) => boolean): Promise<LogEvent>;
+    /**
+     * Wait for a report of a tab that arrived at or after `mark`. Fails at once when that tab reports a
+     * `page-error` (the bundle failed to load or threw) or a `not-ready`, with the page's message.
+     * @param tab - The tab label.
+     * @param type - The report type.
+     * @param mark - The log length to look after.
+     * @param predicate - More conditions.
+     */
+    report(tab: string, type: string, mark?: number, predicate?: (event: LogEvent) => boolean): Promise<LogEvent>;
+    /** Forget every wait still pending, so a failed test's waits do not run on later reports. */
+    dropWaits(): void;
     close(): Promise<void>;
 }
 
@@ -98,11 +114,15 @@ if (new URLSearchParams(location.search).get("webgl") === "off") {
         return /webgl/i.test(type) ? null : nativeGetContext.call(this, type, ...rest);
     };
 }
-// Before the bundle: count the timers that fire while the page is hidden, for the hidden-run test.
-window.__timers = { firedHidden: 0 };
+// Before the bundle: count the autosave timers that fire (delays: the debounce and maximum wait the
+// page gives the element, set below), and those that fire while the page is hidden, for the hidden-run test.
+window.__timers = { delays: [], fired: 0, firedHidden: 0 };
 const nativeSetTimeout = window.setTimeout.bind(window);
 window.setTimeout = (fn, ms, ...rest) => nativeSetTimeout((...a) => {
-    if (document.visibilityState === "hidden" && (ms === 500 || ms === 2000)) window.__timers.firedHidden++;
+    if (window.__timers.delays.includes(ms)) {
+        window.__timers.fired++;
+        if (document.visibilityState === "hidden") window.__timers.firedHidden++;
+    }
     return typeof fn === "function" ? fn(...a) : undefined;
 }, ms, ...rest);
 // With delay=<ms>, a page that never goes idle (a graph drawn without pause, or Safari, which has no
@@ -174,7 +194,8 @@ const listed = async () => (await listAutosaves(params.get("key"))).map((e) => (
 if (params.get("list") === "1") {
     let item = null;
     try { item = sessionStorage.getItem("graphty-autosave:own:" + params.get("key")); } catch {}
-    report("listed", { item, entries: await listed() });
+    // A listing the browser's database held up is refused: reported with the refusal's code.
+    report("listed", await listed().then((entries) => ({ item, entries }), (e) => ({ item, entries: null, code: e.code })));
 }
 
 const ids = Array.from({ length: n }, (_, i) => "n" + i);
@@ -192,7 +213,9 @@ el.layout = "fixed";
 // dataMaxWaitMs (10 s by default); 1 s keeps a test short without changing what is written.
 // delay=<ms> holds every write back, so only a lifecycle event writes an edit.
 const delay = params.has("delay") ? Number(params.get("delay")) : undefined;
-el.autosaveOptions = { ...(delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay }), ...(params.get("keepCamera") === "1" ? { keepCamera: true } : {}), ...(params.get("restore") === "manual" ? { restore: "manual" } : {}) };
+const waits = delay === undefined ? { delayMs: 500, maxWaitMs: 2000, dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay };
+window.__timers.delays = [waits.delayMs, waits.maxWaitMs];
+el.autosaveOptions = { ...waits, ...(params.get("keepCamera") === "1" ? { keepCamera: true } : {}), ...(params.get("restore") === "manual" ? { restore: "manual" } : {}) };
 let lastSaved = 0;
 el.addEventListener("graphty-autosave-status", (e) => {
     const s = e.detail;
@@ -207,8 +230,10 @@ el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { param
 // whole decision from one report whatever order the reports arrive in.
 const available = [];
 el.addEventListener("graphty-autosave-available", (e) => {
-    available.push({ reason: e.detail.reason, id: e.detail.entry.id });
-    report("available", { reason: e.detail.reason, id: e.detail.entry.id });
+    // The problem's code only for a failed restore, so the other reasons read { reason, id }.
+    const why = { reason: e.detail.reason, id: e.detail.entry.id, ...(e.detail.problem ? { problem: e.detail.problem.code } : {}) };
+    available.push(why);
+    report("available", why);
 });
 const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
 // rows=none: the page loads no data of its own, as an app reopening kept work.
@@ -366,6 +391,51 @@ function bodyOf(request: IncomingMessage): Promise<string> {
 }
 
 /**
+ * Opens the autosave database and keeps a read-write transaction on the "parts" store busy until
+ * `window.__release` is set; resolves once the transaction runs.
+ */
+export const HOLD_PARTS = `new Promise((resolve, reject) => {
+    const req = indexedDB.open("graphty-autosave");
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["parts"], "readwrite");
+        const store = tx.objectStore("parts");
+        window.__release = false;
+        const spin = () => { resolve(); if (!window.__release) store.count().onsuccess = spin; };
+        spin();
+    };
+})`;
+
+/**
+ * Where the saved work is when a page reopened on its key restored nothing: the ready report must
+ * say why, and the entry must still hold the work (issue #4148). Either another tab claimed the
+ * entry first, or another tab of the origin holds the database in an unfinished transaction -- a
+ * tab the browser suspended mid-listing, as iOS does to a tab Safari reloads in the background --
+ * so the restore's write stalled and was refused with `E_AUTOSAVE_STALLED`, leaving the entry as
+ * it was for a later reopen. Anything else is a lost restore.
+ * @param ready - The page's ready report, with `restored` null.
+ * @param entry - The entry the work was saved to.
+ * @returns The kept entry's revision, and who keeps it.
+ */
+export function keptWork(ready: LogEvent, entry: string): { revision: number; by: string } {
+    const held = (ready.entries as { id: string; revision: number; live: boolean }[]).find((e) => e.id === entry);
+    assert.isDefined(held, `the saved entry is still listed: ${JSON.stringify(ready.entries)}`);
+    const said = JSON.stringify(ready.available);
+    if (said === JSON.stringify([{ reason: "held-by-other-tab", id: entry }])) {
+        assert.isTrue(held.live, `the saved entry is held by the other tab: ${JSON.stringify(ready.entries)}`);
+        return { revision: held.revision, by: "held by the other tab" };
+    }
+
+    assert.deepEqual(
+        ready.available,
+        [{ reason: "restore-failed", id: entry, problem: "E_AUTOSAVE_STALLED" }],
+        `the page restored nothing, so it must be told the other tab holds the work or the database: ${JSON.stringify(ready)}`,
+    );
+    return { revision: held.revision, by: "kept while another tab held the database" };
+}
+
+/**
  * Start the fixture server on a free loopback port.
  * @param options - `bundles`: more builds of graphty-element by name (a path to each one's
  *   `graphty.bundle.js`); the page loads one instead of the built ./bundle with the URL parameter
@@ -421,7 +491,7 @@ export async function startFixture(options: { bundles?: Record<string, string> }
             const named = url.searchParams.get("build");
             const page =
                 named !== null && builds.has(named)
-                    ? PAGE.replace('import "/bundle.js";', `import "/bundle-${named}.js";`)
+                    ? PAGE.replace('from "/bundle.js";', `from "/bundle-${named}.js";`)
                     : PAGE;
             response
                 .writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
@@ -442,6 +512,28 @@ export async function startFixture(options: { bundles?: Record<string, string> }
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
+    // A page whose load settled short of its rows never reports ready, and a page whose bundle failed
+    // never runs: a wait fails on that tab's not-ready or page-error report at once, with its cause,
+    // instead of waiting on the hang guard.
+    const wait = (predicate: (event: LogEvent) => boolean, tab?: string): Promise<LogEvent> =>
+        new Promise((resolve, reject) => {
+            const check = (): void => {
+                const found = log.find(predicate);
+                const broken = log.find(
+                    (event) => event.type === "not-ready" || (event.type === "page-error" && event.tab === tab),
+                );
+                if (found !== undefined) {
+                    waiters.delete(check);
+                    resolve(found);
+                } else if (broken !== undefined) {
+                    waiters.delete(check);
+                    reject(new Error(`tab ${broken.tab} reported ${broken.type}: ${JSON.stringify(broken)}`));
+                }
+            };
+            waiters.add(check);
+            check();
+        });
+
     const fixture: Fixture = {
         origin,
         log,
@@ -449,24 +541,10 @@ export async function startFixture(options: { bundles?: Record<string, string> }
             `${origin}/fixture.html?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}`,
         events: (tab, type) => log.filter((event) => event.tab === tab && (type === undefined || event.type === type)),
         lastSaved: (tab) => Math.max(0, ...fixture.events(tab, "saved").map((event) => event.revision as number)),
-        // A page whose load settled short of its rows never reports ready: every wait fails on its
-        // not-ready report at once, instead of waiting on the hang guard.
-        waitFor: (predicate) =>
-            new Promise((resolve, reject) => {
-                const check = (): void => {
-                    const found = log.find(predicate);
-                    const broken = log.find((event) => event.type === "not-ready");
-                    if (found !== undefined) {
-                        waiters.delete(check);
-                        resolve(found);
-                    } else if (broken !== undefined) {
-                        waiters.delete(check);
-                        reject(new Error(`tab ${broken.tab} is not ready: ${JSON.stringify(broken)}`));
-                    }
-                };
-                waiters.add(check);
-                check();
-            }),
+        waitFor: (predicate) => wait(predicate),
+        report: (tab, type, mark = 0, predicate = () => true) =>
+            wait((e) => e.seq >= mark && e.tab === tab && e.type === type && predicate(e), tab),
+        dropWaits: () => waiters.clear(),
         close: () =>
             new Promise((resolve) => {
                 server.closeAllConnections();
@@ -474,4 +552,82 @@ export async function startFixture(options: { bundles?: Record<string, string> }
             }),
     };
     return fixture;
+}
+
+/** One entry as the fixture's `listed` report gives it. */
+export interface Listed {
+    readonly id: string;
+    readonly own: boolean | undefined;
+    readonly live: boolean;
+}
+
+/** What {@link useLifecycleFixture} gives a test file. */
+export interface LifecycleFixture {
+    /** The fixture server: filled in before the first test, closed after the last. */
+    readonly fx: Fixture;
+    /**
+     * Close a browser and remove its profile after the test; on a failure, print the last reports.
+     * @param close - Closes the browser.
+     * @param dir - Its profile.
+     * @param note - Prefixed to the failure report (the browser's mode).
+     */
+    track(close: () => Promise<unknown>, dir: string, note?: string): void;
+    /**
+     * The `listed` report a tab made at or after `from`.
+     * @param tab - The tab label.
+     * @param from - The log position to start at.
+     */
+    listedAt(tab: string, from: number): Promise<LogEvent & { item: string | null; entries: Listed[] }>;
+}
+
+/**
+ * Start the fixture server for a test file, and after each test close the browsers it tracked, remove
+ * their profiles and drop its pending waits (with LIFECYCLE_DEBUG=1, print the whole log first).
+ * @param options - As {@link startFixture}.
+ * @param options.bundles - More builds by name.
+ * @returns The fixture and its helpers.
+ */
+export function useLifecycleFixture(options: { bundles?: Record<string, string> } = {}): LifecycleFixture {
+    // Filled in by beforeAll: the fixture is a plain object of closures, so a copy of it works.
+    const fx = {} as Fixture;
+    const open: { close: () => Promise<unknown>; dir: string }[] = [];
+    beforeAll(async () => {
+        Object.assign(fx, await startFixture(options));
+    });
+    afterAll(async () => {
+        await fx.close();
+    });
+    afterEach(async () => {
+        if (process.env.LIFECYCLE_DEBUG === "1") {
+            const t0 = (fx.log[0]?.at as number) ?? 0;
+            console.log(fx.log.map((e) => `${(e.at as number) - t0} ${JSON.stringify(e)}`).join("\n"));
+        }
+
+        fx.dropWaits();
+        for (const { close, dir } of open.splice(0)) {
+            await close().catch(() => undefined);
+            // A browser's helpers may still be writing as it exits.
+            rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
+        }
+    });
+    return {
+        fx,
+        track(close, dir, note = "") {
+            open.push({ close, dir });
+            onTestFailed(() => {
+                console.log(`${note}last reports: ${JSON.stringify(fx.log.slice(-25))}`);
+            });
+        },
+        listedAt: (tab, from) =>
+            fx.report(tab, "listed", from) as Promise<LogEvent & { item: string | null; entries: Listed[] }>,
+    };
+}
+
+/**
+ * The ids a listing marks as this tab's own.
+ * @param entries - The listing.
+ * @returns The ids.
+ */
+export function owned(entries: readonly Listed[]): string[] {
+    return entries.filter((entry) => entry.own === true).map((entry) => entry.id);
 }

@@ -20,15 +20,15 @@ import { gunzipSync } from "node:zlib";
 
 import { afterAll, assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, FILE_STYLE_ISSUE, fileStyleOf, type GraphSession, type Layer } from "../../session";
+import { createGraphSession, FILE_STYLE_ISSUE, type GraphSession, type Layer } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
 import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle } from "../../src/session/styles/channels";
 import type { FileStylesRead } from "../../src/session/styles/fileStyles/apply";
 import { dataPaths, logicalEdgeRows } from "../../src/session/styles/fileStyles/columns";
-import { fileStyleNamespace } from "../../src/session/styles/fileStyles/path";
 import { translateFileStyles } from "../../src/session/styles/fileStyles/translate";
 import { quotePath } from "../../src/session/styles/predicate";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -133,15 +133,15 @@ interface FileResult {
  * @returns Them, bottom first.
  */
 function fileLayers(session: GraphSession): Layer[] {
-    return session.styles.list().filter((layer) => fileStyleOf(layer) !== null);
+    return loadedLayers(session);
 }
 
 /**
- * What the element's own base layers paint, per kind, as the load's translation reads them.
+ * What the element's own default layers paint, per kind, as the load's translation reads them.
  * @param session - The session.
- * @returns The base values.
+ * @returns The default values.
  */
-function baseValues(session: GraphSession): Record<"node" | "edge", Record<string, unknown>> {
+function elementDefaults(session: GraphSession): Record<"node" | "edge", Record<string, unknown>> {
     const out: Record<"node" | "edge", Record<string, unknown>> = { node: {}, edge: {} };
     for (const layer of session.styles.list()) {
         if (layer.source.by === "element" && layer.source.reason === "default" && layer.target !== undefined) {
@@ -207,16 +207,13 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
     });
 
     // The translation, again, with what the load gave it.
-    const namespace = fileStyleNamespace(read.format, new Set());
     const translation = translateFileStyles({
         extracted: read.extracted,
         snapshot,
-        namespace,
-        format: read.format,
-        importId: namespace,
+        columnPath: (_kind, key) => `data.${key.replaceAll(/[^A-Za-z0-9_]/g, "_")}`,
         options: {},
-        base: baseValues(session),
         dataPath: dataPaths(read.path),
+        elementDefaults: elementDefaults(session),
     });
     const layers = fileLayers(session);
     assert.deepEqual(
@@ -352,7 +349,7 @@ describe("a file's styles drawn as the translation predicts, over the corpus", (
             read = await original.call(this, options);
             return read;
         });
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             try {
                 await session.data.import(
@@ -362,7 +359,7 @@ describe("a file's styles drawn as the translation predicts, over the corpus", (
             } catch (error) {
                 // A file the element cannot load at all has nothing to check (the reader parity
                 // test covers which files load); a file that loads without styles must load with them.
-                const plain = createGraphSession();
+                const plain = createGraphSession({ workingGraph: false });
                 const loads = await plain.data
                     .import({ type: file.type, config: { data, errorLimit: 1_000_000 } })
                     .then(
@@ -427,7 +424,7 @@ describe("a node border another program wrote", () => {
             elements: [{ data: { id: "a" } }, { data: { id: "b" } }],
             style: [{ selector: "node", style }],
         });
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
             return {
@@ -486,7 +483,7 @@ describe("a Cytoscape node's own size under a locked node size", () => {
     // height to 75, 60 or 30. Cytoscape draws the bypassed size.
     it("is drawn at its own size, not the locked one", async () => {
         const data = new Uint8Array(readFileSync(join(CORPUS, "cx2", "fidelity", "syn-bypass.cx2")));
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             await session.data.import({ type: "cx2", config: { data } }, { styles: "file" });
             const size = (id: string): number => session.styles.explain({ node: id }).merged["node.size"] as number;
@@ -520,7 +517,7 @@ describe("a label outline another program wrote", () => {
                 },
             ],
         });
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
             // The label field channels land in the node's label style, field by field.

@@ -3,12 +3,13 @@ import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
+import { ScoreDialog } from "./data-place/ScoreDialog";
 import { ExportDialog } from "./export/ExportDialog";
-import { selectionWorkspaceOn } from "./features";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { NoticeSlot } from "./frame/NoticeSlot";
@@ -21,8 +22,8 @@ import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
+import { readAuthor, readPreference, TIMELINE_STYLE } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { NetworkDataDialog } from "./start/NetworkDataDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
@@ -41,6 +42,7 @@ import {
 } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
 import { CustomModelHost } from "./style/CustomModelHost";
+import { wholeGraphRow } from "./style/row";
 import { ShaderEditorHost } from "./style/ShaderEditorHost";
 
 /** The workspace's facts about opening and reopening projects: ids and booleans, never data. */
@@ -125,7 +127,9 @@ export function Workspace({
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
         // the style tree starts with Everything, Selected, Pinned and Hovered, Everything holds the
         // base look as values a reader edits, a pinned node wears a thin gray ring (under Selected,
-        // which wins), and a finished run's layer lands on top, where the reader sees it. Set
+        // which wins), a finished run's layer lands on top, where the reader sees it, and the
+        // Timeline Hidden row, added when the timeline first turns on, starts with the reader's
+        // Default timeline style. Set
         // before anything loads, so the rows are there from the first frame.
         // The app's run limits for selection steps (design/ui/selection-groups/spec.md, section 6):
         // a run that follows hover or edits starts under 50 ms; one above a second waits for Run.
@@ -133,18 +137,27 @@ export function Workspace({
         session.scope.setOptions({
             liveMs: 50,
             askAboveMs: 1000,
-            ...(selectionWorkspaceOn(session) ? { branchPalette: cardPalette(session.catalog.palettes()) } : {}),
+            branchPalette: cardPalette(session.catalog.palettes()),
         });
-        const defaults =
-            project?.id === startProjectId ||
-            (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")
-                ? Promise.resolve()
-                : session.config.set({
+        // The reader's name from Settings, which graphty-element stamps on each note and never
+        // saves in a project file, so each opened project is told it again.
+        const author = readAuthor();
+        const patch = {
+            ...(session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top"
+                ? {}
+                : {
                       startingRows: true,
                       editableBase: true,
-                      runPlacement: "top",
+                      runPlacement: "top" as const,
                       pinnedStyle: PINNED_LOOK,
-                  });
+                      timelineHiddenLook: readPreference(TIMELINE_STYLE),
+                  }),
+            ...(author === "" || session.config.author === author ? {} : { author }),
+        };
+        const defaults =
+            project?.id === startProjectId || Object.keys(patch).length === 0
+                ? Promise.resolve()
+                : session.config.set(patch);
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
             void defaults.catch((error: unknown) => {
@@ -166,6 +179,15 @@ export function Workspace({
             // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
                 bootSignal({ line: "project opened" });
+                // A project opens with the row that paints every element selected (owner,
+                // 2026-10-21), so its first Style tab holds the node color and size. A reopened
+                // tab keeps the place it left. Drawn at once, so focus below finds the row.
+                const whole = wholeGraphRow(session);
+                if (opening.focus === undefined && store.get().inspected === null && whole !== undefined) {
+                    flushSync(() => {
+                        store.set({ inspected: { kind: "layer-row", id: whole } });
+                    });
+                }
                 focusLater(store.get().page === "panels");
                 opening.settle();
             })
@@ -243,6 +265,10 @@ export function Workspace({
                 }
             })
             .catch((error: unknown) => {
+                // Nothing is known about the kept work (graphty-element could not list it while
+                // another tab held the database): the start screen, never opening work again that
+                // another tab may be writing.
+                logger.info("decision", { decision: "landing", entry: null, reason: "kept-work-not-listed" });
                 bootSignal({ line: `kept work check failed: ${String(error)}`, error: true });
             })
             .finally(() => {
@@ -395,6 +421,7 @@ export function Workspace({
             {projectOpen || checking ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
+            <ScoreDialog />
             <ShaderEditorHost />
             <CustomModelHost />
             <SettingsDialog />
@@ -410,7 +437,6 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
-            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

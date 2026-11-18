@@ -56,11 +56,11 @@ export const DEFAULT_DATA: DataChoices = { format: "csv", variant: "csv", values
 /**
  * The element's export scope for a scope choice.
  * @param scope - the choice.
- * @returns the scope, or undefined for the whole graph.
+ * @returns the scope.
  */
-export function exportScope(scope: DataScope): ExportScope | undefined {
+export function exportScope(scope: DataScope): ExportScope {
     if (scope === "all") {
-        return undefined;
+        return "all";
     }
     if (scope.startsWith("source:")) {
         return { kind: "source", sources: [scope.slice(7)] };
@@ -196,7 +196,7 @@ export function dataExportOptions(
     }
     return {
         ...options,
-        ...(scope === undefined ? {} : { scope }),
+        scope,
         ...(columns === undefined ? {} : { columns }),
     };
 }
@@ -237,7 +237,6 @@ const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${GraphtyErrorC
     E_DISPOSED: "The graph was closed.",
     E_UNKNOWN_CAMERA: "This view is not available.",
     "E_UNSUPPORTED/format": "This browser cannot write this image format.",
-    "E_UNSUPPORTED/preserve-drawing-buffer": "The drawing is not ready yet.",
     E_CAPTURE_FAILED: "The drawing could not be captured.",
 };
 

@@ -30,6 +30,7 @@ import {
     ttlAt,
 } from "../model/index.js";
 import type { Store } from "../model/store.js";
+import { recordResults, ResultsRefused, TESTS_PATH } from "./results.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
 export const MAX_ROWS = 5000;
@@ -63,7 +64,29 @@ const MASTER_KINDS: Record<string, Kind> = {
 };
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
-const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites", "benchmarks"]);
+/** The results service's records (#3607, handlers/results.ts): these routes store nothing else. */
+const RESULTS_ONLY = new Set([
+    "issues",
+    "channel-moves",
+    "hold",
+    "base-checks",
+    "DELETE base-checks",
+    "story-captures",
+    "story-reach",
+    "PUT durations/tests",
+]);
+const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites", "benchmarks", ...RESULTS_ONLY]);
+/** A test duration history's body: the results service takes up to 1.9 MB (handlers/results.ts HISTORY_MAX). */
+const MAX_HISTORY_BYTES = 2_000_000;
+/** The kinds the results service gives a master workflow's token (tools/results-service MASTER_KINDS). */
+const RESULTS_KINDS: Record<string, string> = {
+    ...MASTER_KINDS,
+    "release-rerun.yml": "full",
+    "nightly-abandon.yml": "full",
+    "nightly-site.yml": "nightly-site",
+    "story-slices.yml": "slice",
+    "promote.yml": "promote",
+};
 /** Results in one benchmark post, and the longest benchmark name or source. */
 const MAX_BENCH_ROWS = 1000;
 const MAX_BENCH_NAME = 200;
@@ -111,6 +134,9 @@ export async function handler(
         if (error instanceof Refused) {
             return json(error.status, { code: error.code, params: error.params });
         }
+        if (error instanceof ResultsRefused) {
+            return json(error.status, { error: error.message });
+        }
         // DynamoDB refused a row's content (a key or an item over its size limit): the body's fault, not an
         // outage, so a 400 the local collector splits on; everything else stays a 500 it retries.
         // Only DynamoDB's size limits: any other ValidationException is our own bug and must stay a 500.
@@ -129,40 +155,62 @@ export async function handler(
     }
 }
 
-async function ingest(
-    event: APIGatewayProxyEventV2WithJWTAuthorizer,
-    now: number,
-): Promise<{ stored: number; kind: Kind }> {
-    const raw = event.body ?? "";
-    const size = Buffer.byteLength(raw, event.isBase64Encoded ? "base64" : "utf8");
-    if (size > MAX_BODY_BYTES) {
-        refuse(413, "too_large", { limit: MAX_BODY_BYTES });
+async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: number): Promise<unknown> {
+    const { raw, size, local, route, name } = requestOf(event);
+    if (local && !(await localTokenOk(event.headers?.authorization, now))) {
+        refuse(401, "unauthorized");
     }
-    const local = event.rawPath.startsWith("/v1/local/");
-    const route = event.rawPath.split("/").pop() ?? "";
-    if (!(local ? LOCAL_ROUTES : CI_ROUTES).has(route)) {
-        refuse(404, "unknown_route");
-    }
-    let who: Who;
-    if (local) {
-        if (!(await localTokenOk(event.headers?.authorization, now))) {
-            refuse(401, "unauthorized");
-        }
-        who = { kind: "local", claims: {} };
-    } else {
-        who = whoOf(event.requestContext.authorizer?.jwt?.claims ?? {});
-    }
-    let body: unknown;
-    try {
-        body = JSON.parse(event.isBase64Encoded ? Buffer.from(raw, "base64").toString("utf8") : raw);
-    } catch {
-        return refuse(400, "bad_json");
-    }
-    if (!body || typeof body !== "object") {
-        refuse(400, "bad_body");
-    }
+    const body = bodyOf(raw, event.isBase64Encoded);
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
-    const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
+    const claims = event.requestContext.authorizer?.jwt?.claims ?? {};
+    if (local) {
+        return stored(await dashboardCopy(route, body, { kind: "local", claims: {} }, db, now), size, event);
+    }
+    // CI is answered as the results service answers it, so RESULTS_URL can name this API (#3607); with the dashboard's
+    // own answer only where the results service has none.
+    if (route === "invocations") {
+        // a shard run's results copy only once the dashboard took it, so a refused record leaves no trace in either
+        const dashboard = stored(await dashboardCopy(route, body, whoOf(claims), db, now), size, event);
+        return (await resultsCopy(route, body, claims, db, now)) ?? dashboard;
+    }
+    // The results service's copy first, under its own claim rules: a post the dashboard refuses (a verdict state it
+    // does not chart, nightly-abandon.yml's rejection) is still the results service's record, and answered as such.
+    const answer = await resultsCopy(route, body, claims, db, now, name);
+    if (RESULTS_ONLY.has(route)) {
+        return answer;
+    }
+    try {
+        const dashboard = stored(await dashboardCopy(route, body, whoOf(claims), db, now), size, event);
+        return answer ?? dashboard;
+    } catch (error) {
+        // only a master workflow the dashboard does not list (nightly-site.yml's durations, nightly-abandon.yml's
+        // verdict); every other refusal stands
+        if (answer === undefined || !(error instanceof Refused) || error.code !== "wrong_workflow") {
+            throw error;
+        }
+        log({ route: event.rawPath, dashboard: error.code });
+        return answer;
+    }
+}
+
+function stored(
+    { rows, kind }: { rows: number; kind: Kind },
+    size: number,
+    event: APIGatewayProxyEventV2WithJWTAuthorizer,
+): { stored: number; kind: Kind } {
+    log({ route: event.rawPath, kind, size, rows });
+    return { stored: rows, kind };
+}
+
+// The dashboard's own rows of a post: checked, charged to the write quota and stored.
+async function dashboardCopy(
+    route: string,
+    body: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<{ rows: number; kind: Kind }> {
+    const { items, extra, source } = await itemsOf(route, body, who, db, now);
     // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
     if (items.length > MAX_ROWS) {
         refuse(413, "too_many_rows", { limit: MAX_ROWS });
@@ -178,8 +226,55 @@ async function ingest(
     }
     await putRaw(db, items, now);
     await recordSource(db, source, now, { ok: true }, oldestAt(items));
-    log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
-    return { stored: items.length, kind: who.kind };
+    return { rows: items.length, kind: who.kind };
+}
+
+/**
+ * The request's body, size and route, or a refusal of a body over 1 MB or an unknown route.
+ * @param event - the HTTP API request
+ * @returns the raw body, its size in bytes, whether it is a local post, and the route
+ */
+function requestOf(event: APIGatewayProxyEventV2WithJWTAuthorizer): {
+    raw: string;
+    size: number;
+    local: boolean;
+    route: string;
+    name?: string;
+} {
+    const local = event.rawPath.startsWith("/v1/local/");
+    const tests = !local && event.rawPath.startsWith(TESTS_PATH);
+    const last = tests ? "durations/tests" : (event.rawPath.split("/").pop() ?? "");
+    const method = event.requestContext.http?.method ?? "POST";
+    const route = method === "POST" ? last : `${method} ${last}`;
+    if (!(local ? LOCAL_ROUTES : CI_ROUTES).has(route)) {
+        refuse(404, "unknown_route");
+    }
+    const raw = event.body ?? "";
+    const size = Buffer.byteLength(raw, event.isBase64Encoded ? "base64" : "utf8");
+    const limit = tests ? MAX_HISTORY_BYTES : MAX_BODY_BYTES;
+    if (size > limit) {
+        refuse(413, "too_large", { limit });
+    }
+    return { raw, size, local, route, name: tests ? event.rawPath.slice(TESTS_PATH.length) : undefined };
+}
+
+/**
+ * The posted JSON object, or a refusal.
+ * @param raw - the request body
+ * @param base64 - whether it is base64 encoded
+ * @returns the object
+ */
+function bodyOf(raw: string, base64: boolean): Record<string, unknown> {
+    let body: unknown;
+    try {
+        body = JSON.parse(base64 ? Buffer.from(raw, "base64").toString("utf8") : raw);
+    } catch {
+        return refuse(400, "bad_json");
+    }
+    if (!body || typeof body !== "object") {
+        refuse(400, "bad_body");
+    }
+    return body as Record<string, unknown>;
 }
 
 /**
@@ -231,6 +326,66 @@ export function whoOf(claims: Claims): Who {
         return refuse(403, "wrong_workflow", { file });
     }
     return { kind, claims };
+}
+
+/**
+ * The kind the results service gives a token's claims (tools/results-service kindOf), or a refusal.
+ * @param claims - the OIDC token's claims
+ * @returns the kind
+ */
+export function resultsKindOf(claims: Claims): string {
+    const repo = String(claims.repository_id);
+    if (claims.repository_owner !== "graphty-org") {
+        throw new ResultsRefused(403, `owner ${String(claims.repository_owner)} may not write here`);
+    }
+    if (DEPLOY_REPOSITORIES[repo]) {
+        return "deploy";
+    }
+    if (repo !== REPOSITORY_ID) {
+        throw new ResultsRefused(403, `repository ${String(claims.repository)} may not write here`);
+    }
+    if (claims.event_name === "pull_request") {
+        return "pr";
+    }
+    const prefix = `${REPOSITORY}/.github/workflows/`;
+    const [path, at] = String(claims.job_workflow_ref).split("@");
+    const file = path.startsWith(prefix) ? path.slice(prefix.length) : "";
+    if (!Object.hasOwn(RESULTS_KINDS, file) || claims.ref !== MASTER || at !== MASTER) {
+        throw new ResultsRefused(403, `${String(claims.job_workflow_ref)} on ${String(claims.ref)} may not write here`);
+    }
+    // ci.yml run by master's own push builds only; called by release.yml it is the full run
+    const caller = String(claims.workflow_ref).split("@")[0];
+    return file === "ci.yml" && claims.event_name === "push" && caller === path ? "master" : RESULTS_KINDS[file];
+}
+
+/**
+ * Stores a CI post's results-service records (handlers/results.ts). On a route the dashboard also stores, a failure
+ * is logged and never fails the dashboard's copy.
+ * @param route - the route
+ * @param body - the posted body
+ * @param claims - the OIDC token's claims
+ * @param db - the store
+ * @param now - the current time, in ms
+ * @param name - a test duration history's name, from its path
+ * @returns the results service's answer
+ */
+async function resultsCopy(
+    route: string,
+    body: Record<string, unknown>,
+    claims: Claims,
+    db: Store,
+    now: number,
+    name?: string,
+): Promise<unknown> {
+    try {
+        return await recordResults(route, body, { kind: resultsKindOf(claims), claims }, db, now, name);
+    } catch (error) {
+        if (RESULTS_ONLY.has(route)) {
+            throw error;
+        }
+        log({ route, results: String(error) });
+        return undefined;
+    }
 }
 
 const runPrefix = (who: Who): string =>

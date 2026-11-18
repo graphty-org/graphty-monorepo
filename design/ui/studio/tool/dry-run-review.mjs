@@ -25,7 +25,7 @@
  * citing a commit that exists (one of the branch's, with --base) or an existing file:line. Exit 0
  * when no bug or cannot-tell remains, 1 when one does, 2 when the answer is missing or malformed or
  * the tool itself failed.
- * See README.md beside this file, "The scripted dry run".
+ * See REFERENCE.md beside this file, "The scripted dry run".
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";

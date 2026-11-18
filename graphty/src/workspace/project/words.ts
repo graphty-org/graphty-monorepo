@@ -148,6 +148,7 @@ const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
     },
     E_AUTOSAVE_ENTRY_TAKEN: () => "another tab has this work open",
     E_AUTOSAVE_UNKNOWN_ENTRY: () => "this browser no longer keeps that work",
+    E_AUTOSAVE_STALLED: () => "the browser's storage did not answer; close other graphty tabs, then reload",
     E_SUPERSEDED: () => "another load took its place",
     E_DISPOSED: () => "the project closed before it finished",
 };

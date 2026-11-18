@@ -6,7 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { Algorithm } from "../../../src/algorithms/Algorithm";
-import { checkNodeOptions, maskBack, WHOLE_GRAPH_CAVEAT } from "../../../src/algorithms/input/maskBack";
+import { checkNodeOptions, maskBack } from "../../../src/algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../../../src/algorithms/input/ScopedInput";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { DeclaredAlgorithm } from "../../../src/algorithms/results/DeclaredAlgorithm";
@@ -177,7 +177,10 @@ describe("every value outside the scope reads missing", () => {
 
         assert.strictEqual(bound.column("value").length, 6);
         assert.deepStrictEqual(bound.summary().caveats.notes, unbound?.summary().caveats.notes);
-        assert.notInclude(bound.summary().caveats.notes, WHOLE_GRAPH_CAVEAT);
+        assert.notInclude(
+            bound.summary().caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
+        );
     });
 
     it("maskBack passes an algorithm that is not in a run through unchanged", () => {
@@ -208,11 +211,12 @@ describe("the run says what it computed on", () => {
         for (const algorithm of [new WholePageRank(graph.asGraph()), new WholeDegree(graph.asGraph())]) {
             const result = await publishOver(algorithm, graph, graph.scope(["a", "b", "c"]));
 
-            assert.include(result.summary().caveats.notes, WHOLE_GRAPH_CAVEAT);
+            assert.include(
+                result.summary().caveats.facts.map((fact) => fact.code),
+                "scope.whole-graph",
+            );
             assert.deepStrictEqual(result.summary().caveats.facts.at(-1), { code: "scope.whole-graph", params: {} });
         }
-
-        assert.strictEqual(WHOLE_GRAPH_CAVEAT, "Computed on the whole graph; values kept for the scope only.");
     });
 
     it("a declaring algorithm over an induced scope names the induced subgraph", async () => {
@@ -220,12 +224,14 @@ describe("the run says what it computed on", () => {
         const scope = { ...graph.scope(["a", "b", "c"]), reading: "induced" as const };
         const result = await publishOver(new ScopedCounter(graph.asGraph()), graph, scope);
 
-        assert.include(result.summary().caveats.notes, "Computed on the induced subgraph of 3 nodes.");
         assert.deepStrictEqual(result.summary().caveats.facts.at(-1), {
             code: "scope.induced-subgraph",
             params: { nodes: 3 },
         });
-        assert.notInclude(result.summary().caveats.notes, WHOLE_GRAPH_CAVEAT);
+        assert.notInclude(
+            result.summary().caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
+        );
         assert.strictEqual(result.node("a")?.value, 3, "it computed on the scope");
     });
 
@@ -235,10 +241,10 @@ describe("the run says what it computed on", () => {
             const scope = { ...graph.scope(["a", "b", "c"], (source) => source === "a"), reading };
             const result = await publishOver(new ScopedCounter(graph.asGraph()), graph, scope);
 
-            assert.include(
-                result.summary().caveats.notes,
-                "Computed on the subgraph of 3 nodes and the 1 edge in scope.",
-            );
+            assert.deepStrictEqual(result.summary().caveats.facts.at(-1), {
+                code: "scope.subgraph",
+                params: { nodes: 3, edges: 1 },
+            });
         });
     }
 });

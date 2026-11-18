@@ -9,10 +9,9 @@
  * here is a compile error too.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { CodedFact } from "../../../src/session/shared";
 import type { HistoryCode, HistoryStep } from "../../../src/session/types";
 import { fileStylesOn } from "../../helpers/file-styles-on";
@@ -20,11 +19,6 @@ import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 
 fileStylesOn();
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** The undoable ops of the vocabulary. */
 type UndoableOp = {
@@ -76,7 +70,9 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.setSource": ["data.set-source"],
     "data.label": ["data.label"],
     "data.columns": ["data.columns"],
-    "data.setFileStyles": ["data.set-file-styles"],
+    "data.derive": ["data.derive"],
+    "annotations.set": ["annotations.set"],
+    "annotations.patch": ["annotations.patch"],
     "style.patch": [
         "style.add-layer",
         "style.update-layer",
@@ -181,7 +177,9 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.hide-columns": ["count"],
     "data.show-columns": ["count"],
     "data.columns": [],
-    "data.set-file-styles": ["loads"],
+    "data.derive": ["column", "kind"],
+    "annotations.set": ["count"],
+    "annotations.patch": ["action", "id"],
     "style.add-layer": ["layer"],
     "style.update-layer": ["channels", "layer"],
     "style.remove-layer": ["layer"],
@@ -250,6 +248,8 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "layout.scope": [],
     "layout.whole-graph": [],
     "project.open": ["name"],
+    "groups.collapse": ["groupBy", "group", "size"],
+    "groups.expand": ["groupBy", "group", "size"],
     "document.open": [],
     transaction: ["label"],
 };

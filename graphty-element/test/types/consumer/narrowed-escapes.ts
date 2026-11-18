@@ -19,13 +19,13 @@ export function positionsAreReadOnly(): void {
     session.positions.read(0, at);
     void session.positions.set([{ id: "a", x: 1, y: 2 }]);
     // @ts-expect-error the lane's writer is not on the session
-    session.positions.write(0, 1, 2, 3);
+    const _write = session.positions.write;
     // @ts-expect-error nor is the raw array
-    session.positions.view(1);
+    const _view = session.positions.view;
     // @ts-expect-error nor the pin bytes
-    session.positions.setPinned(0, true);
+    const _setPinned = session.positions.setPinned;
     // @ts-expect-error the store's coordinates are read-only too
-    session.data.store.positions.write(0, 1, 2, 3);
+    const _writeStore = session.data.store.positions.write;
 }
 
 /** The configuration document on `Graph` cannot be replaced; settings go through the session. */

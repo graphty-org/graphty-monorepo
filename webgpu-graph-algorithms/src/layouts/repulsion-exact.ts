@@ -1,10 +1,9 @@
 /**
- * The exact-tier repulsion stage of ForceAtlas2 (spec 7.6, 7.9, 7.10; contract 3.13): K3, the tiled all-pairs
+ * The exact-tier repulsion stage of ForceAtlas2: K3, the tiled all-pairs
  * repulsion with the gravity term and the swing / traction epilogue, followed by K4, the one-workgroup speed finalize
- * that folds the per-workgroup partials and runs estimateFactor on the device (D15). P1 ships the stage driven over a
- * pass the caller opens (the tests); P3-T2 records it from ForceAtlas2Model.recordIteration without changing these
- * declarations. Both kernels come from the registry (src/kernels.ts) through the pipeline cache, so a distinct
- * override set is a distinct pipeline and the subgroup twin is selected by the device's features (spec 5.1, D16).
+ * that folds the per-workgroup partials and runs estimateFactor on the device. The stage records into a
+ * pass its caller opens (ForceAtlas2Model.recordIteration, and the tests). Both kernels come from the registry (src/kernels.ts) through the pipeline cache, so a distinct
+ * override set is a distinct pipeline and the subgroup twin is selected by the device's features.
  */
 
 import { EXACT_TILES_PER_PASS } from "../constants.js";
@@ -17,7 +16,7 @@ import { kernelSpec } from "../kernels.js";
 import { type PlanCaps } from "../types/context.js";
 import { type Binding } from "../types/memory.js";
 
-/** The buffers the exact-tier repulsion stage binds (all in layout units; spec 7.3). */
+/** The buffers the exact-tier repulsion stage binds (all in layout units). */
 export interface RepulsionExactResources {
     readonly pos: Binding;
     readonly state: Binding;
@@ -63,7 +62,7 @@ export function recordExactRepulsion(
     }
 }
 
-/** K3 (tiled all-pairs repulsion + gravity + the swing / traction epilogue) followed by K4 (the one-workgroup speed finalize) (spec 7.6, 7.10). */
+/** K3 (tiled all-pairs repulsion + gravity + the swing / traction epilogue) followed by K4 (the one-workgroup speed finalize). */
 export class RepulsionExact {
     /** The overrides both kernels were compiled with (a frozen copy of the argument of create()). */
     readonly overrides: RepulsionExactOverrides;
@@ -71,7 +70,7 @@ export class RepulsionExact {
     private readonly caps: PlanCaps;
     private readonly repulsion: Kernel;
     private readonly speedFinalize: Kernel;
-    /** Exactly one workgroup of K4 (spec 7.4: "1 workgroup"). */
+    /** Exactly one workgroup of K4. */
     private readonly finalizePlan: DispatchPlan;
     private boundRepulsion: BoundKernel | null = null;
     private boundSpeedFinalize: BoundKernel | null = null;
@@ -135,7 +134,7 @@ export class RepulsionExact {
      * Creates the bind groups once per load(): K3 takes pos, state (S), force, oldForce, fixedMask, partials and the
      * params slot; K4 takes partials, state (S), trace (T) and the params slot (the 3.10.1 binding names). The state
      * header and the trace region are two disjoint ranges of one buffer, which Kernel.bind() accepts (no writable alias).
-     * @param resources - the buffers of spec 7.3
+     * @param resources - the model's force buffers
      */
     bind(resources: RepulsionExactResources): void {
         this.boundRepulsion = this.repulsion.bind({
@@ -167,7 +166,7 @@ export class RepulsionExact {
     }
 
     /**
-     * Records K3 only (the inspect() stage split, spec 11.9 item 2).
+     * Records K3 only (the inspect() stage split).
      * @param pass - the open compute pass
      * @param n - the node count
      * @param paramsOffset - the dynamic offset of the Fa2Params slot

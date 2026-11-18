@@ -24,6 +24,9 @@ import { SHADER_PRESETS } from "../../src/shaders/presets";
 import { SHADER_PRESET_BODIES, SHADER_PRESET_LOW_DETAIL } from "../../src/shaders/presets/bodies";
 import { TRANSITION_PRESETS } from "../../src/transitions/presets";
 import { transitionDescriptors } from "../../src/transitions/registry";
+import { disposedAfterEach } from "../helpers/disposed-after-each";
+
+const owned = disposedAfterEach();
 
 /** The 31 shader presets of design section 7, by id. */
 const PLANNED_SHADERS = [
@@ -174,7 +177,7 @@ describe("the shader presets", () => {
     it("lists all 31 presets, the same list the catalog shows", () => {
         assert.sameMembers(ids, PLANNED_SHADERS);
         assert.deepEqual(
-            createGraphSession()
+            owned(createGraphSession())
                 .catalog.shaders()
                 .map((descriptor) => descriptor.id),
             ids,
@@ -269,7 +272,7 @@ describe("the transition presets", () => {
             ids,
         );
         assert.deepEqual(
-            createGraphSession()
+            owned(createGraphSession())
                 .catalog.transitions()
                 .map((descriptor) => descriptor.id),
             ids,

@@ -13,6 +13,7 @@ used_by_workflows:
     - W14
     - W18
     - W19
+    - W24
 implemented_by_components:
     - metric-card
     - statistics-panel

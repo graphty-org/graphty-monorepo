@@ -23,6 +23,10 @@ function mapSize(store: GraphStore): number {
     return (store as unknown as { indexByEdgeId: Map<number, number> }).indexByEdgeId.size;
 }
 
+function idArray(store: GraphStore): number {
+    return (store as unknown as { edgeIdByIndex: number[] }).edgeIdByIndex.length;
+}
+
 function load(store: GraphStore, edges: number): number[] {
     const { builder } = store;
     for (let id = 0; id < 10; id++) {
@@ -79,5 +83,23 @@ describe("edge id stamping on a fresh load", () => {
         const again = store.builder.addEdge(4, 5, 1);
         store.stampEdgeId(again, ids[2]);
         assert.strictEqual(store.edgeIndexOf(ids[2]), again);
+    });
+
+    it("keeps no row-to-id array while ids are dense, and builds it at the first stamp out of order", () => {
+        const store = storeWith(true);
+        const ids = load(store, 30);
+        assert.strictEqual(idArray(store), 0, "dense: the row is the id less the offset");
+        assert.strictEqual(store.edgeIdAt(30), INVALID, "no row past the last stamped");
+
+        store.builder.removeEdge(store.edgeIndexOf(ids[7]));
+        assert.strictEqual(store.edgeIdAt(7), INVALID, "a removed row has no live id");
+        const again = store.builder.addEdge(4, 5, 1);
+        store.stampEdgeId(again, ids[7]);
+        assert.strictEqual(idArray(store), 31, "an id out of row order: every row's id is kept from here on");
+        ids.forEach((id, row) => {
+            assert.strictEqual(store.edgeIndexOf(id), row === 7 ? again : row);
+            assert.strictEqual(store.edgeIdAt(row === 7 ? again : row), id);
+        });
+        assert.strictEqual(store.edgeIdAt(7), INVALID);
     });
 });

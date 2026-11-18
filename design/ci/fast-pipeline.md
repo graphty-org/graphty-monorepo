@@ -1,5 +1,7 @@
 # Fast pipeline: from development branch to graphty.app and npm
 
+> Status: Historical. The pipeline it designs landed changes through `golden`, which stopped taking landings on 2026-10-25 (design/ci/channels-pipeline.md, issue #3418). tools/land.mjs, tools/verify.mjs, tools/prepush.sh and tools/prepush-tests.mjs were removed on 2026-11-02 (commit d99cdf5060), and tools/branch-sync.mjs on 2026-10-25 (commit 0c011ef28f). Today every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md).
+
 Status: Accepted, 2026-10-21, with the owner's decisions in section 9 (decision record
 `design/decisions/2026-10-21-fast-pipeline-adopted.md`). Issue #3262. It is built in the order of
 section 10; until each piece lands, the tools follow `design/ci/golden-local.md`.

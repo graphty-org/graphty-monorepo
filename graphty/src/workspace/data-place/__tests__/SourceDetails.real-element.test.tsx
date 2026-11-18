@@ -48,7 +48,7 @@ async function details(name: string): Promise<Record<string, string>> {
     const facts = await waitFor(() => {
         const groups = within(inspector).getAllByRole("group");
         const found = groups
-            .map((group) => [group.getAttribute("aria-label") ?? labelOf(group), valueOf(group)])
+            .map((group): [string, string] => [group.getAttribute("aria-label") ?? labelOf(group), valueOf(group)])
             .filter(([fact]) => fact !== "");
         assert.isNotEmpty(found);
         return found;

@@ -206,6 +206,13 @@ class Collector {
                 this.itemRule(node.item);
                 return;
             case "threshold":
+                // Ranked among what is shown, it moves when what is shown does.
+                if (node.within === "visible") {
+                    this.add({ kind: "visible" });
+                }
+
+                this.path(node.path);
+                return;
             case "by-size":
                 this.path(node.path);
                 return;
@@ -345,6 +352,20 @@ function walk(value: SetDefinition | Scope | RuleTree, pathsOf?: (where: Query) 
     }
 
     return collector;
+}
+
+/**
+ * Every path a definition, a scope or a rule tree reads, without repeats: its leaves' paths and,
+ * given `pathsOf`, its queries' paths.
+ * @param value - What to walk.
+ * @param pathsOf - The paths a query reads; absent, queries list nothing.
+ * @returns The paths, in the order they are read.
+ */
+export function pathsRead(
+    value: SetDefinition | Scope | RuleTree,
+    pathsOf?: (where: Query) => readonly Path[],
+): readonly Path[] {
+    return [...new Set(walk(value, pathsOf).paths)];
 }
 
 /**

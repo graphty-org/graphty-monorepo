@@ -11,29 +11,41 @@
  * minus the start in layout units, on both sides, compared with the floored per-node metric of spec 11.4.
  */
 
-import { type F32, type F64, type GraphSnapshot, type NodeMask } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, type NodeMask } from "@graphty/graph-format";
 
 import { FR_DEFAULTS } from "../../src/constants.js";
 import type { GpuContext } from "../../src/context.js";
-import { FA2_STATE, type KernelId } from "../../src/kernels.js";
+import type { KernelId } from "../../src/kernels.js";
 import { ForceSimulation } from "../../src/layouts/force-simulation.js";
 import { createFruchtermanReingold } from "../../src/layouts/fruchterman-reingold.js";
 import type { FruchtermanReingoldStats, GpuLayoutTuning } from "../../src/types/layout.js";
 import type { FruchtermanReingoldOptions } from "../../src/types/options.js";
 import { type FrOracleOptions, FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
-import { type CheckReport, ratioOf } from "./check-report.js";
+import type { CheckReport } from "./check-report.js";
 import {
     asF32,
     assertUnitStart,
+    foldValues,
     layoutStart,
+    partialsValues,
     readPartials,
     readState,
-    stageError,
+    stageCheck,
     type StageIo,
+    type StageResult,
+    stageResult,
+    stageRunner,
     xyzOf,
-    yieldToEventLoop,
 } from "./fa2-parity.js";
-import { noiseFloorFor } from "./noise-floor.js";
+import { resolveTolerance } from "./noise-floor.js";
+import {
+    minus,
+    oracleFoldValues,
+    oraclePartialsValues,
+    stateScalar,
+    type TrajectorySensitivity,
+    trajectorySensitivity,
+} from "./spring-parity.js";
 
 // ---------------------------------------------------------------- options and simulations
 
@@ -51,9 +63,6 @@ export const FR_BASE_OPTIONS: FruchtermanReingoldOptions = Object.freeze({
 });
 /** The tuning every FR parity case uses: the exact tier (the only one, DEP-P5-D). */
 export const FR_TUNING: GpuLayoutTuning = Object.freeze({ repulsion: "exact" });
-// `process` is absent in the browser project, which bundles this module for the browser noise-fixture writers
-/** True in a recording run: every FR parity test is then held to the spec cap, not to the derived value (the P3 rule of fa2-parity.ts toleranceOf). */
-const WRITE = typeof process !== "undefined" && process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 
 /** The simulation createFruchtermanReingold builds, with its @internal members visible. */
 type FrSim = ForceSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
@@ -295,72 +304,21 @@ export const P5_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
     });
 
 /**
- * The tolerance an FR parity test uses: the derived value of benchmarks/results/noise-floor.json (noiseFloorFor),
- * asserted to sit under its spec cap with the basis row the caps table names (a floor above the cap is a finding,
- * spec 10.4, never a loosened cap), or the spec cap itself during a recording run (GRAPHTY_NOISE_FLOOR_WRITE=1),
- * when the derived values do not exist yet.
+ * The tolerance an FR parity test uses: resolveTolerance over P5_TOLERANCE_CAPS.
  * @param id - a P5 FR tolerance id
  * @returns the tolerance value and its basis row
  */
 export function frTolerance(id: string): { readonly value: number; readonly basis: string } {
-    if (!(id in P5_TOLERANCE_CAPS)) {
-        throw new Error(`${id}: not a P5 FR tolerance id`);
-    }
-    const spec = P5_TOLERANCE_CAPS[id];
-    if (WRITE) {
-        return { value: spec.cap, basis: spec.basis };
-    }
-    const derived = noiseFloorFor(id);
-    if (derived.basis !== spec.basis) {
-        throw new Error(`${id}: the committed basis row ${derived.basis} is not ${spec.basis}`);
-    }
-    if (!(derived.value <= spec.cap)) {
-        throw new Error(
-            `${id}: the derived tolerance ${derived.value} is above the spec cap ${spec.cap} (a finding, spec 10.4)`,
-        );
-    }
-    return derived;
+    return resolveTolerance(P5_TOLERANCE_CAPS, id, "P5 FR");
 }
 
 // ---------------------------------------------------------------- the admission rule of the trajectory and distributional cases (G3-F3 / G3-F4)
 
-/** The perturbations of the admission rule: eight starts one f32 ulp away from the seeded one. */
-export const PERTURBATIONS = 8;
+export { PERTURBATIONS, perturbedStart } from "./spring-parity.js";
 
 /**
- * The start with ONE coordinate moved by one f32 ulp: perturbation k touches node floor(k n / PERTURBATIONS) on axis
- * k mod dim, moving its bit pattern away from zero by one. The f64 oracle run from every such start measures the
- * spread the trajectory's OWN sensitivity produces (docs/decisions/G3.md finding G3-F3 / G3-F4): a horizon or a
- * case is admitted to an assertion only where that spread, and the f32 oracle's distance from the f64 one (the
- * model of any f32 implementation's rounding), sit under a third of the cap.
- * @param start - the seeded start
- * @param n - the node count
- * @param dim - 2 or 3
- * @param k - the perturbation index, 0 .. PERTURBATIONS - 1
- * @returns a copy of the start with one coordinate nudged
- */
-export function perturbedStart(start: F32, n: number, dim: 2 | 3, k: number): F32 {
-    const out = Float32Array.from(start);
-    const node = Math.floor((k * n) / PERTURBATIONS);
-    const at = 3 * node + (k % dim);
-    const one = new Float32Array([out[at]]);
-    const bits = new Uint32Array(one.buffer);
-    bits[0] += 1;
-    out[at] = one[0];
-    return out;
-}
-
-/** One horizon of a trajectory sensitivity: the eight-perturbation spread of the f64 oracle and the f32 oracle's distance from it. */
-interface TrajectorySensitivity {
-    readonly spread: number;
-    readonly f32: number;
-}
-
-/**
- * The admission measurement of a free-running FR trajectory (G3-F3 / G3-F4): the f64 oracle from the seeded start
- * against itself from the PERTURBATIONS one-ulp starts (the spread of the trajectory's own sensitivity) and against
- * the f32 oracle (the model of any f32 implementation's rounding), both as the floored per-node position error of
- * spec 11.4, at every horizon asked for.
+ * The admission measurement of a free-running FR trajectory (spring-parity.ts trajectorySensitivity over the FR
+ * oracle).
  * @param s - the snapshot
  * @param start - the scene start (scale 1, zero center)
  * @param options - the FR options
@@ -368,7 +326,7 @@ interface TrajectorySensitivity {
  * @param horizons - the iteration counts to measure at
  * @returns the two errors per horizon
  */
-export async function frTrajectorySensitivity(
+export function frTrajectorySensitivity(
     s: GraphSnapshot,
     start: F32,
     options: FruchtermanReingoldOptions,
@@ -380,87 +338,13 @@ export async function frTrajectorySensitivity(
     const dim = options.dim ?? FR_DEFAULTS.dim;
     const make = (p: F32, precision: "f64" | "f32"): FruchtermanReingoldOracle =>
         new FruchtermanReingoldOracle(s, layoutStart(p, n, dim), frOracleOptions(options, mask, precision));
-    const base = make(start, "f64");
-    const f32 = make(start, "f32");
-    const nudged = Array.from({ length: PERTURBATIONS }, (_, k) => make(perturbedStart(start, n, dim, k), "f64"));
-    const out = new Map<number, TrajectorySensitivity>();
-    const last = Math.max(...horizons);
-    for (let t = 1; t <= last; t++) {
-        await yieldToEventLoop(); // the ensemble runs for tens of seconds on random1k
-        base.step();
-        f32.step();
-        for (const o of nudged) {
-            o.step();
-        }
-        if (horizons.includes(t)) {
-            const reference = Float64Array.from(base.positions);
-            out.set(t, {
-                spread: Math.max(...nudged.map((o) => stageError(true, o.positions, reference).rel)),
-                f32: stageError(true, f32.positions, reference).rel,
-            });
-        }
-    }
-    return out;
+    return trajectorySensitivity(make, start, n, dim, horizons);
 }
 
 // ---------------------------------------------------------------- the stage capture (spec 11.9 item 2)
 
-/** One stage of a capture. */
-interface FrStageResult {
-    readonly key: FrStageKey;
-    /** Vector stages are compared per node with the floored stride-3 metric, scalar stages elementwise. */
-    readonly vector: boolean;
-    /** This adapter's raw output (f32 values widened). */
-    readonly values: F64;
-    /** The oracle's expectation in the same layout. */
-    readonly expected: F64;
-    /** stageError(vector, values, expected).rel */
-    readonly error: number;
-    readonly maxAbs: number;
-}
 /** Every stage of one capture. */
-type FrStageCapture = Readonly<Record<FrStageKey, FrStageResult>>;
-
-function stageResult(
-    key: FrStageKey,
-    vector: boolean,
-    values: ArrayLike<number>,
-    expected: ArrayLike<number>,
-): FrStageResult {
-    const v = Float64Array.from(values);
-    const e = Float64Array.from(expected);
-    const err = stageError(vector, v, e);
-    return { key, vector, values: v, expected: e, error: err.rel, maxAbs: err.abs };
-}
-
-/**
- * a - b elementwise (the displacement of both sides: the positions after K5 minus the start).
- * @param a - the positions after
- * @param b - the positions before
- * @returns the difference
- */
-function minus(a: ArrayLike<number>, b: ArrayLike<number>): F64 {
-    const out = new Float64Array(a.length);
-    for (let i = 0; i < a.length; i++) {
-        out[i] = a[i] - b[i];
-    }
-    return out;
-}
-
-/**
- * The model field `name` of an inspect("state") readback, decoded through the generated block.
- * @param raw - the readback
- * @param name - "temperature" or "kineticEnergy"
- * @returns the value
- */
-function readStateScalar(raw: Float32Array | Uint32Array, name: string): number {
-    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-    const v = FA2_STATE.readField(view, name, 0);
-    if (typeof v !== "number") {
-        throw new Error(`Fa2State.${name}: expected a scalar field`);
-    }
-    return v;
-}
+type FrStageCapture = Readonly<Record<FrStageKey, StageResult<FrStageKey>>>;
 
 /**
  * Runs one FR iteration of every stage on FRESH simulations (the FA2 rule: no stage sees another's debug run) and
@@ -492,19 +376,7 @@ export async function captureFrStages(
     // the K1 fold of iteration 2 and its temperature (index 1): the second step's record
     const fold = oracle.step();
 
-    const run = <T>(upTo: string, afterFirstStep: boolean, read: (st: StageIo) => Promise<T>): Promise<T> =>
-        withFrSim(ctx, options, FR_TUNING, async (sim) => {
-            sim.load(s, Float32Array.from(start));
-            if (mask !== null) {
-                sim.setFixed(mask);
-            }
-            if (afterFirstStep) {
-                await sim.step(1);
-            }
-            const st = frStages(sim);
-            await st.run(upTo);
-            return read(st);
-        });
+    const run = stageRunner((body) => withFrSim(ctx, options, FR_TUNING, body), frStages, s, start, mask);
 
     const attraction = await run("K2", false, async (st) => asF32(await st.read("force")));
     const force = await run("K3", false, async (st) => asF32(await st.read("force")));
@@ -515,76 +387,21 @@ export async function captureFrStages(
     const scene = await run("toScene", false, async (st) => asF32(await st.read("scenePositions")));
     const k1 = await run("K1", true, async (st) => {
         const raw = await st.read("state");
-        return { state: readState(raw), temperature: readStateScalar(raw, "temperature") };
+        return { state: readState(raw), temperature: stateScalar(raw, "temperature") };
     });
 
-    const p = k5.partials;
-    const o = stages.partials;
     return {
         attraction: stageResult("attraction", true, attraction, stages.attraction),
         force: stageResult("force", true, force, stages.force),
         positions: stageResult("positions", true, k5.positions, after),
         displacement: stageResult("displacement", true, minus(k5.positions, before), minus(after, before)),
-        partials: stageResult(
-            "partials",
-            false,
-            [
-                p.sum[0],
-                p.sum[1],
-                p.sum[2],
-                p.sum[3],
-                p.min[0],
-                p.min[1],
-                p.min[2],
-                p.max[0],
-                p.max[1],
-                p.max[2],
-                p.maxW,
-                p.disp,
-                p.free,
-            ],
-            [
-                o.sum[0],
-                o.sum[1],
-                o.sum[2],
-                o.sumSq,
-                o.min[0],
-                o.min[1],
-                o.min[2],
-                o.max[0],
-                o.max[1],
-                o.max[2],
-                o.maxSq,
-                o.disp,
-                o.free,
-            ],
-        ),
+        partials: stageResult("partials", false, partialsValues(k5.partials), oraclePartialsValues(stages.partials)),
         scene: stageResult("scene", true, scene, after),
         k1: stageResult(
             "k1",
             false,
-            [
-                k1.state.centroid[0],
-                k1.state.centroid[1],
-                k1.state.centroid[2],
-                k1.state.rmsRadius,
-                k1.state.radius,
-                k1.state.meanDisplacement,
-                k1.state.settledCount,
-                k1.state.iteration,
-                k1.temperature,
-            ],
-            [
-                fold.centroid[0],
-                fold.centroid[1],
-                fold.centroid[2],
-                fold.rmsRadius,
-                fold.layoutRadius,
-                fold.meanDisplacement,
-                fold.settledCount,
-                2,
-                fold.temperature,
-            ],
+            [...foldValues(k1.state), k1.temperature],
+            [...oracleFoldValues(fold), fold.temperature],
         ),
     };
 }
@@ -596,10 +413,5 @@ export async function captureFrStages(
  * @returns the report (worst = error / tolerance)
  */
 export function frStageReport(capture: FrStageCapture, key: FrStageKey): CheckReport {
-    const r = capture[key];
-    return {
-        worst: ratioOf(r.error, frTolerance(FR_STAGE_TOLERANCE[key]).value),
-        worstLabel: `${key} (${FR_STAGE_UP_TO[key]})`,
-        samples: r.values.length,
-    };
+    return stageCheck(capture[key], frTolerance(FR_STAGE_TOLERANCE[key]).value, FR_STAGE_UP_TO[key]);
 }

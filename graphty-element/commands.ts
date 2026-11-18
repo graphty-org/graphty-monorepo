@@ -51,8 +51,8 @@ export const COMMANDS = Object.freeze({
     "data.declare": { undo: "undoable" },
     "data.setSource": { undo: "undoable" },
     "data.label": { undo: "undoable" },
-    "data.setFileStyles": { undo: "undoable" },
     "data.columns": { undo: "undoable" },
+    "data.derive": { undo: "undoable" },
     "style.patch": { undo: "undoable" },
     "style.encode": { undo: "undoable" },
     "style.template": { undo: "undoable" },
@@ -75,6 +75,8 @@ export const COMMANDS = Object.freeze({
     "note.remove": { undo: "undoable" },
     "note.merge": { undo: "undoable" },
     "view.save": { undo: "undoable" },
+    "annotations.set": { undo: "undoable" },
+    "annotations.patch": { undo: "undoable" },
     "view.remove": { undo: "undoable" },
     "view.camera": {
         undo: "exempt",

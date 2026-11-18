@@ -39,7 +39,7 @@ import { join } from "node:path";
 import { afterAll, assert, beforeAll, beforeEach, describe, it, onTestFailed } from "vitest";
 
 import { kill } from "./engines";
-import { type Fixture, startFixture } from "./fixture";
+import { type Fixture, keptWork, startFixture } from "./fixture";
 import { ownChild, processes } from "./processes";
 
 const MACOS = process.platform === "darwin" && process.env.GRAPHTY_LIFECYCLE_MACOS === "1";
@@ -398,20 +398,12 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         let revision: number;
         let by: string;
         if (restored === null) {
-            // The old tab claimed its own entry first. iOS suspends a tab in the background, so it may
-            // never report; the reopened page was told who holds the work and read that entry.
-            assert.deepEqual(
-                ready.available,
-                [{ reason: "held-by-other-tab", id: entry }],
-                `the reopened page restored nothing, so it must be told the other tab holds the work: ${JSON.stringify(ready)}`,
-            );
-            const held = (ready.entries as { id: string; revision: number; live: boolean }[]).find(
-                (e) => e.id === entry,
-            );
-            assert.isTrue(held?.live, `the saved entry is held by the reloaded tab: ${JSON.stringify(ready.entries)}`);
-            revision = held?.revision ?? 0;
-            assert.isAtLeast(revision, lastSaved, "the held entry's revision is at least the last one saved");
-            by = "held by the old tab, reloaded in the background";
+            // The old tab claimed its own entry first, or iOS suspended it in the background inside a
+            // transaction on the database before it claimed, so the reopened page's restore stalled.
+            // Either way the reopened page says why, and the entry still holds the work.
+            ({ revision, by } = keptWork(ready, entry));
+            assert.isAtLeast(revision, lastSaved, "the kept entry's revision is at least the last one saved");
+            by = `${by}, the old tab reloaded in the background`;
         } else {
             ({ revision } = restored);
             assert.isAtLeast(revision, lastSaved, "the restored revision is at least the last one saved");

@@ -32,7 +32,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U8, type U32 } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, maskTest, type U8, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, ScopeId, ScopeInput, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -43,7 +43,7 @@ import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
 import { createSetAs } from "../sets/SetsApi";
 import { deepEquals } from "../styles/predicate";
-import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
+import { ATTRIBUTE_UNIQUE_CAP, type HoverDrawn, type SessionRecordSource } from "../types";
 import {
     resolveTarget,
     type SelectionMatch,
@@ -552,6 +552,13 @@ export interface SelectionOwner extends SelectionApi {
     /** Clear a peek without a promise or a check: the session's end. */
     endPeek(): void;
     /**
+     * {@link SelectionApi.hover} from the pointer, with where the node was drawn in the frame the
+     * pointer found it in, which `selection:hover-changed` carries.
+     * @param id - The node, or null.
+     * @param drawn - Where it was drawn, when the pick says.
+     */
+    hoverAt(id: NodeId | null, drawn: HoverDrawn | undefined): void;
+    /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
      */
@@ -622,6 +629,15 @@ export interface SelectionSources {
      * @returns The check.
      */
     readonly checkRule?: (where: Query) => RuleCheck;
+    /** The scope a `where` or `text` target naming none reads. Absent, the whole graph. */
+    readonly defaultScope?: TargetContext["defaultScope"];
+    /** What the filter keeps, which every target is narrowed to. Absent, nothing is narrowed. */
+    readonly filterKeeps?: TargetContext["filterKeeps"];
+    /**
+     * The edges the session's working graph shows, one bit per row of the snapshot, or null when
+     * it reads the whole graph. The statistics count only these. Absent, every edge.
+     */
+    readonly shownEdges?: () => U32 | null;
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
@@ -656,8 +672,9 @@ export interface SelectionSources {
      * Called when the node under the pointer changes.
      * @param before - The node that was hovered, or null.
      * @param after - The node hovered now, or null.
+     * @param drawn - Where `after` was drawn when the pointer found it, when the pointer says.
      */
-    readonly onHover?: (before: NodeId | null, after: NodeId | null) => void;
+    readonly onHover?: (before: NodeId | null, after: NodeId | null, drawn: HoverDrawn | undefined) => void;
     /**
      * Called when a peek starts, ends or moves, with the elements whose peeked state moved.
      * @param dirty - Their dense indices, by kind.
@@ -1255,13 +1272,17 @@ class Selection implements SelectionOwner {
     }
 
     hover(id: NodeId | null): void {
+        this.hoverAt(id, undefined);
+    }
+
+    hoverAt(id: NodeId | null, drawn: HoverDrawn | undefined): void {
         const before = this.#hovered;
         if (before === id) {
             return;
         }
 
         this.#hovered = id;
-        this.#sources.onHover?.(before, id);
+        this.#sources.onHover?.(before, id, id === null ? undefined : drawn);
     }
 
     get hoverPreview(): boolean {
@@ -1439,10 +1460,22 @@ class Selection implements SelectionOwner {
                 : resolveTarget({ scope: options.scope }, this.#context());
         const { graph } = this.#frame;
         const list = graph.edgeList();
+        // With the working graph on, an edge it hides is neither counted nor part of a degree.
+        const shown = this.#sources.shownEdges?.() ?? null;
+        const degrees = shown === null ? graph.degree() : new Uint32Array(graph.nodeCount);
         let induced = 0;
         let cut = 0;
 
         for (let edge = 0; edge < graph.edgeCount; edge++) {
+            if (shown !== null && !maskTest(shown, edge)) {
+                continue;
+            }
+
+            if (shown !== null) {
+                degrees[list.src[edge]] += 1;
+                degrees[list.dst[edge]] += 1;
+            }
+
             const source = nodes.has(list.src[edge]);
             const target = nodes.has(list.dst[edge]);
 
@@ -1453,7 +1486,6 @@ class Selection implements SelectionOwner {
             }
         }
 
-        const degrees = graph.degree();
         let min = Infinity;
         let max = -Infinity;
 
@@ -1515,7 +1547,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note, layer, region, records } = this.#sources;
+        const { scope, results, match, find, note, layer, region, defaultScope, filterKeeps, records } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1530,6 +1562,8 @@ class Selection implements SelectionOwner {
             ...(note === undefined ? {} : { note }),
             ...(layer === undefined ? {} : { layer }),
             ...(region === undefined ? {} : { region }),
+            ...(defaultScope === undefined ? {} : { defaultScope }),
+            ...(filterKeeps === undefined ? {} : { filterKeeps }),
             ...(records === undefined
                 ? {}
                 : {

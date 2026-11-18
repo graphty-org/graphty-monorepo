@@ -1,11 +1,11 @@
 /**
- * The `frontier-finalize` kernel body (design 5.4, 6 row 7; P8-T4, the P8 plan's PD-3 / PD-23 / DEP-P8-C): the
- * device-side selector of the frontier family. One workgroup, one lane, no barrier after the early return (spec 3.5
- * rule 1). It is recorded TWICE per level, in two roles chosen by `P.role`, because a level's counts become known at
+ * The `frontier-finalize` kernel body: the device-side selector of the frontier family. One
+ * workgroup, one lane, no barrier after the early return. It is recorded TWICE per level, in two roles chosen by
+ * `P.role`, because a level's counts become known at
  * two moments: role 0 runs at the START of a level -- rotates `nextFrontierCount` into `frontierCount`, advances
  * `level`, decides `done` (an empty frontier, or `level >= P.maxDepth`) and chooses the path; role 1 runs once the
  * edge queue is filled -- clamps `edgeCount` to `P.edgeCapacity`, or, when `edgeCountUnclamped` exceeds the
- * capacity, switches the path to the fused retry over `frontierCount` (PD-23). The decision is ONE word of the
+ * capacity, switches the path to the fused retry over `frontierCount`. The decision is ONE word of the
  * counters block, `path` (word 24): 0 nothing (done, or a level past the end), 1 two-phase, 2 fused, 3 bottom-up,
  * 4 the fused retry (role 1), 5 a near SSSP round, 6 a far one (role 2). Every level kernel is a direct grid-stride
  * dispatch that reads that word first and runs only when it names it (decision record
@@ -16,7 +16,7 @@
  * chose one, which it reads from the path word (a storage write of one dispatch is visible to the next of the same
  * pass).
  *
- * Roles 2 and 3 are the SSSP round boundary of the near-far loop (P8-T9, PD-20), over the same block read in its
+ * Roles 2 and 3 are the SSSP round boundary of the near-far loop, over the same block read in its
  * SSSP sense (word 1 the raw near half's appends, 21 the raw far half's, 0 and 20 the deduped pile counts, 22 the
  * threshold, 23 the delta, 4 the previous threshold, 14 the round's mode): role 2 finds a non-empty raw near half
  * and sizes the near dedupe (count word 1, output word 0; the dedupe's count in word 8) in mode 0; finds it empty
@@ -29,7 +29,7 @@
  * raw half the round consumed: mode 0 restarts the raw near half (word 1 to 0), mode 1 the raw far half (word 21
  * to 0); the relax kernels size themselves from words 0 and 20.
  *
- * Beamer's test (P8-T8, PD-21; amended for issues #391 and #1358), evaluated at every boundary BEFORE the `done`
+ * Beamer's test (amended for issues #391 and #1358), evaluated at every boundary BEFORE the `done`
  * branch (so a switch can be counted at the done boundary too, which the host model of the tests mirrors): top-down
  * switches to bottom-up when `nextDegreeSum > max(unvisitedCount, unvisitedDegreeSum / alpha)` (u32 division; alpha
  * the host's `BEAMER_ALPHA` unless tuned) and the frontier is growing (`next > frontierCount`). Both sides are arcs
@@ -47,24 +47,24 @@
  * about to expand -- not, as before the amendment, `frontierDegreeSum` (word 2), the degree of the frontier the
  * previous level EXPANDED, one level stale and 0 after a bottom-up level, which on the 1M / 10M R-MAT missed the
  * switch at the level holding 13.6M of the 21M arcs. Word 2 is still accumulated by the expansion and rotated into
- * word 4 for the inspect seam. The two unvisited words are rebuilt exactly once per submit by `bfs-unvisited-flags`
- * (PD-18). `unvisitedCount` is maintained here by subtraction from the SECOND boundary of a submit on, because a
+ * word 4 for the inspect seam. The two unvisited words are rebuilt exactly once per submit by `bfs-unvisited-flags`.
+ * `unvisitedCount` is maintained here by subtraction from the SECOND boundary of a submit on, because a
  * boundary may only subtract what the submit's rebuild counted: the rebuild counts the vertices unclaimed when it
  * runs, the frontier rotated in at boundary 0 was claimed by the previous submit's last level, so it was never in
  * the count, and boundary b subtracts `next = |F_b|`, inside the count iff b >= 1. `unvisitedDegreeSum` is
  * maintained by `bfs-next-degree`, which subtracts the in-degrees of what a level claims as it sums their
  * out-degrees. Both words are therefore exact at every boundary, bottom-up levels included (the sweep's claims are
  * summed like any other).
- * Body only (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are textual edits
+ * Body only; the text is normative: the sabotage rows of test/helpers/sabotage.ts are textual edits
  * of it.
  */
 export const frontierFinalizeWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
 fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
-    if (lid.x != 0u) { return; }                                       // one lane; no barrier follows (3.5 rule 1)
+    if (lid.x != 0u) { return; }                                       // one lane; no barrier follows
     if (P.role == 0u) {                                                // the level boundary
         if (atomicLoad(&counters[15]) != 0u) {                         // done already: a no-op level the host recorded past the end
-            atomicStore(&counters[24], 0u);                            // the path word is the only word that moves (P8-T6's levels formula reads the rest)
+            atomicStore(&counters[24], 0u);                            // the path word is the only word that moves (the levels formula reads the rest)
             return;
         }
         let finished = atomicLoad(&counters[0]);
@@ -80,7 +80,7 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         atomicStore(&counters[8], 0u);                                 // edgeCount
         atomicStore(&counters[9], 0u);                                 // edgeCountUnclamped
         atomicStore(&counters[12], atomicLoad(&counters[12]) + next);  // visitedCount
-        if (P.firstOfSubmit >= 1u) {                                   // b = the boundary's index inside its submit, clamped (P8-T8, PD-18): F_b was inside the submit's rebuilt sums iff b >= 1
+        if (P.firstOfSubmit >= 1u) {                                   // b = the boundary's index inside its submit, clamped: F_b was inside the submit's rebuilt sums iff b >= 1
             atomicStore(&counters[5], atomicLoad(&counters[5]) - next);       // unvisitedCount, exact (bfs-next-degree keeps unvisitedDegreeSum exact)
         }
         let level = atomicLoad(&counters[11]) + 1u;                    // the seed is U32_MAX, so the first boundary lands on 0
@@ -100,10 +100,10 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         var path = 0u;                                                 // word 24: what the level's kernels run (0 nothing, 1 two-phase, 2 fused, 3 bottom-up; role 1 writes 4 for the retry)
         if (done) {
             path = 0u;
-        } else if (direction == 1u) {                                  // the bottom-up level (P8-T8): the bits fill, the bitset build, the sweep
+        } else if (direction == 1u) {                                  // the bottom-up level: the bits fill, the bitset build, the sweep
             path = 3u;
             atomicStore(&counters[19], atomicLoad(&counters[19]) + 1u);
-        } else if (next < P.fusedMax) {                                // P8-T7 makes this branch reachable (fusedMax is 0 until then)
+        } else if (next < P.fusedMax) {                                // the fused path (fusedMax 0 disables it)
             path = 2u;                                                 // bfs-fused: one WORKGROUP per frontier entry
             atomicStore(&counters[17], atomicLoad(&counters[17]) + 1u);
         } else {
@@ -117,14 +117,14 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         }
         let clamped = min(atomicLoad(&counters[8]), P.edgeCapacity);
         atomicStore(&counters[8], clamped);
-        if (atomicLoad(&counters[9]) > P.edgeCapacity) {               // PD-23: the fused retry
+        if (atomicLoad(&counters[9]) > P.edgeCapacity) {               // the fused retry
             atomicStore(&counters[24], 4u);                            // the path word: bfs-fused runs the retry over frontierCount, bfs-contract nothing
             atomicStore(&counters[10], atomicLoad(&counters[10]) + 1u);
             atomicStore(&counters[17], atomicLoad(&counters[17]) + 1u);
         } else {
-            atomicStore(&counters[18], atomicLoad(&counters[18]) + 1u);   // twoPhaseLevels counts the CHOICE role 0 made, even for zero edges (P8-T7 Step 4's invariant)
+            atomicStore(&counters[18], atomicLoad(&counters[18]) + 1u);   // twoPhaseLevels counts the CHOICE role 0 made, even for zero edges (an invariant the tests pin)
         }
-    } else if (P.role == 2u) {                                         // the SSSP round boundary (P8-T9, PD-20): which pile this round relaxes
+    } else if (P.role == 2u) {                                         // the SSSP round boundary: which pile this round relaxes
         atomicStore(&counters[8], 0u);                                 // the dedupe counts (words 8 and 9, the SSSP sense) and the path word: nothing unless a pile is chosen below
         atomicStore(&counters[9], 0u);
         atomicStore(&counters[24], 0u);
@@ -145,7 +145,7 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             atomicStore(&counters[11], atomicLoad(&counters[11]) + 1u);   // rounds dispatched (the done boundary is not counted)
         } else if (farRaw != 0u) {                                     // the near pile is empty: raise the threshold and re-bucket the far pile
             let threshold = bitcast<f32>(atomicLoad(&counters[22]));
-            let raised = threshold + bitcast<f32>(atomicLoad(&counters[23]));   // ONE f32 add on the bit patterns (PD-9)
+            let raised = threshold + bitcast<f32>(atomicLoad(&counters[23]));   // ONE f32 add on the bit patterns
             if (raised == threshold) {                                 // the delta is below the threshold's ulp: the host raises E_UNSUPPORTED
                 atomicStore(&counters[15], 3u);
                 return;

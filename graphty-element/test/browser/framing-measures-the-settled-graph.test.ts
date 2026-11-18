@@ -70,9 +70,13 @@ describe("framing the graph", () => {
     let container: HTMLElement;
     let graph: Graph;
     let framings: Framing[];
+    /** Every framing the element announced, measured or not. */
+    let fits: number;
 
     /**
-     * Where the layout engine has the nodes right now, boxed the way the element boxes them.
+     * Where the layout engine has the nodes right now, boxed the way the element boxes them: every
+     * visible node, and under renderPath "batched" every visible row drawn with no `Node`, which no
+     * walk of the layout's nodes reaches (the forced-batched project draws every node that way).
      * @returns The corners of that box, or undefined when nothing is placed yet.
      */
     function whereTheLayoutPutTheNodes(): Box | undefined {
@@ -84,6 +88,17 @@ describe("framing the graph", () => {
 
         let min: Vector3 | undefined;
         let max: Vector3 | undefined;
+        const grow = (position: Vector3, half: Readonly<{ x: number; y: number; z: number }>): void => {
+            min ??= position.clone();
+            max ??= position.clone();
+
+            min.x = Math.min(min.x, position.x - half.x);
+            min.y = Math.min(min.y, position.y - half.y);
+            min.z = Math.min(min.z, position.z - half.z);
+            max.x = Math.max(max.x, position.x + half.x);
+            max.y = Math.max(max.y, position.y + half.y);
+            max.z = Math.max(max.z, position.z + half.z);
+        };
 
         for (const node of graph.getLayoutManager().nodes) {
             // The same exclusion the element makes: a node a filter has hidden keeps its place and
@@ -94,18 +109,19 @@ describe("framing the graph", () => {
 
             const at = engine.getNodePosition(node);
             // out to the size the node is drawn, as framing measures it (#3087)
-            const half = node.drawnHalfExtents;
-            const position = new Vector3(at.x, at.y, at.z ?? 0);
+            grow(new Vector3(at.x, at.y, at.z ?? 0), node.drawnHalfExtents);
+        }
 
-            min ??= position.clone();
-            max ??= position.clone();
+        const table = graph.getRowTable();
+        const at = { x: 0, y: 0, z: 0 };
 
-            min.x = Math.min(min.x, position.x - half.x);
-            min.y = Math.min(min.y, position.y - half.y);
-            min.z = Math.min(min.z, position.z - half.z);
-            max.x = Math.max(max.x, position.x + half.x);
-            max.y = Math.max(max.y, position.y + half.y);
-            max.z = Math.max(max.z, position.z + half.z);
+        for (const row of graph.getNodeBatches()?.columnRowIndices() ?? []) {
+            if (table === null || table.isHidden(row)) {
+                continue;
+            }
+
+            engine.nodePositions.read(row, at);
+            grow(new Vector3(at.x, at.y, at.z), table.extentOf(row).half);
         }
 
         return min && max ? { min, max } : undefined;
@@ -120,7 +136,10 @@ describe("framing the graph", () => {
         await graph.init();
 
         framings = [];
+        fits = 0;
         graph.on("zoom-to-fit-complete", (event) => {
+            fits++;
+
             if (!("boundingBoxMin" in event) || !("boundingBoxMax" in event)) {
                 return;
             }
@@ -190,12 +209,14 @@ describe("framing the graph", () => {
     it("honours a zoomToFit() asked for after the layout has stopped", async () => {
         await graph.waitForStableFrame();
 
-        const before = framings.length;
+        // Counted from the announcement itself, so this waits on the element and not on the measure
+        // the first case scores.
+        const before = fits;
 
         graph.zoomToFit();
 
         await vi.waitFor(() => {
-            assert.isAbove(framings.length, before, "asking to fit the graph in view fits the graph in view");
+            assert.isAbove(fits, before, "asking to fit the graph in view fits the graph in view");
         });
     });
 });

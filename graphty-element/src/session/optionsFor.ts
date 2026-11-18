@@ -29,7 +29,6 @@ import {
 } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import { columnFits, type ColumnValues, type LocationRole } from "../layout/locationMap/source";
-import { englishRunLabel } from "./english";
 import { fieldMeasurement, type ResultsApi } from "./results/types";
 import type { Resolution } from "./sets/resolve";
 
@@ -143,7 +142,7 @@ function groupings(source: OptionsForSource, graph: GraphSnapshot): OptionDescri
         });
         return grouping.map((field) => ({
             value: field.path,
-            label: grouping.length === 1 ? englishRunLabel(root) : `${englishRunLabel(root)}: ${field.plainName}`,
+            label: grouping.length === 1 ? root.runId : `${root.runId}: ${field.plainName}`,
         }));
     });
     return [...attributes, ...fields];

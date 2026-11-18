@@ -10,9 +10,6 @@ import type { GraphSession, NodeRecord } from "@graphty/graphty-element/session"
 import { formatNumber } from "../inspector/words";
 import type { Host } from "./values";
 
-/** The list's first option: the next node clicked on the canvas becomes the reference. */
-export const PICK_ON_CANVAS = "pick";
-
 /** How many sets or nodes the list draws at most. */
 const SHOWN_REFERENCES = 8;
 
@@ -96,7 +93,6 @@ function matchedValue(record: NodeRecord, label: string, lower: string): string 
  * @param host - where the selection is edited.
  * @param firstStep - the step is its group's first, where So far holds only the group's start.
  * @param typed - the search, trimmed.
- * @param picksBeside - Pick on canvas is drawn beside the field, so the list leaves it out.
  * @returns the sections, each with its heading; an empty one is left out, except Nodes.
  */
 export function referenceSections(
@@ -104,7 +100,6 @@ export function referenceSections(
     host: Host,
     firstStep: boolean,
     typed: string,
-    picksBeside = false,
 ): ReferenceSection[] {
     const lower = typed.toLowerCase();
     const has = (label: string): boolean => lower === "" || label.toLowerCase().includes(lower);
@@ -135,11 +130,9 @@ export function referenceSections(
         // A search that finds nothing says so with its count, never a bare heading.
         return typedFound.total === 0 ? "Nodes 0" : counted("Nodes", typedFound.shown, typedFound.total);
     };
-    // The workspace's field has the Pick on canvas icon beside it: its list does not repeat it.
-    const pick = !picksBeside && has("Pick on canvas") ? [{ value: PICK_ON_CANVAS, label: "Pick on canvas" }] : [];
     return [
         // The live references need no heading of their own; a filter's are the Selection.
-        { heading: host === "selector" ? "" : "Selection", items: [...pick, ...live] },
+        { heading: host === "selector" ? "" : "Selection", items: live },
         {
             heading: counted("Sets", Math.min(sets.length, SHOWN_REFERENCES), sets.length),
             items: sets.slice(0, SHOWN_REFERENCES),

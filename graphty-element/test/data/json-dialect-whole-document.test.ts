@@ -40,3 +40,68 @@ describe("JsonDataSource: the JSON dialect of the whole document", () => {
         assert.deepEqual(got, want);
     });
 });
+
+/**
+ * Reads a JSON document with the default paths and returns its node and edge records.
+ * @param doc - the document
+ * @returns the records
+ */
+async function recordsOf(doc: unknown): Promise<{ nodes: AdHocData[]; edges: AdHocData[] }> {
+    const source = new JsonDataSource({ data: JSON.stringify(doc) });
+    const nodes: AdHocData[] = [];
+    const edges: AdHocData[] = [];
+    for await (const chunk of source.getData()) {
+        nodes.push(...chunk.nodes);
+        edges.push(...chunk.edges);
+    }
+    return { nodes, edges };
+}
+
+// One path for every document graph-io reads as records: the reader holds no branch on the program that wrote it.
+describe("JsonDataSource: the same graph from any program's JSON", () => {
+    const cytoscape = {
+        elements: {
+            nodes: [
+                { data: { id: "a" }, position: { x: 10, y: 20 } },
+                { data: { id: "b" }, position: { x: 30, y: 40 } },
+            ],
+            edges: [{ data: { source: "a", target: "b" } }],
+        },
+    };
+    const graphology = {
+        options: { type: "directed" },
+        nodes: [
+            { key: "a", attributes: { x: 10, y: -20 } },
+            { key: "b", attributes: { x: 30, y: -40 } },
+        ],
+        edges: [{ source: "a", target: "b" }],
+    };
+    const vis = {
+        nodes: [
+            { id: "a", x: 10, y: 20 },
+            { id: "b", x: 30, y: 40 },
+        ],
+        edges: [{ from: "a", to: "b" }],
+    };
+
+    test("gives identical ids, positions and endpoints for Cytoscape.js, graphology and vis.js", async () => {
+        const shape = async (doc: unknown): Promise<unknown> => {
+            const { nodes, edges } = await recordsOf(doc);
+            return {
+                nodes: nodes.map((node) => ({ id: node.id, position: node.position })),
+                // under the file's own keys, which the element resolves (vis.js writes from and to)
+                edges: edges.map((edge) => ({ source: edge.source ?? edge.from, target: edge.target ?? edge.to })),
+            };
+        };
+        const want = await shape(vis);
+        assert.deepEqual(want, {
+            nodes: [
+                { id: "a", position: { x: 10, y: -20, z: 0 } },
+                { id: "b", position: { x: 30, y: -40, z: 0 } },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+        assert.deepEqual(await shape(cytoscape), want);
+        assert.deepEqual(await shape(graphology), want);
+    });
+});

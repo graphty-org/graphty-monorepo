@@ -52,7 +52,7 @@
     },
     "scripts": {
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint": "eslint --pass-on-unpruned-suppressions && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "test": "vitest",
@@ -83,7 +83,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/babylonjs-map#readme",
+    "homepage": "https://graphty.app/docs/babylonjs-map/",
     "dependencies": {
         "coordinate-parser": "1.0.7",
         "mgrs": "2.2.0",
@@ -99,13 +99,13 @@
         }
     },
     "devDependencies": {
-        "@babylonjs/core": "^8.36.1",
+        "@babylonjs/core": "^8.56.2",
         "@types/ngeohash": "^0.6.8",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "eslint": "^9.29.0",
+        "eslint": "^9.39.5",
         "typescript": "^5.9.3",
-        "vite": "^8.1.6",
+        "vite": "^8.3.8",
         "vitest": "catalog:"
     }
 }

@@ -18,13 +18,14 @@ import {
     openLegacyScope,
     TEMPLATE_RUNS,
 } from "../session/commands/algo";
-import { englishNotes } from "../session/english";
 import { dispatcherOf } from "../session/GraphSession";
 import type { UndoableContext } from "../session/project/Dispatcher";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
-import { caveat, caveatSentence, noted } from "../session/runs/caveatFacts";
+import { caveat, type CaveatCode, noted } from "../session/runs/caveatFacts";
 import { resolutionBehind } from "../session/scope/ScopeApi";
+import type { CodedFact } from "../session/shared";
+import { wholeGraph } from "../session/working/graphs";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -41,7 +42,7 @@ import type { Manager } from "./interfaces";
  * @returns how many edges the simplification removes; zero for a graph with no parallel edges
  */
 function mergedParallelEdges(data: { getSnapshot(): GraphSnapshot }): number {
-    const declared = data.getSnapshot();
+    const declared = wholeGraph(data);
     if (!declared.flags.multigraph) {
         return 0;
     }
@@ -219,14 +220,20 @@ export class AlgorithmManager implements Manager {
         const { caveats } = result.summary();
         const policy = algorithm.parallelEdgePolicy() ?? "sum";
         const merged = policy === "none" ? 0 : mergedParallelEdges(this.graph.getDataManager());
-        const mergedFact = caveat("parallel-edges.merged", { count: merged, policy });
+        const added: CodedFact<CaveatCode>[] =
+            merged === 0 ? [] : [caveat("parallel-edges.merged", { count: merged, policy })];
+        // A file can mix directed and undirected edges; an algorithm reads every edge with the
+        // graph's one default direction, and a reader has no other way to learn that either.
+        const mixed = algorithm.mixedDirection();
+        if (mixed !== null) {
+            added.push(caveat("direction.mixed", { directed: mixed }));
+        }
         const stated =
-            merged === 0 || policy === "none"
+            added.length === 0
                 ? caveats
                 : {
                       ...caveats,
-                      facts: [...caveats.facts, mergedFact],
-                      notes: [...englishNotes(caveats), caveatSentence(mergedFact)],
+                      facts: [...caveats.facts, ...added],
                   };
 
         return {
@@ -348,8 +355,9 @@ export class AlgorithmManager implements Manager {
 
             // Also call configure for backward compatibility with legacy algorithms
             // that use the deprecated configure() method instead of constructor options
-            if (options && "configure" in alg && typeof alg.configure === "function") {
-                alg.configure(options);
+            const legacy = alg as typeof alg & { configure?: (options: object) => void };
+            if (options && typeof legacy.configure === "function") {
+                legacy.configure(options);
             }
 
             await alg.run(facade);
@@ -461,7 +469,7 @@ export class AlgorithmManager implements Manager {
 
         const { reading } = behind;
 
-        return { ...(behind.graph === this.graph.getDataManager().getSnapshot() ? behind : behind.now()), reading };
+        return { ...(behind.graph === wholeGraph(this.graph.getDataManager()) ? behind : behind.now()), reading };
     }
 
     /**

@@ -167,10 +167,16 @@ describe("nodes drawn on one spot", () => {
             shape(8, top, { fill: null, stroke: strokeOf("#000000") }),
             shape(9, top, { fill: fillOf("#ffffff"), stroke: null }),
         ];
-        const o = associate(prims, 600, 400, guideOf([["p", 400, 200, 10]])).scene;
+        const o = associate(prims, 600, 400, guideOf([["p", 400, 200, 10]]), { fillOverStroke: true }).scene;
         assert.approximately(nodeAt(o, "p")?.cy ?? 0, 200.22, 0.01);
-        assert.approximately(nodeAt(o, "p")?.h ?? 0, 10, 0.05);
+        // the fill painted over the outline's inner half: a ring 0.25 wide round an outline 10.25 tall shows
+        assert.approximately(nodeAt(o, "p")?.h ?? 0, 10.25, 0.05);
+        assert.strictEqual(nodeAt(o, "p")?.stroke?.width, 0.25);
         assert.strictEqual(nodeAt(o, "p")?.order, 9);
+        // a program that paints its fill beside the outline shows the whole stroke
+        const whole = associate(prims, 600, 400, guideOf([["p", 400, 200, 10]])).scene;
+        assert.approximately(nodeAt(whole, "p")?.h ?? 0, 10, 0.05);
+        assert.strictEqual(nodeAt(whole, "p")?.stroke?.width, 0.5);
     });
 });
 

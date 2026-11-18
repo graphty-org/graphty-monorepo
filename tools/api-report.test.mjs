@@ -174,11 +174,11 @@ export interface AlgorithmDescriptor {
         assert.deepEqual(check({ cost: '\n    readonly kind: "exact" | "sampled";' }), []);
     });
 
-    it("passes an allowlisted identifier or catalog name, and a catalog description", () => {
+    it("passes an allowlisted identifier or catalog name, and a catalog description id", () => {
         assert.deepEqual(
             check({
                 find: "\n    readonly nodeId: string;\n    readonly name: string;\n    readonly coalesceKey: string;",
-                descriptor: "\n    readonly description: string;",
+                descriptor: "\n    readonly descriptionId: string;",
             }),
             [],
         );

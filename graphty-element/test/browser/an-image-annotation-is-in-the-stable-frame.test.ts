@@ -126,7 +126,7 @@ test("a picture that arrives after everything else is in the stable frame, drawn
     // Let the picture load only once the rest of the picture is final.
     const { graph } = element;
     // the element's own account of what it still waits for, which the public wait reports only on a timeout
-    const { updateManager } = graph as unknown as { updateManager: { whyFrameIsNotStable(): string } };
+    const updateManager = graph.getUpdateManager();
     graph.scene.onAfterRenderObservable.add(() => {
         const waitingForPicture = updateManager.whyFrameIsNotStable().includes("picture");
         if (held.length > 0 && (graph.isFrameStable || waitingForPicture)) {

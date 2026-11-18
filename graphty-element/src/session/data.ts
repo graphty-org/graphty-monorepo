@@ -172,6 +172,7 @@ import {
     type LoadFacts,
     redactedParams,
     redactUrl,
+    sampleAddress,
     type SourcesRead,
     type SourcesWrite,
     withKeptSecrets,
@@ -3925,11 +3926,13 @@ export class SessionData implements SessionDataApi {
                 return [];
             }
 
+            // A sample read by URL reads its address again, resolved against the page.
+            const address = sampleAddress(load, facts);
             const how: LoadHow = {
                 kind: load.kind,
                 ...(load.type === undefined ? {} : { type: load.type }),
                 ...(load.name === undefined ? {} : { name: load.name }),
-                config: load.config ?? {},
+                config: address === undefined ? (load.config ?? {}) : { ...load.config, url: address },
                 ...(load.choices === undefined ? {} : { choices: load.choices }),
                 ...(facts.sample === undefined ? {} : { sample: facts.sample }),
             };

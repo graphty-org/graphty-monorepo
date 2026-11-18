@@ -72,7 +72,7 @@ import {
     type SourcesWrite,
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
-import { fillReferences, type LeaveOut, planLeaveOut, REF_KEY, unreadPlaceholders } from "./sources/references";
+import { fillReferences, type LeaveOut, planLeaveOut, REF_KEY, unreadLoads } from "./sources/references";
 import { computeFingerprint } from "./statistics";
 import type {
     DataSourceInput,
@@ -797,26 +797,28 @@ export function dataMember(
     }
 
     // A referenced load's row is written as a placeholder in its place, so positions hold on open.
+    // So is a row the last open held bare for a reference it could not read, while it is still
+    // bare and that load's alone, so a reference that comes back fills it.
+    const unread = unreadLoads(session);
+    const heldFor = (supplied: readonly SourceKey[], record: object, bareKeys: readonly string[]): string | undefined =>
+        supplied.length === 1 &&
+        unread.has(supplied[0]) &&
+        Object.keys(record).every((name) => name === "_source.loads" || bareKeys.includes(name))
+            ? supplied[0]
+            : undefined;
     const nodeRows: Record<string, unknown>[] = nodes.map((node) => {
-        const key = leaveOut?.nodes.get(node.id);
+        const key = leaveOut?.nodes.get(node.id) ?? heldFor(session.data.sourcesOf(node.id), node, ["id"]);
         return key === undefined ? node : { id: node.id, [REF_KEY]: file?.idOf(key) ?? key };
     });
     const links: Record<string, unknown>[] = edges.map(({ id, ...rest }) => {
         const edge: Record<string, unknown> = rest;
-        const key = leaveOut?.edges.get(id);
+        const key =
+            leaveOut?.edges.get(id) ??
+            heldFor(session.data.sourcesOf(id, { kind: "edge" }), edge, ["id", "source", "target"]);
         return key === undefined
             ? edge
             : { source: edge.source, target: edge.target, [REF_KEY]: file?.idOf(key) ?? key };
     });
-    // The placeholders of a reference the last open could not read go back too, for a later open.
-    const unread = unreadPlaceholders(session);
-    if (unread.nodes.length > 0 || unread.links.length > 0) {
-        const held = new Set(nodes.map((node) => String(node.id)));
-        const keys = new Set(sources.map((each) => each.key));
-        const listed = (row: Record<string, unknown>): boolean => keys.has(String(row[REF_KEY]));
-        nodeRows.push(...unread.nodes.filter((row) => listed(row) && !held.has(String(row.id))));
-        links.push(...unread.links.filter(listed));
-    }
 
     return {
         kind: "graphty-data",

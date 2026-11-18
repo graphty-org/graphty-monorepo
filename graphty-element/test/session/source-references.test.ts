@@ -263,7 +263,7 @@ describe("a project saved with a reference", () => {
         assert.deepEqual(Object.keys(labels(opened)).sort(), ["b", "c", "d"]);
     });
 
-    it("reports a missing reference, opens without its rows and writes the reference back", async () => {
+    it("reports a missing reference, keeps its rows' places bare and writes the reference back", async () => {
         stubSite({ [URL_A]: GRAPH });
         const session = await twoLoads();
         const key = session.data.sources()[0]?.key ?? "";
@@ -272,17 +272,87 @@ describe("a project saved with a reference", () => {
 
         stubSite({});
         const { session: opened, problems } = await reopen(saved.text);
-        assert.deepEqual(problems, [{ code: "W_SOURCE_UNAVAILABLE", params: { source: key, reason: "not-found" } }]);
-        assert.deepEqual(Object.keys(labels(opened)).sort(), ["c", "d"]);
+        // The load is not in the opened graph, so the fact names it and its address.
+        assert.deepEqual(problems, [
+            {
+                code: "W_SOURCE_UNAVAILABLE",
+                params: { source: key, reason: "not-found", name: "graph.json", url: URL_A },
+            },
+        ]);
+        // a and b are held bare in their places, supplied by the unread load.
+        assert.deepEqual(labels(opened), { a: undefined, b: undefined, c: "Cy", d: "Dee" });
+        assert.deepEqual(opened.data.sourcesOf("a"), [key]);
 
         const again = await opened.project.save();
         assert.deepEqual(sourcesOf(again.text).loads[0], sourcesOf(saved.text).loads[0]);
         assert.strictEqual(sourcesOf(again.text).data, "references");
+        assert.deepEqual(dataOf(again.text), dataOf(saved.text));
 
         stubSite({ [URL_A]: GRAPH });
         const { session: back, problems: none } = await reopen(again.text);
         assert.deepEqual(none, []);
-        assert.deepEqual(Object.keys(labels(back)).sort(), ["a", "b", "c", "d"]);
+        assert.deepEqual(labels(back), labels(session));
+    });
+
+    it("keeps positions, a run and notes on a missing reference's rows through a save", async () => {
+        const URL_B = "https://data.example.com/other.json";
+        const OTHER = JSON.stringify({ nodes: [{ id: "x" }, { id: "y" }], edges: [{ source: "x", target: "y" }] });
+        stubSite({ [URL_A]: GRAPH, [URL_B]: OTHER });
+        const session = sessionWithRuns(["source-references"]);
+        session.network.setPolicy("allow");
+        await session.data.import({ type: "json", config: { url: URL_A } });
+        await session.data.import({ type: "json", config: { url: URL_B } }, { mode: "merge" });
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        await session.runs.start("degree", undefined, { as: "links", style: false });
+        session.notes.add({ text: "on a", targets: [{ node: "a" }] });
+        await session.positions.set([{ id: "a", x: 5, y: 6, z: 7 }]);
+        const saved = await session.project.save();
+
+        const open = async (text: string): Promise<GraphSession> => {
+            const opened = sessionWithRuns(["source-references"]);
+            opened.network.setPolicy("allow");
+            await opened.project.open(text);
+            return opened;
+        };
+        stubSite({ [URL_B]: OTHER });
+        const missing = await open(saved.text);
+        const again = await missing.project.save();
+
+        stubSite({ [URL_A]: GRAPH, [URL_B]: OTHER });
+        const back = await open(again.text);
+        const at = { x: 0, y: 0, z: 0 };
+        back.positions.read(
+            back.data.nodes({ scope: "graph" }).findIndex((node) => node.id === "a"),
+            at,
+        );
+        assert.deepEqual(at, { x: 5, y: 6, z: 7 });
+        assert.strictEqual(back.results.get("links")?.node("b")?.value, 2);
+        assert.deepEqual(
+            back.notes.list().map((note) => note.text),
+            ["on a"],
+        );
+        assert.strictEqual(labels(back).a, "Ann");
+    });
+
+    it("keeps a reader's edge between a missing reference's nodes without taking their values", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = createGraphSession({ features: ["source-references"] });
+        session.network.setPolicy("allow");
+        await session.data.import({ type: "json", config: { url: URL_A } });
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        await session.data.addEdges([{ source: "a", target: "c" }]);
+        const saved = await session.project.save();
+
+        stubSite({});
+        const { session: missing } = await reopen(saved.text);
+        const again = await missing.project.save();
+        assert.deepEqual(dataOf(again.text).nodes, dataOf(saved.text).nodes);
+
+        stubSite({ [URL_A]: GRAPH });
+        const { session: back, problems } = await reopen(again.text);
+        assert.deepEqual(problems, []);
+        assert.deepEqual(labels(back), { a: "Ann", b: "Bob", c: "Cy" });
+        assert.strictEqual(back.data.edges({ scope: "graph" }).length, 3);
     });
 
     it("reports a changed reference and reads its new values", async () => {
@@ -317,7 +387,7 @@ describe("a project saved with a reference", () => {
             [["data", "file"]],
         );
         assert.deepEqual(report.problems, [
-            { code: "W_SOURCE_UNAVAILABLE", params: { source: key, reason: "denied" } },
+            { code: "W_SOURCE_UNAVAILABLE", params: { source: key, reason: "denied", name: "graph.json", url: URL_A } },
         ]);
     });
 
@@ -334,6 +404,30 @@ describe("a project saved with a reference", () => {
         assert.strictEqual(dataOf(saved.text).nodes[0]?.label, "Ann");
         assert.isUndefined(sourcesOf(saved.text).data);
         assert.strictEqual(sourcesOf(saved.text).loads[0]?.copy, "reference");
+    });
+});
+
+describe("a sample read by URL, as an application opens its own samples", () => {
+    it("takes a reference at its address resolved against the page, and reopens it", async () => {
+        const SAMPLE = "https://app.example.com/samples/graph.json";
+        vi.stubGlobal("document", { baseURI: "https://app.example.com/start/" });
+        stubSite({ "/samples/graph.json": GRAPH, [SAMPLE]: GRAPH });
+        const session = createGraphSession({ features: ["source-references"] });
+        session.network.setPolicy("allow");
+        await session.data.import({ type: "json", name: "Sample", config: { url: "/samples/graph.json" } }, {
+            origin: "sample",
+        });
+        const key = session.data.sources()[0]?.key ?? "";
+        assert.strictEqual(session.data.sources()[0]?.kind, "sample");
+        assert.deepEqual(session.data.copies(), [{ source: key, copy: "copy" }]);
+        session.data.setCopy(key, "reference");
+        const saved = await session.project.save();
+        assert.isTrue(dataOf(saved.text).nodes.every((node) => node["_source.ref"] === key));
+        assert.strictEqual((sourcesOf(saved.text).loads[0]?.url as { address?: string }).address, SAMPLE);
+
+        const { session: opened, problems } = await reopen(saved.text);
+        assert.deepEqual(problems, []);
+        assert.deepEqual(labels(opened), labels(session));
     });
 });
 

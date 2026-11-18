@@ -113,7 +113,9 @@ report.problems; // W_SOURCE_UNAVAILABLE or W_SOURCE_CHANGED with { source }, wh
   also supplied; only the rows the load reads as they are now are left out. A save that cannot read
   the load keeps it as a copy and lists `W_SOURCE_UNAVAILABLE` in `report.leftOut`.
 - An open asks the page before fetching (`network:pending` with `kind: "data"`). A reference that
-  cannot be read opens without its rows, and the next save writes the reference back unchanged.
+  cannot be read opens with its rows held bare in their places (ids and edge ends, no values), so
+  positions, runs, notes and edges that name them stay; the next save writes them and the
+  reference back unchanged, and an open that can read it again fills them.
 - Autosave and exports always write every row.
 
 With it off, `setCopy` refuses with `E_FEATURE_OFF` (`{ feature: "source-references", key:

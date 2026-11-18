@@ -187,6 +187,28 @@ function jsonBytes(value: unknown): number {
 }
 
 /**
+ * The address a sample was read from, when it was read by URL (an application's own sample file)
+ * rather than generated or fetched as a named dataset: resolved against the page, so a reference
+ * to it reads the same file from anywhere.
+ * @param load - The listed load.
+ * @param facts - Its facts.
+ * @returns The absolute address, or undefined.
+ */
+export function sampleAddress(load: LoadedSource, facts: LoadFacts | undefined): string | undefined {
+    const url = load.config?.url;
+    if (load.kind !== "sample" || facts?.sample !== undefined || typeof url !== "string") {
+        return undefined;
+    }
+
+    const base = (globalThis as { document?: { baseURI?: string } }).document?.baseURI;
+    try {
+        return new URL(url, base).href;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * A URL as an entry writes it: no user name, password or fragment, and none of the query
  * parameters whose names mark a credential.
  * @param raw - The URL as the load read it.
@@ -584,8 +606,10 @@ function localPart(
     load: LoadedSource,
     facts: LoadFacts,
 ): { kind: string; part: Record<string, unknown>; dropped: readonly string[] } {
-    const url = load.config?.url;
-    if (load.kind === "sample") {
+    // A sample read by URL and kept as a reference is written as the URL it reads again.
+    const address = facts.copy === "reference" ? sampleAddress(load, facts) : undefined;
+    const url = address ?? load.config?.url;
+    if (load.kind === "sample" && address === undefined) {
         return { kind: "sample", part: { ...(facts.sample ?? { dataset: load.name ?? "sample" }) }, dropped: [] };
     }
 

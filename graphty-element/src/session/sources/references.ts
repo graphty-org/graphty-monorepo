@@ -21,7 +21,7 @@ import type { NetworkApiInternal } from "../network";
 import { pairKey } from "../replace";
 import type { CodedFact } from "../shared";
 import type { GraphSession, LoadChoices, LoadedSource, SourceNoPathReason } from "../types";
-import { type LoadFacts, redactUrl } from "./member";
+import { type LoadFacts, redactUrl, sampleAddress } from "./member";
 
 /** The key a placeholder names its load's entry by. */
 export const REF_KEY = "_source.ref";
@@ -45,6 +45,20 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Why a generated graph or a named dataset cannot be saved as a reference.
+ * @param facts - What the session keeps about it.
+ * @returns The reason, or undefined when it can be made again.
+ */
+function sampleRefusal(facts: LoadFacts | undefined): SourceNoPathReason | undefined {
+    // Every generator gives the same graph for the same params (an absent seed is 0).
+    const sample = facts?.sample;
+    return typeof sample?.generator === "string" ||
+        (typeof sample?.dataset === "string" && typeof sample.baseUrl === "string")
+        ? undefined
+        : "no-seed";
+}
+
+/**
  * Why a load cannot be saved as a reference.
  * @param load - The load, as `data.sources()` lists it.
  * @param facts - What the session keeps about it.
@@ -59,17 +73,14 @@ export function refusalOf(load: LoadedSource, facts: LoadFacts | undefined): Sou
         return "network";
     }
 
-    if (load.kind === "sample") {
-        // Every generator gives the same graph for the same params (an absent seed is 0).
-        const sample = facts?.sample;
-        return typeof sample?.generator === "string" ||
-            (typeof sample?.dataset === "string" && typeof sample.baseUrl === "string")
-            ? undefined
-            : "no-seed";
+    const address = sampleAddress(load, facts);
+    if (load.kind === "sample" && address === undefined) {
+        return sampleRefusal(facts);
     }
 
-    const url = load.config?.url;
-    if (load.kind !== "url" || typeof url !== "string") {
+    // A sample read by URL is a URL load, at its address resolved against the page.
+    const url = address ?? load.config?.url;
+    if ((load.kind !== "url" && address === undefined) || typeof url !== "string") {
         return load.fileName === undefined && facts?.file?.name === undefined ? "inline" : "file";
     }
 
@@ -124,7 +135,7 @@ function bare(record: Readonly<Record<string, unknown>>): Record<string, unknown
  * @returns The URL, or undefined for a generated graph, which fetches nothing.
  */
 function fetchedUrl(how: LoadHow): URL | undefined {
-    const address = how.kind === "sample" ? how.sample?.baseUrl : how.config.url;
+    const address = how.sample?.baseUrl ?? how.config.url;
     if (typeof address !== "string") {
         return undefined;
     }
@@ -184,8 +195,8 @@ async function loadInto(session: GraphSession, how: LoadHow): Promise<void> {
         return;
     }
 
-    if (how.kind === "sample") {
-        await session.data.loadDataset(String(sample.dataset), { ...choices, baseUrl: String(sample.baseUrl) });
+    if (how.kind === "sample" && typeof sample.baseUrl === "string") {
+        await session.data.loadDataset(String(sample.dataset), { ...choices, baseUrl: sample.baseUrl });
         return;
     }
 
@@ -355,20 +366,18 @@ export async function planLeaveOut(input: LeaveOutInput): Promise<LeaveOut> {
     return { nodes, edges, sha256, problems };
 }
 
-/** The placeholders of the references an open could not read, kept for the next save. */
-const UNREAD = new WeakMap<GraphSession, { nodes: Record<string, unknown>[]; links: Record<string, unknown>[] }>();
+/** The entries an open could not read: their rows stay in the graph as bare held rows. */
+const UNREAD = new WeakMap<GraphSession, ReadonlySet<string>>();
 
 /**
- * The placeholders of the references the last open could not read, which every save writes back
- * so a reference that comes back later fills them.
+ * The references the last open could not read. Their rows opened as bare held rows (an id, or a
+ * pair), so every member that names them still binds; a save writes each such row, still bare and
+ * supplied by that load alone, back as its placeholder, so a reference that comes back fills it.
  * @param session - The session.
- * @returns The node and link placeholders.
+ * @returns The entries' ids, which are the loads' keys.
  */
-export function unreadPlaceholders(session: GraphSession): {
-    readonly nodes: readonly Record<string, unknown>[];
-    readonly links: readonly Record<string, unknown>[];
-} {
-    return UNREAD.get(session) ?? { nodes: [], links: [] };
+export function unreadLoads(session: GraphSession): ReadonlySet<string> {
+    return UNREAD.get(session) ?? new Set();
 }
 
 /** What filling an opened file's references did. */
@@ -376,7 +385,7 @@ export interface Filled {
     readonly nodes: Record<string, unknown>[];
     readonly links: Record<string, unknown>[];
     readonly problems: ReferenceProblem[];
-    /** The entries that could not be read: written back as the file held them. */
+    /** The entries that could not be read: their rows open bare and are written back as placeholders. */
     readonly unread: ReadonlySet<string>;
 }
 
@@ -437,7 +446,17 @@ async function readEntries(
         const read = await readAsLoaded(howOf(entry, input.data), input.scratch, input.network);
         if (typeof read === "string") {
             unread.add(id);
-            problems.push({ code: "W_SOURCE_UNAVAILABLE", params: { source: id, reason: read } });
+            // The load is not in the opened graph, so its name and address come with the fact.
+            const url = isObject(entry.url) && typeof entry.url.address === "string" ? entry.url.address : undefined;
+            problems.push({
+                code: "W_SOURCE_UNAVAILABLE",
+                params: {
+                    source: id,
+                    reason: read,
+                    ...(typeof entry.name === "string" ? { name: entry.name } : {}),
+                    ...(url === undefined ? {} : { url }),
+                },
+            });
             continue;
         }
 
@@ -452,8 +471,10 @@ async function readEntries(
 
 /**
  * Put back the rows a file left out for its references, reading each referenced load again: each
- * placeholder takes the record the load gives now, in its place. A load that cannot be read
- * leaves its placeholders out of the graph (kept for the next save) and is reported.
+ * placeholder takes the record the load gives now, in its place. A load that cannot be read is
+ * reported, and its placeholders open in their places as bare rows that load supplied, so the
+ * positions, runs, selection and edges that name them keep them, and the next save writes them
+ * back as placeholders.
  * @param input - The file's records and members, and how to read a load.
  * @returns The records to open, and what was reported.
  */
@@ -473,23 +494,20 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
     );
     const reads = await readEntries(entries, input, unread, problems);
 
-    const kept = { nodes: [] as Record<string, unknown>[], links: [] as Record<string, unknown>[] };
     const embeddedIds = new Set(input.nodes.filter((row) => !hasRef(row)).map((row) => String(row.id)));
     const nodesOf = new Map([...reads].map(([id, read]) => [id, new Map(read.nodes.map((n) => [String(n.id), n]))]));
     const pairsOf = new Map([...reads].map(([id, read]) => [id, singlePairs(read.edges, read.directed)]));
     const fill = (
         row: Record<string, unknown>,
         find: (ref: string) => Record<string, unknown> | undefined,
-        into: Record<string, unknown>[],
     ): Record<string, unknown>[] => {
         if (!hasRef(row)) {
             return [row];
         }
 
-        const ref = row[REF_KEY] as string;
+        const { [REF_KEY]: ref, ...held } = row as Record<string, unknown> & { [REF_KEY]: string };
         if (unread.has(ref)) {
-            into.push(row);
-            return [];
+            return [{ ...held, [LOADS_KEY]: [ref] }];
         }
 
         const found = find(ref);
@@ -499,22 +517,18 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
         // A placeholder for an id the file also embeds is dropped: the embedded record wins.
         hasRef(row) && embeddedIds.has(String(row.id))
             ? []
-            : fill(row, (ref) => nodesOf.get(ref)?.get(String(row.id)), kept.nodes),
+            : fill(row, (ref) => nodesOf.get(ref)?.get(String(row.id))),
     );
     const links = input.links.flatMap((row) =>
-        fill(
-            row,
-            (ref) => {
-                const read = reads.get(ref);
-                return read === undefined
-                    ? undefined
-                    : pairsOf.get(ref)?.get(pairKey(String(row.source), String(row.target), read.directed));
-            },
-            kept.links,
-        ),
+        fill(row, (ref) => {
+            const read = reads.get(ref);
+            return read === undefined
+                ? undefined
+                : pairsOf.get(ref)?.get(pairKey(String(row.source), String(row.target), read.directed));
+        }),
     );
-    if (kept.nodes.length > 0 || kept.links.length > 0) {
-        UNREAD.set(input.session, kept);
+    if (unread.size > 0) {
+        UNREAD.set(input.session, unread);
     }
 
     return { nodes, links, problems, unread };

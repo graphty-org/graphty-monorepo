@@ -1008,9 +1008,11 @@ export type GraphtyWarningCode =
      */
     | "W_SOURCE_NO_PATH"
     /**
-     * A load saved as a reference could not be read again: the project opened without its rows
-     * (a save writes the reference back as it was), or a save kept it as a copy. `params.source`
-     * is the load's key and `params.reason` is `not-found`, `denied` or `unreadable`.
+     * A load saved as a reference could not be read again: the project opened with its rows held
+     * bare in their places (node ids and edge ends, with no values; a save writes them and the
+     * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+     * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+     * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
      */
     | "W_SOURCE_UNAVAILABLE"
     /**

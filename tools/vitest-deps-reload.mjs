@@ -22,10 +22,16 @@
 // awaits before launching the browser, leaves only the browser's own start-up in that window. A
 // reporter on the command line (--reporter, as the CI shards pass) replaces the config's reporters, so
 // the hook is added to the run's reporter list here rather than in `reporters`.
+//
+// A page can still fail to connect with the hold in place (#8823: a CI run whose 60 s window opened
+// after the bundle finished). Nothing in the log said why, so the hook also records what the page's
+// server saw -- the hold, each request and which never finished, each WebSocket upgrade -- and prints
+// it when a page never connects.
 
 import { stripVTControlCharacters } from "node:util";
 
 const WRAPPED = Symbol.for("graphty.vitest-deps-reload");
+const HOOKED = Symbol.for("graphty.vitest-deps-hold");
 
 const RELOAD = "optimized dependencies changed. reloading";
 const SCAN_FAILED = "Failed to run dependency scan";
@@ -95,9 +101,95 @@ export async function depsOptimized(optimizer) {
     await Promise.all(Object.values(optimizer.metadata.discovered).map((dep) => dep.processing));
 }
 
-/** The reporter hook vitest awaits after creating a project's browser server and before opening its page. */
+const CONNECT_FAILED = "Failed to connect to the browser session";
+
+/**
+ * Records what a browser project's server saw on the way to its page connecting: when the dependency
+ * hold began and ended, every HTTP request (and which never finished) and every WebSocket upgrade.
+ * Printed only when a page never connects (#8823), so the next such failure names the stage that
+ * stalled -- no request at all (Chromium never navigated), a request that never finished (the page
+ * load), or no orchestrator upgrade.
+ */
+export class ConnectTimeline {
+    /**
+     * Starts an empty timeline.
+     * @param name - the project's name
+     * @param now - the clock
+     */
+    constructor(name, now = Date.now) {
+        this.name = name;
+        this.now = now;
+        this.events = [];
+        this.pending = new Map();
+        this.served = 0;
+    }
+
+    /**
+     * Records an event with the time.
+     * @param what - the event
+     */
+    mark(what) {
+        this.events.push(`${new Date(this.now()).toISOString()} ${what}`);
+    }
+
+    /**
+     * Listens to a Vite dev server's HTTP server: its requests and upgrades.
+     * @param httpServer - the node http server, if the server has one
+     */
+    watch(httpServer) {
+        httpServer?.on("request", (req, res) => {
+            if (this.served === 0 && this.pending.size === 0) {
+                this.mark(`first request ${req.url}`);
+            }
+            this.pending.set(req, `${new Date(this.now()).toISOString()} ${req.url}`);
+            res.on("close", () => {
+                this.pending.delete(req);
+                this.served++;
+            });
+        });
+        httpServer?.on("upgrade", (req) => this.mark(`upgrade ${req.url}`));
+    }
+
+    /**
+     * The timeline as lines to print.
+     * @returns the lines
+     */
+    report() {
+        return [
+            `[browser connect] ${this.name}: what its server saw (#8823)`,
+            ...this.events.map((line) => `  ${line}`),
+            `  ${this.served} request(s) served, ${this.pending.size} never finished${this.pending.size ? ":" : ""}`,
+            ...[...this.pending.values()].map((line) => `    ${line}`),
+        ];
+    }
+}
+
+const timelines = [];
+
+/** The reporter hooks: hold each browser page until its dependencies are bundled, and explain a page that never connects. */
 export const waitForBrowserDeps = {
-    onBrowserInit: (project) => depsOptimized(project.browser?.vite.environments.client?.depsOptimizer),
+    /**
+     * Vitest awaits this after creating a project's browser server and before opening its page.
+     * @param project - the vitest TestProject
+     */
+    async onBrowserInit(project) {
+        const timeline = new ConnectTimeline(project.name);
+        timelines.push(timeline);
+        timeline.watch(project.browser?.vite.httpServer);
+        timeline.mark("dependency hold begins");
+        await depsOptimized(project.browser?.vite.environments.client?.depsOptimizer);
+        timeline.mark("dependency hold ends; vitest opens the page");
+    },
+    /**
+     * Prints every timeline when a page never connected.
+     * @param _modules - the run's test modules
+     * @param errors - the run's unhandled errors
+     */
+    onTestRunEnd(_modules, errors) {
+        if (errors?.some((error) => String(error?.message).includes(CONNECT_FAILED))) {
+            console.error(timelines.flatMap((timeline) => timeline.report()).join("\n"));
+        }
+    },
 };
 
 /**
@@ -116,7 +208,9 @@ export default function setup(project) {
             "tools/vitest-deps-reload.mjs: vitest.reporters is gone; re-home the onBrowserInit hook (#8352)",
         );
     }
-    if (!vitest.reporters.includes(waitForBrowserDeps)) {
+    // Each project's globalSetup imports its own copy of this module, so the mark is on vitest.
+    if (!vitest[HOOKED]) {
+        vitest[HOOKED] = true;
         vitest.reporters.push(waitForBrowserDeps);
     }
     if (!vitest.logger || vitest.config?.watch) {

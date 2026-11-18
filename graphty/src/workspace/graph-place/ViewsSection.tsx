@@ -11,13 +11,12 @@ import {
     CardList,
     type CardListItem,
     ControlSection,
-    EllipsizedName,
-    InlineRename,
     MenuCheckItem,
+    PageList,
 } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { EasingName, GraphSession, Tour } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useReducer, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -99,9 +98,9 @@ interface ListProps {
 }
 
 /**
- * The saved views, project order, one Tab stop with the arrows between rows (a roving tabindex).
- * Enter or a click goes to a view; F2 renames, Delete deletes, Mod+] and Mod+[ move it. A view the
- * element cannot apply now is disabled with its reason as a tooltip and description.
+ * The saved views, project order, as a compact-mantine `PageList`: one Tab stop, the arrows
+ * between rows. Enter or a click goes to a view; F2 renames, Delete deletes, Mod+] and Mod+[ move
+ * it. A view the element cannot apply now is disabled with its reason as a tooltip and description.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
@@ -111,26 +110,16 @@ function ViewList({ session, store }: ListProps): React.JSX.Element {
     const workspace = useWorkspace();
     const save = useCommand("view.save");
     const names = [...session.views.keys()];
-    const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
-    const list = useRef<HTMLUListElement>(null);
-    // A row to focus once the list draws again (after a delete, the one that took its place).
+    const list = useRef<HTMLDivElement>(null);
+    // A row to focus once the list draws again: after a delete, the one that took its place;
+    // after a rename, the row under its new name.
     const focusNext = useRef<string | null>(null);
-    const current = active !== null && names.includes(active) ? active : names[0];
-
-    const rowOf = (name: string): HTMLElement | null | undefined =>
-        list.current?.querySelector<HTMLElement>(`[data-view-row="${CSS.escape(name)}"]`);
-    const focus = (name: string | undefined): void => {
-        if (name !== undefined) {
-            setActive(name);
-            rowOf(name)?.focus();
-        }
-    };
     useEffect(() => {
         const name = focusNext.current;
         if (name !== null && names.includes(name)) {
             focusNext.current = null;
-            focus(name);
+            list.current?.querySelector<HTMLElement>(`[role="gridcell"][data-id="${CSS.escape(name)}"]`)?.focus();
         }
     });
 
@@ -235,84 +224,47 @@ function ViewList({ session, store }: ListProps): React.JSX.Element {
         },
     ];
 
-    const keys = (event: React.KeyboardEvent<HTMLElement>, name: string, at: number, reason: string | null): void => {
-        const step: Readonly<Record<string, string | undefined>> = {
-            ArrowDown: names[at + 1],
-            ArrowUp: names[at - 1],
-            Home: names[0],
-            End: names.at(-1),
-        };
-        if (event.key in step) {
-            event.preventDefault();
-            focus(step[event.key]);
-        } else if (event.key === "F2") {
-            event.preventDefault();
-            setRenaming(name);
-        } else if (event.key === "Delete" || event.key === "Backspace") {
-            event.preventDefault();
-            remove(name);
-        } else if (matchesKey(event.nativeEvent, "Mod+]") || matchesKey(event.nativeEvent, "Mod+[")) {
-            // As in the selection editor: Mod+] moves up the list, Mod+[ down.
-            event.preventDefault();
-            move(name, event.key === "]" ? -1 : 1);
-        } else if (event.key === "Enter" && reason !== null) {
-            event.preventDefault();
-        }
-    };
-
     return (
-        <ul className="ws-views-list" ref={list} aria-label="Saved views">
-            {names.map((name, at) => {
-                const reason = savedViewReason(workspace, name);
-                const tabIndex = name === current ? 0 : -1;
-                return (
-                    <li key={name} className="ws-views-row" data-disabled={reason === null ? undefined : ""}>
-                        {renaming === name ? (
-                            <InlineRename
-                                value={name}
-                                label={`Rename ${name}`}
-                                onCommit={(typed) => {
-                                    setRenaming(null);
-                                    const to = typed.trim();
-                                    focusNext.current = to === "" || to === name ? name : to;
-                                    if (to !== name) {
-                                        void orRefusal(store, `rename ${name}`, session.views.rename(name, to));
-                                    }
-                                }}
-                                onCancel={() => {
-                                    setRenaming(null);
-                                    focusNext.current = name;
-                                }}
-                            />
-                        ) : (
-                            <Tooltip label={reason} disabled={reason === null}>
-                                <UnstyledButton
-                                    className="ws-views-name cm-focus-inside"
-                                    data-view-row={name}
-                                    tabIndex={tabIndex}
-                                    aria-disabled={reason === null ? undefined : true}
-                                    aria-description={reason ?? undefined}
-                                    onFocus={() => {
-                                        setActive(name);
-                                    }}
-                                    onClick={() => {
-                                        if (reason === null) {
-                                            void orRefusal(store, `go to ${name}`, goToSavedView(workspace, name));
-                                        }
-                                    }}
-                                    onKeyDown={(event) => {
-                                        keys(event, name, at, reason);
-                                    }}
-                                >
-                                    <EllipsizedName name={name} className="ws-views-label" self />
-                                </UnstyledButton>
-                            </Tooltip>
-                        )}
-                        <RowMore name={name} items={items(name, at, reason)} tabIndex={tabIndex} />
-                    </li>
-                );
-            })}
-        </ul>
+        <div className="ws-views-list" ref={list}>
+            <PageList
+                label="Saved views"
+                current={null}
+                items={names.map((name, at) => {
+                    const reason = savedViewReason(workspace, name);
+                    return {
+                        id: name,
+                        name,
+                        disabledReason: reason,
+                        menu: <RowMore name={name} items={items(name, at, reason)} />,
+                    };
+                })}
+                onCurrentChange={(name) => {
+                    void orRefusal(store, `go to ${name}`, goToSavedView(workspace, name));
+                }}
+                renameLabel="View name"
+                renaming={renaming}
+                onRenamingChange={(name) => {
+                    setRenaming(name);
+                }}
+                onRename={(name, typed) => {
+                    const to = typed.trim();
+                    if (to !== "" && to !== name) {
+                        focusNext.current = to;
+                        void orRefusal(store, `rename ${name}`, session.views.rename(name, to));
+                    }
+                }}
+                onRowKeyDown={(name, event) => {
+                    if (event.key === "Delete" || event.key === "Backspace") {
+                        event.preventDefault();
+                        remove(name);
+                    } else if (matchesKey(event.nativeEvent, "Mod+]") || matchesKey(event.nativeEvent, "Mod+[")) {
+                        // As in the selection editor: Mod+] moves up the list, Mod+[ down.
+                        event.preventDefault();
+                        move(name, event.key === "]" ? -1 : 1);
+                    }
+                }}
+            />
+        </div>
     );
 }
 
@@ -668,7 +620,7 @@ export function ViewsSection({ session }: Readonly<{ session: GraphSession }>): 
         }
         store.set({ viewsFocusNext: false });
         const first = root.current?.querySelector<HTMLElement>(
-            '.ws-views-list [tabindex="0"], .cm-section-content button:not([tabindex="-1"])',
+            '.ws-views-list [role="gridcell"][tabindex="0"], .cm-section-content button:not([tabindex="-1"])',
         );
         first?.focus({ preventScroll: true });
         first?.scrollIntoView({ block: "nearest" });

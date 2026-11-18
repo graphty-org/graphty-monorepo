@@ -243,34 +243,10 @@
     font-weight: 550;
 }
 
-.ws-views-list,
 .ws-tour-stops {
     margin: 0;
     padding: 0;
     list-style: none;
-}
-
-.ws-views-row {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    min-height: 28px;
-}
-
-.ws-views-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    padding: 4px 0;
-    font-size: 11px;
-}
-
-.ws-views-name:hover {
-    background: var(--cm-bg-hover);
-}
-
-.ws-views-row[data-disabled] .ws-views-name {
-    color: var(--cm-text-disabled);
-    cursor: default;
 }
 
 .ws-tour-length {
@@ -301,11 +277,4 @@
 .ws-tour-stop-view {
     flex: 1 1 auto;
     min-width: 0;
-}
-
-.ws-views-label {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }

@@ -61,10 +61,10 @@ async function openViews(): Promise<HTMLElement> {
 /**
  * A saved view's row in the section.
  * @param name - the view.
- * @returns the row's button.
+ * @returns the row's cell.
  */
 function viewRow(name: string): HTMLElement {
-    return within(screen.getByRole("list", { name: "Saved views" })).getByRole("button", { name });
+    return within(screen.getByRole("grid", { name: "Saved views" })).getByRole("gridcell", { name });
 }
 
 /**
@@ -72,9 +72,9 @@ function viewRow(name: string): HTMLElement {
  * @returns the names, in order.
  */
 function listedViews(): string[] {
-    return within(screen.getByRole("list", { name: "Saved views" }))
-        .getAllByRole("listitem")
-        .map((row) => row.querySelector("[data-view-row]")?.getAttribute("data-view-row") ?? "");
+    return within(screen.getByRole("grid", { name: "Saved views" }))
+        .getAllByRole("row")
+        .map((row) => row.querySelector("[data-id]")?.getAttribute("data-id") ?? "");
 }
 
 /**
@@ -188,7 +188,7 @@ describe("the Views section", () => {
 
         viewRow("View 1").focus();
         await userEvent.keyboard("{F2}");
-        const field = await within(section).findByRole("textbox", { name: "Rename View 1" });
+        const field = await within(section).findByRole("textbox", { name: "View name" });
         await userEvent.clear(field);
         await userEvent.type(field, "Hub{Enter}");
         await waitFor(() => {
@@ -198,7 +198,9 @@ describe("the Views section", () => {
                 ["Hub"],
             );
         });
-        assert.isNotNull(viewRow("Hub"));
+        await waitFor(() => {
+            assert.equal(document.activeElement, viewRow("Hub"), "focus stays on the renamed row");
+        });
         assert.equal(within(section).getByRole<HTMLInputElement>("combobox", { name: "Stop 1 view" }).value, "Hub");
 
         await userEvent.click(
@@ -230,6 +232,29 @@ describe("the Views section", () => {
         await waitFor(() => {
             assert.deepEqual(listedViews(), ["Two", "One", "Three"]);
         });
+    });
+
+    it("moves a stop two places with Mod+[ pressed twice, focus following it", async () => {
+        const { session } = await openRing();
+        await session.views.save([{ name: "One" }, { name: "Two" }, { name: "Three" }]);
+        const section = await openViews();
+        await userEvent.click(within(section).getByRole("button", { name: "New tour" }));
+        await waitFor(() => {
+            assert.equal(session.tours.get("Tour 1")?.stops.length, 3);
+        });
+        const stopViews = (): string[] => session.tours.get("Tour 1")?.stops.map((stop) => stop.view) ?? [];
+
+        within(section).getByRole("button", { name: "More for Stop 1" }).focus();
+        await userEvent.keyboard("{Control>}[[{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(stopViews(), ["Two", "One", "Three"]);
+        });
+        assert.equal(document.activeElement, within(section).getByRole("button", { name: "More for Stop 2" }));
+        await userEvent.keyboard("{Control>}[[{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(stopViews(), ["Two", "Three", "One"]);
+        });
+        assert.equal(document.activeElement, within(section).getByRole("button", { name: "More for Stop 3" }));
     });
 
     it("makes a tour: Add stop after a drag, a hold edited, Play marks the stop and puts the camera back", async () => {

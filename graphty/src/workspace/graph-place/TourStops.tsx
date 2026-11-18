@@ -144,13 +144,17 @@ export function TourStops({
             stops.map((stop, i) => (i === at ? { ...stop, ...change } : stop)),
         );
     };
-    const move = (at: number, by: -1 | 1): void => {
+    const list = React.useRef<HTMLOListElement>(null);
+    // Returns where the stop went, or null at the list's end.
+    const move = (at: number, by: -1 | 1): number | null => {
         const to = at + by;
-        if (to >= 0 && to < stops.length) {
-            const next = [...stops];
-            [next[at], next[to]] = [next[to], next[at]];
-            write(`move a stop of ${name}`, next);
+        if (to < 0 || to >= stops.length) {
+            return null;
         }
+        const next = [...stops];
+        [next[at], next[to]] = [next[to], next[at]];
+        write(`move a stop of ${name}`, next);
+        return to;
     };
     const remove = (at: number): void => {
         write(
@@ -248,7 +252,14 @@ export function TourStops({
         }
         if (matchesKey(event.nativeEvent, "Mod+]") || matchesKey(event.nativeEvent, "Mod+[")) {
             event.preventDefault();
-            move(at, event.key === "]" ? -1 : 1);
+            const to = move(at, event.key === "]" ? -1 : 1);
+            // Stops are drawn by place, so focus follows the stop to its new place: the same field
+            // there, named after its new number.
+            const field = event.currentTarget.getAttribute("aria-label");
+            if (to !== null && field !== null) {
+                const there = field.replace(/\d+/, String(to + 1));
+                list.current?.querySelector<HTMLElement>(`[aria-label="${CSS.escape(there)}"]`)?.focus();
+            }
         } else if (event.key === "Delete") {
             event.preventDefault();
             remove(at);
@@ -256,7 +267,7 @@ export function TourStops({
     };
 
     return (
-        <ol className="ws-tour-stops" aria-label={`Stops of ${name}`}>
+        <ol className="ws-tour-stops" ref={list} aria-label={`Stops of ${name}`}>
             {stops.map((stop, at) => {
                 const reason = viewProblemWords(problems[at] ?? null, true);
                 const label = `Stop ${String(at + 1)}`;

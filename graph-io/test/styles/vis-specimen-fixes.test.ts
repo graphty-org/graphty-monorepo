@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/registry.js";
+import { num6 } from "../../src/styles/canon/number.js";
 import { resolveStyles, type StyleProperty, type StyleTarget } from "../../src/styles/internal.js";
 
 const registry = createRegistry();
@@ -210,7 +211,7 @@ describe("vis-network nodes", () => {
         // 2 * size square, (2 - sqrt(3)) * size / 2 further down
         expect(values(r, "node", "width")[0]).toBe(36);
         expect(values(r, "node", "height")[0]).toBeCloseTo(Math.sqrt(3) * 18, 9);
-        expect(values(r, "node", "labelOffsetY")[0]).toBeCloseTo(((2 - Math.sqrt(3)) * 18) / 2 + 2 + 14 / 6, 9);
+        expect(values(r, "node", "labelOffsetY")[0]).toBe(num6(((2 - Math.sqrt(3)) * 18) / 2 + 2 + 14 / 6));
         // Database.draw: the label at its top, the top margin (5 by default) down: the label's padding is the mean of
         // the margins (5, and 7 of 9 and 5), and its offset only what the top margin adds to that
         expect(values(r, "node", "labelPosition").slice(1, 3)).toEqual(["inside-top", "inside-top"]);
@@ -259,6 +260,9 @@ describe("vis-network nodes", () => {
         });
         expect(values(r, "node", "borderStyle")).toEqual(["dashed", "dotted"]);
         expect(values(r, "edge", "lineStyle")).toEqual(["dashed", "dashed", "dash-dot", "solid", "dotted", "solid"]);
+        // the dash and gap as drawn, in widths, a width longer and shorter with its caps; two dashes as their mean
+        expect(values(r, "edge", "dashLength")).toEqual([6, 2.33333, 6, null, 1.1, null]);
+        expect(values(r, "edge", "dashGap")).toEqual([4, 1, 1, null, 3, null]);
     });
 
     it("fades a node's colors by its opacity only where vis-network can: a hex or rgb() color", async () => {

@@ -278,15 +278,15 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 - SSM SecureStrings under `/graphty-health/`, read by the Lambdas. A member whose parameter is missing
   shows "not set up":
 
-| Parameter                                                                    | Used for                                       |
-| ---------------------------------------------------------------------------- | ---------------------------------------------- |
-| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                     |
-| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex) |
-| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                         |
-| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)        |
-| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)            |
-| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads   |
-| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher dispatches as     |
+| Parameter                                                                    | Used for                                                           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                                         |
+| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex)                     |
+| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                                             |
+| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)                            |
+| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)                                |
+| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads                       |
+| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher and the release scheduler dispatch as |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
 (past it, writes get 429 and Data sources turns red), a 50 USD monthly AWS Budget whose action denies
@@ -400,6 +400,16 @@ its own, and shows the last data this browser loaded for the view, with its age,
 - **"answered HTTP 404"**: the page asked for a route the deployed API does not have, usually a page newer
   than the last deploy.
 - `/v1/status` answering while the view fails points at that view's route alone.
+
+## The release scheduler
+
+The Lambda `ReleaseScheduler`, invoked by the schedule `ReleaseSchedule` at 00:00, 06:00, 12:00 and 18:00 UTC,
+is the AWS copy of the Cloudflare Worker in `tools/release-scheduler/`, which still starts the release train. It
+runs in dry run (`RELEASE_DISPATCH_MODE` in `infra/health-stack.ts`): each slot logs one JSON line,
+`{"releaseScheduler":"dry-run","slot":...,"dispatched":false,"dispatch":{...}}`, the release.yml dispatch it would
+make, and dispatches nothing. To check the slots, look up its log group in the stack (below) and filter on
+`"releaseScheduler"`. Once it has logged all 56 slots of two weeks, one change sets the mode to `"live"` and
+deletes the Worker.
 
 ## Deployment
 

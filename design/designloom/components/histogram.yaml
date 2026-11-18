@@ -10,6 +10,7 @@ used_in_workflows:
     - W01
     - W03
     - W12
+    - W23
 dependencies: []
 props:
     data: number[] - Values to histogram

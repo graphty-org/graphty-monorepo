@@ -22,6 +22,11 @@ export interface SliceConfig {
     idleHourlyMin: number;
     /** Idle slices run while some unit's newest capture is older than this. */
     freshHours: number;
+    /**
+     * Overdue: some unit's newest capture is older than this (under the dashboard's 6 h target). An overdue set starts
+     * an idle slice even while the pool is busy or not quiet, still one at a time and within the idle share's caps.
+     */
+    overdueHours: number;
     /** Most linux/windows jobs running for an idle slice, and for a base slice. */
     idleRunning: number;
     baseRunning: number;
@@ -173,10 +178,48 @@ function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig): { idleCap
 }
 
 /**
+ * The quiet pool's choice once nothing else stops a slice: idle while few jobs run and the set is stale, else base
+ * for an unsliced green build.
+ * @param i - the decision's inputs
+ * @param running - jobs running in this cycle's sample
+ * @param caps - whether each share has room
+ * @param caps.idleCap - the idle share has room
+ * @param caps.baseCap - the base share has room
+ * @param sha - master's newest green build
+ * @returns the decision
+ */
+function quietSlice(
+    i: SliceInput,
+    running: number,
+    { idleCap, baseCap }: { idleCap: boolean; baseCap: boolean },
+    sha: string,
+): SliceDecision {
+    const { cfg, now, state, store } = i;
+    const none = (reason: SliceReason): SliceDecision => ({ action: "none", reason });
+    const idleOk = idleCap && running <= cfg.idleRunning;
+    const baseOk = baseCap && running <= cfg.baseRunning;
+    if (!idleOk && !baseOk) {
+        return none("busy");
+    }
+    if (!store) {
+        return none("store-unavailable");
+    }
+    const stale = store.oldestAt === null || store.oldestAt < now - cfg.freshHours * HOUR;
+    if (idleOk && stale) {
+        return { action: "dispatch", mode: "idle", sha };
+    }
+    if (baseOk && sha !== store.lastSlicedSha && sha !== state.dispatched?.sha) {
+        return { action: "dispatch", mode: "base", sha };
+    }
+    return none("fresh-and-current");
+}
+
+/**
  * Whether to start a slice now, and which (design 4b). Never while one is in flight, without this cycle's runner
  * data, unless the pool has been quiet, or past a share's cap. An idle slice when at most `idleRunning` jobs run and
  * some unit's newest capture is older than `freshHours`; else a base slice when at most `baseRunning` run and master's
- * newest green build has not been sliced or dispatched yet.
+ * newest green build has not been sliced or dispatched yet. When the set is overdue (`overdueHours`), an idle slice
+ * starts whatever the pool's load, so a busy CI cannot age the oldest units past the target (issue #8796).
  * @param i - the decision's inputs
  * @returns the decision: dispatch with a mode and commit, or none with a reason
  */
@@ -190,7 +233,11 @@ export function decideSlice(i: SliceInput): SliceDecision {
     if (!latest || latest.at < now - 6 * MIN) {
         return none("no-runner-data");
     }
-    if (!isQuiet(state.samples, now, cfg)) {
+    // The store is known here only on the cycles that read it (every 15 minutes), which spaces overdue slices too.
+    const oldest = i.store?.oldestAt ?? null;
+    const overdue = oldest !== null && oldest < now - cfg.overdueHours * HOUR;
+    const quiet = isQuiet(state.samples, now, cfg);
+    if (!overdue && !quiet) {
         return none("not-quiet");
     }
     if (!i.newestGreen) {
@@ -200,24 +247,13 @@ export function decideSlice(i: SliceInput): SliceDecision {
     if (!idleCap && !baseCap) {
         return none("caps-used");
     }
-    const idleOk = idleCap && latest.running <= cfg.idleRunning;
-    const baseOk = baseCap && latest.running <= cfg.baseRunning;
-    if (!idleOk && !baseOk) {
-        return none("busy");
+    if (overdue && idleCap) {
+        return { action: "dispatch", mode: "idle", sha: i.newestGreen.sha };
     }
-    const { store } = i;
-    if (!store) {
-        return none("store-unavailable");
+    if (!quiet) {
+        return none("not-quiet");
     }
-    const { sha } = i.newestGreen;
-    const stale = store.oldestAt === null || store.oldestAt < now - cfg.freshHours * HOUR;
-    if (idleOk && stale) {
-        return { action: "dispatch", mode: "idle", sha };
-    }
-    if (baseOk && sha !== store.lastSlicedSha && sha !== state.dispatched?.sha) {
-        return { action: "dispatch", mode: "base", sha };
-    }
-    return none("fresh-and-current");
+    return quietSlice(i, latest.running, { idleCap, baseCap }, i.newestGreen.sha);
 }
 
 /**

@@ -535,6 +535,17 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
 }
 
 /**
+ * The tests flaky.no_issue counts, by name (#8795).
+ * @param reads - the store reads shared by this build
+ * @param s - the member's status
+ * @returns the note, or undefined when it counts none
+ */
+async function untrackedNote(reads: Reads, s: MemberStatus): Promise<Fact | undefined> {
+    const tests = s.value ? await readSnapshot(reads.store, "flaky-no-issue") : undefined;
+    return tests?.length ? f("note.flaky_no_issue", { tests }) : undefined;
+}
+
+/**
  * What is known about a member now, under its definition: the pull requests behind a PR count, and how many
  * chronically failing jobs have no open issue (that, not the count, turns the row red).
  * @param reads - the store reads shared by this build
@@ -545,6 +556,9 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     if (s.id === "ci.chronic_jobs") {
         const n = s.facts?.["ci.chronic_no_issue"];
         return n ? f("note.chronic_no_issue", { n }) : undefined;
+    }
+    if (s.id === "flaky.no_issue") {
+        return untrackedNote(reads, s);
     }
     if (s.id === "flaky.net_new") {
         const added = s.facts?.["flaky.net_added"];

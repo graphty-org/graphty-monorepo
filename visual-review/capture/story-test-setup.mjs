@@ -153,6 +153,11 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
     // The globals the running story sets itself (`globals` in its annotations), read from its context.
     /** @type {Record<string, unknown>} */
     let forced = {};
+    // The globals of the test's own render, before the first mode's were laid over them, and
+    // whether the test's next render is its own (the story's later runs are this harness's renders).
+    /** @type {Record<string, unknown> | null} */
+    let base = null;
+    let own = false;
     const layout = (name) => {
         document.body.classList.remove("sb-main-padded", "sb-main-centered", "sb-main-fullscreen");
         document.body.classList.add("sb-show-main", `sb-main-${name}`);
@@ -185,28 +190,47 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
             const project = globalThis.globalProjectAnnotations;
             project.beforeEach = [
                 ...(project.beforeEach ?? []),
-                ({ parameters, canvasElement, storyGlobals }) => {
+                async ({ id, parameters, canvasElement, storyGlobals, globals }) => {
                     forced = storyGlobals ?? {};
                     layout(parameters.layout ?? "padded");
                     if (canvasElement && !document.getElementById("storybook-root")) {
                         canvasElement.id = "storybook-root";
+                    }
+                    if (!own) {
+                        return;
+                    }
+                    own = false;
+                    base = { ...globals };
+                    // The test's own render is the first mode's, so it is shot as it is instead of
+                    // rendered and played again: a story with a light and a dark mode drew three
+                    // times for two shots (#8797). `globals` is the composed story's own object,
+                    // which the decorators read when it mounts, just after this hook.
+                    const chromatic = JSON.parse(JSON.stringify(parameters.chromatic ?? {})); // eslint-disable-line unicorn/prefer-structured-clone -- structuredClone throws on the functions this drops
+                    const first = (await commands.visualModes({ id, chromatic }))[0]?.globals;
+                    if (first) {
+                        Object.assign(globals, modeGlobals(base, forced, first));
                     }
                 },
             ];
         });
         await head;
         forced = {};
+        base = null;
+        own = true;
         await fresh();
         lines.length = 0;
     });
 
     const render = async (story, mode) => {
         await fresh();
-        await story.run(mode.globals ? { globals: modeGlobals(story.globals, forced, mode.globals) } : undefined);
+        await story.run(
+            mode.globals ? { globals: modeGlobals(base ?? story.globals, forced, mode.globals) } : undefined,
+        );
     };
-    // The test's own render is the first mode's when that mode changes no global.
+    // The test's own render is the first mode's when its globals are that mode's (the hook above
+    // lays them over it, keeping what they were in `base`).
     const rendered = (story, mode, i) => {
-        const globals = modeGlobals(story.globals, forced, mode.globals);
+        const globals = modeGlobals(base ?? story.globals, forced, mode.globals);
         return i === 0 && Object.keys(mode.globals ?? {}).every((k) => story.globals?.[k] === globals[k]);
     };
 

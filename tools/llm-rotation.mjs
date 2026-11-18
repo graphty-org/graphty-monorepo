@@ -148,7 +148,8 @@ function main() {
     });
     const state = readJson(o.state);
     if (command === "plan") {
-        const slices = Number(process.env.SLICES || DEFAULT_SLICES);
+        // a variable set to 0 or to no number would select no case at all
+        const slices = Math.max(1, Math.floor(Number(process.env.SLICES)) || DEFAULT_SLICES);
         const full = process.env.FULL === "true";
         const changed = state?.lastFull && !full ? changedSince(state.lastFull) : [];
         const plan = planSelection({ state, slices, full, runNumber: Number(process.env.RUN_NUMBER || 0), changed });

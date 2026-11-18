@@ -1,7 +1,8 @@
 /**
  * @file `source:loaded`: every load door publishes one event per source it added, after the load
  * commits, with the kind `sources()` lists, the format, the ids and the caller's own `callerKey`,
- * and never a file name, URL or parameters. History moves, a project open and a waiting load run
+ * and never a file name, URL or parameters; `replaceSource`, `reloadSource` and `remap` publish one
+ * for the source they replaced in place. History moves, a project open and a waiting load run
  * again publish none.
  */
 
@@ -209,6 +210,100 @@ describe("source:loaded from loadDataset", () => {
         );
         assert.notInclude(JSON.stringify(events[0]), "127.0.0.1");
         agreesWithSources(session, events[0]);
+        session.dispose();
+    });
+});
+
+describe("source:loaded from a source replaced in place", () => {
+    it("replaceSource: the same key, merged, replaced and the caller's key", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" } }, { callerKey: "first" });
+        const [first] = session.data.sources();
+        const events = heard(session);
+
+        await session.data.replaceSource(
+            first.key,
+            { type: "csv", name: "SECRET_NAME.csv", config: { data: "source,target\na,b\nb,c\n" } },
+            { callerKey: "sample:newer" },
+        );
+
+        assert.lengthOf(events, 1);
+        assert.deepEqual(
+            { ...events[0] },
+            {
+                source: first.key,
+                kind: "file",
+                format: "csv",
+                mode: "merge",
+                callerKey: "sample:newer",
+                replaced: "replaceSource",
+            },
+        );
+        agreesWithSources(session, events[0]);
+        session.dispose();
+    });
+
+    it("replaceSource with a network source names its id", async () => {
+        const session = createGraphSession();
+        await session.data.import({ source: "loaded-people", config: { team: "SECRET_A" } }, { fetch: people() });
+        const [first] = session.data.sources();
+        const events = heard(session);
+
+        await session.data.replaceSource(
+            first.key,
+            { source: "loaded-people", config: { team: "SECRET_B" } },
+            { fetch: people(), callerKey: "net" },
+        );
+
+        assert.lengthOf(events, 1);
+        assert.deepInclude(events[0], {
+            source: first.key,
+            kind: "server",
+            sourceId: "loaded-people",
+            mode: "merge",
+            callerKey: "net",
+            replaced: "replaceSource",
+        });
+        agreesWithSources(session, events[0]);
+        session.dispose();
+    });
+
+    it("reloadSource and remap: replaced as a reload, with the key reloadSource was given", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "from,to\na,b\n" } });
+        const [first] = session.data.sources();
+        const events = heard(session);
+
+        await session.data.reloadSource(first.key, { mapping: { source: "to", target: "from" }, callerKey: "again" });
+        await session.data.remap({ mapping: { source: "from", target: "to" } });
+
+        assert.lengthOf(events, 2);
+        assert.deepInclude(events[0], {
+            source: first.key,
+            mode: "merge",
+            callerKey: "again",
+            replaced: "reloadSource",
+        });
+        assert.deepInclude(events[1], { source: first.key, mode: "merge", replaced: "reloadSource" });
+        assert.notProperty(events[1], "callerKey");
+        agreesWithSources(session, events[1]);
+        session.dispose();
+    });
+
+    it("a failed replace publishes none", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" } });
+        const events = heard(session);
+
+        let failed = false;
+        await session.data
+            .replaceSource("no-such-key", { type: "csv", config: { data: "source,target\na,b\n" } })
+            .catch(() => {
+                failed = true;
+            });
+
+        assert.isTrue(failed);
+        assert.lengthOf(events, 0);
         session.dispose();
     });
 });

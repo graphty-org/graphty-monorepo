@@ -13,6 +13,7 @@ import {
     type JournalEntry,
     registerSource,
     type RunChange,
+    type SourceLoaded,
 } from "../../session";
 import { blankSession, fixtureSession } from "./history/fixture-session";
 
@@ -234,13 +235,13 @@ describe("JournalEntry.trigger load", () => {
         session.dispose();
     });
 
-    it("stamps replaceSource's entries with load and the caller's key, and publishes no source:loaded", async () => {
+    it("stamps replaceSource's entries with load and the caller's key, and echoes it on source:loaded", async () => {
         const session = createGraphSession();
         await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" } });
         const [first] = session.data.sources();
         assert.isDefined(first);
         const heard = entriesOf(session);
-        const loaded: unknown[] = [];
+        const loaded: SourceLoaded[] = [];
         session.on("source:loaded", (event) => loaded.push(event));
 
         await session.data.replaceSource(
@@ -251,7 +252,8 @@ describe("JournalEntry.trigger load", () => {
 
         assert.isNotEmpty(heard, "the replace wrote entries");
         assert.isTrue(heard.every((entry) => entry.trigger === "load" && entry.callerKey === "replaced"));
-        assert.lengthOf(loaded, 0);
+        assert.lengthOf(loaded, 1);
+        assert.deepInclude(loaded[0], { source: first.key, replaced: "replaceSource", callerKey: "replaced" });
         session.dispose();
     });
 

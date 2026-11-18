@@ -11,7 +11,7 @@
  * catalogs) reaches it at runtime, through `setCommandAllowlist` and the callers' own checks.
  */
 
-import type { SessionCommand, SourceLoaded } from "@graphty/graphty-element/session";
+import type { LoadedSourceKind, SelectionDelta, SessionCommand, SourceLoaded } from "@graphty/graphty-element/session";
 import type { CaptureResult, PostHog, PostHogConfig } from "posthog-js";
 
 import { type SiteConfig, siteConfig } from "../siteConfig";
@@ -107,8 +107,9 @@ const BASE_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Journal ops sent as `graph_action` (section 4.2); `data.*` and `set.*` by prefix. A new op is
- * excluded until listed. Typed against the element's commands, so a renamed op fails to compile.
+ * Journal ops sent as `graph_action` (section 4.2), each by name: a new op is excluded until listed.
+ * The `data.*` loads (`data.import`, `data.import-source`) are left out: each load is counted once,
+ * as `sample_loaded` or `own_file_opened` from `source:loaded`. Typed against the element's commands, so a renamed op fails to compile.
  */
 const GRAPH_ACTION_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>([
     "style.encode",
@@ -137,6 +138,22 @@ const GRAPH_ACTION_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>([
     "visibility.conditions",
     "visibility.context",
     "visibility.steps",
+    "data.apply",
+    "data.collapse",
+    "data.columns",
+    "data.declare",
+    "data.derive",
+    "data.expand",
+    "data.issues",
+    "data.setSource",
+    "data.label",
+    "data.source-expand",
+    "set.create",
+    "set.members",
+    "set.redefine",
+    "set.remove",
+    "set.rename",
+    "set.restore",
 ]);
 
 /**
@@ -145,14 +162,8 @@ const GRAPH_ACTION_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>([
  * @returns true when it is on the op allowlist.
  */
 export function isGraphActionOp(op: string): boolean {
-    return GRAPH_ACTION_OPS.has(op) || (op.startsWith("data.") && !LOAD_OPS.has(op)) || op.startsWith("set.");
+    return GRAPH_ACTION_OPS.has(op);
 }
-
-/**
- * The `data.*` ops that read a source in: each load is counted once, as `sample_loaded` or
- * `own_file_opened` from `source:loaded`, so its journal entry is not a `graph_action` too.
- */
-const LOAD_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>(["data.import", "data.import-source"]);
 
 /** Control ids for clickable controls that run no registered command (decision 15). */
 export const FIXED_CONTROL_IDS: ReadonlySet<string> = new Set([
@@ -188,13 +199,14 @@ export interface LoadAllowlists {
  * `sourceId` are never used.
  * @param loaded - the event.
  * @param known - the allowlists.
- * @returns the event name and properties, or null for a reload (`callerKey: "reopen"`).
+ * @returns the event name and properties, or null for a reload (`callerKey: "reopen"`) or a source
+ * re-read in place by `reloadSource` or `remap` (`replaced: "reloadSource"`).
  */
 export function sourceLoadedEvent(
     loaded: SourceLoaded,
     known: LoadAllowlists,
 ): { name: "sample_loaded" | "own_file_opened"; props: UsageProps } | null {
-    if (loaded.callerKey === "reopen") {
+    if (loaded.callerKey === "reopen" || loaded.replaced === "reloadSource") {
         return null;
     }
     const { sample: ids, callerKey } = loaded;
@@ -213,11 +225,19 @@ export function sourceLoadedEvent(
         return { name: "sample_loaded", props: { sample } };
     }
     const format = loaded.kind === "server" ? "other" : allowlisted(loaded.format, known.formats);
-    return { name: "own_file_opened", props: { format, via: loaded.kind } };
+    return { name: "own_file_opened", props: { format, via: allowlisted(loaded.kind, OPEN_VIA) } };
 }
 
-/** The site each name serves on: Umami counts only there. */
-const SITE_HOSTS: Readonly<Partial<Record<string, string>>> = {
+/** How an own file may be opened; a kind a later graphty-element adds is sent as "other". */
+const OPEN_VIA: ReadonlySet<string> = new Set<LoadedSourceKind>(["file", "url", "server", "join"]);
+/** How a selection may be made; a way a later graphty-element adds is sent as "other". */
+export const SELECT_VIA: ReadonlySet<string> = new Set<NonNullable<SelectionDelta["via"]>>(["click", "box", "keys"]);
+
+/**
+ * The host each site serves on: nothing is sent from any other. analytics.test.ts checks it against
+ * the address each committed graphty/sites/<site>.json serves its datasets from.
+ */
+export const SITE_HOSTS: Readonly<Partial<Record<string, string>>> = {
     production: "graphty.app",
     nightly: "nightly.graphty.app",
     canary: "canary.graphty.app",
@@ -526,9 +546,9 @@ function daysBetween(from: string, to: string): number {
  * @param first - the first visit's local date.
  * @param today - today's local date.
  * @param last - the last visit's local date; the first when absent.
- * @returns the bucket, null on the first visit's day (or when the first visit is dated later than
- * today: a clock moved back or a trip west), or "reset" when the last visit was more than 395 days
- * ago or either date is unreadable.
+ * @returns the bucket, null on the first visit's day (or when the first visit is dated up to two
+ * days later than today: a time zone crossed westward), or "reset" when the last visit was more
+ * than 395 days ago, either date is more than two days ahead of today, or either is unreadable.
  */
 export function visitBucket(
     first: string,
@@ -537,7 +557,9 @@ export function visitBucket(
 ): "1" | "2-7" | "8-30" | "30+" | "reset" | null {
     const days = daysBetween(first, today);
     const sinceLast = daysBetween(last, today);
-    if (!Number.isFinite(days) || !Number.isFinite(sinceLast) || sinceLast > 395) {
+    // A date more than two days ahead is no time-zone hop but a clock that was wrong: keeping it
+    // would stop every count from this browser until the real date caught up.
+    if (!Number.isFinite(days) || !Number.isFinite(sinceLast) || sinceLast > 395 || days < -2 || sinceLast < -2) {
         return "reset";
     }
     if (days <= 0) {
@@ -596,17 +618,31 @@ export function onOwnHost(config: SiteConfig = siteConfig()): boolean {
 }
 
 /**
+ * Whether this reader's visits are counted: not under Do Not Track or Global Privacy Control.
+ * @returns true when neither signal is set.
+ */
+function visitsCounted(): boolean {
+    const { dnt, gpc } = calls.privacySignals();
+    return !dnt && !gpc;
+}
+
+/**
  * Starts Umami's counts for this page view: the page view, then the visit event, then removes the
  * channel parameters from the address bar. Sends nothing without a website id or off the site's own host.
  * @param config - the site's configuration.
  */
 export function startPageCounts(config: SiteConfig): void {
     const website = config.analytics?.umamiWebsiteId;
+    if (config.analytics !== undefined && !onOwnHost(config)) {
+        // Off on purpose for a local build; on a site whose host moved, this line says why it went quiet.
+        console.warn(
+            `[graphty] analytics is off: ${calls.hostname()} is not the host of the ${config.site} site (${SITE_HOSTS[config.site] ?? "none"})`,
+        );
+    }
     if (website !== undefined && onOwnHost(config)) {
         umamiWebsite = website;
         sendUmami(undefined);
-        const { dnt, gpc } = calls.privacySignals();
-        if (!dnt && !gpc) {
+        if (visitsCounted()) {
             countVisit();
         }
     }
@@ -688,7 +724,10 @@ export function count(name: string, props: UsageProps = {}): void {
     if (clean === null) {
         return;
     }
-    if (UMAMI_NAMES.has(name) && !umamiSent.has(name) && umamiWebsite !== null) {
+    // The opt-in rate is usage_data_shared over first_visit, so a reader whose visits are not
+    // counted (DNT or GPC) is left out of both.
+    const sameAsVisits = name !== "usage_data_shared" || visitsCounted();
+    if (UMAMI_NAMES.has(name) && !umamiSent.has(name) && umamiWebsite !== null && sameAsVisits) {
         umamiSent.add(name);
         sendUmami(name, clean);
     }
@@ -1081,6 +1120,53 @@ function adoptStoredId(posthog: PostHogClient): boolean {
     return typeof after === "string" && after !== "" && after !== before;
 }
 
+/** The storage listener of a tab waiting for another tab's new PostHog id; undefined when none waits. */
+let waitingForId: ((event: StorageEvent) => void) | undefined;
+
+/**
+ * Whether storage holds a PostHog id for a project key.
+ * @param key - the PostHog project key.
+ * @returns true when it does, or when storage cannot be read (there is then no id to share).
+ */
+function hasStoredId(key: string): boolean {
+    try {
+        return localStorage.getItem(`ph_${key}_posthog`) !== null;
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * Starts PostHog in this tab once another tab saves its new id: that tab's Share started this one
+ * before its own posthog-js had loaded and saved one, and an id made here would split one reader
+ * into two people.
+ * @param key - the PostHog project key.
+ */
+function waitForStoredId(key: string): void {
+    if (waitingForId !== undefined) {
+        return;
+    }
+    const idKey = `ph_${key}_posthog`;
+    waitingForId = (event) => {
+        if (event.key !== idKey || event.newValue === null) {
+            return;
+        }
+        stopWaitingForId();
+        if (wanted) {
+            startPostHog(false);
+        }
+    };
+    globalThis.addEventListener("storage", waitingForId);
+}
+
+/** Stops waiting for another tab's id. */
+function stopWaitingForId(): void {
+    if (waitingForId !== undefined) {
+        globalThis.removeEventListener("storage", waitingForId);
+        waitingForId = undefined;
+    }
+}
+
 /**
  * Starts PostHog: the reader said Share. Loads its code on the first start of the page, and only
  * then; a later start opts the same client in again with a fresh id.
@@ -1095,6 +1181,11 @@ export function startPostHog(fresh = true): void {
         return;
     }
     wanted = true;
+    if (!fresh && !hasStoredId(key)) {
+        // Events wait in the buffer meanwhile; a No stops the wait (stopPostHog).
+        waitForStoredId(key);
+        return;
+    }
     if (client !== undefined) {
         try {
             // reset() first: in posthog-js 1.445 it also clears the stored consent, so opting in
@@ -1123,7 +1214,14 @@ export function startPostHog(fresh = true): void {
             initialized = true;
             posthog.init(key, postHogOptions(host));
             client = posthog;
+            if (!fresh) {
+                // Started by another tab's Share: that tab's id, whatever this page's posthog-js held.
+                adoptStoredId(posthog);
+            }
             posthog.opt_in_capturing();
+            // Saved now, not after posthog-js's debounce: a tab that another tab's Share started
+            // waits for this id (waitForStoredId) rather than make its own.
+            posthog.persistence?.flush();
             flushBuffer();
         },
         () => {
@@ -1151,6 +1249,7 @@ function removePostHogKeys(storage: Storage): void {
  */
 export function stopPostHog(): void {
     wanted = false;
+    stopWaitingForId();
     buffer.length = 0;
     if (client !== undefined) {
         try {
@@ -1234,6 +1333,7 @@ export function resetAnalyticsForTests(): void {
     initialized = false;
     client = undefined;
     importing = undefined;
+    stopWaitingForId();
     buffer.length = 0;
     commandAllowlist = new Set();
     listeners.clear();

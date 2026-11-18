@@ -326,9 +326,9 @@ On the session the same change is `project:status`. See [Project Files](./projec
 
 ### graphty-source-loaded
 
-A load you or the reader asked for added a source to the graph: one event per source added, once
-the load is in. The detail says which source it was and where it came from, never what it holds:
-no file name, URL or parameters.
+A load you or the reader asked for added a source to the graph, or replaced one in place: one
+event per source, once the load is in. The detail says which source it was and where it came
+from, never what it holds: no file name, URL or parameters.
 
 | Field       | What it is                                                                                          |
 | ----------- | --------------------------------------------------------------------------------------------------- |
@@ -339,6 +339,7 @@ no file name, URL or parameters.
 | `mode`      | `"replace"` or `"merge"`                                                                            |
 | `sample`    | For a catalog sample: `{ datasetId }`, `{ generatorId }` or, for a network example, `{ exampleId }` |
 | `callerKey` | The `callerKey` you passed to the load, unchanged                                                   |
+| `replaced`  | For a source replaced in place under the same key: `"replaceSource"` or `"reloadSource"`            |
 
 ```javascript
 element.addEventListener("graphty-source-loaded", (e) => {
@@ -349,10 +350,11 @@ element.addEventListener("graphty-source-loaded", (e) => {
 ```
 
 Every load method publishes it: `session.data.import`, a prepared draft's `load()`, `loadExample`,
-`loadDataset` and `generate`. Opening a project, undo, redo, a restore and
-`runPendingSourceLoad` (which fills a source a project already listed) publish none. A failed load
-publishes none; it ends `progress:changed` with an `error` instead. On the session the same event
-is `source:loaded`.
+`loadDataset` and `generate`. `replaceSource` publishes it with `replaced: "replaceSource"` and
+`mode: "merge"`, and `reloadSource` and `remap` with `replaced: "reloadSource"`. Opening a
+project, undo, redo, a restore and `runPendingSourceLoad` (which fills a source a project already
+listed) publish none. A failed load publishes none; it ends `progress:changed` with an `error`
+instead. On the session the same event is `source:loaded`.
 
 ### Autosave events
 

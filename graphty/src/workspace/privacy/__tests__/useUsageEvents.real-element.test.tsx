@@ -310,6 +310,35 @@ describe("usage counts from the real element", () => {
         sendsNone("SECRET_GENES", "TP53");
     });
 
+    it("sends a later, separate edit of the same layer again, after other work in between", async () => {
+        const { session } = await loadedProject();
+        const layer = await session.styles.add({
+            name: "SECRET_LAYER",
+            selector: { match: "everything" },
+            target: "node",
+            set: { "node.color": "#0072b2" },
+        });
+        await session.styles.settled();
+        const before = sent("graph_action").posthog.length;
+        const recolor = async (color: string): Promise<void> => {
+            const action = next("graph_action");
+            await session.styles.update(layer.id, { set: { "node.color": color } });
+            assert.strictEqual((await action).op, "style.patch");
+        };
+        await recolor("#d55e00");
+        // Work that is no graph action, recorded by the element as a step of its own.
+        await session.layout.set("circular");
+        await recolor("#009e73");
+        assert.deepEqual(
+            sent("graph_action")
+                .posthog.slice(before)
+                .map((each) => each.op),
+            ["style.patch", "style.patch"],
+            "each separate recolor of the layer is its own graph action",
+        );
+        sendsNone("SECRET_GENES", "TP53", "SECRET_LAYER");
+    });
+
     it("never sends a load or the app's own starting settings as a graph action", async () => {
         const session = await emptyProject("SECRET_PROJECT");
         // Every op the journal records from here, to prove the check below is not vacuous.

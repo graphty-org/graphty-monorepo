@@ -290,6 +290,44 @@ describe("the real posthog-js chunk", () => {
         stopPostHog();
     });
 
+    it("keeps one id across tabs when another tab's first Share starts this one before that tab saved its id", async () => {
+        const storeKey = `ph_${KEY}_posthog`;
+        // The Share tab, on its first Share: its id is saved as soon as posthog-js has loaded.
+        startPostHog();
+        await vi.waitFor(() => {
+            assert.isDefined(postHog());
+        });
+        const made = (postHog() as unknown as PostHog).get_distinct_id();
+        const saved = localStorage.getItem(storeKey) ?? "";
+        assert.include(saved, made, "saved at load, not after posthog-js's debounce");
+
+        // Another tab, a fresh page, started by the stored answer while the Share tab's posthog-js
+        // is still loading: no id is stored yet, so it loads nothing and makes no id of its own.
+        stopPostHog();
+        resetAnalyticsForTests();
+        const imports = vi.fn(() => import("posthog-js/full/no-external"));
+        setAnalyticsCallsForTests({
+            send: () => undefined,
+            hostname: () => "graphty.app",
+            posthogHost: PREFIX,
+            importPostHog: imports,
+        });
+        assert.isNull(localStorage.getItem(storeKey));
+        startPostHog(false);
+        assert.strictEqual(imports.mock.calls.length, 0, "no posthog-js, so no id, until the Share tab saves one");
+        assert.isNull(localStorage.getItem(storeKey));
+
+        // The Share tab saves its id: this tab takes it.
+        const theirs = saved.replaceAll(made, "OTHER_TAB_ID");
+        localStorage.setItem(storeKey, theirs);
+        globalThis.dispatchEvent(new StorageEvent("storage", { key: storeKey, newValue: theirs }));
+        await vi.waitFor(() => {
+            assert.isDefined(postHog());
+        });
+        assert.strictEqual((postHog() as unknown as PostHog).get_distinct_id(), "OTHER_TAB_ID");
+        stopPostHog();
+    });
+
     it("never draws a survey of its own: only the app's survey card asks", async () => {
         startPostHog();
         await vi.waitFor(() => {

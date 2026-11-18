@@ -196,8 +196,8 @@
                 (<code>graphty.visits.v1</code>): the day of your first visit and of your latest one. Only the
                 <code>days</code> bucket above leaves your computer, never the dates. A record older than about 13
                 months starts again. If your browser sends Do Not Track or Global Privacy Control, the app keeps no
-                visit record and sends no <code>first_visit</code> or <code>return_visit</code>; the page view and the
-                other counts are still sent.
+                visit record and sends no <code>first_visit</code>, <code>return_visit</code> or
+                <code>usage_data_shared</code>; the page view and the other counts are still sent.
             </p>
             <h3>What Umami receives with each count</h3>
             <p>
@@ -268,10 +268,11 @@
             <ul>
                 <li>
                     <b>Error reports:</b> the kind of error and where in the code it happened; for graphty's own errors
-                    their code, never their message; for any other error its message with everything in quotes removed.
-                    Also your browser and operating system, your browser's language and time zone, and the clicks and
-                    network requests just before the error, with any address on graphty's own site cut to the page path
-                    and any other address sent only as the word <code>external</code>.
+                    their code, never their message; for any other error its message up to the first quote mark, with
+                    everything from there on removed. Also your browser and operating system, your browser's language
+                    and time zone, and the clicks and network requests just before the error, with any address on
+                    graphty's own site cut to the page path and any other address sent only as the word
+                    <code>external</code>.
                 </li>
                 <li>
                     <b>A replay of the moments before an error</b>, masked the same way: text, typing, names and media

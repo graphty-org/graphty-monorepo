@@ -1528,9 +1528,10 @@ export interface SessionDataApi {
      * joins, the column settings and the load's key all stay; the load moves to the end of
      * `sources()`, as the newest. One undo brings the earlier data back.
      *
-     * It adds no load, so it publishes no `source:loaded`: the journal entries of the commands it
-     * ran carry `trigger: "load"` and the `callerKey` given in `choices`, and its returned report
-     * says what changed.
+     * Once it is in, it publishes `source:loaded` for the load, under its key, with `mode: "merge"`,
+     * `replaced: "replaceSource"` and the `callerKey` given in `choices`; the journal entries of the
+     * commands it ran carry `trigger: "load"` and that key, and its returned report says what
+     * changed.
      *
      * ```ts
      * const key = await session.data.matchesSource({ config: { file } });
@@ -1560,7 +1561,8 @@ export interface SessionDataApi {
      * keeps everything else, as {@link SessionDataApi.replaceSource} does. The choices are laid
      * over the ones the load was read with (`LoadedSource.choices`); a mapping key set to `null`
      * goes back to the element's own reading. Only a load this session read itself can be read
-     * again (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     * again (`LoadedSource.reloadable`): what a file was is never saved in a project. Once it is
+     * in, it publishes `source:loaded` with `replaced: "reloadSource"`, as `remap` does.
      *
      * ```ts
      * const [log] = session.data.sources();
@@ -3455,8 +3457,8 @@ export interface ImportOptions {
      * An opaque value the caller chooses. The load does nothing with it but echo it as
      * {@link SourceLoaded.callerKey} on the `source:loaded` event, and as `JournalEntry.callerKey`
      * on the journal entries of the commands the load ran, so a caller can tell its own loads
-     * apart. It is never saved with the project. `replaceSource` and `reloadSource` add no load,
-     * so they publish no `source:loaded`; their journal entries carry the key.
+     * apart. It is never saved with the project. `replaceSource` and `reloadSource` echo it too,
+     * on the `source:loaded` they publish with {@link SourceLoaded.replaced} set.
      * @since 3.40.0
      */
     readonly callerKey?: string;
@@ -4196,8 +4198,8 @@ export interface SessionEventMap {
 }
 
 /**
- * What `source:loaded` carries: which source a load added, where it came from and how it was
- * loaded, never what it holds.
+ * What `source:loaded` carries: which source a load added (or replaced in place, see
+ * {@link SourceLoaded.replaced}), where it came from and how it was loaded, never what it holds.
  *
  * ```ts
  * session.on("source:loaded", (loaded) => {
@@ -4226,6 +4228,12 @@ export interface SourceLoaded {
         { readonly datasetId: string } | { readonly generatorId: string } | { readonly exampleId: string };
     /** The caller's own {@link ImportOptions.callerKey}, echoed unchanged. */
     readonly callerKey?: string;
+    /**
+     * Present when the source was not added but replaced in place, under the same key, with
+     * `mode: "merge"`: `"replaceSource"` for a newer copy (`session.data.replaceSource`),
+     * `"reloadSource"` for the same input read again with other choices (`reloadSource`, `remap`).
+     */
+    readonly replaced?: "replaceSource" | "reloadSource";
 }
 
 /**

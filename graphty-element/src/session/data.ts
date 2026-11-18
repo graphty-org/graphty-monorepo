@@ -1563,8 +1563,9 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Publish `source:loaded` for one source a load door added, once its load committed. Only
-     * the doors (and the renderer's loads, through `announcing`) call it: a project open, undo, redo, restore and `runPendingSourceLoad` never do.
+     * Publish `source:loaded` for one source a load door added (or `replaceSource` and
+     * `reloadSource` replaced in place), once its load committed. Only the doors (and the
+     * renderer's loads, through `announcing`) call it: a project open, undo, redo, restore and `runPendingSourceLoad` never do.
      * @param record - The source as `sources()` lists it, so the event never disagrees with it.
      * @param mode - Whether the load replaced the graph or merged into it.
      * @param facts - What the door knows beside the source list.
@@ -1580,6 +1581,7 @@ export class SessionData implements SessionDataApi {
             ...(facts.sourceId === undefined ? {} : { sourceId: facts.sourceId }),
             ...(facts.sample === undefined ? {} : { sample: Object.freeze({ ...facts.sample }) }),
             ...(facts.callerKey === undefined ? {} : { callerKey: facts.callerKey }),
+            ...(facts.replaced === undefined ? {} : { replaced: facts.replaced }),
         };
         this.writes.emit?.("source:loaded", Object.freeze(loaded));
     }
@@ -3514,7 +3516,40 @@ export class SessionData implements SessionDataApi {
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
 
-        return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
+        return this.afterLoads(() =>
+            this.replacing(key, "replaceSource", source, choices, () => this.replaceSourceNow(key, source, choices)),
+        );
+    }
+
+    /**
+     * Run a replacement of one load in place and publish `source:loaded` for it once it is in,
+     * under its key, with `mode: "merge"` and how it was replaced.
+     * @param key - the load's key
+     * @param replaced - which verb replaced it
+     * @param input - what it is read from now, for a network source's id
+     * @param choices - the caller's choices
+     * @param choices.callerKey - the caller's key, echoed on the event
+     * @param run - the replacement
+     * @returns what the replacement returns
+     */
+    private async replacing(
+        key: SourceKey,
+        replaced: NonNullable<SourceLoaded["replaced"]>,
+        input: DataSourceInput | undefined,
+        choices: { readonly callerKey?: string },
+        run: () => Promise<ReplaceReport>,
+    ): Promise<ReplaceReport> {
+        const report = await run();
+        const record = this.sources().find((each) => each.key === key);
+        if (record !== undefined) {
+            this.publishLoaded(record, "merge", {
+                ...(input?.source === undefined ? {} : { sourceId: input.source }),
+                ...callerKeyOf(choices),
+                replaced,
+            });
+        }
+
+        return report;
     }
 
     /**
@@ -3954,7 +3989,7 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
-        return this.afterLoads(() => this.reloadSourceNow(key, choices));
+        return this.afterLoads(() => this.reloading(key, choices));
     }
 
     /**
@@ -3987,7 +4022,7 @@ export class SessionData implements SessionDataApi {
                 });
             }
 
-            return await this.reloadSourceNow(key, { mapping });
+            return await this.reloading(key, { mapping });
         });
     }
 
@@ -4000,6 +4035,18 @@ export class SessionData implements SessionDataApi {
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
         return token === undefined ? undefined : this.kept.get(token);
+    }
+
+    /**
+     * reloadSource, publishing `source:loaded` once it is in.
+     * @param key - as reloadSource takes it
+     * @param choices - as reloadSource takes it
+     * @returns what reloadSource returns
+     */
+    private reloading(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
+        return this.replacing(key, "reloadSource", this.sourceInput(key), choices, () =>
+            this.reloadSourceNow(key, choices),
+        );
     }
 
     /**
@@ -6534,7 +6581,7 @@ function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
 const SAMPLE_ERROR_LIMIT = 100;
 
 /** What a load door knows of its load beside what `sources()` records: for `source:loaded`. */
-type DoorFacts = Pick<SourceLoaded, "sourceId" | "sample" | "callerKey">;
+type DoorFacts = Pick<SourceLoaded, "sourceId" | "sample" | "callerKey" | "replaced">;
 
 /** What a generated graph or a dataset loads as; see `SessionData.sampleLoad`. */
 interface SampleLoad {

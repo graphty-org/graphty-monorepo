@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -139,35 +140,16 @@ describe("Sentry initialization", () => {
 
         const { integrations } = (mockInit.mock.calls[0] as unknown as [{ integrations: unknown }])[0];
         expect(typeof integrations).toBe("function");
-        const names = [
-            "EventFilters",
-            "FunctionToString",
-            "ConversationId",
-            "BrowserApiErrors",
-            "Breadcrumbs",
-            "Console",
-            "GlobalHandlers",
-            "LinkedErrors",
-            "Dedupe",
-            "HttpContext",
-            "CultureContext",
-            "BrowserSession",
-        ];
+        // Sentry's own defaults, so a renamed integration fails here instead of slipping past the filter.
+        const names = Sentry.getDefaultIntegrations({}).map((each) => each.name);
+        const dropped = ["BrowserSession", "Console", "ConversationId"];
+        for (const name of dropped) {
+            expect(names).toContain(name);
+        }
         const chosen = (integrations as (defaults: { name: string }[]) => { name: string }[])(
             names.map((name) => ({ name })),
         ).map((each) => each.name);
-        expect(chosen).toEqual([
-            "EventFilters",
-            "FunctionToString",
-            "BrowserApiErrors",
-            "Breadcrumbs",
-            "GlobalHandlers",
-            "LinkedErrors",
-            "Dedupe",
-            "HttpContext",
-            "CultureContext",
-            "Replay",
-        ]);
+        expect(chosen).toEqual([...names.filter((name) => !dropped.includes(name)), "Replay"]);
     });
 
     it("sets no tracesSampleRate and no trace lifecycle", () => {

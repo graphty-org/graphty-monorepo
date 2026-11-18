@@ -112,14 +112,15 @@ const broken = { now: true };
 
 /**
  * A panel that throws graphty-element's error for a column the graph has no column of, caused by
- * the browser's own JSON.parse error, which quotes the start of the text it read.
+ * the browser's own JSON.parse error, which quotes the start of the text it read, quotes and all.
  * @returns the panel.
  */
 function ColumnPanel(): React.JSX.Element {
     if (broken.now) {
         let cause: unknown;
         try {
-            JSON.parse("SECRET_FILE_START is not json");
+            // Short enough that V8 quotes all of it: "x{"patient":"Jane"}", whose own quotes break pairing.
+            JSON.parse('x{"patient":"Jane"}');
         } catch (error) {
             cause = error;
         }
@@ -158,13 +159,16 @@ describe("error messages", () => {
         quiet.mockRestore();
 
         const all = sent.join("\n");
-        for (const secret of ["SECRET_COLUMN", "SECRET_FILE_START", "SECRET_PROJECT"]) {
+        for (const secret of ["SECRET_COLUMN", "patient", "Jane", "SECRET_PROJECT"]) {
             assert.notInclude(all, secret);
         }
         // Not vacuous: both errors were sent, the element's as its code, the other with its quote replaced.
         assert.include(all, '"value":"E_UNKNOWN_ATTRIBUTE"');
         assert.include(all, '"type":"SyntaxError"');
-        assert.include(all, 'could not open the \\"[quoted]\\" project');
+        assert.include(all, 'could not open the \\"[quoted]\\"');
+        // No release-health session pings, and no client reports, ride along with the errors.
+        assert.notInclude(all, '"type":"session"');
+        assert.notInclude(all, '"type":"client_report"');
     });
 });
 

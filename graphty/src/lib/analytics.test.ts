@@ -20,6 +20,7 @@ import {
     isGraphActionOp,
     type LoadAllowlists,
     maskEveryAttribute,
+    onOwnHost,
     onUsageEvent,
     postHog,
     readChannel,
@@ -28,6 +29,7 @@ import {
     setAnalyticsCallsForTests,
     setCommandAllowlist,
     setPostHogClientForTests,
+    SITE_HOSTS,
     sourceLoadedEvent,
     startAnalyticsAtBoot,
     startPageCounts,
@@ -162,6 +164,7 @@ afterEach(() => {
 
 describe("Umami counts", () => {
     it("sends nothing without a website id or off the site's host, and leaves the visit record alone", async () => {
+        const info = vi.spyOn(console, "warn").mockImplementation(() => undefined);
         startPageCounts(await site({}));
         installCalls({ hostname: () => "evil.example" });
         startPageCounts(await site({ umamiWebsiteId: UMAMI }));
@@ -169,6 +172,26 @@ describe("Umami counts", () => {
 
         assert.deepEqual(sends, []);
         assert.isNull(localStorage.getItem(VISITS));
+        // A site whose host moved says why it went quiet.
+        assert.isTrue(
+            info.mock.calls.some(([line]) =>
+                String(line).includes("evil.example is not the host of the production site"),
+            ),
+        );
+    });
+
+    it("knows each committed site's host, the one its own datasets are served from", () => {
+        const files = import.meta.glob<{ site: string; datasets: string }>("../../sites/*.json", {
+            eager: true,
+            import: "default",
+        });
+        assert.isNotEmpty(Object.keys(files));
+        for (const [path, file] of Object.entries(files)) {
+            const host = new URL(file.datasets).hostname;
+            installCalls({ hostname: () => host });
+            assert.isTrue(onOwnHost({ site: file.site as "production", features: [] }), `${path} on ${host}`);
+            assert.equal(SITE_HOSTS[file.site], host, path);
+        }
     });
 
     for (const signals of [
@@ -278,6 +301,10 @@ describe("the visit record", () => {
         // A last visit dated after today (a clock moved back, a trip west) keeps its record.
         assert.equal(visitBucket(from(0), from(5), from(6)), "2-7");
         assert.isNull(visitBucket(from(6), from(5), from(6)));
+        // A clock that was years ahead on one visit does not stop every count until 2030.
+        assert.equal(visitBucket(from(0), from(5), from(1500)), "reset");
+        assert.equal(visitBucket(from(1500), from(5), from(1500)), "reset");
+        assert.isNull(visitBucket(from(7), from(5), from(7)), "a two-day time-zone hop is kept");
         // A date that does not parse is a stale record.
         assert.equal(visitBucket("nonsense", from(5)), "reset");
     });
@@ -393,6 +420,12 @@ describe("count and detail", () => {
             sourceLoadedEvent(loaded({ kind: "url", format: "dot" }), known),
             sourceLoadedEvent(loaded({ kind: "server", sourceId: "SECRET_ID" }), known),
             sourceLoadedEvent(loaded({ kind: "file", callerKey: "reopen" }), known),
+            // A column-role change re-reads the source in place: not a file the reader opened.
+            sourceLoadedEvent(loaded({ kind: "file", format: "csv", replaced: "reloadSource" }), known),
+            // A Replace brings in the reader's own file.
+            sourceLoadedEvent(loaded({ kind: "file", format: "csv", replaced: "replaceSource" }), known),
+            // A kind a later graphty-element adds is "other" until it is listed.
+            sourceLoadedEvent(loaded({ kind: "SECRET_KIND" as SourceLoaded["kind"], format: "csv" }), known),
         ];
         assert.deepEqual(results, [
             { name: "sample_loaded", props: { sample: "karate" } },
@@ -404,6 +437,9 @@ describe("count and detail", () => {
             { name: "own_file_opened", props: { format: "other", via: "url" } },
             { name: "own_file_opened", props: { format: "other", via: "server" } },
             null,
+            null,
+            { name: "own_file_opened", props: { format: "csv", via: "file" } },
+            { name: "own_file_opened", props: { format: "csv", via: "other" } },
         ]);
         assert.notInclude(JSON.stringify(results), "SECRET");
         assert.equal(allowlisted("E_UNKNOWN_CODE", new Set(["E_PARSE"])), "other");
@@ -417,6 +453,10 @@ describe("count and detail", () => {
         // A load is counted once, from source:loaded, never as a graph action too.
         assert.isFalse(isGraphActionOp("data.import"));
         assert.isFalse(isGraphActionOp("data.import-source"));
+        // An op a later graphty-element adds is not sent until it is listed, whatever its prefix.
+        assert.isFalse(isGraphActionOp("data.reload"));
+        assert.isFalse(isGraphActionOp("set.export"));
+        assert.isTrue(isGraphActionOp("set.create"));
     });
 });
 

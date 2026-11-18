@@ -8439,6 +8439,7 @@ export interface SourceLoaded {
     readonly format?: FormatId;
     readonly kind: LoadedSourceKind;
     readonly mode: "replace" | "merge";
+    readonly replaced?: "replaceSource" | "reloadSource";
     readonly sample?: {
         readonly datasetId: string;
     } | {

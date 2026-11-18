@@ -25,6 +25,7 @@ import {
     detail,
     isGraphActionOp,
     type LoadAllowlists,
+    SELECT_VIA,
     sourceLoadedEvent,
     type UsageProps,
 } from "../../lib/analytics";
@@ -172,8 +173,12 @@ function selectionTarget(nodes: number, edges: number): string {
  * @returns a function that unsubscribes every one.
  */
 export function watchSession(session: GraphSession): () => void {
-    // The coalesceKey of the last graph_action sent: one slider drag sends one event, at its start.
+    // The last graph_action sent, by its coalesceKey and the undo step it went into: one slider
+    // drag sends one event, at its start. The key alone names a target (a layer's color, a
+    // filter), not a gesture, so a later edit of the same target is a new gesture once the
+    // element has put it in a step of its own.
     let lastKey: string | undefined;
+    let lastStep: string | undefined;
     const offs = [
         session.on("source:loaded", (loaded) => {
             countLoaded(session, loaded);
@@ -207,10 +212,12 @@ export function watchSession(session: GraphSession): () => void {
             if (!isGraphActionOp(op)) {
                 return;
             }
-            if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey) {
+            const step = session.history.steps.at(-1)?.id;
+            if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey && step === lastStep) {
                 return;
             }
             lastKey = entry.coalesceKey;
+            lastStep = step;
             const action = "action" in entry.command ? entry.command.action : undefined;
             detail("graph_action", {
                 kind: entry.kind,
@@ -229,7 +236,7 @@ export function watchSession(session: GraphSession): () => void {
             detail("canvas_selected", {
                 target: selectionTarget(nodes, edges),
                 count: sizeBucket(nodes + edges),
-                via: via ?? "other",
+                via: allowlisted(via, SELECT_VIA),
             });
         }),
         session.on("camera:gesture-end", ({ kind }) => {

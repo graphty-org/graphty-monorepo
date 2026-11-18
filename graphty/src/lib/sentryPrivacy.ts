@@ -11,7 +11,7 @@
  * An error's message is the reader's data too: graphty-element's messages quote the column, node
  * id or layer name they are about, and a JSON.parse error quotes the start of the file. So an error
  * that carries one of graphty-element's error codes is sent as that code alone, and any other
- * message is sent with every quoted run replaced.
+ * message is sent only up to its first quote mark.
  *
  * Kept: the error's type, its code or its message with quoted text removed, its stack (both with
  * anything shaped like a key removed), the SDK's own bookkeeping (event id, time, release, environment, trace and replay
@@ -128,22 +128,28 @@ function cleanText(text: unknown): string | undefined {
     return redactSecrets(text.replaceAll(/https?:\/\/[^\s"'<>]+/g, (url) => cleanUrl(url) ?? ""));
 }
 
-/** What every quoted run in a message becomes. */
+/** What a message's quoted text, and everything after it, becomes. */
 const QUOTED_TEXT = '"[quoted]"';
 /**
- * Quoted runs: "...", `...` and '...' (a single quote only after a non-letter, so the apostrophe
- * of "can't" opens none).
+ * The first quote mark: ", ` or ' (a single quote only after a non-letter, so the apostrophe of
+ * "can't" opens none). Quotes are not paired: the text a message quotes (a JSON.parse error quotes
+ * the start of the file) holds quotes of its own, and pairing them would leave every other piece
+ * of it in the message.
  */
-const QUOTED = /"(?:[^"\\]|\\.)*"|`[^`]*`|(?<![\p{L}\d])'(?:[^'\\]|\\.)*'/gu;
+const FIRST_QUOTE = /["`]|(?<![\p{L}\d])'/u;
 
 /**
- * A message that is sent: {@link cleanText} with every quoted run replaced, as a quote is where a
- * message names the reader's column, node, layer or file contents.
+ * A message that is sent: {@link cleanText} of the part before its first quote mark, with the rest
+ * replaced, as a quote is where a message names the reader's column, node, layer or file contents.
  * @param text - the message.
  * @returns the message safe to send.
  */
 function cleanMessage(text: unknown): string | undefined {
-    return typeof text === "string" ? cleanText(text.replaceAll(QUOTED, QUOTED_TEXT)) : undefined;
+    if (typeof text !== "string") {
+        return undefined;
+    }
+    const quote = FIRST_QUOTE.exec(text);
+    return cleanText(quote === null ? text : text.slice(0, quote.index) + QUOTED_TEXT);
 }
 
 /** Reads whether a value is one of graphty-element's error codes. */

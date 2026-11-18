@@ -192,7 +192,9 @@ session.on("source:loaded", ({ source, kind, callerKey }) => {
 await session.data.generate("cycle", { n: 12 }, { callerKey: "tutorial-graph" });
 ```
 
-`import`, a prepared draft's `load()`, `loadExample`, `loadDataset` and `generate` all take it.
+`import`, a prepared draft's `load()`, `loadExample`, `loadDataset`, `generate`, `replaceSource`
+and `reloadSource` all take it. A source replaced in place keeps its key, and its event says so with
+`replaced: "replaceSource"` or `replaced: "reloadSource"` (`remap` reads it again too).
 The element's own loads -- the `data-source` attribute, `loadFromFile`, `loadFromUrl` and
 `addDataFromSource` -- publish `source:loaded` too, with no `callerKey`.
 See [graphty-source-loaded](./events#graphty-source-loaded) for what the event carries.

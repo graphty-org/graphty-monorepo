@@ -112,8 +112,11 @@ describe("the usage data gate", () => {
 
 describe("the live sender", () => {
     const sends: UmamiBody[] = [];
+    const signals = { dnt: true, gpc: false };
 
     beforeEach(async () => {
+        signals.dnt = true;
+        signals.gpc = false;
         setUsageSenderForTests();
         resetAnalyticsForTests();
         resetSiteConfig();
@@ -125,7 +128,7 @@ describe("the live sender", () => {
                 return undefined;
             },
             hostname: () => "graphty.app",
-            privacySignals: () => ({ dnt: true, gpc: false }),
+            privacySignals: () => signals,
         });
         const file = {
             site: "production",
@@ -147,6 +150,7 @@ describe("the live sender", () => {
     });
 
     it("counts one usage_data_shared on Share, and nothing on No", () => {
+        signals.dnt = false;
         answerUsageData("declined");
         assert.deepEqual(sends, []);
         answerUsageData("share");
@@ -154,6 +158,27 @@ describe("the live sender", () => {
             sends.map((body) => body.payload.name),
             ["usage_data_shared"],
         );
+    });
+
+    it("leaves a Share under Do Not Track or GPC out of the opt-in rate, as its visits are", () => {
+        signals.dnt = true;
+        answerUsageData("share");
+        forgetUsageAnswer();
+        resetAnalyticsForTests();
+        startPageCounts({
+            site: "production",
+            features: [],
+            analytics: { umamiWebsiteId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+        });
+        signals.dnt = false;
+        signals.gpc = true;
+        answerUsageData("share");
+        assert.notInclude(
+            sends.map((body) => body.payload.name),
+            "usage_data_shared",
+        );
+        // Not vacuous: the page views were sent.
+        assert.isNotEmpty(sends);
     });
 
     it("stops PostHog and error reporting when another tab says No", () => {

@@ -327,7 +327,18 @@ interface Fit {
  * @returns The fit.
  */
 function fitOf(parts: readonly Part[], options: TemplateOptions): Fit {
-    const { min, max } = boundsOf(parts);
+    return fitBox(boundsOf(parts), options);
+}
+
+/**
+ * Work out how to center a box and scale it into the unit box.
+ * @param box - The box.
+ * @param box.min - Its low corner.
+ * @param box.max - Its high corner.
+ * @param options - The geometry options.
+ * @returns The fit.
+ */
+function fitBox({ min, max }: { readonly min: Vector3; readonly max: Vector3 }, options: TemplateOptions): Fit {
     const extent = max.subtract(min);
     const center = options.center === "bounds" ? min.add(max).scale(0.5) : Vector3.Zero();
     const largest = Math.max(extent.x, extent.y, extent.z, 1e-9);
@@ -868,13 +879,20 @@ async function build(
         throw new Error("graphty-element: the model has no triangles to draw");
     }
 
-    const fit = fitOf(parts, options);
-    const grouped = fitAndGroup(parts, fit.matrix);
+    const rest = fitOf(parts, options);
+    const grouped = fitAndGroup(parts, rest.matrix);
     const { groups, triangles } = grouped;
     let { radius } = grouped;
     const { used, meshes, follows } = made;
+    // An animated model is fitted again by the poses its clips draw (see bakeAnimation).
+    let fit = rest;
     const animation =
-        options.animated === true ? bakeAnimation(scene, container, parts, turn.multiply(fit.matrix), name) : null;
+        options.animated === true
+            ? bakeAnimation(scene, container, parts, turn.multiply(rest.matrix), name, (box) => {
+                  fit = fitBox(box, options);
+                  return fit.matrix;
+              })
+            : null;
     made.animation = animation;
     const flatMaterials = new Map<boolean, PBRMaterial>();
     const flat = (twoSided: boolean): PBRMaterial => {
@@ -926,9 +944,10 @@ async function build(
     // the model's triangles (section 3.8), and a group is culled only when the whole model is.
     const size = lockBounds(meshes, fit, animation?.bounds);
     if (animation !== null) {
-        // From the moving vertices themselves: the corners of their box would be its diagonal. The
-        // in-place reach over every frame, not a travelling clip's path, which would shrink the model to a speck.
-        radius = Math.max(radius, animation.radius);
+        // From the posed vertices themselves: the corners of their box would be its diagonal. The
+        // in-place reach over every frame, not a travelling clip's path, which would shrink the model
+        // to a speck, nor the rest pose, which no node draws.
+        ({ radius } = animation);
     }
 
     disposeLeftovers(container, used);

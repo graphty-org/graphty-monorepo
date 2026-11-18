@@ -8,7 +8,7 @@
  * moved by its scene node one bone of its own, and everything else bone 0, which never moves. For
  * every frame, each bone's matrix takes the part's stored vertices (in their own space, or bind
  * space for a skin) to where the template draws them at that moment -- turned upright and fitted
- * into the unit box -- and the frames are written into Babylon's baked vertex animation texture.
+ * into the unit box by the poses its clips draw, not its rest pose -- and the frames are written into Babylon's baked vertex animation texture.
  * An instance picks its clip, speed and start through the `bakedVertexAnimationSettingsInstanced`
  * attribute; one clock per scene moves time on while any node plays, holding the scene's
  * every-frame claim, and letting it go when all are still.
@@ -66,12 +66,12 @@ export interface TemplateAnimation {
     readonly fps: number;
     /** What is worth saying: `W_MODEL_ANIMATION_REDUCED`, `W_MODEL_ANIMATION_PARTIAL`. */
     readonly notes: readonly CodedFact[];
-    /** Every moving part's reach over every frame, in the unit box: what the node is picked and culled by. */
+    /** Every part's reach over every frame, in the unit box: what the node is picked and culled by. */
     readonly bounds: { readonly min: Vector3; readonly max: Vector3 };
     /**
-     * The furthest any moving vertex gets from the center over every frame of a clip that plays in
-     * place (wings, legs): what the model is framed and its edges trimmed by. A clip that carries
-     * the model out of its own sphere (a plane's flight path) counts each frame's reach from that
+     * The furthest any vertex gets from the center over every frame of a clip that plays in place
+     * (wings, legs): what the model is framed and its edges trimmed by. A clip that carries the
+     * model further than its own size (a plane's flight path) counts each frame's reach from that
      * frame's own middle instead, so the path does not shrink the model to a speck.
      */
     readonly radius: number;
@@ -326,7 +326,8 @@ const DIRECTIONS: readonly Vector3[] = Array.from({ length: 64 }, (_, i) => {
 
 /**
  * For each bone of each movable part, the few vertices it moves that stand for all of them: the
- * furthest along each of {@link DIRECTIONS}, in the part's own (bind) space. A skinned vertex is
+ * furthest along each of {@link DIRECTIONS}, in the part's own (bind) space; for a part that holds
+ * still, its placed vertices', on bone 0. A skinned vertex is
  * a weighted blend of where its bones put it, so it stays within what these points bound; a
  * whole-mesh box moved by every bone does not (a foot bone carries the body's box with it).
  * @param parts - The parts.
@@ -344,6 +345,15 @@ function extremesOf(parts: readonly AnimatedPart[], bones: BoneMap): Map<Animate
                 part,
                 moved.map((list) => furthestOf(positions, list)),
             );
+        } else {
+            // A part that holds still rides bone 0, its vertices already placed.
+            const still = part.vertices.positions ?? [];
+            out.set(part, [
+                furthestOf(
+                    still,
+                    Array.from({ length: still.length / 3 }, (_, v) => v),
+                ),
+            ]);
         }
     }
 
@@ -431,13 +441,13 @@ function furthestOf(positions: ArrayLike<number>, list: readonly number[]): Vect
 }
 
 /** The box every frame's posed vertices reach. */
-interface Reach {
+export interface Reach {
     readonly min: Vector3;
     readonly max: Vector3;
 }
 
 /** Where one frame's posed vertices are. */
-interface FrameReach {
+interface FrameReach extends Reach {
     /** The middle of their box. */
     readonly middle: Vector3;
     /** The furthest from the center. */
@@ -447,23 +457,88 @@ interface FrameReach {
 }
 
 /**
- * The radius a clip's frames are framed by: every frame's reach about the center while the clip
- * plays in place; each frame's reach about its own middle once the clip carries the model further
- * from where it started than the model's own radius.
+ * Whether a clip carries the model further from where it started than the model's own size (a
+ * plane's flight path), rather than moving it about in place (wings, legs, a ball's bounce).
  * @param frames - The clip's frames.
- * @returns The radius.
+ * @returns True when it travels.
  */
-function clipRadius(frames: readonly FrameReach[]): number {
-    let reach = 0;
+function travels(frames: readonly FrameReach[]): boolean {
     let own = 0;
     let travel = 0;
     for (const frame of frames) {
-        reach = Math.max(reach, frame.reach);
         own = Math.max(own, frame.own);
         travel = Math.max(travel, Vector3.Distance(frame.middle, frames[0].middle));
     }
 
-    return travel > own ? own : reach;
+    return travel > 2 * own;
+}
+
+/**
+ * The radius a clip's frames are framed by: every frame's reach about the center while the clip
+ * plays in place; each frame's reach about its own middle once the clip {@link travels}.
+ * @param frames - The clip's frames.
+ * @returns The radius.
+ */
+function clipRadius(frames: readonly FrameReach[]): number {
+    const own = travels(frames);
+    return frames.reduce((most, frame) => Math.max(most, own ? frame.own : frame.reach), 0);
+}
+
+/**
+ * The box a model is fitted by: as big as the first frame of its first clip, which a still node
+ * holds, and centered on what that clip draws -- every frame when it plays in place, the first when
+ * it {@link travels} -- so a node's model is sized and centered as it is drawn, never by its rest or
+ * bind pose (BrainStem's T-pose, a plane's skin before its bones place it), and a ball's bounce is
+ * centered on its node. A spinning model keeps its size. Every other clip moves the model from there.
+ * @param frames - The first clip's frames.
+ * @returns The box.
+ */
+function framedBox(frames: readonly FrameReach[]): Reach {
+    const low = new Vector3(Infinity, Infinity, Infinity);
+    const high = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const frame of travels(frames) ? frames.slice(0, 1) : frames) {
+        low.minimizeInPlace(frame.min);
+        high.maximizeInPlace(frame.max);
+    }
+
+    const middle = low.add(high).scale(0.5);
+    const half = frames[0].max.subtract(frames[0].min).scale(0.5);
+    return { min: middle.subtract(half), max: middle.add(half) };
+}
+
+/**
+ * Make every matrix of the texture data end with a matrix.
+ * @param data - The texture data, changed in place.
+ * @param last - The matrix.
+ */
+function endWith(data: Float32Array, last: Matrix): void {
+    const matrix = new Matrix();
+    for (let at = 0; at < data.length; at += 16) {
+        Matrix.FromArray(data, at).multiplyToRef(last, matrix);
+        matrix.copyToArray(data, at);
+    }
+}
+
+/**
+ * The box every frame reaches, and the radius the clips are framed by ({@link clipRadius}).
+ * @param clips - Each clip's frames.
+ * @returns Them.
+ */
+function reachOf(clips: readonly (readonly FrameReach[])[]): { bounds: Reach; radius: number } {
+    const bounds = {
+        min: new Vector3(Infinity, Infinity, Infinity),
+        max: new Vector3(-Infinity, -Infinity, -Infinity),
+    };
+    let radius = 0;
+    for (const frames of clips) {
+        radius = Math.max(radius, clipRadius(frames));
+        for (const { min, max } of frames) {
+            bounds.min.minimizeInPlace(min);
+            bounds.max.maximizeInPlace(max);
+        }
+    }
+
+    return { bounds, radius };
 }
 
 /**
@@ -498,9 +573,6 @@ function boneMatrices(part: AnimatedPart, mesh: Mesh, bones: BoneMap, place: Mat
  * @param place - The orientation and fit every matrix ends with.
  * @param into - The texture data.
  * @param row - The frame's first float.
- * @param bounds - The box seen so far, grown.
- * @param extremes - The points standing for each bone's vertices ({@link extremesOf}).
- * @returns Where this frame's vertices are.
  */
 function writeFrame(
     parts: readonly AnimatedPart[],
@@ -508,22 +580,41 @@ function writeFrame(
     place: Matrix,
     into: Float32Array,
     row: number,
-    bounds: Reach,
-    extremes: ReadonlyMap<AnimatedPart, Vector3[][]>,
-): FrameReach {
+): void {
     Matrix.IdentityReadOnly.copyToArray(into, row);
-    const posed: Vector3[] = [];
     for (const part of parts) {
         const offset = bones.offsets.get(part);
         if (offset === undefined || part.mesh === undefined) {
             continue;
         }
 
-        const matrices = boneMatrices(part, part.mesh, bones, place);
-        const points = extremes.get(part) ?? [];
-        for (const [b, matrix] of matrices.entries()) {
+        for (const [b, matrix] of boneMatrices(part, part.mesh, bones, place).entries()) {
             matrix.copyToArray(into, row + (offset + b) * 16);
-            for (const point of points[b] ?? []) {
+        }
+    }
+}
+
+/**
+ * Where a written frame draws the vertices: each part's points ({@link extremesOf}) moved by the
+ * bone matrices in the texture data, a still part's by bone 0.
+ * @param bones - The parts' bones.
+ * @param data - The texture data.
+ * @param row - The frame's first float.
+ * @param extremes - The points standing for each bone's vertices.
+ * @returns Where this frame's vertices are.
+ */
+function measureFrame(
+    bones: BoneMap,
+    data: Float32Array,
+    row: number,
+    extremes: ReadonlyMap<AnimatedPart, Vector3[][]>,
+): FrameReach {
+    const posed: Vector3[] = [];
+    for (const [part, points] of extremes) {
+        const offset = bones.offsets.get(part) ?? 0;
+        for (const [b, list] of points.entries()) {
+            const matrix = Matrix.FromArray(data, row + (offset + b) * 16);
+            for (const point of list) {
                 posed.push(Vector3.TransformCoordinates(point, matrix));
             }
         }
@@ -536,8 +627,6 @@ function writeFrame(
         max.maximizeInPlace(point);
     }
 
-    bounds.min.minimizeInPlace(min);
-    bounds.max.maximizeInPlace(max);
     const middle = posed.length === 0 ? Vector3.Zero() : min.add(max).scale(0.5);
     let reach = 0;
     let own = 0;
@@ -546,7 +635,29 @@ function writeFrame(
         own = Math.max(own, Vector3.Distance(point, middle));
     }
 
-    return { middle, reach, own };
+    return { min, max, middle, reach, own };
+}
+
+/**
+ * Each clip's frames as the texture data draws them.
+ * @param bones - The parts' bones.
+ * @param data - The texture data.
+ * @param ranges - Each clip's frames.
+ * @param extremes - The points standing for each bone's vertices.
+ * @returns Each clip's frames, in order.
+ */
+function measureClips(
+    bones: BoneMap,
+    data: Float32Array,
+    ranges: ReadonlyMap<string, { readonly start: number; readonly end: number }>,
+    extremes: ReadonlyMap<AnimatedPart, Vector3[][]>,
+): FrameReach[][] {
+    const floatsPerFrame = bones.count * 16;
+    return [...ranges.values()].map(({ start, end }) =>
+        Array.from({ length: end - start + 1 }, (_, k) =>
+            measureFrame(bones, data, (start + k) * floatsPerFrame, extremes),
+        ),
+    );
 }
 
 /**
@@ -624,6 +735,8 @@ function weightsOf(container: AssetContainer): () => void {
  * @param parts - The template's parts, fitted at rest; movable parts carry their own vertices.
  * @param place - The orientation then the fit, as the rest-pose parts were placed.
  * @param name - A name for the texture and skeleton.
+ * @param refit - Given the box the frames are framed by ({@link framedBox}), in the placed parts'
+ *   space, the matrix that fits it into the unit box instead; every frame ends with it.
  * @returns The animation.
  */
 export function bakeAnimation(
@@ -632,6 +745,7 @@ export function bakeAnimation(
     parts: AnimatedPart[],
     place: Matrix,
     name: string,
+    refit: (box: Reach) => Matrix,
 ): TemplateAnimation | null {
     if (container.animationGroups.length === 0) {
         return null;
@@ -667,11 +781,6 @@ export function bakeAnimation(
         restore(rest);
         restWeights();
     };
-    const bounds: Reach = {
-        min: new Vector3(Infinity, Infinity, Infinity),
-        max: new Vector3(-Infinity, -Infinity, -Infinity),
-    };
-    let radius = 0;
     const extremes = extremesOf(parts, bones);
     const ranges = new Map<string, { start: number; end: number }>();
     let frame = 0;
@@ -679,19 +788,20 @@ export function bakeAnimation(
     for (const clip of clips) {
         restAll();
         ranges.set(clip.name, { start: frame, end: frame + clip.frames - 1 });
-        const reaches: FrameReach[] = [];
         for (let k = 0; k < clip.frames; k++) {
             morph = poseAt(clip.group, clip.from + (k / fps) * clip.rate) || morph;
             for (const node of nodes) {
                 node.computeWorldMatrix(true);
             }
-            reaches.push(writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame, bounds, extremes));
+            writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame);
         }
-        radius = Math.max(radius, clipRadius(reaches));
         frame += clip.frames;
     }
 
     restAll();
+    // Fitted by the frames drawn, not the rest pose; the still parts ride bone 0, so it moves them too.
+    endWith(data, refit(framedBox(measureClips(bones, data, ranges, extremes)[0])));
+    const { bounds, radius } = reachOf(measureClips(bones, data, ranges, extremes));
     // A clip moved a morph target some part could not bake.
     const unbaked = parts.some(
         (part) => (part.mesh?.morphTargetManager?.numTargets ?? 0) > 0 && !bones.morphs.has(part),

@@ -17,7 +17,7 @@ page has the full list, group by group.
 | A dropdown in a panel row                                             | `PanelField` with `kind="select"`                                                                         | --                                                                                                                  |
 | A number or a dropdown with a default the reader can override         | `PanelField` showing the default, with a `ResetButton` in the `FieldRow` trailing slot once it is changed | a hand-made reset button                                                                                            |
 | A value typed freely, with presets                                    | `ComboInput`                                                                                              | `Select` (fixed choices) or `Autocomplete` (suggestions, no chevron)                                                |
-| Two to six drawable options in a panel row                            | Mantine `SegmentedControl` with a glyph and a `VisuallyHidden` word per segment, beside a `TrailingSlot`  | `IconGroupRow`, removed in 0.9                                                                                      |
+| Two to six drawable options in a panel row                            | `SegmentedControl` with a glyph and a `VisuallyHidden` word per segment, beside a `TrailingSlot`          | `IconGroupRow`, removed in 0.9                                                                                      |
 | An icon button that stays pressed                                     | `ToggleIconButton`                                                                                        | `ActionIcon`, which is an action, not an on/off state                                                               |
 | An icon button that opens a pop-out                                   | `PopoutButton`, inside `Popout.Trigger`                                                                   | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open |
 | A floating panel that can be dragged and nest                         | `Popout`                                                                                                  | Mantine `Popover`: one-off, not draggable, no nesting                                                               |
@@ -30,14 +30,20 @@ for exactly this reason.
 
 ## Use these instead of Mantine's {#use-these-instead-of-mantines}
 
-Where this package has its own component for a job a stock Mantine component also does, the
-theme leaves the Mantine one unstyled, so it renders exactly as Mantine documents it. Use these
-instead to get the compact, Figma-matched look:
+Where this package has its own component for a job a stock Mantine component also does, use
+this package's. The theme leaves Mantine's `ColorInput` and `ColorPicker` unstyled, so they render
+exactly as Mantine documents them. It styles Mantine's `SegmentedControl`, `Slider`, `RangeSlider`
+and `ScrollArea` too, but this package's components of those names, which take the same props, add
+what Mantine's leave out for keyboard and screen reader users:
 
-| Mantine component | Use instead                                                                  |
-| ----------------- | ---------------------------------------------------------------------------- |
-| `ColorInput`      | `CompactColorInput`                                                          |
-| `ColorPicker`     | `CompactColorInput`, or `ColorPickerPanel` for the picker on its own surface |
+| Mantine component  | Use instead                                                                  | What it adds                                                                       |
+| ------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `ColorInput`       | `CompactColorInput`                                                          | the compact, Figma-matched look                                                    |
+| `ColorPicker`      | `CompactColorInput`, or `ColorPickerPanel` for the picker on its own surface | the compact, Figma-matched look                                                    |
+| `SegmentedControl` | `SegmentedControl`                                                           | the name and description of an `Input.Wrapper` around it                           |
+| `Slider`           | `Slider`                                                                     | `aria-valuetext` given through `thumbProps`, and a small `step` keeps its decimals |
+| `RangeSlider`      | `RangeSlider`                                                                | the same as `Slider`, and Home and End move the focused thumb                      |
+| `ScrollArea`       | `ScrollArea`                                                                 | `focusableViewport`, a Tab stop for a scroller with nothing focusable inside       |
 
 Every component puts its own name, in kebab case, on a root `data-testid` --
 `advanced-button`, `metric-row`, `popout-panel` -- so a test can find any of

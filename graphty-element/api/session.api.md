@@ -1001,6 +1001,7 @@ export interface DerivedColumn {
     readonly expression: Query;
     readonly kind: "node" | "edge";
     readonly name: string;
+    readonly score?: readonly ScoreTerm[];
 }
 
 // @public
@@ -5803,6 +5804,12 @@ export interface ScopeStepOptions {
 }
 
 // @public
+export interface ScoreTerm {
+    readonly path: Path;
+    readonly weight?: number;
+}
+
+// @public
 export interface ScreenshotPreset {
     readonly destination?: {
         readonly download?: boolean;
@@ -6183,6 +6190,7 @@ export interface SessionDataApi {
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
     derivedColumns(): readonly DerivedColumn[];
+    deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgeName(edge: {
         readonly source: NodeId_2;

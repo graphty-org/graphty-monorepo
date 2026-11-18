@@ -3783,6 +3783,13 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             [...new Set(legged.map((r) => r.project))],
         );
         assert.ok(legged.some((r) => r.project === "graph-io-fidelity"));
+        assert.ok(
+            legged.some((r) => r.project === "graphty"),
+            "graphty re-shoots in legs (#8128)",
+        );
+        // an unsteady project's fix-forward whole re-shoot runs in leg 1 alone, unlegged, so one capture plans it
+        assert.match(text, /WHOLE: .*&& \(!matrix.unsteady \|\| matrix.leg == 1\)/);
+        assert.match(text, /LEG: \$\{\{ matrix.leg && !\(matrix.unsteady && needs.pick.outputs.source_run != ''/);
         assert.match(text, /plan --project "\$PROJECT" --captures "\$RUNNER_TEMP\/first" \$\{LEG:\+--leg "\$LEG"\}/);
         // ci.yml's gate step is untouched: the re-capture is release.yml's own job
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);

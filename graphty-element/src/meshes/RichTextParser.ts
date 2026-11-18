@@ -186,9 +186,8 @@ export class RichTextParser {
         for (const lineSegments of parsedContent) {
             const line = measureLine(ctx, lineSegments, options);
             overs.push(line.over);
-            const lineWidth = line.width + (options.textOutline ? options.textOutlineWidth * 2 : 0);
-
-            maxWidth = Math.max(maxWidth, lineWidth);
+            // the outline is drawn round the glyphs, past the box, as vis-network, Cytoscape and yEd draw it (#8746)
+            maxWidth = Math.max(maxWidth, line.width);
             totalHeight += line.lineBox;
             // the room between the line's box and its font's box, above and below alike (see measureLine)
             leads.push((line.lineBox - (line.ascent + line.descent)) / 2);
@@ -207,9 +206,9 @@ export type RunAlign = "baseline" | "hanging" | "middle";
 export interface LineOptions {
     /** Line height multiplier. */
     lineHeight: number;
-    /** Whether the text is outlined. */
+    /** Whether the text is outlined; the outline is drawn past the line's box and never changes it. */
     textOutline: boolean;
-    /** How wide its outline is. */
+    /** How wide its outline is; it never changes the line's box. */
     textOutlineWidth: number;
     /** Where runs of different sizes meet (`runAlign`); unset, on their alphabetic baselines. */
     runAlign?: RunAlign;
@@ -257,7 +256,7 @@ function fontBox(ctx: CanvasRenderingContext2D, style: TextSegment["style"]): re
  * run's; then each run is moved down by its own `shift`, and drawn lower still by its `nudge`, which the line's box
  * ignores: how far a nudged run reaches past that box is `over`. The line's ink height is the tallest ascent plus the deepest
  * descent over its runs as they sit, each the larger of the font box (`fontBoundingBoxAscent` /
- * `fontBoundingBoxDescent`) and the actual glyph box, plus the outline on both sides. The line box is that height
+ * `fontBoundingBoxDescent`) and the actual glyph box; an outline is drawn round the glyphs, past it (#8746). The line box is that height
  * times `lineHeight`, and the extra leading is split evenly above and below, as CSS does. The label's panel height
  * and the renderer's line advance both come from here, so they cannot disagree.
  * @param ctx - Canvas rendering context for measurement
@@ -332,14 +331,13 @@ export function measureLine(
         ascent = maxSize;
     }
 
-    const outline = options.textOutline ? options.textOutlineWidth : 0;
-    const inkHeight = ascent + descent + outline * 2;
+    const inkHeight = ascent + descent;
     const lineBox = inkHeight * options.lineHeight;
 
     return {
         width,
         lineBox,
-        baseline: (lineBox - inkHeight) / 2 + outline + ascent,
+        baseline: (lineBox - inkHeight) / 2 + ascent,
         offsets: offsets.map((o, i) => o + runs[i].nudge),
         ascent,
         descent,

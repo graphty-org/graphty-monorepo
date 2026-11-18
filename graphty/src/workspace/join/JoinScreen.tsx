@@ -1,8 +1,8 @@
 import "./join.css";
 
-import { DataTable, type DataTableColumn, EntityChip } from "@graphty/compact-mantine";
+import { DataTable, type DataTableColumn, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, JoinChoices, JoinReport, JoinRowFate } from "@graphty/graphty-element/session";
-import { Badge, Button, Checkbox, HoverCard, Menu, SegmentedControl } from "@mantine/core";
+import { Badge, Button, Checkbox, HoverCard, Menu } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 

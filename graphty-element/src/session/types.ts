@@ -1021,8 +1021,29 @@ export interface DerivedColumn {
     readonly kind: "node" | "edge";
     /** The column's name. */
     readonly name: string;
-    /** The expression its values are read with, such as `data.nickname || data.name`. */
+    /**
+     * The expression its values are read with, such as `data.nickname || data.name`. For a score
+     * ({@link SessionDataApi.deriveScore}) it is the weighted sum of the raw values, before each
+     * is rescaled; the values are worked out from `score`.
+     */
     readonly expression: Query;
+    /**
+     * The terms of a score made by {@link SessionDataApi.deriveScore}; absent for a column made
+     * by {@link SessionDataApi.derive}.
+     * @since 3.57.0
+     */
+    readonly score?: readonly ScoreTerm[];
+}
+
+/**
+ * One term of a score ({@link SessionDataApi.deriveScore}): a numeric column, and how much it counts.
+ * @since 3.57.0
+ */
+export interface ScoreTerm {
+    /** The column's path, such as `resultPath(run.id, "value")` or `data.age`. */
+    readonly path: Path;
+    /** How much the term counts; any finite number, negative to count against. Default 1. */
+    readonly weight?: number;
 }
 
 /** Options for `session.data.derive`. */
@@ -1796,6 +1817,34 @@ export interface SessionDataApi {
      *     a name it cannot take.
      */
     derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
+    /**
+     * Add a score: a computed column that combines numeric columns, such as two runs' results,
+     * into one number per node (or edge). Each term's values are rescaled to 0..1 (the smallest
+     * value becomes 0, the largest 1; a column whose values are all the same counts 0) and the
+     * score is the sum of each rescaled value times its weight. A node missing a number for any
+     * term scores `null`. Like {@link SessionDataApi.derive} it is one undoable step, the values
+     * follow their inputs (a run run again rescales), and it reads at `data.<name>`, so a style
+     * layer, a filter or a table shows it like any column.
+     *
+     * ```ts
+     * const degree = await session.runs.run("degree");
+     * const between = await session.runs.run("betweenness");
+     * await session.data.deriveScore("importance", [
+     *     { path: resultPath(degree.id, "value"), weight: 0.4 },
+     *     { path: resultPath(between.id, "value"), weight: 0.6 },
+     * ]);
+     * ```
+     * Deriving a computed column's name again replaces it.
+     * @param name - the column's name; not a name one of the kind's other columns has
+     * @param terms - the columns and their weights; at least one
+     * @param options - nodes or edges; nodes by default
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (`details.paths`) for a path nothing
+     *     answers, and `E_BAD_COMMAND` (`details.reason` `"empty-name"`, `"name-taken"`,
+     *     `"reads-itself"`, `"no-terms"` or `"bad-weight"`) for a name or terms it cannot take.
+     * @since 3.57.0
+     */
+    deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
     /**
      * Every computed column, in the order {@link SessionDataApi.derive} added them.
      * @returns the columns

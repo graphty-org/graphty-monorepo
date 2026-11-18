@@ -2825,6 +2825,36 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             },
+            // The same op as derive: the score's definition and its values, as one step.
+            deriveScore: {
+                kind: "dispatches",
+                op: "data.derive",
+                call: {
+                    kind: "call",
+                    args: ["doorScore", [{ path: "data.doorInput", weight: 2 }]],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-score", doorInput: 2 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "data.derive",
+                        columns: [
+                            {
+                                kind: "node",
+                                name: "doorScore",
+                                expression: "data.doorInput * `2`",
+                                score: [{ path: "data.doorInput", weight: 2 }],
+                            },
+                        ],
+                        nodes: [{ id: "door-score", values: { doorScore: 0 } }],
+                        edges: [],
+                        column: { kind: "node", name: "doorScore" },
+                    },
+                ],
+            },
             // The fix's rows and the issue state it settles, as one batch.
             fix: {
                 kind: "dispatches",
@@ -4110,6 +4140,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
             clusterColumn: READ,
+            // A row's stored record and a node id's store row, for `clusterBy` over rows with no `Node`; the layout
+            // manager fills both in when it starts the engine.
+            rowRecord: READ,
+            storeRowOf: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
             // The box the last publish left the rows in, read by the batched fit; walks no row.

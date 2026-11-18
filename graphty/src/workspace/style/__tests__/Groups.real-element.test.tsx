@@ -700,3 +700,88 @@ describe("per-group settings", () => {
         assert.isNull(within(popover).queryByRole("spinbutton", { name: /^Value/ }), "no number box");
     });
 });
+
+describe("naming and picking groups", () => {
+    /**
+     * Opens Les Miserables' Louvain groups in the Color binding popover, focus on the first row's
+     * cell (a click opens its detail, Escape comes back to the row).
+     * @returns the session, the layer, its path and the popover.
+     */
+    async function firstRowFocused(): Promise<{
+        session: GraphSession;
+        layer: Layer;
+        path: string;
+        popover: HTMLElement;
+    }> {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer, path } = await runGroups(session, "louvain");
+        const popover = await openBinding(store, layer);
+        const [first] = gridRows(popover);
+        const name = nameCell(first).firstChild?.textContent ?? "";
+        await userEvent.click(nameCell(first));
+        await screen.findByRole("group", { name: `${name} properties` });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("role"), "gridcell");
+        });
+        return { session, layer, path, popover };
+    }
+
+    it("Les Miserables: F2 renames a group; Escape keeps the old name; an empty name goes back to the default", async () => {
+        const { popover } = await firstRowFocused();
+        const firstName = (): string => nameCell(gridRows(popover)[0]).firstChild?.textContent ?? "";
+        const original = firstName();
+
+        await userEvent.keyboard("{F2}");
+        const box = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .* ${original}$`) });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, box);
+        });
+        await userEvent.clear(box);
+        await userEvent.type(box, "Bishop's circle{Enter}");
+        await waitFor(() => {
+            assert.equal(firstName(), "Bishop's circle");
+        });
+
+        // Escape leaves the name as it was.
+        const named = gridRows(popover)[0].querySelector<HTMLElement>("[role=gridcell]");
+        named?.focus();
+        await userEvent.keyboard("{F2}");
+        const again = await within(popover).findByRole("textbox", { name: /Bishop's circle$/ });
+        await userEvent.type(again, " and friends{Escape}");
+        await waitFor(() => {
+            assert.isNull(within(popover).queryByRole("textbox", { name: /^Name of / }));
+        });
+        assert.equal(firstName(), "Bishop's circle");
+
+        // An empty name returns to the default.
+        gridRows(popover)[0].querySelector<HTMLElement>("[role=gridcell]")?.focus();
+        await userEvent.keyboard("{F2}");
+        const last = await within(popover).findByRole("textbox", { name: /Bishop's circle$/ });
+        await userEvent.clear(last);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(firstName(), original);
+        });
+    });
+
+    it("Les Miserables: two picked groups offer Select these, which selects both groups' nodes", async () => {
+        const { session, layer, path, popover } = await firstRowFocused();
+        assert.isNull(within(popover).queryByRole("button", { name: "Select these" }), "not with one group");
+        await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
+        const button = await within(popover).findByRole("button", { name: "Select these" });
+        assert.isNotNull(within(popover).queryByRole("button", { name: "Set properties for 2 groups" }));
+        const picked = gridRows(popover)
+            .slice(0, 2)
+            .map((row) => row.querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "");
+        const count = session.styles
+            .groups(layer.id, path)
+            .filter((g) => picked.includes(String(g.value)))
+            .reduce((sum, g) => sum + g.count, 0);
+        await userEvent.click(button);
+        await waitFor(() => {
+            assert.equal(session.selection.nodes.length, count);
+        });
+    });
+});

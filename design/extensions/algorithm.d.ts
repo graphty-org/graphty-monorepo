@@ -179,8 +179,8 @@ export declare abstract class Algorithm<TOptions extends Record<string, unknown>
     protected get schemaOptions(): TOptions;
 
     /**
-     * @deprecated Owner decision 2026-09-28: deprecated in a 3.x minor, removed in
-     * graphty-element 4.0 together with @graphty/algorithms 3.0. Use context.input(...).
+     * @deprecated Owner decision 2026-09-28: deprecated in a 3.x minor, removed in a later
+     * ordinary release (there are no majors; issue #851). Use context.input(...).
      */
     protected algorithmGraph(mode: "directed" | "undirected"): unknown;
 

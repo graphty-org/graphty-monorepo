@@ -13,6 +13,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import type { NodeSizeSpace as NodeSizeSpaceValue } from "../config/NodeStyle";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
@@ -74,13 +75,24 @@ export interface EdgePaint {
 export interface BatchView {
     /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
     readonly flatOutline: boolean;
+    /** `layoutBehavior.node.sizeSpace`: how a node whose style sets none follows the camera. */
+    readonly sizeSpace: NodeSizeSpaceValue;
 }
+
+export type { NodeSizeSpace } from "../config/NodeStyle";
 
 /**
  * The shape options a batch draws: everything else about a shape waits for a wider batch. A z order
  * (`zIndex`, `drawOrder`) is baked into the source's vertices in 2D, which the batch's geometry copy keeps.
  */
-const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail", "zIndex", "drawOrder"]);
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set([
+    "type",
+    "size",
+    "detail",
+    "zIndex",
+    "drawOrder",
+    "sizeSpace",
+]);
 /** The effects a batch draws: both are in the geometry or the material. */
 const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
 /** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
@@ -102,7 +114,7 @@ const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
  */
 export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
     const { style } = paint;
-    // A size that follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`) is in the row's matrix.
+    // A size that follows the view (`node.sizeSpace`) is in the row's matrix, through the row's `wholeScale`.
     if (view.flatOutline) {
         return false;
     }
@@ -783,11 +795,38 @@ function floored(resolved: ResolvedStyle, channel: Channel, minimum: number, fal
  * @returns The paint, or a copy with the raised size in its key.
  */
 function keyedByFloor<T extends NodePaint | EdgePaint>(paint: T, resolved: ResolvedStyle, minimum: number): T {
-    if (!FLOORED.has(resolved)) {
+    const floor = FLOORED.has(resolved) ? `|min${String(minimum)}` : "";
+    const coarse = COARSE.has(resolved) ? "|low" : "";
+    if (floor === "" && coarse === "") {
         return paint;
     }
 
-    return { ...paint, meshKey: `${paint.meshKey}|min${String(minimum)}` };
+    return { ...paint, meshKey: `${paint.meshKey}${floor}${coarse}` };
+}
+
+/** Marks a resolved style {@link coarsened} gave low detail, so its paint is keyed apart. */
+const COARSE = new WeakSet<ResolvedStyle>();
+
+/**
+ * A node's resolved style drawn at low detail on a large graph (`Limits.largeGraphThreshold`):
+ * a node no layer gives a `node.meshDetail` is drawn `"low"`. A layer that sets one, `"full"`
+ * included, keeps it, which is how a consumer keeps full detail on a large graph.
+ * @param resolved - Everything the stack painted the node, after {@link floored}.
+ * @param large - Whether the graph holds more nodes than the threshold.
+ * @returns The style to paint from.
+ */
+function coarsened(resolved: ResolvedStyle, large: boolean): ResolvedStyle {
+    if (!large || resolved["node.meshDetail"] !== undefined) {
+        return resolved;
+    }
+
+    const low: ResolvedStyle = { ...resolved, "node.meshDetail": "low" };
+    COARSE.add(low);
+    if (FLOORED.has(resolved)) {
+        FLOORED.add(low);
+    }
+
+    return low;
 }
 
 /**
@@ -1035,6 +1074,9 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
     return style;
 }
 
+/** The rows an empty {@link PendingRows} has room for. */
+const INITIAL_PENDING = 64;
+
 /**
  * The rows waiting to be drawn, taken oldest first, each held once.
  *
@@ -1045,8 +1087,8 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
  * back. Exported for its test.
  */
 export class PendingRows {
-    private waiting = new Uint8Array(64);
-    private order = new Int32Array(64);
+    private waiting = new Uint8Array(INITIAL_PENDING);
+    private order = new Int32Array(INITIAL_PENDING);
     private head = 0;
     private tail = 0;
 
@@ -1093,8 +1135,15 @@ export class PendingRows {
     /** Drop every row. */
     clear(): void {
         this.waiting.fill(0);
-        this.head = 0;
-        this.tail = 0;
+        this.empty();
+    }
+
+    /**
+     * How many bytes the queue holds, waiting or not.
+     * @returns The bytes of its two arrays.
+     */
+    get bytes(): number {
+        return this.waiting.byteLength + this.order.byteLength;
     }
 
     /**
@@ -1117,11 +1166,25 @@ export class PendingRows {
         this.head = end;
 
         if (this.head === this.tail) {
-            this.head = 0;
-            this.tail = 0;
+            this.empty();
         }
 
         return taken;
+    }
+
+    /**
+     * Empty the queue, and let go of the ring a load grew to every row (8 MiB at 1M nodes and 1M
+     * edges): once drained it would otherwise be kept, unused, for the life of the graph. The flag
+     * per row is kept (a byte per row, all zero once drained): dropping it would make every later
+     * repaint of a high row allocate and zero a flag array as long as that row number.
+     */
+    private empty(): void {
+        if (this.order.length > INITIAL_PENDING) {
+            this.order = new Int32Array(INITIAL_PENDING);
+        }
+
+        this.head = 0;
+        this.tail = 0;
     }
 
     /** Slide the waiting rows to the front, and grow the ring when that frees too little. */
@@ -1260,10 +1323,14 @@ export class StylePainter {
      *     cheap; a painter with no graph behind it draws edges as directed.
      * @param minimums - The smallest node size and edge width drawn (the project setting
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
+     * @param largeGraph - Whether the graph holds more nodes than `Limits.largeGraphThreshold`, so
+     *     a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
+     *     node painted, so it must be cheap.
      */
     constructor(
         private readonly directed: (row: number) => boolean = () => true,
         private readonly minimums: () => MarkMinimums | undefined = () => undefined,
+        private readonly largeGraph: () => boolean = () => false,
     ) {}
 
     /** The minimums the cached paints were built at; see {@link StylePainter.floorOf}. */
@@ -1388,6 +1455,22 @@ export class StylePainter {
         for (let at = 0; at < edges.length; at++) {
             this.pendingEdges.add(edges[at]);
         }
+    }
+
+    /**
+     * Whether every pending node came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get nodesFromRowsOnly(): boolean {
+        return this.nodesRowsOnly;
+    }
+
+    /**
+     * Whether every pending edge came from a time window's slide, without taking the answer.
+     * @returns True when they did.
+     */
+    get edgesFromRowsOnly(): boolean {
+        return this.edgesRowsOnly;
     }
 
     /**
@@ -1543,34 +1626,21 @@ export class StylePainter {
     }
 
     /**
-     * What one node is painted.
+     * What one node is painted. Nodes of one look share one paint (see {@link StylePainter.rowPaint}):
+     * a paint is never written after it is built, so a `Node` holding a shared style is safe, and
+     * one that is handed the style it already draws compares it by reference (#7966).
      * @param index - Its dense index.
      * @returns The paint, or null when nothing is bound or the index is not an element's.
      */
     nodePaint(index: number): NodePaint | null {
-        const { paint } = this;
-
-        if (paint === null || index < 0) {
-            return null;
-        }
-
-        const floor = this.floorOf("node");
-        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
-        return keyedByFloor(
-            nodePaintOf(resolved, paint.meshKeyOf("node", index), (channel) => paint.plainText("node", index, channel)),
-            resolved,
-            floor,
-        );
+        return this.rowPaint(index);
     }
 
     /**
-     * What a row drawn with no `Node` is painted (`NodeBatches.paintRow`), the paint
-     * {@link StylePainter.nodePaint} gives it, built once per look rather than once per row.
+     * What one row is painted, built once per look rather than once per row.
      *
      * Rows painted by their mesh key alone share one style object, and each keeps its own colour,
      * so a load of a hundred thousand rows of one shape builds one style, not a hundred thousand.
-     * Only rows with no `Node` take it: a `Node` keeps the style object it is handed, and the objects
-     * path, which builds a `Node` for every row, still builds a style of its own for each.
      * @param index - The row's dense index.
      * @returns The paint, or null when nothing is bound or the index is not an element's.
      */
@@ -1581,7 +1651,10 @@ export class StylePainter {
         }
 
         const floor = this.floorOf("node");
-        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
+        const resolved = coarsened(
+            floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE),
+            this.largeGraph(),
+        );
         const meshKey = paint.meshKeyOf("node", index);
         const make = (): NodePaint =>
             keyedByFloor(
@@ -1589,11 +1662,13 @@ export class StylePainter {
                 resolved,
                 floor,
             );
-        const identity = nodeIdentity(resolved, meshKey);
-        if (identity === null) {
+        const shared = nodeIdentity(resolved, meshKey);
+        if (shared === null) {
             return make();
         }
 
+        // A low-detail look is not the full one: the mesh key the identity is built from is the same.
+        const identity = COARSE.has(resolved) ? `${shared}|low` : shared;
         // The interned mesh style is held beside it because a released mesh key is minted again
         // for another style.
         const mesh = paint.meshStyleOf("node", meshKey);
@@ -1656,7 +1731,7 @@ export class StylePainter {
         }
 
         // ONE PAINT PER KEY. Edges painted by their key alone share one paint object, so a pass that
-        // moves thousands of edges between two looks (a time window's Ghost row) builds two paints,
+        // moves thousands of edges between two looks (a time window's ghost look) builds two paints,
         // not thousands, and an edge handed the paint it is already drawn from skips by reference.
         // The interned mesh style is held beside it because a released mesh key is minted again
         // for another style.

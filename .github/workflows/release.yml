@@ -471,14 +471,17 @@ jobs:
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
                   { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: ${{ steps.pending.outputs.pending == 'false' }}
 
+            # the pnpm store cache only where "Install dependencies" runs: in a full, restart, candidate or
+            # promote-nightly slot nothing installs, so after a lockfile change missed the cache, setup-node's post
+            # step found no store to save and failed the job (#8357); the fix forward's plan installs uncached
             - uses: actions/setup-node@v7
               if: ${{ steps.pending.outputs.pending == 'false' }}
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ (env.MODE != 'full' && env.MODE != 'restart' && env.MODE != 'candidate' && env.MODE != 'promote-nightly') && 'pnpm' || '' }}
 
             # Promote after approval (tools/channel/resume.mjs): promote-nightly checks the approval it names; a full
             # slot first catches up on a held head whose approval merged, and then tests nothing.
@@ -751,7 +754,7 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -786,6 +789,7 @@ jobs:
         permissions:
             actions: read # this month's release.yml runs' jobs, for tools/llm-spend.mjs
             contents: read
+            id-token: write # the results store: the test step's record (tools/results/run-group.mjs)
         outputs:
             owner_item: ${{ steps.llm.outputs.owner_item }}
         steps:
@@ -808,7 +812,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: node tools/llm-spend.mjs
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -832,6 +836,11 @@ jobs:
                   GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
                   # each priced cost as it is spent, so a run cut off mid-file still logs it (the cost steps below)
                   LLM_REGRESSION_USAGE_FILE: ${{ runner.temp }}/llm-usage.jsonl
+                  # the run's record in the results store, run once as it would bare (no retry: every case is a
+                  # paid call; tools/results/run-group.mjs RESULTS_RECORD_ONLY)
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RESULTS_RECORD_ONLY: "1"
               # +e: GitHub runs this as `bash -e`, which would exit on the failed pipe before the refusal is read,
               # leaving owner_item empty, so a refused account was judged a code red and bisected (#8227)
               run: |
@@ -841,7 +850,7 @@ jobs:
                       echo "::error::the GOOGLE_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"
                       exit 1
                   fi
-                  npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
+                  (cd .. && node tools/results/run-group.mjs llm-regression "cd graphty-element && npx vitest run --project llm-regression") 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
                   status=${PIPESTATUS[0]}
                   if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
                       echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
@@ -896,7 +905,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -1175,8 +1184,6 @@ jobs:
                       artifact: build-storybook-layout
                     - project: algorithms
                       artifact: build-storybook-algorithms
-                    - project: graphty
-                      artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
                     # four legs, merged by recapture_merge (its matrix lists every legged project)
@@ -1200,13 +1207,39 @@ jobs:
                       storybook: graph-io/fidelity-stories/storybook-static
                       leg: 4
                       legs: 4
+                    # four legs too: 380 changed and new stories took 2603 s in one job, past its 45 minutes with the
+                    # merge (#8128); at about 7 s a story a quarter of them is about 11 minutes
+                    # unsteady: its app stories may draw differently on two runners, so a fix forward's whole re-shoot
+                    # (WHOLE) runs in leg 1 alone, every story, and legs 2-4 find no capture and do nothing. Each leg
+                    # shooting its own whole capture would plan from four different changed lists, and legShare picks
+                    # by position, so the legs would re-shoot the wrong stories (#8128)
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 1
+                      legs: 4
+                      unsteady: true
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 2
+                      legs: 4
+                      unsteady: true
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 3
+                      legs: 4
+                      unsteady: true
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 4
+                      legs: 4
+                      unsteady: true
         env:
             PROJECT: ${{ matrix.project }}
-            LEG: ${{ matrix.leg && format('{0}/{1}', matrix.leg, matrix.legs) || '' }}
+            LEG: ${{ matrix.leg && !(matrix.unsteady && needs.pick.outputs.source_run != '' && contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project)) && format('{0}/{1}', matrix.leg, matrix.legs) || '' }}
             # a fix forward's re-test (the pick's source_run and capture): the CI lane shot nothing, so this job shoots
             # every story of a Storybook the fixes reach (WHOLE) and carries the others' final captures over from the
             # run that judged the head before (CARRY), shooting their changed and new stories again
-            WHOLE: ${{ needs.pick.outputs.source_run != '' && contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) }}
+            WHOLE: ${{ needs.pick.outputs.source_run != '' && contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) && (!matrix.unsteady || matrix.leg == 1) }}
             CARRY: ${{ needs.pick.outputs.source_run != '' && !contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) }}
         steps:
             - uses: actions/checkout@v7
@@ -1284,7 +1317,7 @@ jobs:
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
               run: git lfs pull --include "visual-baselines/${PROJECT}/**,visual-fonts/**"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
 
             - name: Install dependencies
@@ -1389,6 +1422,7 @@ jobs:
             matrix:
                 include:
                     - project: graph-io-fidelity
+                    - project: graphty
         env:
             PROJECT: ${{ matrix.project }}
         steps:
@@ -1433,7 +1467,7 @@ jobs:
                   done
                   node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: ${{ steps.plan.outputs.dir != '' }}
 
             - name: Install dependencies
@@ -1684,6 +1718,15 @@ jobs:
               run: |
                   node tools/release-status.mjs owner-item --sha "$SHA" --what "$OWNER" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+
+            # The store did not say what is held, after minutes of retries (#5597): the verdict could not hold,
+            # replace or promote anything, which is no "nothing to do". The job fails, after the announcements above,
+            # so release-rerun.yml re-runs it once and the slot job names the store as the missed slot's cause.
+            - name: Fail when the held candidate could not be read
+              if: ${{ steps.verdict.outputs.hold == 'unknown' }}
+              run: |
+                  echo "::error::the results store did not answer GET /v1/candidate: the verdict decided nothing about the hold; re-run this job"
+                  exit 1
 
     # A held green-images head promotes later, after the owner's approval, from this run's builds (the resume job's
     # run uses them): CI keeps its own for a day, so they are kept here for 30 days, as the version job keeps a
@@ -2090,7 +2133,7 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - uses: actions/setup-node@v7
               with:
@@ -2435,7 +2478,7 @@ jobs:
             - name: Check every export is in its pack
               run: node tools/check-packed-exports.mjs
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing
             - uses: actions/setup-node@v7

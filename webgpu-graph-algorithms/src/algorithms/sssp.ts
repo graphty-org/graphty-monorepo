@@ -1,9 +1,8 @@
 /**
- * Weighted single-source shortest paths on the device (design 8.4, 3.3 line 808, 9.7; P8-T9, the P8 plan's PD-9 /
- * PD-10 / PD-11 / PD-14 / PD-19 / PD-20 / PD-22 / PD-27 / DEP-P8-E): Davidson's near-far queue over the `Frontier`
- * of P8-T4 with the `dedupe` of P8-T3, every per-round decision made ON THE DEVICE. `dist` is `array<atomic<u32>>`
+ * Weighted single-source shortest paths on the device: Davidson's near-far queue over the `Frontier`
+ * primitive with the `dedupe` primitive, every per-round decision made ON THE DEVICE. `dist` is `array<atomic<u32>>`
  * holding the f32 bit patterns of the distances (`F32_INF_BITS` = unreached), claimed by `atomicMin`, which is
- * exact on non-negative floats (PD-9): the settled value is the minimum of a fixed set of f32 sums, so it is
+ * exact on non-negative floats: the settled value is the minimum of a fixed set of f32 sums, so it is
  * bitwise reproducible, bitwise identical across adapters, and bitwise equal to the f32 Dijkstra oracle.
  *
  * A round is eight recorded dispatches: `frontier-finalize` role 2 (the round boundary: a non-empty raw near half
@@ -15,7 +14,7 @@
  * and `sssp-relax` twice (role 0 over `nearIn` sized by `frontierCount`, role 1 over `farIn` sized by `farCount`;
  * the block's `path` word, 5 a near round and 6 a far one, makes the other role's dispatch a no-op). Nothing in a
  * round is an indirect dispatch (2026-09-25). The far pile is re-bucketed by the
- * relax kernel's pass-through, not by `compact` (PD-20): a far entry whose settled distance fell below the previous
+ * relax kernel's pass-through, not by `compact`: a far entry whose settled distance fell below the previous
  * threshold was relaxed in the near band already and is dropped, the rest go back to near or far against the raised
  * threshold. The near pile is ONE pile (no sub-partitions). The host records `MAX_LEVELS_PER_SUBMIT` rounds per
  * submit and reads four bytes, the `done` word: 1 finished, 2 a raw half above its capacity (E_TOO_LARGE
@@ -25,32 +24,32 @@
  * rounds are at most `n + ceil(sum / delta) + 1` (each near round settles the pile's minimum, one pass-through per
  * bucket), so more submits than that is E_VALIDATION, never a hang.
  *
- * The two routings (PD-22) are decided by the RUN's weight vector: `options.weights` when given (`arcCount` long or
+ * The two routings are decided by the RUN's weight vector: `options.weights` when given (`arcCount` long or
  * E_INVALID_ARGUMENT; narrowed to `Float32Array` when it is not one -- a `U32` or `I32` value above 2^24, or the
  * bits of an `F64` value below the f32 ulp, is rounded silently, the package-wide f32 caveat and not a refusal --
  * uploaded into a lease buffer and bound in the graph group's weights slot with `HAS_WEIGHTS` set even on an
  * unweighted snapshot), else the snapshot's column, else none. A run whose vector is all ones, or has none, is the
- * unit-weight BFS of P8-T6 with a depth cap derived from `cutoff` (`dv <= cutoff` on unit weights is
+ * unit-weight BFS with a depth cap derived from `cutoff` (`dv <= cutoff` on unit weights is
  * `depth <= floor(cutoff)`), its `predArc` from `sssp-pred` in depth mode writing arc indices, `reachedCount` the
  * visited count -- not a fallback, a better algorithm for the input. A negative weight is E_UNSUPPORTED
  * `sssp.negativeWeights` (use bellmanFord), a non-finite one E_UNSUPPORTED `sssp.nonFiniteWeights` (the bit-pattern
  * order is undefined for NaN); `cutoff: NaN` is E_INVALID_ARGUMENT, because the CPU port's `dv <= NaN` relaxes
- * nothing while the kernel's `nd > NaN` guard would relax everything (PD-19). All host-side, before any device work.
+ * nothing while the kernel's `nd > NaN` guard would relax everything. All host-side, before any device work.
  * The delta is `SSSP_DELTA_FACTOR x avgWeight / avgDegree` over the vector in use (1 for an all-zero vector), seeded
  * into the counters block as `deltaBits` and `thresholdBits`.
  *
- * `predArc` is a second pass over the settled distances (PD-11), never packed into the distance atomic: `sssp-pred`
- * in `MODE 0` follows PD-27's plateau rule -- the smallest TIGHT arc whose source sits one key step below `v`, the
+ * `predArc` is a second pass over the settled distances, never packed into the distance atomic: `sssp-pred`
+ * in `MODE 0` follows the plateau rule -- the smallest TIGHT arc whose source sits one key step below `v`, the
  * key `(dist, hops)` with `hops` the plateau depth from a root -- through three roles over one buffer (the arcs,
  * the hop counts, the changed word and the orphan word), so the chain strictly decreases the key, ends at the
  * source, and is bitwise reproducible. A hop batch of `MAX_LEVELS_PER_SUBMIT` passes that still changed something
  * is recorded again without the roots pass; a reached node the key never reached is a kernel bug (E_VALIDATION),
- * never a result. The tuning entry `ssspWithTuning` (PD-26's shape) is what the tests drive; nothing public
+ * never a result. The tuning entry `ssspWithTuning` is what the tests drive; nothing public
  * exposes it.
  *
  * The host-side helpers of the two routings (`resolveWeights`, `normaliseCutoff`, `checkDest`, `assertSource`,
- * `unitWeightRoute`) and the predecessor pass (`predecessorPass`, both PD-27 keys) are shared with
- * `bellman-ford.ts` (P8-T10), which is the same seam type over the same `SsspOptions`; they take the algorithm's
+ * `unitWeightRoute`) and the predecessor pass (`predecessorPass`, both keys) are shared with
+ * `bellman-ford.ts`, which is the same seam type over the same `SsspOptions`; they take the algorithm's
  * name for their messages and are `@internal`.
  */
 
@@ -97,7 +96,7 @@ const HALF_ALIGN = 64;
 const RING_SLOTS = 4 * MAX_LEVELS_PER_SUBMIT + 40;
 
 /**
- * The knobs the tests need and nothing public offers (PD-26's shape): the submit cadence, the near-far delta and the
+ * The knobs the tests need and nothing public offers: the submit cadence, the near-far delta and the
  * inspect seam.
  * @internal
  */
@@ -223,7 +222,7 @@ export function checkDest(algorithm: string, dest: Float32Array | Uint32Array | 
 }
 
 /**
- * The CPU port's `cutoff` before any device work: absent is no cap; `NaN` is refused (PD-19: `dv <= NaN` relaxes
+ * The CPU port's `cutoff` before any device work: absent is no cap; `NaN` is refused (`dv <= NaN` relaxes
  * nothing on the CPU while the kernel's `nd > NaN` guard would relax everything, a silently inverted option);
  * anything else is a finite or infinite number.
  * @internal
@@ -246,7 +245,7 @@ export function normaliseCutoff(algorithm: string, cutoff: number | undefined): 
 }
 
 /**
- * The weight vector of the run (PD-22): the override, validated and narrowed, else the snapshot's column, else
+ * The weight vector of the run: the override, validated and narrowed, else the snapshot's column, else
  * null; scanned once on the host for the routing flags and the sum.
  * @internal
  * @param algorithm - the algorithm's name (the message prefix)
@@ -305,7 +304,7 @@ export function resolveWeights(
 }
 
 /**
- * The unit-weight route (PD-22): the BFS with `cutoff` as a depth cap (`dv <= cutoff` on unit weights is
+ * The unit-weight route: the BFS with `cutoff` as a depth cap (`dv <= cutoff` on unit weights is
  * `depth <= floor(cutoff)`; no cap or `+Infinity` is no cap, a negative cutoff the source alone), its `parent` in
  * arc form, its depths as f32 distances.
  * @internal
@@ -342,7 +341,7 @@ export async function unitWeightRoute(
 }
 
 /**
- * The words of PD-27's `pred` buffer for `n` nodes: the arcs at 0, the hop counts at `hb = roundUp(n, 64)`, the
+ * The words of the `pred` buffer for `n` nodes: the arcs at 0, the hop counts at `hb = roundUp(n, 64)`, the
  * changed word at `2 hb` and the orphan word after it, in a 64-word tail.
  * @internal
  * @param n - the node count
@@ -374,7 +373,7 @@ export interface PredecessorPassInput {
     readonly n: number;
     readonly arcCount: number;
     readonly source: number;
-    /** PD-27's key: 0 the plateau rule (`sssp`; a roots pass first), 1 the tight-subgraph rule (`bellmanFord`; the source is the only root). */
+    /** The predecessor key: 0 the plateau rule (`sssp`; a roots pass first), 1 the tight-subgraph rule (`bellmanFord`; the source is the only root). */
     readonly mode: 0 | 1;
 }
 
@@ -392,14 +391,14 @@ export interface PredecessorPassOutput {
 }
 
 /**
- * The predecessor pass (PD-11, PD-27): the source is the one seeded root and the two flag words are zeroed by
+ * The predecessor pass: the source is the one seeded root and the two flag words are zeroed by
  * `queue.writeBuffer`; then ONE batch of the roots pass (the plateau rule only), `MAX_LEVELS_PER_SUBMIT` hop passes
  * with `P.iteration` counting inside the batch, the arcs re-filled with `INVALID_INDEX` and the predecessor pass,
  * with the readbacks of `dist`, `pred[0, n)` and the two flag words; recorded again without the roots pass while the
  * last hop pass still changed something (a plateau, or a tight subgraph, `k` hops deep needs `ceil((k + 1) / 32)`
  * batches). More than `ceil((n + 1) / MAX_LEVELS_PER_SUBMIT) + 1` batches is E_VALIDATION, because a hop count is at
  * most `n`. The orphan word is returned, not judged: `sssp` treats it as a kernel bug and `bellmanFord` as the rounded
- * cycle PD-27 names.
+ * cycle.
  * @internal
  * @param input - the driver's buffers, kernels and key rule
  * @returns the distances, the arcs and the orphan count
@@ -606,7 +605,7 @@ export function countReached(dist: F32): number {
 }
 
 /**
- * The default delta (PD-22) from the vector in use; an all-zero vector would land every relaxation on the far pile.
+ * The default delta from the vector in use; an all-zero vector would land every relaxation on the far pile.
  * @param sum - the weights' sum
  * @param arcCount - the arc count
  * @param n - the node count
@@ -617,7 +616,7 @@ function defaultDelta(sum: number, arcCount: number, n: number): number {
 }
 
 /**
- * (2) of PD-27: every reached non-source node has an admitted in-arc under non-negative weights, so an orphan is a
+ * The predecessor pass's guarantee: every reached non-source node has an admitted in-arc under non-negative weights, so an orphan is a
  * kernel bug.
  * @param orphans - the orphan word
  */
@@ -632,7 +631,7 @@ function assertNoOrphans(orphans: number): void {
 }
 
 /**
- * Single-source shortest paths with the test knobs of PD-26's shape; `sssp` is this with an empty tuning.
+ * Single-source shortest paths with the test knobs; `sssp` is this with an empty tuning.
  * @internal
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
@@ -668,10 +667,10 @@ export async function ssspWithTuning(
     const limit = ctx.caps.limits.maxStorageBufferBindingSize;
     assertWholeCore(core, arcCount, limit, ALGORITHM);
     // the raw halves: cap entries each, the far half at word cap so its byte offset is 256-aligned; one binding
-    // of both halves is what the relax kernel sees, so the whole buffer is held to the binding limit (DEP-P8-E)
+    // of both halves is what the relax kernel sees, so the whole buffer is held to the binding limit
     const cap = Math.ceil(Math.max(1, arcCount) / HALF_ALIGN) * HALF_ALIGN;
     assertQueueFits(cap, limit);
-    // PD-22: the delta from the vector in use; an all-zero vector would land every relaxation on the far pile
+    // the delta from the vector in use; an all-zero vector would land every relaxation on the far pile
     const delta = Math.fround(tuning.delta ?? defaultDelta(vector.sum, arcCount, n));
     const deltaBits = bitsOf(delta);
     const maxRounds = n + Math.ceil(vector.sum / delta) + 1;
@@ -685,7 +684,7 @@ export async function ssspWithTuning(
         const queueOut = bindingOf(scope.scratch(8 * cap, "queue-out"), 8 * cap);
         const nearHalf: Binding = { buffer: queueOut.buffer, offset: 0, size: 4 * cap, window: null };
         const farHalf: Binding = { buffer: queueOut.buffer, offset: 4 * cap, size: 4 * cap, window: null };
-        // the pred buffer of PD-27: the arcs at 0, the hop counts at hb, the changed word at 2 hb, the orphan word after it
+        // the pred buffer: the arcs at 0, the hop counts at hb, the changed word at 2 hb, the orphan word after it
         const predWords = predBufferWords(n);
         const pred = bindingOf(scope.scratch(4 * predWords, "pred"), 4 * predWords);
         const { queue } = ctx.device;
@@ -804,7 +803,7 @@ export async function ssspWithTuning(
             assertSubmitBound(submits, maxSubmits, maxRounds);
         }
 
-        // the predecessor pass (PD-11, PD-27) under the plateau rule
+        // the predecessor pass under the plateau rule
         const passed = await predecessorPass({
             algorithm: ALGORITHM,
             ctx,
@@ -829,10 +828,10 @@ export async function ssspWithTuning(
 }
 
 /**
- * Single-source shortest paths on the device (spec 3.3 line 808, design 8.4, 9.7): `dist` in f32, bitwise equal to
- * the f32 Dijkstra (PD-9), `predArc` a tight arc one PD-27 key step below each reached node (the chain always ends
+ * Single-source shortest paths on the device: `dist` in f32, bitwise equal to
+ * the f32 Dijkstra, `predArc` a tight arc one key step below each reached node (the chain always ends
  * at the source), `reachedCount`; `cutoff` as the CPU port reads it (`dv <= cutoff`), `weights` a per-arc override
- * of the snapshot's column for this run; a run with unit weights is the BFS (PD-22).
+ * of the snapshot's column for this run; a run with unit weights is the BFS.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param source - the source node index (E_INVALID_ARGUMENT outside `[0, n)`)

@@ -73,13 +73,14 @@ describe("what the assistant reaches", () => {
         assert.strictEqual(items.filter((key) => reached.has(key)).length + excluded.size, items.length);
     });
 
-    it("reaches every catalog entry with a tool, and leaves no op out but the four decided", () => {
+    it("reaches every catalog entry with a tool, and leaves no op out but the five decided", () => {
         const { items, reached, excluded } = report();
         for (const item of items.filter((key) => key.startsWith("catalog:"))) {
             assert.isTrue(reached.has(item), `${item} is reached`);
         }
 
         assert.deepStrictEqual([...excluded.keys()].filter((key) => key.startsWith("op:")).sort(), [
+            "op:annotations.patch",
             "op:batch",
             "op:layout.transport",
             "op:note.merge",

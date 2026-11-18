@@ -9,6 +9,7 @@ personas:
     - fraud-analyst
     - intelligence-analyst
     - bioinformatics-researcher
+    - genomics-cytoscape-user
 requires_capabilities:
     - data-import
     - data-validation

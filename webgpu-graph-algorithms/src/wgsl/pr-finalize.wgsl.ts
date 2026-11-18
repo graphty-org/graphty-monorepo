@@ -1,12 +1,12 @@
 /**
- * The `pr-finalize` kernel body (spec 8.2 dispatch (b)): ONE workgroup folds the `P.groups` per-workgroup partials
+ * The `pr-finalize` kernel body (PageRank's second dispatch): ONE workgroup folds the `P.groups` per-workgroup partials
  * into the header at `partials[0]` -- a STORAGE region, never a uniform, read by the next dispatch of the same
  * pass -- and records `firstConverged` the first time the delta falls below `P.convergeThreshold`. NORM_MODE 2
  * stores the square root of the folded norm (the L2 case). Every power-iteration mode (1 HITS, 2 eigenvector, 4
  * Katz) holds the delta to `P.convergeThreshold` times the folded L1 size of the iterate (the partials' `pad0`), a
  * change relative to the vector, where a delta of exactly 0 (an iterate that died out) also counts; PageRank (0)
  * compares it to the threshold as it is, since its iterate sums to 1. The recorded iteration is `P.iteration - 1u` because
- * the delta a scale pass produces at iteration i is `|x(i-1) - x(i-2)|`, the error of iteration i - 1 (PD-9).
+ * the delta a scale pass produces at iteration i is `|x(i-1) - x(i-2)|`, the error of iteration i - 1.
  * The body is normative: a sabotage mutation is a textual edit of it, so it is not restyled.
  */
 

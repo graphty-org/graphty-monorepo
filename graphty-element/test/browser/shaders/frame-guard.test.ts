@@ -19,9 +19,8 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
-import type { RenderManager } from "../../../src/managers/RenderManager";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { type RenderQualityChange, shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
@@ -172,15 +171,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 }
 
 /**
- * The element's render manager.
- * @param element - The element.
- * @returns It.
- */
-function renderManagerOf(element: Graphty): RenderManager {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager;
-}
-
-/**
  * The element's shader host, its runtime loaded.
  * @param element - The element.
  * @returns The host.
@@ -192,8 +182,8 @@ function hostOf(element: Graphty): LazyShaderHost {
 }
 
 /**
- * Make every fence the element's GL context makes read unsignalled for a while after it was made,
- * as a GPU that takes that long per frame does.
+ * Make every fence the element's GL context makes read unsignalled until the GPU would have
+ * finished its frame, as a GPU that takes that long per frame, and draws frames in order, does.
  * @param element - The element.
  * @param gpuMs - How long each frame keeps the GPU busy; a function so a test can change it.
  * @returns Puts the context's own functions back.
@@ -202,10 +192,14 @@ function slowGpu(element: Graphty, gpuMs: () => number): () => void {
     const gl = (element.graph.engine as unknown as { _gl: WebGL2RenderingContext })._gl;
     const { fenceSync, getSyncParameter } = gl;
     const made = new WeakMap<WebGLSync, number>();
+    // A GPU finishes frames one after another, so a frame queued behind another starts only when
+    // that one is done.
+    let busyUntil = 0;
     gl.fenceSync = (condition, flags) => {
         const fence = fenceSync.call(gl, condition, flags);
         if (fence !== null) {
-            made.set(fence, performance.now() + gpuMs());
+            busyUntil = Math.max(busyUntil, performance.now()) + gpuMs();
+            made.set(fence, busyUntil);
         }
 
         return fence;
@@ -281,7 +275,7 @@ describe("the frame guard", () => {
         cleanups.unshift(() => {
             scene.onBeforeRenderObservable.remove(timing);
         });
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         let sprites = 3;
         for (let round = 0; round < 12 && seen.length === 0; round++) {
             if (round > 0) {
@@ -327,7 +321,7 @@ describe("the frame guard", () => {
             scene.onBeforeRenderObservable.remove(busy);
         });
 
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         const from = ticks.drawn;
         await until(element, "40 slow frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);
@@ -381,7 +375,7 @@ describe("the frame guard", () => {
         await until(element, "the loop sprite holds its frame claim", () => everyFrameAnimationsOn(scene) > 0);
         const seen = qualityEvents(element);
         slowGpu(element, () => 80);
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         const from = ticks.drawn;
         await until(element, "40 GPU-bound frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);

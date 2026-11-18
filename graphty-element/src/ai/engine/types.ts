@@ -492,7 +492,10 @@ export type ProgramBindings = Readonly<Record<string, ProgramBinding>>;
 
 /** How far a program may go before it is stopped. */
 export interface ProgramLimits {
-    /** Wall time, in milliseconds, before the program is interrupted (`program-timeout`). */
+    /**
+     * Wall time, in milliseconds, before the program is interrupted (`program-timeout`). `Infinity`
+     * sets no time limit, leaving the memory and call limits and the abort signal to stop it.
+     */
     readonly timeoutMs: number;
     /** Binding calls allowed; the next one fails and the program ends `program-call-limit`. */
     readonly maxCalls: number;

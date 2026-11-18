@@ -5,10 +5,10 @@ import { Text, UnstyledButton } from "@mantine/core";
 import React, { useMemo } from "react";
 
 import { focusInspectorTitle } from "../frame/focus";
+import { GRAPH_PLACE_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FindBox } from "./FindBox";
 import { StyleTree } from "./StyleTree";
-import { useSessionVersion } from "./useSessionVersion";
 
 /**
  * The footer line: "Add data to start" while there is no graph, else nothing (the layer list is
@@ -29,10 +29,10 @@ function Footer({ hasGraph }: Readonly<{ hasGraph: boolean }>): React.JSX.Elemen
 export function GraphPlace(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, GRAPH_PLACE_EVENTS);
 
     const { name, hasGraph } = useMemo(() => {
-        const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
+        const _changeCount = version; // reads the change count so the memo runs again on each session change
         return session === null
             ? { name: projectName, hasGraph: false }
             : {

@@ -18,7 +18,6 @@ import { afterEach, assert, describe, test } from "vitest";
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { FilledArrowRenderer } from "../../src/meshes/FilledArrowRenderer";
-import { MeshCache } from "../../src/meshes/MeshCache";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 
@@ -65,12 +64,7 @@ function element(width: number, height: number, eye: Vector3): Element {
         { points: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)], width: 4, color: "#ffffff" },
         scene,
     );
-    const arrowCap = EdgeMesh.createArrowHead(
-        new MeshCache(),
-        "arrow",
-        { type: "normal", width: 1, color: "#ff0000" },
-        scene,
-    );
+    const arrowCap = EdgeMesh.createArrowHead({ type: "normal", width: 1, color: "#ff0000" }, scene);
     assert.isNotNull(arrowCap);
     const patternLine = PatternedLineRenderer.create("dot", new Vector3(0, 0, 0), new Vector3(0, 0, 5), scene, {
         width: 0.5,

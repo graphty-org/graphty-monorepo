@@ -70,7 +70,8 @@ export function sourceInput(source: PageSource, settings: ReadSettings): DataSou
     switch (source.kind) {
         case "files": {
             const [first, second] = source.files;
-            // Pick order decides which file is read as nodes until the element guesses it (#911).
+            // The element tells a pair's nodes file from its edges file by their columns; pick order
+            // decides only when the columns do not say.
             const config = second === undefined ? { file: first } : { nodeFile: first, edgeFile: second };
             return { ...type, config: { ...config, ...extra }, name: second === undefined ? first.name : undefined };
         }

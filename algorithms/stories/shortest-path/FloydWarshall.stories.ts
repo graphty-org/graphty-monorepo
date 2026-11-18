@@ -13,6 +13,7 @@ import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { createPlayer } from "../utils/player.js";
 import { toSnapshot } from "../utils/snapshot.js";
 import {
     createAnimationControls,
@@ -248,8 +249,6 @@ function createFloydWarshallStory(args: FloydWarshallArgs): HTMLElement {
 
     // Animation state
     let currentStep = 0;
-    let isPlaying = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     /**
      * Execute a single step.
@@ -328,41 +327,7 @@ function createFloydWarshallStory(args: FloydWarshallArgs): HTMLElement {
         return currentStep < steps.length;
     }
 
-    /**
-     * Play animation continuously.
-     */
-    function play(): void {
-        if (isPlaying) {
-            return;
-        }
-        isPlaying = true;
-
-        function tick(): void {
-            if (!isPlaying) {
-                return;
-            }
-
-            const hasMore = executeStep();
-            if (hasMore) {
-                timeoutId = setTimeout(tick, animationSpeed);
-            } else {
-                isPlaying = false;
-            }
-        }
-
-        tick();
-    }
-
-    /**
-     * Pause animation.
-     */
-    function pause(): void {
-        isPlaying = false;
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-        }
-    }
+    const { play, pause } = createPlayer(container, executeStep, animationSpeed);
 
     /**
      * Reset animation.

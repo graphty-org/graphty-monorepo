@@ -38,7 +38,7 @@ console.log(result.groups().map((g) => Array.from(g, (i) => graph.ids.idOf(i))))
 console.log(result.modularity.toFixed(3)); // 0.357
 ```
 
-`leiden(graph, { resolution, randomSeed })` is a refinement of Louvain that guarantees every community is
+`leiden(graph, { resolution, seed })` is a refinement of Louvain that guarantees every community is
 connected.
 
 ## Girvan-Newman Algorithm
@@ -96,7 +96,7 @@ const graph = builder.freeze();
 
 const result = labelPropagation(graph, {
     maxIterations: 100, // work cap, in full-sweep equivalents
-    randomSeed: 42, // visit order and tie draws; one seed gives one result
+    seed: 42, // visit order and tie draws; one seed gives one result
     weighted: true, // false: each distinct neighbour votes once
 });
 
@@ -131,7 +131,7 @@ const bob = graph.ids.requireIndex("bob");
 const seeds = new Uint32Array(graph.nodeCount).fill(INVALID_INDEX);
 seeds[alice] = 0;
 seeds[bob] = 1;
-const held = labelPropagationSemiSupervised(graph, seeds, { randomSeed: 42 });
+const held = labelPropagationSemiSupervised(graph, seeds, { seed: 42 });
 console.log(held.labels[alice] === held.labels[bob]); // false
 ```
 

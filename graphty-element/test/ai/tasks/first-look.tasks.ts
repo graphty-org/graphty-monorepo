@@ -71,15 +71,21 @@ export const FIRST_LOOK_TASKS = [
         tools: [],
         reference: [[[{ tool: "query", args: { action: "nodes", where: "all", limit: 5 } }]]],
         check: ({ messages }) => {
-            const page = messages[0].results.find(
-                (result) => Array.isArray(result.body.data) && (result.body.data as unknown[]).length === 5,
-            );
-            assert.isDefined(page, "no tool result holds five records");
-            for (const record of page.body.data as Record<string, unknown>[]) {
-                // query's fields come back under the name asked by, so a model that asks for
-                // data.conference (the facts block's spelling) gets that key (#7186).
+            // query's fields come back under the name asked by, so a model that asks for
+            // data.conference (the facts block's spelling) gets that key (#7186).
+            const hasConference = (record: Record<string, unknown>): boolean =>
+                "conference" in record || "data.conference" in record;
+            const pages = messages[0].results
+                .map((result) => result.body.data)
+                .filter((data): data is Record<string, unknown>[] => Array.isArray(data) && data.length === 5);
+            assert.isNotEmpty(pages, "no tool result holds five records");
+            // Any five-record result in the message counts, not only the first: a model that
+            // fetches the records and then a missing attribute for them has still read what the
+            // reader asked for (#8749).
+            const page = pages.find((records) => records.every(hasConference)) ?? pages[0];
+            for (const record of page) {
                 assert.isTrue(
-                    "conference" in record || "data.conference" in record,
+                    hasConference(record),
                     `a sample record lacks the team's conference: ${JSON.stringify(record)}`,
                 );
             }

@@ -209,12 +209,25 @@ async function headsetDrag(zAxisAmplification: number | undefined, ...offsets: V
     }
 }
 
+/**
+ * How near a headset drag's result can be expected to come, at a given amplification. The headset
+ * reports hand poses in 32-bit floats, and the hand is held about 1 m up, where one float32 step is
+ * 2^-23 m (1.2e-7 m); composing the pose (reference space, wrist, joints) rounds a few times, so the
+ * hand is known to about 4 steps, and amplification multiplies that error along with the move.
+ * @param amplification - `xr.input.zAxisAmplification` in effect.
+ * @returns The tolerance, in metres.
+ */
+function headsetWithin(amplification: number): number {
+    return 4 * 2 ** -23 * amplification;
+}
+
 describe("a headset drag", () => {
     test("by default, X and Y follow the hand and Z is 10x", async () => {
         assertNear(
             await headsetDrag(undefined, ...steps(new Vector3(0.1, 0.2, 0.3), 10)),
             new Vector3(0.1, 0.2, 3),
             "only depth is amplified",
+            headsetWithin(10),
         );
     });
 
@@ -223,6 +236,7 @@ describe("a headset drag", () => {
             await headsetDrag(4, ...steps(new Vector3(0.1, 0.2, 0.3), 10)),
             new Vector3(0.1, 0.2, 1.2),
             "Z is 4x, X and Y 1x",
+            headsetWithin(4),
         );
     });
 
@@ -246,6 +260,7 @@ describe("a headset drag", () => {
             await headsetDrag(undefined, ...steps(new Vector3(0, 0, 1.5), 30)),
             new Vector3(0, 0, 15),
             "every update of the drag moves the node",
+            headsetWithin(10),
         );
     });
 });

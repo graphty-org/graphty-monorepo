@@ -71,9 +71,8 @@ const INVENTORY: Record<string, Covered> = {
         count: 1,
         kind: "load",
         reason:
-            "a source's download, inside a load; also fetchJson's, for Styles.fromUrl (a style object handed " +
-            "to its caller, drawing nothing) and InputManager's playback file (the input it replays moves the " +
-            "camera like a reader)",
+            "a source's download, inside a load; also fetchJson's, for InputManager's playback file (the " +
+            "input it replays moves the camera like a reader)",
     },
     "src/session/backgroundImage.ts": {
         count: 1,

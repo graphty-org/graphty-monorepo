@@ -91,7 +91,7 @@ function originPath(endpoint: Endpoint): string | null {
  * @returns the copy
  */
 function plain<T>(value: T): T {
-    return JSON.parse(JSON.stringify(value)) as T; // NOSONAR(S7784): the JSON round trip applies toJSON, so a credential copy keeps no secret
+    return JSON.parse(JSON.stringify(value)) as T; // eslint-disable-line unicorn/prefer-structured-clone -- the JSON round trip applies toJSON, so a credential copy keeps no secret
 }
 
 /**

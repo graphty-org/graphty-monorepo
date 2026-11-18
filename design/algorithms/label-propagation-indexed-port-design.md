@@ -1,7 +1,8 @@
 # Label propagation over a graph-format snapshot: design
 
-Status: proposed, 2026-09-27. The new exports listed under "Public API" need the owner's approval
-before they ship.
+Status: implemented in algorithms 2.2.0 (`algorithms/src/indexed/label-propagation.ts`). Proposed
+2026-09-27; additive exports no longer need the owner's approval (CLAUDE.md, "Non-breaking API
+changes need no owner approval").
 
 Implementation plan: `design/algorithms/label-propagation-indexed-port-plan.md`.
 

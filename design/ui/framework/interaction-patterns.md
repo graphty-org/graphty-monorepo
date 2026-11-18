@@ -163,7 +163,7 @@ states and transitions are drawn in 3.8.
 **Owed.** Patterns the task flows need that have no entry yet (`task-flows.md` 11), listed so the
 two documents agree until each is written: Re-map columns; placing nodes by attribute; a layout's
 fresh start; readings under a replaced overview. A hand edit on several nodes' Appearance is 3.2
-(Overrides and Mixed), and the automatic layer is `interaction-pattern-entries.md` 6.2. The two keyboard routes that section
+(Override and Mixed), and the automatic layer is `interaction-pattern-entries.md` 6.2. The two keyboard routes that section
 names are answered here: a legend entry (3.1) and moving between the comparison's sides (`interaction-pattern-entries.md` 4.9).
 
 ---
@@ -442,15 +442,15 @@ this section adds only what depends on what a field means.
     color of Kinase in Type colors"), because an attribute value is stable across re-runs and edits.
     A run's group never writes a map entry: community detection numbers its groups arbitrarily, so
     after a re-run the entry would paint strangers. The undo label says which write happened.
-  - **An element selection** writes the Overrides layer, as Figma's select-then-change-the-fill
-    does ("Override color of 3 nodes"). The row shows which layer wins, and offers Create set as the
+  - **An element selection** adds an ordinary layer on top whose selector names those elements,
+    as Figma's select-then-change-the-fill does ("Override color of 3 nodes"). The row shows which layer wins, and offers Create set as the
     route to a lasting rule, because overrides hidden in a selection are the documented cause of "my
     mapping does not work" (`figma-crosswalk.md` 4.2).
-  - **Element need:** the Overrides layer (door 31, Overrides, Base style and the stack order); until it lands the Override row is absent and Create set is the route
+  - **Element need:** Override as one element command (`element-needs.md`); until it lands the Override row is absent and Create set is the route
     (`interface-specification.md` 3.1).
 - **"Mixed"** shows where several targets differ, and writing to a Mixed field writes every target
   in one step: attributes and options on every selected element, an element selection's appearance
-  channel in the Overrides layer for every selected element, and a channel across several focused
+  channel in one new layer for every selected element, and a channel across several focused
   layer rows in each layer (`interaction-pattern-entries.md` 6.6). The app never loops the explain
   read over thousands of elements or shows a guessed swatch (`element-needs.md`, "Reads for the
   inspector and the table").

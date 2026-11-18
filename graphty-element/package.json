@@ -82,7 +82,8 @@
         "!dist/**/*.map",
         "AGENTS.md",
         "README.md",
-        "LICENSE"
+        "LICENSE",
+        "spec/"
     ],
     "publishConfig": {
         "access": "public",

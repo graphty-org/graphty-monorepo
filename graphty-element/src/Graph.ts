@@ -1528,6 +1528,7 @@ export class Graph implements GraphContext {
                         : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
                 ),
+            state: () => this.getCameraState(),
         };
 
         // What a file whose positions are fitted to the viewer is fitted to (sigma.js labels).

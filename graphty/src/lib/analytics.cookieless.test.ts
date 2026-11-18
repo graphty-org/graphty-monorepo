@@ -95,6 +95,9 @@ afterEach(() => {
 describe("the anonymous mode on the real posthog-js chunk", () => {
     it("stores nothing, sends only the counts, and switching modes never counts twice", async () => {
         const before = stored();
+        // Every write, even one removed again at once (a before-and-after compare cannot see that).
+        const setItem = vi.spyOn(Storage.prototype, "setItem");
+        const removeItem = vi.spyOn(Storage.prototype, "removeItem");
         startAnalyticsAtBoot(config);
 
         // The named instance, as posthog-js keeps it on its default instance.
@@ -154,6 +157,19 @@ describe("the anonymous mode on the real posthog-js chunk", () => {
         }
         assert.notInclude(network.bodies.join("\n"), "SECRET_LOG");
         assert.strictEqual(stored(), before, "PostHog stored nothing");
+        const others = (spy: typeof setItem | typeof removeItem): string[] =>
+            spy.mock.calls.map((call) => call[0]).filter((key) => key !== "graphty.visits.v1");
+        // posthog-js's own localStorage support check, which no option turns off (section 5); no
+        // toolbar probe ("test").
+        assert.deepEqual(others(setItem), ["__mplssupport__"], "PostHog wrote only its support check");
+        for (const key of others(removeItem)) {
+            assert.isTrue(
+                key === "__mplssupport__" || key === "ph_debug" || key.startsWith("ph_graphty_anonymous"),
+                `removed only its own or absent keys: ${key}`,
+            );
+        }
+        setItem.mockRestore();
+        removeItem.mockRestore();
 
         // Share: from here the shared mode counts.
         answerUsageData("share");

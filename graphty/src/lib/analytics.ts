@@ -691,7 +691,9 @@ function allowedProps(name: string, props: UsageProps): Record<string, Value> | 
 function toMode(mode: TrackingMode, name: string, props: Record<string, Value>): void {
     const target = mode === "shared" ? client : anonymousClient;
     if (target === undefined) {
-        if (buffer.length < BUFFER_MAX) {
+        // A page's first count of a name is always kept: there is at most one per counted name, and
+        // dropping it would leave the name marked sent and never counted on this page.
+        if (buffer.length < BUFFER_MAX || props.first_on_page === true) {
             buffer.push({ mode, name, props });
         }
         return;
@@ -715,6 +717,17 @@ function notify(name: string, props: Readonly<Record<string, Value>>): void {
 }
 
 /**
+ * Whether the anonymous mode sends a name: it is on for this page and, for usage_data_shared, the
+ * reader's visits are counted. The opt-in rate is usage_data_shared over first_visit, so a reader
+ * whose visits are not counted (DNT or GPC) is left out of both.
+ * @param name - the event name.
+ * @returns true when it is sent.
+ */
+function countsAnonymously(name: string): boolean {
+    return counting && (name !== "usage_data_shared" || visitsCounted());
+}
+
+/**
  * Counts an event of section 4.1 into the mode current now: in the anonymous mode at most once per
  * name per page view, in the shared mode every time. The first of a name on the page, in either
  * mode, carries `first_on_page: true`, so counting those counts each page view once.
@@ -733,9 +746,7 @@ export function count(name: string, props: UsageProps = {}): void {
             sentOnPage.add(name);
         }
         toMode("shared", name, first ? { ...clean, first_on_page: true } : clean);
-    } else if (first && counting && (name !== "usage_data_shared" || visitsCounted())) {
-        // The opt-in rate is usage_data_shared over first_visit, so a reader whose visits are not
-        // counted (DNT or GPC) is left out of both.
+    } else if (first && countsAnonymously(name)) {
         sentOnPage.add(name);
         toMode("anonymous", name, { ...clean, first_on_page: true });
     }
@@ -1196,6 +1207,9 @@ function anonymousOptions(host: string): Partial<PostHogConfig> {
         disable_scroll_properties: true,
         save_referrer: false,
         save_campaign_params: false,
+        // No toolbar: its init writes and removes a localStorage "test" key on every load, whatever
+        // the other options say (posthog-js toolbar.js maybeLoadToolbar).
+        __extensionClasses: { toolbar: undefined },
         before_send: (event) => cleanPostHogEvent(event, "anonymous"),
         ...(calls.posthogHost === undefined ? {} : { disable_compression: true }),
     };
@@ -1395,18 +1409,36 @@ function removePostHogKeys(storage: Storage): void {
 }
 
 /**
+ * Empties the buffer of shared entries on a stop. A page's first count of a name moves to the
+ * anonymous mode, which counts every page view anyway, so a No before the shared instance loaded
+ * loses no page view (section 3); the rest are dropped. Anonymous entries stay theirs.
+ */
+function endSharedBuffer(): void {
+    for (let index = buffer.length - 1; index >= 0; index--) {
+        const entry = buffer[index];
+        if (entry.mode !== "shared") {
+            continue;
+        }
+        if (entry.props.first_on_page === true && countsAnonymously(entry.name)) {
+            entry.mode = "anonymous";
+        } else {
+            if (entry.props.first_on_page === true) {
+                sentOnPage.delete(entry.name);
+            }
+            buffer.splice(index, 1);
+        }
+    }
+    flushBuffer("anonymous");
+}
+
+/**
  * Stops PostHog: the reader said No, here or in another tab. Never calls `reset()`, which would
  * post a new id to PostHog's flags endpoint past every guard.
  */
 export function stopPostHog(): void {
     wanted = false;
     stopWaitingForId();
-    // Shared entries are dropped; anonymous ones stay theirs (section 3).
-    for (let index = buffer.length - 1; index >= 0; index--) {
-        if (buffer[index].mode === "shared") {
-            buffer.splice(index, 1);
-        }
-    }
+    endSharedBuffer();
     if (client !== undefined) {
         try {
             client.stopSessionRecording();

@@ -767,6 +767,78 @@ describe("PostHog", () => {
         assert.deepEqual(capturedNames(second.fake.capture), []);
     });
 
+    it("moves the page view to the anonymous mode when a No comes before the shared instance loads", async () => {
+        resetAnalyticsForTests();
+        // posthog-js never arrives, and no anonymous instance is ready yet.
+        installCalls({ importPostHog: () => new Promise<never>(() => undefined) });
+        localStorage.setItem(USAGE, "share");
+        startAnalyticsAtBoot(await site(PH));
+        count("sample_loaded", { sample: "karate" });
+        stopPostHog();
+        count("sample_loaded", { sample: "les-miserables" });
+        installAnonymous();
+
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit", "sample_loaded"]);
+        for (const record of anon) {
+            assert.include(record.properties, { first_on_page: true, tracking: "anonymous" });
+        }
+        assert.equal(anon[2].properties.sample, "karate");
+    });
+
+    it("moves a count made while waiting for another tab's id to the anonymous mode on a No", async () => {
+        const config = await site(PH);
+        startPageCounts(config);
+        // Another tab's Share, before that tab saved its id: this tab waits, its counts kept as shared.
+        startPostHog(false);
+        count("sample_loaded", { sample: "karate" });
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit"]);
+        stopPostHog();
+
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit", "sample_loaded"]);
+        assert.include(anon[2].properties, { first_on_page: true, tracking: "anonymous" });
+    });
+
+    it("keeps a page's first count while it loads even when other events filled the buffer", async () => {
+        const { fake, loaded } = serve();
+        await site(PH);
+        startPostHog();
+        for (let index = 0; index < 25; index++) {
+            detail("command_run", { command: "view.fit" });
+        }
+        count("sample_loaded", { sample: "karate" });
+        await loaded;
+
+        const sample = fake.capture.mock.calls.find((call) => call[0] === "sample_loaded");
+        assert.isDefined(sample, "the first count was kept");
+        assert.include(sample?.[1] as Record<string, unknown>, { first_on_page: true });
+    });
+
+    it("starts the anonymous instance through the real after-first-paint hook", async () => {
+        resetAnalyticsForTests();
+        const anonymous = fakePostHog();
+        const { fake, imports } = serve();
+        fake.init.mockImplementation((_key: string, _options: unknown, name?: string) =>
+            name === "anonymous" ? anonymous : fake,
+        );
+        // Every seam as the other cases have it, but afterFirstPaint left at its default.
+        setAnalyticsCallsForTests({
+            importPostHog: imports,
+            hostname: () => "graphty.app",
+            privacySignals: () => ({ dnt: false, gpc: false }),
+            today: () => TODAY,
+        });
+        startAnalyticsAtBoot(await site(PH));
+
+        await vi.waitFor(() => {
+            assert.include(capturedNames(anonymous.capture), "$pageview");
+        });
+        assert.equal(imports.mock.calls.length, 1);
+        assert.deepEqual(
+            (fake.init.mock.calls as [string, unknown, string?][]).map((call) => call[2]),
+            ["anonymous"],
+        );
+    });
+
     it("starts from boot for a reader who shared, and the first visit reaches the shared mode only", async () => {
         const { fake, imports, loaded } = serve();
         vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -819,19 +891,38 @@ describe("PostHog", () => {
             );
             const [key, options] = inits[0];
             assert.equal(key, KEY);
-            assert.include(options, {
+            // before_send is a closure: checked by what it does, the rest exactly.
+            const { before_send: beforeSend, ...rest } = options as { before_send: (e: CaptureResult) => unknown };
+            assert.isNull(beforeSend({ uuid: "u", event: "$autocapture", properties: { $cookieless_mode: true } }));
+            const kept = beforeSend({ uuid: "u", event: "sample_loaded", properties: { $cookieless_mode: true } });
+            assert.equal((kept as CaptureResult).properties.tracking, "anonymous");
+            assert.deepEqual(rest, {
                 api_host: HOST,
+                defaults: "2026-08-30",
                 cookieless_mode: "always",
                 disable_persistence: true,
                 persistence: "memory",
                 persistence_name: "graphty_anonymous",
                 person_profiles: "never",
+                disable_external_dependency_loading: true,
                 advanced_disable_flags: true,
+                advanced_disable_feature_flags: true,
                 capture_pageview: false,
                 capture_pageleave: false,
                 autocapture: false,
+                rageclick: false,
+                capture_dead_clicks: false,
+                capture_heatmaps: false,
+                capture_exceptions: false,
+                capture_performance: false,
                 disable_session_recording: true,
                 disable_surveys: true,
+                disable_product_tours: true,
+                disable_conversations: true,
+                disable_scroll_properties: true,
+                save_referrer: false,
+                save_campaign_params: false,
+                __extensionClasses: { toolbar: undefined },
             });
             assert.equal(capturedNames(anonymous.capture).includes("$pageview"), answer !== "share");
             assert.equal(capturedNames(fake.capture).includes("$pageview"), answer === "share");

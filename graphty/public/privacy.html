@@ -113,8 +113,9 @@
             <h2 id="always">Always sent, whatever you answer</h2>
             <p>
                 These counts go to PostHog (EU region), in its cookieless mode. PostHog stores nothing in your browser
-                for them, and no id is sent from your browser; the app's own visit record is described under Visits.
-                Each event below is sent at most once per page load.
+                for them (when it starts, its library writes one test value and removes it at once, to check that
+                storage works), and no id is sent from your browser; the app's own visit record is described under
+                Visits. Each event below is sent at most once per page load.
             </p>
             <div class="table">
                 <table>
@@ -176,7 +177,8 @@
                             <td><code>algorithm_run</code></td>
                             <td>
                                 <code>algorithm</code>: the measure's id, or <code>other</code>. <code>outcome</code>:
-                                <code>succeeded</code>, <code>failed</code> or <code>canceled</code>.
+                                <code>succeeded</code>, <code>failed</code> or <code>canceled</code>. <code>code</code>:
+                                the error code, when it failed.
                             </td>
                         </tr>
                         <tr>
@@ -193,8 +195,9 @@
             </div>
             <p>
                 Each count also carries: that it is an anonymous count, the site's name, the channel and the days bucket
-                above, whether it is the first of its kind on this page, and your browser, your operating system, your
-                device type (desktop, mobile or tablet) and your time zone.
+                above, whether it is the first of its kind on this page, the page's path (never its query string), the
+                version of PostHog's library, and your browser, your operating system, your device type (desktop, mobile
+                or tablet) and your time zone.
             </p>
             <h3>Visits</h3>
             <p>
@@ -250,7 +253,7 @@
                     <code>camera_used</code> (orbit, pan or zoom); <code>nodes_dragged</code>;
                     <code>source_expanded</code> (expanded or failed); <code>panel_opened</code> (the panel's id);
                     <code>project_reopened</code>; <code>load_failed</code> (the error code and whether it failed
-                    reading or preparing); the error code of a measure that failed.
+                    reading or preparing).
                 </li>
                 <li><b>Page speed</b> (Web Vitals timings), and when you leave the page.</li>
                 <li>

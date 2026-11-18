@@ -186,6 +186,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "assets.add()": "writes",
     "assets.addEach()": "writes",
     "assets.allowHosts()": "writes",
+    "assets.copy()": "writes",
     "assets.dropPart()": "writes",
     "assets.files()": "not the graph",
     "assets.find()": "not the graph",

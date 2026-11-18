@@ -768,3 +768,30 @@ export function segmentOptions(
     const options = values.map((value) => (names[value] === undefined ? undefined : { value, ...names[value] }));
     return options.every((option) => option !== undefined) ? options : undefined;
 }
+
+/** A setting's line in a thing's rubric, and the pop-over sub-group that holds it, if any. */
+export interface FoundLine {
+    readonly line: LineSpec;
+    readonly group?: string;
+}
+
+/**
+ * Where a channel sits in the rubrics: the line that edits it, for Find a setting.
+ * @param side - nodes or edges.
+ * @param channel - the channel.
+ * @returns its line, the one naming it first winning over one it is only a pair, unit or toggle of.
+ */
+export function lineFor(side: "node" | "edge", channel: Channel): FoundLine | undefined {
+    const found = Object.values(side === "edge" ? EDGE_RUBRIC : NODE_RUBRIC).flatMap((rubric) => [
+        ...[...(rubric.row === undefined ? [] : [rubric.row]), ...(rubric.common ?? []), ...rubric.main].map(
+            (line): FoundLine => ({ line }),
+        ),
+        ...(rubric.groups ?? []).flatMap((group) =>
+            group.lines.map((line): FoundLine => ({ line, group: group.name })),
+        ),
+    ]);
+    return (
+        found.find(({ line }) => line.channel === channel) ??
+        found.find(({ line }) => lineChannels(line).includes(channel))
+    );
+}

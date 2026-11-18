@@ -1068,3 +1068,22 @@ export const FootballConference: Story = {
         await element.waitForStableFrame();
     },
 };
+
+/**
+ * Style panel v2 (the style-panel-v2 experiment, with file-styles): Everything's node tab, every
+ * section a header with its rule and "+", the layer's things as rows with their common lines.
+ */
+export const StylePanelV2: Story = {
+    ...sceneStory(async () => {
+        await openStyle("Everything");
+        await page().findByRole("heading", { level: 3, name: "Shape" });
+    }),
+    name: "Style panel v2",
+    beforeEach: async () => {
+        await siteFeatures(["file-styles", "style-panel-v2"]);
+        return async () => {
+            resetSiteConfig();
+            await loadSiteConfig();
+        };
+    },
+};

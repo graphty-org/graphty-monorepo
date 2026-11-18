@@ -483,8 +483,10 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
         return null;
     }
     const rule = ruleOf(line, descriptor);
-    if (rule === "field" || own?.binding !== undefined || own?.template !== undefined) {
-        // Today's field: a list, an asset, a text source, or a value varying by data.
+    const spread = set && ctx.many?.plain?.(channel) !== undefined;
+    if (rule === "field" || own?.binding !== undefined || own?.template !== undefined || spread) {
+        // Today's field: a list, an asset, a text source, a value varying by data, or several
+        // layers each holding their own value (the "Layer" palette, design 10.4).
         return (
             <Field
                 ctx={ctx}

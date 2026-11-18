@@ -39,10 +39,8 @@ async function removeThing(
 ): Promise<unknown> {
     const { many, session } = ctx;
     if (many !== undefined) {
-        // ponytail: several rows clear one channel at a time, one undo step each (Style panel v2, chunk 6).
-        return channels
-            .filter((channel) => many.count(channel) > 0)
-            .reduce<Promise<unknown>>((done, channel) => done.then(() => many.clear(channel)), Promise.resolve());
+        const [first, ...more] = channels.filter((channel) => many.count(channel) > 0);
+        return first === undefined ? undefined : many.clear(first, ...more);
     }
     const layers = ctx.layers.filter((layer) => !layer.locked);
     const where = layers[0] === undefined ? undefined : layerWord(session, layers[0].id);

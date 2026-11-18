@@ -37,10 +37,8 @@ export function ruleOf(line: LineSpec, descriptor: ChannelDescriptor): Rule {
 export async function unsetIn(ctx: RowContext, channels: readonly Channel[]): Promise<unknown> {
     const { many, session } = ctx;
     if (many !== undefined) {
-        // ponytail: several rows clear one channel at a time, one undo step each (Style panel v2, chunk 6).
-        return channels
-            .filter((channel) => many.count(channel) > 0)
-            .reduce<Promise<unknown>>((done, channel) => done.then(() => many.clear(channel)), Promise.resolve());
+        const [first, ...more] = channels.filter((channel) => many.count(channel) > 0);
+        return first === undefined ? undefined : many.clear(first, ...more);
     }
     const held = channels.filter((channel) => setOn(ctx, channel));
     if (held.length === 0) {

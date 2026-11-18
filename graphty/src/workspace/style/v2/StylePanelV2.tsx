@@ -13,6 +13,7 @@ import React, { useRef, useState } from "react";
 import { cosmographOn, nodeModelsOn } from "../../features";
 import { useWorkspace, useWorkspaceState } from "../../state/WorkspaceContext";
 import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
+import { ChannelLine } from "../parts/PartPage";
 import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
 import { useFindKey } from "../parts/useFindKey";
 import type { RowContext } from "../PropertyRow";
@@ -20,9 +21,10 @@ import { startFor, writeIn } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
 import { shadersChannel } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
-import { experimentChannelsOff, failureWords } from "../words";
+import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { replaceUse } from "./families";
-import { FIT_TO_LABEL } from "./rubric";
+import { FIT_TO_LABEL, lineFor } from "./rubric";
+import { RubricLine } from "./RubricLine";
 import { ThingRow } from "./ThingRow";
 import { mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
 import { sectionsOf } from "./valueSections";
@@ -93,6 +95,21 @@ function sectionUsed(ctx: RowContext, part: PartSpec, section: SectionThings): b
     return part.id === "shaders"
         ? setOn(ctx, shadersChannel(ctx.side))
         : thingsOf(ctx, part, section, []).shown.length > 0;
+}
+
+/**
+ * A setting Find a setting found, as the line its thing's pop-over draws (design 2.1).
+ * @param ctx - the row.
+ * @param channel - the setting.
+ * @returns the line.
+ */
+function foundLine(ctx: RowContext, channel: Channel): React.ReactNode {
+    const found = lineFor(ctx.side, channel);
+    return found === undefined ? (
+        <ChannelLine ctx={ctx} channel={channel} word={channelWord(channel)} />
+    ) : (
+        <RubricLine ctx={ctx} line={found.line} />
+    );
 }
 
 /**
@@ -266,7 +283,16 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                 ),
             )
         ) : (
-            <FindSettingResults ctx={ctx} query={query} parts={parts} />
+            <FindSettingResults
+                ctx={ctx}
+                query={query}
+                parts={parts}
+                line={(channel) => foundLine(ctx, channel)}
+                words={(channel) => {
+                    const found = lineFor(ctx.side, channel);
+                    return [found?.line.name ?? "", found?.group ?? ""].filter((word) => word !== "");
+                }}
+            />
         );
     return (
         <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the "/" key bubbling from the panel's own controls

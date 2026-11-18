@@ -269,21 +269,23 @@ function manyOf(
         count: (channel) => linesOf(channel).filter((line) => line !== undefined).length,
         of: rows.length,
         write: (channel, write) => record(channel, write),
-        clear: async (channel) => {
-            const patches = rows.flatMap((row) => {
-                const layer = lineOfRow(row, channel)?.layer;
-                return layer === undefined
-                    ? []
-                    : [
-                          {
-                              id: layer.id,
-                              patch: { set: without(layer.set, channel), encode: without(layer.encode, channel) },
-                          },
-                      ];
-            });
-            await session.transaction(
-                `removing ${channelPhrase(channel)} from ${count(patches.length, "layer")}`,
-                (tx) => tx.styles.updateMany(patches, { keepEmpty: true }),
+        clear: async (channel, ...more) => {
+            // Every channel of one layer goes in one patch, so several channels are one undo step.
+            const patches = new Map<string, { set: Layer["set"]; encode: Layer["encode"] }>();
+            for (const row of rows) {
+                for (const each of [channel, ...more]) {
+                    const layer = lineOfRow(row, each)?.layer;
+                    if (layer !== undefined) {
+                        const now = patches.get(layer.id) ?? { set: layer.set, encode: layer.encode };
+                        patches.set(layer.id, { set: without(now.set, each), encode: without(now.encode, each) });
+                    }
+                }
+            }
+            await session.transaction(`removing ${channelPhrase(channel)} from ${count(patches.size, "layer")}`, (tx) =>
+                tx.styles.updateMany(
+                    [...patches].map(([id, patch]) => ({ id, patch })),
+                    { keepEmpty: true },
+                ),
             );
         },
         breakdown: (channel) => {

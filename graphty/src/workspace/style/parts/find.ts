@@ -82,21 +82,27 @@ export interface FoundGroup {
  * @param side - nodes or edges.
  * @param query - the words typed.
  * @param parts - the kind's parts, as the panel draws them (without an experiment's that is off).
+ * @param words - more words a setting is found by.
  * @returns the groups that match, in the panel's order.
  */
 export function findSettings(
     side: "node" | "edge",
     query: string,
     parts: readonly PartSpec[] = PARTS[side],
+    words?: (channel: Channel) => readonly string[],
 ): readonly FoundGroup[] {
     return parts
         .filter((part) => part.id !== "shaders")
         .flatMap((part) =>
             part.items.flatMap((item) => {
                 const channels = itemChannels(item).filter((channel) =>
-                    [partWord(channel), channelWord(channel), item.name, ...(SEARCH_ALIASES[channel] ?? [])].some(
-                        (name) => matchesWordStart(name, query),
-                    ),
+                    [
+                        partWord(channel),
+                        channelWord(channel),
+                        item.name,
+                        ...(SEARCH_ALIASES[channel] ?? []),
+                        ...(words?.(channel) ?? []),
+                    ].some((name) => matchesWordStart(name, query)),
                 );
                 const heading = item.name === part.title ? part.title : `${part.title} - ${item.name}`;
                 return channels.length === 0 ? [] : [{ heading, item, channels }];

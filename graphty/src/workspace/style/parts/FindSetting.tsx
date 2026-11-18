@@ -7,6 +7,7 @@
  */
 
 import { SearchInput } from "@graphty/compact-mantine";
+import type { Channel } from "@graphty/graphty-element/catalog";
 import type { GraphSession, LayerReach, StyleRow } from "@graphty/graphty-element/session";
 import { Button, Group, Kbd, Tooltip } from "@mantine/core";
 import React from "react";
@@ -109,18 +110,28 @@ function AlsoSetBy({
  * @param props.ctx - the row and kind
  * @param props.query - the words typed
  * @param props.parts - the kind's parts, as the panel draws them
+ * @param props.line - draws a found setting as this panel's own line, with no other layers named (Style panel v2)
+ * @param props.words - more words a setting is found by (Style panel v2's line and sub-group names)
  * @returns The results
  */
 export function FindSettingResults({
     ctx,
     query,
     parts,
-}: Readonly<{ ctx: RowContext; query: string; parts: readonly PartSpec[] }>): React.JSX.Element {
+    line,
+    words,
+}: Readonly<{
+    ctx: RowContext;
+    query: string;
+    parts: readonly PartSpec[];
+    line?: (channel: Channel) => React.ReactNode;
+    words?: (channel: Channel) => readonly string[];
+}>): React.JSX.Element {
     const { session } = ctx;
     const own = new Set(ctx.layers.map((layer) => layer.row ?? layer.id));
     const rows = layerRows(session.styles.tree()).filter((id) => !own.has(id));
     const reaches = rows.length === 0 ? [] : session.styles.layersUnder(rows);
-    const groups = findSettings(ctx.side, query, parts);
+    const groups = findSettings(ctx.side, query, parts, words);
     return (
         <div data-find-results="">
             {groups.map((group) => (
@@ -130,11 +141,17 @@ export function FindSettingResults({
                     </ControlLabel>
                     {group.channels.map((channel) => (
                         <div key={channel} data-result={channel}>
-                            <ChannelLine ctx={ctx} channel={channel} word={itemWord(channel, group.item)} />
-                            <AlsoSetBy
-                                session={session}
-                                others={reaches.filter((reach) => reach.writes.includes(channel))}
-                            />
+                            {line === undefined ? (
+                                <>
+                                    <ChannelLine ctx={ctx} channel={channel} word={itemWord(channel, group.item)} />
+                                    <AlsoSetBy
+                                        session={session}
+                                        others={reaches.filter((reach) => reach.writes.includes(channel))}
+                                    />
+                                </>
+                            ) : (
+                                line(channel)
+                            )}
                         </div>
                     ))}
                 </div>

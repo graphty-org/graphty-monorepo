@@ -107,8 +107,8 @@ export interface ManyRows {
     readonly of: number;
     /** Writes one value or binding to every row. */
     readonly write: (channel: EncodeKey, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
-    /** Takes the channel off every row. */
-    readonly clear: (channel: Channel) => Promise<unknown>;
+    /** Takes the channels off every row, one undo step. */
+    readonly clear: (channel: Channel, ...more: Channel[]) => Promise<unknown>;
     /**
      * Which rows set the channel, which do not, how many values they set it to, and the locked
      * rows an edit leaves alone.

@@ -1,6 +1,6 @@
 /**
- * The node models experiment's test harness (issue #3396): a workspace on the real element with the
- * experiment switched on as a site would, a "Shapes" layer open in the Style tab, and the ways a
+ * The node models test harness (issue #3396): a workspace on the real element with a "Shapes"
+ * layer open in the Style tab, and the ways a
  * reader reaches the Models pop-over. Every helper drives real input or reads what the element
  * reports.
  */
@@ -71,13 +71,13 @@ export interface Shapes {
 
 /**
  * A project with two nodes and a "Shapes" layer drawing them as cylinders, its Style tab open, with
- * the node models experiment on (or the given experiments).
+ * no experiments on (or the given experiments).
  * @param features - the site's experiments.
  * @param set - what the layer sets, or how to make it from the session once it is up.
  * @returns the session, the Style tab and the workspace store.
  */
 export async function openShapes(
-    features: readonly string[] = ["node-models"],
+    features: readonly string[] = [],
     set: Record<string, unknown> | ((session: GraphSession) => Promise<Record<string, unknown>>) = CYLINDERS,
 ): Promise<Shapes> {
     await page.viewport(1440, 900);

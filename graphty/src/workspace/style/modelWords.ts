@@ -1,5 +1,5 @@
 /**
- * What the Style panel's model and picture controls (the node-models experiment) call each problem
+ * What the Style panel's model and picture controls call each problem
  * graphty-element reports on a model or a picture (node-models design 13.6): a chip's one or two
  * words, and the tooltip's one line of detail. No sentences: the chip sits next to the control that
  * caused it. A notice's sentences are `modelWords` in words.ts.

@@ -584,21 +584,21 @@ export const ShadersGallery: Story = sceneStory(async () => {
     await page().findByTestId("shader-gallery", {});
 });
 
-// The node-models experiment (issue #3396): models in the Shape field and a picture in Fill.
+// Node models (issue #3396): models in the Shape field and a picture in Fill.
 
 /**
- * A story with the node-models experiment switched on, as a site's site.json does; the page's own
- * configuration is put back afterwards.
+ * A node models story, drawn with no experiment switched on, as a site whose site.json names none;
+ * the page's own configuration is put back afterwards.
  * @param story - the story.
  * @param name - its name in the sidebar.
- * @returns the story, with the experiment on.
+ * @returns the story.
  */
 function nodeModelsStory(story: Story, name: string): Story {
     return {
         ...story,
         name,
         beforeEach: async () => {
-            await siteFeatures(["node-models"]);
+            await siteFeatures([]);
             return async () => {
                 resetSiteConfig();
                 await loadSiteConfig();
@@ -1024,15 +1024,8 @@ export const FootballConference: Story = {
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         const colorLine = (): HTMLElement | null =>
             (page().getByTestId("style-tab") as HTMLElement).querySelector('.ws-row[data-line="node.color"]');
-        // Fill's "+" adds Color at once, or offers it in a menu when the node models experiment adds Picture.
-        const color = await waitFor(() => {
-            const item = page().queryByRole("menuitem", { name: "Color" });
-            expect(item !== null || colorLine() !== null).toBe(true);
-            return item;
-        });
-        if (color !== null) {
-            await userEvent.click(color);
-        }
+        // Fill's "+" offers Color and Picture in a menu.
+        await userEvent.click(await page().findByRole("menuitem", { name: "Color" }));
         const box: HTMLElement = await waitFor(() => {
             const found = colorLine();
             expect(found).not.toBeNull();

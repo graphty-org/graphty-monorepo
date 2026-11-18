@@ -238,8 +238,8 @@ const COSMOGRAPH_EDGE_SECTIONS: readonly SectionSpec[] = SECTIONS.edge.map((sect
 );
 
 /**
- * The node sections with the `node-models` experiment on (issue #3396): Shape holds a model in
- * place of a built-in shape, with its settings, and Fill's "+" offers Picture.
+ * The node sections the Style tab draws (issue #3396): Shape holds a model in place of a built-in
+ * shape, with its settings, and Fill's "+" offers Picture.
  */
 const NODE_MODELS_SECTIONS: readonly SectionSpec[] = SECTIONS.node.map((section) => {
     if (section.id === "shape") {
@@ -252,21 +252,16 @@ const NODE_MODELS_SECTIONS: readonly SectionSpec[] = SECTIONS.node.map((section)
 export interface SectionFlags {
     /** The `cosmograph` experiment: Line's long-edge fade and blending. */
     readonly cosmograph: boolean;
-    /** The `node-models` experiment: Shape's models and Fill's Picture. */
-    readonly nodeModels: boolean;
 }
 
 /**
  * The properties an experiment that is off keeps out of the Style tab: with `cosmograph` off, Line's
- * fade and blending; with `node-models` off, the model's settings and Picture.
+ * fade and blending.
  * @param flags - which experiments are on.
  * @returns the properties to leave out.
  */
 export function experimentChannelsOff(flags: SectionFlags): ReadonlySet<Channel> {
-    return new Set<Channel>([
-        ...(flags.cosmograph ? [] : COSMOGRAPH_LINE_CHANNELS),
-        ...(flags.nodeModels ? [] : ["node.texture" as const, ...MODEL_CHANNELS]),
-    ]);
+    return new Set<Channel>(flags.cosmograph ? [] : COSMOGRAPH_LINE_CHANNELS);
 }
 
 /**
@@ -279,7 +274,7 @@ export function sectionsFor(kind: Kind, flags: SectionFlags): readonly SectionSp
     if (kind === "edge") {
         return flags.cosmograph ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS.edge;
     }
-    return flags.nodeModels ? NODE_MODELS_SECTIONS : SECTIONS.node;
+    return NODE_MODELS_SECTIONS;
 }
 
 /**
@@ -1965,7 +1960,7 @@ export const GROUP_BY_WORDS = {
     none: "None",
 } as const;
 
-/** The Shape list's last entry, which opens the Models pop-over (the node-models experiment). */
+/** The Shape list's last entry, which opens the Models pop-over. */
 export const MODEL_TILE = "Model...";
 
 /** The value the Shape list's Model... entry carries: never written, it opens the Models pop-over. */
@@ -2358,7 +2353,7 @@ export const CUSTOM_MODEL = {
     ofSet: (name: string, line: string): string => `${name}: ${line}`,
 } as const;
 
-/** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */
+/** What Fill's "+" and the Picture line call `node.texture`. */
 export const PICTURE_WORD = "Picture";
 
 /**

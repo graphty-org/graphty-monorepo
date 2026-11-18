@@ -1,8 +1,8 @@
 /**
- * The node-models experiment's part of a property line (issue #3396): the Shape field holding a
+ * The node models part of a property line (issue #3396): the Shape field holding a
  * model in place of a built-in shape, with its Models, Model settings and Parts pop-overs, and
  * Fill's Picture line with its Picture pop-over. `Field` asks `useAssetLine` and draws what it
- * returns in place of its own; with the experiment off it returns nothing and `Field` is today's.
+ * returns in place of its own; on any other line it returns nothing.
  */
 
 import { Popout, PopoutButton } from "@graphty/compact-mantine";
@@ -13,7 +13,6 @@ import { Tooltip } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
 import { modelName, pictureName, useModelStates } from "../canvas/models";
-import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CustomModelDialog, type ModelDraft } from "./CustomModelDialog";
@@ -31,7 +30,7 @@ import { CUSTOM_MODEL, fieldName, MODEL_CHANNELS, MODEL_PICK, MODEL_TILE, PICTUR
 /** The Model settings pop-over's width, as every Style panel pop-over. */
 const POPOUT_WIDTH = 240;
 
-/** What the experiment draws in a property line, in place of the line's own. */
+/** What node models draw in a property line, in place of the line's own. */
 export interface AssetLine {
     /** The field's accessible name, when not the property's own ("Node picture"). */
     readonly name?: string;
@@ -48,7 +47,7 @@ export interface AssetLine {
     readonly pick: (value: ChannelValue) => boolean;
     /** The value control, in place of the line's own. */
     readonly control?: React.ReactNode;
-    /** Whether the vary column is the experiment's (Model settings, or empty for Picture). */
+    /** Whether the vary column is node models' (Model settings, or empty for Picture). */
     readonly ownsVary: boolean;
     /** The vary column's contents, when `ownsVary`. */
     readonly varySlot?: React.ReactNode;
@@ -99,19 +98,18 @@ function modelStyleOf(ctx: RowContext): ModelDraft {
  * The model a Shape line's own layer names, if any.
  * @param ctx - the row.
  * @param channel - the line's property.
- * @param on - whether the experiment is on.
  * @returns the line naming it and what it names, or nothing.
  */
-function modelOf(ctx: RowContext, channel: Channel, on: boolean): { line: ReturnType<typeof lineIn>; ref?: string } {
-    const line = on && channel === "node.shape" ? lineIn(ctx, "node.model") : undefined;
+function modelOf(ctx: RowContext, channel: Channel): { line: ReturnType<typeof lineIn>; ref?: string } {
+    const line = channel === "node.shape" ? lineIn(ctx, "node.model") : undefined;
     const ref = line !== undefined && !line.layer.locked && typeof line.value === "string" ? line.value : undefined;
     return { line, ref };
 }
 
 /**
- * The node-models experiment's part of a property line: see the file's comment. Called on every
+ * The node models part of a property line: see the file's comment. Called on every
  * line, before it decides whether it draws; it returns nothing for a line that is not Shape or
- * Picture, or with the experiment off.
+ * Picture.
  * @param args - the line.
  * @returns what the line draws in place of its own, or undefined.
  */
@@ -121,22 +119,21 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     const line: LineHelpers = { ...args, store };
     const { session } = ctx;
     const { channel } = descriptor;
-    const on = nodeModelsOn(session);
-    const { ref: model } = modelOf(ctx, channel, on);
+    const { ref: model } = modelOf(ctx, channel);
     const [modelsOpen, setModelsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const states = useModelStates(session);
     // The Load custom model dialog, opened by the Models pop-over's Add custom model....
     const [customOpen, setCustomOpen] = useState(false);
     // Fill's Picture line, added with "+": its pop-over opens at once.
-    const [pictureOpen, setPictureOpen] = useState(() => on && channel === "node.texture" && pending);
+    const [pictureOpen, setPictureOpen] = useState(() => channel === "node.texture" && pending);
     // Focus back on the field, once the pop-over that took its place has gone.
     const focusField = useCallback(() => {
         requestAnimationFrame(() => {
             box.current?.querySelector<HTMLElement>(".ws-field-control input")?.focus();
         });
     }, [box]);
-    if (on && channel === "node.shape") {
+    if (channel === "node.shape") {
         return shapeLine(line, {
             model,
             modelsOpen,
@@ -149,7 +146,7 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
             focusField,
         });
     }
-    if (on && channel === "node.texture") {
+    if (channel === "node.texture") {
         return pictureLine(line, { pictureOpen, setPictureOpen, focusField });
     }
     return undefined;
@@ -182,7 +179,7 @@ function said(line: LineHelpers, done: Promise<unknown>, words: () => string): v
 }
 
 /**
- * The Shape line with the experiment on: its list ends in Model..., and while its layer names a
+ * The Shape line: its list ends in Model..., and while its layer names a
  * model the field shows the model, Model settings takes the vary column, the model's chips sit
  * under it, and the minus takes the model off.
  * @param args - the line.
@@ -194,7 +191,7 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
     const { session } = ctx;
     const { channel } = descriptor;
     const { model, setModelsOpen, focusField } = state;
-    const { line: modelLine } = modelOf(ctx, channel, true);
+    const { line: modelLine } = modelOf(ctx, channel);
     const name = fieldName(channel);
     // Model... is one more row of the list, not a trailing action under a rule line, until
     // compact-mantine's select has one (issue #6233).

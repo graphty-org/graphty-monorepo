@@ -1,5 +1,5 @@
 /**
- * A model missing parts with the node models experiment on (issue #3396), on the real
+ * A model missing parts (issue #3396), on the real
  * graphty-element, by real input: the Kenney car kit's police.glb names its picture as the separate
  * file Textures/colormap.png. By a folder or a .zip in the Load custom model dialog it draws at
  * once; a layer naming it alone shows the Parts button, whose Parts pop-over takes the picture
@@ -151,7 +151,7 @@ async function drawn(session: GraphSession): Promise<void> {
  */
 async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement; chip: HTMLElement }> {
     const police = await policeFile();
-    const { session, tab } = await openShapes(["node-models"], async (each) => ({
+    const { session, tab } = await openShapes([], async (each) => ({
         "node.model": (await each.assets.add(police)).id,
     }));
     const chip = await within(tab).findByRole("button", { name: CHIP });
@@ -250,7 +250,7 @@ describe("a model missing parts, on the real element", () => {
     });
 
     it("says why a layer's model is not drawn as a plain row in its Model settings, never a pill", async () => {
-        const { tab } = await openShapes(["node-models"], () => Promise.resolve({ "node.model": "asset:not-held" }));
+        const { tab } = await openShapes([], () => Promise.resolve({ "node.model": "asset:not-held" }));
         await userEvent.click(await within(tab).findByRole("button", { name: "Model settings" }));
         const settings = await screen.findByRole("dialog", { name: "Model settings" });
         const notes = await within(settings).findByTestId("model-notes");
@@ -288,7 +288,7 @@ describe("a model missing parts, on the real element", () => {
             return url === main ? Promise.resolve(new Response(police, { status: 200 })) : original(input, init);
         });
         // A layer naming the address, as a saved project does.
-        const { session, tab } = await openShapes(["node-models"], { "node.model": main });
+        const { session, tab } = await openShapes([], { "node.model": main });
         let parts = await openParts(await within(tab).findByRole("button", { name: CHIP }));
 
         // Another site: the web-address question comes first, worded for a part the reader supplied.

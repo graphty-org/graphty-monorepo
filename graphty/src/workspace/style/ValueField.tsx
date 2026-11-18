@@ -87,7 +87,7 @@ interface ValueFieldProps {
     /** Writes a value, once per gesture. */
     readonly onChange: (value: string | number | boolean) => void;
     /**
-     * The model a Shape field holds in place of a built-in shape (the node-models experiment): the
+     * The model a Shape field holds in place of a built-in shape: the
      * field shows its picture (else the cube) and its name, and its list checks no shape.
      */
     readonly model?: { readonly name: string; readonly thumbnail?: string };

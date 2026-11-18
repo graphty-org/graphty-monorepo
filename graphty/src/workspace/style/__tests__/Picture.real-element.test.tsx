@@ -1,5 +1,5 @@
 /**
- * Pictures on nodes (`node.texture`) with the node models experiment on (issue #3396), in the Style
+ * Pictures on nodes (`node.texture`) (issue #3396), in the Style
  * tab and on the canvas, on the real graphty-element, by real input: Fill's "+" adds a Picture line
  * whose pop-over takes a picture chosen, dropped or typed as an address; a model chosen there is offered as the layer's model, and
  * let go when it is not taken; a picture a layer names as its model moves to node.texture in one
@@ -76,7 +76,7 @@ afterEach(() => {
 
 describe("pictures on nodes, on the real element", () => {
     it("puts a chosen picture on a sphere layer from Fill's Picture line", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
         assert.isNotNull(within(picture).getByRole("button", { name: "Choose picture" }));
         await chooseColormap(picture, session);
@@ -88,7 +88,7 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("puts a picture dropped on the Picture pop-over on the layer", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
         dropOn(within(picture).getByRole("button", { name: "Choose picture" }), [await colormap()]);
         await waitFor(() => {
@@ -107,7 +107,7 @@ describe("pictures on nodes, on the real element", () => {
                 ? Promise.resolve(new Response(bytes, { status: 200, headers: { "content-type": "image/png" } }))
                 : original(input, init);
         });
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
         await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${url}{Enter}`);
         // An address is written as the address, so the layer names where the picture lives.
@@ -118,7 +118,7 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("offers a model chosen in the Picture pop-over as the layer's model", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.model": "asset:sample/box" });
+        const { session, tab } = await openShapes([], { "node.model": "asset:sample/box" });
         const texture = await chooseColormap(await addPicture(tab), session);
         assert.equal(written(session, "node.model"), "asset:sample/box", "the model stays");
 
@@ -142,7 +142,7 @@ describe("pictures on nodes, on the real element", () => {
 
     it("moves a picture a layer names as its model to node.texture, in one undo step", async () => {
         let id = "";
-        const { session, tab } = await openShapes(["node-models"], async (up) => {
+        const { session, tab } = await openShapes([], async (up) => {
             const record = await up.assets.add(await colormap());
             assert.equal(record.kind, "image");
             ({ id } = record);
@@ -163,7 +163,7 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("takes back a Picture line just added and holding nothing on Escape, focus on the '+'", async () => {
-        const { session, tab, store } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab, store } = await openShapes([], { "node.shape": "sphere" });
         await addPicture(tab);
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -176,7 +176,7 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("removes the Picture line with Delete on its field", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         await chooseColormap(await addPicture(tab), session);
         const field = await within(tab).findByLabelText("Node picture, colormap");
         await waitFor(() => {
@@ -191,7 +191,7 @@ describe("pictures on nodes, on the real element", () => {
     });
 
     it("lets go of a model chosen in the Picture pop-over and not taken as the model", async () => {
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
         await choose(picture, "Choose picture", [await fixture(policeUrl, "police.glb")]);
         assert.isNotNull(await within(picture).findByRole("button", { name: "Use police as model" }));
@@ -221,7 +221,7 @@ describe("pictures on nodes, on the real element", () => {
                 ? Promise.resolve(new Response(null, { status: 404 }))
                 : original(input, init);
         });
-        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const { session, tab } = await openShapes([], { "node.shape": "sphere" });
         await chooseColormap(await addPicture(tab), session);
         const field = await within(tab).findByLabelText("Node picture, colormap");
         await waitFor(() => {

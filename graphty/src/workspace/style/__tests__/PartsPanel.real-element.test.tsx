@@ -475,7 +475,7 @@ describe("the node tab by part of the drawing", () => {
 });
 
 describe("the Model line, with node models on", () => {
-    withFeatures(["file-styles", "node-models"]);
+    withFeatures(["file-styles"]);
 
     it("the Model line names the model the layer draws, never its asset id", async () => {
         const session = await openProject([]);

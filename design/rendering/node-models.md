@@ -1960,12 +1960,11 @@ is enough: Turn shows another side.
   setting on that layer (through `many` with several layers, as `pickModel` does), renames if Name
   changed, closes, and returns focus to the Shape field.
 - **Main menu > Add custom model...**: command `model.custom`, group "Project",
-  `feature: "node-models"`, sets `dialog: "custom-model"`, disabled as `shader.add` is ("No project
+  sets `dialog: "custom-model"`, disabled as `shader.add` is ("No project
   is open", "The graph is still loading"); in the menu section with Add Shader..., before it. Add
   model, labelled **Add to project** here, renames if needed, writes no layer, closes and shows a
   notice "police added to the project" (spoken too); the model is then an In this project tile,
   and stays one after save and reopen (14.4 item 5).
-- With node-models off the command is not shown and the button's pop-over is never reached.
 
 ### 14.6 Words
 
@@ -2022,7 +2021,6 @@ New `graphty/src/workspace/style/__tests__/CustomModelDialog.real-element.test.t
 7. More options and Details start closed; Up = Z changes the preview `src`; Add writes `node.modelSourceUp` with
    `node.model` in one undo step.
 8. A lone picture with a layer: Not a model; Use as picture writes `node.texture`.
-9. node-models off: no menu row, no button.
 
 Changed: `ModelsPopover.real-element.test.tsx` drops its add-path tests (now 2, 8 and a "closed
 while loading" dialog test) and checks Add custom model... opens the dialog.

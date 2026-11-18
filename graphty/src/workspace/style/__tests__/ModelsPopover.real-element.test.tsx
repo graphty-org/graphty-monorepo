@@ -1,5 +1,5 @@
 /**
- * Models in the Style tab's Shape field with the node models experiment on (issue #3396), on the
+ * Models in the Style tab's Shape field (issue #3396), on the
  * real graphty-element, by real input: the Shape list's Model... opens the Models pop-over; a
  * sample, or a .glb chosen in the Load custom model dialog its Add custom model... opens, becomes the
  * field's value and a picture tile; a built-in shape takes the model off in one undo step; Model

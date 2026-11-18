@@ -214,7 +214,7 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
     return saved.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
 }
 
-describe("web addresses in the Style tab, with the node models experiment", () => {
+describe("web addresses in the Style tab, with node models", () => {
     it("draws a model pasted by URL in the Load custom model dialog, asking nothing", async () => {
         const { session, tab } = await openShapes();
         await pasteModel(session, tab);

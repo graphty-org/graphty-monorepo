@@ -1,5 +1,5 @@
 /**
- * The Load custom model dialog with the node models experiment on (issue #3396, node-models design
+ * The Load custom model dialog (issue #3396, node-models design
  * 14), on the real graphty-element, by real input: opened from the Main menu (Add only adds the
  * model to the project) or from the Models pop-over's Add custom model... (Add names it on the layer,
  * with the dialog's settings, in one undo step); a folder, a file or an address loads one model
@@ -1405,7 +1405,7 @@ describe("the Load custom model dialog, on the real element", () => {
     });
 
     it("keeps a layer's own Turn over the model's, and says so in Model settings", async () => {
-        const { tab } = await openShapes(["node-models"], { "node.shape": "cylinder", "node.modelTurn": 45 });
+        const { tab } = await openShapes([], { "node.shape": "cylinder", "node.modelTurn": 45 });
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
@@ -1996,13 +1996,5 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isUndefined(written(session, "node.model"), "one step takes the model back");
         });
         assert.isUndefined(session.assets.find(ref)?.defaults?.style["node.modelTint"], "and its settings");
-    });
-
-    it("has no Main menu row with the experiment off", async () => {
-        await openShapes([]);
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await screen.findByRole("menuitem", { name: "Add Shader..." });
-        assert.isNull(screen.queryByRole("menuitem", { name: "Add custom model..." }));
-        await userEvent.keyboard("{Escape}");
     });
 });

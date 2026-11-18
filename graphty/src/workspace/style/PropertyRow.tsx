@@ -1219,7 +1219,7 @@ export function Field({
     });
     useFocusOnRemoval(box);
     useFocusKept(box);
-    // The node-models experiment's Shape (a model in place of a shape) and Picture lines.
+    // The Shape (a model in place of a shape) and Picture lines.
     const asset = useAssetLine({ ctx, descriptor, pending, box, onCancel, fail });
     const lines = fieldLines(ctx, channel, pending);
     const { own, partly, spread } = lines;
@@ -1241,7 +1241,7 @@ export function Field({
         );
     };
     // A property's own list offers only its own choices (shaders are added in the Shaders section),
-    // and Shape's Model... with the node-models experiment on.
+    // and Shape's Model....
     const extraChoices: ExtraChoices = asset?.extraChoices;
     const pick = (value: ChannelValue): void => {
         if (asset?.pick(value) !== true) {

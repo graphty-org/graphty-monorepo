@@ -424,6 +424,105 @@ function picturesOf(
     };
 }
 
+/** How each curve's tube is built: the sides around it, and both ends capped (Babylon's `Mesh.CAP_ALL`). */
+export const CURVE_TUBE = Object.freeze({ tessellation: 8, cap: 3 });
+
+/**
+ * The triangles of one curve's tube, as `CreateTube` builds it with {@link CURVE_TUBE}.
+ * @param points - The polyline's points.
+ * @returns The triangles.
+ */
+export function tubeTriangles(points: number): number {
+    // A ring per point plus a closing ring at each cap, 2 triangles per side between rings.
+    return 2 * CURVE_TUBE.tessellation * (points + 3);
+}
+
+/**
+ * The polylines of a Line geometry, each by its point count, as Babylon's FBX loader reads them:
+ * a negative index (its complement) ends a polyline, an index out of range is skipped, and a
+ * polyline of fewer than two points is not drawn.
+ * @param node - The geometry.
+ * @returns Each polyline's points.
+ */
+function linePolylines(node: FbxNode): number[] {
+    const points = arrayOf(child(node, "Points"));
+    if (points.length % 3 !== 0) {
+        return [];
+    }
+    const count = points.length / 3;
+    const written = child(node, "PointsIndex");
+    const indices = written === undefined ? Array.from({ length: count }, (_, i) => i) : arrayOf(written);
+    const polylines: number[] = [];
+    let current = 0;
+    const flush = (): void => {
+        if (current >= 2) {
+            polylines.push(current);
+        }
+        current = 0;
+    };
+    for (let i = 0; i < indices.length; i++) {
+        const ix = indices[i] < 0 ? -indices[i] - 1 : indices[i];
+        if (ix >= 0 && ix < count) {
+            current++;
+        }
+        if (indices[i] < 0) {
+            flush();
+        }
+    }
+    flush();
+    return polylines;
+}
+
+/** Babylon's FBX loader: the highest NURBS order it reads, and the segments it draws per knot span. */
+const NURBS = { maxOrder: 128, perSpan: 4 } as const;
+
+/**
+ * The polyline a NURBS curve is drawn as, by its point count, as Babylon's FBX loader tessellates
+ * it: {@link NURBS}.perSpan segments per distinct knot span; none for a curve it cannot read.
+ * @param node - The geometry.
+ * @returns The polyline's points, or none.
+ */
+function nurbsPolylines(node: FbxNode): number[] {
+    const order = numberOf(child(node, "Order")?.values[0]);
+    const points = arrayOf(child(node, "Points"));
+    const knots = arrayOf(child(node, "KnotVector"));
+    const degree = order - 1;
+    if (
+        !(order > 1 && order <= NURBS.maxOrder) ||
+        points.length === 0 ||
+        points.length % 4 !== 0 ||
+        knots.length < 2 * degree + 1
+    ) {
+        return [];
+    }
+    for (let i = 1; i < knots.length; i++) {
+        // Out of order, or not a number: the loader cannot read it.
+        if (knots[i - 1] > knots[i] || Number.isNaN(knots[i - 1] + knots[i])) {
+            return [];
+        }
+    }
+    let spans = 0;
+    for (let i = 0; i < knots.length - 2 * degree; i++) {
+        if (i === 0 || knots[degree + i] !== knots[degree + i - 1]) {
+            spans++;
+        }
+    }
+    return [spans + (spans - 1) * (NURBS.perSpan - 1)];
+}
+
+/**
+ * How many times a geometry is drawn: once per model that uses it, and at least once.
+ * @param scene - The scene.
+ * @param node - The geometry.
+ * @returns The uses.
+ */
+function usesOf(scene: Scene, node: FbxNode): number {
+    return Math.max(
+        1,
+        (scene.parents.get(fbxId(node.values[0])) ?? []).filter((p) => scene.byId.get(p.id)?.name === "Model").length,
+    );
+}
+
 /**
  * Count the meshes a scene draws and their triangles, per use, checking each mesh's indices.
  * @param scene - The scene.
@@ -448,15 +547,7 @@ function countMeshes(
             continue;
         }
 
-        const uses =
-            node.name === "Model"
-                ? 1
-                : Math.max(
-                      1,
-                      (scene.parents.get(fbxId(node.values[0])) ?? []).filter(
-                          (p) => scene.byId.get(p.id)?.name === "Model",
-                      ).length,
-                  );
+        const uses = node.name === "Model" ? 1 : usesOf(scene, node);
         meshes += uses;
         triangles += counted * uses;
         vertexColors ||= child(node, "LayerElementColor") !== undefined;
@@ -465,10 +556,18 @@ function countMeshes(
         }
     }
 
-    // Curves (NURBS curves, lines) are drawn as thin tubes, one mesh each.
-    meshes += scene.objects.filter(
+    // Curves (NURBS curves, lines) are drawn as tubes, one mesh per polyline, per use.
+    for (const node of scene.objects.filter(
         (o) => o.name === "Geometry" && (o.values[2] === "NurbsCurve" || o.values[2] === "Line"),
-    ).length;
+    )) {
+        const polylines = node.values[2] === "Line" ? linePolylines(node) : nurbsPolylines(node);
+        const uses = usesOf(scene, node);
+        meshes += polylines.length * uses;
+        triangles += polylines.reduce((sum, points) => sum + tubeTriangles(points), 0) * uses;
+        if (triangles > limits.maxTriangles) {
+            refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
+        }
+    }
     return { triangles, meshes, vertexColors };
 }
 

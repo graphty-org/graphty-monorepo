@@ -14,7 +14,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import { allowed } from "../decoders/config.js";
 import { type BuiltInModelFormat, type ModelFormat, splatKind } from "../files/detect.js";
-import { asciiFbxPictures } from "../files/fbxChecks.js";
+import { asciiFbxPictures, CURVE_TUBE } from "../files/fbxChecks.js";
 import { IGNORED_EXTENSIONS, readGlb, withoutGltfPictures } from "../files/gltfChecks.js";
 import { checkModelFiles, fetchModelSet, readModelFiles } from "../files/intake.js";
 import { DEFAULT_MODEL_LIMITS } from "../files/limits.js";
@@ -352,7 +352,7 @@ async function curvesAsTubes(container: AssetContainer): Promise<void> {
         scene.removeMaterial(material);
         container.materials.push(material);
         for (const [n, path] of paths.entries()) {
-            const tube = CreateTube(`${mesh.name} ${String(n)}`, { path, radius, tessellation: 8, cap: 3 }, scene);
+            const tube = CreateTube(`${mesh.name} ${String(n)}`, { path, radius, ...CURVE_TUBE }, scene);
             scene.removeMesh(tube);
             tube.parent = mesh.parent;
             tube.position.copyFrom(mesh.position);

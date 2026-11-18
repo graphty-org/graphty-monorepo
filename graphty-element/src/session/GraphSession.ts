@@ -2029,6 +2029,9 @@ function configOf(
         get timelineHiddenLook() {
             return read().timelineHiddenLook;
         },
+        get timelineHiddenAdded() {
+            return read().timelineHiddenAdded;
+        },
         get runPlacement() {
             return read().runPlacement;
         },

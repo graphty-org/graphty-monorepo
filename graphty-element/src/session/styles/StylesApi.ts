@@ -4457,18 +4457,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The plan that writes the default rows once, as plain data: Everything at the very bottom of
-     * the reader's rows, the rest at the top. It adds every one of them; it never looks for a row
-     * already there, so a row a reader deleted or changed stays as the reader left it.
+     * the reader's rows, the rest at the top; or, for the timeline, only Timeline Hidden at the top.
+     * It adds every one of them; it never looks for a row already there, so a row a reader deleted
+     * or changed stays as the reader left it.
+     * @param timelineHidden - True for the timeline's row alone.
      * @returns The plan.
      */
-    const planDefaultRows = (): EditPlan<readonly RowParts[]> => {
+    const planDefaultRows = (timelineHidden: boolean): EditPlan<readonly RowParts[]> => {
         const config = dispatcher.services.config?.();
-        const rowsToAdd = startingRows({
-            selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
-            ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
-            ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
-            timelineHidden: config?.timelineHiddenLook ?? "hidden",
-        });
+        const rowsToAdd = startingRows(
+            timelineHidden
+                ? { timelineHidden: config?.timelineHiddenLook ?? "hidden" }
+                : {
+                      selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
+                      ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
+                      ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
+                  },
+        );
         let stack = current();
         const added: RowParts[] = [];
         const layers: LayerId[] = [];
@@ -4873,7 +4878,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             case "addRow":
                 return planAddRow(command.spec, command.at);
             case "addDefaultRows":
-                return planDefaultRows();
+                return planDefaultRows(command.timelineHidden === true);
             case "addFolder":
             case "renameRow":
             case "moveRow":

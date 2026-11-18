@@ -3500,9 +3500,11 @@ export interface ProjectConfig {
      * settings' colors and sizes, a blue ring and band by default) and Hovered (pinned to the
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
-     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; a Timeline Hidden row
+     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too. A Timeline Hidden row
      * (the elements outside the time window, the state `"outsideWindow"`, hidden or ghosted as
-     * {@link ProjectConfig.timelineHiddenLook} says) always does. The rows
+     * {@link ProjectConfig.timelineHiddenLook} says) comes only with the timeline: the first time
+     * the project has a time field (`session.time.setField`, or turning this on while it has one),
+     * once, recorded in {@link ProjectConfig.timelineHiddenAdded}. The rows
      * are ordinary data: a reader may delete or change any of them, and no later setting adds,
      * removes or rewrites one.
      * @since 3.26.0
@@ -3522,15 +3524,26 @@ export interface ProjectConfig {
     /**
      * How the Timeline Hidden starting row starts: `"hidden"` (the default) sets `visible: false`,
      * so what lies outside the time window is not drawn at all; `"ghost"` draws it grey at low
-     * opacity. Read only when the default rows are written, which is when
-     * {@link ProjectConfig.startingRows} turns on; changing it never rewrites a row already there.
+     * opacity. Read only when the row is written: the first time a project with
+     * {@link ProjectConfig.startingRows} on has a time field. Changing it never rewrites a row
+     * already there.
      *
      * ```ts
      * await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+     * await session.time.setField({ edges: { start: "year" } }); // adds the Timeline Hidden row
      * ```
      * @since 3.40.0
      */
     readonly timelineHiddenLook: "hidden" | "ghost";
+    /**
+     * Whether the project has had its Timeline Hidden starting row written: false until the first
+     * time a project with {@link ProjectConfig.startingRows} on has a time field, when the row is
+     * written and this turns true in the same step. Saved with the project, so the row is written
+     * once: turning the timeline off and on, or deleting the row, never adds it again. Setting it
+     * true before the timeline turns on means the row is never written.
+     * @since 3.57.0
+     */
+    readonly timelineHiddenAdded: boolean;
     /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
@@ -3640,6 +3653,8 @@ export interface ProjectConfigPatch {
     readonly editableBase?: boolean;
     /** See {@link ProjectConfig.timelineHiddenLook}. */
     readonly timelineHiddenLook?: "hidden" | "ghost";
+    /** See {@link ProjectConfig.timelineHiddenAdded}. */
+    readonly timelineHiddenAdded?: boolean;
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;

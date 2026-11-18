@@ -1999,7 +1999,7 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
         tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
     );
     // The settings just read write the default rows when they turn `startingRows` on (Timeline Hidden
-    // among them while the timeline is on). A file that
+    // too while the timeline is on and the file never had it). A file that
     // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
     // tree's own copies land beside them and every starting row is there twice (issue #7843).
     if (doc.members.has("graphty-style")) {

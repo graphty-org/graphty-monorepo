@@ -126,8 +126,9 @@ export function Workspace({
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
         // the style tree starts with Everything, Selected, Pinned and Hovered, Everything holds the
         // base look as values a reader edits, a pinned node wears a thin gray ring (under Selected,
-        // which wins), a finished run's layer lands on top, where the reader sees it, and with the
-        // timeline on, its Timeline Hidden row starts with the reader's Default timeline style. Set
+        // which wins), a finished run's layer lands on top, where the reader sees it, and the
+        // Timeline Hidden row, added when the timeline first turns on, starts with the reader's
+        // Default timeline style. Set
         // before anything loads, so the rows are there from the first frame.
         // The app's run limits for selection steps (design/ui/selection-groups/spec.md, section 6):
         // a run that follows hover or edits starts under 50 ms; one above a second waits for Run.

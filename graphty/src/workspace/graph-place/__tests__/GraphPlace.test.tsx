@@ -152,7 +152,6 @@ describe("the Graph place", () => {
             [
                 "Hovered, node layer, 0 nodes",
                 "Selected, node and edge layer, 0 nodes, 0 edges",
-                "Timeline Hidden, node and edge layer, 0 nodes, 0 edges",
                 "Annotations, folder, 0 layers",
                 "Everything, node and edge layer, 3 nodes, 2 edges",
             ],

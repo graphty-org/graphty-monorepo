@@ -4583,6 +4583,7 @@ export interface ProjectConfig {
     readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
     readonly startingRows: boolean;
+    readonly timelineHiddenAdded: boolean;
     readonly timelineHiddenLook: "hidden" | "ghost";
     readonly viewRotation?: number;
 }
@@ -4612,6 +4613,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
     readonly startingRows?: boolean;
+    readonly timelineHiddenAdded?: boolean;
     readonly timelineHiddenLook?: "hidden" | "ghost";
     readonly viewRotation?: number;
 }

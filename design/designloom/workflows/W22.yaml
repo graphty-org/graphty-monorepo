@@ -25,12 +25,12 @@ suggested_components:
     - data-import-dialog
     - gene-set-import-dialog
     - filter-panel
-    - threshold-slider
+    - slider
     - heatmap-panel
     - annotation-toolbar
     - cluster-collapse-control
-    - legend
-    - export-dialog
+    - legend-panel
+    - image-export-dialog
 starting_state:
     data_type: enrichment results table (pathway, p-value, FDR, NES, genes) plus gene-set definitions
     node_count: 100-2000 gene sets

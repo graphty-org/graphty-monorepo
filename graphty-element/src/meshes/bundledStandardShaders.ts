@@ -19,7 +19,9 @@ import "@babylonjs/core/Shaders/default.fragment.js";
 import "@babylonjs/core/ShadersWGSL/default.vertex.js";
 import "@babylonjs/core/ShadersWGSL/default.fragment.js";
 
-import { type Scene, ShaderStore, StandardMaterial } from "@babylonjs/core";
+import { ShaderStore } from "@babylonjs/core/Engines/shaderStore.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { pinShadersLoaded } from "./pinShadersLoaded";
 

@@ -92,7 +92,6 @@ import {
 } from "../../../extend";
 import { Graph } from "../../../index";
 import type { EdgeId, GraphSession, NodeId } from "../../../session";
-import { operationQueueOf } from "../../../src/Graph";
 // The one deep path in this file, and it is not plugin code: the element's own deterministic
 // stand-in for a device, which the tests and the stories share instead of each writing one.
 import { createFakeAccelerator, type FakeAccelerator } from "../../../src/testing/fakeAccelerator";
@@ -881,7 +880,7 @@ describe("an algorithm written outside this package", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
     });
 
     afterEach(() => {
@@ -939,7 +938,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("hop-reach", params);
 
         await run;
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         graph.getUpdateManager().stepFrames(2);
 
         return run.id;
@@ -1003,7 +1002,7 @@ describe("an algorithm written outside this package", () => {
         // label with a cost nobody can read.
         assert.isTrue(Number.isFinite(estimate.seconds), "a real number, not a shrug");
         assert.strictEqual(estimate.costClass, "instant", "read from what the extension declared");
-        assert.isNotEmpty(estimate.basis, "and a sentence saying where the number came from");
+        assert.isDefined(estimate.basisFacts.provenance, "and facts saying where the number came from");
     });
 
     it("runs when the element is asked for it by name, and answers with its own numbers", async () => {
@@ -1108,7 +1107,7 @@ describe("an algorithm written outside this package", () => {
         // And so does a value a reader chose, through the older address, which resolves its
         // parameters through the constructor rather than through the run's own check.
         await graph.runAlgorithm("acme", "hop-reach", { algorithmOptions: { hops: 2 } });
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const viaOldAddress = graph
             .getSession()
@@ -1301,7 +1300,6 @@ describe("an algorithm written outside this package", () => {
 
         assert.isDefined(legend, "the picture explains itself in the legend");
         assert.strictEqual(legend?.channel, "node.color");
-        assert.strictEqual(legend?.field?.plainName, "Nodes within reach", "named as the extension named it");
 
         const painted = new Set(
             measuredIds().map((id) => {
@@ -1352,7 +1350,7 @@ describe("an algorithm written outside this package", () => {
             set: { "node.opacity": 0.5 },
         });
 
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const measuredChannels = session.styles
             .explain({ node: "d" })
@@ -1369,7 +1367,7 @@ describe("an algorithm written outside this package", () => {
 
     it("runs through the element's older namespace and type address as well", async () => {
         await graph.runAlgorithm("acme", "hop-reach", { applySuggestedStyles: true });
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const suggestions = graph.getSuggestedStyles("acme:hop-reach");
 
@@ -1490,8 +1488,8 @@ describe("an algorithm written outside this package", () => {
             "c has one link inside the scope, not two, and d is not measured",
         );
         assert.notInclude(
-            run.caveats.notes.join(" "),
-            "Computed on the whole graph",
+            run.caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
             "and its run does not say it computed on the whole graph",
         );
         assert.strictEqual(
@@ -1514,7 +1512,10 @@ describe("an algorithm written outside this package", () => {
             [1, 2, 2, undefined],
             "c reaches d, outside the scope: computed on the whole graph, kept for the scope",
         );
-        assert.include(run.caveats.notes, "Computed on the whole graph; values kept for the scope only.");
+        assert.include(
+            run.caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
+        );
         assert.strictEqual(
             graph
                 .getSession()
@@ -1683,7 +1684,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const suggestions = graph.getSuggestedStyles("alphabet-walk");
 
@@ -1700,7 +1701,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const session = graph.getSession();
         const layer = await session.styles.add({
@@ -1710,7 +1711,7 @@ describe("an algorithm written outside this package", () => {
             set: { "edge.opacity": 0.5 },
         });
 
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         // Asked of the element rather than spelled out: an edge is addressed by the id the
         // element minted for it, and a literal written here would be a guess at that id.
@@ -1795,7 +1796,7 @@ describe("an algorithm written outside this package, on an accelerator", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         // Nine nodes is far below the size at which a real device beats the CPU, and the
         // consumer's own threshold is what says "use it anyway".
@@ -2042,7 +2043,7 @@ describe("the snapshot accessor a plugin algorithm reads through", () => {
         await graph.init();
         await graph.addNodes(MULTI_NODES);
         await graph.addEdges(MULTI_EDGES);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
     });
 
     afterEach(() => {

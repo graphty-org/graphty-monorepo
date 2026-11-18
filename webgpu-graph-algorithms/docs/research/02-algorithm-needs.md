@@ -220,7 +220,7 @@ Uint32Array`, optional `edgeWeights: Float32Array`, optional reverse
   reuse; the measured cost of `toCSRGraph` is 2376 ms on 100k/1M (design
   line 76) versus 20 ms for the format's freeze. The GPU package consumes
   `GraphSnapshot` only (design 14.5) and the existing `CSRGraph` type in
-  `/home/apowers/Projects/webgpu-graph-algorithms/src/types/index.ts:6-17`
+  `<staging>/src/types/index.ts:6-17`
   is deleted at move-in.
 
 ### 1.9 Layout inventory (`@graphty/layout` v1.6.2)
@@ -317,7 +317,7 @@ alternative `LayoutSimulation` implementation behind the same options.
 | `@graphty/algorithms`                         | 1.7.2                  | `typedfastbitset`                                                                                                                               | none                                                                                                                                 | single `"."` ESM entry `dist/algorithms.js` (`algorithms/package.json:8-14`)                                                             | `engines.node >= 18.19.0`; `publishConfig.provenance: true`; browser + default vitest projects                  |
 | `@graphty/layout`                             | 1.6.2                  | none                                                                                                                                            | none                                                                                                                                 | single `"."` ESM entry `dist/layout.js` (`layout/package.json:8-13`)                                                                     | `provenance: true`                                                                                              |
 | `@graphty/graphty-element`                    | 1.9.4                  | `@graphty/algorithms`, `@graphty/layout`, `@graphty/remote-logger` (`workspace:*`), babylon-free deps, `ngraph.forcelayout`, `d3-force-3d`, ... | `@babylonjs/core ^8`, `lit ^3`, `@mlc-ai/web-llm >=0.2.0` OPTIONAL (`peerDependenciesMeta`) (`graphty-element/package.json:170-179`) | ESM + UMD; `sideEffects` lists the registration barrels `src/layout/index.ts`, `src/data/index.ts`, `src/algorithms/index.ts` (`:16-22`) | vite externalises `@mlc-ai/web-llm` (`vite.config.ts:39`)                                                       |
-| `@graphty/webgpu-graph-algorithms` (scaffold) | 0.1.0, `private: true` | none                                                                                                                                            | none                                                                                                                                 | single ESM entry (`/home/apowers/Projects/webgpu-graph-algorithms/package.json:24-30`)                                                   | `webgpu@^0.4.0` is a devDependency of the staged graph-format package (`packages/graph-format/package.json:73`) |
+| `@graphty/webgpu-graph-algorithms` (scaffold) | 0.1.0, `private: true` | none                                                                                                                                            | none                                                                                                                                 | single ESM entry (`<staging>/package.json:24-30`)                                                                                        | `webgpu@^0.4.0` is a devDependency of the staged graph-format package (`packages/graph-format/package.json:73`) |
 
 Post-format rule (design 13.5 rule 3, lines 3658-3665): every consumer
 declares `@graphty/graph-format` in BOTH `dependencies` (`workspace:*`) and
@@ -677,17 +677,17 @@ hot prefix + `degree` kernel + readback + `release`, in Node and browser):
 
 Local (paths absolute; line numbers as of 2026-09-14):
 
-- `/home/apowers/Projects/graphty-monorepo/algorithms/src/index.ts`,
+- `algorithms/src/index.ts`,
   `algorithms/src/algorithms/index.ts` and the category barrels under
   `algorithms/src/algorithms/*/index.ts`, `algorithms/src/research/index.ts`,
   `algorithms/src/optimized/index.ts`, `algorithms/src/types/index.ts`
-- `/home/apowers/Projects/graphty-monorepo/algorithms/src/optimized/csr-graph.ts`,
+- `algorithms/src/optimized/csr-graph.ts`,
   `graph-adapter.ts`, `direction-optimized-bfs.ts`;
   `algorithms/src/algorithms/traversal/bfs-unified.ts`
-- `/home/apowers/Projects/graphty-monorepo/algorithms/package.json`,
+- `algorithms/package.json`,
   `layout/package.json`, `graphty-element/package.json`, `nx.json`,
   `pnpm-workspace.yaml`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`
-- `/home/apowers/Projects/graphty-monorepo/graphty-element/src/algorithms/Algorithm.ts`,
+- `graphty-element/src/algorithms/Algorithm.ts`,
   `index.ts`, `PageRankAlgorithm.ts`, `BetweennessCentralityAlgorithm.ts`,
   `LouvainAlgorithm.ts`, `DijkstraAlgorithm.ts`, `utils/graphConverter.ts`;
   `graphty-element/src/managers/AlgorithmManager.ts`, `managers/LayoutManager.ts`;
@@ -696,19 +696,19 @@ Local (paths absolute; line numbers as of 2026-09-14):
   `graphty-element/src/config/GraphBehavior.ts`;
   `graphty-element/src/ai/providers/index.ts`, `WebLlmProvider.ts`;
   `graphty-element/vite.config.ts`
-- `/home/apowers/Projects/graphty-monorepo/layout/src/layouts/force-directed/*.ts`
-- `/home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md`
+- `layout/src/layouts/force-directed/*.ts`
+- `design/graph-format/graph-format-design.md`
   (lines 60-80, 2320-2340, 3590-3727, 3728-3958, 3959-4047, 4110-4130,
   4170-4190, 4212-4278)
-- `/home/apowers/Projects/graphty-monorepo/tmp/graph-format-design/03-layout-needs.md`
+- `tmp/graph-format-design/03-layout-needs.md`
   (sections 4, 8.1, 9, 12), `04-graphty-element-usage.md` (section 4.3),
   `09-webgpu-requirements.md` (sections 0, 3, 6, 7.2)
-- `/home/apowers/Projects/webgpu-graph-algorithms/package.json`, `src/index.ts`,
+- `<staging>/package.json`, `src/index.ts`,
   `src/types/index.ts`, `packages/graph-format/src/index.ts`,
   `packages/graph-format/src/snapshot/views.ts`, `derived.ts`,
   `packages/graph-format/test/audit/gpu-upload.test.ts`,
   `packages/graph-format/package.json`
-- Clone: `/home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/repos/cuda-ffi/.github/workflows/build.yml`
+- Clone: `<staging>/tmp/webgpu-plan/repos/cuda-ffi/.github/workflows/build.yml`
   (self-hosted runner label `cudaffi-gpu-runner`, container
   `ghcr.io/apowers313/roc-dev:1.5.2` with `--gpus all`; CI detail belongs to
   the CI note, recorded here only as verified)

@@ -35,6 +35,7 @@ import {
     NO_DATA_ROWS_CODE,
     NO_ENDPOINT_COLUMNS_CODE,
     NO_ID_COLUMN_CODE,
+    NO_UNIQUE_ID_CODE,
     OTHER_FORMAT_CODE,
     PADDED_ID_CODE,
     POSSIBLE_HEADER_CODE,
@@ -86,6 +87,12 @@ export const CSV_ISSUE = Object.freeze({
      * import stops.
      */
     NO_ID_COLUMN: NO_ID_COLUMN_CODE,
+    /**
+     * Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or
+     * leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table
+     * by one of them anyway.
+     */
+    NO_UNIQUE_ID: NO_UNIQUE_ID_CODE,
     /**
      * A row with a different number of fields than the header; the row is skipped. An adjacency list read without
      * `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
@@ -169,8 +176,9 @@ export const CSV_ISSUE = Object.freeze({
     /** Several header columns name one role; the one not chosen is a plain attribute. */
     AMBIGUOUS_COLUMN: AMBIGUOUS_COLUMN_CODE,
     /**
-     * An id that is not quoted has spaces at its start or end; they are kept, so it is a different id from the trimmed
-     * text. Reported once per import.
+     * An id that is not quoted starts or ends in whitespace other than spaces and tabs (a no-break space); it is kept,
+     * so it is a different id from the trimmed text. Spaces and tabs around an id that is not quoted are trimmed.
+     * Reported once per import.
      */
     PADDED_ID: PADDED_ID_CODE,
     /** A leading # / % line skipped as a comment has the fields of a record. */

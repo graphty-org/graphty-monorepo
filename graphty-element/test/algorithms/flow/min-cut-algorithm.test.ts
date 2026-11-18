@@ -4,7 +4,17 @@ import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { GraphtyError } from "../../../src/errors";
+import type { Caveats } from "../../../src/session/runs/types";
 import { createMockGraph } from "../../helpers/mockGraph";
+
+/**
+ * The facts an algorithm's caveats carry, empty when its output states none.
+ * @param caveats - The caveats.
+ * @returns The facts.
+ */
+function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
+    return "facts" in caveats ? caveats.facts : [];
+}
 
 const PATH = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
@@ -83,7 +93,10 @@ describe("MinCutAlgorithm", () => {
             const first = (output.nodes ?? []).filter((node) => node.values.side === "1").length;
             assert.isAbove(first, 0);
             assert.isBelow(first, 3);
-            assert.include(output.caveats.notes, `The cut separates ${String(first)} nodes from ${String(3 - first)}.`);
+            assert.deepInclude(factsOf(output.caveats), {
+                code: "min-cut.sides",
+                params: { first, second: 3 - first },
+            });
         });
 
         it("says when one end was chosen automatically", async () => {
@@ -91,7 +104,10 @@ describe("MinCutAlgorithm", () => {
             const output = await new MinCutAlgorithm(graph, { source: "A" }).compute(detachedRunContext());
 
             assert.ok(output);
-            assert.match(output.caveats.notes.join("\n"), /chosen automatically/);
+            assert.include(
+                factsOf(output.caveats).map((fact) => fact.code),
+                "min-cut.end-chosen",
+            );
         });
     });
 });

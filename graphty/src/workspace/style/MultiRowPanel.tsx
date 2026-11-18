@@ -1,13 +1,16 @@
 /// <reference lib="es2023.array" />
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession, HistoryStepId, Layer, LayerReach, StyleRow } from "@graphty/graphty-element/session";
+import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-element/session";
 import { Stack } from "@mantine/core";
 import React, { useState } from "react";
 
-import { count, findTreeRow, type FoundRow } from "../graph-place/rows";
+import { fileStylesOn } from "../features";
+import { findTreeRow, type FoundRow } from "../graph-place/rows";
+import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { LayerSequence, LayerValues } from "./BulkBinding";
 import { writeKind } from "./cards";
+import { ruleLine } from "./parts/ruleLine";
 import type { BeneathValue, BulkReceipt, ManyRows, RowContext } from "./PropertyRow";
 import {
     beneathOf,
@@ -19,7 +22,7 @@ import {
     type Target,
     without,
 } from "./row";
-import { type KindControl, RowStyle, StateLine } from "./StylePanel";
+import { type KindControl, RowStyle } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
 import { channelPhrase } from "./words";
@@ -369,45 +372,6 @@ function treeLayers(session: GraphSession, id: string): string[] {
 }
 
 /**
- * The scope line: how many layers an edit reaches and what it leaves alone. "12 layers in Louvain:
- * 2 in Fantine's, 2 hidden, 1 locked and skipped. Layers added later are not changed."
- * @param tree - the style tree.
- * @param picked - the rows picked: layer rows and folders.
- * @param reach - the layer rows they reach.
- * @returns the words, or nothing when they would only repeat the header's count.
- */
-function scopeWords(tree: readonly StyleRow[], picked: readonly FoundRow[], reach: readonly LayerReach[]): string {
-    const folders = picked.filter((row) => row.row.kind === "folder");
-    const single = picked.length === 1 && folders.length === 1 ? folders[0].row : undefined;
-    const head =
-        single === undefined ? count(reach.length, "layer") : `${count(reach.length, "layer")} in ${single.name}`;
-    // Layers inside a folder nested in what was picked, by that folder's name.
-    const nested = new Map<string, number>();
-    for (const each of reach) {
-        const found = findTreeRow(tree, each.row);
-        const holder = found?.folders.at(-1);
-        const top = picked.some((row) => row.row.id === holder?.id || row.row.id === each.row);
-        if (holder !== undefined && !top) {
-            nested.set(holder.name, (nested.get(holder.name) ?? 0) + 1);
-        }
-    }
-    const hidden = reach.filter((row) => row.hidden).length;
-    const locked = reach.filter((row) => row.locked).length;
-    const parts = [
-        ...[...nested].map(([name, n]) => `${String(n)} in ${name}`),
-        ...(hidden === 0 ? [] : [`${String(hidden)} hidden`]),
-        ...(locked === 0 ? [] : [`${String(locked)} locked and skipped`]),
-    ];
-    const later = folders.length > 0 ? " Layers added later are not changed." : "";
-    // "3 layers." alone repeats the panel's header: there is nothing to add.
-    if (single === undefined && parts.length === 0 && later === "") {
-        return "";
-    }
-    const tail = parts.length === 0 ? "" : `: ${parts.join(", ")}`;
-    return `${head}${tail}.${later}`;
-}
-
-/**
  * What the kinds of several layer rows do: how many style nodes or edges, turning a kind on or off
  * for all of them in one step, and the picker of which elements each kind styles.
  * @param session - the element's session.
@@ -453,6 +417,7 @@ function kindControl(
                 rows={layerRows.filter((id) => has(id, side))}
                 side={side}
                 autoOpen={justOn}
+                {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
                 {...elsewhere}
             />
         ),
@@ -480,7 +445,7 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     const tree = session.styles.tree();
     const picked = ids.flatMap((id) => findTreeRow(tree, id) ?? []);
     if (picked.length === 0) {
-        return <StateLine>These rows are gone</StateLine>;
+        return null;
     }
     const reach = session.styles.layersUnder(picked.map((row) => row.row.id));
     const open = reach.filter((row) => !row.locked).flatMap((row) => findTreeRow(tree, row.row) ?? []);
@@ -493,10 +458,8 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     // Layer rows only: a folder has no pick of its own.
     const layerRows = open.filter((row) => row.row.kind !== "folder").map((row) => row.row.id);
     const kinds = kindControl(session, store, layerRows);
-    const scope = scopeWords(tree, picked, reach);
     return (
         <Stack gap={0}>
-            {scope === "" ? null : <StateLine id="ws-bulk-scope">{scope}</StateLine>}
             {sides.length > 0 && (
                 <RowStyle
                     key={layerIds.join(" ")}

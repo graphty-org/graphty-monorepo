@@ -2,7 +2,7 @@
  * Deterministic large fixtures for the streaming / performance audit (design sections 8.4 and
  * 15.5 item 5): edge lists of one million edges and XML documents of hundreds of thousands of
  * edges, generated once under `<workspace>/tmp/io-bench/` (two levels above this package) and
- * reused by `test/audit/streaming-*.test.ts` (gated on IO_BENCH=1) and `benchmarks/import.bench.ts`.
+ * reused by `test/audit/streaming-*.test.ts` and `benchmarks/import.bench.ts`.
  *
  * Every file is generated from a linear congruential generator seeded by the file name, so the
  * same name always yields the same bytes and a missing file is rebuilt identically. Generation is
@@ -105,8 +105,9 @@ class LineWriter {
 
 /**
  * Generate a file once: the generator runs only when the file is absent or empty, writing to a
- * `.partial` name that is renamed into place when complete (a crashed generation never leaves a
- * truncated fixture behind under the real name).
+ * `.<pid>.partial` name that is renamed into place when complete (a crashed generation never leaves a
+ * truncated fixture behind under the real name, and two test processes generating the same file at
+ * once each write their own and rename identical bytes into place).
  * @param name - the file name under FIXTURE_DIR
  * @param generate - writes the content
  * @returns the absolute path
@@ -117,7 +118,7 @@ function fixture(name: string, generate: (out: LineWriter, rnd: Lcg) => void): s
     if (existsSync(path) && statSync(path).size > 0) {
         return path;
     }
-    const partial = `${path}.partial`;
+    const partial = `${path}.${String(process.pid)}.partial`;
     const out = new LineWriter(partial);
     generate(out, new Lcg(seedOf(name)));
     out.close();

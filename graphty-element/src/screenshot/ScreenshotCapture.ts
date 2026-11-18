@@ -1,37 +1,38 @@
-import {
-    type AbstractMesh,
-    type Camera,
-    Constants,
-    CreateScreenshotAsync,
-    CreateScreenshotUsingRenderTarget,
-    DefaultRenderingPipeline,
-    EncodeArrayBufferToBase64,
-    EncodeImageAsync,
-    type Engine,
-    FxaaPostProcess,
-    type Mesh,
-    type RenderTargetTexture,
-    type Scene,
-    type WebGPUEngine,
-} from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import type { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { EncodeImageAsync } from "@babylonjs/core/Misc/dumpTools.js";
+import { CreateScreenshotAsync, CreateScreenshotUsingRenderTarget } from "@babylonjs/core/Misc/screenshotTools.js";
+import { EncodeArrayBufferToBase64 } from "@babylonjs/core/Misc/stringTools.js";
+import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess.js";
+import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types.js";
+import { colorToHex } from "../config/common.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
 import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
 import { SELECTION_HALO_MESH } from "../Node.js";
+import type { LegendBlock } from "../session/styles/legend.js";
 import { downloadBlob } from "../utils/download.js";
 import { captureError } from "./captureError.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
-import { drawLegend, legendBox } from "./drawLegend.js";
+import { drawLegend, legendBox, legendSections } from "./drawLegend.js";
 import { resolvePreset } from "./presets.js";
 import { enableTransparentBackground, restoreBackground } from "./transparency.js";
 import type {
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendPosition,
     ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
@@ -48,6 +49,12 @@ export class ScreenshotCapture {
      */
     private readonly skyboxMeshNames = ["testdome", "skybox", "skyBox", "Skybox"];
 
+    /** The key this capture draws and its corner, settled once the capture's waits are over. */
+    private legend: { sections: readonly ScreenshotLegendSection[]; position: ScreenshotLegendPosition } = {
+        sections: [],
+        position: "top-left",
+    };
+
     /**
      * Creates a new ScreenshotCapture instance
      * @param engine - The Babylon.js rendering engine
@@ -56,6 +63,7 @@ export class ScreenshotCapture {
      * @param graph - The graph instance for accessing layout and camera state
      * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
      *     looks final: a graph drawn on demand draws none for a background cleared for a moment
+     * @param readLegend - The element's legend (`session.styles.legend()`), for `legend: true`
      */
     constructor(
         private readonly engine: Engine | WebGPUEngine,
@@ -63,6 +71,7 @@ export class ScreenshotCapture {
         private readonly canvas: HTMLCanvasElement,
         private readonly graph: Graph,
         private readonly requestFrame: () => void = () => undefined,
+        private readonly readLegend: () => readonly LegendBlock[] = () => [],
     ) {}
 
     /**
@@ -94,43 +103,103 @@ export class ScreenshotCapture {
      * @returns Screenshot result with blob, metadata, and destination status
      */
     async captureScreenshot(options: ScreenshotOptions = {}): Promise<ScreenshotResult> {
+        const { signal } = options;
+        const captureNow = options.timing?.captureNow;
+        throwIfAborted(signal);
+
         // Check if we should wait for other operations (default: true)
         const waitForOperations = options.timing?.waitForOperations ?? true;
 
-        if (waitForOperations) {
-            // Enqueue the screenshot operation to ensure sequential execution
-            // Store the result in a variable and return it after the queue completes
-            let result: ScreenshotResult | null = null;
-
-            await operationQueueOf(this.graph).queueOperationAsync(
-                "render-update",
-                async () => {
-                    result = await this.doScreenshotCapture(options);
-                },
-                { description: "capture screenshot" },
-            );
-
-            // Result will always be set by the queued operation
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            return result!;
+        if (!waitForOperations || captureNow?.aborted === true) {
+            // Execute immediately without waiting for other operations
+            return this.doScreenshotCapture(options);
         }
 
-        // Execute immediately without waiting for other operations
-        return this.doScreenshotCapture(options);
+        // Queued, so captures run one after another. `captureNow` starts it ahead of the queue,
+        // and `signal` withdraws it while it waits there; either way the queued turn then only
+        // waits for the capture already running, or does nothing.
+        let started: Promise<ScreenshotResult> | undefined;
+        const start = (): Promise<ScreenshotResult> => (started ??= this.doScreenshotCapture(options));
+        const queued = operationQueueOf(this.graph).queueOperationAsync(
+            "render-update",
+            async () => {
+                if (signal?.aborted !== true || started) {
+                    await start();
+                }
+            },
+            { description: "capture screenshot" },
+        );
+
+        const controller = new AbortController();
+        try {
+            return await new Promise<ScreenshotResult>((resolve, reject) => {
+                const run = (): void => {
+                    start().then(resolve, reject);
+                };
+                captureNow?.addEventListener("abort", run, { signal: controller.signal });
+                // Once started, the capture itself watches the signal.
+                signal?.addEventListener(
+                    "abort",
+                    () => {
+                        if (!started) {
+                            reject(abortReason(signal));
+                        }
+                    },
+                    { signal: controller.signal },
+                );
+                queued.then(() => {
+                    if (started) {
+                        run();
+                    } else {
+                        reject(abortReason(signal));
+                    }
+                }, reject);
+            });
+        } finally {
+            controller.abort();
+        }
     }
 
     /**
      * The view insets that keep the key's own box clear: on the side that costs the canvas the
-     * smaller share, left of a tall key or above a wide one.
-     * @param legend - The key the capture draws.
+     * smaller share, beside a tall key or above or below a wide one, on the key's own corner.
      * @returns The insets to frame the capture with, in CSS pixels.
      */
-    private reserveLegend(legend: readonly ScreenshotLegendSection[]): ViewInsets {
-        const { right, bottom } = legendBox(legend);
+    private reserveLegend(): ViewInsets {
+        const { sections, position } = this.legend;
+        const { right, bottom } = legendBox(sections);
         const width = this.canvas.clientWidth || this.canvas.width;
         const height = this.canvas.clientHeight || this.canvas.height;
+        const side = position.endsWith("left") ? "left" : "right";
+        const edge = position.startsWith("top") ? "top" : "bottom";
 
-        return right / width <= bottom / height ? { left: right } : { top: bottom };
+        return right / width <= bottom / height ? { [side]: right } : { [edge]: bottom };
+    }
+
+    /**
+     * Settle what `options.legend` asks for: the caller's sections as given, or the element's own
+     * legend for `true`, `"auto"` and an options object.
+     * @param legend - The capture's `legend` option.
+     * @returns The sections to draw (none for no key) and their corner.
+     */
+    private resolveLegend(legend: ScreenshotOptions["legend"]): ScreenshotCapture["legend"] {
+        if (legend === undefined || legend === false) {
+            return { sections: [], position: "top-left" };
+        }
+        // Array.isArray does not narrow a readonly array out of a union.
+        if (typeof legend === "object" && "length" in legend) {
+            return { sections: legend, position: "top-left" };
+        }
+
+        const options = typeof legend === "object" ? legend : {};
+        const bound = legendSections(this.readLegend());
+        // "auto" draws only when a layer binds a value; true draws the heading even when none does.
+        const sections =
+            legend === "auto" && bound.length === 0
+                ? []
+                : [...(options.title === undefined ? [] : [{ title: options.title }]), ...bound];
+
+        return { sections, position: options.position ?? "bottom-right" };
     }
 
     /**
@@ -144,17 +213,6 @@ export class ScreenshotCapture {
      */
     private async doScreenshotCapture(options: ScreenshotOptions): Promise<ScreenshotResult> {
         const startTime = Date.now();
-
-        // Check engine configuration
-        const gl = (this.engine as Engine)._gl;
-
-        if (gl && !gl.getContextAttributes()?.preserveDrawingBuffer) {
-            throw captureError(
-                "E_UNSUPPORTED",
-                "Screenshot requires Engine to be created with preserveDrawingBuffer: true",
-                { reason: "preserve-drawing-buffer" },
-            );
-        }
 
         // Get timing options with defaults
         const timing = {
@@ -170,8 +228,16 @@ export class ScreenshotCapture {
 
         // 2. Wait for layout to settle if requested
         if (timing.waitForSettle) {
-            await this.waitForLayoutSettle(timing.settleTimeoutMs ?? SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
+            await this.waitForLayoutSettle(
+                timing.settleTimeoutMs ?? SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS,
+                options.signal,
+                timing.captureNow,
+            );
         }
+        throwIfAborted(options.signal);
+
+        // The legend is read once the queued edits have landed, so the key matches the picture.
+        this.legend = this.resolveLegend(options.legend);
 
         // 3. Handle camera override
         const cameraOverride = options.camera ? await this.overrideCamera(options, options.camera) : undefined;
@@ -252,8 +318,7 @@ export class ScreenshotCapture {
         options: ScreenshotOptions,
         camera: Extract<NonNullable<ScreenshotOptions["camera"]>, { preset: string }>,
     ): CameraState {
-        const legend = options.legend ?? [];
-        this.graph.setViewInsets(legend.length > 0 ? this.reserveLegend(legend) : {});
+        this.graph.setViewInsets(this.legend.sections.length > 0 ? this.reserveLegend() : {});
         const { params } = camera;
         return this.graph.resolveCameraPreset(camera.preset, params === undefined ? undefined : { params });
     }
@@ -333,19 +398,23 @@ export class ScreenshotCapture {
             finalOptions.quality ??
             (format === "jpeg" ? SCREENSHOT_CONSTANTS.DEFAULT_JPEG_QUALITY : SCREENSHOT_CONSTANTS.DEFAULT_PNG_QUALITY);
 
+        // A solid color, when given, is the background whatever transparentBackground says.
+        const background = backgroundColorOf(finalOptions.backgroundColor);
+        const transparent = background === undefined && finalOptions.transparentBackground === true;
+
         // Validate format-specific options
-        if (finalOptions.transparentBackground && format !== "png" && format !== "webp") {
+        if (transparent && format !== "png" && format !== "webp") {
             throw captureError("E_BAD_COMMAND", "Transparent background requires PNG or WebP format", {
                 fields: ["transparentBackground", "format"],
                 format,
             });
         }
 
-        // Handle transparent background
+        // Handle a transparent or solid background
         let backgroundState;
-        if (finalOptions.transparentBackground) {
+        if (transparent || background !== undefined) {
             const skyboxMesh = this.findSkyboxMesh();
-            backgroundState = enableTransparentBackground(this.scene, skyboxMesh);
+            backgroundState = enableTransparentBackground(this.scene, skyboxMesh, background);
             // A graph drawn on demand would hand back its last frame, background and all:
             // draw one with the background cleared before reading the canvas.
             this.requestFrame();
@@ -374,6 +443,8 @@ export class ScreenshotCapture {
         }
 
         try {
+            // The last moment a withdrawn capture can still leave nothing behind.
+            throwIfAborted(finalOptions.signal);
             return await this.deliver(finalOptions, { format, quality }, dimensions, enhancement, startTime);
         } finally {
             // Restore background state if it was modified
@@ -427,10 +498,12 @@ export class ScreenshotCapture {
             dimensions.height,
         );
         // The key goes on after any downscale, sized as on the canvas: output pixels per CSS pixel.
-        const legend = finalOptions.legend ?? [];
+        const { sections, position } = this.legend;
         const scale = dimensions.width / (this.canvas.clientWidth || this.canvas.width);
         const blobPromise =
-            legend.length === 0 ? captured : captured.then((blob) => drawLegend(blob, legend, scale, quality));
+            sections.length === 0
+                ? captured
+                : captured.then((blob) => drawLegend(blob, sections, scale, quality, position));
 
         // If clipboard is requested, start clipboard write immediately (before blob is ready)
         // This preserves the user gesture context
@@ -495,10 +568,16 @@ export class ScreenshotCapture {
      * Throws a GraphtyError with E_NOT_SETTLED if the layout doesn't settle
      * within the given timeout.
      * @param timeoutMs - How long to wait, in milliseconds.
+     * @param signal - Aborted, the wait rejects with the signal's reason.
+     * @param captureNow - Aborted, the wait ends as though the layout had settled.
      * @returns Promise that resolves when layout has settled
      * @internal
      */
-    private async waitForLayoutSettle(timeoutMs: number): Promise<void> {
+    private async waitForLayoutSettle(
+        timeoutMs: number,
+        signal?: AbortSignal,
+        captureNow?: AbortSignal,
+    ): Promise<void> {
         const layoutManager = this.graph.getLayoutManager();
 
         if (!layoutManager.layoutEngine) {
@@ -510,22 +589,51 @@ export class ScreenshotCapture {
         // converge would time out on every capture of a paused graph.
         const atRest = (): boolean => !layoutManager.running || layoutManager.isSettled;
 
-        if (atRest()) {
+        if (atRest() || captureNow?.aborted === true) {
             return Promise.resolve();
         }
+        throwIfAborted(signal);
 
         // Wait for layout to settle (with timeout)
         return new Promise((resolve, reject) => {
             let completed = false;
             let listenerId: symbol | null = null;
+            const stopListening = new AbortController();
 
             const cleanup = (): void => {
                 clearTimeout(timeout);
+                stopListening.abort();
                 if (listenerId) {
                     this.graph.eventManager.removeListener(listenerId);
                     listenerId = null;
                 }
             };
+
+            const finish = (outcome: () => void): void => {
+                if (!completed) {
+                    completed = true;
+                    cleanup();
+                    outcome();
+                }
+            };
+            captureNow?.addEventListener(
+                "abort",
+                () => {
+                    finish(resolve);
+                },
+                { signal: stopListening.signal },
+            );
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    finish(() => {
+                        reject(abortReason(signal));
+                    });
+                },
+                {
+                    signal: stopListening.signal,
+                },
+            );
 
             const timeout = setTimeout(() => {
                 if (!completed) {
@@ -566,6 +674,14 @@ export class ScreenshotCapture {
                 resolve();
             });
         });
+    }
+
+    /**
+     * Whether the canvas keeps its last drawn frame between frames.
+     * @returns True for a WebGL context with preserveDrawingBuffer.
+     */
+    private keepsFrames(): boolean {
+        return (this.engine as Engine)._gl?.getContextAttributes()?.preserveDrawingBuffer === true;
     }
 
     /**
@@ -621,6 +737,12 @@ export class ScreenshotCapture {
                 1 / Math.min(this.canvas.width, this.canvas.height);
             let dataUrl: string;
             if (sameSize || !sameShape) {
+                // Babylon copies the canvas at the end of the next frame. A canvas that keeps no
+                // frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture only in a
+                // frame that drew one, and a graph drawn on demand may draw none: ask for one.
+                if (!this.keepsFrames()) {
+                    this.requestFrame();
+                }
                 dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
             } else {
                 const scale = captureWidth / this.canvas.width;
@@ -894,6 +1016,49 @@ function tryDownload(blob: Blob, filename: string): boolean {
     }
 }
 
+/**
+ * What a capture withdrawn by its `signal` rejects with: the signal's reason when it is an error
+ * (an `AbortError` `DOMException` unless the caller gave another), as `fetch` does.
+ * @param signal - The capture's signal.
+ * @returns The error.
+ */
+function abortReason(signal: AbortSignal | undefined): Error {
+    const reason: unknown = signal?.reason;
+    return reason instanceof Error ? reason : new DOMException("Screenshot capture was aborted", "AbortError");
+}
+
+/**
+ * Reject a capture whose `signal` is already aborted, with the signal's reason (an `AbortError`
+ * `DOMException` unless the caller gave another), as `fetch` does.
+ * @param signal - The capture's signal.
+ */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+    signal?.throwIfAborted();
+}
+
+/**
+ * The clear color for a capture's `backgroundColor`, opaque.
+ * @param color - Any CSS color, or undefined for none.
+ * @returns The color, or undefined when none was asked for.
+ */
+function backgroundColorOf(color: string | undefined): Color4 | undefined {
+    if (color === undefined) {
+        return undefined;
+    }
+
+    let hex: string | undefined;
+    try {
+        hex = colorToHex(color);
+    } catch {
+        hex = undefined;
+    }
+    if (hex === undefined || !/^#[0-9A-F]{6}$/.test(hex)) {
+        throw captureError("E_OPTION_RANGE", `Not a color: ${color}`, { option: "backgroundColor", value: color });
+    }
+
+    return Color4.FromHexString(`${hex}FF`);
+}
+
 interface EnhancementState {
     supersampleFactor: number;
     supersampledWidth: number;
@@ -1007,6 +1172,11 @@ export async function renderTargetCapture(
             true,
             undefined,
             (texture) => {
+                // Babylon draws the capture with the scene's mesh list swapped for a copy taken when
+                // the capture began, and puts the old list back after. A node mesh built during that
+                // draw went into the copy and was gone from the scene, so a model a layer had just
+                // asked for was never drawn on the graph. The live list keeps every mesh made then.
+                texture.renderList = camera.getScene().meshes;
                 readWithoutBlocking(engine, texture, reject);
                 customize?.(texture);
             },

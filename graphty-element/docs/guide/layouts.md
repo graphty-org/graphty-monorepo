@@ -47,8 +47,9 @@ package `@hpcc-js/wasm-graphviz`. See [Graphviz layouts](./graphviz-layouts).
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
 `element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
 nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
-but never restarts the simulation. `getLayoutManager().isPaused` is true for a layout stopped
-before it came to rest, and `isSettled` is true only once it has. They are also the three that run on a hardware
+but never restarts the simulation. `session.layout.motion` reads `paused` for a layout stopped
+before it came to rest, and `settled` only once it has (see
+[Showing whether the layout is moving](#showing-whether-the-layout-is-moving)). They are also the three that run on a hardware
 accelerator when there is one -- and `spring-electrical` only runs on one. It has no CPU
 implementation at all, so `setLayout("spring-electrical")` without an accelerator that implements
 it throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way. See the
@@ -377,17 +378,19 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
 - **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
   the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
   when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
-  the whole globe, which fills the view.
+  the data, turned to face it; data that spans most of the earth opens on the whole globe, which
+  fills the view.
 - **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
   than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
   Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
   three times the room between neighbors. The camera still opens framed on the whole map. With
-  `nodeScale: "screen"`, a flat map's nodes are drawn `mapScale` times smaller on screen, which
-  gives the same room; a globe's keep their size on screen.
-- **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
-  so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
-  (`flatNodeScale / (size * mapScale)` on a flat map, where `flatNodeScale` defaults to 1) whatever
-  the zoom, measured at the map's surface, with its arrowheads in proportion.
+  nodes sized on screen (below), a flat map's nodes are drawn `mapScale` times smaller on screen,
+  which gives the same room; a globe's keep their size on screen.
+- **Node size.** The map supplies the screen reference for the `node.sizeSpace: "screen"` style
+  option (see [Node size and the camera](./styling.md#node-size-and-the-camera)): a node of size 1
+  is drawn at `1 / size` of the view's height on a globe and at `flatNodeScale / (size * mapScale)`
+  on a flat map (`flatNodeScale` defaults to 1), whatever the zoom, with its arrowheads in
+  proportion.
 - **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
   draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
   and lights one side from where the sun is overhead. Each part is off unless set; a view
@@ -406,7 +409,8 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
     g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
     ```
 
-    The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.
+    The element draws no credit over the canvas; the map's credits are data on
+    `element.basemapStatus.attribution`, for the page to show where it chooses.
     The map is saved with the layout in the project.
 
 ### forceatlas2 (Force-Directed, live)
@@ -470,6 +474,44 @@ await graph.waitForSettled();
 
 graph.setLayout("circular");
 ```
+
+## Running the layout again
+
+`session.layout.rerun()` runs the current layout again, with the same engine, options and scope,
+as choosing it again would. It is one undoable step of its own: its history fact is
+`{ code: "layout.rerun", params: { layout } }`, not a change of layout, so an undo list can say
+"Undo re-running the layout", and undo puts the nodes back where they were.
+
+```typescript
+const session = element.session;
+await session.layout.rerun();
+await session.undo(); // the nodes go back
+```
+
+## Showing whether the layout is moving
+
+`session.layout.motion` is `"running"` while the layout steps, `"paused"` when
+`element.setRunning(false)` stopped it before it came to rest, and `"settled"` once it has come to
+rest. The session's `layout:motion-changed` event fires on every change: a pause, a resume, the
+layout coming to rest and a layout starting again.
+
+```typescript
+const session = element.session;
+const chip = document.querySelector("#motion")!;
+const button = document.querySelector<HTMLButtonElement>("#pause")!;
+
+function show(motion: "running" | "paused" | "settled"): void {
+    chip.textContent = motion;
+    button.textContent = motion === "running" ? "Pause" : "Resume";
+    button.disabled = motion === "settled";
+}
+
+show(session.layout.motion);
+session.on("layout:motion-changed", ({ motion }) => show(motion));
+button.addEventListener("click", () => element.setRunning(session.layout.motion !== "running"));
+```
+
+A session with no renderer (in Node) always reads `"settled"` and never fires the event.
 
 ## Waiting for Settled
 
@@ -655,9 +697,11 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 
 ## Laying out only what the filter shows
 
-By default a layout runs over the whole graph, nodes the [visibility filter](./filter-conditions)
-hides included, so the shown nodes keep the places the whole graph gave them. Set
-`layout.visibleOnly` in the layout behaviour to lay out only what the filter shows:
+A layout runs over what is shown -- the nodes and edges the [filters](./filter-conditions) leave
+visible -- while the element's `workingGraph` option is on, the default,
+and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
+alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
+shown nodes keep the places the whole graph gave them.
 
 ```typescript
 element.layoutBehavior = { layout: { visibleOnly: true } };
@@ -668,13 +712,12 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 
 - **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
   circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
-- **The layout runs again when the filter changes**, and when `visibleOnly` is switched on or off.
+- **The layout runs again when a filter changes what is shown**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
-- **While time plays, it can hold.** A playing [time window](./timeline) changes what the
-  filter shows at every step, so by default the layout runs again at every step. Set
-  `layout.visibleOnlyWhilePlaying: "hold"` to keep the nodes where they are during the play and
-  lay out once, over what is shown, when the play pauses or ends.
+- **The [time window](./timeline) never moves it.** The window hides what lies outside it with a
+  style, so stepping or playing time lays nothing out and no node moves. The layout follows the
+  filters only.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
   those still push and pull on its members unless the filter hides them.
 

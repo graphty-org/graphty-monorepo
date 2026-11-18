@@ -60,8 +60,8 @@ describe("a style edit in the history", () => {
         const layer = await session.styles.add(RED);
 
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ['Added layer "Red"'],
+            session.history.steps.map((step) => step.fact),
+            [{ code: "style.add-layer", params: { layer: "Red" } }],
         );
         assert.deepEqual(session.history.steps[0]?.ops, ["style.patch"]);
         assert.deepEqual(session.history.steps[0]?.slices, ["styles"]);

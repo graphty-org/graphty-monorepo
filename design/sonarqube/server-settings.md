@@ -1,5 +1,7 @@
 # SonarQube server settings for graphty-monorepo
 
+> Retired 2026-11-16: replaced by ESLint rules and jscpd (issue #8365).
+
 What is configured on the owner's SonarQube server (Community Build 26.3.0.120487; its address is
 `SONAR_HOST_URL` in `.env`) for this repository, and how to reproduce it. Nothing here is set by
 hand in the web UI: every setting below is applied by one idempotent command, so a rebuilt server,

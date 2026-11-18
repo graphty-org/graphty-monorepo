@@ -11,16 +11,16 @@ the expectation today; the reference points into
 
 | Format | Fixtures | Conform | Known failures | Round trips | Round-trip failures |
 |---|---|---|---|---|---|
-| csv | 83 | 72 | 11 | 70 | 0 |
+| csv | 83 | 75 | 8 | 73 | 0 |
 | cx | 51 | 51 | 0 | 47 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 0 |
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 196 | 0 | 178 | 0 |
-| gexf | 110 | 107 | 3 | 104 | 1 |
-| gml | 109 | 98 | 11 | 88 | 3 |
+| gexf | 110 | 110 | 0 | 107 | 0 |
+| gml | 109 | 109 | 0 | 98 | 0 |
 | graphml | 148 | 148 | 0 | 134 | 0 |
-| json | 427 | 420 | 7 | 102 | 0 |
-| neo4j | 45 | 30 | 15 | 29 | 0 |
+| json | 427 | 427 | 0 | 109 | 0 |
+| neo4j | 45 | 45 | 0 | 44 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
@@ -87,6 +87,7 @@ rest of the format's expectations does something else.
 - cys (cytoscape-integration-tests): Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1); Cytoscape shows 4 nodes and 2 edges (1 file)
 - cys (spec): Cytoscape's entry patterns need a folder before networks/ and tables/, so it loads nothing; the entries are unambiguous, so graph-io reads them (1 file)
 - cys (spec): Cytoscape throws a NullPointerException; graph-io skips the table and says so (1 file)
+- gml (networkx-3.1): networkx ignores OGDF's rootcluster block (an unknown top-level key); OGDF's own reader reads it as the cluster tree, which graph-io keeps as group nodes (2 files)
 - json (python-json-obographs): fastobo.load_graph reads the untyped nodes as Typedefs (11 Terms); the schema makes type optional and says nothing of untyped nodes being properties, so they are nodes (design 4.6: every node is a node) (1 file)
 - obo (spec): fastobo keeps the backslash and reads the next line as a separate clause; the 1.2 guide defines the backslash at a line end as a continuation (1 file)
 - obo (spec): fastobo and ROBOT reject the whole file; graph-io skips the one clause (design 4.3) (1 file)
@@ -152,11 +153,6 @@ rest of the format's expectations does something else.
 - `gephi/mixed.csv`: nodes: expected 7, got 5; edges: expected 10, got 5
 - `networkx/karate.adjlist`: nodes: expected 34, got 2; edges: expected 78, got 1
 
-### a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4) (#7634) (2)
-
-- `csv-spectrum/empty.csv`: nodes: expected 2, got 4; edges: expected 1, got 2
-- `csv-spectrum/empty_crlf.csv`: nodes: expected 2, got 4; edges: expected 1, got 2
-
 ### networkx dict-repr data column not parsed (sources.md 7.4) (#7637) (2)
 
 - `networkx/karate.edgelist`: nodes: expected 34, got 0; edges: expected 78, got 0
@@ -173,10 +169,6 @@ rest of the format's expectations does something else.
 ### matrix CSV not detected (sources.md 7.4) (#7637) (1)
 
 - `gephi/matrix.csv`: nodes: expected 5, got 7; edges: expected 6, got 5
-
-### unquoted id cells are not trimmed (sources.md 7.4) (#7635) (1)
-
-- `dialect/whitespace-around-fields.csv`: nodes: expected 3, got 4; node "c" missing
 
 
 ## cx
@@ -197,59 +189,11 @@ No known failures.
 
 ## gexf
 
-### 1.1 <slices> skipped instead of read as spells (sources.md 1.4 Graph element) (#7643) (1)
-
-- `authored/slices-1.1.gexf`: issue W_UNKNOWN_ELEMENT present
-
-### 1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes) (#7642) (1)
-
-- `graphology/v1_3.gexf`: node "Suzy" single: expected ["a","'b'","c"], got ["a","\\b\\''","c"]
-
-### round trip: dynamic attribute values shift by one element on GEXF re-export (#7644) (1)
-
-- `gephi-datasets/photoviz-dynamic.gexf`: extensions.temporal:node:codelines.element[308]: expected 121, got 120; extensions.temporal:node:codelines.element[309]: expected 122, got 121
-
-### undeclared attvalue dropped instead of kept with a warning (sources.md 1.4 Attributes) (#7641) (1)
-
-- `graphology/undeclared_attribute.gexf`: node 0 url: no such column
-
+No known failures.
 
 ## gml
 
-### a node without id is skipped instead of given a generated id (sources.md 4.4) (#7645) (4)
-
-- `igraph/tests_unit_graph2.gml`: nodes: expected 3, got 0
-- `igraph/tests_regression_bug_2497.gml`: nodes: expected 2, got 1
-- `ogdf/invalid_missing-id.gml`: nodes: expected 3, got 2
-- `authored/node-without-id.gml`: nodes: expected 3, got 2; label "no id" missing (no label column)
-
-### string and bare-word node ids are rejected (sources.md 4.4) (#7645) (4)
-
-- `ogdf/invalid_invalid-integer.gml`: failed: E_SYNTAX: "invalid_invalid-integer.gml" could not be read as gml: expected a value for key "source" at line 12, found "fooBar"
-- `gephi/label.gml`: failed: E_SYNTAX: "label.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
-- `gephi/emojis.gml`: failed: E_SYNTAX: "emojis.gml" could not be read as gml: expected a value for key "id" at line 5, found "A"
-- `authored/bareword-ids.gml`: failed: E_SYNTAX: "bareword-ids.gml" could not be read as gml: expected a value for key "id" at line 2, found "a"
-
-### round trip: exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (#7647) (3)
-
-- `netzschleuder/karate-77.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-- `netzschleuder/lesmis.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-- `authored/underscore-keys.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-
-### graph-io reads OGDF's rootcluster block as a group node (id cluster<id>) holding its vertices, which networkx ignores (ISSUES.md, Specimen sheets: GML) (#7648) (2)
-
-- `ogdf/cluster_malformed-node-index.gml`: nodes: expected 3, got 4
-- `ogdf/cluster_node-in-two-clusters.gml`: nodes: expected 3, got 4
-
-### round trip: the group node's id cluster<id> is not a GML integer id, so the GML export throws E_INVALID_ID unless sanitizeIds is set (ISSUES.md, Specimen sheets: GML) (#7648) (2)
-
-- `ogdf/cluster_malformed-node-index.gml`: (no detail)
-- `ogdf/cluster_node-in-two-clusters.gml`: (no detail)
-
-### no nesting depth guard (sources.md 4.4) (#7646) (1)
-
-- `authored/deep-nesting-5000.gml`: imported (1 nodes) where a failure was expected
-
+No known failures.
 
 ## graphml
 
@@ -257,55 +201,11 @@ No known failures.
 
 ## json
 
-### top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (#7652) (2)
-
-- `cytoscape/abcde.json`: edges: expected 7, got 0; node "a" missing
-- `cytoscape/gal.json`: failed: E_MISSING_ENDPOINT: error limit of 100 exceeded: edges[100] has no source
-
-### a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer) (#7651) (1)
-
-- `networkx/nan-inf-bigint-tuple.node_link.json`: nodes: expected 5, got 4; edges: expected 3, got 1
-
-### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (#7652) (1)
-
-- `sigma/clique3.json`: node "6" role:position: no such column; node "9" role:position: no such column
-
-### links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (#7652) (1)
-
-- `authored/links-and-edges.json`: edges: expected 2, got 1; edge "a"->"b" missing
-
-### networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape) (#7652) (1)
-
-- `networkx/karate.cytoscape.json`: directed: expected false, got true
-
-### vis x / y not mapped to position (sources.md 8.4 other dialects) (#7652) (1)
-
-- `vis/network.json`: node 1 role:position: no such column; node 2 role:position: no such column
-
+No known failures.
 
 ## neo4j
 
-### APOC JSON exports are not read (sources.md 9.4) (#303) (12)
-
-- `apoc-json/all.json`: failed: E_CSV_QUOTE: "all.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: "all_array.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: "all_fields.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: "all_id_as_keys.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: "all_withoutNodeProps_withoutRelProps.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: "multiLabels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: "nodes_without_labels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: "relationship_type_injection.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: "importPointValues.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: "query_nodes.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: "query_nodes_path.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: "MapPath.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-
-### APOC CSV exports are not read (sources.md 9.4) (#304) (3)
-
-- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: "export-all.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _e
-- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: "multi-labels.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, 
-- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: "quotes-none.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _
-
+No known failures.
 
 ## obo
 
@@ -334,7 +234,7 @@ announced an E_ code (a documented refusal).
 | gml | 300 | 300 | 0 | 0 | boolAsInt |
 | dot | 300 | 268 | 32 (E_DOT_TRAILING_BACKSLASH) | 0 | idText, negativeZero, nonFiniteText, textInferred |
 | pajek | 300 | 137 | 163 (E_PAJEK_TEXT) | 0 | idText, negativeZero, nonFiniteText, textInferred |
-| csv | 300 | 300 | 0 | 0 | direction, idText, negativeZero, nodeOrder, nonFiniteText, textInferred |
+| csv | 300 | 246 | 54 (E_ID_CHARSET) | 0 | direction, idText, negativeZero, nodeOrder, nonFiniteText, textInferred |
 | neo4j | 300 | 300 | 0 | 0 | direction, idText |
 | json node-link | 300 | 300 | 0 | 0 | negativeZero, nonFiniteUnset |
 | json jgf | 300 | 300 | 0 | 0 | idString, negativeZero, nodeOrder, nonFiniteUnset |
@@ -391,4 +291,19 @@ Minimal cases (`fixtures/generative/cases.json`):
 
 ## Schema validation
 
-Not run: no Python with lxml and jsonschema (set GRAPH_IO_SCHEMA_PYTHON).
+Validated 1374 dot, 1413 gexf-1.2draft, 1413 gexf-1.3, 1414 graphml, 1423 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
+797 documents have at least one error.
+
+| Class | Errors | Kind | Why |
+|---|---|---|---|
+| GEXF viz namespace (gexf) | 424 | deviation | the XSDs are generated by trang from the normative RNC, whose `default namespace = inherit` puts color / position / size / shape in the GEXF namespace; the gexf.net samples, the primer, Gephi and networkx all write them in the viz namespace, and so does graph-io |
+| GraphML nested-graph keyref (graphml) | 261 | deviation | node_id_key selects .//node in EVERY graph, so a nested graph's keys reach its parent's table twice and libxml2 rejects an outer edge into a nested graph; the GraphML primer's own nested.graphml fails identically |
+| GraphML nested-graph port key (graphml) | 2 | deviation | port_name_key selects .//port, which also reaches the ports of the nodes of a node's nested graph, so two of those nodes with a port of the same name (DOT record fields f0, f1, ... in a cluster) collide in their container's table; its own documentation scopes the names to "each <port> element within this <node>", and graph-io never writes one name twice on one node |
+| yFiles extension content (graphml) | 19 | deviation | yEd and yFiles extend GraphML the way the specification provides (an XSD that redefines data-extension.type and key.extra.attrib, yWorks' ygraphml.xsd); the stock XSD here does not load that extension, so the yFiles data and key attributes a yEd or yFiles file carried, which graph-io writes back as read, are rejected; the source file fails the stock XSD identically |
+| NMTOKEN character edition (graphml) | 327 | deviation | libxml2 checks xs:NMTOKEN with the XML 1.0 second-edition character classes (XSD 1.0); graph-io's NMTOKEN test uses the XML 1.0 fifth-edition name characters (supplementary planes, U+FFFD...), which XSD 1.1 processors and every non-validating reader accept |
+| source text passed through (graphml) | 7 | deviation | an attr.type the source declared and GraphML does not define is written back as declared (the importer kept it as text with W_UNKNOWN_ATTR_TYPE); the source was already schema-invalid |
+| source date passed through (gexf) | 2 | deviation | a meta lastmodifieddate the source wrote in another date syntax is written back as read; the source was already schema-invalid |
+| GEXF infinite weight spelling (gexf) | 96 | known failure | an infinite edge weight is written `Infinity`; the XSD types weight xs:float, whose spelling is INF / -INF (Gephi's Java parser reads Infinity, not INF, so the fix needs a decision) |
+| GraphML attr.name outside NMTOKEN (graphml) | 175 | known failure | a column name is written as attr.name unchecked; a name with a space, or the `<name>#<id>` of graph-io's own rename rule, is not an NMTOKEN |
+| GEXF 1.3 date attribute type (gexf) | 5 | known failure | a date / dateTime column is declared with type="date" / "dateTime"; GEXF 1.3's attrtype-type has no such types (they are timeformat values), so the column should be written as string or its time value |
+| JGF numeric edge id (jgf) | 72 | known failure | a numeric edge id is written as a JSON number; the JGF v2 schema requires a string |

@@ -44,8 +44,11 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
+export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection } from "./src/a11y/ScreenReader";
 export { Edge, type EdgeCapEnd } from "./src/Edge";
-export type { NodeScreenPosition } from "./src/Graph";
+// what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
+export type { GraphOverview, OverviewOptions, OverviewRect } from "./src/camera/overview";
+export type { NodeScreenPosition, StableFrameOptions } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,
@@ -54,8 +57,10 @@ export type {
     GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
+    GraphtySkyboxLoadedDetail,
 } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
+export type { PatternedLineMesh } from "./src/meshes/PatternedLineMesh";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
 // `Styles`, `StylesOpts`, `NodeStyleId` and `EdgeStyleId` are no longer published, and neither is
@@ -93,6 +98,8 @@ export type {
     Lighting,
     LocationSourceFact,
     MapFrameFact,
+    // How a node's drawn size follows the camera, as `node.sizeSpace` takes it
+    NodeSizeSpace,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -129,6 +136,7 @@ export {
     isViewMode,
     LIGHTING_VALUES,
     NodeShapes,
+    NodeSizeSpaces,
     NodeStyle,
     RichTextStyle,
     VIEW_MODE_VALUES,
@@ -244,12 +252,14 @@ export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSourc
 export { DataSource } from "./src/data/DataSource";
 export type {
     ExportGraphOptions,
+    ExportGroupTable,
     ExportLoss,
     ExportLossCode,
     ExportResult,
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -334,6 +344,9 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    OverviewChangedEvent,
+    RenderLostEvent,
+    RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     XRSessionEndedEvent,
@@ -376,28 +389,31 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // Screenshot exports
 // =============================================================================
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
-export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
+export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {
     CameraAnimationOptions,
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendOptions,
+    ScreenshotLegendPosition,
     ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
-export type { CapabilityCheck } from "./src/screenshot/capability-check";
+export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/capability-check";
 
 // =============================================================================
 // Video capture exports
 // =============================================================================
 export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
+export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";
@@ -412,6 +428,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * array of five cannot.
  */
 export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================
 // Errors
@@ -447,6 +464,7 @@ export type {
     RendererStatus,
 } from "./src/managers/RenderManager";
 export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
+export type { Antialias } from "./src/meshes/PulledLineBatch";
 
 // =============================================================================
 // Acceleration

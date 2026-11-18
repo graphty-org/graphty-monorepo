@@ -8,6 +8,8 @@
  * file records.
  */
 
+import { normalizePath, roleOfName } from "babylonjs-models/detect";
+
 import type { LayerId } from "../../catalog/types";
 import type { GraphtyErrorCode, GraphtyWarningCode } from "../../errors/codes";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -16,7 +18,6 @@ import type { GraphSession } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import type { AssetRecord, AssetsApiInternal } from "./AssetsApi";
 import { digestFileSet } from "./digest";
-import { normalizePath, roleOfName } from "./references";
 
 /** The member's kind. */
 export const ASSETS_MEMBER = "graphty-assets";

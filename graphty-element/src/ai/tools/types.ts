@@ -7,7 +7,7 @@
 
 import type { z } from "zod";
 
-import type { AiEffect, AiTarget } from "../../catalog/ai";
+import type { AiEffect, AiImageModelDescriptor, AiTarget } from "../../catalog/ai";
 import type {
     AlgorithmDescriptor,
     CameraDescriptor,
@@ -22,6 +22,7 @@ import type { AiEvent } from "../../events";
 import type { ChannelDescriptor } from "../../session/styles/channels";
 import type { GraphSession, TransactionScope } from "../../session/types";
 import type { CommandContext } from "../commands/types";
+import type { GeneratedImage } from "../engine/types";
 
 /** A value that survives `JSON.stringify` unchanged. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -112,21 +113,44 @@ export interface SettleContext {
     readonly host: ToolHost;
 }
 
+/** The session codes that mean a step cause `AI_TOOL_CAUSE_CODES` already names, by that cause. */
+const SESSION_CAUSES: Readonly<Record<string, string>> = {
+    E_BAD_SELECTOR: "AI_BAD_SELECTOR",
+    E_UNKNOWN_ATTRIBUTE: "AI_UNKNOWN_COLUMN",
+    E_UNSUPPORTED: "AI_NOT_AVAILABLE",
+    E_UNKNOWN_RUN: "AI_UNKNOWN_RUN",
+    E_OPTION_RANGE: "AI_ARG_OUT_OF_RANGE",
+};
+
+/**
+ * A step's cause under its one code: a session code with an `AI_*` twin becomes the twin, so a
+ * cause reads the same whichever route reported it.
+ * @param code - The cause code or a session `E_*` code.
+ * @returns The cause.
+ */
+export function stepCause(code: string): string {
+    return SESSION_CAUSES[code] ?? code;
+}
+
 /**
  * A coded refusal an action throws: the model reads `{ code, params }` and can fix the call in
  * one retry. Never thrown for a bug; a bug is an ordinary error and fails the message.
  */
 export class ToolRefusal extends Error {
+    /** The cause code (`AI_TOOL_CAUSE_CODES`), or a session `E_*` code that has no `AI_*` twin. */
+    readonly code: string;
+
     /**
      * A refusal.
-     * @param code - The cause code (`AI_TOOL_CAUSE_CODES`) or a session `E_*` code.
+     * @param code - The cause code or a session `E_*` code; one with an `AI_*` twin is stored as the twin.
      * @param params - The facts the model needs to fix the call.
      */
     constructor(
-        readonly code: string,
+        code: string,
         readonly params: JsonObject = {},
     ) {
-        super(code);
+        super(stepCause(code));
+        this.code = stepCause(code);
         this.name = "ToolRefusal";
     }
 }
@@ -139,15 +163,25 @@ export interface ToolHost {
     readonly readerText: string;
     /** Admits a URL the reader did not type; absent, none is admitted. */
     readonly allowImportUrl?: (url: URL) => boolean;
+    /** Where `load_dataset` downloads datasets from: the host's `datasetBaseUrl`. */
+    readonly datasetBaseUrl?: string;
+    /** The provider's name, for a refusal's params. */
+    readonly provider?: string;
+    /** The provider's image model, with the reader's key; absent when the provider makes no pictures. */
+    readonly image?: {
+        readonly model: AiImageModelDescriptor;
+        generate(prompt: string, signal: AbortSignal): Promise<GeneratedImage>;
+    };
 }
 
 /**
  * Why a batch is held for the reader's approval: a measured limit, `"policy"` when the host's
  * approval policy asked about one of its calls, `"plan"` for a hand-off to helpers while
- * `confirmPlans` is set, or `"web-content"` for a call that does not only read while the message
- * holds text read on the web.
+ * `confirmPlans` is set, `"web-content"` for a call that does not only read while the message
+ * holds text read on the web, or `"paid"` for a call the provider bills (a generated picture).
  */
-export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content";
+export type GateKind =
+    "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | "paid";
 
 /** One call the model made, as an approval policy judges it before anything runs. */
 export interface AiToolCallFacts {

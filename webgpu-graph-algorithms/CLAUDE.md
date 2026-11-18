@@ -20,7 +20,9 @@ The normative documents, in order of authority (paths from the monorepo root):
 - `design/webgpu/webgpu-acceleration-plan.md` (the "spec"): runtime (2), architecture (3), memory (4), kernels (5),
   primitives (6), layouts (7), algorithms (8), integration (9), targets (10), testing (11), CI (12), gates (13).
 - `docs/decisions/G<n>.md`: what each gate measured and signed off; re-fixed constants cite them.
-- `docs/research/`; `docs/HEADLESS_GPU_REPORT.md` is the verified recipe for the real GPU under headless Chromium.
+- `docs/research/01-*.md` .. `07-*.md`, the seven research notes; `docs/HEADLESS_GPU_REPORT.md` is the verified
+  recipe for the real GPU under headless Chromium. The plan drafts and reviews in
+  `design/webgpu/plan-drafts-and-reviews/` are superseded records, never normative.
 
 Where the contract is silent, choose the simplest option consistent with the spec and record it as a `PLAN DECISION`
 in the phase plan; where it is wrong, change the contract first.
@@ -44,7 +46,7 @@ ONE copy, `scripts/gpu-policy.js`; the runner-class rule ONE copy, `scripts/runn
 pnpm run build:all          # tsc -p tsconfig.build.json, then the multi-entry vite bundle and the d.ts shims
 pnpm run lint               # eslint + tsc --noEmit + tsc -p tsconfig.strict-consumer.json (build first)
 pnpm run test:node          # the whole node suite, one file at a time; the default adapter
-pnpm run coverage           # the node suite with the 80/80/75/80 thresholds
+pnpm run coverage           # the node suite with the 90/90/90/90 thresholds
 pnpm run test:browser:ci    # node scripts/run-browser-project.js (SwiftShader unless GRAPHTY_BROWSER_GPU=nvidia)
 pnpm run test:limits        # vitest run --project=node-limits (GPU lane only)
 pnpm run bench              # tsx benchmarks/run.ts -> benchmarks/out/<runner-class>.json
@@ -99,7 +101,7 @@ globals and fast-check. `@internal` stands alone on its JSDoc line. A JSDoc line
 
 | Project       | Contents                                                                      | Default lane | GPU lane |
 | ------------- | ----------------------------------------------------------------------------- | ------------ | -------- |
-| `node`        | every unit / kernel / primitive / algorithm / layout test; 80/80/75/80        | lavapipe     | NVIDIA   |
+| `node`        | every unit / kernel / primitive / algorithm / layout test; 90/90/90/90        | lavapipe     | NVIDIA   |
 | `node-limits` | tests needing real device limits or time (`test/limits/**`)                   | no           | yes      |
 | `browser`     | `test/browser/**`, Playwright Chromium, flags chosen by `GRAPHTY_BROWSER_GPU` | SwiftShader  | NVIDIA   |
 
@@ -115,8 +117,8 @@ observed at the assertion.
 `GRAPHTY_GPU_REQUIRE` (D19, the ONE policy variable): unset = skip with the printed `E_NO_ADAPTER` reason (local
 only); `any` = an adapter must exist (default lane); `hardware` = also not software; `nvidia` (any vendor string) =
 also that vendor and, in the browser, `isFallbackAdapter === false` (GPU lane). A missing required adapter fails once
-in `globalSetup`. Only `test/setup/gpu.ts`, `vitest.config.ts` and `scripts/` read environment variables; `src/`
-never does. The other variables' per-lane values and the Chromium flag sets are in the reference file. Run `scripts/probe-browser-flags.mjs` before guessing a Chromium flag.
+in `globalSetup`. Only `test/setup/` (`env.ts` holds the switches helpers and tests share), `vitest.config.ts` and
+`scripts/` read environment variables; `src/` never does. The other variables' per-lane values and the Chromium flag sets are in the reference file. Run `scripts/probe-browser-flags.mjs` before guessing a Chromium flag.
 
 ```bash
 GRAPHTY_GPU_REQUIRE=hardware pnpm exec vitest run --project=node --project=node-gpu-alone   # NVIDIA
@@ -159,6 +161,8 @@ Each line is the rule to obey; the measurement and evidence are in the reference
 - Both Dawn and Chromium accept a misaligned uniform struct: always generate structs with `UniformBlock`.
 - WebKit fails `createComputePipeline` when `constants` names an unread override: pass only the referenced subset
   (`ComposedModule.constants`).
+- WebKit cannot evaluate `bitcast` in an override-expression ("Failed to evaluate override value" at pipeline
+  creation, #8215): no bitcast in a statement naming an override; write the bits as a hex literal.
 - Never unmap or destroy a staging buffer whose `mapAsync` is pending (RB-1; Metal crashes): every map goes through
   the readback ring.
 - Vitest freezes a test's timeout at collection: give slow adapters less work, never a bigger timeout (G5-F13).

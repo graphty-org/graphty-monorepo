@@ -1,10 +1,10 @@
-> **Parts of this design have been superseded.** Forty-four passages -- in sections 2.4, 4.6, 6,
-> 7, 8, 9, 10, 12, 13, 14 and the Review log -- describe decisions that a later record reversed,
-> two of them leaving a gate nobody could meet and a measurement with nowhere to run, both
-> settled on 2026-09-23. The body below is deliberately NOT edited; `design/decisions/README.md`
-> explains why a record names the lines it overrules instead. Which passages, what is true
-> instead and which record decided it: `design/webgpu/superseded-parts-of-the-design.md`. This
-> note moved the body down by eight lines, so a number written earlier names text eight lower.
+> **Parts of this design have been superseded.** `design/webgpu/superseded-parts-of-the-design.md` lists
+> sixty-three passages that a later decision record reversed -- where each is, what is true instead and which
+> record decided it. Most of them are left as first written, per `design/decisions/README.md`. Five were
+> amended in place on 2026-09-20 (commit 70f33d97e3) to match the decision that graphty-element owns WebGPU:
+> the first and last rows of the table in 2.4, the dependency diagram of 9.1, item 1 of 9.4, all of 9.5 and
+> the W2 row of 9.8; those now read as current. Find a passage by its section and wording: line numbers
+> quoted in older records have drifted.
 
 # @graphty/webgpu-graph-algorithms -- implementation plan for WebGPU-accelerated algorithms and layouts
 

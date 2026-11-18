@@ -1,6 +1,5 @@
 import { NullEngine, Scene, TransformNode, Vector3, WebXRState } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { XRPivotCameraController } from "../../src/cameras/XRPivotCameraController";
 
@@ -53,7 +52,7 @@ describe("XRPivotCameraController", () => {
         mockXRExperience = {
             input: {
                 onControllerAddedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: unknown) => void) => {
                         mockXRExperience.input.onControllerAddedObservable.handlers.push(handler);
                         return handler;
                     }),
@@ -67,7 +66,7 @@ describe("XRPivotCameraController", () => {
                     handlers: [],
                 },
                 onControllerRemovedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: unknown) => void) => {
                         mockXRExperience.input.onControllerRemovedObservable.handlers.push(handler);
                         return handler;
                     }),
@@ -84,7 +83,7 @@ describe("XRPivotCameraController", () => {
             },
             baseExperience: {
                 onStateChangedObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (state: WebXRState) => void) => {
                         mockXRExperience.baseExperience.onStateChangedObservable.handlers.push(handler);
                         return handler;
                     }),
@@ -98,7 +97,7 @@ describe("XRPivotCameraController", () => {
                     handlers: [],
                 },
                 onInitialXRPoseSetObservable: {
-                    add: vi.fn((handler) => {
+                    add: vi.fn((handler: (item: unknown) => void) => {
                         mockXRExperience.baseExperience.onInitialXRPoseSetObservable.handlers.push(handler);
                         return handler;
                     }),

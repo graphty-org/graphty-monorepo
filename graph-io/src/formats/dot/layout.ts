@@ -112,6 +112,81 @@ export function dotLayout(snapshot: GraphSnapshot): FileLayout {
     return dotFileLayout(attributes);
 }
 
+/** The Graphviz layout programs graphty draws a file with, each as layout `graphviz-<program>`. */
+const GRAPHVIZ_ENGINES: ReadonlySet<string> = new Set([
+    "dot",
+    "neato",
+    "fdp",
+    "sfdp",
+    "circo",
+    "twopi",
+    "osage",
+    "patchwork",
+]);
+
+/** The layout settings Graphviz's routes between placed nodes follow: the kind of line and how far it keeps from the nodes. */
+const ROUTE_SETTINGS = ["splines", "sep", "esep"] as const;
+
+/**
+ * The layout a file asks to be drawn with, as a graphty layout and its options: a fact about the
+ * file that names no format, program or tool. Nothing is laid out.
+ * @category Loading
+ */
+export interface RequestedLayout {
+    /** The graphty layout id (`"graphviz-neato"`). */
+    readonly layout: string;
+    /** The layout's options: the file's layout settings as `attributes`, and `nodeSize` when the file sizes its nodes by their labels. */
+    readonly options: Readonly<Record<string, unknown>>;
+    /**
+     * The options for the file's own coordinates instead, when it places every node: draw them where
+     * they are and route the edges round them (`{ edgeRoutes: "graphviz", graphvizAttributes }`).
+     * Absent when the file asks for no such routing.
+     */
+    readonly routedWhenPlaced?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The layout a loaded file asks for. A DOT file always asks for one: the Graphviz program its
+ * `layout` attribute names (dot for none, or one graphty does not run), its nodes sized by their
+ * labels, and its edges routed round the nodes when the file places them. A file of any other
+ * format asks for one only when its graph-level `layout` attribute names a Graphviz program.
+ * @param format - the format the file was read as
+ * @param attributes - the file's graph-level attributes by name
+ * @returns the request, or null when the file asks for none
+ * @example
+ * ```ts
+ * requestedLayout("dot", { layout: "neato", overlap: "false" });
+ * // { layout: "graphviz-neato", options: { attributes: { overlap: "false" }, nodeSize: "label" },
+ * //   routedWhenPlaced: { edgeRoutes: "graphviz", graphvizAttributes: {} } }
+ * ```
+ * @category Loading
+ */
+export function requestedLayout(format: string, attributes: Readonly<Record<string, unknown>>): RequestedLayout | null {
+    const own = format === "dot";
+    if (!own && !(typeof attributes.layout === "string" && GRAPHVIZ_ENGINES.has(attributes.layout))) {
+        return null;
+    }
+
+    const { program, settings } = dotFileLayout(attributes);
+    const options = {
+        ...(Object.keys(settings).length === 0 ? {} : { attributes: { ...settings } }),
+        ...(own ? { nodeSize: "label" } : {}),
+    };
+    const routes: Record<string, string> = {};
+    for (const name of ROUTE_SETTINGS) {
+        const value = (settings as Partial<Record<string, string>>)[name];
+        if (value !== undefined) {
+            routes[name] = value;
+        }
+    }
+
+    return Object.freeze({
+        layout: `graphviz-${GRAPHVIZ_ENGINES.has(program) ? program : "dot"}`,
+        options: Object.freeze(options),
+        ...(own ? { routedWhenPlaced: Object.freeze({ edgeRoutes: "graphviz", graphvizAttributes: routes }) } : {}),
+    });
+}
+
 /**
  * A Graphviz length in inches as points. `ranksep` may follow its number with `equally`.
  * @param text - the attribute's text

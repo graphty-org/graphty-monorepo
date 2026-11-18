@@ -18,6 +18,7 @@ import {
     PRECISION_CODE,
     ROLE_DROPPED_CODE,
     SINK_OPTION_CODE,
+    SYNTAX_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ENCODING_CODE,
     WEIGHT_KEY_CLASH_CODE,
@@ -98,15 +99,20 @@ export const NEO4J_ISSUE = Object.freeze({
      * import stops.
      */
     CSV_QUOTE: BAD_QUOTE_CODE,
-    /** The file has no header, or a header neo4j-admin would refuse. The import stops. */
+    /**
+     * The file has no header, a header neo4j-admin would refuse, or JSON that is not an apoc.export.json export. The
+     * import stops.
+     */
     HEADER: HEADER_CODE,
+    /** A line of an apoc.export.json file is not JSON. The import stops. */
+    SYNTAX: SYNTAX_CODE,
     /** A row with a different field count than the header. */
     COLUMN_COUNT: COLUMN_COUNT_CODE,
     /** A node row without an id. */
     MISSING_ID: MISSING_ID_CODE,
     /** A relationship row without a start or end id. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
-    /** A node id repeated in one id space (last write wins). */
+    /** A node id repeated in one id space (the first row is kept). */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** A spaced node id `Space:id` that equals the text of an id declared without a space. */
     ID_SPACE_COLLISION: ID_SPACE_COLLISION_CODE,

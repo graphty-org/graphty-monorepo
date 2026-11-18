@@ -31,7 +31,7 @@ export interface ThrottlePattern {
  * Configuration options for the RemoteLogClient.
  */
 export interface RemoteLogClientOptions {
-    /** URL of the remote log server (e.g., "http://localhost:9080") */
+    /** URL of the remote log server (e.g., `http://localhost:9080`) */
     serverUrl: string;
     /** Prefix for the generated session ID (default: "session") */
     sessionPrefix?: string;

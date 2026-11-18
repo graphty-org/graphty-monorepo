@@ -18,10 +18,11 @@
  */
 
 import { registeredLogSinkById } from "./logSinkRegistry";
+import { withEachDescriptionIds } from "./options";
 import type { LogSinkDescriptor, LogSinkId } from "./types";
 
-/** Every log destination the element ships. */
-export const LOG_SINK_DESCRIPTORS: readonly LogSinkDescriptor[] = Object.freeze([
+/** As written; {@link LOG_SINK_DESCRIPTORS} adds each described option's `descriptionId`. */
+const SHIPPED_LOG_SINKS = Object.freeze([
     {
         id: "console",
         plainName: "Browser console",
@@ -96,6 +97,11 @@ export const LOG_SINK_DESCRIPTORS: readonly LogSinkDescriptor[] = Object.freeze(
         ],
     },
 ] satisfies readonly LogSinkDescriptor[]);
+
+/** Every log destination the element ships. */
+export const LOG_SINK_DESCRIPTORS: readonly LogSinkDescriptor[] = Object.freeze(
+    withEachDescriptionIds("logSink", SHIPPED_LOG_SINKS, (sink) => sink.id),
+);
 
 /**
  * Find one log destination by its name.

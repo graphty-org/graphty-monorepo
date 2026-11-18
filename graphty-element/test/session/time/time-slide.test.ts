@@ -3,16 +3,11 @@
  * every slide must leave exactly the masks a recorded window leaves, and a slide's work must
  * follow the rows that crossed an edge of the window, not the size of the graph.
  */
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { assertScalesLinearly, visitsDuring } from "../../helpers/cost";
+import { windowEdges, windowNodes } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /**
  * A seeded pseudo-random number in [0, 1).
@@ -61,8 +56,8 @@ function timed(n: number, seed: number, span: number, nodeTime = false): Harness
  */
 function masks(harness: Harness): { nodes: number[]; edges: number[] } {
     return {
-        nodes: [...harness.session.visibility.nodeMask()],
-        edges: [...harness.session.visibility.edgeMask()],
+        nodes: [...windowNodes(harness.session.visibility)],
+        edges: [...windowEdges(harness.session.visibility)],
     };
 }
 

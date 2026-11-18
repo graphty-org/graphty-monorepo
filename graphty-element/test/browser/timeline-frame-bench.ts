@@ -54,7 +54,6 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { DirtyRuns } from "../../src/meshes/DirtyRuns";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import type { SessionVisibilityApi } from "../../src/session/visibility/VisibilityApi";
@@ -134,7 +133,7 @@ function timeMethod(target: object, name: string, field: "sync" | "edgeWalk"): v
 }
 
 /**
- * Count the bytes and calls of every buffer upload the context makes.
+ * Count the bytes and calls of every buffer and texture upload the context makes.
  * @param gl - The context.
  */
 function countUploads(gl: WebGL2RenderingContext): void {
@@ -157,6 +156,13 @@ function countUploads(gl: WebGL2RenderingContext): void {
         tally.uploadCalls++;
         tally.uploadBytes += bytesOf(args[1], args[3] as number | undefined, args[4] as number | undefined);
         data(...args);
+    };
+    // The pulled-line table is a texture: a write to it goes up as texture lines.
+    const texSubImage = gl.texSubImage2D.bind(gl) as (...args: unknown[]) => void;
+    (gl as unknown as Record<string, unknown>).texSubImage2D = (...args: unknown[]): void => {
+        tally.uploadCalls++;
+        tally.uploadBytes += bytesOf(args[8]);
+        texSubImage(...args);
     };
 }
 
@@ -390,7 +396,6 @@ export function describeFrames(nodes: number, load: "objects" | "batched" = "obj
 
         beforeAll(async () => {
             (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = false;
-            setDefaultFeatures(["timeline"]);
             const created = document.createElement("graphty-element");
             created.style.width = "1280px";
             created.style.height = "720px";

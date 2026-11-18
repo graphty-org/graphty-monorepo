@@ -4,7 +4,7 @@
  * loading no source code.
  */
 
-import { listSources } from "@graphty/graph-io";
+import { listSources } from "@graphty/graph-io/sources";
 
 import type { SourceCatalogEntry } from "../session/sources/types";
 

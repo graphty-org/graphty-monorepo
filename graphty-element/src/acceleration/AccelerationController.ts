@@ -519,22 +519,25 @@ export class AccelerationController {
      * @returns True when the renderer should open a device fit for both. A registration that throws
      * has said no: the renderer opens whatever the answer, and the backend then finds its own device.
      */
-    sharesDevice(adapter: unknown): boolean {
+    async sharesDevice(adapter: unknown): Promise<boolean> {
         if (this.#policy === "off") {
             return false;
         }
 
-        return this.#registry.list().some((entry) => {
+        for (const entry of this.#registry.list()) {
             try {
-                return entry.sharesDevice?.(adapter) === true;
+                if ((await entry.sharesDevice?.(adapter)) === true) {
+                    return true;
+                }
             } catch (error) {
                 logger.warn("A registered accelerator could not say whether it shares the device", {
                     name: entry.name,
                     reason: error instanceof Error ? error.message : String(error),
                 });
-                return false;
             }
-        });
+        }
+
+        return false;
     }
 
     /**
@@ -1079,6 +1082,7 @@ export class AccelerationController {
         }
 
         this.#detach();
+        logger.warn("device lost", { reason, busy: this.#busy });
         this.#transition("error", `the accelerator's device was lost: ${reason}`, "E_DEVICE_LOST");
 
         if (
@@ -1288,6 +1292,8 @@ export class AccelerationController {
         }
 
         this.#status = next;
+        // The probe's answer, the device attached, a loss and a recovery all pass through here.
+        logger.info("status", { ...next });
         this.#capabilities = Object.freeze({ acceleration: next });
         for (const listener of [...this.#listeners]) {
             // A listener is consumer code, and one that throws must not stop the others from

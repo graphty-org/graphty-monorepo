@@ -30,13 +30,14 @@ import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { TEST_GUARD_MS, WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import * as readers from "./readers.mjs";
 import { routes } from "./routes.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
 const gitArgs = ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"];
-const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // NOSONAR(S4036): the developer's own git
+const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own git
 const main = dirname(commonDir.stdout.trim());
 const OUT = join(repo, "tmp/dry-run");
 const FILES = join(repo, "design/ui/studio/tool/files");
@@ -50,8 +51,6 @@ const GPU_ARGS = [
     "--use-angle=vulkan",
     "--disable-vulkan-surface",
 ];
-const ROUTE_MS = 180_000;
-const CHECK_MS = 15_000;
 const TYPES = {
     ".html": "text/html",
     ".js": "text/javascript",
@@ -167,7 +166,7 @@ async function runAll(o) {
     const ids = picked.map((r) => r.id).join(",");
     const children = Array.from({ length: workers }, (_, n) =>
         spawn(
-            "bash", // NOSONAR(S4036): developer tooling runs the developer's own bash
+            "bash", // eslint-disable-line sonarjs/no-os-command-from-path -- developer tooling runs the developer's own bash
             [
                 gate,
                 process.execPath,
@@ -239,7 +238,7 @@ async function runAll(o) {
 
 function serve(dist) {
     const http = createServer(async (req, res) => {
-        const url = new URL(req.url, "http://x"); // NOSONAR(S5332): parses the request's path; the server is loopback only
+        const url = new URL(req.url, "http://x"); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
         const f = join(dist, path);
         if (f !== dist && !f.startsWith(dist + sep)) return res.writeHead(403).end();
@@ -301,20 +300,21 @@ async function launch(chromium) {
 }
 
 /**
- * Retry a check until it passes or its time runs out: checks read state the app reaches on its own
- * time (a repaint, a run finishing), so each waits on its condition, never on a clock.
+ * Retry a check after each page frame until it passes: checks read state the app reaches on its own
+ * time (a repaint, a run finishing), so each waits on its condition, never on a clock. Only the
+ * repository's one hang guard (tools/test-wait-guard.mjs) ends a check that never passes.
  * @param fn the check
  * @param g the readers
  * @returns what the check returned
  */
 async function eventually(fn, g) {
-    const until = Date.now() + CHECK_MS;
+    const guard = AbortSignal.timeout(WAIT_GUARD_MS);
     for (;;) {
         try {
             return await fn(g);
         } catch (err) {
-            if (Date.now() > until) throw err;
-            await g.page.waitForTimeout(250);
+            if (guard.aborted) throw err;
+            await g.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
         }
     }
 }
@@ -396,7 +396,7 @@ async function walk(chromium, route, origin) {
         b = await launch(chromium);
         out.renderer = b.renderer;
         b.page.on("pageerror", (e) => pageErrors.push(e.message.split("\n")[0]));
-        b.page.setDefaultTimeout(20_000);
+        b.page.setDefaultTimeout(WAIT_GUARD_MS);
         await b.page.goto(origin);
         const run = async () => {
             stage = "walking the route";
@@ -407,14 +407,12 @@ async function walk(chromium, route, origin) {
                 await eventually(check, g);
             }
         };
-        let timer;
-        await Promise.race([
-            run(),
-            new Promise(
-                (_, no) =>
-                    (timer = setTimeout(() => no(new Error(`the route took over ${ROUTE_MS / 1000} s`)), ROUTE_MS)),
-            ),
-        ]).finally(() => clearTimeout(timer));
+        // only the repository's one hang guard ends a route that hangs
+        const guard = AbortSignal.timeout(TEST_GUARD_MS);
+        const hang = new Promise((_, no) =>
+            guard.addEventListener("abort", () => no(new Error(`the route hung past ${TEST_GUARD_MS / 1000} s`))),
+        );
+        await Promise.race([run(), hang]);
         assert.deepEqual(pageErrors, [], "the page threw script errors");
         out.result = "pass";
     } catch (err) {
@@ -424,7 +422,7 @@ async function walk(chromium, route, origin) {
             const f = join(OUT, `${route.id}.aria.txt`);
             const tree = await b.page
                 .locator("body")
-                .ariaSnapshot({ timeout: 5000 })
+                .ariaSnapshot()
                 .catch((e) => `no tree: ${e.message}`);
             writeFileSync(f, tree + "\n");
             out.aria = f;

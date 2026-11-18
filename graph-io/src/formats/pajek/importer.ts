@@ -269,6 +269,8 @@ const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
 /** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
 const NUMERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 const NON_FINITE_WORD = /^[+-]?(?:nan|inf|infinity)$/i;
+/** An infinite line value as the exporter writes it (the spellings the weight grammar reads). */
+const INFINITE_VALUE = /^[+-]?(?:INF|Infinity)$/;
 /** A line value Pajek writes for a missing value. */
 const NAN_WORD = /^[+-]?nan$/i;
 
@@ -1080,7 +1082,7 @@ class PajekParser {
         this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
         let shape: string | null = null;
         if (i < tokens.length && isShapeKeyword(tokens[i])) {
-            shape = tokens[i].toLowerCase();
+            shape = tokens[i];
             i++;
         }
         const extras = this.extras(tokens, i, "node", line);
@@ -1477,7 +1479,7 @@ class PajekParser {
         const v = this.endpoint(Number(tokens[1]));
         let i = 2;
         let valueText: string | null = null;
-        if (i < tokens.length && isNumericText(tokens[i])) {
+        if (i < tokens.length && (isNumericText(tokens[i]) || INFINITE_VALUE.test(tokens[i]))) {
             valueText = tokens[i];
             i++;
         } else if (i < tokens.length && NAN_WORD.test(tokens[i])) {
@@ -1776,7 +1778,7 @@ class PajekParser {
                 continue;
             }
             if (domain === "node" && isShapeKeyword(token)) {
-                extras.shape = token.toLowerCase();
+                extras.shape = token;
                 i++;
                 continue;
             }

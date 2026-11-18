@@ -1,13 +1,10 @@
-import {
-    type Mesh,
-    MeshBuilder,
-    Quaternion,
-    Ray,
-    type Scene,
-    Vector3,
-    type WebXRDefaultExperience,
-    type WebXRInputSource,
-} from "@babylonjs/core";
+import type { WebXRInputSource } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 
 import type { NodeId } from "../catalog/types";
 import type { XRControllerButton } from "../config/XRConfig";
@@ -617,7 +614,7 @@ export class XRInputHandler {
         const pressed = new Set<XRControllerButton>();
         for (const controller of this.xr.input.controllers) {
             const { gamepad, handedness, hand } = controller.inputSource;
-            if (gamepad === undefined || hand !== undefined) {
+            if (gamepad === undefined || hand) {
                 continue;
             }
 
@@ -783,14 +780,16 @@ export class XRInputHandler {
     }
 
     /**
-     * The hand's state from its controller's trigger, when the trigger pinches.
+     * The hand's state from its controller's trigger, when the trigger pinches. A tracked hand is
+     * an input source too, whose "trigger" is the runtime's pinch button; it is read from its
+     * joints instead, with the pinch distances' hysteresis (#6949).
      * @param handedness - Which hand
      * @returns The state while the trigger is held, or null to fall through to hand tracking
      */
     private controllerHandState(handedness: "left" | "right"): HandState | null {
         let controllerEntry: ControllerEntry | null = null;
         for (const entry of this.gestureControllers.values()) {
-            if (entry.handedness === handedness) {
+            if (entry.handedness === handedness && !entry.controller.inputSource.hand) {
                 controllerEntry = entry;
                 break;
             }
@@ -1078,7 +1077,7 @@ export class XRInputHandler {
      *
      * The hand's movement since the previous frame, turned through the pivot's rotation, moves a
      * pointer in scene space, and the node's drag handler follows that pointer: one to one across,
-     * depth multiplied by `xr.input.zAxisAmplification`, and a single jump of more than 5 units (a
+     * depth multiplied by `xr.input.zAxisAmplification`, and a jump faster than a hand can move (a
      * tracking glitch) ignored. Per-frame deltas are what keep the drag right while the pivot turns.
      * @param currentHandPosition - The current world position of the dragging hand
      */

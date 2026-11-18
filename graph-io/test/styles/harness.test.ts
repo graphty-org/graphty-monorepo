@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { type ExtractedStyles, extractStyles, type StyleRule } from "../../src/styles/internal.js";
+import { type ExtractedStyles, readFileStyles, type StyleRule } from "../../src/styles/internal.js";
 import { editJsonNodeFill } from "./formats/json.js";
 import {
     checkInput,
@@ -21,7 +21,7 @@ import {
     type StyleResult,
     styleTruth,
 } from "./harness.js";
-import { FORMATS, registered, SCALE_POINTS, sharedInputs, split, WRITE_SLICES } from "./harness-cases.js";
+import { FORMATS, registered, SCALE_POINTS, sharedInputs, WRITE_SLICES } from "./harness-cases.js";
 import { resultsTable } from "./results.js";
 
 const results: StyleResult[] = [];
@@ -45,7 +45,6 @@ function ruleKinds(ex: ExtractedStyles | null): string[] {
 describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) => {
     const inputs = sharedInputs(format);
 
-    const plans = split(inputs, "plans");
     const plan = async (input: (typeof inputs)[number]): Promise<void> => {
         const checked = await checkInput(input);
         results.push(checked.result);
@@ -59,12 +58,10 @@ describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) =>
         }
         expect(failures).toEqual([]);
     };
-    it.each(plans.pass)("%s plans to rules that reproduce what its reader read", (_name, input) => plan(input));
-    if (plans.fail.length > 0) {
-        it.fails.each(plans.fail)("%s plans to rules that reproduce what its reader read (known failure)", (_n, i) =>
-            plan(i),
-        );
-    }
+    it.each(inputs.map((input) => [input.name, input] as const))(
+        "%s plans to rules that reproduce what its reader read",
+        (_name, input) => plan(input),
+    );
 });
 
 describe.each([...SCALE_POINTS].map(([large, small]) => [large, small] as const))("%s", (large, small) => {
@@ -76,7 +73,7 @@ describe.each([...SCALE_POINTS].map(([large, small]) => [large, small] as const)
                 throw new Error(`${name} is not a harness input`);
             }
             const loaded = await input.load();
-            return extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+            return readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         };
         const kinds = ruleKinds(await load(large));
         expect(kinds.length).toBeGreaterThan(2);
@@ -126,7 +123,7 @@ describe("the checks", () => {
     it("fail on an injected wrong rule, naming the element and the property", async () => {
         const { input } = await byGroup();
         const loaded = await input.load();
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         const truth = styleTruth(loaded);
         if (ex === null || truth === null) {
             throw new Error("no styles");
@@ -161,7 +158,7 @@ describe("the checks", () => {
         if (loaded === undefined) {
             throw new Error("the roles inputs are missing");
         }
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         const truth = styleTruth(loaded);
         if (ex === null || truth === null) {
             throw new Error("no styles");
@@ -184,7 +181,7 @@ describe("the checks", () => {
     it("fail on more than 16 rules, a long predicate and a note code that is not a style code", async () => {
         const { input } = await byGroup();
         const loaded = await input.load();
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         if (ex === null) {
             throw new Error("no styles");
         }

@@ -38,10 +38,12 @@ import {
     takenIn,
     uniqueColumnName,
 } from "../../common/attributes.js";
-import { type DeclaredTypeSpec, overflowsToInfinity } from "../../common/declared-types.js";
-import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
-import { IdCoercer } from "../../common/ids.js";
+import { type DeclaredTypeSpec, overflowsToInfinity, parseBooleanText } from "../../common/declared-types.js";
+import { DirectionResolver, type EdgeKind, type EdgeLocation } from "../../common/direction.js";
+import { checkExpansion, ExpansionRefused } from "../../common/expansion.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
+import { setOwn } from "../../common/json-elements.js";
 import { type ListSyntax } from "../../common/lists.js";
 import {
     type ImportFormatDefaults,
@@ -78,7 +80,6 @@ import {
     LABEL_COLUMN,
     META_KEY,
     MIME_TYPES,
-    ORIGINAL_ID_ATTRIBUTE,
     ORIGINAL_ID_COLUMN,
     PARENT_COLUMN,
     PORT_KEYS_EXTRA,
@@ -451,7 +452,7 @@ class GraphmlReader implements XmlHandler {
     private readonly declared = new IndexFlags();
 
     private readonly edgeIds = new Set<string>();
-    /** The keys `<data>` referenced before any `<key>` declared them (E_GRAPHML_UNKNOWN_KEY). */
+    /** The keys `<data>` referenced before any `<key>` declared them, declared as untyped (W_GRAPHML_UNKNOWN_KEY). */
     private readonly unknownKeyIds = new Set<string>();
     /** The ids of the edges waiting in {@link deferred}. */
     private readonly deferredEdgeIds = new Set<string>();
@@ -504,7 +505,7 @@ class GraphmlReader implements XmlHandler {
 
     private edgedefault: "directed" | "undirected" | null = null;
 
-    private namespaces: Record<string, string> = {};
+    private readonly namespaces: Record<string, string> = {};
 
     private weightOrigin: { id: string; title: string | null; type: string | null } | null = null;
 
@@ -514,6 +515,9 @@ class GraphmlReader implements XmlHandler {
     private readonly graphicsColumns = new Map<string, ColumnHandle>();
 
     private hyperedgeCount = 0;
+
+    /** The edges the hyperedges expanded into so far, against MAX_HYPEREDGE_EXPANSION. */
+    private readonly expansion = { used: 0 };
 
     private edgeIdHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
@@ -794,7 +798,7 @@ class GraphmlReader implements XmlHandler {
     private readRoot(attrs: ReadonlyMap<string, string>): void {
         for (const [key, value] of attrs) {
             if (key.startsWith("xmlns:") && value !== GRAPHML_NAMESPACE && value !== XSI_NAMESPACE) {
-                this.namespaces[key.slice(6)] = value;
+                setOwn(this.namespaces, key.slice(6), value);
             }
         }
     }
@@ -900,6 +904,16 @@ class GraphmlReader implements XmlHandler {
                     );
                     this.ctx.push(Ctx.Skip);
                 }
+                return;
+            case "key":
+                // Gephi and others write keys inside <graph>; the schema puts them in <graphml>, but a key id is global
+                this.report.warnOnce(
+                    "validation-error",
+                    GRAPHML_ISSUE.KEY_IN_GRAPH,
+                    "<key> declared inside <graph>; read as if it were declared in <graphml>",
+                    { line, element: attrs.get("id") },
+                );
+                this.beginKey(attrs, line);
                 return;
             case "node":
                 this.beginNode(attrs, line);
@@ -1108,7 +1122,7 @@ class GraphmlReader implements XmlHandler {
         if (node === undefined) {
             return;
         }
-        port[key.name] = value;
+        setOwn(port, key.name, value);
         node.ports ??= [];
         if (!node.ports.includes(port)) {
             node.ports.push(port);
@@ -1468,13 +1482,16 @@ class GraphmlReader implements XmlHandler {
         // attr.list (a list extension of some writers) and yEd's yfiles.foldertype are reported here
         this.reportUnreadAttributes("key", attrs, KEY_ATTRIBUTES, line);
         const id = attrs.get("id") ?? null;
-        if (id !== null && this.unknownKeyIds.delete(id)) {
+        if (id !== null && this.unknownKeyIds.has(id)) {
             this.report.warning(
-                "missing-value",
+                "validation-error",
                 GRAPHML_ISSUE.KEY_DECLARED_LATE,
-                `key "${id}" is declared after data that uses it; those values were dropped (declare <key> before <graph>)`,
+                `key "${id}" is declared after data that uses it; that data was already read as text and this declaration is ignored (declare <key> before <graph>)`,
                 { line, element: id },
             );
+            this.pendingKey = null;
+            this.ctx.push(Ctx.Key);
+            return;
         }
         const forText = attrs.get("for") ?? "all";
         // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
@@ -1539,9 +1556,16 @@ class GraphmlReader implements XmlHandler {
     private finishKey(): void {
         const key = this.pendingKey;
         this.pendingKey = null;
-        if (key === null) {
-            return;
+        if (key !== null) {
+            this.registerKey(key);
         }
+    }
+
+    /**
+     * Declare the columns of a key and record it by id.
+     * @param key - the key
+     */
+    private registerKey(key: PendingKey): void {
         const where = { line: key.line, element: key.id };
         if (key.id === null || key.id.length === 0) {
             this.report.error("validation-error", GRAPHML_ISSUE.KEY_MISSING_ID, "<key> without an id", where);
@@ -1561,7 +1585,7 @@ class GraphmlReader implements XmlHandler {
         const name = key.attrName !== null && key.attrName.length > 0 ? key.attrName : key.id;
         const skipped = yfiles && this.yfilesMode === "skip";
         if (key.port && key.yfilesType !== null && !skipped) {
-            this.portKeyTypes[name] = key.yfilesType;
+            setOwn(this.portKeyTypes, name, key.yfilesType);
         }
         if (skipped) {
             this.report.warning(
@@ -1789,15 +1813,13 @@ class GraphmlReader implements XmlHandler {
             });
         } else {
             const entries = this.keys.get(keyId);
-            const key = entries?.find((entry) => entry.domains.includes(domain)) ?? entries?.[0];
+            const key =
+                entries?.find((entry) => entry.domains.includes(domain)) ??
+                (entries === undefined || this.unknownKeyIds.has(keyId)
+                    ? this.declareUndeclaredKey(keyId, domain, line)
+                    : entries[0]);
             if (key === undefined) {
-                this.unknownKeyIds.add(keyId);
-                this.report.error(
-                    "validation-error",
-                    GRAPHML_ISSUE.UNKNOWN_KEY,
-                    `<data> references undeclared key "${keyId}"`,
-                    { line, element: keyId },
-                );
+                // the key id is empty, already reported by registerKey
             } else if (!key.skipped && !key.domains.includes(domain)) {
                 this.report.warnOnce(
                     "validation-error",
@@ -1810,6 +1832,37 @@ class GraphmlReader implements XmlHandler {
             }
         }
         this.ctx.push(Ctx.Data);
+    }
+
+    /**
+     * Declare an untyped key for a `<data>` whose key was never declared, so its values are kept as text
+     * (APOC and graphology write such files).
+     * @param id - the key id
+     * @param domain - the domain of the element holding the data
+     * @param line - the line
+     * @returns the key, or undefined when it could not be declared
+     */
+    private declareUndeclaredKey(id: string, domain: Domain, line: number): KeyEntry | undefined {
+        this.unknownKeyIds.add(id);
+        this.report.warning(
+            "validation-error",
+            GRAPHML_ISSUE.UNKNOWN_KEY,
+            `<data> references undeclared key "${id}"; its ${domain} values are read as text`,
+            { line, element: id },
+        );
+        this.registerKey({
+            id,
+            attrName: null,
+            attrType: null,
+            yfilesType: null,
+            domains: [domain],
+            port: false,
+            line,
+            desc: "",
+            defaultText: null,
+            defaultTree: undefined,
+        });
+        return this.keys.get(id)?.find((entry) => entry.domains.includes(domain));
     }
 
     /**
@@ -1872,10 +1925,15 @@ class GraphmlReader implements XmlHandler {
         if (key === null) {
             return;
         }
-        if (content.tree !== null) {
-            key.defaultTree = content.tree.finish();
-        } else {
-            key.defaultText = content.text;
+        try {
+            if (content.tree === null) {
+                key.defaultText = content.text;
+            } else {
+                key.defaultTree = content.tree.finish();
+            }
+        } catch (err) {
+            // a tree too deep to keep: the key has no default
+            this.report.recordError(err, { line: content.line, element: key.id }, SKIPPED_VALUE);
         }
         content.tree = null;
         content.text = "";
@@ -1885,13 +1943,20 @@ class GraphmlReader implements XmlHandler {
     /** Close a `<data>`: parse the value and route it to its element. */
     private finishData(): void {
         const { content } = this;
-        const { key, port } = content;
-        const value: unknown = content.tree === null ? content.text : content.tree.finish();
+        const { key, port, tree, text } = content;
         content.tree = null;
         content.text = "";
         content.key = null;
         content.port = null;
         if (key === null || key.skipped) {
+            return;
+        }
+        let value: unknown;
+        try {
+            value = tree === null ? text : tree.finish();
+        } catch (err) {
+            // a tree too deep to keep: only the value is dropped
+            this.report.recordError(err, { line: content.line, element: key.id }, SKIPPED_VALUE);
             return;
         }
         if (port !== null) {
@@ -2367,25 +2432,42 @@ class GraphmlReader implements XmlHandler {
                 this.report.recordError(err, where);
             }
         }
-        const directedText = attrs.get("directed");
-        if (directedText !== undefined) {
-            // the schema types directed as xs:boolean: true, false, 1 or 0
-            if (directedText === "true" || directedText === "1") {
-                edge.kind = "directed";
-            } else if (directedText === "false" || directedText === "0") {
-                edge.kind = "undirected";
-            } else {
-                this.skipEdge(edge);
-                this.report.error(
-                    "validation-error",
-                    GRAPHML_ISSUE.INVALID_DIRECTED,
-                    `directed="${directedText}" is neither true nor false (nor 1 or 0)`,
-                    where,
-                );
-            }
-        }
+        edge.kind = this.edgeKind(attrs.get("directed"), edge.kind, where);
         this.edge = edge;
         this.ctx.push(Ctx.Edge);
+    }
+
+    /**
+     * The direction of an edge from its `directed` attribute.
+     * @param directedText - the attribute, or undefined
+     * @param kind - the graph's direction, kept when the attribute is missing or not a boolean
+     * @param where - the edge's location
+     * @returns the edge's direction
+     */
+    private edgeKind(directedText: string | undefined, kind: EdgeKind, where: EdgeLocation): EdgeKind {
+        if (directedText === undefined) {
+            return kind;
+        }
+        // the schema types directed as xs:boolean: true, false, 1 or 0; networkx also reads True / FALSE
+        const directed = parseBooleanText(directedText);
+        if (directed === null) {
+            this.report.error(
+                "validation-error",
+                GRAPHML_ISSUE.INVALID_DIRECTED,
+                `directed="${directedText}" is neither true nor false (nor 1 or 0); the edge takes its graph's direction`,
+                where,
+            );
+            return kind;
+        }
+        if (!/^(true|false|1|0)$/.test(directedText)) {
+            this.report.warnOnce(
+                "validation-error",
+                GRAPHML_ISSUE.DIRECTED_SPELLING,
+                `directed="${directedText}" is not an xs:boolean spelling; read as ${String(directed)}`,
+                where,
+            );
+        }
+        return directed ? "directed" : "undirected";
     }
 
     /**
@@ -2697,7 +2779,12 @@ class GraphmlReader implements XmlHandler {
             }
         } catch (err) {
             this.skipEdge(hyperedge);
-            this.report.recordError(err, where);
+            if (err instanceof ExpansionRefused) {
+                // one hyperedge over the cap is skipped; recordError's E_TOO_LARGE rule would stop the import
+                this.report.error("unsupported", err.code, err.message, where);
+            } else {
+                this.report.recordError(err, where);
+            }
         }
     }
 
@@ -2731,6 +2818,7 @@ class GraphmlReader implements XmlHandler {
         }
         this.sink.setNodeValue(this.hubHandle, hub, true);
         for (const endpoint of hyperedge.endpoints) {
+            this.checkAbort();
             const before = this.sink.edgeCount;
             switch (endpoint.type) {
                 case "in":
@@ -2760,9 +2848,19 @@ class GraphmlReader implements XmlHandler {
      */
     private expandClique(hyperedge: HyperedgeState, where: Where): number {
         const { endpoints } = hyperedge;
+        const ins = endpoints.filter((endpoint) => endpoint.type === "in").length;
+        const outs = endpoints.filter((endpoint) => endpoint.type === "out").length;
+        const pairs = (k: number): number => (k * (k - 1)) / 2;
+        // every pair is joined but two `in` or two `out` endpoints
+        checkExpansion(
+            pairs(endpoints.length) - pairs(ins) - pairs(outs),
+            this.expansion,
+            hyperedge.id ?? "<hyperedge>",
+        );
         let added = 0;
         for (let i = 0; i < endpoints.length; i++) {
             for (let j = i + 1; j < endpoints.length; j++) {
+                this.checkAbort();
                 const a = endpoints[i];
                 const b = endpoints[j];
                 const before = this.sink.edgeCount;
@@ -2988,7 +3086,7 @@ const GRAPHML_ELEMENTS = new Set([
  */
 function unknownElementMessage(name: string): string {
     if (name === "key") {
-        return "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped";
+        return "element <key> is only allowed as a child of <graphml> or <graph>; it was skipped";
     }
     return GRAPHML_ELEMENTS.has(name)
         ? `element <${name}> is not allowed at this place in a GraphML file and was skipped`

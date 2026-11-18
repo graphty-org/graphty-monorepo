@@ -19,7 +19,7 @@
 //        snapshot where vis-network ends its stabilization run and fits the view (physics then
 //        stopped), or at once when physics is off; then its own CanvasRenderer
 //        redraws once onto an svgcanvas 2.6.0 context (net.canvas.getContext swapped for the call).
-// sigma: sigma 4.0.1 draws everything (nodes, edges, labels) with WebGL2 and has no vector output.
+// sigma: sigma 4.0.6 draws everything (nodes, edges, labels) with WebGL2 and has no vector output.
 //        Its own export (@sigma/export-image 4.0.0 toBlob, PNG) is wrapped unmodified in an SVG
 //        <image>, so the SVG is the program's real pixels, not vectors.
 //
@@ -233,8 +233,32 @@ class CanvasPathContext extends Context {
         this.__pathHere();
         this.__repaint(kind);
         const r = kind === "fill" ? super.fill(...a) : super.stroke(...a);
-        this.__currentElement["__" + kind] = true;
+        const el = this.__currentElement;
+        el["__" + kind] = true;
+        const erase = this.globalCompositeOperation === "destination-out";
+        if (erase && kind === "stroke") this.__erase(el);
+        this.__painted = erase ? null : el;
         return r;
+    }
+    // svgcanvas ignores globalCompositeOperation, so a destination-out stroke was painted as one more stroke.
+    // Cytoscape.js draws a double border or outline so: the ring stroked solid, then its middle third erased
+    // along the same path. Such an erase becomes a mask on the ring it cuts (not on what lies under the ring).
+    // Any other erase (Cytoscape.js clearing under a see-through arrowhead) is still painted as it was.
+    __erase(el) {
+        const ring = this.__painted;
+        if (!ring || ring.nodeName !== "path" || ring.getAttribute("d") !== el.getAttribute("d")) return;
+        const parent = el.parentNode;
+        const id = "erase-" + (this.__eraseCount = (this.__eraseCount || 0) + 1);
+        const box = { x: -100000, y: -100000, width: 200000, height: 200000 };
+        const mask = this.__createElement("mask", { id, maskUnits: "userSpaceOnUse", ...box });
+        mask.appendChild(this.__createElement("rect", { ...box, fill: "white" }));
+        el.setAttribute("stroke", "black");
+        el.setAttribute("fill", "none");
+        el.removeAttribute("filter");
+        mask.appendChild(el);
+        this.__defs.appendChild(mask);
+        ring.setAttribute("mask", "url(#" + id + ")");
+        this.__currentElement = parent;
     }
     // svgcanvas writes an <image> without the context's globalAlpha (vis-network's node opacity on an image)
     drawImage(...a) {
@@ -604,7 +628,7 @@ writeFileSync(svgPath, result.svg);
 
 const metaPath = join(outDir, `${id}.oracle.json`);
 const CONTEXT_NOTE =
-    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
+    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. A destination-out stroke over the ring just stroked on the same path (a Cytoscape.js double border or outline) is recorded as a mask on that ring; no other globalCompositeOperation is recorded. Not recorded: a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
 const svgSha256 = sha(result.svg);
 const old = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf8")) : null;
 const meta = {

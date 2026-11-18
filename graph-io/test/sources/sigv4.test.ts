@@ -1,8 +1,8 @@
 /**
  * The SigV4 signer against AWS's published signature test suite (aws-sig-v4-test-suite: the
  * get-vanilla, get-vanilla-query-order-key-case, post-vanilla and post-x-www-form-urlencoded
- * vectors) and, for the session-token and Neptune cases, signatures botocore computed for the same
- * requests.
+ * vectors), for the session-token and Neptune cases, signatures botocore computed for the same
+ * requests, and for S3 the GET Object and ListObjects examples of AWS's S3 signing documentation.
  */
 
 import { describe, expect, it } from "vitest";
@@ -100,6 +100,37 @@ describe("SigV4", () => {
             expect(await signed.text()).toBe(v.body ?? "");
         });
     }
+
+    it("signs S3 requests as AWS's S3 documentation does, with the payload hash header", async () => {
+        const s3 = {
+            region: "us-east-1",
+            service: "s3",
+            credentials: {
+                accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+                secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            },
+        };
+        const at = new Date(Date.UTC(2013, 4, 24));
+        const object = await signRequest(
+            new Request("https://examplebucket.s3.amazonaws.com/test.txt", { headers: { Range: "bytes=0-9" } }),
+            s3,
+            at,
+        );
+        expect(object.headers.get("x-amz-content-sha256")).toBe(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        );
+        expect(object.headers.get("authorization")).toBe(
+            "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41",
+        );
+        const list = await signRequest(
+            new Request("https://examplebucket.s3.amazonaws.com/?max-keys=2&prefix=J"),
+            s3,
+            at,
+        );
+        expect(list.headers.get("authorization")).toContain(
+            "SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7",
+        );
+    });
 
     it("takes credentials from a provider function per request", async () => {
         let calls = 0;

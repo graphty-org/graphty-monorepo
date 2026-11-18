@@ -93,7 +93,7 @@ Then each member is read on its own:
     recipe command is skipped with the commands that depend on it (recipe.md). An exception raised
     while one member applies MUST be caught and turned into that member's report entry: one member
     never fails another. A skipped member is kept on save ("Writing a file" rule 3).
-14. graphty-element's data import (`data.import`, and every importer its catalogue lists) given
+14. graphty-element's data import (`data.import`, and every importer its catalog lists) given
     JSON text of one of the shapes of rules 2 to 4 refuses it with `E_UNKNOWN_FORMAT`, saying it is
     a graphty document to open with `openDocument`.
 
@@ -103,7 +103,7 @@ A reader MUST ignore an object member it does not know and report it with `W_UNK
 its JSON pointer (`/members/0/layers/2/colour`). The keys of the open maps are never reported: a
 layer's `userData`, `extensions` and each extension's payload, a binding's `map`, a command's
 `params` and a `layout.set`'s `options` (which recipe.md, "Commands" rule 3 checks against the
-catalogue). The closed objects are the exceptions:
+catalog). The closed objects are the exceptions:
 
 <!-- prettier-ignore -->
 | Closed object | A reader that meets an unknown member |
@@ -272,7 +272,7 @@ own is an entry of the report, never a rejection.
 2. **Order.** Data first, then the sources member, then recipes in file order, then styles in file
    order, then notes: the data must exist before anything binds to its columns, a load's record
    needs the elements its `_source.loads` ids name, a style that paints a recipe's results
-   comes after the recipe, and a note binds to the data, the sets and the results before it. A run's own suggested colouring is added when the run completes, above every layer
+   comes after the recipe, and a note binds to the data, the sets and the results before it. A run's own suggested coloring is added when the run completes, above every layer
    present then, the file's style layers included (recipe.md, "Commands" rule 8, says when a run
    paints nothing of its own).
 3. **References between members.** A style member path `results.<as>.<field>`, where `<as>` is the
@@ -482,5 +482,5 @@ ends are read from `gene_a` and `gene_b`, as the recipe's `table` says, and its 
 whatever its case, is the column `weight`. The recipe binds and plans, and the runs start when the
 colleague calls `opened.recipes[0].run()`. Both runs complete under the namespace
 `coexpression_hubs`, the style's path `results.hubs.value` is rewritten to
-`results.coexpression_hubs__hubs.value`, and the size layer paints. PageRank's own colouring is
+`results.coexpression_hubs__hubs.value`, and the size layer paints. PageRank's own coloring is
 off, because the style paints its result.

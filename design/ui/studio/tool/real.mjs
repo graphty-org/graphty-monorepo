@@ -158,18 +158,29 @@ const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
 const TIER1 = "/?next";
 // REAL_VIEWPORT=<w>x<h> sets the window for a screenshot audit at other sizes; studies keep 1440 x 900
-const [vw, vh] = (process.env.REAL_VIEWPORT || "1440x900").split("x").map(Number);
+const askedViewport = process.env.REAL_VIEWPORT || "1440x900";
+if (!/^[1-9]\d*x[1-9]\d*$/.test(askedViewport)) {
+    console.error(`REAL_VIEWPORT must be <width>x<height> in pixels, like 1440x900, not "${askedViewport}"`);
+    process.exit(2);
+}
+const [vw, vh] = askedViewport.split("x").map(Number);
 const VIEWPORT = { width: vw, height: vh };
 // A session nobody steps for this long is closed, so one whose agent was stopped before --end frees
-// its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
-// REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).
+// its browser slot soon.
+// REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds): more than 0 and under 24 hours,
+// since a setTimeout past 2^31 ms fires at once.
 const MAX_IDLE_MS = 24 * 60 * 60 * 1000;
-const askedIdleMs = Number(process.env.REAL_IDLE_SECONDS) * 1000;
-const IDLE_MS = askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS ? askedIdleMs : 15 * 60 * 1000;
+const askedIdle = process.env.REAL_IDLE_SECONDS;
+const askedIdleMs = askedIdle ? Number(askedIdle) * 1000 : null;
+if (askedIdleMs !== null && !(Number.isFinite(askedIdleMs) && askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS)) {
+    console.error(`REAL_IDLE_SECONDS must be a number of seconds above 0 and under 86400, not "${askedIdle}"`);
+    process.exit(2);
+}
+const IDLE_MS = askedIdleMs ?? 15 * 60 * 1000;
 
 // GPU rendering. Headless Chromium draws WebGL with SwiftShader, a software rasterizer: each idle
-// graphty page burned 550-690% CPU, so four study browsers loaded the machine past 47 and every step
-// waited on the CPU. Through ANGLE on Vulkan the RTX 4070 draws the same page for 27-51% (2026-10-21).
+// graphty page burns 550-690% CPU, so every step waits on the CPU. Through ANGLE on Vulkan the GPU
+// draws the same page for 27-51%.
 // This machine has no system libEGL.so.1, and without one these flags HANG the first page instead of
 // failing, so the launch reads the extracted copy (REAL_EGL_DIR, else the main checkout's tmp/egl;
 // rebuild it with: apt-get download libegl1 libglvnd0; dpkg -x each .deb into tmp/egl/root).
@@ -217,11 +228,12 @@ const fileArg = (f) => (existsSync(resolve(f)) ? resolve(f) : join(files, f));
 
 // ---------- where a participant's session lives ----------
 // The studio's own files (tasks.md, answers.md, criteria.md, roster.md, plans, grades) live under
-// STUDIO. A participant whose session folder sat inside it read tasks.md three folders up (r2-s05),
+// STUDIO. A participant whose session folder sat inside it could read tasks.md a few folders up,
 // so a participant's session runs in a folder of its own under SCRATCH, mirroring the studio path
 // the facilitator names it by, and --end copies it back there for the graders.
-const STUDIO = resolve(here, "..");
-const SCRATCH = join(repo, "tmp/studio-sessions");
+// REAL_STUDIO and REAL_SCRATCH plant both roots in a test's own folder, so two runs never share a path (#8412)
+const STUDIO = resolve(process.env.REAL_STUDIO || join(here, ".."));
+const SCRATCH = resolve(process.env.REAL_SCRATCH || join(repo, "tmp/studio-sessions"));
 const under = (p, root) => p === root || p.startsWith(root + "/");
 const ROUND_SESSION = /\/rounds\/[^/]+\/sessions\/[^/]+$/;
 const scratchOf = (dir) => (under(dir, STUDIO) && dir !== STUDIO ? join(SCRATCH, dir.slice(STUDIO.length + 1)) : dir);
@@ -250,8 +262,8 @@ const briefed = (dir) => {
 };
 // Pilot, dry-run and readiness walks (rounds/r1, rounds/r1d2, rounds/round-2/pilot ...) keep their
 // screenshots and step files in the main checkout's tmp/design-studio/<tier>/<round or pass>/, which
-// git ignores; only a walk's report.md belongs in the studio's files. On 2026-10-21 golden held
-// 83,000 walk screenshots (9.9 GB in Git LFS) because walks wrote them beside their reports.
+// git ignores; only a walk's report.md belongs in the studio's files, since walk screenshots run to
+// tens of thousands of files.
 const WALKS = join(MAIN, "tmp/design-studio");
 // the browser profiles of sessions and warm browsers, under the repo tmp/ like every temporary file
 const PROFILES = join(WALKS, "profiles");
@@ -266,7 +278,7 @@ function walkRefusal(dir) {
     if (!under(dir, STUDIO) || !WALK_IN_ROUNDS.test(dir.slice(STUDIO.length))) return null;
     return `${dir} is a walk folder inside the studio's files; walks write under ${WALKS} (git ignores it): use ${walksOf(dir)}`;
 }
-// a round's readiness walks: under WALKS, or the round's own pilot/ for a round walked before 2026-10-21
+// a round's readiness walks: under WALKS, or the round's own pilot/ for a round walked before walks moved to WALKS
 function readinessOf(rd) {
     const t = walksOf(join(rd, "pilot"));
     return t && (existsSync(t) || !existsSync(join(rd, "pilot"))) ? t : join(rd, "pilot");
@@ -325,8 +337,8 @@ function taskWords(t) {
     const followUp = fu?.match(new RegExp(`^\\s+- ${reEscape(t.half)}: "([\\s\\S]*?)"`, "m"))?.[1];
     return { prompt: prompt && oneLine(prompt), followUp: followUp && oneLine(followUp) };
 }
-// Files nobody playing a participant may see. In round 1 a participant agent, sent to tasks.md to
-// find its prompt, read the task's avoided words and the persona's facilitator notes (r1-s03).
+// Files nobody playing a participant may see: they hold the tasks' avoided words, the answers and
+// the personas' facilitator notes.
 const FACILITATOR_NAMES = /^(answers|tasks|criteria|roster|plan|scores|insights|decisions|grade)\.md$/;
 const FACILITATOR_WORDS =
     /Words avoided|Words kept on purpose|Facilitator notes|success path|Success definitions|answer key/i;
@@ -343,9 +355,9 @@ function facilitatorFiles(dir) {
 }
 // Persona sections written for the study team, never for the agent playing the persona
 // "Evidence limits" says how far the study team may trust the persona ("Weight findings on import ...
-// over findings on her words"): for the team, not the participant (round 1's tool dry run 2)
+// over findings on her words"): for the team, not the participant
 // "Why this persona exists" says what the studio needs the persona for (Sam's: "the studio's keyboard
-// bar ... beside the screen-reader user, Morgan"): the team's reason, not the persona's (dry run 3)
+// bar ... beside the screen-reader user, Morgan"): the team's reason, not the persona's
 const TEAM_ONLY = /facilitator|study team|for the real study|hypothes|evidence limits|why this persona exists/i;
 // a playing rule addressed to whoever runs the session about the design's hypotheses ("Do not show
 // her the design's hypotheses.", Nadia's): one list item, so the rest of the rules stay
@@ -384,8 +396,7 @@ function personaText(text) {
     );
 }
 // What a task asks a participant to find in the files, listed in the answer key under "Facts no
-// briefing may hold" (round 4's briefings named the two new people and the rows with no node row in
-// their file table). Kept there, not here: a participant may read this file.
+// briefing may hold" (for example people or rows a task asks the participant to discover). Kept there, not here: a participant may read this file.
 function answerFacts(tier = "2") {
     const answers = join(here, `../tier${tier}`, "answers.md");
     const sec = readFileSync(answers, "utf8").match(/^## Facts no briefing may hold\n([\s\S]*?)(?=^## )/m)?.[1];
@@ -523,8 +534,8 @@ function headOf(f, bytes = 256 * 1024) {
 const reEscape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const names = (text, dir) => new RegExp(`${reEscape(dir)}(?![\\w.-])`).test(text);
 // the logs of agents prompted as the participant of this folder, by its own path or by the round's
-// sessions/<id> path the round runner names (round 3's runner named only that one, so its leak
-// check read no log at all), written to since its briefing
+// sessions/<id> path the round runner names (a runner may name only that one), written to since its
+// briefing
 function transcriptsFor(own) {
     const root = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects");
     const dirs = [own, studioOf(own)].filter(Boolean);
@@ -633,8 +644,7 @@ const TOOL_RECORD = /^(\d+\.png|briefing\.md|session\.(json|log)|setup\.log|work
 // --end of a participant's session: its folder, copied where the round's graders read it, with
 // leaks.json beside it. Notes written in the round's copy during the session (the runner asks for
 // transcript.md there) are kept: the copy only adds files and refreshes the tool's own records, and
-// never removes or rewrites anything else (round 3's --end cleared the folder first and lost five
-// sessions' notes). A copy already graded is left alone.
+// never removes or rewrites anything else, so no note is lost. A copy already graded is left alone.
 async function copyBack(own, home) {
     if (!existsSync(own) || !readdirSync(own).some((f) => /^\d+\.png$/.test(f))) return;
     if (existsSync(join(home, "grade.md"))) {
@@ -909,7 +919,7 @@ function gateCheck(rd) {
             } catch {
                 // an unreadable session.json is no walk
             }
-            // a replay that diverged was ended partway: not a whole walk (tool/README.md, "Replaying a route")
+            // a replay that diverged was ended partway: not a whole walk (tool/REFERENCE.md, "Replaying a route")
             if (w.endsWith("-diverged")) continue;
             // the rating check's sessions (rating-rejected, rating-frozen) are a participant's, not a walk
             if (/rating/i.test(w)) continue;
@@ -1002,7 +1012,7 @@ function gateCheck(rd) {
 
 // Why --start must not open a session of a round: the round's plan.md holds no "Gate evidence"
 // section that --gate wrote for the frozen build. Checked at the start itself, so no runner,
-// continuation script or hand start skips the gate (round 4 ran all its sessions without one).
+// continuation script or hand start skips the gate.
 function gateRefusal(dir) {
     const home = studioOf(dir) ?? dir;
     if (!ROUND_SESSION.test(home)) return null;
@@ -1235,7 +1245,7 @@ async function start(dir, how, sr, task, keys) {
     let waited = 0;
     // REAL_SLOT_WAIT_SECONDS bounds the wait for a browser slot, so a caller whose shell call has a
     // time limit gets "nothing started" (exit 4) and runs the same start again, instead of a start
-    // left waiting in the background that nobody resumes (round 4: r4-s05, r4-s20, r4-s28, void)
+    // left waiting in the background that nobody resumes
     const waitFor = Number(process.env.REAL_SLOT_WAIT_SECONDS) || 0;
     while (!existsSync(sockOf(dir))) {
         // still in the queue for a slot, and a warm browser came ready: take it, leave the queue
@@ -1311,7 +1321,7 @@ async function serve(dir, sr) {
     // A browser profile on disk, as a person's browser has, made empty for each session. A new
     // context of a launched browser is an incognito one: Chromium sizes its storage quota from
     // memory, which the app reads as a private window, so every session showed a false "This looks
-    // like a private window" notice (round 1's tool dry run 2). Outside the session folder, so the
+    // like a private window" notice. Outside the session folder, so the
     // profile is never copied to the round's folder.
     // a warm browser (dir null) has no session folder yet. Every profile ends in its owner's pid, so
     // one left by a killed or crashed browser (no close ran) is removed by the next one to start.
@@ -1404,7 +1414,7 @@ async function serve(dir, sr) {
     };
     const touch = () => {
         clearTimeout(idle);
-        // a setTimeout past 2^31 ms fires at once, so an out-of-range REAL_IDLE_SECONDS is ignored
+        // a claimer that set no REAL_IDLE_SECONDS sends 0 (its own value was checked when it started)
         const ms = s.idleMs > 0 && s.idleMs < MAX_IDLE_MS ? s.idleMs : IDLE_MS;
         idle = setTimeout(() => {
             console.log(`no step for ${ms / 1000} seconds; closing the session`);
@@ -1542,7 +1552,7 @@ async function claimWarm(dir, sr, keys) {
             sr: !!sr,
             keys: !!keys,
             missFails: process.env.REAL_MISS_FAILS,
-            idleMs: (Number(process.env.REAL_IDLE_SECONDS) || 0) * 1000,
+            idleMs: askedIdleMs ?? 0,
         }).catch(() => null);
         if (r?.ok) return true;
     }
@@ -1734,8 +1744,7 @@ function watchLive() {
 }
 // In the page: window.__realIdle() resolves once the page has taken the last input -- no DOM change
 // across two animation frames, no timer of under a second pending and no request in flight -- or
-// after 2 s, whichever comes first. It stands in for the fixed 400 ms the tool waited after every
-// action until 2026-10-21. Timers of a second or more are left out: they are a tooltip's open
+// after 2 s, whichever comes first. Timers of a second or more are left out: they are a tooltip's open
 // delay (compact-mantine's TOOLTIP_OPEN_DELAY), a notice's lifetime or an idle check, which a
 // person does not wait for between two moves.
 function watchIdle() {
@@ -2081,7 +2090,7 @@ async function opStart(s, setup, route) {
         if (left) said.push(`could not empty the undo history after the setup: ${left}`);
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring,
         // and Tab starts at the top of the page. A blur alone keeps Chromium's starting point for Tab
-        // on the last control the setup clicked (round 2's keyboard sessions began in the inspector),
+        // on the last control the setup clicked (a keyboard session would begin wherever the setup ended),
         // so focus a mark at the start of the page. The mark goes only once focus has left it: an app
         // that puts back focus which falls to the page would move it off the mark if it went at once.
         await s.page.evaluate(() => {
@@ -2124,8 +2133,8 @@ async function opStart(s, setup, route) {
 }
 
 // The first --end of a session of any task with a Follow-up block does not end it: it hands the participant the follow-up,
-// word for word, and the session carries on. In round 1 two sessions that left the follow-up to the
-// participant's own reading of tasks.md never got it (r1-s22, r1-s23). A second --end ends.
+// word for word, and the session carries on, so the follow-up never depends on the participant's own
+// reading. A second --end ends.
 async function giveFollowUp(s) {
     s.followUpGiven = true;
     const f = join(s.dir, "session.json");
@@ -2679,12 +2688,14 @@ function divergence(rec, now) {
 // look like, so the time to the first styled graph is read from the screenshots' own clocks
 // (score.mjs). Never shown to the participant.
 async function recordStyles(s, file) {
-    const tree = await s.page.evaluate(styleTree, false).catch(() => null);
-    const content = styleContent(tree);
+    // a throw from the page is recorded as an error, never as "no graph open" (null from styleTree)
+    const tree = await s.page.evaluate(styleTree, false).catch((e) => ({ error: e.message.split("\n")[0] }));
+    const content = tree?.error ? null : styleContent(tree);
     const line = {
         shot: basename(file),
         at: new Date().toISOString(),
         graph: content !== null,
+        ...(tree?.error && { error: tree.error }),
         look: content && createHash("sha1").update(content).digest("hex").slice(0, 12),
         colors: await s.page.evaluate(nodeColors).catch(() => null),
     };
@@ -3125,8 +3136,8 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
         } else if (a === "--read") {
             await srRead(s, out);
         } else if (a === "--key" && v === "Escape" && (s.chooser || s.picker)) {
-            // Escape goes to an open file chooser, as in a real browser, and closes it with no file;
-            // before 2026-10-21 a chooser nobody answered stayed "open" for the rest of the session
+            // Escape goes to an open file chooser, as in a real browser, and closes it with no file,
+            // so a chooser nobody answered does not stay "open" for the rest of the session
             s.picker?.answer(null);
             await s.chooser?.setFiles([]).catch(() => {});
             [s.picker, s.chooser] = [null, null];
@@ -3865,8 +3876,8 @@ async function prove() {
         await ask(A, { op: "plant-dom", kind: "hidden-tip" });
         x = step(A, "--hover", "Everything");
         check("a hover over a dismissed, hidden tooltip reports tooltip: null", /^tooltip: null$/m.test(x.out), x.out);
-        // a hover that opens a card and no tooltip reports the card, never "tooltip: null" (round 1:
-        // four participants believed the null over their screenshot of the issue mark's fix list)
+        // a hover that opens a card and no tooltip reports the card, never "tooltip: null", which a
+        // participant would believe over the screenshot
         await ask(A, { op: "plant-dom", kind: "hover-card" });
         x = step(A, "--hover", "Planted card mark");
         check(

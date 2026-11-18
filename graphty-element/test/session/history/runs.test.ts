@@ -397,7 +397,7 @@ describe("undo while a run is still going", () => {
         await run;
 
         assert.lengthOf(session.history.steps, 1, "the run recorded on top and the redo tail went");
-        assert.strictEqual(session.history.steps[0].label, "Ran betweenness");
+        assert.deepEqual(session.history.steps[0].fact, { code: "algo.run", params: { algorithm: "betweenness" } });
         assert.isFalse(session.canRedo);
         session.dispose();
     });

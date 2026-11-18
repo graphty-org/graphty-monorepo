@@ -140,7 +140,7 @@ describe("GraphML records", () => {
         );
     });
 
-    it("normalises a yFiles colour to upper-case #RRGGBB", async () => {
+    it("writes a yFiles fill and border as record keys, as the file has them", async () => {
         const { nodes } = await graphml(
             `<key id="d0" for="node" yfiles.type="nodegraphics"/><graph edgedefault="undirected">` +
                 `<node id="n0"><data key="d0"><y:ShapeNode><y:Fill color="#ffcc00"/><y:BorderStyle color="#0a0"/></y:ShapeNode></data></node></graph>`,

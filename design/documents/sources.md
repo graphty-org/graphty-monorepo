@@ -50,6 +50,7 @@ interface EntryCommon {
     join?: Join; // for a joined table: how it was joined ("Joins")
     added: { nodes: number; edges: number }; // how many it added when it ran
     leftOut?: LeftOut; // the edge rows it left out because they named no node (LoadedSource.leftOut)
+    foundNodes?: (string | number)[]; // the nodes its rows named that the graph already held and no load supplied (an addNodes node): removing the load leaves them
     total?: { nodes?: number; edges?: number }; // what the source holds for it, when known
     extensions?: Record<string, unknown>;
 }
@@ -548,7 +549,7 @@ its `key`, `kind`, `added` and the description's `type`, `name`, `size` and `con
 1. A writer writes the member's `kind`, `version`, `data` (only when `"steps"`), `loads` and
    `extensions` in that order; inside an entry `id`, `kind`, `name`, `graph`, `loadedAt`, `mode`,
    `format`, the kind part, `options`, `mapping`, `tables`, `tableRows`, `joinedOnto`, `join`,
-   `added`, `leftOut`, `total`, `extensions`; inside a part and inside `join`, the order of the data model
+   `added`, `leftOut`, `foundNodes`, `total`, `extensions`; inside a part and inside `join`, the order of the data model
    above. The same session gives the same
    bytes.
 2. A writer writes the member whenever the session holds a load, and only then.
@@ -576,6 +577,10 @@ its `key`, `kind`, `added` and the description's `type`, `name`, `size` and `con
    it, and the schema of version 2 accepts it.
 2. **New optional members** of an entry or a part are not additions: entries are closed, so a
    member an older reader would ignore is a new entry kind, or sources version 3.
+   Two optional entry members were nonetheless added inside version 2, `leftOut` and then
+   `foundNodes`: a reader from before one of them finds an entry carrying it not runnable ("Reading"
+   rule 2): it keeps the entry, never runs it, and writes it back exactly as read. Only a member
+   whose loss of runnability an older reader can afford that way is added like this.
 3. The limits are fixed for version 2.
 
 ## Limits

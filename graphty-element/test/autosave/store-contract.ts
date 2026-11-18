@@ -91,6 +91,49 @@ export function describeAutosaveStoreContract(label: string, make: () => Promise
             assert.deepEqual([...(entry.parts.bin as Uint8Array)], [1, 2, 3, 250]);
         });
 
+        it("returns a copy from read: changing the result does not change the store", async () => {
+            await store.commit([
+                write("a", "k", 0, { data: "D", bin: new Uint8Array([1, 2, 3]) }, { nested: { x: 1 } }),
+            ]);
+
+            const first = await store.read("a");
+            assert.isDefined(first);
+            // The types are readonly; a caller can still write through them at run time.
+            const parts = first.parts as Record<string, string | Uint8Array>;
+            const fields = first.meta as Record<string, unknown>;
+            (parts.bin as Uint8Array)[0] = 99;
+            parts.data = "changed";
+            parts.extra = "added";
+            (fields.nested as { x: number }).x = 2;
+            fields.revision = 9;
+
+            const again = await store.read("a");
+            assert.deepEqual([...(again?.parts.bin as Uint8Array)], [1, 2, 3]);
+            assert.deepEqual(Object.keys(again?.parts ?? {}).sort(), ["bin", "data"]);
+            assert.strictEqual(again?.parts.data, "D");
+            assert.deepEqual(again?.meta.nested, { x: 1 });
+            assert.isUndefined(again?.meta.revision);
+        });
+
+        it("keeps working after close: the next call opens it again", async (context) => {
+            if (store.close === undefined) {
+                context.skip();
+                return;
+            }
+            await store.commit([write("a", "k", 0, { rest: "r" })]);
+            await store.close();
+
+            assert.strictEqual((await store.read("a"))?.parts.rest, "r");
+            await store.close();
+            await store.commit([write("a", "k", 1, { rest: "r2" })]);
+            await store.close();
+            assert.deepEqual(
+                (await store.list("k")).map((m) => [m.id, m.gen]),
+                [["a", 2]],
+            );
+            assert.strictEqual((await store.read("a"))?.parts.rest, "r2");
+        });
+
         it("commits several entries atomically: one stale fence writes none of them", async () => {
             await store.commit([write("b", "k", 0, { rest: "b1" })]);
 

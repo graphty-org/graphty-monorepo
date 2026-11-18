@@ -1,5 +1,7 @@
 # History-based test selection
 
+> Status: Partly historical. "The light gate" below was tools/prepush.sh, which no longer exists: tools/land.mjs, tools/verify.mjs, tools/prepush.sh and tools/prepush-tests.mjs were removed on 2026-11-02 (commit d99cdf5060), and tools/branch-sync.mjs on 2026-10-25 (commit 0c011ef28f). The local light check is now `pnpm run check:quick` (tools/check-quick.sh); test ranking by history is still in tools/test-history.mjs. Today every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md).
+
 Status: Built, 2026-10-23, small. Issue #3324. Phase 2 of the test ledger (`design/ci/test-ledger.md`):
 the ledger's first phase records every test result; this phase uses those results to rank the tests a
 developer runs by hand, fixes the data defects that split its history, and closes the quarantine's gap

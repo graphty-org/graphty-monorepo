@@ -13,6 +13,27 @@ const ACTIONS: QuickAction[] = [
 ];
 
 describe("QuickActions", () => {
+    it("says its empty text with nothing listed, does nothing on the arrows, and No results once searched", async () => {
+        renderShell(<QuickActions actions={[]} onRun={vi.fn()} emptyText="No attributes yet" />);
+        expect(screen.getByRole("dialog")).toHaveTextContent("No attributes yet");
+        await userEvent.keyboard("{ArrowDown}");
+        expect(screen.getByRole("combobox")).not.toHaveAttribute("aria-activedescendant");
+        await userEvent.keyboard("zz");
+        expect(screen.getByRole("dialog")).toHaveTextContent("No results");
+    });
+
+    it("describes a row by the second line under its name", () => {
+        renderShell(
+            <QuickActions
+                actions={[{ value: "deg", label: "degree", description: "1 to 36" }]}
+                onRun={vi.fn()}
+                className="mine"
+            />,
+        );
+        expect(screen.getByRole("option", { name: "degree" })).toHaveAccessibleDescription("1 to 36");
+        expect(document.querySelector(".cm-quick-actions.mine")).not.toBeNull();
+    });
+
     it("is a named dialog with a combobox that has focus and a listbox", () => {
         renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} />);
         expect(screen.getByRole("dialog", { name: "Quick actions" })).toBeInTheDocument();

@@ -1,6 +1,5 @@
 /**
- * Network data (data prototype spec section 3.9): the Sources "+" Network data... door (the start
- * page's Open network data chooser, whose cards open the server form), the
+ * Network data (data prototype spec section 3.9): the Sources "+" Network data... door, the
  * Expand... and Collapse verbs on a node a server load brought, and how the form's rows become one
  * `data.import` call. graphty-element reads the server, pages, refreshes and expands; this file
  * only turns what the reader picked into its inputs.
@@ -13,6 +12,9 @@ import {
     type ExpandBehavior,
     type GraphSession,
     type NodeId,
+    type NodeSource,
+    sourceEndpoint,
+    sourceFileName,
     type SourceInput,
     type SourceKey,
     type SourceLoadOptions,
@@ -24,9 +26,6 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
-
-/** The `dialog` value that opens Open network data, the chooser of servers and a web address. */
-export const NETWORK_DIALOG = "network";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
 export const SERVER_DIALOG = "server";
@@ -84,8 +83,8 @@ export interface ServerFormState {
 export const EXPAND_DEFAULTS: ServerFormState["expandWith"] = { depth: 1, direction: "both", limit: 50, types: "" };
 
 /**
- * A fresh form for a source: its first Start, its starter query, a 500 node cap, and expand on
- * double-click when the source can expand.
+ * A fresh form for a source: its first Start, its starter query, a 500 node cap (none for a file,
+ * which loads whole), and expand on double-click when the source can expand.
  * @param entry - the source.
  * @returns the form.
  */
@@ -103,7 +102,7 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
             ...(mode === undefined ? {} : { mode }),
             ...(query === undefined || starter === undefined ? {} : { [query.name]: starter }),
         },
-        limit: 500,
+        limit: entry.descriptor.kind === "file-host" ? 0 : 500,
         expand: entry.features.expand,
         expandWith: EXPAND_DEFAULTS,
     };
@@ -248,15 +247,15 @@ function isBlank(value: unknown): boolean {
 }
 
 /**
- * Whether the form holds what Test and Load need: an endpoint when the source has no default,
- * every required param, the query for a Query start and the seeds for a Seed nodes start.
+ * Whether the form holds what Test and Load need: an endpoint when the source has no default and
+ * takes none from a param, every required param, the query for a Query start and the seeds for a Seed nodes start.
  * @param entry - the source.
  * @param form - the form.
  * @returns true when ready.
  */
 export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boolean {
     const { descriptor } = entry;
-    if (form.endpoint.trim() === "" && isBlank(descriptor.defaultEndpoint)) {
+    if (form.endpoint.trim() === "" && isBlank(descriptor.defaultEndpoint) && descriptor.endpointParam === undefined) {
         return false;
     }
     const hasMode = descriptor.params.some((p) => p.name === "mode");
@@ -375,10 +374,8 @@ export function serverRequest(
         limit: form.expandWith.limit,
         ...(types.length === 0 ? {} : { relationshipTypes: types }),
     };
-    const host = URL.canParse(endpoint) ? new URL(endpoint).host : null;
-    const name = host === null ? kindName(entry) : `${kindName(entry)} ${host}`;
     return {
-        input: { source: entry.id, config, name },
+        input: { source: entry.id, config, name: loadName(entry, endpoint, config) },
         options: {
             ...(endpoint === "" ? {} : { endpoint }),
             ...(form.limit > 0 ? { limits: { maxNodes: form.limit, onLimit: "stop" as const } } : {}),
@@ -387,13 +384,32 @@ export function serverRequest(
     };
 }
 
+/**
+ * What a load from the form is called: a file's name ("buildings.csv") for a source whose address
+ * is a param; else the kind and the endpoint's host ("Neo4j db.example.com", "Load from URL
+ * dev.ato.ms:9565").
+ * @param entry - the source.
+ * @param endpoint - the typed endpoint.
+ * @param config - the params.
+ * @returns the name.
+ */
+function loadName(entry: SourceCatalogEntry, endpoint: string, config: Readonly<Record<string, unknown>>): string {
+    const file = sourceFileName(entry.descriptor, config);
+    if (file !== undefined) {
+        return file;
+    }
+    const address = endpoint === "" ? sourceEndpoint(entry.descriptor, config) : endpoint;
+    const host = typeof address === "string" && URL.canParse(address) ? new URL(address).host : null;
+    return host === null ? kindName(entry) : `${kindName(entry)} ${host}`;
+}
+
 /** What Load and Test send: the read, and the sign-in to remember in memory. */
 export interface ServerLoad {
     readonly input: SourceInput;
     /** The load's options, the credential among them. */
     readonly options: SourceLoadOptions;
     readonly credential: Credential | undefined;
-    /** Where the credential goes: the typed endpoint, else the source's default. */
+    /** Where the credential goes: the typed endpoint, else the address param's, else the source's default. */
     readonly endpoint: string | undefined;
 }
 
@@ -406,11 +422,12 @@ export interface ServerLoad {
 export function serverLoad(entry: SourceCatalogEntry, form: ServerFormState): ServerLoad {
     const { input, options } = serverRequest(entry, form);
     const credential = formCredential(entry, form);
+    const where = sourceEndpoint(entry.descriptor, input.config, options.endpoint);
     return {
         input,
         options: credential === undefined ? options : { ...options, credential },
         credential,
-        endpoint: options.endpoint ?? entry.descriptor.defaultEndpoint ?? undefined,
+        endpoint: where === null ? undefined : String(where),
     };
 }
 
@@ -440,44 +457,13 @@ export function openServerForm(
 }
 
 /**
- * The source a node came from, when that source can expand it: the node's first load, by its
- * `_source.loads` fact.
- * @param session - the session.
- * @param id - the node.
- * @returns the load's source id, or undefined.
+ * The selected node's network source facts, when exactly one node is selected.
+ * @param ctx - the command context.
+ * @returns the facts, or null.
  */
-function expandableSource(session: GraphSession | null, id: NodeId): string | undefined {
-    const loads = session?.data.node(id)?.["_source.loads"];
-    if (!Array.isArray(loads) || session === null) {
-        return undefined;
-    }
-    const keys = new Set(loads.map((key) => String(key).split("/")[0]));
-    const load = session.data.loads().find((each) => keys.has(each.key));
-    const entry = sourceDescriptors().find((each) => each.id === load?.source);
-    return entry?.features.expand === true ? entry.id : undefined;
-}
-
-/**
- * How many more neighbors a node has on its server, when the server says.
- * @param session - the session.
- * @param id - the node.
- * @returns the count, or null when unknown or none.
- */
-function hiddenNeighbors(session: GraphSession | null, id: NodeId): number | null {
-    const hidden = session?.data.node(id)?.["_source.hidden"];
-    return typeof hidden === "number" && hidden > 0 ? hidden : null;
-}
-
-/**
- * Whether the node an expansion of another node brought (`_source.expansion` not "none") can be
- * collapsed: it has expanded at least once.
- * @param session - the session.
- * @param id - the node.
- * @returns true when Collapse applies.
- */
-function collapsible(session: GraphSession | null, id: NodeId): boolean {
-    const expansion = session?.data.node(id)?.["_source.expansion"];
-    return expansion === "partial" || expansion === "complete";
+function selectedSource(ctx: CommandContext): NodeSource | null {
+    const id = selectedNode(ctx);
+    return id === undefined || ctx.session === null ? null : ctx.session.data.nodeSource(id);
 }
 
 /**
@@ -513,10 +499,24 @@ export const registration = defineRegistration({
             id: "data.add-server",
             label: "Network data...",
             group: "Data",
-            keywords: ["add", "source", "server", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
+            keywords: [
+                "add",
+                "source",
+                "server",
+                "database",
+                "neo4j",
+                "cypher",
+                "sparql",
+                "ndex",
+                "openalex",
+                "rest",
+                "url",
+                "web address",
+                "link",
+            ],
             shown: (ctx) => ctx.session !== null,
             run: (ctx) => {
-                ctx.workspace.set({ dialog: NETWORK_DIALOG });
+                openServerForm(ctx.workspace);
             },
         },
         {
@@ -525,14 +525,10 @@ export const registration = defineRegistration({
             group: "Selection",
             keywords: ["neighbors", "server", "fetch"],
             tooltip: (ctx) => {
-                const id = selectedNode(ctx);
-                const hidden = id === undefined ? null : hiddenNeighbors(ctx.session, id);
-                return hidden === null ? "Expand..." : `Expand... (+${String(hidden)} on the server)`;
+                const hidden = selectedSource(ctx)?.hiddenNeighbors ?? null;
+                return hidden === null || hidden <= 0 ? "Expand..." : `Expand... (+${String(hidden)} on the server)`;
             },
-            shown: (ctx) => {
-                const id = selectedNode(ctx);
-                return id !== undefined && expandableSource(ctx.session, id) !== undefined;
-            },
+            shown: (ctx) => selectedSource(ctx)?.canExpand === true,
             run: (ctx) => {
                 ctx.workspace.set({ dialog: EXPAND_DIALOG });
             },
@@ -542,10 +538,7 @@ export const registration = defineRegistration({
             label: "Collapse",
             group: "Selection",
             keywords: ["neighbors", "server"],
-            shown: (ctx) => {
-                const id = selectedNode(ctx);
-                return id !== undefined && collapsible(ctx.session, id);
-            },
+            shown: (ctx) => selectedSource(ctx)?.expanded === true,
             run: (ctx) => {
                 const id = selectedNode(ctx);
                 if (id !== undefined && ctx.session !== null) {

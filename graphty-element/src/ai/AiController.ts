@@ -95,23 +95,13 @@ import {
     type GateKind,
     type JsonObject,
     type MessageState,
+    type ToolHost,
 } from "./tools/types";
+import { uniqueId } from "./uniqueId";
 
 export type { AiApprovalVerdict, AiToolCallFacts } from "./tools/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
-
-/**
- * An id no other message, conversation or page load gives: a prefix and 128 random bits. A
- * message's id is stamped on its steps' provenance, so it must stay unique across reloads.
- * @param prefix - What kind of id it is.
- * @returns The id.
- */
-function uniqueId(prefix: string): string {
-    // getRandomValues, unlike randomUUID, is there on a page served over plain http too.
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    return prefix + Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 /**
  * A conversation with its undone marks brought up to date with the history.
@@ -658,6 +648,8 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `AI_ARG_OUT_OF_RANGE`. */
+    datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
      * message starts afresh), `"memory"`, `"browser"`, or the options.
@@ -713,6 +705,26 @@ export interface ExecutionResult extends CommandResult {
 }
 
 /**
+ * The engine's image model, as a tool host offers it.
+ * @param engine - The engine.
+ * @returns `{ image }`, or nothing when the engine makes no pictures.
+ */
+function imageOf(engine: AiEngine): Pick<ToolHost, "image"> {
+    const { imageModel } = engine;
+    return imageModel === undefined || engine.generateImage === undefined
+        ? {}
+        : {
+              image: {
+                  model: imageModel,
+                  generate: (prompt, signal) => {
+                      // Present with `imageModel`, so never absent here.
+                      return engine.generateImage?.(prompt, signal) ?? Promise.reject(new Error("no image model"));
+                  },
+              },
+          };
+}
+
+/**
  * Controller that orchestrates LLM providers and command execution.
  * Manages the conversation flow, command dispatch, and status updates.
  */
@@ -760,6 +772,7 @@ export class AiController {
     private readonly instructions: string;
     private readonly gate: Readonly<AssistantGateLimits> | false;
     private readonly allowImportUrl: ((url: URL) => boolean) | undefined;
+    private readonly datasetBaseUrl: string | undefined;
     /** Runs the assistant started, which it may cancel without asking. */
     private readonly assistantRuns = new Set<string>();
     /**
@@ -839,6 +852,7 @@ export class AiController {
         this.gate =
             !generated || options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
         this.allowImportUrl = options.allowImportUrl;
+        this.datasetBaseUrl = options.datasetBaseUrl;
         this.policy = generated ? policyOf(options.approvals) : undefined;
         this.asks = options.questions === true;
         this.model = options.model ?? defaultModelOf(options.provider.name);
@@ -871,7 +885,7 @@ export class AiController {
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
             STORE_OVERRIDE
         ];
-        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // NOSONAR(S7059): the store opens at construction on purpose; openHistory never rejects and ready() awaits it
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // eslint-disable-line sonarjs/no-async-constructor -- the store opens at construction on purpose; openHistory never rejects and ready() awaits it
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
         liveFactsOf.set(this, {
@@ -1338,6 +1352,23 @@ export class AiController {
     }
 
     /**
+     * What a message's tools reach the host by.
+     * @param emit - Hands the reader's application an event.
+     * @param readerText - The reader's own text in this message.
+     * @returns The host.
+     */
+    private toolHost(emit: ToolHost["emit"], readerText: string): ToolHost {
+        return {
+            emit,
+            readerText,
+            ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+            ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
+            provider: this.engine.providerName,
+            ...imageOf(this.engine),
+        };
+    }
+
+    /**
      * The loop's run of one message: its conversation, engine, tools and state, and the
      * controller's settings that shape it.
      * @param run - The message.
@@ -1402,11 +1433,7 @@ export class AiController {
                 ...(this.recordsEvidence(session) ? { evidence: true } : {}),
                 ...(binding === undefined ? {} : { binding }),
             },
-            host: {
-                emit,
-                readerText: input,
-                ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
-            },
+            host: this.toolHost(emit, input),
             hold: (held, messageId, helper) =>
                 this.hold({
                     held,
@@ -2523,9 +2550,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             return "";
         }
 
-        const schema = this.schemaManager.getSchema();
+        // Extracts again after a data change dropped the cache.
+        const schema = this.schemaManager.extract();
 
-        if (!schema || (schema.nodeCount === 0 && schema.edgeCount === 0)) {
+        if (schema.nodeCount === 0 && schema.edgeCount === 0) {
             return "";
         }
 
@@ -2598,6 +2626,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             }
 
             this.followSession();
+            // A project or graph that arrived while the store was read (an autosave restore after a
+            // reload) changed nothing followSession heard: look again now that it listens.
+            void this.enqueue(() => this.reopenForGraph());
         } catch (error) {
             // ponytail: an unreadable store reads as no history; the controller still answers.
             logger.warn("History could not open", { error: toSafeError(error).name });

@@ -5,8 +5,8 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { yedLabelHeight } from "../../styles/canon/yed-label.js";
 import { plainCell } from "../../styles/plan/resolve.js";
-import { yedLabelHeight } from "../graphml/styles-yed.js";
 import { YED_GROUP_INSETS, type YedBox, yedGroupBounds, type YedGroupFrame } from "../graphml/yed-group-bounds.js";
 
 /** A GML record as the importer keeps it. */

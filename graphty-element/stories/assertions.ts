@@ -153,9 +153,8 @@ export interface Drawn {
      * READ OFF THE EDGES, because a cap has no mesh of its own. Every cap of one appearance is a
      * thin instance of a single batch mesh whose name deliberately does not say "arrow", so the
      * scene walk that counted caps by name finds none of them and would count the batch as a cap
-     * nothing is drawing. `Edge.drawnCaps` is where the answer moved to: the shape is the name
-     * the cap's mesh used to carry, and the span is the reading a story used to take off its
-     * bounding box -- the same number, so a measurement written before this change still holds.
+     * nothing is drawing. `Edge.drawnCaps` gives each cap's shape by name and its span, the
+     * same number a reading of the cap's bounding box gives.
      */
     readonly arrowCaps: readonly { readonly name: string; readonly span: number; readonly visibility: number }[];
     /** The distinct line-pattern meshes in the scene, by name. */
@@ -495,9 +494,8 @@ function sagittaOf(points: readonly Vector3[]): number {
  *
  * WAITING IS PART OF THE READING. Every wait here fails rather than expiring quietly, because a
  * wait that gives up and returns anyway cannot be told apart from a wait that succeeded: a story
- * whose fetch died would render an empty canvas and pass. That used to be true of the helpers in
- * `stories/helpers.ts` as well -- both of their waits raced a five-second timer that resolved
- * either way -- and is not any more: they throw, naming what never happened.
+ * whose fetch died would render an empty canvas and pass. The waits in `stories/helpers.ts`
+ * behave the same way: they throw, naming what never happened.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name the story in a failure message.
  * @returns What is on screen.
@@ -658,7 +656,16 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
         arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
         arrowCaps: drawnCaps,
-        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
+        // a dash, dot, box, diamond or star line's elements are drawn by its line's shader (issue #7404)
+        linePatternNames: [
+            ...new Set([
+                ...patternElements.map((element) => element.name),
+                ...edges.flatMap((edge) => {
+                    const pattern = edge.drawnLine?.pattern ?? null;
+                    return pattern === null ? [] : [`pattern-${pattern}`];
+                }),
+            ]),
+        ].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
@@ -2054,11 +2061,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string, input?: Rea
 
     const haloed = scene.graph
         .getNodes()
-        .filter((node) => {
-            const { halo } = node as unknown as { halo?: { isDisposed: () => boolean } | null };
-
-            return halo !== undefined && halo !== null && !halo.isDisposed();
-        })
+        .filter((node) => node.drawnSelectionHalo)
         .map((node) => String(node.id));
 
     await holds(

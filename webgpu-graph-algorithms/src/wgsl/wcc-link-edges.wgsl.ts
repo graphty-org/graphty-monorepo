@@ -1,10 +1,10 @@
 /**
- * The `wcc-link-edges` kernel body (spec 8.3): the each-edge-once link round of Afforest, correct for directed and
- * undirected input alike because `edgeList()` yields every logical edge once in declared orientation (design 10.1).
+ * The `wcc-link-edges` kernel body: the each-edge-once link round of Afforest, correct for directed and
+ * undirected input alike because `edgeList()` yields every logical edge once in declared orientation.
  * `link_pair` is the same GAP `Link` transcription as wcc-link-sample (each module is composed alone, so the helper
  * is copied, not shared): all-u32 CAS on `comp`, an `array<atomic<u32>>` because WGSL forbids mixing atomic and
- * plain access to one element, with a bounded retry loop (PD-5) and the changed flag at `P.flagIndex` inside the
- * same array (PD-4). The `P.giant` guard is GAP's "skip the vertices already in the giant component" and is a pure
+ * plain access to one element, with a bounded retry loop and the changed flag at `P.flagIndex` inside the
+ * same array. The `P.giant` guard is GAP's "skip the vertices already in the giant component" and is a pure
  * optimisation -- linking two vertices already in one component is a no-op. The body is normative: a sabotage
  * mutation is a textual edit of it, so it is not restyled.
  */

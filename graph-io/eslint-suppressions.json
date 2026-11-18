@@ -1,0 +1,400 @@
+{
+  "benchmarks/fixtures.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "benchmarks/run.ts": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "scripts/cyjs-golden.cjs": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "scripts/docs-reference.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "scripts/style-oracles/dot.mjs": {
+    "unicorn/prefer-set-has": {
+      "count": 1
+    }
+  },
+  "scripts/style-oracles/xml.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/prefer-at": {
+      "count": 3
+    }
+  },
+  "src/common/escape.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 2
+    }
+  },
+  "src/common/export.ts": {
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/common/format.ts": {
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/common/input.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 2
+    }
+  },
+  "src/common/json-elements.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 4
+    }
+  },
+  "src/common/lists.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/common/xml.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    },
+    "unicorn/prefer-code-point": {
+      "count": 15
+    },
+    "unicorn/prefer-string-raw": {
+      "count": 1
+    }
+  },
+  "src/formats/csv/exporter.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/formats/csv/importer.ts": {
+    "unicorn/prefer-export-from": {
+      "count": 1
+    }
+  },
+  "src/formats/csv/records.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 5
+    }
+  },
+  "src/formats/cx/exporter.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 5
+    }
+  },
+  "src/formats/cx/styles.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/cx2/exporter.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/formats/cys/exporter.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/formats/cys/importer.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/formats/cys/session.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/formats/dot/graph-label.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/formats/dot/positions.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/dot/record.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/dot/styles.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 5
+    }
+  },
+  "src/formats/dot/tokenizer.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 18
+    }
+  },
+  "src/formats/gexf/importer.ts": {
+    "@typescript-eslint/prefer-enum-initializers": {
+      "count": 16
+    },
+    "unicorn/prefer-at": {
+      "count": 5
+    }
+  },
+  "src/formats/gexf/schema.ts": {
+    "sonarjs/no-clear-text-protocols": {
+      "count": 4
+    }
+  },
+  "src/formats/gexf/styles.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/gml/groups.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/gml/importer.ts": {
+    "sonarjs/use-type-alias": {
+      "count": 1
+    },
+    "unicorn/prefer-export-from": {
+      "count": 1
+    }
+  },
+  "src/formats/gml/styles.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/formats/gml/syntax.ts": {
+    "unicorn/prefer-at": {
+      "count": 3
+    },
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/formats/graphml/constants.ts": {
+    "sonarjs/no-clear-text-protocols": {
+      "count": 1
+    }
+  },
+  "src/formats/graphml/exporter.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/graphml/importer.ts": {
+    "@typescript-eslint/prefer-enum-initializers": {
+      "count": 13
+    },
+    "unicorn/prefer-at": {
+      "count": 5
+    }
+  },
+  "src/formats/graphml/styles-yed-live-drawing.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/graphml/styles-yed.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 6
+    }
+  },
+  "src/formats/graphml/styles-yfiles3.ts": {
+    "sonarjs/no-clear-text-protocols": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 5
+    }
+  },
+  "src/formats/graphml/yed-group-bounds.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/json/dialect.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/formats/json/importer.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    },
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/formats/json/obographs-export.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/json/styles.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/formats/neo4j/exporter.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 2
+    }
+  },
+  "src/formats/neo4j/importer.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 2
+    }
+  },
+  "src/formats/obo/exporter.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/formats/pajek/importer.ts": {
+    "sonarjs/use-type-alias": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 3
+    }
+  },
+  "src/formats/pajek/styles.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/pajek/syntax.ts": {
+    "unicorn/prefer-code-point": {
+      "count": 3
+    }
+  },
+  "src/formats/xgmml/columns.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/formats/xgmml/constants.ts": {
+    "sonarjs/no-clear-text-protocols": {
+      "count": 2
+    }
+  },
+  "src/formats/xgmml/emit.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/formats/xgmml/styles.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/registry.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/sniff.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    },
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/sources/cypher/flatten.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/sources/github/index.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/sources/gremlin/transport.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/sources/s3/index.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/sources/sigv4.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/sources/sparql/index.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/styles/annotations.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/styles/canon/color.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/styles/cyjs/mappers.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/styles/cytoscape/charts.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/styles/cytoscape/custom-graphics.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/styles/io/block.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 9
+    }
+  },
+  "src/styles/plan/plan.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 6
+    }
+  }
+}

@@ -135,7 +135,7 @@ Convert the existing remote logging server into an MCP (Model Context Protocol) 
 
 ### Phase 2: MCP Server MVP (3 Core Tools)
 
-**Objective**: Create a minimal MCP server with the 3 most essential tools that Claude Code needs: `logs_get_recent`, `logs_health`, and `logs_list_sessions`.
+**Objective**: Create a minimal MCP server with the 3 most essential tools that Claude Code needs: `logs_get_recent`, `logs_status`, and `logs_list_sessions`.
 
 **Duration**: 2 days
 
@@ -167,10 +167,10 @@ Convert the existing remote logging server into an MCP (Model Context Protocol) 
     });
     ```
 
-- `test/mcp/tools/logs-health.test.ts`: logs_health tool
+- `test/mcp/tools/logs-status.test.ts`: logs_status tool
 
     ```typescript
-    describe("logs_health tool", () => {
+    describe("logs_status tool", () => {
         it("returns server status, uptime, session count, log count");
         it("includes memory usage");
     });
@@ -199,7 +199,7 @@ Convert the existing remote logging server into an MCP (Model Context Protocol) 
     ```
 
 - `src/mcp/tools/logs-get-recent.ts`: Get recent logs tool
-- `src/mcp/tools/logs-health.ts`: Health check tool
+- `src/mcp/tools/logs-status.ts`: Health check tool
 - `src/mcp/tools/logs-list-sessions.ts`: List sessions tool
 - `src/mcp/tools/index.ts`: Tool registration
 - `src/mcp/index.ts`: MCP module exports
@@ -726,7 +726,7 @@ src/
 │       ├── logs-get-errors.ts
 │       ├── logs-clear.ts
 │       ├── logs-list-sessions.ts
-│       ├── logs-health.ts
+│       ├── logs-status.ts
 │       ├── logs-search.ts
 │       └── logs-get-file-path.ts
 ├── server/
@@ -765,7 +765,7 @@ test/
 │       ├── logs-get-errors.test.ts
 │       ├── logs-clear.test.ts
 │       ├── logs-list-sessions.test.ts
-│       ├── logs-health.test.ts
+│       ├── logs-status.test.ts
 │       ├── logs-search.test.ts
 │       └── logs-get-file-path.test.ts
 └── integration/

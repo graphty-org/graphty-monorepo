@@ -1,4 +1,6 @@
-import type { AbstractMesh, InstancedMesh, Mesh } from "@babylonjs/core";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 /** The member of an instance Babylon keeps private: the source it draws from. */
 interface InstanceSource {

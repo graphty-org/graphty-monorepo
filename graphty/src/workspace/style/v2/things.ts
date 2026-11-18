@@ -128,7 +128,14 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             part: "order",
             groups: [
                 [{ id: "order", name: "Order", items: ["order"], main: ["node.zIndex"] }],
-                [{ id: "group", name: "Group", items: ["group"], main: ["node.groupPadding"] }],
+                [
+                    {
+                        id: "group",
+                        name: "Group",
+                        items: ["group"],
+                        main: ["node.groupPadding", "node.groupPaddingRatio"],
+                    },
+                ],
             ],
         },
         { part: "shaders", groups: [] },

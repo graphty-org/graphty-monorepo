@@ -14,6 +14,9 @@ import { shownChannel } from "../offered";
 import { Field, type RowContext } from "../PropertyRow";
 import { layerWord, removeLine } from "../row";
 import { failureWords } from "../words";
+import { rubricChannels, rubricOf } from "./rubric";
+import { RubricLine } from "./RubricLine";
+import { ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
 
 /**
@@ -74,29 +77,40 @@ export function ThingRow({
     }
     const kind = ctx.side === "node" ? "Node" : "Edge";
     const title = `${kind} ${thing.name.toLowerCase()}`;
-    // The thing's other set lines, until its settings pop-over has its own sub-groups.
+    const rubric = rubricOf(ctx.side, thing.id, main.channel);
+    const covered = new Set(rubric === undefined ? [] : rubricChannels(rubric));
+    // Every channel the minus takes off: the thing's own and every line of its rubric.
+    const all = [...new Set([...channels, ...covered])];
+    // The thing's set lines its rubric has no line for (or, with no rubric yet, every other set line).
     const others = channels.flatMap((channel) => {
         const descriptor =
-            channel === main.channel || !setOn(ctx, channel)
+            channel === main.channel || covered.has(channel) || !setOn(ctx, channel)
                 ? undefined
                 : shownChannel(ctx.session, ctx.side, channel, true);
         return descriptor?.renderable === true ? [descriptor] : [];
     });
+    const common = rubric?.common ?? [];
+    const commonChannels = new Set(common.flatMap((line) => [line.channel, ...(line.units ?? [])]));
+    const changed =
+        others.length > 0 ||
+        [...covered].some((channel) => channel !== main.channel && !commonChannels.has(channel) && setOn(ctx, channel));
     const settings = (
         <SettingsPopout
             label={`${title} settings`}
             title={title}
-            changed={others.length > 0}
+            changed={changed}
             icon={<GLYPHS.sliders size={14} aria-hidden />}
         >
-            {others.map((descriptor) => (
-                <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
-            ))}
+            {rubric === undefined ? (
+                others.map((descriptor) => <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />)
+            ) : (
+                <ThingPopover ctx={ctx} title={title} rubric={rubric} others={others} />
+            )}
         </SettingsPopout>
     );
     const remove = (): void => {
         onCancel();
-        removeThing(ctx, thing.name, channels)
+        removeThing(ctx, thing.name, all)
             .then(() => {
                 store.set({ announcement: `${thing.name} removed` });
             })
@@ -104,20 +118,28 @@ export function ThingRow({
                 store.set({ notice: { message: failureWords(thing.name, "removed", error), error: true } });
             });
     };
+    const removeLabel = `Remove ${title.toLowerCase()}`;
     return (
         <div data-thing={thing.id}>
-            <Field
-                ctx={ctx}
-                descriptor={main}
-                pending={pending || !setOn(ctx, main.channel)}
-                onCancel={onCancel}
-                thing={{
-                    name: thing.unnamed === true ? null : thing.name,
-                    slot: settings,
-                    removeLabel: `Remove ${title.toLowerCase()}`,
-                    onRemove: remove,
-                }}
-            />
+            {rubric?.row === undefined ? (
+                <Field
+                    ctx={ctx}
+                    descriptor={main}
+                    pending={pending || !setOn(ctx, main.channel)}
+                    onCancel={onCancel}
+                    thing={{
+                        name: thing.unnamed === true ? null : thing.name,
+                        slot: settings,
+                        removeLabel,
+                        onRemove: remove,
+                    }}
+                />
+            ) : (
+                <RubricLine ctx={ctx} line={rubric.row} row={{ slot: settings, removeLabel, onRemove: remove }} />
+            )}
+            {common.map((line) => (
+                <RubricLine key={line.channel} ctx={ctx} line={line} />
+            ))}
         </div>
     );
 }

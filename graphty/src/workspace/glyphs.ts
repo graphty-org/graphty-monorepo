@@ -39,7 +39,9 @@ import {
     ClipboardPaste,
     Clock,
     Code,
+    Columns2,
     Columns3,
+    Columns4,
     Combine,
     Copy,
     createLucideIcon,
@@ -52,8 +54,11 @@ import {
     FlaskConical,
     Folder,
     FolderOpen,
+    Frame,
     Gauge,
     GitCommitHorizontal,
+    Grid2x2,
+    Grid3x3,
     GripVertical,
     Group,
     HardDriveDownload,
@@ -62,6 +67,7 @@ import {
     History,
     Hourglass,
     Image,
+    Italic,
     KeyRound,
     Lamp,
     Layers,
@@ -107,6 +113,8 @@ import {
     RotateCw,
     RotateCwSquare,
     Route,
+    Rows2,
+    Rows3,
     Scan,
     Search,
     Send,
@@ -122,6 +130,7 @@ import {
     SquareArrowOutUpRight,
     SquareDashed,
     SquaresIntersect,
+    SquareSquare,
     SquaresSubtract,
     SquaresUnite,
     StepBack,
@@ -390,6 +399,27 @@ export const GLYPHS = {
     jumpToSelection: LocateFixed,
     // The model preview's Reset view: back to the first view of the model.
     resetView: LocateFixed,
+    // Style panel v2 (design/ui/style-panel-v2/design.md, section 6): a stroke width's in-field
+    // glyph is `weight` above; italic beside a font weight; padding split into its four sides.
+    italic: Italic,
+    sides: Grid3x3,
+    // Each side of a box, one toggle a side (a frame's sides).
+    arrowUpToLine: ArrowUpToLine,
+    arrowRightToLine: ArrowRightToLine,
+    arrowDownToLine: ArrowDownToLine,
+    arrowLeftToLine: ArrowLeftToLine,
+    // Where a border's stroke sits on the shape's edge: inside it, centered on it, outside it.
+    borderInside: SquareSquare,
+    borderCenter: Square,
+    borderOutside: Frame,
+    // Which way stripes run: stacked down, or side by side to the right.
+    stripesDown: Rows3,
+    stripesRight: Columns4,
+    // How a picture repeats over a node: once, both ways, across, down.
+    repeatNone: Square,
+    repeatBoth: Grid2x2,
+    repeatAcross: Columns2,
+    repeatDown: Rows2,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

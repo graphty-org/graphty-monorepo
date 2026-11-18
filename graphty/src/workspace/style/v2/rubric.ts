@@ -1,0 +1,510 @@
+/**
+ * Style panel v2's control rubric and option-name table (design/ui/style-panel-v2/design.md,
+ * sections 6 and 7): for each node thing, the common lines under its row, its settings pop-over's
+ * Main lines and the sub-groups its "+" adds, and for each line which control it draws. Keyed by
+ * graphty-element channel ids; what a channel accepts, its limits and its own value names are
+ * read from the element's descriptors and `channelValues`. The app's part is only presentation:
+ * where a setting sits, what it is called, and the display name or glyph of an option where the
+ * element's own name is not what the panel shows (a unit "Graph", an icon segment).
+ */
+
+import type { Channel } from "@graphty/graphty-element/catalog";
+
+import type { GLYPHS } from "../../glyphs";
+
+/**
+ * A rubric rule (design section 6) a line's control follows. Colors, numbers and booleans take
+ * theirs from the channel (R1, R5, R7); an enum line names its rule; `field` draws today's field
+ * (a list, an asset, a text source, a value bound to data).
+ */
+export type Rule = "R1" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "field";
+
+/** One line of the panel or a pop-over. */
+export interface LineSpec {
+    /** The channel it edits (the first of a pair). */
+    readonly channel: Channel;
+    /** Its name, when not the element's short name for the channel; null draws no name column. */
+    readonly name?: string | null;
+    /** Its rule, where the channel's kind does not settle it (every enum names one). */
+    readonly rule?: Rule;
+    /** The second number of a pair (X | Y, W | H, near | far): two fields on one line. */
+    readonly pair?: Channel;
+    /** The letters in a pair's two fields' glyph slots. */
+    readonly letters?: readonly [string, string];
+    /** The in-field glyph of a number (a stroke width's weight). */
+    readonly glyph?: keyof typeof GLYPHS;
+    /** Channels standing for the same quantity in another unit: the line edits whichever is set. */
+    readonly units?: readonly Channel[];
+    /** A Unit line (R8): each unit's name and the channel holding the value in that unit. */
+    readonly unit?: readonly (readonly [string, Channel])[];
+    /** A boolean modifying the line, drawn as a toggle in its modifier slot (R6). */
+    readonly toggle?: Channel;
+}
+
+/** One named sub-group of a pop-over, added from its "+". */
+export interface SubGroup {
+    readonly name: string;
+    readonly lines: readonly LineSpec[];
+}
+
+/** One thing's rubric. */
+export interface ThingRubric {
+    /** Its row's main control, when it is not today's field (Visibility's Shown / Hidden). */
+    readonly row?: LineSpec;
+    /** At most two lines under its row, shown from the moment it is added. */
+    readonly common?: readonly LineSpec[];
+    /** Its pop-over's Main lines, always shown. */
+    readonly main: readonly LineSpec[];
+    /** Its pop-over's other sub-groups, in "+" menu order. */
+    readonly groups?: readonly SubGroup[];
+}
+
+/** An option's display name and glyph, where the element's own name is not what the panel shows. */
+export interface OptionName {
+    readonly name: string;
+    readonly glyph?: keyof typeof GLYPHS;
+}
+
+/**
+ * The option-name table: every option of every R8 line, by channel and value id. A line whose
+ * options all have a glyph draws icon segments (design 6, "Pictured"), else words. The widths test
+ * checks that its ids are the element's values and that each line fits where it sits.
+ */
+export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<string, OptionName>>>>> = {
+    "node.borderPosition": {
+        inside: { name: "Inside", glyph: "borderInside" },
+        center: { name: "Center", glyph: "borderCenter" },
+        outside: { name: "Outside", glyph: "borderOutside" },
+    },
+    "node.stripeDirection": {
+        down: { name: "Down", glyph: "stripesDown" },
+        right: { name: "Right", glyph: "stripesRight" },
+    },
+    "node.imageRepeat": {
+        "no-repeat": { name: "None", glyph: "repeatNone" },
+        repeat: { name: "Both", glyph: "repeatBoth" },
+        "repeat-x": { name: "Across", glyph: "repeatAcross" },
+        "repeat-y": { name: "Down", glyph: "repeatDown" },
+    },
+    "node.imageClip": { node: { name: "Node" }, none: { name: "None" } },
+    "node.imageAutoSize": { proportional: { name: "Proportional" }, natural: { name: "Natural" } },
+    "node.gradientKind": { linear: { name: "Linear" }, radial: { name: "Radial" } },
+    "node.sizeSpace": { scene: { name: "Graph" }, pivot: { name: "Pivot" }, screen: { name: "Screen" } },
+    "node.sizeMode": { scale: { name: "Scale" }, diameter: { name: "Diameter" }, uniform: { name: "Uniform" } },
+    "node.modelFit": { contain: { name: "Contain" }, stretch: { name: "Stretch" } },
+    "node.modelCenter": { bounds: { name: "Bounds" }, origin: { name: "Origin" } },
+    "node.modelDoubleSided": { file: { name: "File" }, true: { name: "On" }, false: { name: "Off" } },
+    "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" } },
+    "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
+    "node.halo": { true: { name: "On" }, false: { name: "Off" } },
+};
+
+/** A Unit line's options for a stroke width: in graph units, or in screen pixels. */
+const BORDER_UNIT: readonly (readonly [string, Channel])[] = [
+    ["Graph", "node.borderWidth"],
+    ["Screen", "node.borderScreenWidth"],
+];
+
+/** A group's padding: in pixels, or a share of the group's size. */
+const GROUP_UNIT: readonly (readonly [string, Channel])[] = [
+    ["px", "node.groupPadding"],
+    ["%", "node.groupPaddingRatio"],
+];
+
+/** Fit to label: sizes the shape to its label, so it sits in the Shape pop-over (design 4). */
+export const FIT_TO_LABEL: readonly Channel[] = [
+    "node.labelFit",
+    "node.labelPaddingX",
+    "node.labelPaddingY",
+    "node.labelFitSquare",
+    "node.labelFitQuantum",
+    "node.labelFitImage",
+    "node.labelFitImagePadding",
+];
+
+/** Every Shape member's sub-groups: thing-wide (design 5). */
+const SHAPE_GROUPS: readonly SubGroup[] = [
+    {
+        name: "Size",
+        lines: [
+            { channel: "node.sizeSpace", name: "Unit", rule: "R8f" },
+            { channel: "node.sizeMode", rule: "R8f" },
+            { channel: "node.width", name: "Size", pair: "node.height", letters: ["W", "H"] },
+            { channel: "node.depth" },
+            { channel: "node.relativeExtents" },
+            { channel: "node.planar" },
+        ],
+    },
+    {
+        name: "Finish",
+        lines: [{ channel: "node.wireframe" }, { channel: "node.flat" }, { channel: "node.unlit" }],
+    },
+    {
+        name: "Fit to label",
+        lines: [
+            { channel: "node.labelFit", name: "Fit", rule: "R8" },
+            { channel: "node.labelPaddingX", name: "Padding", pair: "node.labelPaddingY", letters: ["X", "Y"] },
+            { channel: "node.labelFitSquare" },
+            { channel: "node.labelFitQuantum" },
+            { channel: "node.labelFitImage" },
+            { channel: "node.labelFitImagePadding" },
+        ],
+    },
+];
+
+/**
+ * A backdrop behind or in front of a node (Underlay, Overlay).
+ * @param of - which.
+ * @returns its rubric.
+ */
+function backdrop(of: "underlay" | "overlay"): ThingRubric {
+    return {
+        main: [
+            { channel: `node.${of}Shape`, name: "Shape", rule: "R10" },
+            { channel: `node.${of}Padding`, name: "Padding" },
+            { channel: `node.${of}CornerRadius`, name: "Corners" },
+            { channel: `node.${of}Opacity`, name: "Opacity" },
+        ],
+    };
+}
+
+/**
+ * Each node thing's rubric (design 7.1), by thing id, or `id:channel` for a family member whose
+ * row's main channel is that channel (a model in the Shape row, a gradient in the Fill row). Text
+ * things are not here yet: their rows keep today's settings.
+ */
+export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
+    shape: {
+        common: [{ channel: "node.size" }],
+        main: [
+            { channel: "node.shapeRotation", name: "Rotation" },
+            { channel: "node.meshDetail", name: "Detail", rule: "R5b" },
+            { channel: "node.shapeParts", name: "Parts", rule: "field" },
+        ],
+        groups: [
+            {
+                name: "Corners",
+                lines: [
+                    { channel: "node.cornerRadius", name: "Radius" },
+                    { channel: "node.exactCornerRadius" },
+                    { channel: "node.cornerFraction", name: "Fraction" },
+                    { channel: "node.shapePoints", name: "Points", rule: "field" },
+                    { channel: "node.shapeStretchPoints" },
+                ],
+            },
+            ...SHAPE_GROUPS,
+        ],
+    },
+    "shape:node.model": {
+        common: [{ channel: "node.size" }],
+        main: [
+            { channel: "node.shape", name: "Fallback shape", rule: "R10" },
+            { channel: "node.modelTint", name: "Tint", rule: "R9" },
+            { channel: "node.modelFit", name: null, rule: "R8f" },
+            { channel: "node.modelCenter", name: "Center", rule: "R8" },
+        ],
+        groups: [
+            {
+                name: "Orient",
+                lines: [
+                    { channel: "node.modelSourceUp", name: "Up", rule: "R9" },
+                    { channel: "node.modelTurn", name: "Turn" },
+                    { channel: "node.modelDoubleSided", name: null, rule: "R8f" },
+                ],
+            },
+            {
+                name: "Animation",
+                lines: [
+                    { channel: "node.modelAnimation", name: "Clip", rule: "field" },
+                    {
+                        channel: "node.modelAnimationSpeed",
+                        name: "Play",
+                        pair: "node.modelAnimationOffset",
+                        letters: ["S", "O"],
+                    },
+                ],
+            },
+            ...SHAPE_GROUPS,
+        ],
+    },
+    fill: { main: [] },
+    "fill:node.gradientColors": {
+        main: [
+            { channel: "node.gradientKind", name: "Kind", rule: "R8" },
+            { channel: "node.gradientDirection", name: "Direction" },
+            { channel: "node.gradientCenterX", name: "Center", pair: "node.gradientCenterY", letters: ["X", "Y"] },
+            { channel: "node.gradientRadius", name: "Radius" },
+            { channel: "node.gradientColor", name: null },
+            { channel: "node.gradientStops", name: "Stops", rule: "field" },
+            { channel: "node.opacity", name: "Opacity" },
+        ],
+    },
+    "fill:node.texture": { main: [{ channel: "node.opacity", name: "Opacity" }] },
+    image: {
+        common: [{ channel: "node.imageOpacity", name: "Opacity" }],
+        main: [
+            { channel: "node.imageFit", name: "Fit", rule: "R9" },
+            { channel: "node.imageFallback", name: "Fallback", rule: "field" },
+        ],
+        groups: [
+            {
+                name: "Size",
+                lines: [
+                    {
+                        channel: "node.imageWidth",
+                        name: "Size",
+                        pair: "node.imageHeight",
+                        letters: ["W", "H"],
+                        toggle: "node.imageAspect",
+                    },
+                    { channel: "node.imagePixelSize", name: "Pixel size" },
+                    { channel: "node.imageAutoSize", name: null, rule: "R8f" },
+                ],
+            },
+            {
+                name: "Place",
+                lines: [
+                    {
+                        channel: "node.imagePositionX",
+                        name: "Position",
+                        pair: "node.imagePositionY",
+                        letters: ["X", "Y"],
+                    },
+                    { channel: "node.imageOffsetX", name: "Offset", pair: "node.imageOffsetY", letters: ["X", "Y"] },
+                ],
+            },
+            {
+                name: "Tiling",
+                lines: [
+                    { channel: "node.imageRepeat", name: "Repeat", rule: "R8" },
+                    { channel: "node.imageClip", name: "Clip", rule: "R8" },
+                    { channel: "node.imageSmoothing" },
+                ],
+            },
+        ],
+    },
+    pie: {
+        main: [
+            { channel: "node.pieSizes", name: "Sizes", rule: "field" },
+            { channel: "node.pieOpacities", name: "Opacities", rule: "field" },
+        ],
+        groups: [
+            {
+                name: "Disc",
+                lines: [
+                    { channel: "node.pieHole", name: "Hole" },
+                    { channel: "node.pieRadius", name: "Radius" },
+                    { channel: "node.pieRotation", name: "Rotation" },
+                    { channel: "node.pieFitBox" },
+                    { channel: "node.pieOffsetX", name: "Offset", pair: "node.pieOffsetY", letters: ["X", "Y"] },
+                ],
+            },
+        ],
+    },
+    stripes: {
+        main: [
+            { channel: "node.stripeSizes", name: "Sizes", rule: "field" },
+            { channel: "node.stripeOpacities", name: "Opacities", rule: "field" },
+            { channel: "node.stripeDirection", name: "Direction", rule: "R8" },
+            { channel: "node.stripeSize", name: "Size" },
+        ],
+        groups: [{ name: "Frame", lines: [{ channel: "node.stripeFrame", name: "Frame", rule: "field" }] }],
+    },
+    chart: {
+        main: [
+            { channel: "node.chartValues", name: "Values", rule: "field" },
+            { channel: "node.chartColors", name: "Colors", rule: "field" },
+            { channel: "node.chartMin", name: "Range", pair: "node.chartMax", letters: ["", ""] },
+            { channel: "node.chartHorizontal" },
+        ],
+        groups: [
+            {
+                name: "Box",
+                lines: [
+                    { channel: "node.chartSize", name: "Size" },
+                    { channel: "node.chartWidth", name: "Box", pair: "node.chartHeight", letters: ["W", "H"] },
+                    { channel: "node.chartOffsetX", name: "Offset", pair: "node.chartOffsetY", letters: ["X", "Y"] },
+                    { channel: "node.chartMargin", name: "Margin" },
+                    { channel: "node.chartGap", name: "Gap" },
+                ],
+            },
+            {
+                name: "Strokes",
+                lines: [
+                    { channel: "node.chartLineWidth", name: "Line width", glyph: "weight" },
+                    { channel: "node.chartBorderColor", name: null },
+                    { channel: "node.chartBorderWidth", name: "Border", glyph: "weight" },
+                    { channel: "node.chartBackgroundColor", name: null },
+                    { channel: "node.chartBackgroundOpacity", name: "Background" },
+                ],
+            },
+        ],
+    },
+    border: {
+        common: [{ channel: "node.borderWidth", name: "Width", glyph: "weight", units: ["node.borderScreenWidth"] }],
+        main: [
+            { channel: "node.borderWidth", name: "Unit", unit: BORDER_UNIT },
+            { channel: "node.borderStyle", name: "Style", rule: "R10" },
+            { channel: "node.borderPosition", name: "Position", rule: "R8" },
+        ],
+        groups: [
+            {
+                name: "Waves",
+                lines: [
+                    {
+                        channel: "node.borderWaveAmplitude",
+                        name: "Wave",
+                        pair: "node.borderWavePeriod",
+                        letters: ["A", "P"],
+                    },
+                ],
+            },
+        ],
+    },
+    rings: {
+        common: [{ channel: "node.outerBorderCount", name: "Count" }],
+        main: [
+            { channel: "node.outerBorderWidth", name: "Width", glyph: "weight" },
+            { channel: "node.outerBorderOffset", name: "Offset" },
+            { channel: "node.outerBorderStyle", name: "Style", rule: "R10" },
+            { channel: "node.outerBorderOpacity", name: "Opacity" },
+        ],
+    },
+    raised: {
+        main: [
+            { channel: "node.raisedBorderLightColor", name: null },
+            { channel: "node.raisedBorderDarkColor", name: null },
+        ],
+    },
+    outline: { common: [{ channel: "node.outlineWidth", name: "Width", glyph: "weight" }], main: [] },
+    innerLines: {
+        main: [{ channel: "node.shapeLineWidth", name: "Width", glyph: "weight" }],
+        groups: [
+            {
+                name: "Halo",
+                lines: [
+                    { channel: "node.shapeLineHaloColor", name: null },
+                    { channel: "node.shapeLineHaloWidth", name: "Width", glyph: "weight" },
+                ],
+            },
+        ],
+    },
+    shadow: {
+        main: [
+            { channel: "node.shadowOpacity", name: "Opacity" },
+            { channel: "node.shadowBlur", name: "Blur" },
+            { channel: "node.shadowOffsetX", name: "Offset", pair: "node.shadowOffsetY", letters: ["X", "Y"] },
+        ],
+    },
+    glow: { main: [{ channel: "node.glowStrength", name: "Strength" }] },
+    halo: {
+        main: [
+            { channel: "node.halo", name: "Show", rule: "R8" },
+            { channel: "node.haloScale", name: "Scale" },
+            { channel: "node.haloOpacity", name: "Opacity" },
+        ],
+    },
+    underlay: backdrop("underlay"),
+    overlay: backdrop("overlay"),
+    order: { main: [{ channel: "node.drawOrder", name: "Draw order" }] },
+    group: {
+        main: [
+            { channel: "node.groupPadding", name: "Unit", unit: GROUP_UNIT },
+            { channel: "node.groupPaddingOf", name: "Of", rule: "R9" },
+            { channel: "node.groupIncludeLabels" },
+        ],
+        groups: [
+            {
+                name: "Min size",
+                lines: [
+                    { channel: "node.groupMinWidth", name: "Size", pair: "node.groupMinHeight", letters: ["W", "H"] },
+                    {
+                        channel: "node.groupMinWidthBiasLeft",
+                        name: "Bias",
+                        pair: "node.groupMinHeightBiasTop",
+                        letters: ["L", "T"],
+                    },
+                ],
+            },
+        ],
+    },
+    visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
+};
+
+/**
+ * A thing's rubric for the member its row shows.
+ * @param side - nodes or edges.
+ * @param thing - the thing's id.
+ * @param main - the channel its row's main control edits.
+ * @returns the rubric, or undefined for a thing with none yet (text, every edge thing).
+ */
+export function rubricOf(side: "node" | "edge", thing: string, main: Channel): ThingRubric | undefined {
+    if (side === "edge") {
+        return undefined;
+    }
+    return NODE_RUBRIC[`${thing}:${main}`] ?? NODE_RUBRIC[thing];
+}
+
+/**
+ * Every channel a line edits: its own, its pair's, its other units' and its toggle's.
+ * @param line - the line.
+ * @returns the channels.
+ */
+export function lineChannels(line: LineSpec): readonly Channel[] {
+    return [
+        line.channel,
+        ...(line.pair === undefined ? [] : [line.pair]),
+        ...(line.units ?? []),
+        ...(line.unit?.map(([, channel]) => channel) ?? []),
+        ...(line.toggle === undefined ? [] : [line.toggle]),
+    ];
+}
+
+/**
+ * Every channel a rubric's lines edit.
+ * @param rubric - the rubric.
+ * @returns the channels, once each.
+ */
+export function rubricChannels(rubric: ThingRubric): readonly Channel[] {
+    const lines = [
+        ...(rubric.row === undefined ? [] : [rubric.row]),
+        ...(rubric.common ?? []),
+        ...rubric.main,
+        ...(rubric.groups ?? []).flatMap((group) => group.lines),
+    ];
+    return [...new Set(lines.flatMap((line) => lineChannels(line)))];
+}
+
+/** The width of a line's control slot, by where it sits (design 2.2). */
+export const LINE_WIDTHS = { panelNamed: 96, panelFull: 176, popoverNamed: 120, popoverFull: 200 } as const;
+
+/**
+ * The width a segment line needs (design 6): 28 px an icon, else 7 px a letter plus 16, at least 40.
+ * @param options - its options.
+ * @returns the width.
+ */
+export function segmentsWidth(options: readonly OptionName[]): number {
+    const pictured = options.every((option) => option.glyph !== undefined);
+    return options.reduce((sum, option) => sum + (pictured ? 28 : Math.max(40, option.name.length * 7 + 16)), 0);
+}
+
+/**
+ * A segment line's options, in the element's order.
+ * @param line - the line.
+ * @param values - the element's value ids for its channel.
+ * @returns each option's value and name, or undefined where the table names none.
+ */
+export function segmentOptions(
+    line: LineSpec,
+    values: readonly string[],
+): readonly (OptionName & { readonly value: string })[] | undefined {
+    if (line.unit !== undefined) {
+        return line.unit.map(([name, channel]) => ({ value: channel, name }));
+    }
+    const names = OPTION_NAMES[line.channel];
+    if (names === undefined) {
+        return undefined;
+    }
+    const options = values.map((value) => (names[value] === undefined ? undefined : { value, ...names[value] }));
+    return options.every((option) => option !== undefined) ? options : undefined;
+}

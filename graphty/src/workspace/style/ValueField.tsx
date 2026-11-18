@@ -8,6 +8,7 @@ import React from "react";
 import { useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { ValueListbox } from "./parts/ValueListbox";
+import type { ValueSection } from "./v2/valueSections";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
@@ -92,6 +93,8 @@ interface ValueFieldProps {
     readonly model?: { readonly name: string; readonly thumbnail?: string };
     /** Given, a choice property picks from {@link ValueListbox}, read from this session. */
     readonly listbox?: GraphSession;
+    /** A long list's sections, for {@link ValueListbox}. */
+    readonly sections?: readonly ValueSection[];
 }
 
 /**
@@ -125,6 +128,7 @@ function ModelGlyph({ thumbnail }: Readonly<{ thumbnail?: string }>): React.JSX.
  * @param props.onChange - writes a value
  * @param props.model - the model a Shape field holds
  * @param props.listbox - given, a choice property picks from a searchable list read from this session
+ * @param props.sections - a long list's sections, shown one at a time
  * @returns The field, or a dash for a property no field draws
  */
 export function ValueField({
@@ -140,6 +144,7 @@ export function ValueField({
     onChange,
     model,
     listbox,
+    sections,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
     const props = {
@@ -155,6 +160,7 @@ export function ValueField({
         onChange,
         model,
         listbox,
+        sections,
     };
     if (kind === "color") {
         return <ColorValueField {...props} />;
@@ -286,7 +292,7 @@ function choiceName(
  * @returns The field
  */
 function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
-    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange, model, listbox } = props;
+    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange, model, listbox, sections } = props;
     if (listbox !== undefined && descriptor.accepts === "enum" && model === undefined) {
         return (
             <ValueListbox
@@ -297,6 +303,7 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
                 shown={shown}
                 mixed={mixed}
                 extraChoices={extraChoices}
+                sections={sections}
                 onPick={onChange}
             />
         );

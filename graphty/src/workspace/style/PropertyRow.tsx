@@ -33,6 +33,7 @@ import {
     writeIn,
 } from "./row";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
+import type { ValueSection } from "./v2/valueSections";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
@@ -92,6 +93,8 @@ export interface RowContext {
     readonly hiddenBy?: (channel: Channel) => string | undefined;
     /** `"listbox"`: a choice property picks from a named, searchable list with the graph's values first. */
     readonly pickers?: "listbox";
+    /** A long value list's sections, so its picker shows one at a time (Style panel v2 only). */
+    readonly listSections?: (channel: Channel) => readonly ValueSection[] | undefined;
 }
 
 /** Several rows edited as one: each write reaches every row, one undo step. */
@@ -757,6 +760,7 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
                 swatches={ctx.documentColors}
                 extraChoices={extraChoices}
                 listbox={ctx.pickers === "listbox" ? ctx.session : undefined}
+                sections={ctx.listSections?.(descriptor.channel)}
                 onChange={pick}
             />
         );
@@ -840,6 +844,7 @@ function OneValue({
                 shown={value}
                 extraChoices={extraChoices}
                 listbox={ctx.pickers === "listbox" ? ctx.session : undefined}
+                sections={ctx.listSections?.(descriptor.channel)}
                 onChange={pick}
             />
         );
@@ -1202,7 +1207,7 @@ function removeNameOf(ctx: RowContext, name: string): string {
  * @param props.children - the control and the trailing columns
  * @returns The line
  */
-function FieldLine({
+export function FieldLine({
     name,
     settings,
     children,

@@ -186,6 +186,7 @@ export default tseslint.config(
             "src/workspace/style/ShaderGallery.tsx",
             "src/workspace/style/ShaderParamRows.tsx",
             "src/workspace/style/ShaderParams.tsx",
+            "src/workspace/style/v2/ThingPopover.tsx",
         ],
         plugins: { graphty: graphtyPlugin },
         rules: { "graphty/style-sidebar-controls": "error" },

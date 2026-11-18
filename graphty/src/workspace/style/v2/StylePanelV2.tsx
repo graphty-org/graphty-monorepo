@@ -20,8 +20,10 @@ import { startFor, writeIn } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
 import { focusLineNext } from "../useFocusLine";
 import { experimentChannelsOff, failureWords } from "../words";
+import { FIT_TO_LABEL } from "./rubric";
 import { ThingRow } from "./ThingRow";
 import { mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
+import { sectionsOf } from "./valueSections";
 
 /**
  * Every channel of a thing that its section offers: its items' and its own, less what another
@@ -35,7 +37,11 @@ function thingChannels(part: PartSpec, section: SectionThings, thing: ThingSpec)
     const taken = new Set(section.groups.flat().flatMap((each) => (each === thing ? [] : (each.own ?? []))));
     const offered = new Set(part.items.flatMap((item) => itemChannels(item)));
     const items = part.items.filter((item) => thing.items.includes(item.id)).flatMap((item) => itemChannels(item));
-    return [...new Set([...items, ...(thing.own ?? [])])].filter((c) => offered.has(c) && !taken.has(c));
+    // Fit to label sizes the shape: it is the Shape thing's, not the Label's (design 4).
+    const moved = new Set<Channel>(thing.id === "shape" ? [] : FIT_TO_LABEL);
+    return [...new Set([...items, ...(thing.own ?? [])])].filter(
+        (c) => offered.has(c) && !taken.has(c) && !moved.has(c),
+    );
 }
 
 /**
@@ -160,7 +166,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     const [query, setQuery] = useState("");
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
-    const ctx: RowContext = { ...row, pickers: "listbox" };
+    const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf };
     const parts = partsFor(
         ctx.side,
         experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),

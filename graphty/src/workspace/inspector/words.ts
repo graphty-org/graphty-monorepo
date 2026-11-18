@@ -11,6 +11,7 @@ import type {
     GraphStatistics,
     GraphtyErrorCode,
     Measurement,
+    MultipleTestingCorrection,
     SelectionAttributeStatistics,
     StaleNote,
     SummaryGroup,
@@ -889,6 +890,20 @@ export function groupName(group: SummaryGroup): string {
  */
 export function rankedName(group: SummaryGroup | undefined): string {
     return group?.rank === undefined ? "" : `Group ${String(group.rank)}`;
+}
+
+/**
+ * A multiple-testing correction graphty-element names by code, as a reader reads it.
+ * @param code - the correction's code.
+ * @returns "Benjamini-Hochberg", or the code itself for one this app does not know yet.
+ */
+export function correctionName(code: MultipleTestingCorrection): string {
+    const names: Readonly<Record<string, string>> = {
+        "benjamini-hochberg": "Benjamini-Hochberg",
+        bonferroni: "Bonferroni",
+        holm: "Holm",
+    };
+    return names[code] ?? code;
 }
 
 /** The words for VR and AR in a notice. */

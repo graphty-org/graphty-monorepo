@@ -21,10 +21,20 @@ import {
 
 import { findTreeRow, rowLayers as treeRowLayers, rowName } from "../graph-place/rows";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { channelPhrase, hexOf, logUnexpected, OPACITY_OF, readableName } from "./words";
+import { channelPhrase, type EncodeKey, hexOf, isShaderParam, logUnexpected, OPACITY_OF, readableName } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
+
+/**
+ * A layer's plain value under a key; an address never holds one.
+ * @param layer - the layer.
+ * @param key - the channel or address.
+ * @returns the value, if the layer sets one.
+ */
+function setOf(layer: Layer, key: EncodeKey): ChannelValue | undefined {
+    return isShaderParam(key) ? undefined : layer.set?.[key];
+}
 
 /** A binding that reads a value from the data. */
 export type DataBinding = Extract<Binding, { by: string }>;
@@ -89,7 +99,7 @@ export function rowLayers(session: TransactionScope, ids: readonly LayerId[], ta
  * @param channel - the channel.
  * @returns the line, or undefined when the row does not set it.
  */
-export function lineOf(layers: readonly Layer[], channel: Channel): Line | undefined {
+export function lineOf(layers: readonly Layer[], channel: EncodeKey): Line | undefined {
     for (let i = layers.length - 1; i >= 0; i--) {
         const layer = layers[i];
         const bound = layer.encode?.[channel];
@@ -104,7 +114,7 @@ export function lineOf(layers: readonly Layer[], channel: Channel): Line | undef
                 ? { layer, value: bound.value }
                 : { layer, value: bound.value, combine: bound.combine };
         }
-        const value = layer.set?.[channel];
+        const value = setOf(layer, channel);
         if (value !== undefined) {
             return { layer, value };
         }
@@ -121,11 +131,10 @@ export function lineOf(layers: readonly Layer[], channel: Channel): Line | undef
  */
 export function without<T>(
     record: Partial<Record<Channel, T>> | undefined,
-    ...keys: Channel[]
+    ...keys: EncodeKey[]
 ): Partial<Record<Channel, T>> | undefined {
-    const rest = Object.fromEntries(
-        Object.entries(record ?? {}).filter(([channel]) => !keys.includes(channel as Channel)),
-    );
+    const drop = new Set<string>(keys);
+    const rest = Object.fromEntries(Object.entries(record ?? {}).filter(([channel]) => !drop.has(channel)));
     return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
@@ -308,7 +317,7 @@ export async function writeLine(
     session: TransactionScope,
     ids: readonly LayerId[],
     target: Target,
-    channel: Channel,
+    channel: EncodeKey,
     write: LineValue,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
@@ -321,7 +330,7 @@ interface LineWrite {
     readonly session: TransactionScope;
     readonly ids: readonly LayerId[];
     readonly target: Target;
-    readonly channel: Channel;
+    readonly channel: EncodeKey;
     readonly write: LineValue;
     readonly fresh: NewLayer | undefined;
     readonly also: Readonly<Partial<Record<Channel, ChannelValue>>> | undefined;
@@ -390,9 +399,9 @@ async function writeLineWith(line: LineWrite): Promise<LayerId> {
  */
 function encodeOf(
     write: LineValue,
-    channel: Channel,
+    channel: EncodeKey,
     combined: boolean,
-): Partial<Record<Channel, Binding>> | undefined {
+): Layer["encode"] {
     if ("binding" in write) {
         return { [channel]: write.binding };
     }
@@ -409,12 +418,12 @@ function encodeOf(
  * @param channel - the channel.
  * @returns the layers.
  */
-function othersWriting(layers: readonly Layer[], own: Layer | undefined, channel: Channel): Layer[] {
+function othersWriting(layers: readonly Layer[], own: Layer | undefined, channel: EncodeKey): Layer[] {
     return layers.filter(
         (layer) =>
             !layer.locked &&
             layer !== own &&
-            (layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined),
+            (setOf(layer, channel) !== undefined || layer.encode?.[channel] !== undefined),
     );
 }
 
@@ -423,14 +432,14 @@ interface LinePlan {
     readonly session: TransactionScope;
     readonly layers: readonly Layer[];
     readonly target: Target;
-    readonly channel: Channel;
+    readonly channel: EncodeKey;
     readonly fresh: NewLayer | undefined;
     /** The selector a new line's layer takes on the Everything row. */
     readonly home: Layer["selector"] | undefined;
     /** The layer written to, when the row has one. */
     readonly own: Layer | undefined;
     readonly set: Partial<Record<Channel, ChannelValue>> | undefined;
-    readonly encode: Partial<Record<Channel, Binding>> | undefined;
+    readonly encode: Layer["encode"];
     /** The other layers the channel is taken off. */
     readonly others: readonly Layer[];
     /** Where a new layer goes when it lands above a row. */
@@ -543,7 +552,7 @@ export function carriedOpacity(ctx: Pick<RowContext, "many" | "layers">, channel
  */
 export function writeIn(
     ctx: Pick<RowContext, "many" | "session" | "row" | "side" | "fresh">,
-    channel: Channel,
+    channel: EncodeKey,
     write: LiteralWrite | { readonly binding: DataBinding },
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
     alsoReplaces = false,
@@ -646,12 +655,17 @@ const APP_STARTS: Readonly<Partial<Record<Channel, ChannelValue>>> = { "edge.pat
 export function propose(
     session: GraphSession,
     choice: DataChoice,
-    channel: Channel,
+    channel: EncodeKey,
 ): ReturnType<GraphSession["styles"]["proposeEncoding"]> {
-    const range = appRange(channel);
-    return choice.kind === "column"
-        ? session.styles.proposeEncoding({ column: choice.column, channel, ...range })
-        : session.styles.proposeEncoding({ run: choice.runId, field: choice.field, channel, ...range });
+    const spec =
+        choice.kind === "column"
+            ? { column: choice.column, ...appRange(channel) }
+            : { run: choice.runId, field: choice.field, ...appRange(channel) };
+    // The element takes a channel and a shader parameter's address in two spec shapes.
+    if (isShaderParam(channel)) {
+        return session.styles.proposeEncoding({ ...spec, channel });
+    }
+    return session.styles.proposeEncoding({ ...spec, channel });
 }
 
 /**
@@ -660,7 +674,7 @@ export function propose(
  * @param channel - the channel.
  * @returns `{ range }` for an opacity, else nothing.
  */
-function appRange(channel: Channel): { range?: [number, number] } {
+function appRange(channel: EncodeKey): { range?: [number, number] } {
     return OPACITY.test(channel) ? { range: [...OPACITY_RANGE] as [number, number] } : {};
 }
 

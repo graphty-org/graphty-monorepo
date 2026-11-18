@@ -26,6 +26,8 @@ export default tseslint.config(
             "**/coverage/**",
             // Coverage parts a whole-shard test run writes (tools/run-tests.sh), merged later; gitignored.
             "**/.coverage-parts/**",
+            // `cdk synth` output, bundled Lambda code (tools/pipeline-health; gitignored).
+            "**/cdk.out/**",
             "**/storybook-static/**",
             "**/gh-pages/**",
             "**/tmp/**",

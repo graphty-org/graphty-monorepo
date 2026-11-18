@@ -8,8 +8,10 @@
 // `git merge-tree --write-tree HEAD origin/master` whether the merge is clean, and only then runs a signed
 // `git merge --no-edit origin/master` (git itself refuses to overwrite a dirty file the merge would touch). Any failure,
 // a locked gpg agent included, ends in `git merge --abort`; it never passes --no-gpg-sign and never merges a branch
-// other than master. It records { behind, ahead, conflict, at, behindSince, error } in tmp/workspace-sync.json, which
-// `issue-groups.mjs idle` reads: a conflict, or being behind for over an hour, is a sink the round must clear.
+// other than master. It records { behind, ahead, conflict, dirtyBlocked, at, behindSince, error } in
+// tmp/workspace-sync.json, which `issue-groups.mjs idle` reads: a conflict, or being behind for over an hour, is a sink
+// the round must clear. dirtyBlocked (git refused because master changes files the owner has uncommitted there) is not:
+// no agent may touch those files, so the round tells the owner instead.
 //
 //   node tools/workspace-sync.mjs        sync the main checkout (git's common directory's parent), print the record
 import { execFileSync } from "node:child_process";
@@ -107,7 +109,13 @@ const mergeIfClean = (root, common, record) => {
     const merged = tryGit(root, ["merge", "--no-edit", "origin/master"], detached);
     if (!merged.ok) {
         if (existsSync(join(common, "MERGE_HEAD"))) tryGit(root, ["merge", "--abort"]);
-        record.error = `merge failed and was aborted: ${merged.out.split("\n").at(-1)}`;
+        // git lists, indented, the uncommitted files master would overwrite: only their owner can settle them
+        if (/would be overwritten by merge/.test(merged.out))
+            record.dirtyBlocked = merged.out
+                .split("\n")
+                .filter((l) => /^\s+\S/.test(l))
+                .map((l) => l.trim());
+        else record.error = `merge failed and was aborted: ${merged.out.split("\n").at(-1)}`;
     }
     record.behind = count(root, "HEAD..origin/master");
     record.ahead = count(root, "origin/master..HEAD");
@@ -131,7 +139,14 @@ export function syncWorkspace(root, o = {}) {
     } catch {
         // first sync
     }
-    const record = { at: new Date(now).toISOString(), behind: 0, ahead: 0, conflict: false, error: null };
+    const record = {
+        at: new Date(now).toISOString(),
+        behind: 0,
+        ahead: 0,
+        conflict: false,
+        dirtyBlocked: null,
+        error: null,
+    };
     try {
         mergeIfClean(root, common, record);
     } finally {
@@ -143,7 +158,8 @@ export function syncWorkspace(root, o = {}) {
     mkdirSync(join(root, "tmp"), { recursive: true });
     writeFileSync(`${recordPath}.tmp`, `${JSON.stringify(record)}\n`);
     renameSync(`${recordPath}.tmp`, recordPath);
-    const state = record.conflict ? ", CONFLICTS with master: merge it by hand" : "";
+    let state = record.conflict ? ", CONFLICTS with master: merge it by hand" : "";
+    if (record.dirtyBlocked) state = `, master would overwrite uncommitted ${record.dirtyBlocked.join(" ")}`;
     const err = record.error ? ` (${record.error})` : "";
     return { ...record, line: `workspace: behind ${record.behind}, ahead ${record.ahead}${state}${err}` };
 }

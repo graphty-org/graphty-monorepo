@@ -138,11 +138,13 @@ slots are free and something this session can clear holds the work. Clear each s
   `node tools/issue-queue.mjs claims --fix` and fix what makes it fail (a `claims unknown` line names it).
 - `master changed <files>`: master changed the round's tools or skills since the main checkout last merged it. Run
   `node tools/issue-groups.mjs check --fix` (it syncs the checkout), then restart the loop so it reads them.
-- `main checkout conflicts with master` or `N commits behind master for over 1 h`: the sync could not merge. Open
-  pull requests for the workspace-only commits (`git log origin/master..HEAD` in the main checkout), then merge
-  origin/master there by hand, settling each conflict keeping both intents; never reset or stash.
+- `main checkout conflicts with master` or `N commits behind master for over 1 h`: the sync could not merge. Merge
+  origin/master there by hand, settling each conflict keeping both intents; never reset or stash, and never touch a
+  file the owner has uncommitted there.
 
-The line's tail (`main checkout behind B, ahead A`, `claims unknown`) is information, not a sink. The Stop hook
+The line's tail (`main checkout behind B, ahead A`, `claims unknown`) is information, not a sink. When the tail says
+`master would overwrite uncommitted <files>`, git refused the merge because of the owner's own uncommitted edits: end
+the reply once with `ACTION NEEDED: commit or drop <files> in the main checkout so it can merge master`. The Stop hook
 `tools/issue-round-idle-hook.mjs` blocks the turn's end on an idle or starved verdict, and when the session wrote no
 verdict in 35 minutes.
 

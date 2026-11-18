@@ -9,6 +9,8 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { namedIssues, sweepClaims } from "./issue-queue.mjs";
+
 import {
     addMember,
     addWait,
@@ -1746,6 +1748,65 @@ describe("pipeline jobs", () => {
             0,
             "no pull request list",
         );
+    });
+
+    it("offers fix-red and open on branches whose own claims the real sweep keeps live only by work naming them", () => {
+        // #9001's taken marker names the red pull request's branch; #3's names a ready branch with a commit 3 h ago
+        const claim = (n, branch) => ({
+            id: `I_${n}`,
+            number: n,
+            labels: { nodes: [{ id: "L_ip", name: "in-progress" }] },
+            comments: {
+                nodes: [
+                    {
+                        databaseId: n,
+                        createdAt: new Date(NOW - 8 * HOUR).toISOString(),
+                        body: `pipeline-round: taken by session s1, branch ${branch}, worktree .worktrees/w -- x`,
+                        author: { __typename: "User", login: "graphty-agent" },
+                        editor: null,
+                        lastEditedAt: null,
+                    },
+                ],
+            },
+            timelineItems: { nodes: [] },
+        });
+        const named = namedIssues({
+            prs: [{ number: 9001, headRefName: "fix/9001-x", title: "fix: x", body: "Fixes #8001" }],
+            branches: [{ name: "fix/3-x", messages: "fix: three" }],
+        });
+        const facts = {
+            namedBy: (n) => named.get(n) ?? null,
+            openPrBranches: new Set(["fix/9001-x"]),
+            roundSession: "round",
+            branchCommitAt: () => NOW - 3 * HOUR,
+            worktreeChangedAt: () => 0,
+            ticketIn: () => false,
+            transcriptAt: () => 0,
+            sessionAlive: () => false,
+            commitsAhead: () => 1,
+        };
+        const { claims } = sweepClaims([claim(9001, "fix/9001-x"), claim(3, "fix/3-x")], facts, NOW);
+        assert.deepEqual(
+            claims.map((c) => [c.n, c.live, c.byWork]),
+            [
+                [9001, true, true],
+                [3, true, true],
+            ],
+        );
+        const l = withPrs([pr(9001)]);
+        make(l, 3);
+        start(l, "g3", "fix/3-x", NOW - 4 * HOUR);
+        ready(l, "g3", "sha3", NOW - 3 * HOUR);
+        const r = ledgerJobs(l, [], NOW, { claims });
+        assert.deepEqual(
+            r.jobs.map((j) => [j.kind, j.branch]),
+            [
+                ["fix-red", "fix/9001-x"],
+                ["open", "fix/3-x"],
+            ],
+        );
+        const active = claims.map((c) => ({ ...c, byWork: false }));
+        assert.equal(ledgerJobs(l, [], NOW, { claims: active }).jobs.length, 0, "a session's live claim holds both");
     });
 
     it("drops a blocked entry once its pull request merged, and a free-text one 2 h after its scan", () => {

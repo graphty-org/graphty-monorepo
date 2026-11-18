@@ -559,8 +559,10 @@ export function judgeClaim(c, f, now) {
     // Work that names the issue holds it whatever the markers say: on 2026-11-18 #8604-#8606 and #8311 (a bare label,
     // named by commits on fix/8609-model-dialog-round-5) and #7284 (named by open pull request #8757 on another
     // branch) were released while live. A label after a `released` marker is checked here too, before it is removed.
+    // A claim live only by work that names it (`byWork`) holds the issue, never its branch: the fix-red and open jobs on
+    // that branch still run (a red pull request's own claim used to keep it red).
     const named = f.namedBy?.(c.n);
-    if (named) return { live: true, why: named, at: c.at };
+    if (named) return { live: true, why: named, at: c.at, byWork: true };
     if (c.kind === "released") return { live: false, why: "released, label left on", at: c.at, labelOnly: true };
     const at = Math.max(
         c.at || 0,
@@ -568,8 +570,8 @@ export function judgeClaim(c, f, now) {
         c.worktree ? f.worktreeChangedAt(c.worktree) : 0,
     );
     const ago = `${Math.round((now - at) / MIN)} min`;
-    if (c.branch && f.openPrBranches.has(c.branch)) return { live: true, why: "open pull request", at };
     if (now - at < CLAIM_ACTIVE_MS) return { live: true, why: `active ${ago} ago`, at };
+    if (c.branch && f.openPrBranches.has(c.branch)) return { live: true, why: "open pull request", at, byWork: true };
     if (c.worktree && f.ticketIn(c.worktree)) return { live: true, why: "holds or waits for a test slot", at };
     if (c.session && c.branch && now - f.transcriptAt(c.session, c.branch) < TRANSCRIPT_MS)
         return { live: true, why: "its subagent is writing", at };
@@ -579,20 +581,27 @@ export function judgeClaim(c, f, now) {
     return { live: false, why: `no activity for ${ago}`, at, stranded: commits > 0, commits };
 }
 
+// A line that claims work: `Fixes #1`, `Refs #2, #3 and #4`
+const CLAIM_LINE =
+    /^[\t ]*(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?|refs?)\b[\t :]*#\d+(?:[\t ,]+(?:and[\t ]+)?#\d+)*/gim;
+
 /**
  * Which issues open pull requests and recently active branches name, for judgeClaim's namedBy: a pull request names
- * an issue by `#n` in its title or body (Fixes, Refs and Closes lines included) or by the number its branch starts
- * with; an unmerged branch by `#n` in one of its own commit messages or by its name.
+ * an issue only by a line of its title or body that starts with Fixes, Closes, Resolves or Refs (`Refs #1, #2` names
+ * both), or by the number its branch starts with (`fix/123-x`); an unmerged branch by such a line in one of its own
+ * commits of the last 24 h or by its name. A bare `#n` in prose ("#7188 released", "Collisions: #6344") names nothing.
  * @param o the open pull requests and the active branches
  * @param o.prs open pull requests `[{ number, headRefName, title, body }]`
- * @param o.branches `[{ name, messages }]`, only unmerged branches with a commit in the last 24 h
+ * @param o.branches `[{ name, messages }]`, only unmerged branches with a non-merge commit in the last 24 h, and only
+ *   those commits' messages
  * @returns Map from issue number to the reason it is live
  */
 export function namedIssues({ prs = [], branches = [] }) {
     const named = new Map();
     const add = (n, why) => named.has(n) || named.set(n, why);
-    const refs = (text) => [...(text ?? "").matchAll(/#(\d+)(?!\d)/g)].map((m) => Number(m[1]));
-    const numberOf = (b) => /(?:^|\/)(\d+)(?:-|$)/.exec(b ?? "")?.[1];
+    const refs = (text) =>
+        [...(text ?? "").matchAll(CLAIM_LINE)].flatMap((m) => [...m[0].matchAll(/#(\d+)/g)].map((x) => Number(x[1])));
+    const numberOf = (b) => /^[a-z]+\/(\d+)-(?!\d)/.exec(b ?? "")?.[1]; // never a date: release/2026-11-17
     for (const p of prs) {
         const why = `open pull request #${p.number} names it`;
         for (const n of refs(`${p.title}\n${p.body}`)) add(n, why);
@@ -794,7 +803,8 @@ export function machineFacts(root, openPrBranches) {
     return {
         openPrBranches,
         roundSession,
-        // every unmerged branch on GitHub with a commit in the last 24 h, and its own commit messages
+        // every unmerged branch on GitHub with a non-merge commit in the last 24 h, and only those commits' messages:
+        // merging master into a stale branch refreshes its tip, never its own work
         recentBranches: (now) =>
             (
                 git(root, ["for-each-ref", "--format=%(refname:short) %(committerdate:unix)", "refs/remotes/origin"]) ??
@@ -808,7 +818,12 @@ export function machineFacts(root, openPrBranches) {
                 )
                 .map(([ref]) => ({
                     name: ref.slice("origin/".length),
-                    messages: git(root, ["log", "--no-merges", "--format=%B", `origin/master..${ref}`]) ?? "",
+                    messages: (git(root, ["log", "--no-merges", "--format=%ct%n%B%x1e", `origin/master..${ref}`]) ?? "")
+                        .split("\x1e")
+                        .map((c) => c.trim())
+                        .filter((c) => now - Number(c.split("\n")[0]) * 1000 < OTHER_SESSION_MS)
+                        .map((c) => c.slice(c.indexOf("\n") + 1))
+                        .join("\n"),
                 }))
                 .filter((b) => b.messages),
         branchCommitAt: (b) => Number(git(root, ["log", "-1", "--format=%ct", `origin/${b}`]) ?? 0) * 1000,

@@ -714,16 +714,37 @@ describe("claims judged by the work that names them (2026-11-18: 18 live claims 
         assert.deepEqual(mutations, []);
     });
 
-    it("names an issue by #n, Fixes/Refs/Closes lines or a branch number, never by a longer number", () => {
+    it("names an issue by Fixes/Refs/Closes lines or a branch number, never by a longer number or a date", () => {
         const named = namedIssues({
             prs: [{ number: 1, headRefName: "fix/42-x", title: "closes #7", body: "Refs #86040" }],
-            branches: [{ name: "chore/99", messages: "Closes #12" }],
+            branches: [
+                { name: "chore/99-x", messages: "Closes #12" },
+                { name: "release/2026-11-17", messages: "x" },
+            ],
         });
         assert.deepEqual(
             [...named.keys()].sort((a, b) => a - b),
             [7, 12, 42, 99, 86040],
         );
         assert.equal(named.has(8604), false);
+    });
+
+    it("never names an issue a pull request or commit only mentions in prose", () => {
+        const named = namedIssues({
+            prs: [
+                {
+                    number: 7381,
+                    headRefName: "fix/7380-x",
+                    title: "fix(graphty): x (#7424)",
+                    body: "Fixes #7380\n\nCollisions: open PRs #6344, #7424\n#7188 released as deferred\nAs #6166 landed",
+                },
+            ],
+            branches: [{ name: "fix/8609-model", messages: "fix: y\n\nlike #8112\nRefs #8606, #8311 and #8605" }],
+        });
+        assert.deepEqual(
+            [...named.keys()].sort((a, b) => a - b),
+            [7380, 8311, 8605, 8606, 8609],
+        );
     });
 });
 

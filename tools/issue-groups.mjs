@@ -1082,9 +1082,12 @@ const prank = (p) => (PRIORITIES.includes(p) ? PRIORITIES.indexOf(p) : PRIORITIE
 const BLOCK_TTL_MS = 2 * HOUR;
 const OPEN_AFTER_MS = 2 * HOUR;
 
+// A branch is held only by a claim live from session activity; one live only because a pull request or branch names
+// its issue (byWork) holds the issue, never the branch, so that pull request's fix-red and open jobs still run.
 const liveClaims = (claims = []) => {
     const live = claims.filter((c) => c.live);
-    return { branches: new Set(live.map((c) => c.branch).filter(Boolean)), issues: new Set(live.map((c) => c.n)) };
+    const active = live.filter((c) => !c.byWork);
+    return { branches: new Set(active.map((c) => c.branch).filter(Boolean)), issues: new Set(live.map((c) => c.n)) };
 };
 
 // A scan's blocked entry holds its issue only while what blocks it lasts: a pull request still open, a branch with an
@@ -2290,13 +2293,21 @@ const machineSinks = (dir, now) => {
     const sync = readJson(join(root, "tmp", "workspace-sync.json"));
     let workspace = null;
     if (sync?.conflict) workspace = "conflicts with master: merge it by hand";
-    else if (sync?.behind > 0 && now - Date.parse(sync.behindSince ?? sync.at) > BEHIND_LIMIT_MS)
+    // dirtyBlocked is no sink: only the owner can commit or drop his files
+    else if (
+        !sync?.dirtyBlocked?.length &&
+        sync?.behind > 0 &&
+        now - Date.parse(sync.behindSince ?? sync.at) > BEHIND_LIMIT_MS
+    )
         workspace = `${sync.behind} commits behind master for over 1 h`;
+    const dirty = sync?.dirtyBlocked?.length
+        ? `, master would overwrite uncommitted ${sync.dirtyBlocked.join(" ")}`
+        : "";
     return {
         stateAgeMs: now - Date.parse(state?.sweptAt ?? 0),
         toolsBehind: changed.length ? changed.join(" ") : null,
         workspace,
-        info: sync ? `main checkout behind ${sync.behind}, ahead ${sync.ahead}` : null,
+        info: sync ? `main checkout behind ${sync.behind}, ahead ${sync.ahead}${dirty}` : null,
     };
 };
 

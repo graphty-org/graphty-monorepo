@@ -81,6 +81,20 @@ describe("workspace-sync", () => {
         assert.equal(again.behindSince, r.at, "the behind clock keeps its start");
     });
 
+    it("reports dirtyBlocked, not an error, when master would overwrite an uncommitted file", () => {
+        const { seed, main } = repos();
+        commit(seed, "b.txt", "b2\n", "b2");
+        git(seed, "push", "-q", "origin", "HEAD:master");
+        writeFileSync(join(main, "b.txt"), "owner's edit\n");
+        const r = syncWorkspace(main, { now: NOW });
+        assert.deepEqual(r.dirtyBlocked, ["b.txt"], r.line);
+        assert.equal(r.error, null);
+        assert.equal(r.conflict, false);
+        assert.equal(r.behind, 1);
+        assert.equal(readFileSync(join(main, "b.txt"), "utf8"), "owner's edit\n", "the owner's file is untouched");
+        assert.match(r.line, /master would overwrite uncommitted b\.txt/);
+    });
+
     it("never merges into a branch other than master", () => {
         const { seed, main } = repos();
         commit(seed, "a.txt", "a2\n", "a2");

@@ -1,5 +1,6 @@
 import type { ExportResult } from "@graphty/graphty-element";
 import { FORMAT_DESCRIPTORS, formatDescriptor, SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import { GraphtyError, type GraphtyErrorCode } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -7,6 +8,7 @@ import {
     dataExportOptions,
     DEFAULT_IMAGE,
     exportScope,
+    factWords,
     failureWords,
     fileName,
     formatRows,
@@ -18,6 +20,16 @@ import {
     slug,
     writerOptions,
 } from "../choices";
+
+/**
+ * A GraphtyError as the element throws one.
+ * @param code - its code.
+ * @param details - its details.
+ * @returns the error.
+ */
+function thrown(code: GraphtyErrorCode, details: Record<string, unknown> = {}): GraphtyError {
+    return new GraphtyError({ code, message: "for developers", source: "data", details });
+}
 
 describe("the Export dialog's choices", () => {
     it("lists one row per file type the element writes, Graphty JSON first", () => {
@@ -181,18 +193,15 @@ describe("the Export dialog's choices", () => {
     });
 
     it("words a capture's codes as being about the image, and the same codes elsewhere as before", () => {
-        assert.equal(failureWords({ code: "E_TOO_LARGE" }, true), "The image is too large for this browser.");
-        assert.equal(failureWords({ code: "E_TOO_LARGE" }), "The graph is too large for this format.");
+        assert.equal(failureWords(thrown("E_TOO_LARGE"), true), "The image is too large for this browser.");
+        assert.equal(failureWords(thrown("E_TOO_LARGE")), "The graph is too large for this format.");
         assert.equal(
-            failureWords({ code: "E_UNSUPPORTED", details: { reason: "format", format: "mp4" } }),
+            failureWords(thrown("E_UNSUPPORTED", { reason: "format", format: "mp4" })),
             "This browser cannot write this image format.",
         );
+        assert.equal(failureWords(thrown("E_UNSUPPORTED", { reason: "other" })), "This browser cannot do this.");
         assert.equal(
-            failureWords({ code: "E_UNSUPPORTED", details: { reason: "other" } }),
-            "This browser cannot do this.",
-        );
-        assert.equal(
-            failureWords({ code: "E_CAPTURE_FAILED", details: { media: "video" } }),
+            failureWords(thrown("E_CAPTURE_FAILED", { media: "video" })),
             "The drawing could not be captured.",
         );
         assert.equal(
@@ -203,5 +212,10 @@ describe("the Export dialog's choices", () => {
             refusalWords({ code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } }),
             "this browser cannot write this image format",
         );
+        assert.equal(
+            factWords({ code: "E_BAD_COMMAND", params: { format: "jpeg" } }),
+            "Only PNG and WebP keep a transparent background.",
+        );
+        assert.equal(failureWords({ code: "E_TOO_LARGE" }, true), "Something went wrong.");
     });
 });

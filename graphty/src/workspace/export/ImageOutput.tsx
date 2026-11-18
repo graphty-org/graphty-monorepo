@@ -15,6 +15,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { cameraViewName, viewProblemWords } from "../toolbar/viewWords";
 import {
     CUSTOM,
+    factWords,
     failureWords,
     fileName,
     IMAGE_EXTENSIONS,
@@ -258,10 +259,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 if (live) {
                     setBackgroundCheck({
                         format: choices.format,
-                        reason:
-                            reason?.code === "E_BAD_COMMAND"
-                                ? failureWords({ code: reason.code, details: reason.params }, true)
-                                : null,
+                        reason: reason?.code === "E_BAD_COMMAND" ? factWords(reason) : null,
                     });
                 }
             });

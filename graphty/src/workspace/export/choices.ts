@@ -17,7 +17,12 @@ import {
     type OptionDescriptor,
     SCREENSHOT_PRESET_DESCRIPTORS,
 } from "@graphty/graphty-element/catalog";
-import type { GraphtyErrorCode, ScreenshotPreset } from "@graphty/graphty-element/session";
+import {
+    type CodedFact,
+    type GraphtyErrorCode,
+    isGraphtyError,
+    type ScreenshotPreset,
+} from "@graphty/graphty-element/session";
 
 /** An image format `captureScreenshot` writes. */
 export type ImageFormat = NonNullable<ScreenshotOptions["format"]>;
@@ -259,39 +264,51 @@ const IMAGE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
 };
 
 /**
- * What went wrong, worded by the error's code (and its `details.reason`); a code the app has no
- * words for shows as itself.
+ * The words for a code and its `reason`; a code the app has no words for shows as itself.
+ * @param code - the code.
+ * @param reason - its `reason` detail or param, when it has one.
+ * @param image - whether it came from a screenshot, which words some codes as being about the image.
+ * @returns the sentence.
+ */
+function codeWords(code: string, reason: unknown, image: boolean): string {
+    const words: Readonly<Record<string, string | undefined>> = FAILURE_WORDS;
+    const imageWords: Readonly<Record<string, string | undefined>> = image ? IMAGE_WORDS : {};
+    const byReason = typeof reason === "string" ? words[`${code}/${reason}`] : undefined;
+    return byReason ?? imageWords[code] ?? words[code] ?? `Something went wrong (${code}).`;
+}
+
+/**
+ * What went wrong, worded by the error's code (and its `details.reason`); anything that is not a
+ * GraphtyError has no code to word.
  * @param error - what the element threw.
  * @param image - whether it came from a screenshot, which words some codes as being about the image.
  * @returns the sentence.
  */
 export function failureWords(error: unknown, image = false): string {
-    const { code, details } =
-        typeof error === "object" && error !== null
-            ? (error as { code?: unknown; details?: { reason?: unknown } })
-            : {};
-    if (typeof code !== "string") {
-        return "Something went wrong.";
-    }
-    const words: Readonly<Record<string, string | undefined>> = FAILURE_WORDS;
-    const imageWords: Readonly<Record<string, string | undefined>> = image ? IMAGE_WORDS : {};
-    const reason = typeof details?.reason === "string" ? words[`${code}/${details.reason}`] : undefined;
-    return reason ?? imageWords[code] ?? words[code] ?? `Something went wrong (${code}).`;
+    return isGraphtyError(error) ? codeWords(error.code, error.details.reason, image) : "Something went wrong.";
+}
+
+/**
+ * Why a screenshot with some options would fail, worded by `canCaptureScreenshot`'s coded reason
+ * (and its `params.reason`).
+ * @param fact - the coded reason.
+ * @returns the sentence.
+ */
+export function factWords(fact: CodedFact): string {
+    return codeWords(fact.code, fact.params.reason, true);
 }
 
 /**
  * Why a size cannot be captured, in a phrase that follows the size: the browser's limit on an
  * image, or the capture's own failure words.
  * @param reason - `canCaptureScreenshot`'s coded reason.
- * @param reason.code - the code a capture with those options would fail with.
- * @param reason.params - that failure's details.
  * @returns the phrase.
  */
-export function refusalWords(reason: { code: string; params: Readonly<Record<string, unknown>> }): string {
+export function refusalWords(reason: CodedFact): string {
     if (reason.code === "E_TOO_LARGE") {
         return "this browser cannot make an image this size";
     }
-    const words = failureWords({ code: reason.code, details: reason.params }, true).replace(/\.$/, "");
+    const words = factWords(reason).replace(/\.$/, "");
     return words.charAt(0).toLowerCase() + words.slice(1);
 }
 

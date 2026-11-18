@@ -247,6 +247,9 @@ function labelBoxToCyjs(property: string, value: StyleValue): Written | null {
     switch (property) {
         case "labelBorderAlign":
             return value === "center" ? exact({}) : null;
+        // a double line's width is a quarter of Cytoscape.js's; doubleBorderBypasses writes the width
+        case "labelBorderStyle":
+            return value === "solid" || value === "double" ? exact({ "text-border-style": value }) : null;
         case "labelLineBox":
             if (value === "size") {
                 return exact({});
@@ -1114,6 +1117,7 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
         } else {
             dashBypasses(rows, want, drawn.edge.values);
         }
+        doubleBorderBypasses(rows, want, drawn[target].values);
         labelOpacityBypasses(rows, want, drawn[target].values);
         // each part with the property it is drawn only with: a label's box, line or outline only where it has one
         const parts: (readonly [string, string, string, string | null])[] = [
@@ -1250,6 +1254,27 @@ function dashBypasses(
             // in widths; Cytoscape.js draws an edge 3 px wide without one
             const w = typeof width[i] === "number" ? (width[i] as number) : 3;
             rows[i] = { ...rows[i], "line-style": "dashed", "line-dash-pattern": `${num6(d * w)} ${num6(g * w)}` };
+        }
+    }
+}
+
+/**
+ * A label's double line as Cytoscape.js's `text-border-style: double`, whose `text-border-width` is four times each
+ * line's, where what is drawn differs.
+ * @param rows - the bypasses, changed in place
+ * @param want - the styles' values of a property
+ * @param got - what is drawn
+ */
+function doubleBorderBypasses(
+    rows: (Record<string, string | number> | null)[],
+    want: (property: string) => readonly (StyleValue | null)[],
+    got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
+): void {
+    const [style, width] = [want("labelBorderStyle"), want("labelBorderWidth")];
+    for (let i = 0; i < rows.length; i++) {
+        const w = width[i];
+        if (style[i] === "double" && typeof w === "number" && got.labelBorderWidth?.[i] !== w) {
+            rows[i] = { ...rows[i], "text-border-style": "double", "text-border-width": num6(w * 4) };
         }
     }
 }

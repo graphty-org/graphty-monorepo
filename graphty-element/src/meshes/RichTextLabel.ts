@@ -254,6 +254,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "runAlign"
     | "lineBox"
     | "borderAlign"
+    | "borderStyle"
     | "backgroundShape"
     | "minScreenSize"
     | "minNodeScreenSize"
@@ -819,13 +820,15 @@ export class RichTextLabel {
         finalOptions.textOutlineColor = withOpacity(finalOptions.textOutlineColor, finalOptions.textOutlineOpacity);
 
         if (finalOptions.borderWidth > 0 && finalOptions.borders.length === 0) {
-            finalOptions.borders = [
-                {
-                    width: finalOptions.borderWidth,
-                    color: finalOptions.borderColor,
-                    spacing: 0,
-                },
-            ];
+            const { borderWidth: width, borderColor: color } = finalOptions;
+            // a double border is the line drawn again inside it, one line's width in (Cytoscape.js's double)
+            finalOptions.borders =
+                finalOptions.borderStyle === "double"
+                    ? [
+                          { width, color, spacing: width },
+                          { width, color, spacing: 0 },
+                      ]
+                    : [{ width, color, spacing: 0 }];
         }
 
         // An opacity of the words or of the panel is drawn as their colour's alpha.
@@ -992,7 +995,7 @@ export class RichTextLabel {
         const bgPadding = this.options.backgroundPadding * 2;
 
         this.totalBorderWidth = this._sumBorderWidth();
-        this.borderReach = this.bordersCentered() ? this.totalBorderWidth / 2 : this.totalBorderWidth;
+        this.borderReach = this.bordersCentered() ? this.centeredReach() : this.totalBorderWidth;
 
         const contentWidth = Math.max(
             maxWidth + this.options.marginLeft + this.options.marginRight + bgPadding,
@@ -1158,6 +1161,15 @@ export class RichTextLabel {
      */
     private bordersCentered(): boolean {
         return this.options.borderAlign === "center" && this.table === null && !this.options.pointer;
+    }
+
+    /**
+     * How far past the panel's edge centered borders reach: half the outermost line, which is centered on the edge;
+     * any further lines lie inside the panel.
+     * @returns The reach, in canvas pixels.
+     */
+    private centeredReach(): number {
+        return (this.options.borders[0]?.width ?? 0) / 2;
     }
 
     /**
@@ -2196,9 +2208,11 @@ export class RichTextLabel {
         // One line's plane is `lineHeightInWorld` tall for a canvas of the line, its margins, its
         // panel's padding and its borders (see `_calculateDimensions`).
         const { marginTop, marginBottom, backgroundPadding, borders } = this.options;
-        // a border centered on the panel's edge reaches half its width past it
-        const reach = this.options.borderAlign === "center" ? 0.5 : 1;
-        const bordersPx = reach * borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
+        // a border centered on the panel's edge reaches half its outermost line past it
+        const bordersPx =
+            this.options.borderAlign === "center"
+                ? (borders[0]?.width ?? 0) / 2
+                : borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
         const oneLinePx = lineBox + marginTop + marginBottom + 2 * backgroundPadding + 2 * bordersPx;
         const { letterSize, fontSize } = this.options;
         const widthPx =

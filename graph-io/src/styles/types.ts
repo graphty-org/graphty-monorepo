@@ -612,6 +612,11 @@ export interface NodeStyleValues {
      */
     readonly labelBorderAlign: string;
     /**
+     * How the line round the box behind the label's words is drawn: `solid`, one line; `double`, the line drawn again
+     * inside it, one line's width in, as Cytoscape.js draws `text-border-style: double`. Unset, `solid`.
+     */
+    readonly labelBorderStyle: string;
+    /**
      * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
      * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js
      * `text-background-shape: circle`). Unset, `rectangle`.
@@ -1176,6 +1181,11 @@ export interface EdgeStyleValues {
      * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
      */
     readonly labelBorderAlign: string;
+    /**
+     * How the line round the box behind the label's words is drawn: `solid`, one line; `double`, the line drawn again
+     * inside it, one line's width in, as Cytoscape.js draws `text-border-style: double`. Unset, `solid`.
+     */
+    readonly labelBorderStyle: string;
     /**
      * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
      * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js

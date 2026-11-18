@@ -754,6 +754,31 @@ describe("the cascade", () => {
         }
     });
 
+    it("writes a double label border back as Cytoscape.js's double, four times each line's width", async () => {
+        const doc = {
+            elements: SMALL.elements,
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        label: "x",
+                        "text-border-width": 8,
+                        "text-border-opacity": 1,
+                        "text-border-style": "double",
+                    },
+                },
+            ],
+        };
+        const s = await snapshotOf(doc);
+        const ex = extract(doc, s);
+        expect(resolveStyles(ex, "node", "labelBorderWidth", s)[0]).toBe(2);
+        const em = toCytoscapeStylesheet(ex);
+        const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
+        for (const property of ["labelBorderWidth", "labelBorderStyle"] as const) {
+            expect(resolveStyles(back, "node", property, s), property).toEqual(resolveStyles(ex, "node", property, s));
+        }
+    });
+
     it("reads a stylesheet given as text as it reads the same sheet given as an array", () => {
         const text = `node { width: 20; background-color: #336699 }
             .big { width: 50 }

@@ -266,6 +266,9 @@ type LabelLineBoxValue = "font" | "size" | "glyphs";
 /** Where the line round a label's panel is drawn against the panel's edge (`labelBorderAlign`). */
 type LabelBorderAlignValue = "outside" | "center";
 
+/** How the line round a label's panel is drawn (`labelBorderStyle`). */
+type LabelBorderStyleValue = "solid" | "double";
+
 /** The shape of the panel behind a label's words (`labelBackgroundShape`). */
 type LabelBackgroundShapeValue = "rectangle" | "circle";
 
@@ -405,6 +408,7 @@ export interface ChannelValues {
     "node.labelLineHeight": number;
     "node.labelLineBox": LabelLineBoxValue;
     "node.labelBorderAlign": LabelBorderAlignValue;
+    "node.labelBorderStyle": LabelBorderStyleValue;
     "node.labelBackgroundShape": LabelBackgroundShapeValue;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
@@ -735,6 +739,7 @@ export interface ChannelValues {
     "edge.labelLineHeight": number;
     "edge.labelLineBox": LabelLineBoxValue;
     "edge.labelBorderAlign": LabelBorderAlignValue;
+    "edge.labelBorderStyle": LabelBorderStyleValue;
     "edge.labelBackgroundShape": LabelBackgroundShapeValue;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
@@ -1572,7 +1577,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1608,6 +1613,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     LineHeight: "lineHeight",
     LineBox: "lineBox",
     BorderAlign: "borderAlign",
+    BorderStyle: "borderStyle",
     BackgroundShape: "backgroundShape",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
@@ -1894,8 +1900,16 @@ function labelFieldChannels<Target extends "node" | "edge">(
             values: LABEL_BORDER_ALIGN_VALUES,
             caveat:
                 'Where the line round the panel behind the label\'s words is drawn: "outside", all of it past the ' +
-                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box. ' +
-                'Unset, "outside".',
+                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box ' +
+                '(a double border\'s outer line; its inner line lies inside the panel). Unset, "outside".',
+        }),
+        row("BorderStyle", "Border Style", {
+            accepts: "enum",
+            values: LABEL_BORDER_STYLE_VALUES,
+            caveat:
+                'How the line round the panel behind the label\'s words is drawn: "solid", one line; "double", the ' +
+                "line drawn again inside it, one line's width in, as Cytoscape.js draws a double text border. " +
+                'Unset, "solid".',
         }),
         row("BackgroundShape", "Background Shape", {
             accepts: "enum",
@@ -1982,6 +1996,9 @@ const LABEL_LINE_BOX_VALUES: readonly LabelLineBoxValue[] = ["font", "size", "gl
 /** Every value the `labelBorderAlign` channels take. */
 const LABEL_BORDER_ALIGN_VALUES: readonly LabelBorderAlignValue[] = ["outside", "center"];
 
+/** Every value the `labelBorderStyle` channels take. */
+const LABEL_BORDER_STYLE_VALUES: readonly LabelBorderStyleValue[] = ["solid", "double"];
+
 /** Every value the `labelBackgroundShape` channels take. */
 const LABEL_BACKGROUND_SHAPE_VALUES: readonly LabelBackgroundShapeValue[] = ["rectangle", "circle"];
 
@@ -2036,7 +2053,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 

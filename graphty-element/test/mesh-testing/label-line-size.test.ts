@@ -196,6 +196,15 @@ describe("RichTextLabel panel measured as Cytoscape.js measures it", () => {
         assert.closeTo(panel, 48 + 4, 1e-9);
     });
 
+    test("a centered double border reaches only half its outer line past the panel, its inner line inside", () => {
+        const { panel } = heights({ lineBox: "size", borderAlign: "center", borderStyle: "double" });
+        // two 4-wide lines 4 apart: only the outer one's outer half lies past the 48-tall box
+        assert.closeTo(panel, 48 + 4, 1e-9);
+        // outside the panel, both lines and the gap between them lie past it
+        const outside = heights({ lineBox: "size", borderStyle: "double" });
+        assert.closeTo(outside.panel, 48 + 2 * 12, 1e-9);
+    });
+
     test("unset, a line is its font box tall and the border lies wholly outside it", () => {
         const { panel, words } = heights({});
         assert.isAbove(words, 48);

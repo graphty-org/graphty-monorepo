@@ -4536,8 +4536,14 @@ export function associate(
                 (filled === undefined || p.fill === null) &&
                 (p.index < words || (filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL)),
         );
-        const bordered =
+        const inner =
             strokes.find((p) => filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL) ?? strokes[0];
+        // a double line is the outer of its two: the inner one is the same line again inside it
+        const outer = inner === undefined ? undefined : strokes.find((p) => doubles(p, inner));
+        const bordered = outer ?? inner;
+        if (outer !== undefined && inner !== undefined) {
+            take(inner);
+        }
         const parts = [filled, bordered].filter((p): p is Prim => p !== undefined);
         if (parts.length === 0) {
             continue;
@@ -4586,6 +4592,29 @@ export function associate(
 
 /** The share of a group's side a band behind its label runs: a rounded group's band stops short of its outline. */
 const BAND_OF_GROUP = 0.9;
+
+/**
+ * Whether a stroked outline is the outer line of a double one round a label's box: the same line drawn again inside it,
+ * two of its widths in on every side (Cytoscape.js `text-border-style: double`: two lines a quarter of the border's
+ * width, half of it apart).
+ * @param outer - the outline that may be the outer line
+ * @param inner - the outline inside it
+ * @returns true when the two are one double line
+ */
+function doubles(outer: Prim, inner: Prim): boolean {
+    const [o, i] = [outer.stroke, inner.stroke];
+    if (outer === inner || o === null || i === null || o.color !== i.color || !(o.width > 0)) {
+        return false;
+    }
+    const tol = Math.max(0.25 * o.width, 0.05);
+    const insets = [
+        inner.box.x0 - outer.box.x0,
+        inner.box.y0 - outer.box.y0,
+        outer.box.x1 - inner.box.x1,
+        outer.box.y1 - inner.box.y1,
+    ];
+    return Math.abs(i.width - o.width) <= tol && insets.every((d) => Math.abs(d - 2 * o.width) <= 2 * tol);
+}
 
 /**
  * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past

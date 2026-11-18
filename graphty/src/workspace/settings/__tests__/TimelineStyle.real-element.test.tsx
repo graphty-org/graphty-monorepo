@@ -151,6 +151,24 @@ describe("Default timeline style", () => {
         assert.strictEqual(session.config.timelineHiddenLook, "hidden");
     });
 
+    it("applies a style chosen while a project is open to the row its timeline brings later", async () => {
+        const store = mount();
+        const session = await openBy(store, () => pickSample(MARVEL));
+        assert.strictEqual(session.config.timelineHiddenLook, "hidden");
+        await userEvent.keyboard("{Control>},{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        await userEvent.click(within(dialog).getByText("Ghost"));
+        await closeSettings(dialog);
+        await waitFor(() => {
+            assert.strictEqual(session.config.timelineHiddenLook, "ghost");
+        });
+        await turnTimelineOn();
+        await waitFor(async () => {
+            assert.isTrue((await treeRows()).some((row) => row.startsWith(ROW)));
+        });
+        assert.strictEqual(nodeLayer(session).set?.["node.opacity"], 0.2);
+    });
+
     it("leaves the filter chip's visible count as it was when the window moves", async () => {
         const store = mount();
         const session = await openBy(store, () => pickSample(MARVEL));

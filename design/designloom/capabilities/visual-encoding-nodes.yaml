@@ -3,7 +3,8 @@ name: Node Visual Encoding
 category: visualization
 description: Map node attributes to visual properties (color, size, shape, label) to encode information visually.
     Support categorical encoding with color palettes and quantitative encoding with size or color gradients.
-status: planned
+status: implemented
+notes: "Ships: style layers on session.styles, edited in graphty/src/workspace/style/BindingPopover.tsx."
 algorithms: []
 used_by_workflows:
     - W02

@@ -795,11 +795,38 @@ function floored(resolved: ResolvedStyle, channel: Channel, minimum: number, fal
  * @returns The paint, or a copy with the raised size in its key.
  */
 function keyedByFloor<T extends NodePaint | EdgePaint>(paint: T, resolved: ResolvedStyle, minimum: number): T {
-    if (!FLOORED.has(resolved)) {
+    const floor = FLOORED.has(resolved) ? `|min${String(minimum)}` : "";
+    const coarse = COARSE.has(resolved) ? "|low" : "";
+    if (floor === "" && coarse === "") {
         return paint;
     }
 
-    return { ...paint, meshKey: `${paint.meshKey}|min${String(minimum)}` };
+    return { ...paint, meshKey: `${paint.meshKey}${floor}${coarse}` };
+}
+
+/** Marks a resolved style {@link coarsened} gave low detail, so its paint is keyed apart. */
+const COARSE = new WeakSet<ResolvedStyle>();
+
+/**
+ * A node's resolved style drawn at low detail on a large graph (`Limits.largeGraphThreshold`):
+ * a node no layer gives a `node.meshDetail` is drawn `"low"`. A layer that sets one, `"full"`
+ * included, keeps it, which is how a consumer keeps full detail on a large graph.
+ * @param resolved - Everything the stack painted the node, after {@link floored}.
+ * @param large - Whether the graph holds more nodes than the threshold.
+ * @returns The style to paint from.
+ */
+function coarsened(resolved: ResolvedStyle, large: boolean): ResolvedStyle {
+    if (!large || resolved["node.meshDetail"] !== undefined) {
+        return resolved;
+    }
+
+    const low: ResolvedStyle = { ...resolved, "node.meshDetail": "low" };
+    COARSE.add(low);
+    if (FLOORED.has(resolved)) {
+        FLOORED.add(low);
+    }
+
+    return low;
 }
 
 /**
@@ -1296,10 +1323,14 @@ export class StylePainter {
      *     cheap; a painter with no graph behind it draws edges as directed.
      * @param minimums - The smallest node size and edge width drawn (the project setting
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
+     * @param largeGraph - Whether the graph holds more nodes than `Limits.largeGraphThreshold`, so
+     *     a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
+     *     node painted, so it must be cheap.
      */
     constructor(
         private readonly directed: (row: number) => boolean = () => true,
         private readonly minimums: () => MarkMinimums | undefined = () => undefined,
+        private readonly largeGraph: () => boolean = () => false,
     ) {}
 
     /** The minimums the cached paints were built at; see {@link StylePainter.floorOf}. */
@@ -1620,7 +1651,10 @@ export class StylePainter {
         }
 
         const floor = this.floorOf("node");
-        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
+        const resolved = coarsened(
+            floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE),
+            this.largeGraph(),
+        );
         const meshKey = paint.meshKeyOf("node", index);
         const make = (): NodePaint =>
             keyedByFloor(
@@ -1628,11 +1662,13 @@ export class StylePainter {
                 resolved,
                 floor,
             );
-        const identity = nodeIdentity(resolved, meshKey);
-        if (identity === null) {
+        const shared = nodeIdentity(resolved, meshKey);
+        if (shared === null) {
             return make();
         }
 
+        // A low-detail look is not the full one: the mesh key the identity is built from is the same.
+        const identity = COARSE.has(resolved) ? `${shared}|low` : shared;
         // The interned mesh style is held beside it because a released mesh key is minted again
         // for another style.
         const mesh = paint.meshStyleOf("node", meshKey);

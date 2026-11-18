@@ -903,3 +903,23 @@ describe("joining by an edge's two ends, new rows and a file's own kind", () => 
         assert.isDefined(session.data.node("host:admin"));
     });
 });
+
+describe("joining on keys spelled as numbers or as text", () => {
+    it("matches a numeric node id to a table key read as text, and a text id to a number", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: 1 }, { id: 2 }, { id: 3 }, { id: "4" }, { id: "5" }]);
+        const table = ["key,score", "1,10", "2,20", "4,40", "9,90"].join("\n");
+        const draft = await session.data.prepare(
+            { config: { file: new File([table], "scores.csv") }, name: "scores.csv" },
+            { onto: "graph" },
+        );
+        const keys = [{ file: "key", graph: "id" }];
+        assert.deepInclude(draft.joinReport({ keys }), { matched: 3, notInGraph: 1, withoutValue: 2 });
+        await draft.load({ join: { keys } });
+        assert.strictEqual(session.data.node(1)?.score, 10);
+        assert.strictEqual(session.data.node(2)?.score, 20);
+        assert.strictEqual(session.data.node("4")?.score, 40);
+        assert.isUndefined(session.data.node(3)?.score);
+        session.dispose();
+    });
+});

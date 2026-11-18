@@ -75,6 +75,7 @@ import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType, XLABEL_UNSHARED } from "./Node";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
+import type { RowMeasure } from "./render/RowTable";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
 
@@ -544,6 +545,8 @@ export const edgeInternals = {} as {
     };
     /** Where the edge's line leaves `node`, from `centre` toward `toward`; see `Edge.leaveNode`. */
     leaveNode(edge: Edge, node: Node, centre: Vector3, toward: Vector3): Vector3;
+    /** Where the edge's line starts at an end with no cap, from `centre` toward `toward`; see `Edge.bareEnd`. */
+    bareEnd(edge: Edge, end: "source" | "target", centre: Vector3, toward: Vector3): Vector3;
     /** How far a line from a node's centre runs before it leaves the node's box; see `Edge.boxReachOf`. */
     boxReachOf(node: Node, direction: Vector3): number;
 };
@@ -685,6 +688,7 @@ export class Edge {
             drawnStyle: edge.drawnStyle,
         });
         edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
+        edgeInternals.bareEnd = (edge, end, centre, toward) => edge.bareEnd(end, centre, toward);
         edgeInternals.boxReachOf = (node, direction) => Edge.boxReachOf(node, direction);
         writeRecord = (edge, record) => {
             edge.#record = frozenRecord(record);
@@ -1777,12 +1781,35 @@ export class Edge {
         // a node drawn at opacity 0 hides nothing: the line ends at its outline, where a drawn node's hides the rest
         // (Cytoscape.js `visibility: hidden` keeps the node's place and its edges, trimmed at its shape)
         const invisible = node.drawnOpacity <= 0;
-        // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node
+        // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node, unless its
+        // body is translucent and would show the line through it: then the line leaves at its outline, as the batched
+        // path's shader leaves it (`PULLED_TRIM_GLSL`, #8281)
         if (gap <= 0 && !invisible && !this.endBehindEdges(end)) {
-            return centre;
+            const seen = this.seenThroughEnd(end);
+            return seen === null ? centre : this.leaveNode(seen, centre, toward);
         }
 
         return gap > 0 || invisible ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
+    }
+
+    /**
+     * One end's node or row when its body is drawn translucent (`node.opacity` under 1), else null. An end stored
+     * with no `Node` and not painted yet holds the bootstrap paint, which is opaque: asking its `Node` would build one.
+     * @param end - Which end.
+     * @returns The node or row, or null.
+     */
+    private seenThroughEnd(end: "source" | "target"): RowMeasure | null {
+        const row = this.columnEnd(end);
+        if (row !== undefined) {
+            return row.paintedOpacity < 1 ? row : null;
+        }
+
+        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return null;
+        }
+
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        return node.paintedOpacity < 1 ? node : null;
     }
 
     /**
@@ -2901,14 +2928,11 @@ export class Edge {
         }
 
         const scene = this.context.getScene();
-        const batch = EdgeMesh.pulledBatch(
-            this.context.getMeshCache(),
-            options,
-            style,
-            scene,
-            () => rows.positionTexture,
-            { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
-        );
+        const batch = EdgeMesh.pulledBatch(this.context.getMeshCache(), options, style, scene, () => rows, {
+            loop: this.isLoop,
+            route: this.routeOf(style),
+            lean: this.context.leansLines?.() ?? false,
+        });
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
         const animationSpeed = style.line?.animationSpeed ?? 0;
@@ -4161,7 +4185,7 @@ export class Edge {
      * @param dir - The unit direction.
      * @returns The distance.
      */
-    private static reachOf(node: Node, dir: Xyz): number {
+    private static reachOf(node: RowMeasure, dir: Xyz): number {
         return (
             surfaceReach(
                 dir,
@@ -4496,11 +4520,30 @@ export class Edge {
         lineStart: Vector3,
         lineEnd: Vector3,
     ): number[] {
-        const kept = clearOfCaps(mid, start, end, {
-            start: Vector3.Distance(start, lineStart),
-            end: Vector3.Distance(end, lineEnd),
-        });
-        return [lineStart.x, lineStart.y, lineStart.z, ...kept, lineEnd.x, lineEnd.y, lineEnd.z];
+        const reach = { start: Vector3.Distance(start, lineStart), end: Vector3.Distance(end, lineEnd) };
+        const kept = clearOfCaps(mid, start, end, reach);
+        // The route's point a cap is aimed from lies on the cap's axis. Under the cap (a bend that a head longer than
+        // the route's last leg covers) the line turns there and runs on along the axis to the cap's middle, as yEd's
+        // does, rather than cutting the corner to the cap's back across its side (issue #8840). Nearer the tip than
+        // the cap's middle the point is dropped, as above.
+        const n = mid.length / 3;
+        const under = (i: number, tip: Vector3, back: number): boolean => {
+            const d = Vector3.Distance(Vector3.FromArray(mid, 3 * i), tip);
+            return d < back && d >= back / 2;
+        };
+        // one point under both caps keeps the plain run
+        const both = n === 1 && under(0, start, reach.start) && under(0, end, reach.end);
+        const turn = (i: number, tip: Vector3, back: number, lineAt: Vector3): Vector3[] => {
+            if (n === 0 || both || !under(i, tip, back)) {
+                return [lineAt];
+            }
+            const p = Vector3.FromArray(mid, 3 * i);
+            const middle = Vector3.Center(tip, lineAt);
+            return Vector3.Distance(p, middle) < 1e-9 ? [middle] : [p, middle];
+        };
+        const first = turn(0, start, reach.start, lineStart).reverse();
+        const last = turn(n - 1, end, reach.end, lineEnd);
+        return [...first.flatMap((v) => v.asArray()), ...kept, ...last.flatMap((v) => v.asArray())];
     }
 
     /**
@@ -4603,7 +4646,7 @@ export class Edge {
      * @param gap - How far past the outline the line stops (`line.nodeGap`).
      * @returns The crossing, or the center when the point is the center.
      */
-    private leaveNode(node: Node, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
+    private leaveNode(node: RowMeasure, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
         const dir = toward.subtract(centre);
         const span = dir.length();
         if (span === 0) {
@@ -5725,7 +5768,7 @@ export class Edge {
      */
     private static capGap(arrow: EdgeStyleConfig["arrowHead"]): number {
         const gap = arrow?.gap ?? 0;
-        if (gap <= 0 || (arrow?.position ?? 0) > 0 || !arrow?.type || arrow.type === "none") {
+        if (gap === 0 || (arrow?.position ?? 0) > 0 || !arrow?.type || arrow.type === "none") {
             return 0;
         }
 

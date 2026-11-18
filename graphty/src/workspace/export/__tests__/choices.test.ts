@@ -177,11 +177,11 @@ describe("the Export dialog's choices", () => {
         assert.equal(tour.cameraMode, "animated");
         assert.deepEqual(tour.tour, ["topView", "isometric"]);
         assert.equal(tour.duration, 3000);
-        assert.isTrue(tour.download);
+        assert.deepEqual(tour.destination, { download: true, filename: "a.webm" });
         const still = animationOptions({ camera: "still", stops: [], seconds: 5, fps: 60 });
         assert.equal(still.cameraMode, "stationary");
         assert.isUndefined(still.tour);
-        assert.isUndefined(still.download);
+        assert.isUndefined(still.destination);
     });
 
     it("words a capture's codes as being about the image, and the same codes elsewhere as before", () => {

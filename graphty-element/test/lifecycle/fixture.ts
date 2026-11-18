@@ -306,6 +306,17 @@ window.fixture = {
         return { status: el.autosaver.status, restored: summary(el.autosaver.restored), nodes: el.session.data.snapshot().nodeCount, probes: [...probes], entries, guard: window.__unloadListeners.size > 0 };
     },
     flush: () => el.autosaver.flush(),
+    // Start recording a tour that holds until it is stopped, and report how it ended as
+    // "recorded" { code, reason }; resolves once the tour holds at its stop, so the recording runs.
+    async record() {
+        await ready;
+        const holding = new Promise((resolve) => el.addListener("tour-progress", (e) => { if (e.phase === "hold") resolve(true); }));
+        el.captureAnimation({ tour: [{ view: "fitToGraph", hold: Number.MAX_SAFE_INTEGER }] }).then(
+            (result) => report("recorded", { code: null, bytes: result.blob.size }),
+            (error) => report("recorded", { code: error?.code ?? String(error), reason: error?.details?.reason ?? null }),
+        );
+        return holding;
+    },
     loseContext() {
         const canvas = el.shadowRoot?.querySelector("canvas") ?? el.querySelector("canvas");
         const gl = canvas?.getContext("webgl2") ?? canvas?.getContext("webgl");

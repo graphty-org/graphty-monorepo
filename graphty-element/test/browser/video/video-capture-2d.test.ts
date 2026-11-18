@@ -205,48 +205,48 @@ describe("Video Capture - 2D Animated Camera", () => {
         assert.ok(progressEvents[progressEvents.length - 1] >= 90);
     });
 
-    test("2D animated video ends at the last stop's zoom and pan", async () => {
+    test("2D animated video reaches the last stop's zoom and pan, then puts the camera back", async () => {
         const cameraPath: ViewWaypoint[] = [
             { view: { zoom: 1, pan: { x: 0, y: 0 } } },
-            { view: { zoom: 2, pan: { x: 5, y: 5 } }, duration: 200 },
+            { view: { zoom: 2, pan: { x: 5, y: 5 } }, duration: 200, hold: 100 },
         ];
+        const before = graph.getCameraState();
+        let reached = false;
+        const observer = graph.scene.onAfterRenderObservable.add(() => {
+            const { zoom, pan } = graph.getCameraState();
+            const near = (a: number | undefined, b: number): boolean => a !== undefined && Math.abs(a - b) < 0.01;
+            reached ||= near(zoom, 2) && near(pan?.x, 5) && near(pan?.y, 5);
+        });
+        try {
+            await graph.captureAnimation({ fps: 30, cameraPath });
+        } finally {
+            graph.scene.onAfterRenderObservable.remove(observer);
+        }
 
-        await graph.captureAnimation({ duration: 500, fps: 30, cameraMode: "animated", cameraPath });
-
+        assert.isTrue(reached, "a frame stood at the last stop");
         const { zoom, pan } = graph.getCameraState();
-        assert.closeTo(zoom ?? Number.NaN, 2, 0.01);
-        assert.closeTo(pan?.x ?? Number.NaN, 5, 0.01);
-        assert.closeTo(pan?.y ?? Number.NaN, 5, 0.01);
+        assert.closeTo(zoom ?? Number.NaN, before.zoom ?? Number.NaN, 0.01);
+        assert.closeTo(pan?.x ?? Number.NaN, before.pan?.x ?? Number.NaN, 0.01);
+        assert.closeTo(pan?.y ?? Number.NaN, before.pan?.y ?? Number.NaN, 0.01);
     });
 
-    test("2D animated video throws error with insufficient waypoints", async () => {
+    test("2D animated video refuses a 3D waypoint with E_UNSUPPORTED", async () => {
         const cameraPath: CameraWaypoint[] = [{ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }];
 
-        try {
-            await graph.captureAnimation({
-                duration: 500,
-                fps: 30,
-                cameraMode: "animated",
-                cameraPath,
-            });
-            assert.fail("Should have thrown error");
-        } catch (error) {
-            assert.ok((error as Error).message.includes("2 waypoints"));
-        }
+        const error = await graph.captureAnimation({ duration: 500, fps: 30, cameraMode: "animated", cameraPath }).then(
+            () => undefined,
+            (caught: unknown) => caught as { code?: unknown },
+        );
+        assert.equal(error?.code, "E_UNSUPPORTED");
     });
 
-    test("2D animated video throws error without camera path", async () => {
-        try {
-            await graph.captureAnimation({
-                duration: 500,
-                fps: 30,
-                cameraMode: "animated",
-                // No cameraPath provided
-            });
-            assert.fail("Should have thrown error");
-        } catch (error) {
-            assert.ok((error as Error).message.includes("waypoints"));
-        }
+    test("2D animated video without a tour is refused as a missing option", async () => {
+        const error = await graph.captureAnimation({ duration: 500, fps: 30, cameraMode: "animated" }).then(
+            () => undefined,
+            (caught: unknown) => caught as { code?: unknown; details?: unknown },
+        );
+        assert.equal(error?.code, "E_BAD_COMMAND");
+        assert.deepEqual(error?.details, { reason: "missing-option", option: "tour" });
     });
 });
 

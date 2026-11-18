@@ -41,18 +41,6 @@ function standsAt(graph: Graph, view: CameraState): boolean {
 }
 
 /**
- * Assert the camera looks at the view's target.
- * @param graph - The graph.
- * @param view - A 3D view.
- */
-function assertTarget(graph: Graph, view: CameraState): void {
-    const { target } = graph.getCameraState();
-    for (const axis of ["x", "y", "z"] as const) {
-        assert.closeTo(target?.[axis] ?? Number.NaN, view.target?.[axis] ?? 0, 0.01, `target ${axis}`);
-    }
-}
-
-/**
  * Count the frames drawn at each view while `work` runs, and the frame time they add up to.
  * @param graph - The graph.
  * @param views - The views to count at.
@@ -185,10 +173,7 @@ for (const mode of ["3d", "2d"] as const) {
             );
 
             assert.isAtLeast(atB.frames, 1, "frames drawn at the second view");
-            assert.isTrue(standsAt(graph, viewB), "the tour ends at its last view");
-            if (mode === "3d") {
-                assertTarget(graph, viewB);
-            }
+            assert.isFalse(standsAt(graph, viewB), "the camera is put back after the recording");
         });
 
         if (mode === "3d") {
@@ -203,8 +188,7 @@ for (const mode of ["3d", "2d"] as const) {
                 );
 
                 assert.isAtLeast(atB.frames, 1, "frames drawn at the second waypoint");
-                assert.isTrue(standsAt(graph, viewB), "the path ends at its last waypoint");
-                assertTarget(graph, viewB);
+                assert.isFalse(standsAt(graph, viewB), "the camera is put back after the recording");
             });
         } else {
             test("a plain waypoint is refused in 2D with E_UNSUPPORTED", async () => {

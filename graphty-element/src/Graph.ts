@@ -8091,46 +8091,51 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Capture an animation as a video (stationary or animated camera)
-     * @param options - Animation capture options
-     * @returns Promise resolving to AnimationResult with blob and metadata
+     * Record a video: a still recording, or a tour.
+     *
+     * A still recording lasts `duration` and records from `camera` (or the camera as it is). A tour
+     * recording (`tour`: a saved tour's name, a tour, or stops, as `playTour` takes) opens on the
+     * first stop, flies the tour and lasts as long as it does unless `duration` is given, then puts
+     * the camera back. With `motion: "authored"` each flight is recorded as authored even under
+     * reduced motion. `animation-progress` reports 0 to 100 as it records; a tour also fires
+     * `tour-progress` at each stop.
+     * @param options - What to record and how.
+     * @returns The video and what was recorded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` `{ reason: "conflict", options }` for `tour` with
+     *     `cameraPath`, or either with `cameraMode: "stationary"`; `{ reason: "missing-option",
+     *     option }` for a still recording (or the `string[]` tour form) without `duration`, or
+     *     `cameraMode: "animated"` without a tour; `{ reason: "no-stops" }` for an empty tour; the
+     *     problem `planTour` reports for a tour that cannot be played; `E_UNSUPPORTED`
+     *     `{ reason: "xr", mode }` while immersive; `E_CANCELLED` (an `AnimationCancelledError`) when
+     *     cancelled; `E_CAPTURE_FAILED` `{ media: "video", reason }` when the tab is hidden
+     *     (`"hidden"`), the canvas changes size (`"resized"`), or the tour ends early
+     *     (`"interrupted"`, `"replaced"`, `"mode-changed"`).
      * @example
      * ```typescript
-     * // Basic 5-second video at 30fps
-     * const result = await graph.captureAnimation({
-     *   duration: 5000,
-     *   fps: 30,
-     *   cameraMode: 'stationary'
-     * });
+     * // A 5-second still video
+     * const still = await graph.captureAnimation({ duration: 5000 });
      *
-     * // High-quality 60fps video with download
-     * const result = await graph.captureAnimation({
-     *   duration: 10000,
-     *   fps: 60,
-     *   cameraMode: 'stationary',
-     *   download: true,
-     *   downloadFilename: 'graph-video.webm'
-     * });
+     * // A saved tour, as long as the tour, saved as a file
+     * const tour = await graph.captureAnimation({ tour: "intro", destination: { download: true } });
      *
-     * // Animated camera path (camera tour)
-     * const result = await graph.captureAnimation({
-     *   duration: 5000,
-     *   fps: 30,
-     *   cameraMode: 'animated',
-     *   cameraPath: [
-     *     { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
-     *     { position: { x: 0, y: 20, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 },
-     *     { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 }
-     *   ],
-     *   easing: 'easeInOut',
-     *   download: true
+     * // Stops given inline: a stop's duration is its flight there
+     * const inline = await graph.captureAnimation({
+     *   tour: [{ view: "fitToGraph", hold: 1000 }, { view: "topView", duration: 1500, hold: 1000 }],
      * });
      * ```
      */
     async captureAnimation(
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { MediaRecorderCapture, holdCameraForCapture } = await import("./video/MediaRecorderCapture.js");
+        const tourInput = recordingTour(options);
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+        const flown = tourInput === null ? undefined : this.#checkedTour(tourInput);
+
+        const { AnimationCancelledError, MediaRecorderCapture, holdCameraForCapture } =
+            await import("./video/MediaRecorderCapture.js");
 
         // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
         // work only in endFrame(), so a copy made from the scene's after-render would read a canvas
@@ -8152,8 +8157,17 @@ export class Graph implements GraphContext {
             };
         });
 
+        const { signal } = options;
+        if (signal?.aborted === true) {
+            throw new AnimationCancelledError();
+        }
+
         // Store reference for cancellation
         this.activeCapture = capture;
+        const onAbort = (): void => {
+            this.cancelAnimationCapture();
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
 
         // Set up progress event handler
         const onProgress = (progress: number): void => {
@@ -8165,86 +8179,124 @@ export class Graph implements GraphContext {
         const releaseFrames = animatesEveryFrame(this.scene);
 
         try {
-            // Handle animated camera mode
-            if (options.cameraMode === "animated") {
-                return await this.captureAnimatedCameraVideo(options, capture, onProgress);
-            }
-
-            // Capture stationary video, from the camera asked for
-            const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
             let result: import("./video/VideoCapture.js").AnimationResult;
-            try {
-                result = await capture.captureRealtime(this.canvas, options, onProgress);
-            } finally {
-                await restoreCamera?.();
+            if (flown !== undefined) {
+                result = await this.#recordTour(options, flown, capture, onProgress);
+            } else {
+                // A still recording, from the camera asked for
+                const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
+                try {
+                    result = await capture.captureRealtime(this.canvas, options, onProgress);
+                } finally {
+                    await restoreCamera?.();
+                }
             }
 
-            // Handle download if requested
             this.handleVideoDownload(result, options);
-
             return result;
         } finally {
             releaseFrames();
+            signal?.removeEventListener("abort", onAbort);
             // Clear reference when done
-            this.activeCapture = null;
+            if (this.activeCapture === capture) {
+                this.activeCapture = null;
+            }
         }
     }
 
     /**
-     * Capture video with animated camera path
-     * @param options - Animation configuration options
-     * @param capture - Media recorder capture instance
-     * @param onProgress - Progress callback function
-     * @returns Promise resolving to animation result with video blob
+     * Record a tour: stop 0 put in place before the recorder starts, the tour flown from the
+     * recorder's first data, and the camera put back afterwards. Without `duration` the recording
+     * ends with the tour and its progress follows the tour's frame clock; a tour ending early
+     * fails the recording.
+     * @param options - The recording's options.
+     * @param flown - The checked tour.
+     * @param capture - The recorder.
+     * @param onProgress - Reports progress, 0 to 100.
+     * @returns The recording.
      */
-    private async captureAnimatedCameraVideo(
+    async #recordTour(
         options: import("./video/VideoCapture.js").AnimationOptions,
+        flown: FlownTour,
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        // Every path, and a `tour` of names, is flown with the element's own camera moves
-        // (setCameraState), so each stop lands where setCameraState puts it, in 2D and in 3D.
-        // A tour of names jumps to the first view and splits the duration evenly between the legs.
-        const names = options.tour;
-        const leg = names && names.length > 1 ? options.duration / (names.length - 1) : 0;
-        const path = names
-            ? names.map((view, index) => ({ view, duration: index === 0 ? 0 : leg }))
-            : options.cameraPath;
-        const isTour = !names && path?.some((stop) => "view" in stop || stop.hold !== undefined);
-        if (!path || (path.length < 2 && !isTour)) {
-            throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
+        const before = this.getCameraState();
+        const handle = this.#beginTour(flown.name, flown.states.length);
+        handle.onEnd = (reason) => {
+            if (reason !== "finished") {
+                capture.fail(reason);
+            }
+        };
+        const timed = options.duration !== undefined;
+        const easing = options.easing ?? flown.easing ?? "easeInOut";
+        let tourFinished = false;
+        let flight: Promise<void> | undefined;
+        let stopClock = (): void => undefined;
+
+        // The first frames show stop 0 when it is reached with no flight.
+        if (flown.plan.stops[0]?.duration === 0) {
+            await this.#applyTourCamera(flown.states[0], 0);
         }
-        return this.captureTourVideo(options, path, capture, onProgress);
+
+        try {
+            return await capture.captureRealtime(this.canvas, options, timed ? onProgress : undefined, {
+                lengthMs: flown.plan.totalMs,
+                onStart: () => {
+                    if (!timed) {
+                        stopClock = this.#tourClock(flown.plan.totalMs, onProgress);
+                    }
+                    flight = this.#flyTour(handle, flown, easing, options.motion === "authored").then(() => {
+                        if (handle.ended) {
+                            return;
+                        }
+                        tourFinished = true;
+                        // The whole tour is recorded: a press or camera move in a longer
+                        // duration's trailing hold ends the hold, never the recording.
+                        handle.onEnd = undefined;
+                        if (!timed) {
+                            stopClock();
+                            onProgress(100);
+                            capture.stop();
+                        }
+                    });
+                },
+            });
+        } finally {
+            stopClock();
+            handle.onEnd = undefined;
+            // The camera goes back, unless the reader, another camera move or a mode switch took it.
+            const { reason } = handle;
+            if (reason !== "interrupted" && reason !== "replaced" && reason !== "mode-changed") {
+                await this.#applyTourCamera(before, 0);
+            }
+            // A recording that ended before its tour (a shorter duration, a failure) cancels it.
+            this.#finishTour(handle, tourFinished ? "finished" : "cancelled");
+            await flight;
+        }
     }
 
     /**
-     * Record a tour: the stops flown with the tour's own camera path while the recording runs,
-     * and the tour ended when the recording ends.
-     * @param options - Animation configuration options
-     * @param path - The tour's stops
-     * @param capture - Media recorder capture instance
-     * @param onProgress - Progress callback function
-     * @returns The recording
+     * Report a recorded tour's progress from the frames drawn, the clock its holds count in: up to
+     * 99 while it plays, so 100 comes only when the tour has finished.
+     * @param totalMs - The tour's planned length.
+     * @param onProgress - Reports progress.
+     * @returns Stops reporting.
      */
-    private async captureTourVideo(
-        options: import("./video/VideoCapture.js").AnimationOptions,
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-        capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
-        onProgress: (progress: number) => void,
-    ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const flown = this.#checkedTour(path);
-        const tour = this.#beginTour(null, flown.states.length);
-        const recording = capture.captureRealtime(this.canvas, options, onProgress).finally(() => {
-            this.#finishTour(tour, "cancelled");
+    #tourClock(totalMs: number, onProgress: (progress: number) => void): () => void {
+        let elapsed = 0;
+        let last = -1;
+        const observer = this.scene.onAfterRenderObservable.add(() => {
+            elapsed += this.engine.getDeltaTime();
+            const progress = totalMs > 0 ? Math.min(99, Math.floor((elapsed / totalMs) * 100)) : 99;
+            if (progress !== last) {
+                last = progress;
+                onProgress(progress);
+            }
         });
-        const flight = this.#flyTour(tour, flown, options.easing ?? "easeInOut").then(() => {
-            this.#finishTour(tour, "finished");
-        });
-        const [result] = await Promise.all([recording, flight]);
-        this.handleVideoDownload(result, options);
-        return result;
+        return () => {
+            this.scene.onAfterRenderObservable.remove(observer);
+        };
     }
 
     /**
@@ -8314,6 +8366,7 @@ export class Graph implements GraphContext {
             ended: false,
             reason: undefined,
             wake: undefined,
+            onEnd: undefined,
             restore: () => {
                 restoreFraming();
                 restorePlacement();
@@ -8355,6 +8408,7 @@ export class Graph implements GraphContext {
         }
 
         this.eventManager.emit("tour-ended", { tour: tour.name, reason } satisfies Omit<TourEndedEvent, "type">);
+        tour.onEnd?.(reason);
         tour.wake?.();
     }
 
@@ -8416,8 +8470,10 @@ export class Graph implements GraphContext {
      * @param tour - The tour's handle, from `#beginTour`.
      * @param flown - The resolved stops and their plan.
      * @param easing - The easing of each flight.
+     * @param authored - Fly each flight as authored even under reduced motion (a recording's
+     *     `motion: "authored"`).
      */
-    async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName): Promise<void> {
+    async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName, authored = false): Promise<void> {
         const progress = (stop: number, phase: "flight" | "hold"): void => {
             this.eventManager.emit("tour-progress", {
                 tour: tour.name,
@@ -8435,7 +8491,7 @@ export class Graph implements GraphContext {
 
             if (duration > 0) {
                 progress(index, "flight");
-                if (this.#motionReduced()) {
+                if (!authored && this.#motionReduced()) {
                     await this.#applyTourCamera(state, 0);
                     await this.holdTourStop(duration, tour);
                 } else {
@@ -8561,8 +8617,14 @@ export class Graph implements GraphContext {
         result: import("./video/VideoCapture.js").AnimationResult,
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): void {
-        if (options.download) {
-            let filename = options.downloadFilename ?? `animation-${Date.now()}.webm`;
+        const destination = options.destination ?? {
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- the older spelling is still honored
+            download: options.download,
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- the older spelling is still honored
+            filename: options.downloadFilename,
+        };
+        if (destination.download === true) {
+            let filename = destination.filename ?? `animation-${Date.now()}.webm`;
 
             // Auto-fix extension based on actual format when using auto-detect
             if (!options.format || options.format === "auto") {
@@ -8597,11 +8659,11 @@ export class Graph implements GraphContext {
      *   console.log('Cancelled:', wasCancelled);
      * }, 2000);
      *
-     * // The promise will reject with AnimationCancelledError
+     * // The promise will reject with E_CANCELLED (an AnimationCancelledError)
      * try {
      *   await capturePromise;
      * } catch (error) {
-     *   if (error.name === 'AnimationCancelledError') {
+     *   if (isGraphtyError(error) && error.code === 'E_CANCELLED') {
      *     console.log('Capture was cancelled');
      *   }
      * }
@@ -8648,17 +8710,15 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Estimate performance and potential issues for animation capture
-     * @param options - Animation options to estimate
+     * Estimate performance and potential issues for animation capture: the frames it expects,
+     * whether frames are likely to drop, and the file's approximate size. Absent `width` and
+     * `height` are the canvas's pixel size, as a recording takes them; an absent `duration` is the
+     * tour's planned length (`planTour(tour).totalMs`).
+     * @param options - The recording's length or tour, frame rate, size and bitrate.
      * @returns Promise resolving to CaptureEstimate
      * @example
      * ```typescript
-     * const estimate = await graph.estimateAnimationCapture({
-     *   duration: 5000,
-     *   fps: 60,
-     *   width: 3840,
-     *   height: 2160
-     * });
+     * const estimate = await graph.estimateAnimationCapture({ tour: "intro", fps: 60 });
      *
      * if (estimate.likelyToDropFrames) {
      *   console.warn(`May drop frames. Recommended: ${estimate.recommendedFps}fps`);
@@ -8666,10 +8726,20 @@ export class Graph implements GraphContext {
      * ```
      */
     async estimateAnimationCapture(
-        options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">,
+        options: Pick<
+            import("./video/VideoCapture.js").AnimationOptions,
+            "duration" | "fps" | "width" | "height" | "videoBitrate" | "tour"
+        >,
     ): Promise<import("./video/estimation.js").CaptureEstimate> {
-        const { estimateAnimationCapture } = await import("./video/estimation.js");
-        return estimateAnimationCapture(options);
+        const { estimateAnimationCapture, outputSize } = await import("./video/estimation.js");
+        const { tour } = options;
+        const duration = options.duration ?? (tour === undefined || isNameList(tour) ? 0 : this.planTour(tour).totalMs);
+        return estimateAnimationCapture({
+            ...outputSize(this.canvas, options),
+            duration,
+            fps: options.fps,
+            videoBitrate: options.videoBitrate,
+        });
     }
 
     /**
@@ -11477,6 +11547,64 @@ export class Graph implements GraphContext {
     }
 }
 
+/**
+ * Whether a recording's `tour` is the older form: view names, with `duration` split evenly.
+ * @param tour - The option.
+ * @returns True for a non-empty array of names.
+ */
+function isNameList(tour: TourInput | readonly string[]): tour is readonly string[] {
+    return Array.isArray(tour) && tour.length > 0 && tour.every((stop) => typeof stop === "string");
+}
+
+/**
+ * Check a recording's options and find the tour it records.
+ * @param options - The recording's options.
+ * @returns The tour, with the older form of names turned into stops, or null for a still recording.
+ * @throws `E_BAD_COMMAND` for conflicting or missing options or an empty tour.
+ */
+function recordingTour(options: import("./video/VideoCapture.js").AnimationOptions): TourInput | null {
+    const refuse = (details: Record<string, unknown>): GraphtyError =>
+        new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `the recording's options cannot be used: ${String(details.reason)}`,
+            source: "view",
+            details,
+        });
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the older spelling is still honored
+    const { tour, cameraPath, cameraMode, duration } = options;
+    if (tour !== undefined && cameraPath !== undefined) {
+        throw refuse({ reason: "conflict", options: ["tour", "cameraPath"] });
+    }
+
+    const path = tour ?? cameraPath;
+    if (path === undefined) {
+        if (cameraMode === "animated") {
+            throw refuse({ reason: "missing-option", option: "tour" });
+        }
+        if (duration === undefined) {
+            throw refuse({ reason: "missing-option", option: "duration" });
+        }
+        return null;
+    }
+
+    if (cameraMode === "stationary") {
+        throw refuse({ reason: "conflict", options: [tour === undefined ? "cameraPath" : "tour", "cameraMode"] });
+    }
+    if (Array.isArray(path) && path.length === 0) {
+        throw refuse({ reason: "no-stops" });
+    }
+    if (!isNameList(path)) {
+        return path as TourInput;
+    }
+
+    // The older form: the names visited in order, the duration split evenly between the legs.
+    if (duration === undefined) {
+        throw refuse({ reason: "missing-option", option: "duration" });
+    }
+    const leg = path.length > 1 ? duration / (path.length - 1) : 0;
+    return path.map((view, index) => ({ view, duration: index === 0 ? 0 : leg }));
+}
+
 /** A playing tour; `Graph.#finishTour` ends it, once. */
 interface TourHandle {
     /** The saved tour's name, or null for one given inline. */
@@ -11487,6 +11615,8 @@ interface TourHandle {
     reason: TourEndReason | undefined;
     /** Ends the hold the tour waits in, at once. */
     wake: (() => void) | undefined;
+    /** Told how the tour ended, once: a recording fails when its tour ends early. */
+    onEnd: ((reason: TourEndReason) => void) | undefined;
     /** Puts the element's framing and the camera's placement back as before the tour. */
     readonly restore: () => void;
     /** Stops holding auto-rotate and the selection glide, and stops listening for a press. */

@@ -273,8 +273,7 @@ export const Video: Story = {
                                 fps: 30,
                                 format: "auto",
                                 cameraMode: "stationary",
-                                download: true,
-                                downloadFilename: "graph-video",
+                                destination: { download: true, filename: "graph-video" },
                             });
                         }}
                         style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -294,8 +293,7 @@ export const Video: Story = {
                                 fps: 60,
                                 format: "auto",
                                 cameraMode: "stationary",
-                                download: true,
-                                downloadFilename: "graph-video-60fps",
+                                destination: { download: true, filename: "graph-video-60fps" },
                             });
                         }}
                         style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -319,7 +317,7 @@ export const Video: Story = {
                                 fps: 30,
                                 format: "auto",
                                 cameraMode: "animated",
-                                cameraPath: [
+                                tour: [
                                     { position: { x: 20, y: 10, z: 20 }, target: { x: 0, y: 0, z: 0 } },
                                     {
                                         position: { x: -20, y: 10, z: 20 },
@@ -333,8 +331,7 @@ export const Video: Story = {
                                     },
                                 ],
                                 easing: "easeInOut",
-                                download: true,
-                                downloadFilename: "camera-orbit",
+                                destination: { download: true, filename: "camera-orbit" },
                             });
                         }}
                         style="padding: 8px 16px; background: #9C27B0; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -354,14 +351,13 @@ export const Video: Story = {
                                 fps: 30,
                                 format: "auto",
                                 cameraMode: "animated",
-                                cameraPath: [
+                                tour: [
                                     { position: { x: 30, y: 30, z: 30 }, target: { x: 0, y: 0, z: 0 } },
                                     { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
                                     { position: { x: 30, y: 30, z: 30 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
                                 ],
                                 easing: "easeInOut",
-                                download: true,
-                                downloadFilename: "zoom-in-out",
+                                destination: { download: true, filename: "zoom-in-out" },
                             });
                         }}
                         style="padding: 8px 16px; background: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -381,7 +377,7 @@ export const Video: Story = {
                                 fps: 30,
                                 format: "auto",
                                 cameraMode: "animated",
-                                cameraPath: [
+                                tour: [
                                     { position: { x: 40, y: 5, z: 0 }, target: { x: 0, y: 0, z: 0 } },
                                     { position: { x: 0, y: 5, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
                                     {
@@ -396,8 +392,7 @@ export const Video: Story = {
                                     },
                                 ],
                                 easing: "linear",
-                                download: true,
-                                downloadFilename: "flythrough",
+                                destination: { download: true, filename: "flythrough" },
                             });
                         }}
                         style="padding: 8px 16px; background: #E91E63; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -417,7 +412,7 @@ export const Video: Story = {
                                 fps: 30,
                                 format: "auto",
                                 cameraMode: "animated",
-                                cameraPath: [
+                                tour: [
                                     { position: { x: 20, y: 40, z: 20 }, target: { x: 0, y: 0, z: 0 } },
                                     { position: { x: 0, y: 50, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 },
                                     {
@@ -427,8 +422,7 @@ export const Video: Story = {
                                     },
                                 ],
                                 easing: "easeOut",
-                                download: true,
-                                downloadFilename: "birds-eye",
+                                destination: { download: true, filename: "birds-eye" },
                             });
                         }}
                         style="padding: 8px 16px; background: #00BCD4; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -449,7 +443,7 @@ export const Video: Story = {
             duration: 500,
             fps: 20,
             cameraMode: "stationary",
-            download: false,
+            destination: { download: false },
         });
 
         await holds(

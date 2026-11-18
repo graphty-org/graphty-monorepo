@@ -4525,30 +4525,28 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 7: Video Capture API
-     * Capture an animation as a video (stationary or animated camera)
-     * Available from Phase 7 onwards.
-     * @param options - Animation capture options
+     * Record a video: a still recording, or a tour.
+     *
+     * A still recording lasts `duration`. A tour recording (`tour`: a saved tour's name, a tour, or
+     * stops, as `playTour` takes) opens on the first stop, lasts as long as the tour unless
+     * `duration` is given, and puts the camera back afterwards. A tour stop's `duration` is the
+     * flight to it; the recording's `duration` is the whole video's length.
+     * @param options - What to record and how.
      * @returns Promise<AnimationResult> - Result with video blob and metadata
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for conflicting or missing options or a tour with
+     *     no stops, the problem `planTour` reports for a tour that cannot be played,
+     *     `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive, `E_CANCELLED` when cancelled
+     *     (`signal`, `cancelAnimationCapture()`), and `E_CAPTURE_FAILED` `{ media: "video", reason }`
+     *     when the tab is hidden, the canvas is resized or the tour ends early.
      * @example
      * ```typescript
      * const el = document.querySelector('graphty-element');
      *
-     * // Basic 5-second video
-     * const result = await el.captureAnimation({
-     *   duration: 5000,
-     *   fps: 30,
-     *   cameraMode: 'stationary'
-     * });
+     * // A 5-second still video
+     * const still = await el.captureAnimation({ duration: 5000 });
      *
-     * // With download
-     * const result = await el.captureAnimation({
-     *   duration: 10000,
-     *   fps: 60,
-     *   cameraMode: 'stationary',
-     *   download: true,
-     *   downloadFilename: 'my-video.webm'
-     * });
+     * // A saved tour, as long as the tour, saved as a file
+     * await el.captureAnimation({ tour: "intro", destination: { download: true } });
      * ```
      */
     async captureAnimation(
@@ -4583,7 +4581,7 @@ export class Graphty extends LitElement {
      * try {
      *   await capturePromise;
      * } catch (error) {
-     *   if (error.name === 'AnimationCancelledError') {
+     *   if (isGraphtyError(error) && error.code === 'E_CANCELLED') {
      *     console.log('Capture was cancelled by user');
      *   }
      * }
@@ -4682,10 +4680,9 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 7: Animation Capture Estimation
-     * Estimate performance and potential issues for animation capture
-     * Available from Phase 7 onwards.
-     * @param options - Animation options to estimate
+     * Estimate performance and potential issues for animation capture. Absent `width` and `height`
+     * are the canvas's pixel size; an absent `duration` is the tour's planned length.
+     * @param options - The recording's length or tour, frame rate, size and bitrate.
      * @returns Promise<CaptureEstimate> - Estimation result
      * @example
      * ```typescript
@@ -4704,7 +4701,10 @@ export class Graphty extends LitElement {
      * ```
      */
     async estimateAnimationCapture(
-        options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">,
+        options: Pick<
+            import("./video/VideoCapture.js").AnimationOptions,
+            "duration" | "fps" | "width" | "height" | "videoBitrate" | "tour"
+        >,
     ): Promise<import("./video/estimation.js").CaptureEstimate> {
         return this.#graph.estimateAnimationCapture(options);
     }

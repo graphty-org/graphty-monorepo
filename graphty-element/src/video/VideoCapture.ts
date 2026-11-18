@@ -1,4 +1,4 @@
-import type { EasingName } from "../camera/tour.js";
+import type { EasingName, TourInput } from "../camera/tour.js";
 import type { CameraState } from "../screenshot/types.js";
 
 /**
@@ -69,8 +69,14 @@ export interface ViewWaypoint {
  * @see src/screenshot/constants.ts for default values (VIDEO_CONSTANTS)
  */
 export interface AnimationOptions {
-    /** Total duration of the video capture in milliseconds */
-    duration: number;
+    /**
+     * How long to record, in milliseconds. Required for a still recording and for the older
+     * `string[]` form of `tour`. With a tour it is optional: absent, the recording lasts as long as
+     * the tour does (`planTour(tour).totalMs`); given, it keeps its own length, cutting a longer
+     * tour short or holding the last stop of a shorter one. Not to be confused with a tour stop's
+     * `duration`, which is the flight to that stop.
+     */
+    duration?: number;
     /**
      * Target frames per second.
      * @default 30 (VIDEO_CONSTANTS.DEFAULT_FPS)
@@ -95,8 +101,13 @@ export interface AnimationOptions {
      * @default the canvas height
      */
     height?: number;
-    /** Camera behavior during capture: 'stationary' or 'animated' */
-    cameraMode: "stationary" | "animated";
+    /**
+     * Camera behavior during capture: `"stationary"` (a still recording) or `"animated"`. Optional:
+     * `tour` or `cameraPath` means `"animated"`, and neither means `"stationary"`. Giving
+     * `"stationary"` with a `tour` or `cameraPath` is refused with `E_BAD_COMMAND`
+     * `{ reason: "conflict", options }`.
+     */
+    cameraMode?: "stationary" | "animated";
     /**
      * Stationary mode: where the camera stands while recording -- a camera state, or a named view
      * (`{ view }`: `catalog.cameras()` ids or views saved in `session.views`; `preset` is the older
@@ -107,25 +118,52 @@ export interface AnimationOptions {
     camera?: CameraState | { view: string } | { preset: string };
     /**
      * Waypoints for camera animation path (animated mode), flown with the same camera moves as
-     * `playTour`; see {@link ViewWaypoint}. Two or more, unless a stop has a `view` or a `hold`. The
-     * recording lasts `duration`, and ends the flight if it is still under way, so `duration` is
-     * best the sum of the stops' durations and holds.
+     * `playTour`; see {@link ViewWaypoint}.
+     * @deprecated Give the same stops as `tour`.
      */
     cameraPath?: (CameraWaypoint | ViewWaypoint)[];
     /**
-     * A tour, in animated mode, in place of `cameraPath`: the names of the views to visit in
-     * order -- camera views (`catalog.cameras()` ids, such as `"fitToGraph"`) or views saved in
-     * `session.views` -- with the duration split evenly between them, starting at the first. Two or
-     * more names; works in 2D and in 3D. A view with nothing the current drawing mode can use is
-     * refused with `E_UNSUPPORTED`. For holds or uneven legs, give `cameraPath` stops with `view`
-     * and `hold` instead.
+     * The tour to record: a saved tour's name (`session.tours`), a tour, or stops given inline --
+     * everything `playTour` takes, so a tour previewed with `playTour` records unchanged. The
+     * recording opens on the first stop, lasts as long as the tour unless `duration` is given, and
+     * puts the camera back afterwards. It is checked first, as `planTour` checks it, and refused
+     * with the problem the plan reports.
+     *
+     * The older form, an array of view names (`["topView", "frontView"]`), is NOT a list of stops:
+     * it splits `duration` (then required) evenly between the views, starting at the first. That
+     * form is deprecated: give stops, `[{ view: "topView" }, { view: "frontView", duration: 1000 }]`.
      */
-    tour?: readonly string[];
+    tour?: TourInput | readonly string[];
+    /**
+     * What a tour recording shows of each flight. `"follow-view"` records what the view shows, so
+     * under reduced motion (`setReducedMotion`) each flight is a cut held for the flight's time.
+     * `"authored"` records each flight as the tour gives it whatever the reduced-motion setting;
+     * the canvas on screen moves with it, and covering it while recording is the caller's choice.
+     * @default "follow-view"
+     */
+    motion?: "follow-view" | "authored";
     /** Easing function for camera animations (default: 'easeInOut') */
     easing?: EasingName;
-    /** Whether to automatically download the video after capture */
+    /**
+     * Where the recording goes besides the returned blob: `download` saves it as a file, named
+     * `filename` (the extension follows the format recorded). Wins over the top-level `download`
+     * and `downloadFilename`.
+     */
+    destination?: { download?: boolean; filename?: string };
+    /**
+     * Cancels the recording when it aborts, as `cancelAnimationCapture()` does: the call rejects
+     * with `E_CANCELLED` and no file is made.
+     */
+    signal?: AbortSignal;
+    /**
+     * Whether to automatically download the video after capture.
+     * @deprecated Use `destination: { download: true }`.
+     */
     download?: boolean;
-    /** Filename for downloaded video (default: 'graphty-animation.{format}') */
+    /**
+     * Filename for downloaded video (default: 'graphty-animation.{format}').
+     * @deprecated Use `destination: { filename }`.
+     */
     downloadFilename?: string;
 }
 

@@ -432,7 +432,7 @@ export function animationOptions(choices: VideoChoices, downloadFilename?: strin
         fps: choices.fps,
         format: "auto",
         ...(choices.camera === "tour" ? { cameraMode: "animated", tour: choices.stops } : { cameraMode: "stationary" }),
-        ...(downloadFilename === undefined ? {} : { download: true, downloadFilename }),
+        ...(downloadFilename === undefined ? {} : { destination: { download: true, filename: downloadFilename } }),
     };
 }
 

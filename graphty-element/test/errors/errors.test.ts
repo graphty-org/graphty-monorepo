@@ -45,6 +45,8 @@ const CODES_FROM_THE_DESIGN = [
     // a screenshot or video that could not be made (issue #6826)
     "E_CAPTURE_FAILED",
     "E_NOT_SETTLED",
+    // a recording cancelled (design/ui/camera-views-tours-and-capture.md section 4.4)
+    "E_CANCELLED",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -291,6 +293,7 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "extension";
         case "E_CAPTURE_FAILED":
         case "E_NOT_SETTLED":
+        case "E_CANCELLED":
             return "capture";
         default: {
             const unreachable: never = code;

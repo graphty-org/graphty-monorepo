@@ -134,46 +134,36 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("throws error with no camera path", async () => {
+    test("refuses an animated recording with no tour as a missing option", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
-        try {
-            await graph.captureAnimation({
-                duration: 2000,
-                fps: 30,
-                cameraMode: "animated",
-                // No cameraPath provided
-            });
-            assert.fail("Should have thrown error");
-        } catch (error) {
-            assert.ok((error as Error).message.includes("waypoints"));
-        }
+        const error = await graph.captureAnimation({ duration: 2000, fps: 30, cameraMode: "animated" }).then(
+            () => undefined,
+            (caught: unknown) => caught as { code?: unknown; details?: unknown },
+        );
+        assert.equal(error?.code, "E_BAD_COMMAND");
+        assert.deepEqual(error?.details, { reason: "missing-option", option: "tour" });
 
         graph.dispose();
     });
 
-    test("throws error with single waypoint", async () => {
+    test("records a single waypoint", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
+        // A tour without a duration runs on drawn frames, so the graph must be drawing.
+        await graph.init();
 
-        const cameraPath: CameraWaypoint[] = [{ position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } }];
+        const cameraPath: CameraWaypoint[] = [
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, hold: 100 },
+        ];
 
-        try {
-            await graph.captureAnimation({
-                duration: 2000,
-                fps: 30,
-                cameraMode: "animated",
-                cameraPath,
-            });
-            assert.fail("Should have thrown error");
-        } catch (error) {
-            assert.ok((error as Error).message.includes("2 waypoints"));
-        }
+        const result = await graph.captureAnimation({ fps: 30, cameraPath });
+        assert.ok(result.blob instanceof Blob);
 
         graph.dispose();
     });

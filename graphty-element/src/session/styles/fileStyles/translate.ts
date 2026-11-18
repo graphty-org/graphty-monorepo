@@ -784,7 +784,7 @@ function channelPlans(
                 [
                     {
                         channel: "node.glyphWeight",
-                        convert: (value) => GLYPH_WEIGHTS.get(String(value)) ?? null,
+                        convert: (value) => GLYPH_WEIGHTS.get(String(value)) ?? (Number(value) || null),
                         identity: false,
                     },
                 ],

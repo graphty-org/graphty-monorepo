@@ -4,7 +4,8 @@ category: interaction
 description: "Show comprehensive information for selected nodes or edges in a detail panel. Display all attributes,
     computed metrics, and related context. The fourth step of Shneiderman's mantra: overview, zoom, filter,
     details-on-demand."
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/inspector/NodeValues.tsx."
 algorithms: []
 used_by_workflows:
     - W02

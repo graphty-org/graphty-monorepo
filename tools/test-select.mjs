@@ -1151,6 +1151,24 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
 }
 
 /**
+ * A shard with a "pull-request-when" list (tools/ci-test-matrix.mjs, the forced-batched shards) selects nothing
+ * unless a changed path matches one of its patterns; otherwise its selection stands.
+ * @param selection selectShards() output
+ * @param shards the shards it was made from
+ * @param changed repo-relative changed paths
+ * @returns the selection
+ */
+export function onlyWhenChanged(selection, shards, changed) {
+    return selection.map((sel) => {
+        const when = shards.find((s) => s.shard === sel.shard)?.["pull-request-when"];
+        if (!when || changed.some((f) => when.some((p) => new RegExp(p, "u").test(f)))) {
+            return sel;
+        }
+        return { ...sel, mode: "none", files: [], reasons: [`no changed path matches ${when.join(" or ")}`] };
+    });
+}
+
+/**
  * One shard's answer from its package's selection.
  * @param p the package's selection
  * @param own shardSpecs() or null
@@ -1397,6 +1415,8 @@ export const FILE_OVERHEAD_MS = 5_000;
  */
 export const FAMILY_BIN_COST = {
     "graphty-element-browser": { overheadMs: 4_500, scale: 1 },
+    // the browser family's files again, one at a time in the same browser (ponytail: re-fit from its own PR bins)
+    "graphty-element-forced-batched": { overheadMs: 4_500, scale: 1 },
     "graphty-element-storybook": { overheadMs: 7_500, scale: 1 },
     graphty: { overheadMs: 2_000, scale: 1.35 },
     "graphty-element-default": { overheadMs: 500, scale: 1 },
@@ -3217,7 +3237,11 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     });
     return {
         ...sel,
-        shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+        shards: onlyWhenChanged(
+            selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+            shards,
+            changed,
+        ),
         graphs: all,
         // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
         deps: new Map(
@@ -3370,8 +3394,9 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    // a pull request's selection: the full-run-only shards are never in it; the On shards are (their selected
-    // files run on a pull request, tools/ci-test-matrix.mjs plan()), with their -features-on import graphs
+    // a pull request's selection: the full-run-only shards are never in it; the On and forced-batched shards are
+    // (their selected files run on a pull request, tools/ci-test-matrix.mjs plan()), the On with their
+    // -features-on import graphs
     const shards = SHARDS.filter((s) => !s["full-run-only"]);
     const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,

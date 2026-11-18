@@ -1115,9 +1115,10 @@ const config = defineConfig({
             },
             {
                 // The `"batched"` render path against `"objects"`, on SwiftShader with both engines
-                // (design/rendering/row-renderer.md 7). Neither this nor "forced-batched" joins a pull
-                // request; the full run runs "forced-batched" in twelve shards (tools/ci-test-matrix.mjs), and
-                // .github/workflows/render-proof.yml dispatches the whole of both.
+                // (design/rendering/row-renderer.md 7). This never joins a pull request; "forced-batched" joins
+                // one only as the selected files of a change to a browser test or the render path, and the full
+                // run runs it in twelve shards (tools/ci-test-matrix.mjs). .github/workflows/render-proof.yml
+                // dispatches the whole of both.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 resolve: {

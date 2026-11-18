@@ -1155,7 +1155,7 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
 /**
  * A path carried on to the tip of the arrowhead at one end, when the program stopped the line at
  * the arrow's base (Graphviz does), so its route is judged to the same place graphty's is: graphty
- * reports an edge as ending at its arrow's tip.
+ * reports an edge as ending at its arrow's tip. It is carried along the head's axis, which runs through the tip.
  * @param path - the edge's path, source end first
  * @param outline - the arrowhead's points
  * @param end - which end it caps
@@ -1173,8 +1173,9 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
     if (len < 1e-9) {
         return [...path];
     }
-    const dx = (front[0] - back[0]) / len;
-    const dy = (front[1] - back[1]) / len;
+    // along the head's own axis where it has one (capAxis): Gephi aims a curved edge's head from the arc's end at the
+    // node, so carried on along the arc's end tangent the line ends 9 px off the tip (gexf-specimen-arrows-p2 weight-4)
+    const [dx, dy] = capAxis(outline, pts, [(front[0] - back[0]) / len, (front[1] - back[1]) / len]);
     const along = (q: Pt): number => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy;
     // the head's reach along the line, on the line: a flat head (a tee's bar, a half circle) has its farthest points at
     // its corners, beside the line, and a line bent to one of them reads as curved

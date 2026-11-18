@@ -17,6 +17,7 @@ export type EngineMeasure = "sources_not_ok" | "sources_thin" | "collector_age" 
 
 export type Measure =
     | { type: "rate"; metric: string; scale?: number } // sum / n
+    | { type: "rate_per_last"; metric: string; per: string } // (sum / n) / the newest value of `per` (slow only)
     | { type: "median" | "p90"; metric: string; scale?: number } // from the merged histogram
     | { type: "sum"; metric: string; scale?: number }
     | { type: "share"; metric: string; complement?: boolean } // sum / the window's ms

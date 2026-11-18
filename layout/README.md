@@ -9,6 +9,8 @@
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
 [![Storybook](https://img.shields.io/badge/storybook-interactive%20demos-ff4785)](https://graphty.app/storybook/layout/)
 
+**[Read the documentation ->](https://graphty.app/docs/layout/)** -- getting started, a guide to every layout, and the API reference.
+
 **[View Interactive Storybook ->](https://graphty.app/storybook/layout/)**
 
 Layout is a TypeScript library for positioning nodes in graphs. It's a TypeScript port of the [layout algorithms](https://networkx.org/documentation/stable/reference/drawing.html) from the Python [NetworkX](https://networkx.org/documentation/stable/) library.

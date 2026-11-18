@@ -40,6 +40,10 @@ export const RESULTS_READS = [
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 50;
+/** The release scheduler's switch: "dry-run" logs the dispatch it would make, "live" makes it (#3608). */
+export const RELEASE_DISPATCH_MODE: "dry-run" | "live" = "dry-run";
+/** The release slots, in EventBridge Scheduler cron syntax (UTC): the Worker's four crons. */
+export const RELEASE_SLOTS = "cron(0 0,6,12,18 * * ? *)";
 /**
  * The tag on every resource of the stack. The Budget cannot filter on it: this project's account is
  * a linked account, and Billing refuses to activate cost-allocation tags there ("Linked account
@@ -240,6 +244,20 @@ export class HealthStack extends Stack {
             stage.node.addDependency(route);
         }
 
+        // The release scheduler (#3608), in dry run beside the Cloudflare Worker (tools/release-scheduler/): it logs the
+        // release.yml dispatch it would make and dispatches nothing until RELEASE_DISPATCH is "live".
+        const releaseScheduler = fn("ReleaseScheduler", 1, 30, 256, "release-scheduler");
+        releaseScheduler.addEnvironment("RELEASE_DISPATCH", RELEASE_DISPATCH_MODE);
+        readParams(releaseScheduler, ["ssm:GetParameters"], appParams("release-scheduler"));
+        new scheduler.Schedule(this, "ReleaseSchedule", {
+            schedule: scheduler.ScheduleExpression.expression(RELEASE_SLOTS),
+            target: new LambdaInvoke(releaseScheduler, {
+                retryAttempts: 0,
+                input: scheduler.ScheduleTargetInput.fromObject({ slot: scheduler.ContextAttribute.scheduledTime }),
+            }),
+            description: "Start release.yml at 00:00, 06:00, 12:00 and 18:00 UTC (dry run until RELEASE_DISPATCH=live)",
+        });
+
         new scheduler.Schedule(this, "CollectorSchedule", {
             schedule: scheduler.ScheduleExpression.rate(Duration.minutes(5)),
             target: new LambdaInvoke(collector, { retryAttempts: 0 }),
@@ -308,7 +326,7 @@ export class HealthStack extends Stack {
         alertsAlarm.addOkAction(new SnsAction(topic));
 
         // Spend protection, layer 2 (section 10.5): a monthly Budget that emails and, at 100%
-        // actual, attaches a deny-all policy to the five Lambda roles.
+        // actual, attaches a deny-all policy to the Lambda roles.
         const budgetName = "graphty-health";
         const notify = (
             notificationType: string,
@@ -340,7 +358,7 @@ export class HealthStack extends Stack {
             description: "Attached by the graphty-health Budget action at 100% of the monthly budget",
             statements: [new iam.PolicyStatement({ effect: iam.Effect.DENY, actions: ["*"], resources: ["*"] })],
         });
-        const roles = [ingest, read, results, collector, backfill].map((f) => f.role as iam.IRole);
+        const roles = [ingest, read, results, collector, backfill, releaseScheduler].map((f) => f.role as iam.IRole);
         const actionRole = new iam.Role(this, "BudgetActionRole", {
             assumedBy: new iam.ServicePrincipal("budgets.amazonaws.com", {
                 conditions: { StringEquals: { "aws:SourceAccount": this.account } },

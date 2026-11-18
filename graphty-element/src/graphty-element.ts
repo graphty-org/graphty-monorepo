@@ -51,7 +51,15 @@ import {
     nodeEventDetail,
 } from "./events";
 import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
-import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
+import {
+    featuresFrom,
+    Graph,
+    loadSourcePair,
+    type NodeScreenPosition,
+    operationQueueOf,
+    type StableFrameOptions,
+    waitFirstFor,
+} from "./Graph";
 import { GraphtyLogger, type Logger } from "./logging";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
@@ -4404,7 +4412,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Export the graph as it is drawn now as a vector figure, an SVG file for a paper or a slide.
+     * Export the graph as it is drawn now as a vector figure, an SVG or a PDF file for a paper or a slide.
      *
      * Every visible node is a filled shape where the canvas draws it, in its color; every visible
      * edge is a line; every label on screen is text, not pixels, so it can be edited and searched;
@@ -4412,9 +4420,9 @@ export class Graphty extends LitElement {
      * canvas's size in CSS pixels and lines up with a screenshot taken at the same moment. It waits
      * for the finished picture first, as {@link Graphty.waitForStableFrame} does, and rejects as it
      * does.
-     * @param options - The format (`"svg"`), the key, the background and an optional download.
-     * @returns The file as a Blob of type `image/svg+xml`, its size, and whether it was downloaded.
-     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` (`details.field`
+     * @param options - The format (`"svg"` or `"pdf"`), the key, the background and an optional download.
+     * @returns The file as a Blob of type `image/svg+xml` or `application/pdf`, its size, and whether it was downloaded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` or `"pdf"` (`details.field`
      *   is `"format"`), `E_CAPTURE_FAILED` when there is no camera to draw from.
      * @since 3.40.0
      * @example
@@ -4590,6 +4598,24 @@ export class Graphty extends LitElement {
      */
     cancelAnimationCapture(): boolean {
         return this.#graph.cancelAnimationCapture();
+    }
+
+    /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. Pair it with a long `duration` to record until
+     * the reader stops.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * const recording = el.captureAnimation({ duration: 300_000, cameraMode: "stationary", download: true });
+     * stopButton.onclick = () => el.stopAnimationCapture();
+     * await recording; // the video so far, downloaded
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.#graph.stopAnimationCapture();
     }
 
     /**
@@ -5772,9 +5798,6 @@ export class Graphty extends LitElement {
      * the element is removed from the page during the wait, or already had been when the wait
      * started, it rejects at once with `E_DISPOSED`: a removed element never draws again.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
-     *   Leave it out. To ask whether the picture is final now, without waiting, read
-     *   {@link Graphty.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * @throws Error when the picture is still changing when the timeout expires.
      * @throws A `GraphtyError` with `E_DISPOSED` when the element leaves the page before or during
@@ -5786,15 +5809,7 @@ export class Graphty extends LitElement {
      * const shot = await element.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(options?: {
-        /**
-         * How long to wait before the wait rejects; 30 seconds by default.
-         * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
-         * machine while the picture is still on its way. To ask whether the picture is final
-         * now, without waiting, read {@link Graphty.isFrameStable}. Still honored.
-         */
-        timeoutMs?: number;
-    }): Promise<void> {
+    async waitForStableFrame(options?: StableFrameOptions): Promise<void> {
         return this.#graph.waitForStableFrame(options);
     }
 

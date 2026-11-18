@@ -1322,9 +1322,9 @@ describe("the pull request rules", () => {
                 ["a.test.ts", 1, true],
             ],
         );
-        // a touched flake names no test to file against master (its flake is likely the pull request's own), only
-        // the failed tests and job its re-run needs; an untouched line merged in keeps the check untouched (#8363)
-        assert.equal(checks[0].names, undefined);
+        // a flake whose imports alone the pull request changed names its test, so a 5-repeat pass on master files
+        // its issue (#8795: such flakes went unfiled), besides the failed tests and job its re-run needs (#8363)
+        assert.deepEqual(checks[0].names, ["flips"]);
         assert.deepEqual(checks[0].failed, ["flips"]);
         rmSync(out, { recursive: true, force: true });
         prJudge(
@@ -1338,6 +1338,35 @@ describe("the pull request rules", () => {
                 ["a.test.ts", "4242", ["x"]],
             ],
         );
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#8795: a flake only its imports changed files its issue from a 5-repeat pass, before the touched cap drops it", async () => {
+        // 2026-11-16..18: five tests flaky on pull requests that changed only their imports (a lint pass, a
+        // Playwright bump) were [NEW-FLAKY]; their base checks named no test, so a pass on master filed nothing
+        const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
+        const variant = o.variant;
+        const line = (file, repeat, name) =>
+            JSON.stringify({ base: "abc1234", file, variant, repeat, name, touched: true, job: "7" });
+        writeFileSync(
+            join(dir, "s.jsonl"),
+            [
+                line("a.test.ts", 1, "x"),
+                line("b.test.ts", 1, "y"),
+                line("heap.test.ts", 5, "leaves nothing alive"),
+            ].join("\n"),
+        );
+        const checks = readChecks(dir);
+        assert.deepEqual(
+            checks.map((c) => [c.file, c.names]),
+            [
+                ["heap.test.ts", ["leaves nothing alive"]],
+                ["a.test.ts", undefined],
+            ],
+        );
+        const calls = [];
+        await dispatchChecks(checks, (args) => calls.push(args.join(" ")), { pr: "8", run: "9" });
+        assert.match(calls[0], /-f file=heap\.test\.ts .*-f repeat=5 .*-f tests=\["leaves nothing alive"\]/);
         rmSync(dir, { recursive: true, force: true });
     });
 

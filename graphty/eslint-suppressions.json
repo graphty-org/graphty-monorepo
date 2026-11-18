@@ -1,0 +1,489 @@
+{
+  "acceptance/routes.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "acceptance/selection-workspace-uat.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "eslint-rules/no-element-mutation.js": {
+    "unicorn/consistent-function-scoping": {
+      "count": 1
+    }
+  },
+  "eslint-rules/no-special-layers.js": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "scripts/make-prototype-data.mjs": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "scripts/write-sample-gml.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "scripts/write-timeline-samples.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/components/FeedbackModal.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/lib/sentryPrivacy.ts": {
+    "eslint-comments/require-description": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/main.tsx": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "src/workspace/Workspace.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/analyze/AnalyzePopover.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 3
+    }
+  },
+  "src/workspace/analyze/PathForm.tsx": {
+    "jsx-a11y/interactive-supports-focus": {
+      "count": 1
+    },
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/no-array-method-this-argument": {
+      "count": 1
+    }
+  },
+  "src/workspace/assistant/Checks.tsx": {
+    "jsx-a11y/no-noninteractive-element-interactions": {
+      "count": 1
+    }
+  },
+  "src/workspace/assistant/Conversation.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/assistant/words.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/autosave/AutosaveChip.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/canvas/LegendCard.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/canvas/PreviewKey.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/canvas/legendWords.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/canvas/models.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/workspace/data-page/DataPage.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 3
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/data-page/words.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/data-place/Fields.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/workspace/data-place/Filters.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/data-place/Runs.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/data-place/commands.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/export/DataOutput.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/export/DocumentOutput.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/export/ImageOutput.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/export/VideoOutput.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/frame/CommandButton.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/frame/Frame.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/frame/HelpDialogs.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/graph-place/FindBox.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    },
+    "unicorn/no-array-method-this-argument": {
+      "count": 1
+    }
+  },
+  "src/workspace/graph-place/commands.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/inspector/GraphSettings.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/inspector/Inspector.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/inspector/RunValues.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/layout/LayoutPopover.tsx": {
+    "jsx-a11y/interactive-supports-focus": {
+      "count": 1
+    },
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/options/OptionsForm.tsx": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/project/actions.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/project/recent.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/selection/SelectionEditor.tsx": {
+    "jsx-a11y/click-events-have-key-events": {
+      "count": 1
+    },
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 2
+    },
+    "sonarjs/cognitive-complexity": {
+      "count": 3
+    }
+  },
+  "src/workspace/selection/SelectionEditorInline.tsx": {
+    "jsx-a11y/click-events-have-key-events": {
+      "count": 1
+    },
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 3
+    },
+    "sonarjs/cognitive-complexity": {
+      "count": 3
+    }
+  },
+  "src/workspace/selection/StepPane.tsx": {
+    "jsx-a11y/no-noninteractive-element-interactions": {
+      "count": 2
+    },
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/workspace/selection/model.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/server/PreviewRows.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 3
+    }
+  },
+  "src/workspace/settings/ShaderSettings.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 2
+    }
+  },
+  "src/workspace/style/BindingPopover.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 5
+    }
+  },
+  "src/workspace/style/CustomModelDialog.tsx": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/workspace/style/Groups.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/LabelCard.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/LabelSection.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/LabelSettings.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/ModelSettings.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/style/ModelsPopover.tsx": {
+    "jsx-a11y/no-noninteractive-element-interactions": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/MultiRowPanel.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/style/PartsPopover.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/PicturePopover.tsx": {
+    "jsx-a11y/no-noninteractive-element-interactions": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/style/PropertyRow.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/workspace/style/Section.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/ShaderEditorDialog.tsx": {
+    "eslint-comments/require-description": {
+      "count": 1
+    },
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/ShaderGallery.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/StylePanel.tsx": {
+    "eslint-comments/require-description": {
+      "count": 1
+    },
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/style/ValuePicker.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/WhichPicker.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 9
+    },
+    "sonarjs/cognitive-complexity": {
+      "count": 2
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/workspace/style/cardLines.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/cards.ts": {
+    "sonarjs/cognitive-complexity": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/parts/PartsPanel.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/style/parts/ValueListbox.tsx": {
+    "jsx-a11y/prefer-tag-over-role": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/parts/parts.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/style/row.ts": {
+    "max-params": {
+      "count": 1
+    },
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/styles/fileStyleWords.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/table/HeaderCell.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "src/workspace/table/IssuesList.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 3
+    }
+  },
+  "src/workspace/table/TableDock.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/time/TimeDock.tsx": {
+    "unicorn/no-array-callback-reference": {
+      "count": 2
+    }
+  },
+  "src/workspace/time/timeActions.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "vite.boot-files.ts": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  }
+}

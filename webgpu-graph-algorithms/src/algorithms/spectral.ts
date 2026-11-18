@@ -1,13 +1,13 @@
 /**
- * HITS, eigenvector centrality and Katz centrality on the device (spec 3.3 lines 794-796, 8.2 lines 2603-2605):
+ * HITS, eigenvector centrality and Katz centrality on the device:
  * three entry points over the ONE power-iteration driver, differing only in the adjacency the pull walks, the
  * normaliser and the coefficients. Eigenvector is the L2-normalised iteration over the forward core; Katz is
  * `alpha * A^T x + beta` over the reverse view with no per-iteration normaliser; HITS alternates the two pulls with
  * sum normalisation, `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` (the CPU package's recurrence, which
- * design 9.7 makes the parity target), as TWO interleaved chains of the driver -- the reverse-first chain from the
+ * the results match), as TWO interleaved chains of the driver -- the reverse-first chain from the
  * hub seed and the forward-first chain from the authority seed -- so a call is still two runs and two readbacks.
  * Every result is normalised ONCE on the host after the readback (sum for HITS, L2 for the other two), matching
- * the f64 oracle; the per-iteration normaliser never leaves the device (PD-10).
+ * the f64 oracle; the per-iteration normaliser never leaves the device.
  */
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
@@ -164,7 +164,7 @@ function latestOfKind(sameSeed: PowerIterationRun, otherSeed: PowerIterationRun)
 }
 
 /**
- * Eigenvector centrality on the device (spec 3.3, 8.2): the L2-normalised power iteration over the forward
+ * Eigenvector centrality on the device: the L2-normalised power iteration over the forward
  * adjacency, stopping at the first pass whose L1 change is below `tolerance` times the pass's L1 size; the scores
  * are L2-normalised. On an undirected snapshot each pass is `(A + cI) x` with `@graphty/algorithms`' shift
  * `c = max(1, sqrt(h) / 2)`, `h` the largest sum of squared weights of a node's arcs to other nodes (its neighbour
@@ -244,7 +244,7 @@ function seedOf(s: GraphSnapshot): F32 {
 }
 
 /**
- * Katz centrality on the device (spec 3.3, 8.2): `x = alpha * A^T x + beta` over the reverse adjacency with no
+ * Katz centrality on the device: `x = alpha * A^T x + beta` over the reverse adjacency with no
  * per-iteration normaliser; the scores are L2-normalised once at the end.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
@@ -281,7 +281,7 @@ export async function katzCentrality(
 }
 
 /**
- * HITS on the device (spec 3.3, 8.2): `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` from uniform seeds,
+ * HITS on the device: `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` from uniform seeds,
  * sum-normalised. Those two recurrences interleave into two independent chains, each alternating the reverse and
  * the forward pull, so the driver runs twice: the chain seeded as hubs pulls reverse first and holds h(m) after an
  * even number m of iterations and a(m) after an odd one; the chain seeded as authorities is the mirror image. Each

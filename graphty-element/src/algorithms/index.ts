@@ -37,6 +37,7 @@ import { MaxFlowAlgorithm } from "./MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "./MinCutAlgorithm";
 import { PageRankAlgorithm } from "./PageRankAlgorithm";
 import { PrimAlgorithm } from "./PrimAlgorithm";
+import { RemovalImpactAlgorithm } from "./RemovalImpactAlgorithm";
 import { SpectralClusteringAlgorithm } from "./SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "./StronglyConnectedComponentsAlgorithm";
 
@@ -88,6 +89,7 @@ Algorithm.register(SpectralClusteringAlgorithm);
 Algorithm.register(HierarchicalClusteringAlgorithm);
 Algorithm.register(AStarAlgorithm);
 Algorithm.register(EdgeBetweennessCentralityAlgorithm);
+Algorithm.register(RemovalImpactAlgorithm);
 
 // Export base class and types
 export { Algorithm } from "./Algorithm";
@@ -156,6 +158,7 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         HierarchicalClusteringAlgorithm,
         AStarAlgorithm,
         EdgeBetweennessCentralityAlgorithm,
+        RemovalImpactAlgorithm,
     ];
 
     for (const AlgoClass of knownAlgorithms) {

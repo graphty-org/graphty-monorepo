@@ -25,7 +25,7 @@ import type { GraphSession } from "../../session";
 import type { NodeStyleConfig } from "../../src/config/NodeStyle";
 import { labelFitExtent } from "../../src/meshes/labelFit";
 import { labelLetterHeight, SCENE_PER_UNIT } from "../../src/session/styles/fileStyles/translate";
-import { arrowClassOf, colorOf, labelPositionOf, lineStyleOf, shapeClassOf } from "./extract-scene";
+import { arrowClassOf, askedShapeClass, colorOf, comparerEdgeIds, labelPositionOf, lineStyleOf } from "./extract-scene";
 
 /** The properties a requested scene can judge. */
 export const REQUESTED_PROPERTIES: readonly Property[] = [
@@ -201,7 +201,7 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             y: placed && Number.isFinite(at.y) ? -at.y * scale : 0,
             w,
             h,
-            shape: shapeClassOf(channel(merged, "node.shape")),
+            shape: askedShapeClass(channel(merged, "node.shape"), merged["node.shapePoints"]),
             fill: fill?.hex ?? null,
             fillOpacity: bodiless ? 0 : num(channel(merged, "node.opacity"), 1) * (fill?.alpha ?? 1),
             border: {
@@ -234,12 +234,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             z: num(merged["node.zIndex"], 0),
         };
     });
-    const edges: SceneEdge[] = session.data.edges().map((record) => {
+    const edgeRecords = session.data.edges();
+    const edgeIds = comparerEdgeIds(edgeRecords);
+    const edges: SceneEdge[] = edgeRecords.map((record) => {
         const merged = styleOf({ edge: record.id });
         const color = colorOf(channel(merged, "edge.color"));
         const label = merged["edge.label"];
         return {
-            id: record.id,
+            id: edgeIds.get(record.id) ?? record.id,
             source: String(record.source),
             target: String(record.target),
             points: [],

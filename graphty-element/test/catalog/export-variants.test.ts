@@ -153,7 +153,7 @@ describe("Graphty JSON, the project file", () => {
         await session.project.rename("Triangle");
         assert.isTrue(session.project.dirty);
         const result = exportSession(session, "graphty");
-        assert.deepEqual(result.lossNotes, []);
+        assert.deepEqual(result.losses, []);
         const text = await result.text();
         assert.isTrue(session.project.dirty, "an export is not a save");
 

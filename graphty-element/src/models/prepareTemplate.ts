@@ -24,7 +24,7 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
-import type { Material } from "@babylonjs/core/Materials/material.js";
+import { Material } from "@babylonjs/core/Materials/material.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
@@ -348,13 +348,101 @@ function hasPicture(material: Material): boolean {
     );
 }
 
+/** Babylon's glTF loader names the material it gives a primitive the file gives none. */
+const GLTF_DEFAULT_MATERIAL = "__GLTFLoader._default";
+
+/**
+ * Whether a material states no color of its own: the glTF loader's stand-in for a primitive with
+ * no material, or a material left at its defaults -- white, no picture or other map, no glow. A
+ * glTF material with no `baseColorFactor` and an MTL with no `Kd` load as exactly that.
+ * @param material - The material.
+ * @returns True when the part should draw in the node's color.
+ */
+function statesNoColor(material: Material): boolean {
+    if (material.name === GLTF_DEFAULT_MATERIAL) {
+        return true;
+    }
+
+    const white = (c: Color3): boolean => c.r === 1 && c.g === 1 && c.b === 1;
+    const dark = (c: Color3): boolean => c.r === 0 && c.g === 0 && c.b === 0;
+    if (material.getActiveTextures().length > 0) {
+        return false;
+    }
+
+    if (material instanceof PBRMaterial) {
+        return white(material.albedoColor) && dark(material.emissiveColor);
+    }
+
+    if (material instanceof StandardMaterial) {
+        return white(material.diffuseColor) && dark(material.emissiveColor);
+    }
+
+    return false;
+}
+
+/**
+ * Whether a material is a plain shade of gray: no picture or other map, no glow, opaque, not
+ * metallic, and a base color whose red, green and blue are equal (within one 8-bit step).
+ * Exporters write such a material where the author gave the model none of their own (Blender's
+ * default is 0.8 gray, metallic 0). A chrome or a see-through gray is a look, and is kept.
+ * @param material - The material.
+ * @returns True for a plain gray (or white or black) material.
+ */
+function plainGray(material: Material): boolean {
+    if (material.alpha !== 1 || (material.transparencyMode ?? Material.MATERIAL_OPAQUE) !== Material.MATERIAL_OPAQUE) {
+        return false;
+    }
+
+    let base: Color3;
+    let glow: Color3;
+    if (material instanceof PBRMaterial) {
+        if (material.metallic !== 0) {
+            return false;
+        }
+
+        base = material.albedoColor;
+        glow = material.emissiveColor;
+    } else if (material instanceof StandardMaterial) {
+        base = material.diffuseColor;
+        glow = material.emissiveColor;
+    } else {
+        return false;
+    }
+
+    const step = 1 / 255;
+    const gray = Math.abs(base.r - base.g) <= step && Math.abs(base.g - base.b) <= step;
+    return gray && glow.r + glow.g + glow.b === 0 && material.getActiveTextures().length === 0;
+}
+
+/**
+ * Whether a model states no color of its own: every part has no material, one left at its
+ * defaults, or a plain gray one. A model with one colored or pictured part keeps its grays (a car's
+ * black tires stay black beside its red body); a model of grays alone is shaded, not colored, so it
+ * draws in the node's color.
+ * @param groups - The parts by group key.
+ * @returns True when every part should draw in the node's color.
+ */
+function allPlainGray(groups: ReadonlyMap<string, Part[]>): boolean {
+    for (const list of groups.values()) {
+        for (const { material } of list) {
+            if (material !== null && !statesNoColor(material) && !plainGray(material)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 /**
  * The material a merged group draws with, and whether it takes the node's color whatever
- * `node.modelTint` says: a part the file gives no material, no picture and no vertex colors
- * states no color of its own, and under "untextured" a part with no picture and no vertex colors
+ * `node.modelTint` says: a part the file gives no material (or one left at its defaults, see
+ * `statesNoColor`), no picture and no vertex colors states no color of its own, and under "untextured" a part with no picture and no vertex colors
  * gives its color up too. Under "replace" every part draws in the flat material.
  * @param first - The group's first part.
  * @param colored - Whether the group carries vertex colors.
+ * @param gray - Whether the whole model states no color of its own (`allPlainGray`) and no layer
+ *   set `node.modelTint` to false.
  * @param options - The template options.
  * @param flat - The template's flat material, made on first use.
  * @returns The material, and whether the group follows the node's color.
@@ -362,6 +450,7 @@ function hasPicture(material: Material): boolean {
 function lookOf(
     first: Part,
     colored: boolean,
+    gray: boolean,
     options: TemplateOptions,
     flat: () => PBRMaterial,
 ): { material: Material; follows: boolean } {
@@ -375,7 +464,12 @@ function lookOf(
         return { material: material ?? flat(), follows: false };
     }
 
-    if (material === null || (options.untextured === true && !hasPicture(material))) {
+    if (
+        material === null ||
+        gray ||
+        statesNoColor(material) ||
+        (options.untextured === true && !hasPicture(material))
+    ) {
         return { material: flat(), follows: true };
     }
 
@@ -401,6 +495,7 @@ function mergeGroups(
     made: Made,
 ): void {
     const { used, meshes, follows } = made;
+    const gray = options.ownColors !== true && allPlainGray(groups);
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
         const vertices = list.reduce((sum, part) => sum + (part.vertices.positions?.length ?? 0) / 3, 0);
@@ -420,7 +515,7 @@ function mergeGroups(
         meshes.push(mesh);
         merged.applyToMesh(mesh);
         const colored = (merged.colors?.length ?? 0) > 0;
-        const look = lookOf(first, colored, options, flat);
+        const look = lookOf(first, colored, gray, options, flat);
         mesh.material = look.material;
         used.add(look.material);
 

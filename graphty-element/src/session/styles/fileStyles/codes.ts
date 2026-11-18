@@ -19,7 +19,7 @@ export const FILE_STYLE_TRANSLATION_ISSUE = Object.freeze({
     NOT_DRAWN: "W_STYLE_NOT_DRAWN",
     /** A value graphty-element has no counterpart for (an unknown shape or arrow); it is left out. */
     NO_COUNTERPART: "W_STYLE_NO_COUNTERPART",
-    /** A value drawn as the nearest one graphty-element has (a shape it does not have, width and height as one size). */
+    /** A value drawn as the nearest one graphty-element has (a shape it does not have, width and height as one size, a number outside its channel's range). */
     DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST",
     /** A rule reads a column no element of this load holds; it is left out. */
     COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT",
@@ -92,3 +92,15 @@ export const EXPORT_STYLE_LOSS_CODES = Object.freeze([
  * @experimental file-styles
  */
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+/**
+ * Why an export writes a layer as the values it paints (the `reason` param of `W_STYLE_LAYER_FLATTENED`):
+ * `SCALE`, a palette or a scale the format cannot express; `RESULT_PATH`, it reads an algorithm result.
+ */
+export const EXPORT_FLATTEN_REASONS = Object.freeze(["SCALE", "RESULT_PATH"] as const);
+
+/**
+ * A reason an export writes a layer as its values: one of {@link EXPORT_FLATTEN_REASONS}.
+ * @experimental file-styles
+ */
+export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];

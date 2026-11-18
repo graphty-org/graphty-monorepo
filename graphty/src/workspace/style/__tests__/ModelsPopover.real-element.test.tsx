@@ -63,7 +63,7 @@ describe("models in the Shape field, on the real element", () => {
 
         // Add custom model...: a .glb from the dialog's file chooser, drawn on the layer's nodes.
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [new File([quadGlb()], "quad.glb", { type: "model/gltf-binary" })]);
+        await choose(dialog, "Choose file", [new File([quadGlb()], "quad.glb", { type: "model/gltf-binary" })]);
         await previewOf(dialog, "quad");
         await addModel(dialog);
         await waitFor(() => {
@@ -115,7 +115,7 @@ describe("models in the Shape field, on the real element", () => {
     it("offers a Pose under Animation in Model settings, holding the clip at the moment chosen", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", ["../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb"]);
+        await choose(dialog, "Choose file", ["../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb"]);
         await previewOf(dialog, "cube");
         await addModel(dialog);
         await waitFor(() => {

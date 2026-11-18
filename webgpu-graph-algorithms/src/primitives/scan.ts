@@ -1,11 +1,11 @@
 /**
- * The `exclusiveScan` primitive driver (spec 6 row 2; P4-T2, PD-3): a reduce-then-scan over u32 words. Level 0 runs
+ * The `exclusiveScan` primitive driver: a reduce-then-scan over u32 words. Level 0 runs
  * `scan-block` over `count` items into `out` (each workgroup an exclusive Hillis-Steele scan of its WG-wide block) and
  * writes one block sum per workgroup; while a level has more than one block, the next level scans its block sums
  * (exclusive, into `offsets_L`) and writes its own block sums, recursively; the top level has ONE block, so its one
  * sums word is the total. Then, top down, `scan-add` adds `offsets_L[g]` to every element of block `g` of level L's
  * output. u32 addition is exact in any order, so two runs on any two adapters are bitwise identical; there is no
- * subgroup variant (DEP-P4-E) and no decoupled look-back.
+ * subgroup variant and no decoupled look-back.
  *
  * The driver owns no device objects beyond a one-word zero it keeps for the empty scan: the caller supplies a
  * ReduceScope (the same record `reduce` takes) and the compute pass to record into. `src/primitives/**` never imports
@@ -25,7 +25,7 @@ export interface ScanTotal {
     readonly index: number;
 }
 
-/** A prepared exclusive scan (spec 6 row 2): records the level dispatches of one scan into a pass. */
+/** A prepared exclusive scan: records the level dispatches of one scan into a pass. */
 export interface ScanPlanner {
     /**
      * Records the scan of `count` u32 of `src` into `out` (exclusive); returns where the total landed (a word of the

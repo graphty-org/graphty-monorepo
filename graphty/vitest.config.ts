@@ -69,10 +69,28 @@ const chooseNextFiles: BrowserCommand<[files: ChosenFile[]]> = (ctx, files) => {
                 : { name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.base64, "base64") },
         );
     const chosen = folder !== undefined && "path" in folder ? path.resolve(dirname, folder.path) : payloads();
-    ctx.page.once("filechooser", (chooser) => {
-        void chooser.setFiles(chosen);
+    // Settles once the picker opens, so a test asking about it right after the click waits for it.
+    lastChooser = new Promise((resolve) => {
+        ctx.page.once("filechooser", (chooser) => {
+            void chooser
+                .element()
+                .getAttribute("accept")
+                .then((accept) => {
+                    resolve({ accept, multiple: chooser.isMultiple() });
+                });
+            void chooser.setFiles(chosen);
+        });
     });
 };
+
+/** What the last picker {@link chooseNextFiles} answered offered: its `accept` and whether it took several files. */
+let lastChooser: Promise<{ accept: string | null; multiple: boolean }> | undefined;
+
+/**
+ * The `accept` attribute and the multiple flag of the last file picker {@link chooseNextFiles} answered.
+ * @returns them, or null before any picker.
+ */
+const lastFileChooser: BrowserCommand<[]> = async () => (await lastChooser) ?? null;
 
 /**
  * Lets the page read and write the clipboard, as a reader who allowed it, so a test can press
@@ -197,6 +215,7 @@ const chromium = () => ({
     commands: {
         chooseNextFile,
         chooseNextFiles,
+        lastFileChooser,
         failRequests,
         grantClipboard,
         watchOffOriginRequests,

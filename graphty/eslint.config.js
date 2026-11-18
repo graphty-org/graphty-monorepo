@@ -14,6 +14,7 @@ import tseslint from "typescript-eslint";
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 import noSpecialLayers from "./eslint-rules/no-special-layers.js";
+import styleSidebarControls from "./eslint-rules/style-sidebar-controls.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
 // it reaches graph functionality through graphty-element's published entry points and nothing
@@ -25,7 +26,13 @@ const ELEMENT_EXPORTS = Object.keys(
     .filter((key) => key !== ".")
     .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
 /** The app's own lint rules: one object, because ESLint refuses a plugin name defined twice. */
-const graphtyPlugin = { rules: { "no-element-mutation": noElementMutation, "no-special-layers": noSpecialLayers } };
+const graphtyPlugin = {
+    rules: {
+        "no-element-mutation": noElementMutation,
+        "no-special-layers": noSpecialLayers,
+        "style-sidebar-controls": styleSidebarControls,
+    },
+};
 
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
@@ -129,6 +136,22 @@ export default tseslint.config(
     },
 
     // ============================================
+    // STRICT TYPE RULES (#7284)
+    // ============================================
+    // The root config switches the no-unsafe-* rules off and turns them back on package by package
+    // ("STRICT TYPE RULES, PACKAGE BY PACKAGE"); its globs are root-relative, so this package lists
+    // its rules here. Add the rest as their findings are fixed.
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        // Stories are linted without type information (root eslint.config.js), and the rules need it.
+        ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+    },
+
+    // ============================================
     // NO STYLE LAYER IS SPECIAL (issue #5905)
     // ============================================
     {
@@ -137,6 +160,35 @@ export default tseslint.config(
         ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
         plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-special-layers": "error" },
+    },
+
+    // ============================================
+    // THE STYLE SIDEBAR DRAWS ONLY APPROVED CONTROLS (issue #8739)
+    // ============================================
+    // The rule and the list it reads: eslint-rules/style-sidebar-controls.js and
+    // src/workspace/style/approved-controls.json. Inside the files it checks, what sits in a pop-over's
+    // panel, a menu's list, a dialog or a tooltip's label is not in the sidebar and is left alone.
+    {
+        files: ["src/workspace/style/**/*.tsx"],
+        ignores: [
+            "**/__tests__/**",
+            "**/*.stories.tsx",
+            // The approved label itself, built on Mantine's Text.
+            "src/workspace/style/ControlLabel.tsx",
+            // Drawn only inside a pop-over or a dialog.
+            "src/workspace/style/BindingPopover.tsx",
+            "src/workspace/style/CustomModelDialog.tsx",
+            "src/workspace/style/ModelChip.tsx",
+            "src/workspace/style/ModelSettings.tsx",
+            "src/workspace/style/ModelsPopover.tsx",
+            "src/workspace/style/PartsPopover.tsx",
+            "src/workspace/style/ShaderEditorDialog.tsx",
+            "src/workspace/style/ShaderGallery.tsx",
+            "src/workspace/style/ShaderParamRows.tsx",
+            "src/workspace/style/ShaderParams.tsx",
+        ],
+        plugins: { graphty: graphtyPlugin },
+        rules: { "graphty/style-sidebar-controls": "error" },
     },
 
     // ============================================
@@ -260,5 +312,23 @@ export default tseslint.config(
                 },
             ],
         },
+    },
+    // Files SonarQube skipped for one rule, carried over with the reason.
+    {
+        // These pass render functions (a table cell's renderer, a tree row's menu) that the table or
+        // tree calls with a row. They are not components, so moving them out of the parent would only
+        // thread its state through props.
+        files: [
+            "src/workspace/data-page/DataPage.tsx",
+            "src/workspace/data-place/Filters.tsx",
+            "src/workspace/join/JoinScreen.tsx",
+        ],
+        rules: { "react/no-unstable-nested-components": "off" },
+    },
+    {
+        // The workspace draws its icons as <GLYPHS.name />, members of one constant map of icon
+        // components (src/workspace/glyphs.ts), which the rule reads as a component named GLYPHS.
+        files: ["src/workspace/**"],
+        rules: { "react/jsx-pascal-case": "off" },
     },
 );

@@ -376,7 +376,10 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         await userEvent.click(await row("Top 10 labels"), { modifiers: ["Control"] });
         const size = await line("node.size");
         assert.equal(within(size).getByRole<HTMLInputElement>("spinbutton", { name: /^Node size/ }).value, "2");
-        assert.match(within(size).getByText(/not set: Top 10 labels/).textContent ?? "", /3 layers set size/);
+        assert.match(
+            size.querySelector("[data-notes]")?.getAttribute("data-notes") ?? "",
+            /3 layers set size.*not set: Top 10 labels/,
+        );
 
         // The folder: Fill shows each group's color; "One value for all", then a color typed by
         // name writes to every group that sets one.
@@ -386,12 +389,9 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             within(fill).getByRole("button", { name: "Remove node color from every layer" }).tagName,
             "BUTTON",
         );
-        const breakdown = within(fill).getByText(/^Not set: Top 10 labels$/);
-        assert.equal(getComputedStyle(breakdown).fontSize, "11px", "the breakdown is legible");
-        assert.lengthOf(
-            fill.querySelectorAll("[data-varied-line] .ws-varied-chit"),
-            groups.length <= 6 ? groups.length : 5,
-        );
+        // The breakdown is in the row's minus button's tooltip, never a line under it (#8739).
+        assert.equal(fill.querySelector("[data-notes]")?.getAttribute("data-notes"), "Not set: Top 10 labels");
+        assert.isNull(fill.querySelector("[data-varied-line]"));
         await userEvent.hover(fill);
         await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
         assert.isNotNull(
@@ -410,10 +410,10 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             assert.isNotNull(found, "the receipt is drawn");
             return found;
         });
-        assert.match(
-            within(receipt).getByText(/covers every node/).textContent ?? "",
-            /^Top 10 labels covers every node/,
-        );
+        // What the write did is said once by the status line, and is Undo's tooltip (#8739).
+        await waitFor(() => {
+            assert.match(store.get().announcement ?? "", /\. Top 10 labels covers every node/);
+        });
         assert.isNotNull(within(receipt).getByRole("button", { name: "Undo the color change" }));
         await userEvent.click(within(receipt).getByRole("button", { name: "Undo the color change" }));
         await waitFor(() => {

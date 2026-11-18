@@ -108,7 +108,7 @@ function surfaceEnd(centre: Xyz, dir: Xyz, end: TrimEnd, span: number): Xyz | nu
  */
 function pastBorders(src: Xyz, dst: Xyz, srcReach: number, dstReach: number): [Xyz, Xyz] {
     const [dx, dy, dz] = [dst.x - src.x, dst.y - src.y, dst.z - src.z];
-    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // NOSONAR(S7769): per edge, per frame, as in Edge.getInterceptPoints
+    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame, as in Edge.getInterceptPoints
     if ((srcReach === 0 && dstReach === 0) || span <= srcReach + dstReach) {
         return [src, dst];
     }
@@ -162,7 +162,7 @@ function groupEnd(centre: Xyz, toward: Xyz, end: TrimEnd): Xyz {
 export function trimEnds(edge: EdgeTrimInput): TrimmedEnds {
     const { src, dst, source, target, capBack, capGap = 0 } = edge;
     const [dx, dy, dz] = [dst.x - src.x, dst.y - src.y, dst.z - src.z];
-    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // NOSONAR(S7769): per edge, per frame, as in Edge.getInterceptPoints
+    const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame, as in Edge.getInterceptPoints
     const dir = span > 0 ? { x: dx / span, y: dy / span, z: dz / span } : { x: 0, y: 0, z: 0 };
     const back = { x: -dir.x, y: -dir.y, z: -dir.z };
 
@@ -177,6 +177,15 @@ export function trimEnds(edge: EdgeTrimInput): TrimmedEnds {
     } else if (span > 0) {
         start = surfaceEnd(src, dir, source, span);
         end = surfaceEnd(dst, back, target, span);
+        // two overlapping nodes meet the line in the wrong order: they have no line between them either
+        if (
+            start !== null &&
+            end !== null &&
+            (end.x - start.x) * dir.x + (end.y - start.y) * dir.y + (end.z - start.z) * dir.z <= 0
+        ) {
+            start = null;
+            end = null;
+        }
     }
 
     if (start !== null && end !== null) {
@@ -190,7 +199,7 @@ export function trimEnds(edge: EdgeTrimInput): TrimmedEnds {
     }
 
     const [lx, ly, lz] = [end.x - start.x, end.y - start.y, end.z - start.z];
-    const length = Math.sqrt(lx * lx + ly * ly + lz * lz); // NOSONAR(S7769): per edge, per frame, as in Edge.getInterceptPoints
+    const length = Math.sqrt(lx * lx + ly * ly + lz * lz); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame, as in Edge.getInterceptPoints
     // scaled by the reciprocal and taken off in two steps, as `Edge.lineEndBefore` does with Babylon's `normalize`
     const unit = length > 0 ? scaled(lx, ly, lz, 1 / length) : { x: 0, y: 0, z: 0 };
     return { src: start, dst: end, lineEnd: along(along(end, unit, -capGap), unit, -capBack) };
@@ -293,6 +302,10 @@ EdgeTrimmed edgeTrimEnds(vec3 src, vec3 dst, EdgeTrimEnd source, EdgeTrimEnd tar
     } else if (span > 0.0) {
         ends.hasSrc = edgeTrimSurface(src, dir, source, span, ends.src);
         ends.hasDst = edgeTrimSurface(dst, -dir, target, span, ends.dst);
+        if (ends.hasSrc && ends.hasDst && dot(ends.dst - ends.src, dir) <= 0.0) {
+            ends.hasSrc = false;
+            ends.hasDst = false;
+        }
     }
 
     if (ends.hasSrc && ends.hasDst) {

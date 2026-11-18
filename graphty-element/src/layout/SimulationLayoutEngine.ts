@@ -165,6 +165,8 @@ export interface LayoutEnvelope {
      * it to fit, and the scale and centre beside it are the identity rather than a measurement.
      */
     readonly placed: number;
+    /** The measured rows' box in the simulation's own units: min x, y, z then max x, y, z; empty for none. */
+    readonly box: readonly number[];
 }
 
 /**
@@ -205,22 +207,27 @@ export function measureEnvelope(
     sumPlaced(positions, nodeCount, held, ENVELOPE_SUMS);
     const placed = ENVELOPE_SUMS[0];
     if (placed === 0) {
-        return { scale: 1, centre: [0, 0, 0], placed };
+        return { scale: 1, centre: [0, 0, 0], placed, box: [] };
     }
 
     const cx = ENVELOPE_SUMS[1] / placed;
     const cy = ENVELOPE_SUMS[2] / placed;
     const cz = ENVELOPE_SUMS[3] / placed;
     const radius = Math.sqrt(furthestSquared(positions, nodeCount, held, cx, cy, cz));
-    return { scale: radius > POINT_RADIUS ? scalingFactor / radius : 1, centre: [cx, cy, cz], placed };
+    return {
+        scale: radius > POINT_RADIUS ? scalingFactor / radius : 1,
+        centre: [cx, cy, cz],
+        placed,
+        box: Array.from(ENVELOPE_SUMS.subarray(4)),
+    };
 }
 
-/** The count and coordinate sums {@link sumPlaced} writes: placed, x, y, z. */
-const ENVELOPE_SUMS = new Float64Array(4);
+/** What {@link sumPlaced} writes: placed; the x, y, z sums; the min x, y, z; the max x, y, z. */
+const ENVELOPE_SUMS = new Float64Array(10);
 
 /**
- * Count and sum the finite rows not held, into `out` (placed, x, y, z), accumulated in place so no
- * code runs after the loop.
+ * Count, sum and bound the finite rows not held, into `out` (placed, sums, min, max), accumulated in
+ * place so no code runs after the loop.
  * @param positions - A stride-3 array.
  * @param nodeCount - How many rows of it.
  * @param held - Answers true for a row to leave out, or null.
@@ -232,7 +239,9 @@ function sumPlaced(
     held: ((row: number) => boolean) | null,
     out: Float64Array,
 ): void {
-    out.fill(0);
+    out.fill(0, 0, 4);
+    out.fill(Infinity, 4, 7);
+    out.fill(-Infinity, 7, 10);
     for (let row = 0; row < nodeCount; row += 1) {
         const x = positions[3 * row];
         const y = positions[3 * row + 1];
@@ -242,6 +251,12 @@ function sumPlaced(
             out[1] += x;
             out[2] += y;
             out[3] += z;
+            out[4] = Math.min(out[4], x);
+            out[5] = Math.min(out[5], y);
+            out[6] = Math.min(out[6], z);
+            out[7] = Math.max(out[7], x);
+            out[8] = Math.max(out[8], y);
+            out[9] = Math.max(out[9], z);
         }
     }
 }
@@ -468,7 +483,9 @@ function sameTransform(a: DrawnTransform, b: DrawnTransform): boolean {
 interface DrawnSimulation {
     readonly landedDrawn?: GPUBuffer | null;
     readonly landedDrawnTransform?: DrawnTransform | null;
-    setDrawn(output: { slots: number; rows: Float32Array } | null): void;
+    /** The landed slot's rows read back to the host, when the ring was set with `readBack`. */
+    readonly landedDrawnRows?: Float32Array | null;
+    setDrawn(output: { slots: number; rows: Float32Array; readBack?: boolean } | null): void;
     setDrawnTransform(transform: DrawnTransform): void;
     setDrawnSkip(mask: Uint32Array): void;
     writeDrawn(index: number, x: number, y: number, z: number, w: number): void;
@@ -646,13 +663,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #nodeMass: F32 | null = null;
 
-    /**
-     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
-     * renderPath "batched".
-     * @internal
-     */
-    rowRecord: ((row: number) => unknown) | null = null;
-
     /** The last read of `clusterBy`: by `Node` under renderPath "objects", by row under "batched". */
     #communities: ReadonlyMap<Node | number, number> = new Map();
 
@@ -698,6 +708,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /** The box {@link SimulationLayoutEngine.publishedBounds} answers while a publish is owed. */
     #owedBox: Float64Array | null = null;
+    /** The box of the rows the last envelope measured, in the simulation's units, or empty for none. */
+    #simBox: readonly number[] = [];
 
     /**
      * Rows walked on the CPU by a publish: the rows it writes and the walk for the rows the card's
@@ -1394,7 +1406,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /**
      * {@link SimulationLayoutEngine.publishPositions}, which a landing copied on the card may owe.
      *
-     * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device),
+     * OWED ON THE CARD. When the landing goes up by copy (renderPath "batched" on a shared device), or as
+     * read back (renderPath "batched" on any other renderer, `RowTable.uploadLanded`),
      * the card already draws it, so no row is written, repacked or walked on the CPU for it: the
      * lane is owed the publish (`ElementPositions.owe`), and the first read or write of a row --
      * a pick, a node's position, a drag, a freeze -- writes it, from the latest landing with the
@@ -1419,7 +1432,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // ON THE CARD, A LANDING IS PUBLISHED WITH THE TRANSFORM ITS BATCH DREW WITH, so the lane and the
         // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
         const drawn = this.#drawnRun();
-        const landed = drawn?.simulation.landedDrawn ?? null;
+        const landed = drawn === null ? null : this.#landedOf(drawn);
         const viaCard = drawn === null || landed === null ? null : this.#cardTransform(drawn);
         this.#fitEnvelope(snapshot, simPositions);
         if (mayOwe && drawn !== null && viaCard !== null) {
@@ -1430,7 +1443,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 return;
             }
 
-            this.#owedBox = this.holdsAny ? null : this.#keepFixedIn(this.#envelopeBox(viaCard.target));
+            const box = this.holdsAny ? null : this.#keepFixedIn(this.#rowsBox(viaCard));
+            this.#owedBox = box !== null && box[0] <= box[3] ? box : null;
             store.owe(this.#owedPublish);
             return;
         }
@@ -1503,6 +1517,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * The newest landed slot as the run's target takes it: the buffer on a shared device, else its rows
+     * read back to the host (a GPU package that cannot read them back offers none).
+     * @param run - The run.
+     * @returns The slot, its rows, or null.
+     */
+    #landedOf(run: DrawnRun): GPUBuffer | Float32Array | null {
+        const { simulation } = run;
+        return run.target.device === null ? (simulation.landedDrawnRows ?? null) : (simulation.landedDrawn ?? null);
+    }
+
+    /**
      * The transform a landed batch drew with, when its copy may stand for the landing: not while a
      * transition draws the rows or the simulation is at rest, and not when the batch drew with the
      * transform measured before the run stepped.
@@ -1551,22 +1576,20 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * The box a landing owed on the card is drawn inside, with no row walked: the envelope fits every
-     * published row within its radius of the target centre.
-     * @param target - The scene-unit centre the landing drew about.
-     * @returns Min x, y, z then max x, y, z.
+     * The box a landing owed on the card is drawn inside, with no row walked: the box the envelope
+     * measured, mapped through the transform the landing drew with, as `#writeRows` would place it.
+     * @param viaCard - The transform the landed batch drew with.
+     * @returns Min x, y, z then max x, y, z, or an empty box when nothing was measured.
      */
-    #envelopeBox(target: readonly [number, number, number]): Float64Array {
-        // ponytail: the envelope's sphere, not the rows' own box; framing while it runs is a little looser.
-        const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
-        return Float64Array.of(
-            target[0] - radius,
-            target[1] - radius,
-            target[2] - radius,
-            target[0] + radius,
-            target[1] + radius,
-            target[2] + radius,
-        );
+    #rowsBox(viaCard: DrawnTransform): Float64Array {
+        const box = Float64Array.of(Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity);
+        if (this.#simBox.length === 6) {
+            for (let axis = 0; axis < 6; axis++) {
+                box[axis] = (this.#simBox[axis] - viaCard.center[axis % 3]) * viaCard.scale + viaCard.target[axis % 3];
+            }
+        }
+
+        return box;
     }
 
     /**
@@ -1592,7 +1615,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         try {
-            drawn.setDrawn({ slots: DRAWN_SLOTS, rows: target.table.rowPosition.subarray(0, 4 * nodeCount) });
+            drawn.setDrawn({
+                slots: DRAWN_SLOTS,
+                rows: target.table.rowPosition.subarray(0, 4 * nodeCount),
+                // On another device than the texture's, each landed slot comes back in the batch's readback.
+                readBack: target.device === null,
+            });
         } catch (error) {
             this.#onError(error, simulation);
             return;
@@ -1669,10 +1697,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * commands recorded across awaits make unknowable here): the rows the ring must leave as the element wrote them, the copy of
      * the landed slot, and the transform the next batches draw with.
      * @param run - The run.
-     * @param landed - The landed slot to copy, or null when this publish goes up by upload.
+     * @param landed - The landed slot to copy (its rows when read back from another device), or null when
+     * this publish goes up by upload.
      * @returns True when the landed slot was copied.
      */
-    #publishDrawn(run: DrawnRun, landed: GPUBuffer | null): boolean {
+    #publishDrawn(run: DrawnRun, landed: GPUBuffer | Float32Array | null): boolean {
         const simulation = this.#simulation;
         let copied = false;
         try {
@@ -1680,7 +1709,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
             if (landed === null) {
                 run.target.table.dropCopy();
             } else {
-                copied = run.target.table.copyLanded(run.target.device, landed, run.n);
+                const { table, device } = run.target;
+                copied =
+                    landed instanceof Float32Array
+                        ? table.uploadLanded(landed, run.n)
+                        : device !== null && table.copyLanded(device, landed, run.n);
                 this.#resendTold(run);
             }
 
@@ -1808,6 +1841,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
         const measured = measureEnvelope(simPositions, snapshot.nodeCount, radius, held);
+        this.#simBox = measured.box;
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
         // graph every row of which is held publishes nothing, but the next `setNodePosition` still
@@ -2132,18 +2166,50 @@ export class SimulationLayoutEngine extends LayoutEngine {
      *
      * A group following its members is drawn round them, not laid out with them: inert in the
      * simulation, it neither repels them nor pulls on them, so they settle exactly where they
-     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason).
+     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason). A
+     * node the filter hides needs none of this: it has no row in the simulation (see `#adopt`).
+     *
+     * `setInert` is optional on `LayoutSimulation`, so a third-party accelerator may lack it. Such
+     * a simulation would let a following group push and pull its members, so the bridge stops it
+     * and refuses with `E_UNSUPPORTED` rather than run it (issue #7964).
      * @param simulation - The running simulation.
      * @param nodeCount - The loaded snapshot's node count.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a row must be inert and the simulation cannot make it so.
      */
     #applyInert(simulation: LayoutSimulation, nodeCount: number): void {
         const inert = makeMask(nodeCount);
+        let any = false;
         for (let i = 0; i < nodeCount && this.holdsAny; i += 1) {
             if (this.isFollower(this.#elementRow(i))) {
                 maskSet(inert, i, true);
+                any = true;
             }
         }
-        simulation.setInert?.(inert);
+
+        if (simulation.setInert === undefined) {
+            if (!any) {
+                return;
+            }
+
+            this.#failed = true;
+            this.#syncWork();
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message:
+                    `the layout "${this.type}" cannot leave group-following nodes out: its ` +
+                    `"${this.simulationType}" simulation has no setInert. ` +
+                    `Set the acceleration attribute to "off", or attach an accelerator whose simulations implement setInert.`,
+                source: "layout",
+                details: {
+                    layout: this.type,
+                    simulation: this.simulationType,
+                    accelerated: this.#accelerated,
+                    reason: "simulation-cannot-leave-nodes-out",
+                },
+            });
+        }
+
+        simulation.setInert(inert);
     }
 
     /**

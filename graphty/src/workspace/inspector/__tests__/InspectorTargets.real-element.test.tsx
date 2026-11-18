@@ -12,7 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -85,7 +85,7 @@ async function pick(session: GraphSession, id: string): Promise<void> {
  * The inspector region.
  * @returns queries scoped to it.
  */
-const inspector = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Inspector" }));
+const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
 
 /**
  * What the inspector draws now.

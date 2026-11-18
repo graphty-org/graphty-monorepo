@@ -1,7 +1,7 @@
 /**
- * G4b, the `grid-centroid-hub` kernel body (spec 7.7; P4-T9): one workgroup per word of hubList, dispatched
+ * G4b, the `grid-centroid-hub` kernel body: one workgroup per word of hubList, dispatched
  * directly (issue #732), so the workgroups past hubCounters[0] idle; a WG-strided mass-weighted sum reduced by the
- * prelude's tree. The work is guarded by `valid`, never an early return, so the reduction is uniform (PD-13). Body
+ * prelude's tree. The work is guarded by `valid`, never an early return, so the reduction is uniform. Body
  * only; normative text.
  */
 export const gridCentroidHubWgsl = /* wgsl */ `

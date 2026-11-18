@@ -1,3 +1,4 @@
+import { SegmentedControl, Slider } from "@graphty/compact-mantine";
 /**
  * Compact CSS Regression Tests
  *
@@ -25,9 +26,7 @@ import {
     PasswordInput,
     Pill,
     Radio,
-    SegmentedControl,
     Select,
-    Slider,
     Switch,
     Textarea,
     TextInput,

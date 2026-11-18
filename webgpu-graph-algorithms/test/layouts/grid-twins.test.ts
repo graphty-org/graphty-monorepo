@@ -27,10 +27,11 @@ import { levelOf, pyramidOracleOf, pyramidScene, runPyramid } from "../helpers/g
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotage.js";
+import { noSubgroupsPass } from "../setup/env.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
 /** Spec 12.2's second pass: acquire() then defaults to subgroups: false, so both contexts are the workgroup twin (a policy skip). */
-const NO_SUBGROUPS_PASS = process.env.GRAPHTY_GPU_NO_SUBGROUPS === "1";
+const NO_SUBGROUPS_PASS = noSubgroupsPass();
 /** The stages a reduction reaches before they are read, and the tolerance id each is held to. */
 const TWINNED: Readonly<Partial<Record<GridStageKey, { readonly p4: boolean; readonly id: string }>>> = {
     nearField: { p4: true, id: "grid-twins.force" },

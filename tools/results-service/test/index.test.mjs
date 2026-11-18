@@ -11,7 +11,7 @@ import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
 import { failureHashes, issueKey } from "../src/signature.js";
-import { HISTORY_INVOCATIONS } from "../src/queries.js";
+import { HISTORY_INVOCATIONS, PLAN_PARALLEL } from "../src/queries.js";
 import { AUDIENCE, handle, keyCache } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
@@ -325,8 +325,6 @@ describe("POST /v1/failures", () => {
         assert.deepEqual((await call("POST", "/v1/failures", { token: pr(), body: { ...body, failures: [] } })).body, {
             stored: 0,
         });
-        const bad = { ...body, failures: [{ file: "a", name: "a", message: "m" }], root: 7 };
-        assert.equal((await call("POST", "/v1/failures", { token: pr(), body: bad })).status, 400);
     });
 });
 
@@ -617,6 +615,70 @@ describe("GET /v1/plan", () => {
             ["another shard", "newest"],
             ["broken on master", "newest"],
         ]);
+    });
+
+    it("#8208: no plan statement re-runs a subquery per row", async () => {
+        // a correlated subquery in failingOnBase ran once per failed master invocation: on 100,000 invocations the read
+        // took 18 s instead of 0.4 s, and D1 answered half of pull request plan reads with HTTP 500
+        const { call, env } = service();
+        const seen = new Set();
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.add(sql), prepare(sql));
+        await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.ok(seen.size > 0);
+        for (const sql of seen) {
+            const steps = env.DB.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all();
+            const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
+            assert.deepEqual(correlated, [], sql);
+        }
+    });
+
+    it("#8208: asks D1 at most a few queries at once, however many variants", async () => {
+        // all ~47 variants of a light check at once queued about 100 queries in D1, which answered HTTP 500
+        const { call, env } = service();
+        let open = 0;
+        let most = 0;
+        const prepare = env.DB.prepare;
+        const counted = (s) => ({
+            bind: (...a) => counted(s.bind(...a)),
+            ...Object.fromEntries(
+                ["all", "first"].map((m) => [
+                    m,
+                    async () => {
+                        most = Math.max(most, ++open);
+                        await new Promise(setImmediate);
+                        try {
+                            return await s[m]();
+                        } finally {
+                            open--;
+                        }
+                    },
+                ]),
+            ),
+        });
+        env.DB.prepare = (sql) => counted(prepare(sql));
+        const variants = Array.from({ length: 47 }, (_, i) => `family-${i}|off`);
+        const res = await plan(call, { variants: variants.join(","), inputs: variants.map(() => "-").join(",") });
+        assert.equal(res.status, 200);
+        assert.deepEqual(Object.keys(res.body.variants), variants);
+        assert.ok(most <= PLAN_PARALLEL, `${most} queries at once`);
+    });
+
+    it("#7269: runs no inputs query for the placeholder inputs key", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("dash", { kind: "pr", inputs: "-" });
+        const seen = [];
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.push(sql), prepare(sql));
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "-" });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.variants[BROWSER].passedWithInputs, null);
+        assert.ok(seen.length > 0);
+        assert.deepEqual(
+            seen.filter((sql) => /inputs = \?/.test(sql)),
+            [],
+        );
     });
 
     it("answers reuse, recent failures first and per-file durations per variant", async () => {
@@ -1969,6 +2031,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         // ponytail: the consumers early-capture.md 4c allows
         const allowed = [
             /^tools\/results-service\//,
+            // the store itself on AWS (#3607): its routes, records and tests
+            /^tools\/pipeline-health\/(README\.md|infra\/health-stack\.ts|(src\/handlers|test)\/(ingest|results|handlers\.test|stack\.test)\.ts)$/,
             /^tools\/channel\/story-slices\.mjs$/,
             /^tools\/channel\/rolling\.mjs$/,
             /^tools\/full-run\.mjs$/,

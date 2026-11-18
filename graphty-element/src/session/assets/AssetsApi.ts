@@ -11,7 +11,16 @@
  * page's code and are never saved.
  */
 
-import { baseName, cutParam, ModelError, type ModelFormat, normalizePath, roleOfName } from "babylonjs-models/detect";
+import { sha256HexSync } from "@graphty/graph-io";
+import {
+    baseName,
+    cutParam,
+    detectModelFormat,
+    ModelError,
+    type ModelFormat,
+    normalizePath,
+    roleOfName,
+} from "babylonjs-models/detect";
 import type { ModelProgress, ModelProgressListener, RedirectGate } from "babylonjs-models/files";
 
 import type { LayerId } from "../../catalog/types";
@@ -21,7 +30,7 @@ import type { CodedFact, ProgressChange } from "../shared";
 import type { SessionStylesApi } from "../styles";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
-import { digestFileSet, sha256Fallback } from "./digest";
+import { digestFileSet } from "./digest";
 
 /**
  * The intake checks, loaded on the first add, so a page that never adds a model never
@@ -166,7 +175,8 @@ export interface AssetRecord {
     readonly format: ModelFormat;
     /**
      * The main file's path inside the set, cut to 256 characters; also on a model waiting for
-     * parts, once its main file is known.
+     * parts, once its main file is known, and on a refused model whose main file was named (each
+     * model {@link AssetsApi.addEach} finds in a set).
      */
     readonly path?: string;
     /** `pending` while a URL downloads; `accepted` once checked; `rejected` with its `E_MODEL_*` in `problems`. */
@@ -303,6 +313,23 @@ export interface AssetsApi {
      * ```
      */
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
+    /**
+     * Add every model a source holds, one record each: a folder, a .zip or several files holding
+     * more than one model (two .glb files, an .obj with its .mtl beside a .gltf with its .bin) give
+     * one record per model, holding the files that model uses. A source of one model, a URL, or a
+     * source naming its `main` gives one record, exactly as {@link AssetsApi.add}. Each record
+     * settles as `add`'s does: a model missing a part waits for it. Stopped by the signal partway,
+     * it rejects and keeps none of the models it took that the session did not already hold.
+     * @param source - The models.
+     * @param options - A signal and a progress listener; `name` and `main` apply only to a source of one model.
+     * @returns The settled records, by the path of each model's file.
+     * @example
+     * ```ts
+     * const models = await graph.session.assets.addEach(input.files);
+     * const ids = models.filter((m) => m.state === "accepted").map((m) => m.id);
+     * ```
+     */
+    addEach(source: AssetSource, options?: AddAssetOptions): Promise<readonly AssetRecord[]>;
     /**
      * Resolve when the asset a layer names (an id or a URL) has settled; fetches a URL the first
      * time it is asked for. An id the session does not hold resolves rejected with
@@ -621,6 +648,21 @@ export interface AssetsApiInternal extends AssetsApi {
      * @returns Stops calling it.
      */
     watchSupplied(listener: (names: readonly string[]) => void): () => void;
+    /**
+     * What a model still waiting for parts draws with its missing parts stood in for, as `supply`'s
+     * skip would draw it: the files held so far, the main file, its format and the parts to skip.
+     * @param id - The waiting model's id.
+     * @returns The draw input, or undefined when it is not waiting or waits for its geometry or for
+     *     an answer a stand-in cannot give (which file is the model, an ambiguous part).
+     */
+    standIn(id: AssetId):
+        | {
+              readonly files: ReadonlyMap<string, Uint8Array>;
+              readonly main: string;
+              readonly format: ModelFormat;
+              readonly skipped: readonly string[];
+          }
+        | undefined;
 }
 
 /**
@@ -682,7 +724,7 @@ function holdOf(
  * @returns 64 hex characters.
  */
 function syncHex(text: string): string {
-    return [...sha256Fallback(new TextEncoder().encode(text))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return sha256HexSync(text);
 }
 
 /**
@@ -1043,8 +1085,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             const problems = error.facts;
-            // A model waiting for parts is named by its main file, as an accepted one is.
-            const main = onlyParts(problems) ? intakeModule.mainFileOf(files, options) : undefined;
+            // A model waiting for parts is named by its main file, as an accepted one is, and so is
+            // one refused whose main file was named (each model of a set names its own).
+            const main = options.main ?? (onlyParts(problems) ? intakeModule.mainFileOf(files, options) : undefined);
             const path = main === undefined ? {} : { path: main.slice(0, 256) };
             return {
                 settled: record({
@@ -1384,6 +1427,44 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         } finally {
             done();
         }
+    };
+
+    /**
+     * Take each model of a set as its own record, in order. Stopped partway, it keeps nothing it
+     * took: the models already in, and the one still being read once it settles, are let go unless
+     * the session held them before.
+     * @param models - Each model's main file and the files it uses.
+     * @param files - The set's files, by path.
+     * @param options - A signal and a progress listener.
+     * @returns The settled records.
+     */
+    const intakeEach = async (
+        models: readonly { readonly main: string; readonly files: readonly string[] }[],
+        files: ReadonlyMap<string, Uint8Array>,
+        options: AddAssetOptions,
+    ): Promise<AssetRecord[]> => {
+        const records: AssetRecord[] = [];
+        const heldBefore = new Set([...api.list(), ...api.waiting()].map((r) => r.id));
+        const letGo = (r: AssetRecord): void => {
+            if (!heldBefore.has(r.id)) {
+                api.remove(r.id);
+            }
+        };
+        for (const model of models) {
+            const own = new Map(model.files.map((path) => [path, files.get(path) as Uint8Array]));
+            const work = intake(own, options, model.main);
+            try {
+                records.push(await waitFor(work, options, undefined));
+            } catch (error) {
+                for (const record of records) {
+                    letGo(record);
+                }
+                work.then(letGo, () => undefined);
+                throw error;
+            }
+        }
+
+        return records;
     };
 
     /**
@@ -1889,6 +1970,41 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         });
     };
 
+    type ModelFiles = typeof import("babylonjs-models/files");
+    /**
+     * Reads a set of files for `add` and `addEach`; a set refused outright comes back as its rejected record.
+     * @param intakeModule - babylonjs-models' file intake, loaded.
+     * @param source - The files, folder entries or zip.
+     * @param options - The add options; their onProgress hears the read.
+     * @returns The read set, or the record of a set refused outright.
+     */
+    const readSet = async (
+        intakeModule: ModelFiles,
+        source: Parameters<ModelFiles["readModelFiles"]>[0],
+        options: AddAssetOptions,
+    ): Promise<{ read: Awaited<ReturnType<ModelFiles["readModelFiles"]>> } | { refused: AssetRecord }> => {
+        const { onProgress } = options;
+        try {
+            return {
+                read: await intakeModule.readModelFiles(
+                    source,
+                    limits,
+                    onProgress === undefined
+                        ? undefined
+                        : (progress) => {
+                              onProgress(progressChange(progress, undefined));
+                          },
+                ),
+            };
+        } catch (error) {
+            if (!(error instanceof ModelError)) {
+                throw error;
+            }
+
+            return { refused: early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`) };
+        }
+    };
+
     const api: AssetsApiInternal = {
         async add(source, options = {}) {
             if (options.name !== undefined && !isAssetId(options.name)) {
@@ -1923,32 +2039,42 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             const reading = (async (): Promise<AssetRecord> => {
-                let read: Awaited<ReturnType<typeof import("babylonjs-models/files").readModelFiles>>;
-                const { onProgress } = options;
-                try {
-                    read = await (
-                        await loadIntake()
-                    ).readModelFiles(
-                        source,
-                        limits,
-                        onProgress === undefined
-                            ? undefined
-                            : (progress) => {
-                                  onProgress(progressChange(progress, undefined));
-                              },
-                    );
-                } catch (error) {
-                    if (!(error instanceof ModelError)) {
-                        throw error;
-                    }
-
-                    return early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`);
+                const got = await readSet(await loadIntake(), source, options);
+                if ("refused" in got) {
+                    return got.refused;
                 }
 
+                const { read } = got;
                 options.signal?.throwIfAborted();
                 return intake(read.given, options, read.main);
             })();
             return waitFor(reading, options, undefined);
+        },
+
+        async addEach(source, options = {}) {
+            if (typeof source === "string" || options.main !== undefined) {
+                return [await api.add(source, options)];
+            }
+
+            options.signal?.throwIfAborted();
+            const intakeModule = await loadIntake();
+            const got = await readSet(intakeModule, source, options);
+            if ("refused" in got) {
+                return [got.refused];
+            }
+
+            const { read } = got;
+
+            options.signal?.throwIfAborted();
+            const files = await asEntries(read.given);
+            const models = read.main === undefined ? intakeModule.listModels(files, limits) : [];
+            if (models.length < 2) {
+                return [await waitFor(intake(read.given, options, read.main), options, undefined)];
+            }
+
+            // A friendly id names one model, so each of several takes its digest.
+            const { name: _name, ...each } = options;
+            return intakeEach(models, files, each);
         },
 
         ready(ref, options = {}) {
@@ -2106,11 +2232,13 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         usedBy(ref) {
+            // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
             const id = api.find(ref)?.id;
             const names = (value: unknown): boolean =>
                 typeof value === "string"
-                    ? value === ref || (id !== undefined && api.find(value)?.id === id)
-                    : typeof value === "object" && value !== null && Object.values(value).some(names);
+                    ? // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+                      value === ref || (id !== undefined && api.find(value)?.id === id)
+                    : typeof value === "object" && value !== null && Object.values(value).some((v) => names(v));
             const layers = styles?.().list() ?? [];
             return Object.freeze(
                 layers
@@ -2127,6 +2255,32 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
         assembled(id) {
             return lookup(id)?.assembled === true;
+        },
+
+        standIn(id) {
+            const entry = lookup(id);
+            const main = entry?.record.path;
+            if (entry?.held === undefined || entry.record.state !== "rejected" || main === undefined) {
+                return undefined;
+            }
+
+            const { problems } = entry.record;
+            const stoodIn = problems.every(
+                (fact) =>
+                    fact.code === "E_MODEL_MISSING_FILE" &&
+                    String(fact.params.role ?? roleOfName(String(fact.params.name))) !== "geometry",
+            );
+            const format = entry.held.options.format ?? detectModelFormat({ filename: main })?.format;
+            if (!stoodIn || format === undefined) {
+                return undefined;
+            }
+
+            return {
+                files: new Map(entry.held.given),
+                main,
+                format,
+                skipped: [...entry.held.skipped, ...problems.map((fact) => String(fact.params.name))],
+            };
         },
 
         watchSupplied(listener) {

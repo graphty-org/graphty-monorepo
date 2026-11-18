@@ -115,6 +115,12 @@ env:
     # hold the step for 10 minutes after "Failed to restore", and Lint, Docs and Stories ran into their job
     # timeouts (run 41095808301, #5098). One minute bounds that wait; a cold pnpm install takes about 15 s.
     SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+    # git has no low-speed limit by default, so an HTTPS transfer that stops delivering bytes waits forever:
+    # actions/checkout's fetch of every branch, 24 s in a sibling shard, sat silent until its Test job's
+    # 30-minute limit cancelled it, and the cancelled job turned the full run's CI lane red (run 43924294024,
+    # #8526). Under 1 KB/s for two minutes now fails the fetch, and actions/checkout retries it.
+    GIT_HTTP_LOW_SPEED_LIMIT: "1000"
+    GIT_HTTP_LOW_SPEED_TIME: "120"
     # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
     # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
     # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them
@@ -401,9 +407,11 @@ jobs:
                   for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
                       jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
                   done
-                  # files the docs pages include from outside docs/ (visual-review's page includes its README)
+                  # files the docs pages include from outside docs/ (visual-review's pages include sections of its README);
+                  # an include may name a region (README.md#setup) or a line range (README.md{3,10}): the file is what counts
                   includes=$(git grep -oE '@include: *[^ >]+' -- 'docs/' '*/docs/*' | while IFS=: read -r file m; do
-                      m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
+                      m=${m#*@include:}; m=${m# }; m=${m%--}; m=${m%%#*}; m=${m%%\{*}
+                      realpath -m --relative-to=. "$(dirname "$file")/$m"
                   done || true)
                   [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
                   {
@@ -1371,6 +1379,9 @@ jobs:
                   fi
                   cat "$GITHUB_OUTPUT"
 
+            # format:check runs prettier's parallel CLI (--experimental-cli, one worker per core): the classic CLI
+            # checks the repository's 10,000 files on one core, about 4.5 minutes on a normal runner, and a slow
+            # runner (every step 4 to 5 times slower) ran it into the job's time limit (#8248). About 4 times faster.
             - name: Formatting
               if: steps.scope.outputs.format-all == 'true'
               run: pnpm run format:check
@@ -1480,6 +1491,13 @@ jobs:
             # shader hash leaves only by being revoked. The same check runs in tools/prepush-source-checks.sh.
             - name: Saved-format exceptions
               run: pnpm run check:saved-format-allowlist
+
+            # Duplicate code: a new exact clone between two pieces of non-test code, overlapping a line this
+            # change adds, fails; clones touching tests are listed only. Measured from the merge base with master
+            # (fetch-depth 0 above); on a master push that is HEAD itself, so nothing is checked. The same
+            # check runs in tools/prepush-source-checks.sh and tools/check-quick.sh.
+            - name: Duplicate code
+              run: pnpm run check:duplicates
 
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
@@ -1718,6 +1736,10 @@ jobs:
 
         # test-2 runs these same steps (*test-steps)
         steps: &test-steps
+            # A hang guard on a network step: the checkout's fetch sometimes stalls before the pack arrives, even
+            # with the low-speed limit in env, and held the job until its 30-minute limit cancelled it (runs
+            # 44125048943 and 44146383151, #8743). A healthy checkout takes under a minute; after 5 the step
+            # stops and the next one checks out again into the same directory.
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -1725,6 +1747,17 @@ jobs:
                   # the job may write issues; the token is not left in .git/config for a pull request's code
                   # (the repository is public, so the Git LFS pull below needs no credential)
                   persist-credentials: false
+              id: checkout
+              timeout-minutes: 5
+              continue-on-error: true
+
+            - uses: actions/checkout@v7
+              if: steps.checkout.outcome == 'failure'
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 0
+                  persist-credentials: false
+              timeout-minutes: 5
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -1930,6 +1963,15 @@ jobs:
                   path: ~/.cache/lavapipe-debs
                   key: ${{ steps.lavapipe-key.outputs.key }}
 
+            # graph-io's conformance suite validates its GraphML, GEXF and JGF exports against the official schemas
+            # with lxml and jsonschema, and skips that layer when python3 lacks them; GRAPH_IO_REQUIRE_SCHEMAS turns a
+            # missing Python into a failure (#7188). tools/run-tests.sh calls the same script for this shard.
+            - name: Install the Python for graph-io's schema validation
+              if: matrix.needs-schema-python
+              run: |
+                  python="$(tools/schema-python.sh "$RUNNER_TEMP/schema-python")"
+                  { echo "GRAPH_IO_SCHEMA_PYTHON=$python"; echo "GRAPH_IO_REQUIRE_SCHEMAS=1"; } >> "$GITHUB_ENV"
+
             # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
             # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
             # Print the image, the C library and the installed Mesa version so a lane's environment is readable
@@ -1982,7 +2024,8 @@ jobs:
 
             # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
             # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
-            # on the full path, where tools/test-quarantine.json stands.
+            # on the full path, where each group reads its quarantine from the store itself (RESULTS_STORE_QUARANTINE
+            # below), and tools/test-quarantine.json stands only when the store does not answer.
             - name: Download the results plan
               if: github.event_name == 'pull_request'
               continue-on-error: true
@@ -2001,11 +2044,15 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  # the full path (no plan file): each group asks the store for its quarantine (#3454)
+                  RESULTS_STORE_QUARANTINE: ${{ github.event_name != 'pull_request' && '1' || '' }}
                   # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
                   # a pull request's run never does, so it gets no token
                   GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
                   # the base checks its [FLAKY-UNRELATED] and [UNRELATED] tests need; the base-checks job dispatches them
                   RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
+                  # this job, which a touched test's base check re-runs when master fails the same test (#8363)
+                  RESULTS_JOB_ID: ${{ job.check_run_id }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -2268,8 +2315,10 @@ jobs:
     # cancelled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
     # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
     # timeout-minutes, all inside the job's 50.
-    performance:
-        name: Performance Benchmarks
+    # Two jobs, side by side: the algorithms table alone takes about 16 minutes and graphty-element's
+    # benchmarks about 30, and run one after the other they outgrew the one job's 44 minutes (issue #8148).
+    algorithms-benchmarks:
+        name: Algorithms Benchmarks
         needs: packages
         if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
         continue-on-error: true
@@ -2331,16 +2380,65 @@ jobs:
             # this run's numbers.
             - name: Post the algorithms benchmark results to the health dashboard
               if: steps.algorithms-bench.outcome == 'success'
+              timeout-minutes: 2
               env:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
+
+    # graphty-element's browser and timing benchmarks and the graphty app's load time.
+    performance:
+        name: Performance Benchmarks
+        needs: packages
+        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 50
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the numbers)
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every package's dist: graphty-element imports the other packages through their dist.
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
 
             # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
             # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
             # through Playwright. Installed as the graphty-element-lifecycle shard installs them (same
             # cache key, all three browsers' system packages), before either benchmark runs.
-            # A failed algorithms benchmark must not cost the browser numbers, so these run whatever
-            # came before them.
             # Restore only: saving all three browsers under the shared key would hand Firefox and WebKit
             # to every Chromium-only shard that restores it.
             - name: Restore Playwright browsers
@@ -2480,6 +2578,90 @@ jobs:
                   job: cost-accuracy
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # The selection workspace's acceptance test (graphty/acceptance/selection-workspace-uat.mjs) against the built
+    # app, in Chromium and in Playwright's WebKit, Safari's engine: a slider defect that only Safari showed passed
+    # every Chromium run (#8309). Real clicks, drags and keys over every scenario, one browser per job. Report-only
+    # for now (All Checks Pass does not wait for it): it becomes required once its runs have shown it steady.
+    selection-workspace:
+        name: Selection workspace (${{ matrix.browser }})
+        needs: packages
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                browser: [chromium, webkit]
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+
+            # A light pull request's package builds leave the app out (the Build job's --exclude=graphty), so it is
+            # built here from them, as the Lint job does; a full run's artifact already holds it.
+            - name: Build the graphty app
+              if: needs.packages.outputs.full == 'false'
+              run: pnpm exec nx run graphty:build --exclude-task-dependencies
+              env:
+                  VITE_BASE_PATH: /
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: ${{ matrix.browser }}
+
+            - name: Install the browser
+              run: pnpm exec playwright install ${{ matrix.browser }}
+
+            - name: Run the selection workspace's acceptance test
+              run: node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser ${{ matrix.browser }} --out "$RUNNER_TEMP/selection-workspace"
+
+            - name: Keep the screenshots of failed scenarios
+              if: failure()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: selection-workspace-${{ matrix.browser }}
+                  path: ${{ runner.temp }}/selection-workspace
+                  if-no-files-found: ignore
+                  retention-days: 7
+
     # Master's newest capture of each project the Stories jobs capture: the reference a capture compares a story
     # without a baseline against. Found once per run and handed to every Stories job as an artifact of this run:
     # each Stories job finding it itself walked master's commits through the API, about 20 calls a job and 34 jobs
@@ -2562,7 +2744,7 @@ jobs:
 
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
-    # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate;
+    # packed into bins of about 6 minutes of capture (LIGHT_STORY_BIN_LIMIT_MS, at each project's measured capture rate;
     # longer, up to STORY_BIN_MAX_MS, when that would make more than STORY_JOB_BUDGET jobs),
     # each captured with visual-review capture (the built-Storybook capture), but only those stories
     # (--stories). A broken story blocks its pull request: one that
@@ -3847,7 +4029,6 @@ jobs:
                   ref: ${{ inputs.ref }}
                   sparse-checkout: |
                       tools/results
-                      tools/sonar
 
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -4031,6 +4212,7 @@ jobs:
                 docs,
                 test,
                 links,
+                algorithms-benchmarks,
                 performance,
                 cost-accuracy,
                 story-tests-merge,

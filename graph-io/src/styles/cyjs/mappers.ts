@@ -32,6 +32,7 @@ type CyjsValueType =
     | "signedSize"
     | "nodeSize"
     | "positive"
+    | "percent"
     | "text"
     | "fontFamily"
     | "fontWeight"
@@ -175,6 +176,8 @@ const LABEL: [string, CyjsPropertySpec][] = [
             enums: ["rectangle", "round-rectangle", "roundrectangle", "circle"],
         },
     ],
+    // what a line of the label measures as tall: its font size, or its letters' ink (`labelBoxShape`)
+    ["text-metrics", { property: "_textMetrics", type: "enum", enums: ["font", "glyph"] }],
     ["text-rotation", { property: "_rotation", type: "text" }],
     // the words' own opacity, drawn times the element's (`combineLabelOpacity`)
     ["text-opacity", { property: "_textOpacity", type: "zeroOne" }],
@@ -727,6 +730,17 @@ function namedColor(name: string): string | undefined {
 }
 
 /**
+ * A percentage as Cytoscape.js reads its `percent` type: 0 to 100, its `%` implicit (a pie slice's or a stripe's size).
+ * @param value - the value, trimmed
+ * @returns the number, or null when refused
+ */
+function parsePercent(value: unknown): FlatParse {
+    const m = /^(\d+(?:\.\d+)?|\.\d+)%?$/.exec(String(value));
+    const x = m === null ? Number.NaN : Number(m[1]);
+    return x <= 100 ? { kind: "number", value: x, units: null, str: String(x) } : null;
+}
+
+/**
  * A color as Cytoscape.js reads it (`color2tuple`).
  * @param value - the trimmed text
  * @returns red, green and blue, or null when Cytoscape.js refuses it
@@ -943,6 +957,8 @@ function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): Flat
             const ok = spec.type === "zeroOne" ? x >= 0 && x <= 1 : x > 0;
             return ok ? { kind: "number", value: x, units: null, str: String(x) } : null;
         }
+        case "percent":
+            return parsePercent(value);
         case "size":
         case "signedSize":
         case "nodeSize":
@@ -1124,6 +1140,7 @@ function parseMapData(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode
     const numeric =
         spec.type === "zeroOne" ||
         spec.type === "positive" ||
+        spec.type === "percent" ||
         spec.type === "size" ||
         spec.type === "signedSize" ||
         spec.type === "nodeSize";
@@ -1301,13 +1318,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
         case "shape":
             return cyjsShape(String(word), site);
         case "borderStyle":
-            return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "outerBorderStyle":
-            // cytoscape.js 3.34.3 drawOutline strokes a double outline whole and then erases a line a third of the
-            // BORDER's width down its middle, a hairline under a border of 1: the ring it shows is solid
-            return word === "double"
-                ? "solid"
-                : (canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined);
+            return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "lineStyle":
             return canonEnum("lineStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "sourceArrow":
@@ -1346,6 +1358,33 @@ export function cyjsRendered(
         return null;
     }
     return cyjsNeutral(spec, v, site);
+}
+
+/**
+ * A dash array as one dash and the gap after it, as drawn: each dash `grow` longer and each gap `grow` shorter (a
+ * round or square cap reaches half a width past each end), and a pattern of several dashes as their mean dash and
+ * mean gap, which keep its period and the share of it drawn.
+ * @param dash - the dashes and gaps (an odd count repeats)
+ * @param grow - how much longer a cap draws each dash
+ * @returns the dash and gap, or null for an empty array
+ */
+export function drawnDash(dash: readonly number[], grow: number): { dash: number; gap: number } | null {
+    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : dash;
+    if (pairs.length === 0) {
+        return null;
+    }
+    let on = 0;
+    let off = 0;
+    pairs.forEach((d, i) => {
+        if (i % 2 === 0) {
+            on += Math.max(0, d) + grow;
+        } else {
+            off += Math.max(0, d - grow);
+        }
+    });
+    const n = pairs.length / 2;
+    const round = (x: number): number => Math.round((x / n) * 1e6) / 1e6;
+    return { dash: round(on), gap: round(off) };
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * The result record of triangle counting (design 3.3 line 828, 8.5; design 17 line 5067). Design 3.3 declares
+ * The result record of triangle counting. The `@graphty/algorithms` seam declares
  * `{ perNode, total }`; this package also returns the clustering coefficient and the transitivity, because they are
  * an epilogue over the counts and degrees the call already holds and nothing else in the monorepo computes them.
  * Types only.
@@ -28,8 +28,7 @@ export interface GpuTriangleResult {
 }
 
 /**
- * Boruvka's minimum spanning forest (design 3.3 line 808, 8.5): the result shape of design 3.3, `{ edges,
- * totalWeight }`, which is the shape `@graphty/algorithms`' `kruskalMST` returns.
+ * Boruvka's minimum spanning forest: `{ edges, totalWeight }`, which is the shape `@graphty/algorithms`' `kruskalMST` returns.
  * @public
  */
 export interface GpuMstResult {

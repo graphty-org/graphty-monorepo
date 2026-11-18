@@ -4,5 +4,5 @@
  * @returns a non-negative 31-bit integer
  */
 export function drawSeed(): number {
-    return Math.floor(Math.random() * 2 ** 31); // NOSONAR(S2245): an algorithm seed, not a security value
+    return Math.floor(Math.random() * 2 ** 31); // eslint-disable-line sonarjs/pseudo-random -- an algorithm seed, not a security value
 }

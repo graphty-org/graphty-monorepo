@@ -340,7 +340,9 @@ describe("nodes drawn as models", () => {
     it("says a color is ignored on an untinted model, and draws it red once tinted", async () => {
         const element = await mount();
         const { graph } = element;
-        const asset = await element.session.assets.add(sphereGlb(24, 12));
+        // A pale pink of its own: a white or plain gray model states no color, so it draws in the
+        // node's color whatever `node.modelTint` says, and no color is ignored on it.
+        const asset = await element.session.assets.add(sphereGlb(24, 12, [1, 1, 1], [1, 0.85, 0.85, 1]));
         await graph.addNodes([{ id: "a", position: { x: 0, y: 0, z: 0 } }]);
         await graph.setLayout("fixed", { dim: 3 });
         const drawn = nextModelEvent(element, (change) => change.state === "drawn");
@@ -390,7 +392,7 @@ describe("nodes drawn as models", () => {
         const warning = (await ignored).problems.find((fact) => fact.code === "W_MODEL_COLOR_IGNORED");
         assert.deepEqual(warning?.params.layerIds, [red.id]);
         const before = await redPixels();
-        assert.isBelow(before, 50, "an untinted white model is not red");
+        assert.isBelow(before, 50, "an untinted pink model is not red");
 
         await element.session.styles.add({
             name: "tint",

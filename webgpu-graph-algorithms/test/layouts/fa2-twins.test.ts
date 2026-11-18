@@ -59,13 +59,14 @@ import {
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, mergeReports, ratioOf } from "../helpers/sabotage.js";
+import { noiseFloorWriting, noSubgroupsPass } from "../setup/env.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
 /** The free-running twin trace and the number of re-synchronised states. */
 const TRACE_TEN = 10;
 const GRAPHS: readonly ParityGraph[] = ["karate", "random1k"];
 /** Spec 12.2's second pass: acquire() then defaults to subgroups: false, so both contexts are the workgroup twin and the twin axis is vacuous here (a policy skip, not a wrong-result skip). */
-const NO_SUBGROUPS_PASS = process.env.GRAPHTY_GPU_NO_SUBGROUPS === "1";
+const NO_SUBGROUPS_PASS = noSubgroupsPass();
 /**
  * Stages that see a reduction before they are read (K3's epilogue, K4, K5's partials, K1; the positions and the scene
  * carry K4's speed, itself a reduction result); K2's attraction is the one stage with no reduction anywhere upstream
@@ -258,7 +259,7 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
     }
 
     it("writes the workgroup twin's outputs of the UNSCALED random1k / karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
             // tens of seconds of synchronous work under coverage (issue #413)
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

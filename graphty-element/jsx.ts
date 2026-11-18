@@ -117,27 +117,27 @@ export interface GraphtyElementJSXProps {
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
     /**
-     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge time column. Updates graph configuration.
      */
     edgeTimePath?: Graphty["edgeTimePath"];
     /**
-     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node time column. Updates graph configuration.
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
-     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge end column. Updates graph configuration.
      */
     edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
     /**
-     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node end column. Updates graph configuration.
      */
     nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     /**
@@ -309,10 +309,15 @@ export interface GraphtyElementJSXProps {
      */
     renderPath?: Graphty["renderPath"];
     /**
-     * Sets whether the canvas multisamples. Once the engine is built a different value changes
-     * nothing and raises `W_ANTIALIAS_LATE`.
+     * Sets how the canvas multisamples. Once the engine is built, a change it cannot make raises
+     * `W_ANTIALIAS_LATE` and changes nothing.
      */
     antialias?: Graphty["antialias"];
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    preserveDrawingBuffer?: Graphty["preserveDrawingBuffer"];
     /**
      * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
      */
@@ -391,27 +396,27 @@ export interface GraphtyElementJSXProps {
      */
     "edge-weight-path"?: string;
     /**
-     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge time column. Updates graph configuration.
      */
     "edge-time-path"?: string;
     /**
-     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node time column. Updates graph configuration.
      */
     "node-time-path"?: string;
     /**
-     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the edge end column. Updates graph configuration.
      */
     "edge-time-end-path"?: string;
     /**
-     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     * Sets the node end column. Updates graph configuration.
      */
     "node-time-end-path"?: string;
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     "edge-time-unit"?: string;
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
+     * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     "node-time-unit"?: string;
     /**
@@ -498,6 +503,11 @@ export interface GraphtyElementJSXProps {
      * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
      */
     "render-path"?: string;
+    /**
+     * Sets whether the canvas keeps each drawn frame. Once the engine is built a different value
+     * changes nothing and raises `W_PRESERVE_DRAWING_BUFFER_LATE`.
+     */
+    "preserve-drawing-buffer"?: boolean;
     /**
      * Sets the threshold and applies it immediately.
      *

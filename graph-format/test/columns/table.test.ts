@@ -8,21 +8,8 @@ import {
     verifyUniqueColumn,
     verifyUniqueColumns,
 } from "../../src/columns/table.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { type Column, type F32 } from "../../src/types/index.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 describe("AttributeTable construction", () => {
     it("wraps columns in declaration order and validates them", () => {

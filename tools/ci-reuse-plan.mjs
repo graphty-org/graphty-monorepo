@@ -43,10 +43,12 @@ import { fileURLToPath } from "node:url";
 const BUILD_JOBS = ["Build", "Storybooks"];
 const CHECK_JOBS = ["Lint", "Checks", "Docs"];
 // Jobs that say nothing about the tree's code: the screenshots (the gate judges them in every run),
-// the summaries, the draft probe (continue-on-error) and the benchmarks (never on a pull request).
+// the summaries, the draft probe (continue-on-error) and the two benchmark jobs (never on a pull request).
 const IGNORED = (name) =>
     name.startsWith("visual (") ||
-    ["All Checks Pass", "Queue Checks Pass", "Draft state", "Performance Benchmarks"].includes(name);
+    ["All Checks Pass", "Queue Checks Pass", "Draft state", "Algorithms Benchmarks", "Performance Benchmarks"].includes(
+        name,
+    );
 // What this run downloads from the earlier one instead of building: every package's dist and the
 // Storybooks the visual job captures. ci.yml's build job uploads exactly these (a test holds them
 // to it).

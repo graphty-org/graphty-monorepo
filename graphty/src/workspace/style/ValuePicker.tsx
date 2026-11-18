@@ -349,7 +349,7 @@ export function ValuePicker({
         // Tab leaves the list (taking the attribute typed toward, see tabTakes): it closes, as a
         // select's list does, and focus goes back to what opened it rather than on into the panel
         // behind it.
-        <div // NOSONAR(S6848): catches Tab bubbling up from the list inside; the box is not drawn and takes no focus
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- catches Tab bubbling up from the list inside; the box is not drawn and takes no focus
             style={{ display: "contents" }}
             onKeyDown={(event) => {
                 if (event.key === "Tab" && onClose !== undefined) {

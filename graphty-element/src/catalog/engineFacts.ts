@@ -53,7 +53,15 @@ export type OptionOverrides = Readonly<Record<string, Partial<OptionDescriptor>>
 function withOverrides(options: readonly OptionDescriptor[], overrides: OptionOverrides): readonly OptionDescriptor[] {
     return options.map((option) => {
         const override = overrides[option.name];
-        return override === undefined ? option : { ...option, ...override };
+        if (override === undefined) {
+            return option;
+        }
+        // An override that types an option the schema could not drops the reason it could not.
+        if (option.type === "unknown" && override.type !== undefined && override.type !== "unknown") {
+            const { unsupported: _dropped, ...typed } = option;
+            return { ...typed, ...override };
+        }
+        return { ...option, ...override };
     });
 }
 

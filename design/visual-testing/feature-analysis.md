@@ -1,5 +1,7 @@
 # Visual review: feature analysis
 
+> Status: Historical. Chromatic was removed from every package and from CI on 2026-10-11 (commit 31665f3000), tools/chromatic.sh and tools/chromatic-api.sh with it, and a `chromatic` label on a pull request no longer runs anything. visual-review is live: it captures the seven projects listed in `visual-review.config.json` (algorithms, compact-mantine, cytoscape-extensions, graph-io-fidelity, graphty, graphty-element, layout) from `.github/workflows/ci.yml`, `story-slices.yml` and `visual-seed.yml`; how to use it is in `visual-review/README.md`. `visual-review/projects.json` was replaced by `visual-review.config.json` on 2026-09-29 (commit c2cfdec255).
+
 Date: 2026-09-27
 
 ## What this document is

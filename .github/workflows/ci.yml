@@ -1963,6 +1963,15 @@ jobs:
                   path: ~/.cache/lavapipe-debs
                   key: ${{ steps.lavapipe-key.outputs.key }}
 
+            # graph-io's conformance suite validates its GraphML, GEXF and JGF exports against the official schemas
+            # with lxml and jsonschema, and skips that layer when python3 lacks them; GRAPH_IO_REQUIRE_SCHEMAS turns a
+            # missing Python into a failure (#7188). tools/run-tests.sh calls the same script for this shard.
+            - name: Install the Python for graph-io's schema validation
+              if: matrix.needs-schema-python
+              run: |
+                  python="$(tools/schema-python.sh "$RUNNER_TEMP/schema-python")"
+                  { echo "GRAPH_IO_SCHEMA_PYTHON=$python"; echo "GRAPH_IO_REQUIRE_SCHEMAS=1"; } >> "$GITHUB_ENV"
+
             # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
             # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
             # Print the image, the C library and the installed Mesa version so a lane's environment is readable

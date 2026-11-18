@@ -788,6 +788,25 @@ export class Edge {
     }
 
     /**
+     * Whether one end is drawn at opacity 0, so the line ends at its outline (`Edge.bareEnd`). An end drawn with no
+     * `Node` reads its batch's opacity, so none is built.
+     * @param end - Which end.
+     * @returns True while it is.
+     */
+    private endInvisible(end: "source" | "target"): boolean {
+        const row = this.columnEnd(end);
+        if (row !== undefined) {
+            return (this.context.getNodeBatches?.()?.columnOpacityOf(row) ?? 1) <= 0;
+        }
+
+        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return false;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).drawnOpacity <= 0;
+    }
+
+    /**
      * One end's row when it is stored with no `Node`.
      * @param end - Which end.
      * @returns The row, or INVALID_INDEX when a `Node` draws it.
@@ -2813,6 +2832,9 @@ export class Edge {
             // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its centre
             !this.endBehindEdges("source") &&
             !this.endBehindEdges("target") &&
+            // a node drawn at opacity 0 ends the line at its outline too (`Edge.bareEnd`)
+            !this.endInvisible("source") &&
+            !this.endInvisible("target") &&
             // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&

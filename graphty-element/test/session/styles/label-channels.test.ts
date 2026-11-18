@@ -120,6 +120,8 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelWrapEllipsis",
                         "node.labelWrapAnywhere",
                         "node.labelWrapSpaceCount",
+                        "node.labelMaxLines",
+                        "node.labelMaxLinesEllipsis",
                         "node.labelRunAlign",
                         "node.labelMinScreenSize",
                         "node.labelOnTop",

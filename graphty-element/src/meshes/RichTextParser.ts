@@ -359,6 +359,11 @@ export interface WrapOptions {
     spaceCount?: number;
     /** The most lines kept; the last one kept ends in an ellipsis when more were cut (`maxLines`). Unset, all. */
     maxLines?: number;
+    /**
+     * Whether the last line `maxLines` keeps runs on with the rest of its line, cut to the width with an ellipsis
+     * (`maxLinesEllipsis`). Unset or true, it does; false, the lines past `maxLines` are dropped as they are.
+     */
+    maxLinesEllipsis?: boolean;
 }
 
 /** How wide a piece of text is in a style, in a canvas's pixels. */
@@ -383,17 +388,28 @@ export function wrapLines(
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return ctx.measureText(text).width;
     };
-    const wrapped =
-        options.ellipsis === true
-            ? lines.map((line) => ellipsize(line, width, measure))
-            : lines.flatMap((line) => wrapLine(line, width, measure, options));
-    const { maxLines } = options;
-    if (maxLines === undefined || maxLines < 1 || wrapped.length <= maxLines) {
-        return wrapped;
+    const cap = options.maxLines === undefined || options.maxLines < 1 ? Infinity : options.maxLines;
+    const marked = options.maxLinesEllipsis !== false;
+    const out: TextSegment[][] = [];
+    let cut = false;
+    for (const line of lines) {
+        const room = cap - out.length;
+        if (room <= 0) {
+            cut = true;
+            break;
+        }
+        const wrapped =
+            options.ellipsis === true
+                ? [ellipsize(line, width, measure)]
+                : wrapLine(line, width, measure, options, marked ? room : Infinity);
+        cut ||= wrapped.length > room;
+        out.push(...wrapped.slice(0, room));
     }
-    const kept = wrapped.slice(0, maxLines);
-    kept[maxLines - 1] = ellipsize(kept[maxLines - 1], width, measure, true);
-    return kept;
+    // the last line kept holds the rest of its line (`wrapLine`'s room): cut it to the width, and mark any cut
+    if (marked && out.length === cap) {
+        out[cap - 1] = ellipsize(out[cap - 1], width, measure, cut);
+    }
+    return out;
 }
 
 const ELLIPSIS = "\u2026";
@@ -507,9 +523,16 @@ function withoutTrailingSpaces(pieces: TextSegment[]): TextSegment[] {
  * @param width - The widest a line may be, in the canvas's pixels.
  * @param measure - How wide a piece of text is in a style.
  * @param options - How the line is fitted: trailing spaces, breaks anywhere, what a blank counts as.
+ * @param room - The most lines it may break into; the last holds the rest of the line, however wide.
  * @returns The line, wrapped into one or more lines.
  */
-function wrapLine(line: TextSegment[], width: number, measure: Measure, options: WrapOptions): TextSegment[][] {
+function wrapLine(
+    line: TextSegment[],
+    width: number,
+    measure: Measure,
+    options: WrapOptions,
+    room = Infinity,
+): TextSegment[][] {
     const anywhere = options.anywhere === true;
     // Measured with the space after each word, a line narrower than the width as a whole is still kept whole:
     // Cytoscape desktop (ding's LabelInfo) and Cytoscape.js both measure the whole line first and wrap only one
@@ -530,7 +553,7 @@ function wrapLine(line: TextSegment[], width: number, measure: Measure, options:
             options.trailingSpace === true && !space
                 ? spaceAfter(pieces, i, measure, anywhere, options.skipEndSpace === true)
                 : 0;
-        if (!space && used > 0 && used + span + after > width) {
+        if (!space && used > 0 && used + span + after > width && out.length + 1 < room) {
             out.push(withoutTrailingSpaces(current));
             current = [];
             used = 0;

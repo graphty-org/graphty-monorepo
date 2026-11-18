@@ -19,7 +19,7 @@ import { STYLE_ISSUE } from "../../styles/codes.js";
 import { valueColumns } from "../../styles/columns.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
-import type { StyleDialect, StyleProperty, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
+import type { StyleDialect, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
 import { META_KEY } from "./constants.js";
 import {
     BPMN_ARTIFACTS,
@@ -648,7 +648,8 @@ function readShinyPlateStyle(refs: References, style: StyleObject, size: Size | 
 /**
  * Reads the demos' FlowchartNodeStyle: its `type`'s outline, drawn as yEd's flowchart palette draws the same type, kept
  * to its own proportions in the middle of the box (yEd Live 8.5.16 draws start2 in a 56 x 36 box as a circle 36 across),
- * and the lines yEd Live draws inside a predefined process and an internal storage, as the node's picture. A style with
+ * and the lines yEd Live draws inside a predefined process, an internal storage, a direct data and a database and beside
+ * a sequential data, as the node's picture. A style with
  * no `type` draws a data parallelogram, the style's default (yed-live-graphml-specimen-node-shapes-p3: `default` and
  * `flowchart-data` are the same parallelogram).
  * @param refs - the references
@@ -685,13 +686,16 @@ function readFlowchartStyle(
     const stroke = strokeOf(refs, prop(style, "stroke") ?? BLACK);
     putStroke(stroke, put, at);
     const lined = stroke !== null && stroke !== NULL && stroke.color !== null && stroke.color !== NULL;
+    // drawn over the outline's box: a sequential data's middle square
+    const aspect = outline?.aspect;
+    const width = size === null || aspect === undefined ? size?.width : Math.min(size.width, size.height * aspect);
     const picture =
-        size === null || !lined
+        size === null || width === undefined || !lined
             ? null
             : yedNodePicture({
                   kind: `flowchart.${type}`,
-                  width: size.width,
-                  height: size.height,
+                  width,
+                  height: aspect === undefined ? size.height : width / aspect,
                   line: canonColor(stroke.color.raw, stroke.color.dialect, at("borderColor"))?.color ?? null,
                   border: canonNumber(stroke.width, at("borderWidth")) ?? 1,
               });
@@ -2424,7 +2428,7 @@ function readLabels(
     }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
-    readLabelLayout(ls, put);
+    readLabelLayout(ls, labelFontSize(refs, label), put);
     if (at("label").target === "node") {
         put("labelRotation", stretchTurn(refs, label));
     }
@@ -2692,20 +2696,32 @@ const TEXT_ALIGNS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * How a label style's `wrapping` fits its words to its `maximumSize`'s width, as yEd Live 8.5.16 draws them: a 2.6
- * `CHARACTER` label broken between any letters and a `WORD` label at its spaces (yed-live-graphml-specimen-labels-p3),
- * and a 3.0 label, whose box is one line tall, cut between letters with an ellipsis for `TRIM_CHARACTER_ELLIPSIS`,
- * `WRAP_CHARACTER_ELLIPSIS` and `WRAP_WORD_ELLIPSIS` (-p2: "A long la..." for all three).
+ * How a label style's `wrapping` fits its words to its `maximumSize`, as yEd Live 8.5.16 draws them: broken between
+ * any letters (`anywhere`) or at spaces, cut to the lines its box holds, and with `ellipsis` the last line kept runs on
+ * with the rest, cut with an ellipsis. A `TRIM_` wrapping keeps one line (yed-live-graphml-specimen-labels-p2, whose
+ * box holds one line: "A long lab" for TRIM_CHARACTER and WRAP_CHARACTER, "A long" for TRIM_WORD and WRAP_WORD,
+ * "A long la..." for the three others ending in ELLIPSIS; -p3, whose box holds two: "Wrap" / "this" for WORD and
+ * "Wrap" / "this t..." for WORD_ELLIPSIS).
  */
-const WRAPPINGS: ReadonlyMap<string, readonly StyleProperty[]> = new Map([
-    ["CHARACTER", ["labelWrapAnywhere"]],
-    ["CHARACTER_ELLIPSIS", ["labelWrapAnywhere"]],
-    ["WORD", []],
-    ["WORD_ELLIPSIS", []],
-    ["TRIM_CHARACTER_ELLIPSIS", ["labelWrapEllipsis"]],
-    ["WRAP_CHARACTER_ELLIPSIS", ["labelWrapEllipsis"]],
-    ["WRAP_WORD_ELLIPSIS", ["labelWrapEllipsis"]],
-]);
+interface Wrapping {
+    readonly anywhere: boolean;
+    readonly ellipsis: boolean;
+    readonly trim: boolean;
+}
+const WRAPPINGS: ReadonlyMap<string, Wrapping> = new Map(
+    ["CHARACTER", "CHARACTER_ELLIPSIS", "WORD", "WORD_ELLIPSIS"].flatMap((name): [string, Wrapping][] => {
+        const anywhere = name.startsWith("CHARACTER");
+        const ellipsis = name.endsWith("_ELLIPSIS");
+        return [
+            [name, { anywhere, ellipsis, trim: false }],
+            [`WRAP_${name}`, { anywhere, ellipsis, trim: false }],
+            [`TRIM_${name}`, { anywhere, ellipsis, trim: true }],
+        ];
+    }),
+);
+
+/** How tall yEd Live 8.5.16 draws a label's line, in its font's size: 18 apart at 12px (yFiles' line spacing 0.5). */
+const YFILES_LINE_HEIGHT = 1.5;
 
 /** The corner radius yEd Live 8.5.16 draws a `ROUND_RECTANGLE` label box with: rx="5" at 10 and at 12 px. */
 const LABEL_BOX_CORNER = 5;
@@ -2713,22 +2729,28 @@ const LABEL_BOX_CORNER = 5;
 /**
  * Reads how a label style lays its words out: their alignment, its box's rounded corners and its wrapping.
  * @param ls - the label style
+ * @param size - the size its words are drawn at
  * @param put - receives the values
  */
-function readLabelLayout(ls: StyleObject, put: PutValue): void {
+function readLabelLayout(ls: StyleObject, size: number, put: PutValue): void {
     put("labelTextAlign", TEXT_ALIGNS.get(treeAttr(ls.e, "horizontalTextAlignment") ?? "") ?? null);
     if (treeAttr(ls.e, "shape") === "ROUND_RECTANGLE") {
         put("labelCornerRadius", LABEL_BOX_CORNER);
     }
-    // ponytail: the lines past the box's height (yEd Live drops them, or ends the last with an ellipsis) are kept
     const wrap = WRAPPINGS.get(treeAttr(ls.e, "wrapping") ?? "");
-    const width = Number((treeAttr(ls.e, "maximumSize") ?? "").split(",")[0]);
+    const [width, height] = (treeAttr(ls.e, "maximumSize") ?? "").split(",").map(Number);
     if (wrap === undefined || !Number.isFinite(width) || width <= 0) {
         return;
     }
     put("labelWrapWidth", width);
-    for (const property of wrap) {
-        put(property, true);
+    if (wrap.anywhere) {
+        put("labelWrapAnywhere", true);
+    }
+    // ponytail: yEd Live's line height measured at 10 and 12px only; a box of another font may hold a line more or less
+    const lines = wrap.trim ? 1 : Math.floor(height / (size * YFILES_LINE_HEIGHT));
+    if (Number.isFinite(lines)) {
+        put("labelMaxLines", Math.max(1, lines));
+        put("labelMaxLinesEllipsis", wrap.ellipsis);
     }
 }
 

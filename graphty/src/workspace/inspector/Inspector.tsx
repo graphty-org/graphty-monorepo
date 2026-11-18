@@ -50,7 +50,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, nodeName, PATH_WORD, runTime, selectionWords } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, nodeName, RUN_SHAPE_WORDS, runTime, selectionWords } from "./words";
 
 /** A kind's two tab bodies (`style` null when it has nothing to style: no Style tab), or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -581,14 +581,16 @@ export function Inspector(): React.JSX.Element {
     const barRun = run ?? layerRunOf(session, resolved);
     const kindId = kindIdOf(run, resolved);
     const kind = registry.kinds.get(kindId);
-    const isPath = run?.shape === "path";
     // The notes about this, listed in its Notes tab; with none there is no Notes tab.
     const notes = session === null ? [] : notesAbout(session, resolved);
     const hasNotes = notes.length > 0;
     const opensOn = opensOnOf(opensOnValues(session, run, resolved), kind, inspected, remembered, hasNotes);
     const tab = tabShown(picked, identity, hasNotes, opensOn);
-    // A path is not a measure, though its run row is one.
-    const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];
+    // A run row that publishes no groups is headed for what it holds (a path, an edge set).
+    const kindWord =
+        run !== undefined && kindId === "run-row" && run.record.summary?.groups === undefined
+            ? RUN_SHAPE_WORDS[run.shape]
+            : KIND_WORDS[kindId];
     const runDraft = run !== undefined && draft?.run === run.id ? draft.values : {};
     const onDraft = (values: Draft): void => {
         if (run !== undefined) {

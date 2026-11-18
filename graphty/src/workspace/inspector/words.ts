@@ -11,6 +11,8 @@ import type {
     GraphStatistics,
     GraphtyErrorCode,
     Measurement,
+    MultipleTestingCorrection,
+    ResultShape,
     SelectionAttributeStatistics,
     StaleNote,
     SummaryGroup,
@@ -57,8 +59,24 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     source: "Source",
 };
 
-/** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
-export const PATH_WORD = "Path";
+/**
+ * The kind word of a run row that publishes no groups, by what graphty-element says its result
+ * holds (its shape): an edge set is headed for its edges, not Groups. A run that publishes groups
+ * keeps the run row's word.
+ */
+export const RUN_SHAPE_WORDS: Readonly<Record<ResultShape, string>> = {
+    "node-metric": "Measure",
+    "edge-metric": "Measure",
+    community: "Groups",
+    "layered-grouping": "Levels",
+    "category-table": "Categories",
+    path: "Path",
+    "node-set": "Node set",
+    "edge-set": "Edge set",
+    "pair-list": "Pairs",
+    temporal: "Series",
+    fact: "Facts",
+};
 
 /**
  * The property token Why this look shows for each channel. Two channels may share one word. Every
@@ -889,6 +907,20 @@ export function groupName(group: SummaryGroup): string {
  */
 export function rankedName(group: SummaryGroup | undefined): string {
     return group?.rank === undefined ? "" : `Group ${String(group.rank)}`;
+}
+
+/**
+ * A multiple-testing correction graphty-element names by code, as a reader reads it.
+ * @param code - the correction's code.
+ * @returns "Benjamini-Hochberg", or the code itself for one this app does not know yet.
+ */
+export function correctionName(code: MultipleTestingCorrection): string {
+    const names: Readonly<Record<string, string>> = {
+        "benjamini-hochberg": "Benjamini-Hochberg",
+        bonferroni: "Bonferroni",
+        holm: "Holm",
+    };
+    return names[code] ?? code;
 }
 
 /** The words for VR and AR in a notice. */

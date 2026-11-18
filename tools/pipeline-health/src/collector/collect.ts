@@ -1428,7 +1428,7 @@ const etags = new Map<string, { etag: string; time: Record<string, string> }>();
  * @returns the version-to-publish-time record, or undefined
  */
 async function npmTimes(f: Fetch, pkg: string): Promise<Record<string, string> | undefined> {
-    const url = `https://registry.npmjs.org/${pkg.replace("/", "%2F")}`;
+    const url = `https://registry.npmjs.org/${pkg.replaceAll("/", "%2F")}`;
     const old = etags.get(pkg);
     const res = await f(url, { headers: old ? { "if-none-match": old.etag } : {} });
     if (res.status === 304 && old) {

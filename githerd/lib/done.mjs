@@ -1446,7 +1446,7 @@ export function doneIo({
         pull: (n) => get(`repos/${repo}/pulls/${n}`),
         async npmLatest(name) {
             try {
-                const res = await fetchFn(`https://registry.npmjs.org/${name.replace("/", "%2f")}`, {
+                const res = await fetchFn(`https://registry.npmjs.org/${name.replaceAll("/", "%2f")}`, {
                     headers: { accept: "application/vnd.npm.install-v1+json" },
                     signal: AbortSignal.timeout(15_000),
                 });

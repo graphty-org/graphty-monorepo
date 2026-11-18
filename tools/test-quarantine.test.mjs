@@ -167,7 +167,7 @@ function checkout({
         `<testsuites><testsuite>${[T1, T2]
             .map(
                 (t) =>
-                    `<testcase classname="${t.file.slice(8)}" name="${t.name.replace(">", "&gt;")}" time="${t === T1 ? seconds : 0}">${failures.includes(t) ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase>`,
+                    `<testcase classname="${t.file.slice(8)}" name="${t.name.replaceAll(">", "&gt;")}" time="${t === T1 ? seconds : 0}">${failures.includes(t) ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase>`,
             )
             .join("")}</testsuite></testsuites>`;
     writeFileSync(join(root, "first.xml"), junit([T1], firstSeconds));

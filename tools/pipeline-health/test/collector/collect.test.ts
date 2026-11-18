@@ -37,7 +37,7 @@ describe("collector without the GitHub App", () => {
         const fake = fakeGitHub({ coveralls: "2026-10-24T19:48:28Z" });
         const report = await collect(deps(store, fake, NOW, false));
         expect(report).toMatchObject({ github: "not set up", calls: 0, errors: {} });
-        expect(fake.urls.some((u) => u.includes("api.github.com"))).toBe(false);
+        expect(fake.urls.some((u) => new URL(u).hostname === "api.github.com")).toBe(false);
         expect(await store.get(sourceKey("collector"))).toBeUndefined();
         expect(await store.get(sourceKey("coverage"))).toMatchObject({ lastOkAt: Date.parse("2026-10-24T19:48:28Z") });
         expect(homes(store, "cost").map((c) => c.line)).toContain("aws");
@@ -299,7 +299,7 @@ describe("collector with the GitHub App", () => {
         expect(homes(store, "job").length).toBe(jobs);
         // Not hourly or daily again, finished release attempts not fetched again.
         const second = fake.urls.slice(first);
-        expect(second.some((u) => u.includes("registry.npmjs.org") || u.includes("coveralls.io"))).toBe(false);
+        expect(second.some((u) => ["registry.npmjs.org", "coveralls.io"].includes(new URL(u).hostname))).toBe(false);
         expect(second.filter((u) => /runs\/40119894804\/jobs/.test(u))).toHaveLength(0);
         expect(await getCursor(store, "runs#graphty-org/graphty-monorepo")).toBe("2026-10-26T00:40:00Z");
     });

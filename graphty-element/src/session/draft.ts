@@ -389,6 +389,21 @@ function heldTable(
 }
 
 /**
+ * The header columns one CSV table is read by, as the CSV reader records them for data.import:
+ * an edge table's ends, or a node table's id column.
+ * @param edgeRoles - The edge table's roles, when the table is one.
+ * @param key - The node table's id column, or null.
+ * @returns The columns, or undefined when the table names none.
+ */
+function readByOf(edgeRoles: TableMappingRead | undefined, key: string | null): HeldRows["readBy"] {
+    if (edgeRoles?.source !== undefined && edgeRoles.target !== undefined) {
+        return { source: edgeRoles.source.column, target: edgeRoles.target.column };
+    }
+
+    return key === null ? undefined : { key };
+}
+
+/**
  * The rows a reader refused, as plain data a command can carry.
  * @param reader - The reader, after reading.
  * @returns The refusals and the limit.
@@ -1310,6 +1325,7 @@ export class Draft implements LoadDraft {
         const nodeRoles = nodeTable === undefined ? undefined : mapping.tables[nodeTable.table.id];
         const edgeRoles = edgeTable === undefined ? undefined : mapping.tables[edgeTable.table.id];
         const key = nodeRoles?.key ?? null;
+        const readBy = read.tables.length === 1 ? readByOf(edgeRoles, key) : undefined;
         const nodeRows = nodeTable?.rows ?? [];
         const onto = choices.mode === "merge" ? this.host.graph().nodes : undefined;
         const kinds = withKinds(
@@ -1345,6 +1361,7 @@ export class Draft implements LoadDraft {
             ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
             ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
             ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),
+            ...(readBy === undefined ? {} : { readBy }),
         };
         if (kinds.report !== undefined) {
             HELD_KINDS.set(held, kinds.report);

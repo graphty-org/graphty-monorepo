@@ -22,6 +22,7 @@ import {
     createGroup,
     drift,
     emptyLedger,
+    fetchFacts,
     freeze,
     groupClass,
     idleVerdict,
@@ -32,6 +33,7 @@ import {
     MAX_ISSUES,
     MAX_POINTS,
     metrics,
+    prRecord,
     mutate,
     newestMarker,
     readLedger,
@@ -424,6 +426,54 @@ describe("route", () => {
         assert.equal(found[0].kind, "x9-landed");
         applyFix(l, found[0], NOW);
         assert.match(l.waits[0].ended, /landed/);
+    });
+
+    it("ends a wait on a pull request that merged or closed, by number or by branch, and leaves open ones", () => {
+        const l = fresh();
+        addWait(l, { n: 3, on: "#8667", why: "same file", now: NOW });
+        addWait(l, { n: 4, on: "fix/8657-x", why: "same file", now: NOW });
+        addWait(l, { n: 5, on: "#8700", why: "same file", now: NOW });
+        addWait(l, { n: 6, on: "owner-figma", why: "owner", now: NOW });
+        const prs = new Map([
+            [8667, { number: 8667, state: "MERGED" }],
+            [8700, { number: 8700, state: "OPEN" }],
+        ]);
+        const branchPrs = new Map([["fix/8657-x", { number: 8657, state: "CLOSED" }]]);
+        const found = drift(l, { issues: new Map(), prs, branchPrs }, NOW);
+        assert.deepEqual(
+            found.map((d) => [d.issue, d.kind, d.detail]),
+            [
+                [3, "wait-target-done", "#8667 merged"],
+                [4, "wait-target-done", "#8657 closed unmerged"],
+            ],
+        );
+        for (const d of found) applyFix(l, d, NOW);
+        assert.match(l.waits[0].ended, /#8667 merged$/);
+        assert.match(l.waits[1].ended, /#8657 closed unmerged$/);
+        assert.equal(l.waits[2].ended, null);
+        assert.equal(l.waits[3].ended, null);
+        assert.deepEqual(drift(l, { issues: new Map(), prs, branchPrs }, NOW), [], "a second check finds nothing");
+    });
+});
+
+describe("fetchFacts", () => {
+    it("reads each branch's newest pull request and skips a number that is an issue, in one query", () => {
+        const queries = [];
+        const run = (q) => {
+            queries.push(q);
+            return {
+                repository: {
+                    p1677: {},
+                    p8667: { number: 8667, state: "MERGED", commits: { nodes: [] } },
+                    h0: { nodes: [{ number: 8657, state: "CLOSED" }] },
+                    h1: { nodes: [] },
+                },
+            };
+        };
+        const f = fetchFacts([], [1677, 8667], run, false, ["fix/8657-x", "fix/9-y"]);
+        assert.equal(queries.length, 1);
+        assert.deepEqual([...f.prs.keys()], [8667]);
+        assert.deepEqual([...f.branchPrs], [["fix/8657-x", { number: 8657, state: "CLOSED" }]]);
     });
 });
 
@@ -1219,7 +1269,7 @@ describe("metrics", () => {
             mergedAt: mergedHours === null ? null : new Date(NOW - 10 * HOUR + mergedHours * HOUR).toISOString(),
             lastCommitAt: new Date(NOW - (lateCommit ? 5 : 11) * HOUR).toISOString(),
         });
-        const m = metrics(l, [pr(10, 1, 2), pr(11, 2, 6, true), pr(12, 1, 1), pr(13, 0, null)], NOW);
+        const m = metrics(l, [pr(10, 1, 2), pr(11, 2, 6, true), pr(12, 1, 1), pr(13, 0, null)], NOW, 0);
         assert.equal(m.grouped.n, 2);
         assert.equal(m.grouped.commitAfterOpenShare, 0.5);
         assert.equal(m.single.closedUnmergedRate, 0.5);
@@ -1227,7 +1277,10 @@ describe("metrics", () => {
         assert.equal(m.multiFixShare, 0.333);
         assert.deepEqual(m.breaches, []);
         const many = Array.from({ length: 20 }, (_, k) => pr(100 + k, 2, 8));
-        assert.ok(metrics(l, many, NOW).breaches.includes("75th percentile hours to merge, grouped, source"));
+        assert.ok(metrics(l, many, NOW, 0).breaches.includes("75th percentile hours to merge, grouped, source"));
+        // grouped before the rubric went live: neither grouped nor single
+        const early = metrics(l, many, NOW);
+        assert.deepEqual([early.grouped.n, early.single.n, early.breaches], [0, 0, []]);
         // a grouped pull request counts under its group's class; one outside the ledger counts as source
         const d = createGroup(l, {
             lead: 30,
@@ -1238,8 +1291,39 @@ describe("metrics", () => {
             facts: factsOf(),
         });
         freeze(l, d.id, 200, NOW);
-        const byClass = metrics(l, [pr(200, 2, 1), pr(201, 2, 1)], NOW).byClass;
+        const byClass = metrics(l, [pr(200, 2, 1), pr(201, 2, 1)], NOW, 0).byClass;
         assert.deepEqual([byClass.docs.n, byClass.tests.n, byClass.source.n], [1, 0, 1]);
+    });
+});
+
+describe("prRecord", () => {
+    const commit = (committedDate, message, parents = 1) => ({
+        commit: { committedDate, message, parents: { totalCount: parents } },
+    });
+    it("counts closing links and Fixes lines, and skips merges of master", () => {
+        const r = prRecord({
+            number: 7,
+            createdAt: "2026-11-16T22:00:00Z",
+            closingIssuesReferences: { nodes: [{ number: 1 }] },
+            commits: {
+                nodes: [
+                    commit("2026-11-16T21:50:00Z", "fix(tools): a\n\nFixes #1\nFixes #2"),
+                    commit("2026-11-16T21:55:00Z", "fix: b\n\nCloses #3, refs #4"),
+                    commit(
+                        "2026-11-16T23:00:00Z",
+                        "Merge remote-tracking branch 'origin/master' into fix/7-x\n\nFixes #9",
+                        2,
+                    ),
+                ],
+            },
+        });
+        assert.equal(r.closes, 3);
+        assert.equal(r.lastCommitAt, "2026-11-16T21:55:00Z");
+        const fold = prRecord({
+            number: 8,
+            commits: { nodes: [commit("2026-11-17T00:00:00Z", "Merge branch 'fix/9-y'", 2)] },
+        });
+        assert.equal(fold.lastCommitAt, "2026-11-17T00:00:00Z");
     });
 });
 
@@ -1286,6 +1370,12 @@ describe("the command line", () => {
         assert.equal(main(["close", "g1"], deps).code, 2);
         assert.match(main(["check", "--fix"], deps).out, /fixed g1 closed/);
         assert.equal(readLedger(ledgerPath).groups[0].state, "closed");
+        assert.equal(main(["nonsense"], deps).code, 2);
+
+        assert.match(main(["wait", "5", "--on", "#8667", "--why", "same file"], deps).out, /waits on #8667/);
+        const fixed = main(["check", "--fix"], deps).out;
+        assert.match(fixed, /fixed wait of #5 on #8667 ended/);
+        assert.match(readLedger(ledgerPath).waits.at(-1).ended, /#8667 merged$/);
         assert.equal(main(["nonsense"], deps).code, 2);
         assert.equal(main(["--bogus"], deps).code, 2);
     });
@@ -1354,9 +1444,9 @@ describe("the command line", () => {
                     {
                         number: 5,
                         state: "MERGED",
-                        createdAt: "2026-11-16T10:00:00Z",
-                        mergedAt: "2026-11-16T11:00:00Z",
-                        closingIssuesReferences: { totalCount: 2 },
+                        createdAt: "2026-11-16T21:30:00Z",
+                        mergedAt: "2026-11-16T22:00:00Z",
+                        closingIssuesReferences: { nodes: [{ number: 1 }, { number: 2 }] },
                         commits: { nodes: [] },
                     },
                 ],

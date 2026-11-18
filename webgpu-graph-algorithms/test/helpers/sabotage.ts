@@ -1186,7 +1186,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // the last entry of the frontier is never loaded: its arcs are missing from the queue and the counters
             name: "last-entry-skipped",
-            find: "if (i < count) {                                                 // guarded loads into locals (3.5 rule 1)",
+            find: "if (i < count) {                                                 // guarded loads into locals",
             replace: "if (i + 1u < count) {",
             minFactor: 10,
             test: ADVANCE_TEST,

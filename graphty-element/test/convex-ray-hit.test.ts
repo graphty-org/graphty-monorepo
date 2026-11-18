@@ -1,7 +1,7 @@
 /**
  * @file An edge meets a closed convex node (box, cylinder, cone, polyhedra) from the shape's face planes rather than
- * a search of its triangles (issue #412): on every node shape, turned and scaled, `convexRayHit` either declines (a
- * shape that is not a closed convex solid) or lands where Babylon's ray search does.
+ * a search of its triangles, and a flat shape from its outline, convex or not (issue #412): on every node shape, turned
+ * and scaled, `convexRayHit` either declines (a shape that is neither) or lands where Babylon's ray search does.
  */
 
 import { type AbstractMesh, NullEngine, Ray, Scene, Vector3 } from "@babylonjs/core";
@@ -24,6 +24,9 @@ const CONVEX = [
     "hexagonal-prism",
     "square-pyramid",
 ];
+
+/** Flat shapes that are not convex, met from their outline: every flat shape is answered, one way or the other. */
+const FLAT_OUTLINES = ["star", "vee", "cross", "man", "woman", "ellipse", "diamond", "round-rectangle"];
 
 /** Rays from around a node at the origin, aimed through it and past it, and two from inside. */
 const FROM = [
@@ -83,8 +86,28 @@ describe("convexRayHit", () => {
                 }
             }
         }
-        if (CONVEX.includes(shape)) {
+        if (CONVEX.includes(shape) || FLAT_OUTLINES.includes(shape)) {
             assert.strictEqual(answered, FROM.length * 2, `${shape} is answered from its planes`);
+        }
+    });
+
+    it.each(FLAT_OUTLINES)("%s: across the view, meets its outline where the ray search does", (shape) => {
+        const mesh = NodeMesh.createMeshWithoutCache(
+            { styleId: shape, is2D: true, size: 1.5 },
+            { shape: { type: shape } } as never,
+            scene,
+        );
+        mesh.computeWorldMatrix(true);
+        for (let step = 0; step < 24; step++) {
+            const angle = (step / 24) * 2 * Math.PI + 0.1;
+            const from = new Vector3(5 * Math.cos(angle), 5 * Math.sin(angle), 0);
+            const ray = new Ray(from, from.scale(-1));
+            const outline = convexRayHit(mesh, ray);
+            const searched = ray.intersectsMeshes([mesh])[0]?.pickedPoint ?? null;
+            if (!(outline instanceof Vector3) || searched === null) {
+                assert.fail(`${shape} at ${String(step)}: ${String(outline)}, ${String(searched)}`);
+            }
+            assert.isBelow(Vector3.Distance(outline, searched), 1e-4, `${shape} at ${String(step)}`);
         }
     });
 });

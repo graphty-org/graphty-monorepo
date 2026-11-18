@@ -2,7 +2,7 @@
  * A result row's Run again and Copy items (#177), on the REAL graphty-element and Les Miserables:
  * each Copy item puts graphty-element's own form of the result on the clipboard, TSV at full
  * stored precision, and Run again with changes... opens Analyze on the result's algorithm, whose
- * Run adds a second result.
+ * Run adds a second result. The inspector's header "..." for a result holds the same items.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -110,6 +110,29 @@ describe("a result row's Copy items", () => {
     });
 });
 
+describe("the inspector's result view", () => {
+    it("holds the same Copy and Run again items in its header's ...", async () => {
+        const { session, id } = await withResult("pagerank");
+        const result = session.runs.get(id)?.result;
+        const list = await screen.findByRole("list", { name: "Results" });
+        const row = await waitFor(() => {
+            const found = list.querySelector<HTMLElement>(`[data-run="${id}"] .dp-run-main`);
+            assert.isNotNull(found);
+            return found;
+        });
+        if (row === null) {
+            throw new Error("no row");
+        }
+        await userEvent.click(row);
+
+        await userEvent.click(await screen.findByRole("button", { name: "Measure actions" }));
+        await screen.findByRole("menuitem", { name: /^Run again with changes/ });
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Copy as TSV/ }));
+        await screen.findByText("Copied as TSV");
+        assert.strictEqual(await navigator.clipboard.readText(), result?.toTsv());
+    });
+});
+
 describe("a result row's Run again with changes...", () => {
     it("opens Analyze on the result's algorithm, and a changed setting's Run adds a second result", async () => {
         const { session, id } = await withResult("katz", { alpha: 0.01 });
@@ -131,5 +154,36 @@ describe("a result row's Run again with changes...", () => {
                 [0.01, 0.02],
             );
         });
+    });
+});
+
+describe("a result row's Combine into a score...", () => {
+    it("opens Custom score on the result's metric, adds a second weighted metric, and creates the column", async () => {
+        const { session, id } = await withResult("pagerank");
+        const degree = session.runs.start("degree", {});
+        await degree;
+
+        await pick(id, "Combine into a score");
+        const dialog = await screen.findByRole("dialog", { name: "Custom score" });
+        const first = within(dialog).getByRole("combobox", { name: /^Metric 1/ });
+        assert.strictEqual((first as HTMLInputElement).value, "PageRank");
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add metric" }));
+        const weight = await within(dialog).findByRole("spinbutton", { name: /^Weight 2/ });
+        await userEvent.tripleClick(weight);
+        await userEvent.keyboard("2{Tab}");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+        await waitFor(() => {
+            const [column] = session.data.derivedColumns();
+            assert.strictEqual(column?.name, "Score");
+            assert.deepEqual(
+                column?.score?.map((term) => term.weight),
+                [1, 2],
+            );
+        });
+        const values = session.data.nodes().map((node) => node.Score as number);
+        assert.isTrue(values.every((value) => value >= 0 && value <= 3));
+        assert.strictEqual(Math.max(...values) > 0, true);
     });
 });

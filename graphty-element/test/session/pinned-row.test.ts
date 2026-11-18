@@ -38,9 +38,6 @@ function pinnedLayer(session: GraphSession): string | undefined {
         .find((layer) => layer.source.by === "template" && layer.source.templateId === "graphty:starting-pinned")?.id;
 }
 
-/** The Timeline Hidden row, which the starting rows include: its name and pin. */
-const TIMELINE_HIDDEN: [string, string][] = [["Timeline Hidden", "top"]];
-
 /**
  * The halo color a node is drawn with.
  * @param session - The session.
@@ -57,7 +54,11 @@ describe("the Pinned row", () => {
         assert.isUndefined(session.config.pinnedStyle);
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [["Everything", "bottom"], ...TIMELINE_HIDDEN, ["Selected", "top"], ["Hovered", "top"]],
+            [
+                ["Everything", "bottom"],
+                ["Selected", "top"],
+                ["Hovered", "top"],
+            ],
         );
         // Set later, the setting writes no row: the default rows were written when the project began.
         await session.config.set({ pinnedStyle: LOOK });
@@ -69,7 +70,7 @@ describe("the Pinned row", () => {
         const session = await triangle({ pinnedStyle: LOOK });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", ...TIMELINE_HIDDEN.map(([name]) => name), "Pinned", "Selected", "Hovered"],
+            ["Everything", "Pinned", "Selected", "Hovered"],
         );
         assert.deepStrictEqual(session.styles.get(pinnedLayer(session) ?? "")?.set, {
             "node.haloColor": "#868E96",
@@ -158,7 +159,7 @@ describe("the Pinned row", () => {
         await reopened.project.open((await session.project.save()).text, { discard: true });
         assert.deepStrictEqual(
             reopened.styles.tree().map((each) => each.name),
-            ["Everything", ...TIMELINE_HIDDEN.map(([name]) => name), "Pinned", "Selected", "Hovered"],
+            ["Everything", "Pinned", "Selected", "Hovered"],
         );
         assert.deepStrictEqual(reopened.styles.toDocument(), saved);
         session.dispose();

@@ -18,11 +18,6 @@
     min-width: 0;
 }
 
-.ws-field-covered {
-    padding-inline-start: var(--ws-label, 80px);
-    padding-bottom: 2px;
-}
-
 /* A field: one line of about 28px -- its name in the label column, the control, then the vary and
    Clear columns. Without a name (a field its row already names), the control starts the line. */
 .ws-field {
@@ -98,47 +93,6 @@
     opacity: 0.55;
 }
 
-/* A varied field's second line: category chits and "+N", a ramp's ends or a number's From / To,
-   then its notes ("Logarithmic scale"), under the value pill. */
-.ws-varied-line {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 2px 0 4px;
-}
-
-/* One row that never wraps: at most 6 chits, or 5 and "+N". */
-.ws-varied-chits {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 2px;
-}
-
-/* 12 px, a 1 px inset ring at 3:1 on either theme, so a pale or a dark color keeps its edge. */
-.ws-varied-chit {
-    flex: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
-    box-shadow: inset 0 0 0 1px var(--cm-swatch-ring);
-}
-
-/* A field with a line under it: its name and its columns line up with the pill, its first line. */
-.ws-field:has(.ws-varied-line) {
-    align-items: start;
-    padding-top: 2px;
-}
-
-.ws-field:has(.ws-varied-line) > .ws-field-label {
-    min-height: 24px;
-}
-
-.ws-varied-ends {
-    display: flex;
-    justify-content: space-between;
-}
-
 /* After a write to several layers: what it did, "Also set those N" and Undo, under the field. */
 .ws-bulk-receipt {
     display: flex;
@@ -146,16 +100,6 @@
     align-items: center;
     gap: 2px 6px;
     padding: 0 8px 4px var(--ws-label, 80px);
-}
-
-/* What a bulk edit says under its field (the breakdown, the receipt): 11 px in
-   the primary ink, so the small words keep 4.5:1 on either theme. */
-.ws-bulk-words.ws-bulk-words {
-    --text-fz: 11px;
-    --text-lh: 16px;
-    color: var(--cm-text);
-    font-size: 11px;
-    line-height: 16px;
 }
 
 /* The Node and Edge tabs and the kind's switch, on the tab's gutter. */
@@ -197,14 +141,7 @@
     color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
 }
 
-.ws-which-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-/* A card's chip: its words and its own count, 11 px on the secondary fill; an unfinished card's
-   chip is dashed. */
+/* A chip in the selection step pane. */
 .ws-chip {
     padding: 0 6px;
     font-size: 11px;
@@ -213,19 +150,6 @@
     background: var(--cm-bg-secondary);
     border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
-}
-
-.ws-chip[data-todo] {
-    background: transparent;
-    box-shadow: none;
-    outline: 1px dashed var(--cm-border-translucent-strong);
-    outline-offset: -1px;
-}
-
-/* "All 24 nodes": a line of the panel's reading, not a warning. */
-.ws-which-hint {
-    font-size: 11px;
-    line-height: 18px;
 }
 
 /* One condition card: its header (name, count, x), its Match select and its editor. */

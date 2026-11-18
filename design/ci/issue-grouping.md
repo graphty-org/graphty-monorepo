@@ -394,7 +394,10 @@ Still to build, in this order:
 
 `node tools/issue-groups.mjs metrics` combines the ledger with one GraphQL search of the pull requests closed or
 merged in the last 7 days. A pull request counts as **grouped** when it closes two or more issues (GitHub's closing
-references) or its ledger group has two or more members. issue-round's last line carries `show`'s summary
+references in the body plus the `Fixes`/`Closes`/`Resolves #N` lines of its commit messages) or its ledger group has
+two or more members; one opened before the rubric went live (2026-11-16 21:00 UTC) counts as neither grouped nor
+single. A **commit after opening** is any commit dated after the pull request opened except a merge of master, which
+clears a conflict or an inherited failure rather than changing the work. issue-round's last line carries `show`'s summary
 (`groups: S started, R ready, W waiting, F frozen, P parked, G grouped PRs open; N proposed`), and the first round
 after 00:00 Pacific appends `metrics --append` to `tmp/issue-round/grouping-metrics.jsonl`.
 

@@ -1,0 +1,4 @@
+# The Python packages validate_exports.py needs (the conformance suite's schema layer).
+# tools/schema-python.sh installs exactly these, in CI's graph-io shard and in tools/run-tests.sh.
+lxml==6.1.3
+jsonschema==4.26.0

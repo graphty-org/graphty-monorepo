@@ -1,5 +1,10 @@
 # Browser Compatibility Guide
 
+Status: historical record. The functions and settings it names (`isNodeEnvironment`,
+`isBrowserEnvironment`, `Graph`, `configureGlobalOptimizations`, `getEnvVar`, the `GRAPHTY_*`
+variables) do not exist in algorithms today; algorithms runs over graph-format snapshots
+(`algorithms/README.md`).
+
 The @graphty/algorithms library is designed to work in both Node.js and browser environments. This guide explains how the library handles platform differences.
 
 ## Environment Detection
@@ -80,34 +85,6 @@ All APIs work identically in both environments. The only differences are:
 1. **Configuration**: Environment variables (Node.js) vs window config (Browser)
 2. **Memory limits**: Browsers have stricter memory constraints
 3. **File I/O**: Not available in browsers (use fetch for remote data)
-
-## Example: Cross-Platform Code
-
-```javascript
-import { Graph, betweennessCentrality, configureGlobalOptimizations, getEnvVar } from "@graphty/algorithms";
-
-// Works in both environments
-async function runAnalysis() {
-    // Check for configuration
-    const useOptimized = getEnvVar("GRAPHTY_USE_OPTIMIZED_BFS") === "true";
-
-    // Configure if needed
-    if (useOptimized) {
-        await configureGlobalOptimizations("performance");
-    }
-
-    // Create and analyze graph
-    const graph = new Graph();
-    // ... add nodes and edges ...
-
-    const centrality = betweennessCentrality(graph, {
-        optimized: true,
-        normalized: true,
-    });
-
-    return centrality;
-}
-```
 
 ## Testing
 

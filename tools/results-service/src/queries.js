@@ -10,6 +10,10 @@ const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may 
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
 const PLAN_VARIANTS_MAX = 100;
+// Variants a plan read asks D1 about at once. D1 runs one query at a time and refuses a call whose queue grows too
+// long: a light check's ~47 variants at once (about 100 queries) answered HTTP 500 (#8208). Each variant's two or
+// three queries run in turn, so at most this many queries wait.
+export const PLAN_PARALLEL = 4;
 // A variant's per-file durations read only its newest invocations: file_run is never pruned, and reading a variant's
 // whole history grew until a light check's plan read overloaded D1 (HTTP 500), its bins were packed without
 // history and pull requests ran about five times as many test jobs (#5404). A selected run's bin holds about 7
@@ -248,17 +252,24 @@ export async function getPlan(q, who, db, now) {
     if (variants.length > PLAN_VARIANTS_MAX) refuse(400, `a plan reads at most ${PLAN_VARIANTS_MAX} variants`);
     const pairs = variants.map((v, i) => [v, inputs[i]]);
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
-    // in parallel: one after another, an everything run's ~55 variants took past the client's wait, so its bins
-    // were packed without history, about eight times too many test jobs, and they queued pull requests for an hour
-    const facts = Object.fromEntries(
-        await Promise.all(pairs.map(async ([v, k]) => [v, await variantFacts(db, v, k, now)])),
-    );
+    // a few variants at a time: one after another, an everything run's ~55 variants took past the client's wait
+    // (bins packed without history, about eight times too many test jobs); all at once, their ~100 queries queued in
+    // D1 together and it refused the read with HTTP 500 from about 30 variants up (#8208)
+    const facts = new Array(pairs.length);
+    let next = 0;
+    const worker = async () => {
+        while (next < pairs.length) {
+            const i = next++;
+            facts[i] = await variantFacts(db, pairs[i][0], pairs[i][1], now);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(PLAN_PARALLEL, pairs.length) }, worker));
     const files = list(q.get("files"));
     if (files.length > ROWS_MAX) refuse(400, `a plan reads at most ${ROWS_MAX} files`);
     return {
         quarantine: (await activeQuarantine(db, families, now)).map((q) => ({ ...q, since: undefined })),
         failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
-        variants: facts,
+        variants: Object.fromEntries(pairs.map(([v], i) => [v, facts[i]])),
         ...(pairs.length === 0 && files.length ? await fileFacts(db, files, now) : {}),
     };
 }

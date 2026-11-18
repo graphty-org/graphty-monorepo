@@ -27,8 +27,8 @@ function isAbort(error: unknown, reason?: string): boolean {
     );
 }
 
-function labels(items: readonly { label: string }[]): string[] {
-    return items.map((item) => item.label);
+function labels(items: readonly { fact: { params: Readonly<Record<string, unknown>> } }[]): string[] {
+    return items.map((item) => String(item.fact.params.label));
 }
 
 describe("history.pending", () => {
@@ -232,7 +232,7 @@ describe("history.nextUndo", () => {
         await dispatcher.dispatch({ op: "fake.styles", name: "a" });
         const next = nextUndo();
         assert.strictEqual(next?.kind, "undo");
-        assert.strictEqual(next?.kind === "undo" ? next.step.label : "", "Styled a");
+        assert.strictEqual(next?.kind === "undo" ? String(next.step.fact.params.label) : "", "Styled a");
         assert.strictEqual(nextUndo(), next);
 
         const run = outcome(dispatcher.dispatch({ op: "fake.run", id: "degree" }));

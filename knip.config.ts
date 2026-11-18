@@ -438,10 +438,6 @@ const config: KnipConfig = {
             // The plugin finds nothing else that run reads.
             ...(production ? { vite: false } : {}),
             ignoreDependencies: [
-                // The engine @storybook/addon-a11y ships (a devDependency here), imported by
-                // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
-                // Declaring it would change pnpm-lock.yaml.
-                "axe-core",
                 // The types of the `react` peer, which the published declaration files (dist/index.d.ts)
                 // import and --production follows into the build
                 ...(production ? ["@types/react"] : []),

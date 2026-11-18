@@ -182,6 +182,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
     SessionCapabilities,
@@ -211,7 +212,7 @@ export type {
     ValueType,
 } from "./src/session";
 export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
-export type { KeymapRoot, KeymapSession } from "./src/session";
+export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
 export { attachKeymap } from "./src/session";
 

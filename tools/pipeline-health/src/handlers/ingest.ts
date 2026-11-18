@@ -30,7 +30,7 @@ import {
     ttlAt,
 } from "../model/index.js";
 import type { Store } from "../model/store.js";
-import { recordResults, ResultsRefused } from "./results.js";
+import { recordResults, ResultsRefused, TESTS_PATH } from "./results.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
 export const MAX_ROWS = 5000;
@@ -64,18 +64,20 @@ const MASTER_KINDS: Record<string, Kind> = {
 };
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
-const CI_ROUTES = new Set([
-    "invocations",
-    "failures",
-    "durations",
-    "verdicts",
-    "sites",
-    "benchmarks",
+/** The results service's records (#3607, handlers/results.ts): these routes store nothing else. */
+const RESULTS_ONLY = new Set([
     "issues",
     "channel-moves",
+    "hold",
+    "base-checks",
+    "DELETE base-checks",
+    "story-captures",
+    "story-reach",
+    "PUT durations/tests",
 ]);
-/** The results service's records (#3607, handlers/results.ts): these two routes store nothing else. */
-const RESULTS_ONLY = new Set(["issues", "channel-moves"]);
+const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites", "benchmarks", ...RESULTS_ONLY]);
+/** A test duration history's body: the results service takes up to 1.9 MB (handlers/results.ts HISTORY_MAX). */
+const MAX_HISTORY_BYTES = 2_000_000;
 /** The kinds the results service gives a master workflow's token (tools/results-service MASTER_KINDS). */
 const RESULTS_KINDS: Record<string, string> = {
     ...MASTER_KINDS,
@@ -154,22 +156,60 @@ export async function handler(
 }
 
 async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: number): Promise<unknown> {
-    const { raw, size, local, route } = requestOf(event);
+    const { raw, size, local, route, name } = requestOf(event);
     if (local && !(await localTokenOk(event.headers?.authorization, now))) {
         refuse(401, "unauthorized");
     }
     const body = bodyOf(raw, event.isBase64Encoded);
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const claims = event.requestContext.authorizer?.jwt?.claims ?? {};
-    if (!local && route !== "invocations") {
-        // The results service's copy first, under its own claim rules: a post the dashboard refuses (a verdict
-        // state it does not chart, nightly-abandon.yml's rejection) is still the results service's record.
-        const answer = await resultsCopy(route, body, claims, db, now);
-        if (RESULTS_ONLY.has(route)) {
-            return answer;
-        }
+    if (local) {
+        return stored(await dashboardCopy(route, body, { kind: "local", claims: {} }, db, now), size, event);
     }
-    const who: Who = local ? { kind: "local", claims: {} } : whoOf(claims);
+    // CI is answered as the results service answers it, so RESULTS_URL can name this API (#3607); with the dashboard's
+    // own answer only where the results service has none.
+    if (route === "invocations") {
+        // a shard run's results copy only once the dashboard took it, so a refused record leaves no trace in either
+        const dashboard = stored(await dashboardCopy(route, body, whoOf(claims), db, now), size, event);
+        return (await resultsCopy(route, body, claims, db, now)) ?? dashboard;
+    }
+    // The results service's copy first, under its own claim rules: a post the dashboard refuses (a verdict state it
+    // does not chart, nightly-abandon.yml's rejection) is still the results service's record, and answered as such.
+    const answer = await resultsCopy(route, body, claims, db, now, name);
+    if (RESULTS_ONLY.has(route)) {
+        return answer;
+    }
+    try {
+        const dashboard = stored(await dashboardCopy(route, body, whoOf(claims), db, now), size, event);
+        return answer ?? dashboard;
+    } catch (error) {
+        // only a master workflow the dashboard does not list (nightly-site.yml's durations, nightly-abandon.yml's
+        // verdict); every other refusal stands
+        if (answer === undefined || !(error instanceof Refused) || error.code !== "wrong_workflow") {
+            throw error;
+        }
+        log({ route: event.rawPath, dashboard: error.code });
+        return answer;
+    }
+}
+
+function stored(
+    { rows, kind }: { rows: number; kind: Kind },
+    size: number,
+    event: APIGatewayProxyEventV2WithJWTAuthorizer,
+): { stored: number; kind: Kind } {
+    log({ route: event.rawPath, kind, size, rows });
+    return { stored: rows, kind };
+}
+
+// The dashboard's own rows of a post: checked, charged to the write quota and stored.
+async function dashboardCopy(
+    route: string,
+    body: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<{ rows: number; kind: Kind }> {
     const { items, extra, source } = await itemsOf(route, body, who, db, now);
     // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
     if (items.length > MAX_ROWS) {
@@ -186,12 +226,7 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     }
     await putRaw(db, items, now);
     await recordSource(db, source, now, { ok: true }, oldestAt(items));
-    // a shard run's results copy only once the dashboard took it, so a refused record leaves no trace in either
-    if (!local && route === "invocations") {
-        await resultsCopy(route, body, claims, db, now);
-    }
-    log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
-    return { stored: items.length, kind: who.kind };
+    return { rows: items.length, kind: who.kind };
 }
 
 /**
@@ -204,18 +239,23 @@ function requestOf(event: APIGatewayProxyEventV2WithJWTAuthorizer): {
     size: number;
     local: boolean;
     route: string;
+    name?: string;
 } {
-    const raw = event.body ?? "";
-    const size = Buffer.byteLength(raw, event.isBase64Encoded ? "base64" : "utf8");
-    if (size > MAX_BODY_BYTES) {
-        refuse(413, "too_large", { limit: MAX_BODY_BYTES });
-    }
     const local = event.rawPath.startsWith("/v1/local/");
-    const route = event.rawPath.split("/").pop() ?? "";
+    const tests = !local && event.rawPath.startsWith(TESTS_PATH);
+    const last = tests ? "durations/tests" : (event.rawPath.split("/").pop() ?? "");
+    const method = event.requestContext.http?.method ?? "POST";
+    const route = method === "POST" ? last : `${method} ${last}`;
     if (!(local ? LOCAL_ROUTES : CI_ROUTES).has(route)) {
         refuse(404, "unknown_route");
     }
-    return { raw, size, local, route };
+    const raw = event.body ?? "";
+    const size = Buffer.byteLength(raw, event.isBase64Encoded ? "base64" : "utf8");
+    const limit = tests ? MAX_HISTORY_BYTES : MAX_BODY_BYTES;
+    if (size > limit) {
+        refuse(413, "too_large", { limit });
+    }
+    return { raw, size, local, route, name: tests ? event.rawPath.slice(TESTS_PATH.length) : undefined };
 }
 
 /**
@@ -326,6 +366,7 @@ export function resultsKindOf(claims: Claims): string {
  * @param claims - the OIDC token's claims
  * @param db - the store
  * @param now - the current time, in ms
+ * @param name - a test duration history's name, from its path
  * @returns the results service's answer
  */
 async function resultsCopy(
@@ -334,9 +375,10 @@ async function resultsCopy(
     claims: Claims,
     db: Store,
     now: number,
+    name?: string,
 ): Promise<unknown> {
     try {
-        return await recordResults(route, body, { kind: resultsKindOf(claims), claims }, db, now);
+        return await recordResults(route, body, { kind: resultsKindOf(claims), claims }, db, now, name);
     } catch (error) {
         if (RESULTS_ONLY.has(route)) {
             throw error;

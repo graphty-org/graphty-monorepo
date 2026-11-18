@@ -287,6 +287,12 @@ export interface NodeStyleValues {
      */
     readonly labelWrapTrailingSpace: boolean;
     /**
+     * With `labelWrapTrailingSpace`, whether a line's last word is measured without a space after it, as Cytoscape.js
+     * measures a line (`subline + word + separator`, and the last word has no separator). Unset or false, the last
+     * word's space counts too, as Cytoscape desktop's does.
+     */
+    readonly labelWrapSkipEndSpace: boolean;
+    /**
      * Whether a line wider than `labelWrapWidth` is cut to fit with an ellipsis after it, in place of wrapping
      * (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */
@@ -307,6 +313,17 @@ export interface NodeStyleValues {
      * layout sets it (yEd's "\nCS" is two lines tall). Unset or false, a blank line takes no height.
      */
     readonly labelKeepBlankLines: boolean;
+    /**
+     * The most lines the label draws, a whole number from 1: the lines past it, its own or the ones
+     * `labelWrapWidth` breaks it into, are cut. Unset, every line.
+     */
+    readonly labelMaxLines: number;
+    /**
+     * Whether the last line `labelMaxLines` keeps runs on with the rest of its line, cut to `labelWrapWidth` with an
+     * ellipsis after it, as yEd's `WORD_ELLIPSIS` wrapping draws "Wrap" / "this t...". False, the lines past it are
+     * dropped as they are (yEd's `WORD`). Unset, true.
+     */
+    readonly labelMaxLinesEllipsis: boolean;
     /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
@@ -584,6 +601,23 @@ export interface NodeStyleValues {
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
     /**
+     * What one line of the label is as tall as, before `labelLineHeight` multiplies it: `font`, its font's ascent plus
+     * descent; `size`, its font size, as CSS and Cytoscape.js measure a line (the letters reach past it); `glyphs`, its
+     * letters' own ink (Cytoscape.js `text-metrics: glyph`). Unset, `font`.
+     */
+    readonly labelLineBox: string;
+    /**
+     * Where the line round the box behind the label's words is drawn: `outside`, all of it past the box's edge;
+     * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
+     */
+    readonly labelBorderAlign: string;
+    /**
+     * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
+     * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js
+     * `text-background-shape: circle`). Unset, `rectangle`.
+     */
+    readonly labelBackgroundShape: string;
+    /**
      * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
      * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
      * `target-width`, as `words-at-side` and at least as wide as the node, a band across it (yEd's group header),
@@ -625,6 +659,13 @@ export interface NodeStyleValues {
     readonly imageAutoSize: string;
     /** The image's opacity, 0..1. */
     readonly imageOpacity: number;
+    /**
+     * Whether the node takes its image's proportions: its box grows the longer way until the image, at its own
+     * proportions, covers the node's width and height (vis-network's image nodes, sized to their picture with its
+     * shorter side across `2 * size`). The image's size is read when it loads; until then, and for an image that cannot
+     * be read, the node keeps its own box. Unset, false.
+     */
+    readonly imageAspect: boolean;
     /**
      * A character or short text drawn over the node, centered on it (vis-network's icon nodes: an icon font's
      * glyph), in `glyphFont` (a CSS font family) at `glyphSize` (the font's size, in the units of `width`),
@@ -1068,6 +1109,10 @@ export interface EdgeStyleValues {
     readonly labelWrapSpaceCount: number;
     /** Whether a blank line before or between lines of words is drawn one line tall; see the node's. */
     readonly labelKeepBlankLines: boolean;
+    /** The most lines the label draws; see the node's. */
+    readonly labelMaxLines: number;
+    /** Whether the last line `labelMaxLines` keeps runs on, cut with an ellipsis; see the node's. */
+    readonly labelMaxLinesEllipsis: boolean;
     /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
@@ -1120,6 +1165,23 @@ export interface EdgeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * What one line of the label is as tall as, before `labelLineHeight` multiplies it: `font`, its font's ascent plus
+     * descent; `size`, its font size, as CSS and Cytoscape.js measure a line (the letters reach past it); `glyphs`, its
+     * letters' own ink (Cytoscape.js `text-metrics: glyph`). Unset, `font`.
+     */
+    readonly labelLineBox: string;
+    /**
+     * Where the line round the box behind the label's words is drawn: `outside`, all of it past the box's edge;
+     * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
+     */
+    readonly labelBorderAlign: string;
+    /**
+     * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
+     * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js
+     * `text-background-shape: circle`). Unset, `rectangle`.
+     */
+    readonly labelBackgroundShape: string;
     /**
      * A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` on an
      * edge that also has a label). Unset a place of its own, up and left of the line's middle, its lower right corner
@@ -1186,7 +1248,8 @@ export interface EdgeStyleValues {
     readonly targetLabelOpacity: number;
     /**
      * How long each dash of a dashed or dotted `lineStyle` is drawn, its caps included, as a multiple of the line's
-     * `width`. Unset, the reader's own pattern.
+     * `width`: a file's own pattern (vis-network's dash arrays, Cytoscape.js's `line-dash-pattern`), a pattern of
+     * several dashes as their mean, which keeps its period and the share of it drawn. Unset, the program's own pattern.
      */
     readonly dashLength: number;
     /** The clear gap after each dash, as a multiple of the line's `width`; see `dashLength`. */
@@ -1357,6 +1420,8 @@ export type StyleTool =
     | "ogdf"
     /** NetworkX's matplotlib drawing (`draw_networkx`). */
     | "networkx"
+    /** The Tk canvas, which draws a plain GML file's graphics (the GML draft's, modelled after Tk's). */
+    | "tk"
     /** graphty itself, for a file holding a `graphty.styles` block. */
     | "graphty"
     | (string & {}); // an open union, so editors still offer its literal values

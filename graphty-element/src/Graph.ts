@@ -221,7 +221,7 @@ import {
     type NodeThumbnailOptions,
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { type Antialias, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -681,6 +681,17 @@ export function featuresFrom(graph: Graph, read: () => readonly string[] | undef
     requestedFeatures.set(graph, read);
 }
 
+/** How {@link Graph.waitForStableFrame} and `element.waitForStableFrame()` wait. */
+export interface StableFrameOptions {
+    /**
+     * How long to wait before the wait rejects; 30 seconds by default.
+     * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
+     * machine while the picture is still on its way. To ask whether the picture is final
+     * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
+     */
+    timeoutMs?: number;
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -1113,7 +1124,7 @@ export class Graph implements GraphContext {
 
     /** See {@link Graph.antialias}. */
     #antialias: Antialias;
-    /** Whether the engine was built multisampling: `antialias` was not false. */
+    /** Whether the engine was built multisampling: `antialias` was neither false nor "shader". */
     readonly #multisampled: boolean;
 
     /**
@@ -1138,7 +1149,7 @@ export class Graph implements GraphContext {
             return true;
         }
 
-        if (value === false || !this.#multisampled) {
+        if (value === false || value === "shader" || !this.#multisampled) {
             return false;
         }
 
@@ -1157,8 +1168,9 @@ export class Graph implements GraphContext {
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param options - How the engine is built; read once, here.
-     * @param options.antialias - Whether the canvas multisamples (4x): always, never, or only the
-     *     frame a still scene rests on (`"at-rest"`). Left out, true.
+     * @param options.antialias - Whether the canvas multisamples (4x): always, never, only the
+     *     frame a still scene rests on (`"at-rest"`), or never while the line shader smooths the
+     *     lines' edges (`"shader"`). Left out, true.
      * @param options.preserveDrawingBuffer - Whether the WebGL canvas keeps each drawn frame, so
      *     the page can read it between frames. Left out, true.
      */
@@ -1167,7 +1179,7 @@ export class Graph implements GraphContext {
         options: { readonly antialias?: Antialias; readonly preserveDrawingBuffer?: boolean } = {},
     ) {
         this.#antialias = options.antialias ?? true;
-        this.#multisampled = this.#antialias !== false;
+        this.#multisampled = this.#antialias !== false && this.#antialias !== "shader";
         this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
@@ -1693,6 +1705,11 @@ export class Graph implements GraphContext {
         };
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
+        // Late-bound: a change of renderer replaces the render manager.
+        this.updateManager.gpuFrames = {
+            fenced: () => this.renderManager.fencedFrames(),
+            finished: (frame) => this.renderManager.gpuFinishedFrame(frame),
+        };
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };
@@ -2490,6 +2507,9 @@ export class Graph implements GraphContext {
 
         try {
             await this.openWebGPU(requested);
+            // The render path opens before the held loads run: resumed first, a load under "batched"
+            // finds no batch yet and gives every row a `Node` (#8734).
+            this.#openRenderPath();
         } finally {
             if (holdQueue) {
                 queue.resume();
@@ -2998,8 +3018,7 @@ export class Graph implements GraphContext {
 
             this.watchRenderLoss();
             this.#watchViewForLog();
-            this.#renderPathOpen = true;
-            this.#applyRenderPath();
+            this.#openRenderPath();
 
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
@@ -5216,12 +5235,18 @@ export class Graph implements GraphContext {
 
     /**
      * Whether a straight pulled line draws the lean program, each piece's rectangle alone:
-     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12).
-     * @returns True when it does.
+     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12); and
+     * `"smooth"`, the rectangle a pixel wider with its edges smoothed by the fragment shader, under
+     * `antialias` "shader" (issue #8531).
+     * @returns The program.
      * @internal
      */
-    leansLines(): boolean {
-        return this.#antialias === false && this.#nodeBatches !== null;
+    leansLines(): LeanLines {
+        if (this.#nodeBatches === null) {
+            return false;
+        }
+
+        return this.#antialias === "shader" ? "smooth" : this.#antialias === false;
     }
 
     /**
@@ -5378,6 +5403,16 @@ export class Graph implements GraphContext {
             pulledEdges: this.dataManager.edges.size - objectEdges,
             objectEdges,
         };
+    }
+
+    /** Start applying the render path, once, unless the graph shut down while its renderer opened. */
+    #openRenderPath(): void {
+        if (this.#renderPathOpen || this.#teardown.signal.aborted) {
+            return;
+        }
+
+        this.#renderPathOpen = true;
+        this.#applyRenderPath();
     }
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
@@ -7188,7 +7223,7 @@ export class Graph implements GraphContext {
      * @param rows - The rows.
      * @yields Each row's spot.
      */
-    *#columnSpots(rows: Iterable<number>): Generator<DrawnNodeSpot> {
+    *#columnSpots(rows: Iterable<number>): Generator<DrawnNodeSpot, void> {
         const batches = this.#nodeBatches;
         const table = this.#rowTable;
         if (batches === null || table === null || batches.columnRowCount === 0) {
@@ -7473,9 +7508,6 @@ export class Graph implements GraphContext {
      * error names what was still moving. A wait for a final frame that quietly gives up and
      * returns a moving one is worse than no wait at all: the caller cannot tell the two apart.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
-     *   Leave it out. To ask whether the picture is final now, without waiting, read
-     *   {@link Graph.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * It also rejects, at once, when the graph is shut down -- the element was removed from the page
      * -- before the picture came to rest, or had been already when the wait started: a graph that
@@ -7493,17 +7525,7 @@ export class Graph implements GraphContext {
      * const screenshot = await graph.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(
-        options: {
-            /**
-             * How long to wait before the wait rejects; 30 seconds by default.
-             * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
-             * machine while the picture is still on its way. To ask whether the picture is final
-             * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
-             */
-            timeoutMs?: number;
-        } = {},
-    ): Promise<void> {
+    async waitForStableFrame(options: StableFrameOptions = {}): Promise<void> {
         // Read through a plain type: the option is deprecated for callers, not for its own implementation.
         const bound: { timeoutMs?: number } = options;
         const timeoutMs = bound.timeoutMs ?? defaultStableFrameTimeoutMs();
@@ -8342,6 +8364,23 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. A camera tour being recorded stops where it is.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * // Record until the reader stops it: a long duration as the limit, then stop.
+     * const recording = graph.captureAnimation({ duration: 300_000, cameraMode: "stationary" });
+     * stopButton.onclick = () => graph.stopAnimationCapture();
+     * const { blob, metadata } = await recording; // metadata.duration is how long it ran
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.activeCapture?.stop() ?? false;
+    }
+
+    /**
      * Stop the camera's animated moves: the one under way stops where the camera is now, and
      * moves still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
      * awaiting one of them resolves; a cancelled move is not an error.
@@ -8701,8 +8740,9 @@ export class Graph implements GraphContext {
             camera.position.set(state.position.x, state.position.y, state.position.z);
         }
 
-        if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
-            camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
+        const targeted = camera as Camera & { setTarget?: (target: Vector3) => void };
+        if (state.target && typeof targeted.setTarget === "function") {
+            targeted.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
         }
     }
 
@@ -9895,8 +9935,8 @@ export class Graph implements GraphContext {
      * The export carries whatever the format can represent: every node and edge with its
      * attributes, the current positions, every published algorithm result (as attributes named
      * by the result's path, `results.<runId>.<field>`) and the colour, size and edge width each
-     * element is drawn with. What the format has no place for is listed in `lossNotes`, one note
-     * per kind of omission; nothing is dropped silently. The element's internal ids and columns
+     * element is drawn with. What the format has no place for is listed in `losses`, one coded
+     * fact per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.
      *
      * Notes are left out unless `{ notes: true }` asks for them; then each node and edge a note
@@ -10994,9 +11034,12 @@ export class Graph implements GraphContext {
         this.aiXr?.leave();
 
         // Clean up XR camera controller
-        if (this.scene.metadata?.xrCameraController) {
-            this.scene.metadata.xrCameraController.dispose();
-            this.scene.metadata.xrCameraController = null;
+        const metadata = this.scene.metadata as {
+            xrCameraController?: import("./cameras/XRPivotCameraController").XRPivotCameraController | null;
+        } | null;
+        if (metadata?.xrCameraController) {
+            metadata.xrCameraController.dispose();
+            metadata.xrCameraController = null;
         }
 
         // Remove render loop observer

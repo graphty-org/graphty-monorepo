@@ -951,8 +951,7 @@ await session.transaction("Recolor", async (tx) => {
 await session.execute({ op: "visibility.context", show: false });
 ```
 
-Each step's `fact` is a code and its values, for your application to word; `step.label`, an
-English sentence, is deprecated. See [Undo and History](./undo) for the codes, what is and is not
+Each step's `fact` is a code and its values, for your application to word. See [Undo and History](./undo) for the codes, what is and is not
 undoable, transactions, work still running, events and the memory budget.
 
 ## Event Handling

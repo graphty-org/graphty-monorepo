@@ -1,9 +1,10 @@
-// The results service (tools/results-service) on the health API, issue #3607: the records GET /v1/plan and
-// GET /v1/site answer from, in their own `RS#` items of the graphty-health table, and those two reads, with the
-// Worker's query strings and answers. The ingest Lambda writes the records (recordResults) from the posts CI sends
-// it, the same bodies the Worker gets; this Lambda answers the reads. Like the Worker, every answer is computed when
-// it is read, from stored records only, except a quarantine entry's passes, which each master run adds to as it is
-// stored (the Worker counted them on read with a join DynamoDB has no counterpart of).
+// The results service (tools/results-service) on the health API, issue #3607: every route CI uses, with the Worker's
+// bodies, query strings and answers, over its records in their own `RS#` items of the graphty-health table. The
+// ingest Lambda writes the records (recordResults) from the posts CI sends it, the same bodies the Worker gets; this
+// Lambda answers the reads. Like the Worker, every answer is computed when it is read, from stored records only,
+// except a quarantine entry's passes, which each master run adds to as it is stored (the Worker counted them on read
+// with a join DynamoDB has no counterpart of), and each key's newest duration sample and each story's newest capture,
+// which are kept as they are stored.
 //
 // Reads are public, as every read of this API is: the Worker asked for a credential and checked nothing else about it.
 
@@ -15,7 +16,7 @@ import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "
 import { failureHashes, issueKey } from "../../../results-service/src/signature.js";
 import { dynamoStore } from "../dynamo.js";
 import { DAY, ttlAt } from "../model/index.js";
-import type { Item, Store } from "../model/store.js";
+import { isLive, type Item, type Store } from "../model/store.js";
 
 /** A refusal, answered as the Worker answers it: the status and `{ error: <message> }`. */
 export class ResultsRefused extends Error {
@@ -95,6 +96,38 @@ const RS = {
     moves: (sha: string): string => `RS#MOVE#${sha}`,
     // A commit's verdicts, sk `<run>#<attempt>#<state>`.
     verdicts: (sha: string): string => `RS#VERDICT#${sha}`,
+    // Every commit's verdicts by time, sk `<at>#<sha>#<run>#<attempt>#<state>`: the candidate pick and release state.
+    verdictLog: "RS#VERDICTS",
+    // Every nightly channel move by time, sk `<at>#<sha>#<run>`: nightly's commit.
+    moveLog: "RS#MOVES",
+    // A run's failed tests, sk `<invocation>\u0000<test hash>`: GET /v1/failures.
+    failedIn: (run: string): string => `RS#FRUN#${run}`,
+    // Master's failures of one test, sk `<startedAt>#<invocation>`: GET /v1/failures's failedBefore.
+    testFailed: (test: string): string => `RS#FTEST#${test}`,
+    // The sites deploy-pages.yml kept, sk the commit (its first build), and by build time, sk `<builtAt>#<sha>`.
+    site: "RS#SITE",
+    sites: "RS#SITES",
+    // The held nightly candidate, one item (sk `1`).
+    hold: "RS#HOLD",
+    // Base check claims, sk `<base>\u0000<file and variant hash>`.
+    baseChecks: "RS#BASECHECK",
+    // A key's duration samples within a run kind and workflow, sk `<startedAt>#<run>.<attempt>`.
+    durations: (kind: string, workflow: string, key: string): string => `RS#DUR#${kind}\u0000${workflow}\u0000${key}`,
+    // A kind and workflow's keys, each with its newest sample, sk the key.
+    durationKeys: (kind: string, workflow: string): string => `RS#DURKEY#${kind}\u0000${workflow}`,
+    // A kind and workflow's runs, sk the run id.
+    durationRuns: (kind: string, workflow: string): string => `RS#DURRUN#${kind}\u0000${workflow}`,
+    // Test duration histories (tools/vitest-time-budget.mjs), sk the name.
+    testHistory: "RS#TESTDUR",
+    // Story captures of the last 7 days, sk `<story hash>#<run order>`, and each story's newest, sk the story hash.
+    captures: "RS#CAP",
+    newestCaptures: "RS#CAPNEW",
+    // Each slice unit's newest capture, sk the unit hash.
+    units: "RS#UNIT",
+    // When the owner was last notified, sk the kind (queue, slot).
+    notified: "RS#NOTIFY",
+    // The story units a master commit reaches, sk the unit hash.
+    reach: (sha: string): string => `RS#REACH#${sha}`,
 };
 
 const pad = (ms: number): string => String(Math.max(0, Math.trunc(ms))).padStart(13, "0");
@@ -120,6 +153,15 @@ function need(body: Record<string, unknown>, fields: Record<string, "string" | "
 }
 const integer = (v: unknown, name: string): number =>
     Number.isInteger(v) ? (v as number) : refuse(400, `${name} must be an issue number`);
+
+// Fields that may be left out, or null, but are of their type when given.
+function mayHave(body: Record<string, unknown>, fields: Record<string, "string" | "number">): void {
+    for (const [name, type] of Object.entries(fields)) {
+        if (!absent(body[name]) && typeof body[name] !== type) {
+            refuse(400, `${name} must be a ${type} when given`);
+        }
+    }
+}
 
 function ownId(id: unknown, who: ResultsWho): string {
     const prefix = `${String(who.claims.run_id)}.${String(who.claims.run_attempt)}.`;
@@ -248,25 +290,46 @@ function runItems(r: Posted, now: number): Item[] {
     return items;
 }
 
+// A record's failed tests by run (GET /v1/failures), and master's by test, when it started (its failedBefore).
+function failedItems(inv: string, failures: Failure[], now: number, master?: { startedAt: number }): Item[] {
+    const ttl = ttlAt(now + KEEP_MS);
+    return failures.flatMap((f) => {
+        const test = h16(`${f.file}\u0000${f.name}`);
+        const row = { invocation: inv, file: f.file, name: f.name, ttl };
+        const byRun = { pk: RS.failedIn(inv.split(".")[0]), sk: `${inv}\u0000${test}`, ...row };
+        return master ? [byRun, { pk: RS.testFailed(test), sk: `${pad(master.startedAt)}#${inv}`, ...row }] : [byRun];
+    });
+}
+
+interface InvocationAnswer {
+    stored: boolean;
+    kind: string;
+    flaky: Flaky[];
+    tracked?: number[];
+}
+
 async function recordInvocation(
     b: Record<string, unknown>,
     who: ResultsWho,
     db: Store,
     now: number,
-): Promise<{ stored: boolean; flaky: Flaky[] }> {
+): Promise<InvocationAnswer> {
     const r = postedRun(b, who);
+    const master = MASTER_EVIDENCE.has(r.kind) ? { startedAt: r.startedAt } : undefined;
+    await db.batch(failedItems(r.id, r.failures, now, master).map((put) => ({ put })));
     if (r.kind === "full") {
         await db.put(
             { pk: RS.newestFull, sk: r.variant, sha: r.sha, startedAt: r.startedAt, ttl: ttlAt(now + KEEP_MS) },
             { field: "startedAt", op: "<", value: r.startedAt, orNotExists: true },
         );
     }
+    const answer = { stored: true, kind: r.kind, flaky: [] };
     if (!EVIDENCE.has(r.kind) || !["passed", "failed"].includes(r.outcome)) {
-        return { stored: false, flaky: [] };
+        return answer;
     }
     await db.batch(runItems(r, now).map((put) => ({ put })));
     if (!MASTER_EVIDENCE.has(r.kind)) {
-        return { stored: true, flaky: [] };
+        return answer;
     }
     const run: Run = {
         id: r.id,
@@ -275,7 +338,30 @@ async function recordInvocation(
     };
     const flaky = await concludeFlaky(db, run, r, now);
     await countPasses(db, run, r.variant, r.startedAt, now);
-    return { stored: true, flaky };
+    return { ...answer, flaky, tracked: await trackedIssues(db, r.variant.split("|")[0], now) };
+}
+
+// The issues of a family's quarantine entries in force, for the master job that posted to check on GitHub.
+async function trackedIssues(db: Store, family: string, now: number): Promise<number[]> {
+    const issues = ((await db.query(RS.quarantine)) as QuarantineItem[])
+        .filter((q) => q.family === family && inForce(q, now) && q.issue !== undefined)
+        .map((q) => q.issue as number);
+    return [...new Set(issues)];
+}
+
+async function recordFailures(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+): Promise<{ stored: number }> {
+    if (NO_TESTS.has(who.kind)) {
+        refuse(403, `kind ${who.kind} writes no test records`);
+    }
+    const inv = ownId(b.invocation, who);
+    const failures = failureRows(b.failures ?? [b]);
+    await db.batch(failedItems(inv, failures, now).map((put) => ({ put })));
+    return { stored: failures.length };
 }
 
 interface QuarantineItem extends Item {
@@ -471,17 +557,20 @@ async function recordVerdict(
     }
     const issue = absent(b.issue) ? null : integer(b.issue, "issue");
     const run = `${String(who.claims.run_id)}#${String(who.claims.run_attempt)}`;
-    const stored = await db.put(
-        {
-            pk: RS.verdicts(b.sha as string),
-            sk: `${run}#${b.state as string}`,
-            state: b.state,
-            lane: b.lane ?? null,
-            issue,
-            at: now,
-        },
-        { notExists: true },
-    );
+    const verdict = {
+        sha: b.sha,
+        state: b.state,
+        lane: b.lane ?? null,
+        issue,
+        runId: Number(who.claims.run_id),
+        at: now,
+    };
+    const sk = `${run}#${b.state as string}`;
+    const stored = await db.put({ pk: RS.verdicts(b.sha as string), sk, ...verdict }, { notExists: true });
+    if (stored) {
+        const logged = `${pad(now)}#${b.sha as string}#${sk}`;
+        await db.put({ pk: RS.verdictLog, sk: logged, ...verdict, ttl: ttlAt(now + 31 * DAY) });
+    }
     return { stored };
 }
 
@@ -518,18 +607,507 @@ async function recordChannelMove(
         return { stored: true, replaced: true };
     }
     await db.put({ ...key, ...hashes, at: now });
+    await db.put({ pk: RS.moveLog, sk: `${pad(now)}#${sha}#${key.sk}`, sha, at: now });
     return { stored: true };
 }
 
+// A master build kept its site as artifact site-<sha> in this run: the full run's candidate pick reads it. The first
+// build of a commit is its record, as the Worker's INSERT OR IGNORE.
+async function recordSite(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+): Promise<{ stored: boolean; sha: string }> {
+    if (who.kind !== "site") {
+        refuse(403, "only master's own deploy-pages.yml records a site");
+    }
+    const sha = typeof b.sha === "string" ? b.sha : "";
+    if (!SHA.test(sha)) {
+        refuse(400, "sha must be a full commit id");
+    }
+    const ttl = ttlAt(now + KEEP_MS);
+    const site = { sha, builtAt: now, runId: Number(who.claims.run_id), ttl };
+    const stored = await db.put({ pk: RS.site, sk: sha, ...site }, { notExists: true });
+    if (stored) {
+        await db.put({ pk: RS.sites, sk: `${pad(now)}#${sha}`, ...site });
+    }
+    return { stored, sha };
+}
+
+const HOLD = { pk: RS.hold, sk: "1" };
+
+// The held nightly candidate: release.yml's verdict sets it on a deciding run that is not green-clean, a fix forward
+// moves its head, a promotion or an abandon clears it ({ clear: true, base, head }). Only master's own release.yml
+// writes it, release-rerun.yml for a red run it does not re-run, and nightly-abandon.yml, which only clears it.
+async function recordHold(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+): Promise<{ cleared: boolean } | { held: boolean }> {
+    const ref = String(who.claims.job_workflow_ref);
+    const abandon = ref.includes("/nightly-abandon.yml@");
+    if (who.kind !== "full" || !(ref.includes("/release.yml@") || ref.includes("/release-rerun.yml@") || abandon)) {
+        refuse(403, "only master's own release.yml or release-rerun.yml holds a candidate");
+    }
+    if (b.clear === true) {
+        // with base and head, only that hold: an abandon racing a train never clears a hold it did not read
+        if (!absent(b.base) || !absent(b.head)) {
+            const pair = `${String(b.base)} ${String(b.head)}`;
+            return {
+                cleared: await db.transact([{ delete: HOLD, condition: { field: "pair", op: "=", value: pair } }]),
+            };
+        }
+        if (abandon) {
+            refuse(400, "nightly-abandon.yml clears only the hold it names (base and head)");
+        }
+        const held = await db.get(HOLD);
+        if (held) {
+            await db.batch([{ delete: HOLD }]);
+        }
+        return { cleared: held !== undefined };
+    }
+    if (abandon) {
+        refuse(403, "nightly-abandon.yml only clears a hold");
+    }
+    const base = typeof b.base === "string" ? b.base : "";
+    const head = typeof b.head === "string" ? b.head : "";
+    if (!SHA.test(base) || !SHA.test(head)) {
+        refuse(400, "base and head must be full commit ids");
+    }
+    const issue = absent(b.issue) ? null : integer(b.issue, "issue");
+    // one hold at a time: a new base replaces a hold only after it is cleared
+    const hold = { ...HOLD, base, head, issue, at: now, pair: `${base} ${head}` };
+    if (!(await db.put(hold, { field: "base", op: "=", value: base, orNotExists: true }))) {
+        refuse(409, `nightly is already held on ${String((await db.get(HOLD))?.base)}`);
+    }
+    return { held: true };
+}
+
+function baseCheckOf(b: Record<string, unknown>, who: ResultsWho): { key: { pk: string; sk: string }; claim: string } {
+    if (who.kind !== "pr") {
+        refuse(403, "only a pull request's ci.yml asks for a base check");
+    }
+    const base = typeof b.base === "string" ? b.base : "";
+    if (!/^[0-9a-f]{7,40}$/.test(base)) {
+        refuse(400, "base must be a commit id");
+    }
+    for (const field of ["file", "variant"]) {
+        const v = b[field];
+        if (typeof v !== "string" || !v || v.length > 300) {
+            refuse(400, `${field} must be a string of 1 to 300 characters`);
+        }
+    }
+    const test = h16([b.file, b.variant].join("\u0000"));
+    return {
+        key: { pk: RS.baseChecks, sk: `${base}\u0000${test}` },
+        claim: `${String(who.claims.run_id)}.${String(who.claims.run_attempt)}`,
+    };
+}
+
+// A pull request's base check: the first ask for a base, file and variant answers `dispatch: true`, a later ask by
+// another run false, so base-check.yml runs once per test per base. The run holding the claim is answered true again:
+// the client re-sends an ask whose answer was lost.
+async function recordBaseCheck(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+): Promise<{ dispatch: boolean }> {
+    const { key, claim } = baseCheckOf(b, who);
+    const pr = Number.isInteger(b.pr) ? b.pr : null;
+    const asked = { ...key, claim, pr, askedAt: now, ttl: ttlAt(now + KEEP_MS) };
+    const dispatch = (await db.put(asked, { notExists: true })) || (await db.get(key))?.claim === claim;
+    return { dispatch };
+}
+
+// The run holding a base check's claim gives it back when it could not dispatch the check; another run's is kept.
+async function releaseBaseCheck(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+): Promise<{ released: boolean }> {
+    const { key, claim } = baseCheckOf(b, who);
+    return { released: await db.transact([{ delete: key, condition: { field: "claim", op: "=", value: claim } }]) };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Durations (tools/ci-budgets.mjs): the trend alarms and master's medians.
+
+// ponytail: samples are kept only for the kinds whose trend files issues and whose medians are read (master's push
+// build, `master`, and the full run, `full`); a pull request's trend is answered empty. Keep every kind if a reader
+// of another kind's trend appears: pull requests post about 230,000 rows a day.
+const DURATION_KINDS = new Set(["master", "full"]);
+const DURATION_DAYS = 30;
+
+interface DurationRow {
+    runId: string | number;
+    attempt: string | number;
+    workflow: string;
+    job: string;
+    step?: string;
+    task?: string;
+    sha?: string;
+    startedAt?: number;
+    ms: number;
+    conclusion?: string;
+}
+
 /**
- * Stores a results-service post as the Worker would (tools/results-service/src/service.js): what the plan and site
- * reads need of POST /v1/invocations, /v1/issues, /v1/verdicts and /v1/channel-moves. Any other route stores nothing.
- * @param route - the last path part (`invocations`, ...)
+ * A duration row's key, as the Worker's keyOf: a task across jobs, a step, or a job.
+ * @param r - the row
+ * @returns `task:<task>`, `step:<workflow>:<job>:<step>` or `job:<workflow>:<job>`
+ */
+const durationKey = (r: DurationRow): string => {
+    if (r.task) {
+        return `task:${r.task}`;
+    }
+    return r.step ? `step:${r.workflow}:${r.job}:${r.step}` : `job:${r.workflow}:${r.job}`;
+};
+
+function durationRows(b: Record<string, unknown>, who: ResultsWho): DurationRow[] {
+    if (who.kind === "local") {
+        refuse(403, "durations come only from Actions runs");
+    }
+    if (who.kind === "promote") {
+        refuse(403, "promote.yml only reads");
+    }
+    const { rows } = b;
+    if (!Array.isArray(rows)) {
+        return refuse(400, "rows must be a list");
+    }
+    if (rows.length > ROWS_MAX) {
+        refuse(400, `a write holds at most ${ROWS_MAX} duration rows`);
+    }
+    for (const r of rows as Record<string, unknown>[]) {
+        need(r ?? {}, { workflow: "string", job: "string", ms: "number" });
+        mayHave(r, { step: "string", task: "string", sha: "string", startedAt: "number", conclusion: "string" });
+        if (String(r.runId) !== String(who.claims.run_id) || String(r.attempt) !== String(who.claims.run_attempt)) {
+            refuse(403, "a run writes only its own durations");
+        }
+    }
+    return rows as DurationRow[];
+}
+
+// Each kept row's sample, each key's newest sample and the run, for its workflow and kind.
+async function storeDurations(db: Store, kind: string, rows: DurationRow[], now: number): Promise<void> {
+    const ttl = ttlAt(now + (DURATION_DAYS + 1) * DAY);
+    const kept = rows.filter((r) => typeof r.startedAt === "number" && r.conclusion !== "cancelled");
+    const items: Item[] = [];
+    for (const workflow of new Set(kept.map((r) => r.workflow))) {
+        const mine = kept.filter((r) => r.workflow === workflow);
+        const runId = Number(mine[0].runId);
+        const known = new Map((await db.query(RS.durationKeys(kind, workflow))).map((k) => [k.sk, k]));
+        for (const r of mine) {
+            const key = durationKey(r);
+            const sk = `${pad(r.startedAt as number)}#${String(r.runId)}.${String(r.attempt)}`;
+            const sample = { ms: r.ms, sha: r.sha ?? null, startedAt: r.startedAt, ttl };
+            items.push({ pk: RS.durations(kind, workflow, key), sk, ...sample });
+            // a key's newest sample by run id, as the Worker's duration_last
+            if (Number(known.get(key)?.runId ?? 0) <= runId) {
+                items.push({ pk: RS.durationKeys(kind, workflow), sk: key, runId, ...sample });
+            }
+        }
+        const startedAt = Math.max(...mine.map((r) => r.startedAt as number));
+        items.push({ pk: RS.durationRuns(kind, workflow), sk: pad(runId), runId, startedAt, ttl });
+    }
+    await db.batch(items.map((put) => ({ put })));
+}
+
+interface Sample {
+    key: string;
+    ms: number;
+    sha: string | null;
+    startedAt: number;
+}
+
+// A key's newest `n` samples since `since`, oldest first.
+async function samplesOf(db: Store, pk: string, n: number, since: number, key: string): Promise<Sample[]> {
+    return (await db.query(pk, { newest: n }))
+        .filter((s) => (s.startedAt as number) >= since)
+        .map((s) => ({
+            key,
+            ms: s.ms as number,
+            sha: (s.sha as string | null) ?? null,
+            startedAt: s.startedAt as number,
+        }))
+        .reverse();
+}
+
+function judgeTrend(rows: Sample[], budgetSeconds: number | undefined): Record<string, unknown> {
+    const secs = rows.map((r) => r.ms / 1000);
+    const recent = median(secs.slice(-5));
+    const before = secs.slice(-15, -5);
+    const earlier = before.length ? median(before) : null;
+    const overBudget = budgetSeconds !== undefined && recent > budgetSeconds;
+    const overTrend = earlier !== null && recent > 1.3 * earlier && recent - earlier >= 60;
+    const line = overBudget ? budgetSeconds : Math.max(1.3 * (earlier ?? 0), (earlier ?? 0) + 60);
+    const first = rows.findIndex((r, i) => i >= rows.length - 5 && r.ms / 1000 > line);
+    const range = first > 0 ? `${String(rows[first - 1].sha)}..${String(rows[first].sha)}` : null;
+    return { recent, earlier, alarm: overBudget || overTrend, range };
+}
+
+// The trend alarms for the keys of one posted run: per key within the run's kind, `recent` = the median of the last 5
+// samples, `earlier` = the 10 before; an alarm over the budget, or over 1.3 x earlier and 60 s slower.
+async function trendFor(
+    db: Store,
+    kind: string,
+    posted: DurationRow[],
+    budgets: unknown,
+    now: number,
+): Promise<Record<string, unknown>[]> {
+    const since = now - DURATION_DAYS * DAY;
+    const keys = new Map(posted.map((r) => [`${r.workflow}\u0000${durationKey(r)}`, [r.workflow, durationKey(r)]]));
+    const found = await Promise.all(
+        [...keys.values()].map(([wf, key]) => samplesOf(db, RS.durations(kind, wf, key), 15, since, key)),
+    );
+    const byKey = new Map<string, Sample[]>();
+    for (const s of found.flat()) {
+        byKey.set(s.key, [...(byKey.get(s.key) ?? []), s]);
+    }
+    const budget = (key: string): number | undefined => {
+        const v = (budgets as Record<string, unknown> | null | undefined)?.[key];
+        return typeof v === "number" ? v : undefined;
+    };
+    return [...byKey]
+        .filter(([, rs]) => rs.length >= 5)
+        .map(([key, rs]) => ({
+            key,
+            kind,
+            ...judgeTrend(
+                rs.toSorted((a, b) => a.startedAt - b.startedAt),
+                budget(key),
+            ),
+        }));
+}
+
+// Each key's last sample within a run kind and how many runs of its workflow came after it: the posting timings job
+// closes an alarm whose key has stopped getting samples.
+async function lastSeenFor(
+    db: Store,
+    kind: string,
+    workflows: string[],
+    now: number,
+): Promise<Record<string, { runId: number; sha: string | null; at: number; runsSince: number }>> {
+    const since = now - DURATION_DAYS * DAY;
+    const out: Record<string, { runId: number; sha: string | null; at: number; runsSince: number }> = {};
+    for (const wf of workflows) {
+        const [keys, runs] = await Promise.all([
+            db.query(RS.durationKeys(kind, wf)),
+            db.query(RS.durationRuns(kind, wf)),
+        ]);
+        const runIds = runs.filter((r) => (r.startedAt as number) >= since).map((r) => r.runId as number);
+        for (const k of keys.filter((x) => (x.startedAt as number) >= since)) {
+            const runId = k.runId as number;
+            if (out[k.sk] && out[k.sk].runId >= runId) {
+                continue;
+            }
+            const runsSince = runIds.filter((r) => r > runId).length;
+            out[k.sk] = { runId, sha: (k.sha as string | null) ?? null, at: k.startedAt as number, runsSince };
+        }
+    }
+    return out;
+}
+
+async function recordDurations(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+): Promise<Record<string, unknown>> {
+    const rows = durationRows(b, who);
+    if (!rows.length || !DURATION_KINDS.has(who.kind)) {
+        return { stored: rows.length, kind: who.kind, trend: [], lastSeen: {} };
+    }
+    await storeDurations(db, who.kind, rows, now);
+    return {
+        stored: rows.length,
+        kind: who.kind,
+        trend: await trendFor(db, who.kind, rows, b.budgets, now),
+        lastSeen: await lastSeenFor(db, who.kind, [...new Set(rows.map((r) => r.workflow))], now),
+    };
+}
+
+// A test shard's duration history (tools/vitest-time-budget.mjs). Only master's own runs write it.
+export const TESTS_PATH = "/v1/durations/tests/";
+const HISTORY_MAX = 1_900_000;
+// ponytail: one item holds a history, gzipped; a history whose gzip passes 350 KB (DynamoDB's item is 400 KB) is
+// refused. Split it over several items if one ever does.
+const HISTORY_GZ_MAX = 350_000;
+
+function historyName(name: string | undefined): string {
+    if (!/^[\w.-]{1,128}$/.test(name ?? "")) {
+        refuse(400, "a history name is 1 to 128 letters, digits, '.', '_' or '-'");
+    }
+    return name as string;
+}
+
+async function recordTestDurations(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+    name: string | undefined,
+): Promise<{ stored: boolean }> {
+    const sk = historyName(name);
+    if (!MASTER_EVIDENCE.has(who.kind)) {
+        refuse(403, "only master's own runs write a test duration history");
+    }
+    if (Array.isArray(b)) {
+        refuse(400, "the history must be an object");
+    }
+    const text = JSON.stringify(b);
+    if (text.length > HISTORY_MAX) {
+        refuse(413, `a history holds at most ${HISTORY_MAX} bytes`);
+    }
+    const body = gzipSync(text);
+    if (body.length > HISTORY_GZ_MAX) {
+        refuse(413, `a history holds at most ${HISTORY_GZ_MAX} bytes gzipped`);
+    }
+    await db.put({ pk: RS.testHistory, sk, body, updatedAt: now, runId: Number(who.claims.run_id) });
+    return { stored: true };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The rolling screenshot slices (design/visual-testing/early-capture.md, 4c). Only master's story-slices.yml writes
+// captures; only ci.yml's push build of a master commit writes that commit's reach. A story's newest capture is the
+// newest by run id then attempt, never by write time: a late re-run of an older slice must not hide a newer render.
+
+const CAPTURE_STATUSES = new Set(["unchanged", "changed", "new", "unseeded", "unstable", "failed"]);
+// what the owner's rolling queue can hold
+const QUEUE_STATUSES = new Set(["changed", "new", "unseeded"]);
+const NOTIFY_KINDS = ["queue", "slot"];
+const STORY_ROWS_MAX = 2000;
+const STORY_KEEP_MS = 7 * DAY;
+const REACH_MAX = 100;
+
+function text(value: unknown, name: string, optional = false): string | null {
+    if (optional && absent(value)) {
+        return null;
+    }
+    if (typeof value !== "string" || !value || value.length > 300) {
+        refuse(400, `${name} must be a string of 1 to 300 characters`);
+    }
+    return value as string;
+}
+
+function storyList(v: unknown, name: string): Record<string, unknown>[] {
+    if (!Array.isArray(v) || v.length > STORY_ROWS_MAX) {
+        refuse(400, `${name} must be a list of at most ${STORY_ROWS_MAX}`);
+    }
+    return (v as unknown[]).map((c) => (c && typeof c === "object" ? (c as Record<string, unknown>) : {}));
+}
+
+// A run's place in capture order: its id, then its attempt.
+const runOrder = (runId: number, attempt: number): string => `${pad(runId)}.${pad(attempt)}`;
+const storyOf = (c: { project: unknown; story: unknown; mode: unknown }): string =>
+    h16(`${String(c.project)}\u0000${String(c.story)}\u0000${String(c.mode)}`);
+
+async function recordStoryCaptures(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+): Promise<{ stored: number }> {
+    if (who.kind !== "slice") {
+        refuse(403, "only master's own story-slices.yml records story captures");
+    }
+    const str = (v: unknown): string => (typeof v === "string" ? v : "");
+    if (!SHA.test(str(b.sha))) {
+        refuse(400, "sha must be a full commit id");
+    }
+    if (!SHA.test(str(b.baselinesTree))) {
+        refuse(400, "baselinesTree must be a full tree id");
+    }
+    const artifact = text(b.artifact, "artifact");
+    const notified = b.notified ?? [];
+    if (!Array.isArray(notified) || !notified.every((k) => NOTIFY_KINDS.includes(k as string))) {
+        refuse(400, `notified must list some of ${NOTIFY_KINDS.join(", ")}`);
+    }
+    const runId = Number(who.claims.run_id);
+    const attempt = Number(who.claims.run_attempt);
+    const order = runOrder(runId, attempt);
+    const captures = storyList(b.captures, "captures").map((c) => {
+        if (!CAPTURE_STATUSES.has(c.status as string)) {
+            refuse(400, `status must be one of ${[...CAPTURE_STATUSES].join(", ")}`);
+        }
+        return {
+            project: text(c.project, "project"),
+            story: text(c.story, "story"),
+            mode: absent(c.mode) ? "" : text(c.mode, "mode"),
+            sha: b.sha,
+            baselinesTree: b.baselinesTree,
+            runId,
+            attempt,
+            artifact,
+            status: c.status,
+            hash: text(c.hash, "hash", true),
+            baselineHash: text(c.baselineHash, "baselineHash", true),
+            at: now,
+            order,
+        };
+    });
+    const units = storyList(b.units ?? [], "units").map((u) => ({
+        project: text(u.project, "project"),
+        unit: text(u.unit, "unit"),
+        sha: b.sha,
+        at: now,
+        order,
+    }));
+    const ttl = ttlAt(now + STORY_KEEP_MS);
+    const newer = { field: "order", op: "<" as const, value: order, orNotExists: true };
+    const stored = await Promise.all(
+        captures.map(async (c) => {
+            const fresh = await db.put(
+                { pk: RS.captures, sk: `${storyOf(c)}#${order}`, ...c, ttl },
+                { notExists: true },
+            );
+            await db.put({ pk: RS.newestCaptures, sk: storyOf(c), ...c }, newer);
+            return fresh;
+        }),
+    );
+    await Promise.all(
+        units.map((u) => db.put({ pk: RS.units, sk: h16(`${String(u.project)}\u0000${String(u.unit)}`), ...u }, newer)),
+    );
+    await db.batch((notified as string[]).map((kind) => ({ put: { pk: RS.notified, sk: kind, at: now } })));
+    return { stored: stored.filter(Boolean).length };
+}
+
+async function recordStoryReach(
+    b: Record<string, unknown>,
+    who: ResultsWho,
+    db: Store,
+    now: number,
+): Promise<{ stored: number }> {
+    if (who.kind !== "master") {
+        refuse(403, "only ci.yml's own push build of master records story reach");
+    }
+    if (b.sha !== who.claims.sha) {
+        refuse(403, "a master build records only its own commit's reach");
+    }
+    if (!Array.isArray(b.units) || b.units.length > STORY_ROWS_MAX) {
+        refuse(400, `units must be a list of at most ${STORY_ROWS_MAX}`);
+    }
+    const units = (b.units as unknown[]).map((u) => text(u, "unit") as string);
+    const ttl = ttlAt(now + STORY_KEEP_MS);
+    const sha = b.sha as string;
+    const stored = await Promise.all(
+        units.map((unit) => db.put({ pk: RS.reach(sha), sk: h16(unit), sha, unit, at: now, ttl }, { notExists: true })),
+    );
+    return { stored: stored.filter(Boolean).length };
+}
+
+/**
+ * Stores a results-service post as the Worker would (tools/results-service/src/service.js), and answers as it does.
+ * @param route - the route: the path after `/v1/`, with the method first unless it is POST (`DELETE base-checks`,
+ *   `PUT durations/tests`)
  * @param body - the posted body
  * @param who - the writer and its kind
  * @param db - the store
  * @param now - the current time, in ms
- * @returns the Worker's answer to the post, as far as these records give it
+ * @param name - a test duration history's name, from its path
+ * @returns the Worker's answer, or undefined for a route it does not have
  */
 export function recordResults(
     route: string,
@@ -537,16 +1115,35 @@ export function recordResults(
     who: ResultsWho,
     db: Store,
     now: number,
+    name?: string,
 ): Promise<unknown> {
     switch (route) {
         case "invocations":
             return recordInvocation(body, who, db, now);
+        case "failures":
+            return recordFailures(body, who, db, now);
+        case "durations":
+            return recordDurations(body, who, db, now);
+        case "sites":
+            return recordSite(body, who, db, now);
         case "issues":
             return recordIssue(body, who, db, now);
         case "verdicts":
             return recordVerdict(body, who, db, now);
         case "channel-moves":
             return recordChannelMove(body, who, db, now);
+        case "hold":
+            return recordHold(body, who, db, now);
+        case "base-checks":
+            return recordBaseCheck(body, who, db, now);
+        case "DELETE base-checks":
+            return releaseBaseCheck(body, who, db);
+        case "story-captures":
+            return recordStoryCaptures(body, who, db, now);
+        case "story-reach":
+            return recordStoryReach(body, who, db, now);
+        case "PUT durations/tests":
+            return recordTestDurations(body, who, db, now, name);
         default:
             return Promise.resolve(undefined);
     }
@@ -777,10 +1374,393 @@ async function getSite(q: URLSearchParams, db: Store): Promise<Record<string, un
     };
 }
 
+/**
+ * GET /v1/quarantine: every entry in force, of every family, for the health dashboard's quarantine list.
+ * @param _q - the query string (unused)
+ * @param db - the store
+ * @param now - the current time, in ms
+ * @returns quarantine: family, file, name, issue, since, expires and passes
+ */
+async function getQuarantine(_q: URLSearchParams, db: Store, now: number): Promise<{ quarantine: Entry[] }> {
+    return { quarantine: await activeQuarantine(db, null, now) };
+}
+
+/**
+ * GET /v1/failures?run=&good=: the tests a full run saw fail, for its bisect. `failedBefore` names those master's own
+ * runs saw fail in the 7 days before the last green commit `good`'s site was built (flaky before the range).
+ * @param q - the query string
+ * @param db - the store
+ * @returns tests ({ shard, file, name }, distinct, the first 100) and failedBefore (their ids)
+ */
+async function getFailures(q: URLSearchParams, db: Store): Promise<Record<string, unknown>> {
+    const run = q.get("run") ?? "";
+    if (!/^\d+$/.test(run)) {
+        refuse(400, "run must be a run id");
+    }
+    const rows = (await db.query(RS.failedIn(run))).toSorted(
+        (a, b) =>
+            String(a.file).localeCompare(String(b.file)) ||
+            String(a.name).localeCompare(String(b.name)) ||
+            String(a.invocation).localeCompare(String(b.invocation)),
+    );
+    // the id is <run>.<attempt>.<job>.<shard>.<try> (tools/results/run-group.mjs)
+    const seen = new Map<string, { shard: string; file: string; name: string }>();
+    for (const r of rows) {
+        const t = { shard: String(r.invocation).split(".")[3], file: r.file as string, name: r.name as string };
+        seen.set(`${t.shard}: ${t.file} > ${t.name}`, t);
+    }
+    // the first 100 failing tests, the most a bisect follows (full-run.mjs MAX_TARGETS)
+    for (const key of [...seen.keys()].slice(100)) {
+        seen.delete(key);
+    }
+    const good = q.get("good");
+    const built = good ? ((await db.get({ pk: RS.site, sk: good }))?.builtAt as number | undefined) : undefined;
+    const failedBefore: string[] = [];
+    if (built !== undefined) {
+        await Promise.all(
+            [...seen].map(async ([id, t]) => {
+                const range = { from: pad(built - 7 * DAY), to: `${pad(built - 1)}#~` };
+                if ((await db.query(RS.testFailed(h16(`${t.file}\u0000${t.name}`)), range)).length) {
+                    failedBefore.push(id);
+                }
+            }),
+        );
+    }
+    const order = [...seen.keys()];
+    return {
+        tests: [...seen.values()],
+        failedBefore: failedBefore.toSorted((a, b) => order.indexOf(a) - order.indexOf(b)),
+    };
+}
+
+interface Verdict {
+    sha: string;
+    state: string;
+    lane: string | null;
+    issue: number | null;
+    runId: number;
+    at: number;
+}
+const verdictOf = (v: Item): Verdict => ({
+    sha: v.sha as string,
+    state: v.state as string,
+    lane: (v.lane as string | null) ?? null,
+    issue: (v.issue as number | null) ?? null,
+    // verdicts stored before runId was kept name the run in their sort key
+    runId: (v.runId as number | undefined) ?? Number(v.sk.split("#")[0]),
+    at: v.at as number,
+});
+
+// Every commit's latest verdict of the window, oldest first.
+async function recentVerdicts(db: Store, since: number): Promise<Verdict[]> {
+    const latest = new Map<string, Item>();
+    for (const v of await db.query(RS.verdictLog, { from: pad(since) })) {
+        latest.delete(v.sha as string);
+        latest.set(v.sha as string, v);
+    }
+    return [...latest.values()].map((v) => verdictOf(v));
+}
+
+async function latestVerdict(db: Store, sha: string): Promise<Verdict | null> {
+    const [v] = (await db.query(RS.verdicts(sha))).toSorted((a, b) => Number(b.at) - Number(a.at));
+    return v ? { ...verdictOf(v), sha } : null;
+}
+
+async function heldCandidate(db: Store): Promise<Record<string, unknown> | null> {
+    const h = await db.get(HOLD);
+    return h ? { base: h.base, head: h.head, issue: h.issue ?? null, at: h.at } : null;
+}
+
+async function newestSite(db: Store): Promise<{ sha: string; builtAt: number } | null> {
+    const [s] = await db.query(RS.sites, { newest: 1 });
+    return s ? { sha: s.sha as string, builtAt: s.builtAt as number } : null;
+}
+
+/**
+ * GET /v1/candidate: the full run's pick, master's newest commit with a kept site, and its verdict when judged.
+ * @param _q - the query string (unused)
+ * @param db - the store
+ * @param now - the current time, in ms
+ * @returns candidate (sha, builtAt) or null, judged, recent (every commit's latest verdict of 30 days, newest
+ *   first), sites (the last 200 recorded, newest first) and hold
+ */
+async function getCandidate(_q: URLSearchParams, db: Store, now: number): Promise<Record<string, unknown>> {
+    const [candidate, recent, sites, hold] = await Promise.all([
+        newestSite(db),
+        recentVerdicts(db, now - 30 * DAY),
+        db.query(RS.sites, { newest: 200 }),
+        heldCandidate(db),
+    ]);
+    return {
+        candidate,
+        judged: candidate && (await latestVerdict(db, candidate.sha)),
+        recent: recent.toReversed(),
+        sites: sites.map((s) => s.sha),
+        hold,
+    };
+}
+
+// a full run's slot: release.yml runs every 6 hours, so a promotion run started at most this long before its move
+const FULL_RUN_SLOT = DAY / 4;
+// What holds canary's commit back from nightly, by its latest verdict state.
+const BLOCKING: Record<string, string> = {
+    red: "red",
+    "owner-item": "owner-item",
+    "green-images": "waiting-for-screenshots",
+    approved: "resume-due",
+    rejected: "rejected",
+    refused: "refused",
+    "green-clean": "promotable",
+};
+
+type State = Omit<Verdict, "runId"> & { builtAt: number };
+
+/**
+ * Whether a commit is nightly's, or took nightly's verdict over commits that change only versions or approval
+ * records (a verdict lane "inherited from <short sha>", followed as a chain), as the Worker's sameAsNightly.
+ * @param sha - the commit
+ * @param nightlySha - nightly's commit
+ * @param states - the newest verdict of each recent commit
+ * @returns true when it is nightly's
+ */
+function sameAsNightly(sha: string | undefined, nightlySha: string | undefined, states: State[]): boolean {
+    if (!sha || !nightlySha) {
+        return false;
+    }
+    let at = sha;
+    for (let hop = 0; hop <= states.length; hop++) {
+        const short = at.length < 40;
+        if (at === nightlySha || (short && nightlySha.startsWith(at))) {
+            return true;
+        }
+        const here = at;
+        const lane = states.find((v) => v.sha === here || (short && v.sha.startsWith(here)))?.lane;
+        const from = /^inherited from ([0-9a-f]{7,})$/.exec(lane ?? "")?.[1];
+        if (!from) {
+            return false;
+        }
+        at = from;
+    }
+    return false;
+}
+
+/**
+ * GET /v1/release-state: what ci.yml's release-due job and every release.yml run's catch-up read, and `age:nightly`.
+ * @param _q - the query string (unused)
+ * @param db - the store
+ * @param now - the current time, in ms
+ * @returns nightly, red, approved, offered, canary, ageNightlyMs, blocking and hold
+ */
+async function getReleaseState(_q: URLSearchParams, db: Store, now: number): Promise<Record<string, unknown>> {
+    const [move] = await db.query(RS.moveLog, { newest: 1 });
+    const nightly = move ? { sha: move.sha as string, movedAt: move.at as number } : null;
+    const builtAt = async (sha: string): Promise<number | undefined> =>
+        (await db.get({ pk: RS.site, sk: sha }))?.builtAt as number | undefined;
+    const states: State[] = await Promise.all(
+        (await recentVerdicts(db, now - 30 * DAY)).map(async ({ runId: _run, ...v }) => ({
+            ...v,
+            builtAt: (await builtAt(v.sha)) ?? 0,
+        })),
+    );
+    // a nightly with no site record counts from its promotion run's start, taken as one slot before its move
+    const nightlyBuilt = nightly ? ((await builtAt(nightly.sha)) ?? nightly.movedAt - FULL_RUN_SLOT) : 0;
+    const last = states.findLast((s) => !["approved", "rejected", "refused"].includes(s.state));
+    const canary = await newestSite(db);
+    const canaryState = states.find((s) => s.sha === canary?.sha)?.state;
+    const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;
+    // nightly is behind from the first site built after it that is not nightly's own
+    const after = await db.query(RS.sites, { from: pad(nightlyBuilt + 1) });
+    const start = after.find((r) => !sameAsNightly(r.sha as string, nightly?.sha, states))?.builtAt as number;
+    const hold = await heldCandidate(db);
+    // a held candidate is the only one offered, and only once its tested head is green-images
+    const heldHead = hold ? states.find((s) => s.sha === hold.head) : undefined;
+    const oldestWaiting = states.filter((s) => s.state === "green-images").toSorted((a, b) => a.builtAt - b.builtAt)[0];
+    let offered: State | null = oldestWaiting ?? null;
+    if (hold) {
+        offered = heldHead?.state === "green-images" ? heldHead : null;
+    }
+    let blocking = unpromoted ? (BLOCKING[canaryState ?? ""] ?? "unjudged") : null;
+    if (hold) {
+        blocking = "held";
+    }
+    let ageNightlyMs: number | null = null;
+    if (nightly) {
+        ageNightlyMs = unpromoted ? now - start : 0;
+    }
+    return {
+        nightly,
+        red: last?.state === "red" ? last : null,
+        approved: states.filter((s) => s.state === "approved" && s.builtAt > nightlyBuilt),
+        offered,
+        canary,
+        // null while nightly has never moved: the stall alarm has nothing to count from
+        ageNightlyMs,
+        blocking,
+        hold,
+    };
+}
+
+/**
+ * GET /v1/durations/medians?workflows=&kind=&n=: master's median seconds per key over each key's newest `n` (10, at
+ * most 50) samples of the kind in 30 days.
+ * @param q - the query string
+ * @param db - the store
+ * @param now - the current time, in ms
+ * @returns seconds by key
+ */
+async function getMedians(q: URLSearchParams, db: Store, now: number): Promise<Record<string, number>> {
+    const workflows = list(q.get("workflows"));
+    if (!workflows.length || workflows.length > 20) {
+        refuse(400, "workflows names 1 to 20 workflow files");
+    }
+    const n = Math.min(Math.max(Number(q.get("n")) || 10, 1), 50);
+    const kind = q.get("kind") || "full";
+    const since = now - DURATION_DAYS * DAY;
+    const found = await Promise.all(
+        workflows.map(async (wf) => {
+            const keys = (await db.query(RS.durationKeys(kind, wf))).filter((k) => (k.startedAt as number) >= since);
+            return Promise.all(keys.map((k) => samplesOf(db, RS.durations(kind, wf, k.sk), n, since, k.sk)));
+        }),
+    );
+    const byKey = new Map<string, number[]>();
+    for (const s of found.flat(2)) {
+        byKey.set(s.key, [...(byKey.get(s.key) ?? []), s.ms / 1000]);
+    }
+    return Object.fromEntries([...byKey].map(([key, secs]) => [key, median(secs)]));
+}
+
+/**
+ * GET /v1/durations/tests/<name>: a test shard's duration history, or {} when none is stored.
+ * @param name - the history's name, from the path
+ * @param db - the store
+ * @returns the history
+ */
+async function getTestDurations(name: string, db: Store): Promise<unknown> {
+    const item = await db.get({ pk: RS.testHistory, sk: historyName(name) });
+    return item ? unpacked(item.body) : {};
+}
+
+const byStory = (a: Item, b: Item): number =>
+    String(a.project).localeCompare(String(b.project)) ||
+    String(a.story).localeCompare(String(b.story)) ||
+    String(a.mode).localeCompare(String(b.mode));
+
+// A story's first unapproved render since its last unchanged one, under its newest capture's baselines tree.
+function firstUnapproved(newest: Item, history: Item[]): string {
+    const runs = new Map(history.map((c) => [c.order as string, c]));
+    runs.set(newest.order as string, newest);
+    const same = [...runs.values()]
+        .filter((c) => c.baselinesTree === newest.baselinesTree)
+        .toSorted((a, b) => String(a.order).localeCompare(String(b.order)));
+    const clear = same.findLastIndex((c) => c.status === "unchanged");
+    const first = same.slice(clear + 1).find((c) => QUEUE_STATUSES.has(c.status as string));
+    return (first?.sha as string | undefined) ?? (newest.sha as string);
+}
+
+/**
+ * GET /v1/story-captures: each story's newest capture, a summary, when the owner was last notified, and each slice
+ * unit's newest capture.
+ * @param _q - the query string (unused)
+ * @param db - the store
+ * @param now - the current time, in ms
+ * @returns captures, summary, notified and units
+ */
+async function getStoryCaptures(_q: URLSearchParams, db: Store, now: number): Promise<Record<string, unknown>> {
+    const [newest, history, units, notified] = await Promise.all([
+        db.query(RS.newestCaptures),
+        db.query(RS.captures),
+        db.query(RS.units),
+        db.query(RS.notified),
+    ]);
+    const kept = new Map<string, Item[]>();
+    for (const c of history.filter((h) => isLive(h, now))) {
+        const story = c.sk.split("#")[0];
+        kept.set(story, [...(kept.get(story) ?? []), c]);
+    }
+    const captures = newest.toSorted(byStory);
+    const statuses: Record<string, number> = {};
+    for (const c of captures) {
+        statuses[c.status as string] = (statuses[c.status as string] ?? 0) + 1;
+    }
+    const queued = captures.filter((c) => QUEUE_STATUSES.has(c.status as string));
+    const last = newest.toSorted(
+        (a, b) => String(b.order).localeCompare(String(a.order)) || Number(b.at) - Number(a.at),
+    )[0];
+    const when = new Map(notified.map((x) => [x.sk, x.at]));
+    return {
+        captures: captures.map((c) => ({
+            project: c.project,
+            story: c.story,
+            mode: c.mode,
+            sha: c.sha,
+            baselinesTree: c.baselinesTree,
+            runId: c.runId,
+            attempt: c.attempt,
+            artifact: c.artifact,
+            status: c.status,
+            hash: c.hash ?? null,
+            baselineHash: c.baselineHash ?? null,
+            at: c.at,
+            ...(QUEUE_STATUSES.has(c.status as string) && {
+                firstUnapprovedSha: firstUnapproved(c, kept.get(c.sk) ?? []),
+            }),
+        })),
+        summary: {
+            stories: captures.length,
+            lastSliced: last ? { sha: last.sha, at: last.at } : null,
+            oldestNewestAt: captures.length ? Math.min(...captures.map((c) => c.at as number)) : null,
+            statuses,
+            queue: queued.length,
+        },
+        notified: Object.fromEntries(NOTIFY_KINDS.map((k) => [k, when.get(k) ?? null])),
+        // when each slice unit was last captured whole: the slice planner's rotation (tools/channel/story-slices.mjs)
+        units: units
+            .toSorted(
+                (a, b) =>
+                    String(a.project).localeCompare(String(b.project)) || String(a.unit).localeCompare(String(b.unit)),
+            )
+            .map((u) => ({ project: u.project, unit: u.unit, sha: u.sha, at: u.at })),
+    };
+}
+
+/**
+ * GET /v1/story-reach?shas=: the story units the listed master commits reach (ordering only, never a reason to skip a
+ * render).
+ * @param q - the query string
+ * @param db - the store
+ * @param now - the current time, in ms
+ * @returns reach: { sha, unit }, by sha then unit
+ */
+async function getStoryReach(q: URLSearchParams, db: Store, now: number): Promise<Record<string, unknown>> {
+    const shas = list(q.get("shas"));
+    if (!shas.length || shas.length > REACH_MAX || !shas.every((s) => SHA.test(s))) {
+        refuse(400, `shas lists 1 to ${REACH_MAX} full commit ids`);
+    }
+    const found = await Promise.all([...new Set(shas)].map((sha) => db.query(RS.reach(sha))));
+    const reach = found
+        .flat()
+        .filter((r) => isLive(r, now))
+        .map((r) => ({ sha: r.sha as string, unit: r.unit as string }))
+        .toSorted((a, b) => a.sha.localeCompare(b.sha) || a.unit.localeCompare(b.unit));
+    return { reach };
+}
+
+const READS: Record<string, (q: URLSearchParams, db: Store, now: number) => Promise<unknown>> = {
+    "/v1/plan": getPlan,
+    "/v1/site": getSite,
+    "/v1/quarantine": getQuarantine,
+    "/v1/candidate": getCandidate,
+    "/v1/release-state": getReleaseState,
+    "/v1/failures": getFailures,
+    "/v1/durations/medians": getMedians,
+    "/v1/story-captures": getStoryCaptures,
+    "/v1/story-reach": getStoryReach,
+};
+
 let store: Store | undefined;
 
 /**
- * GET /v1/plan and GET /v1/site, answered as the results Worker answers them.
+ * The results service's reads, answered as the results Worker answers them.
  * @param event - the HTTP API request
  * @returns 200 with the answer, or the Worker's `{ error }` with its status
  */
@@ -788,13 +1768,11 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
     const q = new URLSearchParams(event.rawQueryString ?? "");
     try {
         const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
-        if (event.rawPath === "/v1/plan") {
-            return json(200, await getPlan(q, db, Date.now()));
+        if (event.rawPath.startsWith(TESTS_PATH)) {
+            return json(200, await getTestDurations(event.rawPath.slice(TESTS_PATH.length), db));
         }
-        if (event.rawPath === "/v1/site") {
-            return json(200, await getSite(q, db));
-        }
-        return refuse(404, `no GET ${event.rawPath}`);
+        const read = Object.hasOwn(READS, event.rawPath) ? READS[event.rawPath] : undefined;
+        return json(200, await (read ?? refuse(404, `no GET ${event.rawPath}`))(q, db, Date.now()));
     } catch (error) {
         if (error instanceof ResultsRefused) {
             return json(error.status, { error: error.message });

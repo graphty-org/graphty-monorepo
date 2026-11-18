@@ -293,6 +293,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.labelItalic`            | true or false                                                                                                                                    |
 | `node.labelWrapWidth`         | a number: how wide a line may be before its words wrap, in scene units                                                                           |
 | `node.labelWrapTrailingSpace` | true or false: a word must fit with the space after it, as Cytoscape wraps                                                                       |
+| `node.labelWrapSkipEndSpace`  | true or false: with the above, a line's last word is measured without a space after it, as Cytoscape.js wraps                                    |
 | `node.labelWrapEllipsis`      | true or false: a line wider than the wrap width is cut to fit with an ellipsis, in place of wrapping                                             |
 | `node.labelWrapAnywhere`      | true or false: a line may break between any two letters, not only at spaces                                                                      |
 | `node.labelWrapSpaceCount`    | 0 or more: how many blanks a blank between two words counts as against the wrap width (vis-network counts 3)                                     |
@@ -362,6 +363,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelItalic`            | as `node.labelItalic`                                                                                            |
 | `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                         |
 | `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                                 |
+| `edge.labelWrapSkipEndSpace`  | as `node.labelWrapSkipEndSpace`                                                                                  |
 | `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                      |
 | `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                      |
 | `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                    |
@@ -423,7 +425,7 @@ at 24 px, and each field takes the value from the highest layer that set it.
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`, `node.labelLetterSize`,
 `node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
-`node.labelWrapTrailingSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
+`node.labelWrapTrailingSpace`, `node.labelWrapSkipEndSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
 edges but `labelDeclutter`). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
@@ -890,8 +892,8 @@ pins, a reader's lock and hidden rows. The tree is the paint order. See
 Every graph starts with two layers the element owns, with `source: { by: "element" }`: the
 defaults every node and edge is drawn from (`reason: "default"`), and the one that paints the
 selection. How elements outside a time window look is never one of them: that is an ordinary
-layer selecting `{ match: "state", state: "outsideWindow" }`, such as the Timeline Hidden starting
-row. See [What lies outside the window](./timeline.md#what-lies-outside-the-window).
+layer selecting `{ match: "state", state: "outsideWindow" }`, such as the Timeline Hidden row the
+timeline adds. See [What lies outside the window](./timeline.md#what-lies-outside-the-window).
 
 They are `locked`: removing, editing or moving one is refused with `E_PROTECTED`, and `add()` will
 not mint an element source at all. You paint over them by adding your own layer on top, which is
@@ -978,8 +980,7 @@ for (const entry of channels) {
 `styles.applyTemplate()` reports the layers it could not bind in `unbound`, each with a `fact`:
 `layer.unanswered` (`layerId`, `name`, `paths`: what the layer reads that nothing in this session
 answers) or `layer.detached` (`layerId`, `name`, `error`: the error code its set scope was refused
-with). New codes may be added in a minor release: word an unknown one generically. The English
-`reason` on both is deprecated and goes in the next major release.
+with). New codes may be added in a minor release: word an unknown one generically.
 
 ### Several elements at once
 

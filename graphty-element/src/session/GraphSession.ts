@@ -11,12 +11,13 @@
  * entry point's import graph and fails if a renderer appears in it.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { directedness, edgeIsDirected, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import {
     ACCELERATION_POLICY_DEFAULT,
     AccelerationController,
     type AccelerationPolicy,
+    type CalibrationRecord,
     type GraphAccelerator,
     type XrCapability,
 } from "../acceleration";
@@ -68,15 +69,20 @@ import { readProjectConfig } from "./commands/config";
 import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
-import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
+import {
+    calibrateOnce,
+    type CostEstimate,
+    currentCalibration,
+    DEFAULT_COST_GATE_LIMITS,
+    type MachineCalibration,
+} from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
-import { englishRunLabel } from "./english";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { type LayoutRecommendation, recommendLayout } from "./layout";
 import { LayoutRunner } from "./layoutRunner";
-import { RenderLimits } from "./limits";
+import { type DefaultableLimits, RenderLimits } from "./limits";
 import { loadLineOf } from "./loadLine";
 import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
@@ -621,6 +627,10 @@ class Session implements ElementSession {
     private readonly unwatchCeilings: () => void;
     /** The capability document last composed, kept while neither of its parts changes. */
     private composed: SessionCapabilities | null = null;
+    /** The page's calibration the record below was made from, so the record keeps its identity. */
+    private calibrationSource: MachineCalibration | undefined;
+    /** What `capabilities.calibration` reports: the page's calibration without its rates. */
+    private calibrationRecord: CalibrationRecord | null = null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
     /** Stops the XR subscription `capabilities:changed` is also published from. */
@@ -1069,7 +1079,8 @@ class Session implements ElementSession {
             get: (_target, key) => {
                 const value: unknown = Reflect.get(part, key, part);
                 return typeof value === "function"
-                    ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
+                    ? (...args: unknown[]): unknown =>
+                          this.dispatcher.routed(via, (): unknown => Reflect.apply(value, part, args))
                     : value;
             },
             // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the
@@ -1171,15 +1182,59 @@ class Session implements ElementSession {
         const { acceleration } = this.controller.capabilities;
         const xr = this.xr.capability;
         const limits = this.ceilings.effective;
+        const measured = currentCalibration();
+        if (measured !== this.calibrationSource) {
+            this.calibrationSource = measured;
+            this.calibrationRecord =
+                measured === undefined
+                    ? null
+                    : Object.freeze({ at: measured.at, machine: measured.machine, basis: measured.basis });
+        }
+
+        const calibration = this.calibrationRecord;
         if (
             this.composed?.acceleration !== acceleration ||
             this.composed.xr !== xr ||
-            this.composed.limits !== limits
+            this.composed.limits !== limits ||
+            this.composed.calibration !== calibration
         ) {
-            this.composed = Object.freeze({ acceleration, xr, limits });
+            this.composed = Object.freeze({ acceleration, xr, calibration, limits });
         }
 
         return this.composed;
+    }
+
+    /**
+     * Measure this machine's throughput once per page, for the cost estimates.
+     * @param options - `signal` stops waiting; the shared measurement still finishes.
+     * @returns The limits in force.
+     */
+    async calibrate(options: Pick<RunOptions, "signal"> = {}): Promise<Readonly<DefaultableLimits>> {
+        const { signal } = options;
+        signal?.throwIfAborted();
+        const before = this.document();
+        const measuring = calibrateOnce();
+        if (signal !== undefined) {
+            await new Promise<void>((resolve, reject) => {
+                const stop = (): void => {
+                    reject(signal.reason as Error);
+                };
+                signal.addEventListener("abort", stop, { once: true });
+                void measuring.then(() => {
+                    signal.removeEventListener("abort", stop);
+                    resolve();
+                });
+            });
+        } else {
+            await measuring;
+        }
+
+        const after = this.document();
+        if (after !== before && !this.disposed) {
+            publish(this.watchers, "capabilities:changed", { capabilities: after });
+        }
+
+        return after.limits;
     }
 
     /**
@@ -2029,6 +2084,9 @@ function configOf(
         get timelineHiddenLook() {
             return read().timelineHiddenLook;
         },
+        get timelineHiddenAdded() {
+            return read().timelineHiddenAdded;
+        },
         get runPlacement() {
             return read().runPlacement;
         },
@@ -2793,10 +2851,11 @@ function runIdOf(ref: RunRef): RunId {
  * @param runs - The runs this session holds.
  * @returns The source.
  */
-function encodingSourceOf(runs: RunsApi): EncodingSource {
+function encodingSourceOf(runs: SessionRunsApi): EncodingSource {
     return {
         run: (ref: RunRef): EncodingRun | undefined => runs.get(runIdOf(ref)),
         runIds: (): readonly RunId[] => runs.list().map((run) => run.id),
+        defaultLayerName: (id: RunId): string | undefined => runs.defaultLayerName(id),
     };
 }
 
@@ -3277,7 +3336,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // What status and "Used by" read of a run. Late-bound: the runs are built below.
     const statusRun = (run: Run): StatusRun => ({
         id: run.id,
-        label: englishRunLabel(run),
+        label: runs.defaultLayerName(run.id) ?? run.algorithm,
         algorithm: run.algorithm,
         registered: SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === run.algorithm),
         execution: executionOf(run.id),
@@ -3288,7 +3347,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
     const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({
         id: run.id,
-        label: englishRunLabel(run),
+        label: runs.defaultLayerName(run.id) ?? run.algorithm,
         result: run.result,
     });
     const offering = createOffering({
@@ -3811,7 +3870,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
-        entries: () => runs.list().map((run) => toResultsEntry(run)),
+        entries: () => runs.list().map((run) => toResultsEntry(runs, run)),
     });
 
     // Notes, published as `session.notes`: a result a note names is known while its run is, and
@@ -4323,7 +4382,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
         transient: () => peekLayers,
-        directed: () => snapshot().directed,
+        // Any edge directed: a file can mix directed and undirected edges (graph-format's role
+        // "directed" column), and a head no layer chose is drawn on each directed one.
+        directed: () => directedness(snapshot()) !== "undirected",
+        edgeDirected: (edge: number) => edgeIsDirected(snapshot(), edge),
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
         liftDrawn: () => {
             const layout = dispatcher.state.layout ?? DEFAULT_LAYOUT;
@@ -5323,13 +5385,13 @@ function tellData(
 
 /**
  * One run, in the shape the results API looks runs up in.
+ * @param runs - The runs this session holds, which name it.
  * @param run - The run.
  * @returns The entry.
  */
-function toResultsEntry(run: Run): ResultsRunEntry {
+function toResultsEntry(runs: SessionRunsApi, run: Run): ResultsRunEntry {
     return {
         id: run.id,
-        label: englishRunLabel(run),
         distinguishedBy: run.distinguishedBy,
         siblingsDifferBy: run.siblingsDifferBy,
         shape: run.shape,
@@ -5344,10 +5406,10 @@ function toResultsEntry(run: Run): ResultsRunEntry {
  * @param id - The run id.
  * @returns The entry, or undefined when there is no such run.
  */
-function runEntry(runs: RunsApi, id: string): ResultsRunEntry | undefined {
+function runEntry(runs: SessionRunsApi, id: string): ResultsRunEntry | undefined {
     const run = runs.get(id);
 
-    return run === undefined ? undefined : toResultsEntry(run);
+    return run === undefined ? undefined : toResultsEntry(runs, run);
 }
 
 /**
@@ -5384,7 +5446,8 @@ function planningContext(
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
         keptSets,
-        ...(runsOptions.calibration === undefined ? {} : { calibration: runsOptions.calibration }),
+        // The page's own calibration unless the host supplies its measured throughput.
+        calibration: runsOptions.calibration ?? currentCalibration,
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };
 }

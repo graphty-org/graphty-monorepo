@@ -47,13 +47,6 @@ export interface LayoutRecommendation {
      */
     readonly layout: LayoutDescriptor;
     /**
-     * Why this arrangement suits this graph, as an English sentence; absent when the graph's reader
-     * requested the layout (`recommend.requested-layout`).
-     * @deprecated English written by the element. Word {@link LayoutRecommendation.fact}
-     *   yourself; removed in the next major release.
-     */
-    readonly reason?: string;
-    /**
      * Why this arrangement suits this graph, as a code for the application to word. See
      * {@link LayoutRecommendationCode} for every code and its parameters.
      * @since 3.20.0
@@ -158,8 +151,6 @@ interface LayoutRule {
     fires(shape: RuleInput): boolean;
     /** The code the recommendation carries when this rule wins. */
     readonly code: LayoutRecommendationCode;
-    /** The sentence the recommendation carries when this rule wins. */
-    readonly reason: string;
 }
 
 /** Everything the rules branch on, gathered once. */
@@ -186,39 +177,26 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
         id: "fixed",
         code: "recommend.fixed",
         fires: ({ statistics, placedNodes }) => statistics.nodeCount > 0 && placedNodes >= statistics.nodeCount,
-        reason:
-            "Every node already carries a coordinate, so this keeps the arrangement the data " +
-            "arrived with instead of computing a new one over the top of it.",
     },
     {
         id: "location-map",
         code: "recommend.location-map",
         fires: ({ statistics, locations }) => statistics.nodeCount > 0 && locations,
-        reason: "The nodes carry geographic locations, so they are drawn where they are, on a map.",
     },
     {
         id: "random",
         code: "recommend.random",
         fires: ({ statistics, largeGraphThreshold }) => statistics.nodeCount > largeGraphThreshold,
-        reason:
-            "This graph is large enough that settling a force simulation would hold the frame for " +
-            "a long time, so it is scattered at random instead, which is instant.",
     },
     {
         id: "circular",
         code: "recommend.circular",
         fires: ({ statistics }) => statistics.nodeCount > 0 && statistics.edgeCount === 0,
-        reason:
-            "Nothing is connected, so a force layout has no pull to work with and would push every " +
-            "node equally far from every other. A ring puts them in a readable order instead.",
     },
     {
         id: "force",
         code: "recommend.force",
         fires: () => true,
-        reason:
-            "Connected nodes are pulled together and unconnected ones pushed apart, which is the " +
-            "arrangement that shows this graph's structure without being told anything about it.",
     },
 ];
 
@@ -380,7 +358,7 @@ function recommendByRules(input: RuleInput): LayoutRecommendation | undefined {
         const descriptor = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === rule.id);
 
         if (descriptor !== undefined && servable(descriptor, statistics.nodeCount)) {
-            return Object.freeze({ layout: descriptor, reason: rule.reason, fact: factOf(rule.code, input) });
+            return Object.freeze({ layout: descriptor, fact: factOf(rule.code, input) });
         }
     }
 
@@ -394,7 +372,6 @@ function recommendByRules(input: RuleInput): LayoutRecommendation | undefined {
         ? undefined
         : Object.freeze({
               layout: fallback,
-              reason: "The first arrangement this element can place a graph of this size with.",
               fact: factOf("recommend.first-servable", input),
           });
 }

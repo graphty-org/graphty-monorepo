@@ -1614,8 +1614,8 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
 
 /**
  * The rolling screenshot slice dispatcher (slices.ts): records this cycle's runner sample and the runner-minutes of
- * slice runs that finished, decides, and makes at most one dispatch. The store is read only when nothing else stops
- * a slice.
+ * slice runs that finished, decides, and makes at most one dispatch. The store is read when nothing else stops a
+ * slice, and every 15 minutes, when an overdue set may start one anyway.
  * @param c - the cycle
  * @param xs - the collected runs with their jobs
  */
@@ -1655,7 +1655,8 @@ async function slices(c: Cycle, xs: Collected[]): Promise<void> {
         if (body) {
             await captureMetrics(c, body);
         }
-        if (needed) {
+        // Decide again with the store whenever it was read: an overdue set dispatches even when the pool is busy.
+        if (needed || body) {
             decision = decideSlice({ ...input, store: body && storeSummary(body, c.now) });
         }
         read = !!body;
@@ -1771,7 +1772,9 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     const open = c.openPrs;
     if (open) {
         await c.part("flaky", PARTS, async () => {
-            for (const [metric, value] of Object.entries(await flakyMembers(d.store, gh, d.repo, open, c.now))) {
+            const { obs, untracked } = await flakyMembers(d.store, gh, d.repo, open, c.now);
+            await c.setJson("flaky-no-issue", untracked);
+            for (const [metric, value] of Object.entries(obs)) {
                 c.o(metric, value);
             }
         });

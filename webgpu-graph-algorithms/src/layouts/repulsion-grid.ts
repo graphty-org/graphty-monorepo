@@ -1,14 +1,12 @@
 /**
- * The grid-tier repulsion stage of the force models (spec 7.7, 7.4; P4-T10): G1-G3 through the T8 grid build, G4-G5
- * through the T9 pyramid, then G6 (`grid-far-field`) and G7 (`grid-near-field`, K3's pair law and epilogue) over
+ * The grid-tier repulsion stage of the force models: G1-G3 through the grid build, G4-G5 through the pyramid, then G6 (`grid-far-field`) and G7 (`grid-near-field`, K3's pair law and epilogue) over
  * `plan1d(n)`, followed by K4 (`fa2-speed-finalize`) exactly as `RepulsionExact` records it. The named grid buffers
  * are the model's `BufferSpec`s (`buffers()`, so `inspect(name)` reaches them); the anonymous scratch of the sort
  * and the scan and the static params of the pyramid draw on ONE `Lease` of the context's pool taken at `create()`
- * (the scan planner takes its block-sum levels at prepare time) and released by `dispose()` (PD-11, DEP-P4-D: a
+ * (the scan planner takes its block-sum levels at prepare time) and released by `dispose()` (a
  * per-batch lease would rebuild the G2-G4 bind groups every batch; a model creates one stage per bind(), so a stage
- * is bound once). The stage is the ONE class every model reaches the grid tier through (PD-22): the FR and
- * spring-electrical models pass `LAW` 1 / 2 in their override set, which reaches G6's per-cell law and G7's pair law
- * (P4-T13).
+ * is bound once). The stage is the ONE class every model reaches the grid tier through: the FR and
+ * spring-electrical models pass `LAW` 1 / 2 in their override set, which reaches G6's per-cell law and G7's pair law.
  */
 
 import { GRID_HUB_CELL } from "../constants.js";
@@ -60,8 +58,7 @@ export interface RepulsionGridResources extends RepulsionExactResources {
 }
 
 /**
- * The override set G6 / G7 / K4 compile with: K3's three plus the repulsion law (0 FA2, 1 FR, 2 coulomb; P4-T13,
- * PD-22).
+ * The override set G6 / G7 / K4 compile with: K3's three plus the repulsion law (0 FA2, 1 FR, 2 coulomb).
  * @public
  */
 export interface RepulsionGridOverrides extends RepulsionExactOverrides {
@@ -101,7 +98,7 @@ export function leaseOf(box: LeaseBox): Lease {
 }
 
 /**
- * A uniform buffer of the lease holding one written record of `block` (the pyramid's static params, PD-11).
+ * A uniform buffer of the lease holding one written record of `block` (the pyramid's static params).
  * @param device - the device
  * @param lease - the stage's lease
  * @param block - the uniform block
@@ -205,7 +202,7 @@ interface Bound {
     readonly speedFinalize: BoundKernel;
 }
 
-/** G1-G7 then K4 (spec 7.7, 7.4): the grid tier's repulsion stage. */
+/** G1-G7 then K4: the grid tier's repulsion stage. */
 export class RepulsionGrid {
     /** The overrides G6 / G7 / K4 were compiled with (a frozen copy of the argument of create()). */
     readonly overrides: RepulsionGridOverrides;
@@ -261,9 +258,9 @@ export class RepulsionGrid {
     }
 
     /**
-     * The model-owned buffers of the grid tier (spec 7.3; PD-11): `cellKey` / `cellVal` / `sortedKey` / `sortedIdx`
+     * The model-owned buffers of the grid tier: `cellKey` / `cellVal` / `sortedKey` / `sortedIdx`
      * 4n, `cellHist` / `cellStart` 4 histWords (cells + 2^dim + 1) zeroed, `hubList` one word per possible hub cell, `pyramid` 16 B per pyramid cell zeroed. `hubCounters` (16 B, zeroed) is the MODEL's on every
-     * tier (PD-14: K1 binds it on the exact tier too). n = 0 reports one node's worth of bytes (spec 3.6).
+     * tier (K1 binds it on the exact tier too). n = 0 reports one node's worth of bytes.
      * @param n - the node count
      * @param spec - the grid
      * @returns the specs
@@ -367,7 +364,7 @@ export class RepulsionGrid {
      * request); at other sizes it adds new scratch, and the first bind()'s stays held until dispose(): the one lease
      * also holds the prepare-time allocations (the scan's block-sum levels), so it cannot be released on a rebind
      * (the model creates one stage per bind(), so a rebind never happens).
-     * @param resources - the buffers of spec 7.3 plus the grid's
+     * @param resources - the model's force buffers plus the grid's
      */
     bind(resources: RepulsionGridResources): void {
         leaseOf(this.box);
@@ -417,8 +414,8 @@ export class RepulsionGrid {
     }
 
     /**
-     * Records G1..G7 for `n` nodes with the params slot's dynamic offset, stopping after `upTo` when given (spec 7.4
-     * grid sequence; the inspect() stage split, spec 11.9 item 2): G1-G3 through the build planner, G4-G5 through the
+     * Records G1..G7 for `n` nodes with the params slot's dynamic offset, stopping after `upTo` when given (the
+     * inspect() stage split): G1-G3 through the build planner, G4-G5 through the
      * pyramid planner, then G6 and G7 over plan1d(n).
      * @param pass - the open compute pass of the batch
      * @param n - the node count (in [1, the capacity of the grid buffers])

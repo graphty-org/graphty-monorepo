@@ -5,9 +5,9 @@ write their test results to it: one record per test group, each failure as it ha
 and task durations. It stores what it is sent and answers; it never starts a workflow or files an
 issue.
 
-The pipeline health API on AWS (`tools/pipeline-health`, issue #3607) keeps a copy of the records
-`GET /v1/plan` and `GET /v1/site` read, from the same posts, and answers those two reads the same way; see its
-README, "The results service's copy". The Worker stays the store CI reads until `RESULTS_URL` is switched.
+The pipeline health API on AWS (`tools/pipeline-health`, issue #3607) keeps a copy of these records, from the same
+requests, and answers every route below the same way except `GET /v1/health` and local tokens; see its README, "The
+results service's copy". The Worker stays the store CI reads until `RESULTS_URL` is switched.
 
 ## Endpoints
 

@@ -124,7 +124,6 @@ import {
     type StyleEncodeCommand,
     type StylePatchCommand,
 } from "../commands/style";
-import { englishRunLabel } from "../english";
 import { Dispatcher } from "../project/Dispatcher";
 import type { ProjectState } from "../project/state";
 import { nearestNames } from "../results/ResultsApi";
@@ -882,19 +881,24 @@ export interface StylesApi {
      * What the element draws for a channel when no layer writes it, on the graph as it is now:
      * the channel's catalog default (`ChannelDescriptor.default`), else its off value
      * (`ChannelDescriptor.off`: a label background with no color draws none, `"none"`), except
-     * where the graph decides it. An edge's head is the one such channel today: a directed graph
-     * draws the catalog's default head, an undirected graph draws none (`"none"`).
+     * where the graph decides it. An edge's head is the one such channel today: a directed edge
+     * draws the catalog's default head, an undirected edge draws none (`"none"`). Asked about one
+     * edge, it answers for that edge's own direction (a file can mix directed and undirected
+     * edges); asked with no edge, or about an edge the session does not hold, it answers `"none"`
+     * only when no edge of the graph is directed.
      *
      * A consumer that shows a reader what an unwritten field gives reads it here rather than from
      * the static catalog, which cannot know the graph.
      *
      * ```ts
      * session.styles.defaultValue("edge.arrowHead"); // "none" on an undirected graph
+     * session.styles.defaultValue("edge.arrowHead", "e1"); // "none" when edge e1 is undirected
      * ```
      * @param channel - The channel.
+     * @param edge - An edge to answer for, where the edge's own direction decides the value.
      * @returns The value, or undefined for a channel with neither a default nor an off value.
      */
-    defaultValue(channel: Channel): ChannelValue | undefined;
+    defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined;
     /**
      * Paint the elements a run chose with fixed channel values, as ordinary layers: what an
      * algorithm's suggested style for a route, a chosen set of nodes or a chosen set of edges is.
@@ -1561,8 +1565,13 @@ export interface StylesSources {
     readonly transient?: () => readonly ElementLayerSpec[];
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
-    /** Whether the graph is directed now, which decides the head an edge draws when no layer sets one. */
+    /**
+     * Whether any edge of the graph is directed now, which decides whether an edge draws a head
+     * when no layer sets one.
+     */
     readonly directed?: () => boolean;
+    /** See {@link ExplainSources.edgeDirected}. */
+    readonly edgeDirected?: (edge: number) => boolean;
     /** Whether `edge.lift` draws now: a flat layout in the 3D view. See {@link ExplainSources.liftDrawn}. */
     readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
@@ -3072,12 +3081,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The values, by channel.
      */
     const baseValues = (target: "node" | "edge"): StaticStyle =>
-        Object.assign(
-            {},
-            ...(sources.base ?? [])
-                .filter((spec) => spec.target === target && spec.selector.match === "everything")
-                .map((spec) => spec.set),
-        );
+        (sources.base ?? [])
+            .filter((spec) => spec.target === target && spec.selector.match === "everything")
+            .reduce<StaticStyle>((all, spec) => Object.assign(all, spec.set), {});
 
     /**
      * The layers of the stack by id, cached until the stack changes.
@@ -3189,6 +3195,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
         ...(sources.directed === undefined ? {} : { directed: sources.directed }),
+        ...(sources.edgeDirected === undefined ? {} : { edgeDirected: sources.edgeDirected }),
         ...(sources.liftDrawn === undefined ? {} : { liftDrawn: sources.liftDrawn }),
     };
 
@@ -3390,7 +3397,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             layer.source.by === "template" &&
             layer.source.templateId === "graphty:starting-everything",
         encoding: encodingOf,
-        scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
@@ -4152,12 +4158,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         beneath = false,
         exclusive = true,
     ): EditPlan<readonly Layer[]> => {
-        const run = requireRun(spec.run, requireRuns(exclusive ? "highlight" : "mark"));
+        const runSource = requireRuns(exclusive ? "highlight" : "mark");
+        const run = requireRun(spec.run, runSource);
         const field = chosenField(run, spec, exclusive);
         const painting = runPainting(run, field, spec.set, highlightColor);
         const path = resultPath(run.id, field);
         const where = `${quotePath(path)} == \`true\``;
-        const called = spec.name ?? englishRunLabel(run);
+        const called = spec.name ?? runSource.defaultLayerName(run.id) ?? run.algorithm;
         const id = minter();
         const added: CompiledLayer[] = [];
         const unresolved = new Set<Path>();
@@ -4450,18 +4457,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The plan that writes the default rows once, as plain data: Everything at the very bottom of
-     * the reader's rows, the rest at the top. It adds every one of them; it never looks for a row
-     * already there, so a row a reader deleted or changed stays as the reader left it.
+     * the reader's rows, the rest at the top; or, for the timeline, only Timeline Hidden at the top.
+     * It adds every one of them; it never looks for a row already there, so a row a reader deleted
+     * or changed stays as the reader left it.
+     * @param timelineHidden - True for the timeline's row alone.
      * @returns The plan.
      */
-    const planDefaultRows = (): EditPlan<readonly RowParts[]> => {
+    const planDefaultRows = (timelineHidden: boolean): EditPlan<readonly RowParts[]> => {
         const config = dispatcher.services.config?.();
-        const rowsToAdd = startingRows({
-            selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
-            ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
-            ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
-            timelineHidden: config?.timelineHiddenLook ?? "hidden",
-        });
+        const rowsToAdd = startingRows(
+            timelineHidden
+                ? { timelineHidden: config?.timelineHiddenLook ?? "hidden" }
+                : {
+                      selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
+                      ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
+                      ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
+                  },
+        );
         let stack = current();
         const added: RowParts[] = [];
         const layers: LayerId[] = [];
@@ -4866,7 +4878,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             case "addRow":
                 return planAddRow(command.spec, command.at);
             case "addDefaultRows":
-                return planDefaultRows();
+                return planDefaultRows(command.timelineHidden === true);
             case "addFolder":
             case "renameRow":
             case "moveRow":
@@ -5630,10 +5642,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return halfOfStyle(undefined, target, highlightColor) ?? {};
         },
 
-        defaultValue(channel: Channel): ChannelValue | undefined {
-            // The painter draws a head no layer chose only on a directed graph (StylePainter).
-            if (channel === "edge.arrowHead" && sources.directed?.() === false) {
-                return "none";
+        defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined {
+            // The painter draws a head no layer chose only on a directed edge (StylePainter).
+            if (channel === "edge.arrowHead") {
+                const row = edge === undefined ? undefined : explainSources.edgeIndex(edge);
+                const drawn =
+                    row === undefined || sources.edgeDirected === undefined
+                        ? sources.directed?.()
+                        : sources.edgeDirected(row);
+                if (drawn === false) {
+                    return "none";
+                }
             }
             const descriptor = channelDescriptor(channel);
             // A channel with no default draws its off value, if it has one (an unset text background).

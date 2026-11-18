@@ -1,23 +1,16 @@
 /// <reference types="@webgpu/types" preserve="true" />
 /**
- * The public barrel of @graphty/webgpu-graph-algorithms (spec 2.5, 3.3; contract 3.15): explicit named exports only,
- * values and `export type`, no star re-exports, no default export, nothing from src/browser/** or src/node/** (their
- * own entries; imported by nothing else in src/, 2.4) and nothing of the internal surface (GraphResidency,
- * BufferPool, Readback, Lease, PipelineCache, Kernel, CommandBatch, UniformRing, UniformBlock, composeWgsl, KERNELS,
- * ForceSimulation, ForceAtlas2Model: tests import them from their files). P0: the error class, the constants and
- * isSoftwareAdapter. P1 adds GpuContext and degree (values) and the context / run / profiler types. P2 adds nothing
- * (Lease, CommandBatch, UniformRing are internal). P3 adds the layout factory, the accelerator, the two default
- * tables, the seeder and the layout / accelerator types. P5 adds the two factories, the two default tables and the
- * two stats records. P4 adds calibrateLayout and its two records. P8 adds the four traversals and their three result
- * records. All-pairs shortest paths (design 8.7) adds allPairsShortestPath and its result and option records.
- * test/index.test.ts pins the value list and
+ * The public barrel of @graphty/webgpu-graph-algorithms: explicit named exports only, values and `export type`, no
+ * star re-exports, no default export, nothing from src/browser/** or src/node/** (their own entries; imported by
+ * nothing else in src/) and nothing of the internal surface (GraphResidency, BufferPool, Readback, Lease,
+ * PipelineCache, Kernel, CommandBatch, UniformRing, UniformBlock, composeWgsl, KERNELS, ForceSimulation,
+ * ForceAtlas2Model: tests import them from their files). test/index.test.ts pins the value list and
  * test/types/public-api.test-d.ts the type list. This comment must never spell the internal
  * JSDoc tag: it is the leading comment of the first export statement, and stripInternal would drop that statement
  * from the emitted declarations.
  */
 
-// ==================== constants and errors (P0; FA2_DEFAULTS / LAYOUT_TUNING_DEFAULTS public from P3, FR_DEFAULTS /
-// SE_DEFAULTS from P5)
+// ==================== constants and errors
 export {
     ARC_WINDOW_ALIGN,
     EXACT_MAX_NODES,
@@ -38,7 +31,7 @@ export {
     type WebGpuGraphErrorCode,
 } from "./errors.js";
 
-// ==================== context, adapter classifier, profiler (P0 / P1)
+// ==================== context, adapter classifier, profiler
 export { GpuContext } from "./context.js";
 export { isSoftwareAdapter } from "./device/acquire.js";
 export type { GpuTrace } from "./kernel/batch.js";
@@ -49,29 +42,29 @@ export type { PassTiming, Profiler } from "./kernel/profiler.js";
 // caller may await it first to ask before committing.
 export { verifyDevice } from "./primitives/verify.js";
 
-// ==================== algorithms (P1: the walking-skeleton diagnostic, spec 3.3)
+// ==================== algorithms (the walking-skeleton diagnostic)
 export { degree } from "./algorithms/degree.js";
 
-// ==================== algorithms (P7: the SpMV family and WCC, spec 8.2, 8.3)
+// ==================== algorithms (the SpMV family and WCC)
 export { connectedComponents } from "./algorithms/components.js";
 export { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 export { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 
-// ==================== algorithms (P8: the frontier family, spec 3.3 lines 807-810, 8.4; the seam's option types in)
+// ==================== algorithms (the frontier family; the seam's option types in)
 export { bellmanFord } from "./algorithms/bellman-ford.js";
 export { betweennessCentrality, edgeBetweennessCentrality } from "./algorithms/betweenness.js";
 export { breadthFirstSearch } from "./algorithms/bfs.js";
 export { closenessCentrality } from "./algorithms/closeness.js";
 export { sssp } from "./algorithms/sssp.js";
 
-// ==================== algorithms (all-pairs shortest paths, design 3.3 line 813, 8.7)
+// ==================== algorithms (all-pairs shortest paths)
 export { allPairsShortestPath } from "./algorithms/all-pairs.js";
-// ==================== algorithms (P11: structure and community, design 3.3 lines 806-807, 8.5, 8.6)
+// ==================== algorithms (structure and community)
 export { labelPropagation } from "./algorithms/label-propagation.js";
 export { minimumSpanningTree } from "./algorithms/mst.js";
 export { triangleCount } from "./algorithms/triangles.js";
 
-// ==================== layouts and the accelerator (P3; the two P5 factories; P4's calibrateLayout, spec 2.2)
+// ==================== layouts, the accelerator and calibrateLayout
 export { createAccelerator } from "./accelerator.js";
 export { calibrateLayout } from "./layouts/calibrate.js";
 export { createForceAtlas2 } from "./layouts/forceatlas2.js";
@@ -79,8 +72,8 @@ export { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
 export { seedPositions } from "./layouts/seed.js";
 export { createSpringElectrical } from "./layouts/spring-electrical.js";
 
-// ==================== types: the accelerator surface and the re-exported declarations of @graphty/layout (spec 9.3)
-// and @graphty/algorithms (spec 9.2), both `import type` since W1b (D27)
+// ==================== types: the accelerator surface and the re-exported declarations of @graphty/layout
+// and @graphty/algorithms, both `import type`
 export type {
     AcceleratorOptions,
     AlgorithmAccelerator,
@@ -108,19 +101,19 @@ export type {
     SsspResultLike,
 } from "./types/accelerator.js";
 
-// ==================== types: the P8 traversal results (spec 3.3 lines 830-832, 9.7); the option types are the seam's
-// BfsOptions / SsspOptions / HitsOptionsLike above (P8 PD-19)
+// ==================== types: the traversal results; the option types are the seam's
+// BfsOptions / SsspOptions / HitsOptionsLike above
 export type { LabelPropagationOptions } from "./types/community.js";
 export type { GpuMstResult, GpuTriangleResult } from "./types/structure.js";
 export type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./types/traversal.js";
 
-// ==================== types: the betweenness results (spec 3.3 lines 833-834); the option type is the seam's
+// ==================== types: the betweenness results; the option type is the seam's
 // BetweennessAcceleratorOptions above
 export type { GpuBetweennessResult, GpuEdgeScoresResult } from "./types/betweenness.js";
-// ==================== types: all-pairs shortest paths (design 3.3 line 835)
+// ==================== types: all-pairs shortest paths
 export type { ApspOptions, GpuApspResult } from "./types/all-pairs.js";
 
-// ==================== types: the P7 algorithm results and option records (spec 3.3 lines 815-828, 9.7)
+// ==================== types: the SpMV-family and WCC results and option records
 export type {
     ComponentsOptions,
     EigenvectorOptions,
@@ -134,7 +127,7 @@ export type {
     PageRankOptions,
 } from "./types/algorithms.js";
 
-// ==================== types: context and capabilities (P0 / P1)
+// ==================== types: context and capabilities
 export type {
     AdapterInfoLike,
     AdapterSummary,
@@ -151,7 +144,7 @@ export type {
     RaisableLimit,
 } from "./types/context.js";
 
-// ==================== types: layouts (P3; the P5 stats and trace records; the P4 calibration records)
+// ==================== types: layouts (the stats and trace records; the calibration records)
 export type {
     CalibrateOptions,
     DrawnOutput,
@@ -178,5 +171,5 @@ export type {
     SpringElectricalOptions,
 } from "./types/options.js";
 
-// ==================== types: run options (P1)
+// ==================== types: run options
 export type { GpuRunOptions } from "./types/run.js";

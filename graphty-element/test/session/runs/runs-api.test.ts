@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { type AlgorithmDescriptor, DEPRECATED_ALGORITHMS, type LayerId, type RunId } from "../../../src/catalog/types";
+import type { AlgorithmDescriptor, LayerId, RunId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import {
     createRunsApi,
@@ -136,22 +136,6 @@ describe("starting a run", () => {
             assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNKNOWN_ALGORITHM");
             assert.deepStrictEqual(isGraphtyError(error) ? error.details.available : [], ["degree", "k-core"]);
         }
-    });
-
-    it("refuses a deprecated built-in name as unsupported, not as unknown", () => {
-        const { runs, calls } = harness();
-
-        for (const algorithm of DEPRECATED_ALGORITHMS) {
-            try {
-                runs.start(algorithm);
-                assert.fail(`the deprecated "${algorithm}" must not start`);
-            } catch (error) {
-                assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNSUPPORTED", algorithm);
-                assert.strictEqual(isGraphtyError(error) ? error.details.reason : "", "deprecated", algorithm);
-            }
-        }
-
-        assert.strictEqual(calls(), 0);
     });
 
     it("refuses an option the algorithm does not declare", () => {
@@ -486,23 +470,23 @@ describe("the queue a consumer shows", () => {
     });
 });
 
-describe("labels", () => {
+describe("the name a run's layers are given by default", () => {
     it("is the algorithm's plain name while it is the only run of that algorithm", () => {
         const { runs } = harness();
 
-        assert.strictEqual(runs.start("degree").label, "Connections");
+        assert.strictEqual(runs.defaultLayerName(runs.start("degree").id), "Connections");
     });
 
     it("gains the parameter that differs the moment a sibling exists", () => {
         const { runs } = harness();
         const two = runs.start("k-core", { k: 2 }, { as: "k2" });
 
-        assert.strictEqual(two.label, "Core");
+        assert.strictEqual(runs.defaultLayerName(two.id), "Core");
 
         const three = runs.start("k-core", { k: 3 }, { as: "k3" });
 
-        assert.strictEqual(two.label, "Core (k 2)");
-        assert.strictEqual(three.label, "Core (k 3)");
+        assert.strictEqual(runs.defaultLayerName(two.id), "Core (k 2)");
+        assert.strictEqual(runs.defaultLayerName(three.id), "Core (k 3)");
     });
 
     it("states what tells siblings apart as the differing options, and null for none (#866)", () => {
@@ -524,7 +508,7 @@ describe("labels", () => {
         runs.start("degree");
         const other = runs.start("degree", {}, { scope: "largest-component" });
 
-        assert.strictEqual(other.label, "Connections (largest component)");
+        assert.strictEqual(runs.defaultLayerName(other.id), "Connections (largest component)");
         assert.deepStrictEqual(other.siblingsDifferBy, [], "only the scope differs");
     });
 });
@@ -665,7 +649,6 @@ describe("batches", () => {
             code: "partial.batch-incomplete",
             params: { completed: 1, total: 3 },
         });
-        assert.strictEqual(batch.caveats.partialReason, "1 of 3 members finished.");
         assert.deepStrictEqual(
             result.steps.map((step) => step.failure?.code),
             [undefined, "canceled", "not-started"],

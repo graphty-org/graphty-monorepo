@@ -29,7 +29,7 @@ Yes or no, and one of a few. [Overview](https://graphty.app/storybook/compact-ma
 | [`ToggleWithContent`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglewithcontent--docs) | a yes or no brings its own settings with it; turning it off takes them off the screen.         |
 | [`AlignmentMatrix`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-alignmentmatrix--docs)     | the 3 x 3 alignment grid: nine radios with two-dimensional arrow keys.                         |
 
-Two to six options whose difference can be drawn are a themed Mantine `SegmentedControl` with a
+Two to six options whose difference can be drawn are this package's `SegmentedControl` with a
 glyph and a visually hidden word in each segment; its
 [Storybook page](https://graphty.app/storybook/compact-mantine/?path=/docs/themed-mantine-selection-segmentedcontrol--docs) shows the recipe in a panel
 row. (`IconGroupRow` did this until 0.9.)
@@ -101,9 +101,8 @@ tab list: one Tab stop, arrow keys inside, names for screen readers.
 | [`QuickActions`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-quickactions--docs)                  | The quick actions palette: a search field over sectioned rows. Typing filters, arrows move, Enter runs, Escape closes. For a short pick-list: a second line per action (`description`) and `truncate="middle"`; the search field always shows and holds focus. |
 
 ```tsx
-import { SegmentedControl } from "@mantine/core";
 import { useState } from "react";
-import { Toolbar, ToolButton, ToolGroup } from "@graphty/compact-mantine";
+import { SegmentedControl, Toolbar, ToolButton, ToolGroup } from "@graphty/compact-mantine";
 
 function EditorToolbar() {
     const [tool, setTool] = useState("move");

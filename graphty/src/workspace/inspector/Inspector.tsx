@@ -7,6 +7,7 @@ import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
 import { AttributeMenuItems } from "../data-place/MenuItems";
+import { resultItems } from "../data-place/resultItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
@@ -32,6 +33,7 @@ import { LayerRowPanel } from "../graph-place/StyleTree";
 import { NoteList } from "../notes/NotesPlace";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
+import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
 import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
@@ -327,6 +329,25 @@ function dataActionsOf(
 }
 
 /**
+ * A result's Run again and Copy items, the same as its Data place row's.
+ * @param session - the session.
+ * @param store - the workspace store.
+ * @param run - the inspected run, if any.
+ * @param resolved - what is inspected.
+ * @returns the items, none unless a result (not one of its groups) is inspected.
+ */
+function resultActionsOf(
+    session: GraphSession,
+    store: Workspace["store"],
+    run: Run | undefined,
+    resolved: Resolved,
+): SelectionMenuItem[] {
+    return run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
+        ? resultItems(session, store, run)
+        : [];
+}
+
+/**
  * The inspector's body: the Style and Values tabs, and Notes when the item has notes, or one body
  * for a kind with no tabs.
  * @param props - Component props
@@ -443,13 +464,14 @@ function HeaderFrom({ from }: Readonly<{ from: Header["from"] }>): React.ReactNo
 
 /**
  * The header's actions menu: the style tree's row menu for a style tree row, else the kind's
- * commands, then the Data place's verbs.
+ * commands, then a result's Run again and Copy items, then the Data place's verbs.
  * @param props - Component props
  * @param props.kindWord - the kind in words.
  * @param props.selectsPaints - whether Select what it paints sits before it.
  * @param props.tree - the style tree.
  * @param props.treeRow - the style tree row, if it is one.
  * @param props.menu - the kind's commands.
+ * @param props.resultActions - a result's Run again and Copy items, the same as its Data place row's.
  * @param props.attributeActions - the Data place's verbs.
  * @param props.moveTo - moves a style tree row into a folder.
  * @returns the menu.
@@ -460,6 +482,7 @@ function HeaderMenu({
     tree,
     treeRow,
     menu,
+    resultActions,
     attributeActions,
     moveTo,
 }: Readonly<{
@@ -468,6 +491,7 @@ function HeaderMenu({
     tree: HeaderTree["tree"];
     treeRow: HeaderTree["treeRow"];
     menu: readonly { id: string }[];
+    resultActions: readonly SelectionMenuItem[];
     attributeActions: ReturnType<typeof dataActionsOf>;
     moveTo: (row: { id: string; name: string }, folderId: string | null) => void;
 }>): React.JSX.Element {
@@ -500,6 +524,7 @@ function HeaderMenu({
                         }}
                     />
                 )}
+                <SelectionMenuItems items={resultActions} />
                 <AttributeMenuItems actions={attributeActions} />
             </Menu.Dropdown>
         </Menu>
@@ -597,6 +622,7 @@ export function Inspector(): React.JSX.Element {
     const body = bodyOf(session, resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
     const attributeActions = dataActionsOf(session, resolved, attributeActionsOf, sourceActionsOf);
+    const resultActions = resultActionsOf(session, store, run, resolved);
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
     const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
     // ... and draws the tree's own glyph and menu for the row.
@@ -679,13 +705,14 @@ export function Inspector(): React.JSX.Element {
                                 </ActionIcon>
                             </Tooltip>
                         )}
-                        {menu.length + attributeActions.length > 0 && (
+                        {menu.length + resultActions.length + attributeActions.length > 0 && (
                             <HeaderMenu
                                 kindWord={kindWord}
                                 selectsPaints={selectsPaints}
                                 tree={tree}
                                 treeRow={treeRow}
                                 menu={menu}
+                                resultActions={resultActions}
                                 attributeActions={attributeActions}
                                 moveTo={moveTo}
                             />

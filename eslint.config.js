@@ -24,10 +24,14 @@ export default tseslint.config(
             "**/dist/**",
             "**/node_modules/**",
             "**/coverage/**",
+            // Coverage parts a whole-shard test run writes (tools/run-tests.sh), merged later; gitignored.
+            "**/.coverage-parts/**",
             "**/storybook-static/**",
             "**/gh-pages/**",
             "**/tmp/**",
             "**/.worktrees/**",
+            // Built copies of each package that benchmarks/compare checks out and builds (gitignored).
+            "benchmarks/compare/builds/**",
             // Storybook configuration directories, not yet linted. graphty and compact-mantine keep
             // .storybook out of every tsconfig, so a type-aware pass reports "not found by the
             // project service" on each file; the other packages have a handful of real findings
@@ -381,6 +385,25 @@ export default tseslint.config(
         files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
         rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
     },
+    // The files that need Mantine's own SegmentedControl, Slider, RangeSlider and ScrollArea: the
+    // wrappers that replace them, the theme that styles them, the stories of the themed stock
+    // components, and the tests of that theme.
+    {
+        files: [
+            "compact-mantine/src/components/SegmentedControl.tsx",
+            "compact-mantine/src/components/Slider.tsx",
+            "compact-mantine/src/components/ScrollArea.tsx",
+            "compact-mantine/src/theme/**/*.ts",
+            "compact-mantine/stories/mantine/**/*.tsx",
+            "compact-mantine/tests/**/*.{ts,tsx}",
+        ],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { paths: MANTINE_REPLACEMENTS.filter((entry) => !entry.importNames.includes("ScrollArea")) },
+            ],
+        },
+    },
 
     // ============================================
     // ONE ZOD: IMPORT IT AS "zod"
@@ -510,9 +533,6 @@ export default tseslint.config(
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
             "graph-io/test/fidelity/references/*.mjs",
-            // Temporary: the dry run's check deadlines decide route outcomes, so tools/dry-run-check-guard.mjs
-            // lets them change only on a branch of their own. Remove this line when that change lands (#7622).
-            "**/acceptance/run.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },

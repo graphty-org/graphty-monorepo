@@ -178,6 +178,10 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * `LEAN_TEMPLATE_OF`'s four vertices as six corners, instead of the join template's 30: the same rectangle and the same vertex shader after this, at fewer vertex
  * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
  * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
+ * With `EDGE_LINE_AA` (antialias "shader", on a canvas with no multisampling) the lean rectangle is
+ * half a pixel wider at each side, and the fragment stage multiplies the alpha by the share of the
+ * pixel the line covers, a smoothstep of its distance from the centre line: the smooth edge with no
+ * multisampling and no discard. Its ends stay square at the node centres, under the nodes.
  *
  * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
  * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
@@ -365,6 +369,11 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+// The pixel's signed distance from the centre line and the line's drawn half width there, both in
+// pixels and times w, then w: divided by the interpolated w they are linear on screen.
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 attribute float runTotal;
@@ -616,7 +625,13 @@ void main() {
     float raw = atB ? rawB : rawA;
     bool joined = atB ? joinedB : joinedA;
 
+#ifdef EDGE_LINE_AA
+    // Half a pixel more on each side: the smoothed edge falls off from hw - 0.5 to hw + 0.5.
+    float across = side * (hw + 0.5);
+    vec2 off = n * across;
+#else
     vec2 off = side * n * hw;
+#endif
     bool onMiterLine = atB ? miterB : miterA;
     if (lenOwn <= EPS) {
         off = vec2(0.0);
@@ -694,6 +709,9 @@ void main() {
 
     vec2 here = sP + off;
     vScreen = vec4(here * cP.w, cP.w, hw);
+#ifdef EDGE_LINE_AA
+    vAcross = vec3(lenOwn > EPS ? across * cP.w : 0.0, hw * cP.w, cP.w);
+#endif
 
     float worldOwn = length(pB - pA);
     vOwn = vec4(sA, d);
@@ -752,6 +770,9 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 varying vec4 vEdgeColorA;
@@ -979,6 +1000,22 @@ void main() {
 #else
 #ifdef EDGE_PULLED
     gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);
+#ifdef EDGE_LINE_AA
+    // The share of the pixel the line covers, from its distance to the centre line: a smoothstep
+    // across one pixel at each side (antialias "shader", no multisampling). A line under a pixel
+    // wide is drawn a pixel wide and fainter (vWidth.z), so its whole profile still sums to its width.
+    float hwAA = vAcross.y / vAcross.z;
+    float acrossAA = abs(vAcross.x / vAcross.z);
+    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, acrossAA);
+#ifdef EDGE_LINE_AA_CUT
+    // In 3D a fragment writes depth however faint it is, and a farther line drawn after it fails
+    // the depth test there: drop the outer half of the fringe (coverage under about 0.16) and any
+    // fragment fainter than four levels in 255, so a faint or thin line cuts no hole in a farther one.
+    if (acrossAA > hwAA + 0.25 || gl_FragColor.a < 4.0 / 255.0) {
+        discard;
+    }
+#endif
+#endif
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);
 #endif

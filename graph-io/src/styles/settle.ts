@@ -917,7 +917,9 @@ function lengthsOf(defaults: ToolDefaults | null, nodes: number): StyleLengths {
 }
 
 /**
- * Each edge's dash and gap in its own line's widths, where its program draws its line style in dashes of its own.
+ * Each edge's dash and gap in its own line's widths, where its program draws its line style in dashes of its own and
+ * the file gives the edge none (`dashLength` and `dashGap`). Dots that would repeat within a width, which would merge
+ * into a solid line, keep the consumer's own spacing.
  * @param extracted - the styles being settled
  * @param snapshot - the graph
  * @param work - the work
@@ -929,17 +931,24 @@ function dashes(
     work: Work,
     table: NonNullable<ToolDefaults["dashes"]>,
 ): void {
-    const writers = ["width", "lineStyle"];
+    const writers: StyleProperty[] = ["width", "lineStyle", "dashLength", "dashGap"];
     if (!work.rules.some((rule) => rule.target === "edge" && writers.some((p) => writes(rule, p)))) {
         return;
     }
     const now = current(extracted, work);
-    const width = resolveStyles(now, "edge", "width", snapshot);
-    const style = resolveStyles(now, "edge", "lineStyle", snapshot);
+    const [width, style, ownDash, ownGap] = writers.map((p) => resolveStyles(now, "edge", p, snapshot));
     const pattern = style.map((value, i) => {
         const w = width[i];
         const dash = typeof value === "string" ? table[value as keyof typeof table]?.value : undefined;
-        return dash === undefined || typeof w !== "number" || Number.isNaN(w) || w <= 0 ? null : dash(w);
+        if (typeof ownDash[i] === "number" || typeof ownGap[i] === "number") {
+            return null;
+        }
+        if (dash === undefined || typeof w !== "number" || Number.isNaN(w) || w <= 0) {
+            return null;
+        }
+        const pair = dash(w);
+        // a dot is drawn round and one width across, so dots repeating within a width would draw a solid line
+        return value === "dotted" && pair.dash + pair.gap <= w ? null : pair;
     });
     addValues(
         work,
@@ -1011,6 +1020,25 @@ function headLengthOf(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: 
 }
 
 /**
+ * The program's triangle width over its length at an edge's end: its fixed `aspect`, or its `width` rule over its
+ * length where its width grows with the line's (Tk's).
+ * @param geometry - how the program sizes its arrowheads
+ * @param end - the end
+ * @param width - the line's width
+ * @param i - the edge
+ * @returns the aspect
+ */
+function triangleAspect(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: number): number {
+    if (geometry.width === undefined) {
+        return geometry.aspect;
+    }
+    const size = end.size(i);
+    const source = end.sources[i];
+    const length = geometry.length(size, width, typeof source === "string" ? (source as StyleArrowShape) : undefined);
+    return length > 0 ? geometry.width(size, width) / length : geometry.aspect;
+}
+
+/**
  * How long and how wide an arrow is drawn at an edge's end, in the program's units.
  * @param geometry - how the program sizes its arrowheads
  * @param end - the end
@@ -1037,7 +1065,8 @@ function arrowSizeOf(
     const lead = ARROW_RUNS.get(shape)?.lead;
     const extent =
         headLengthOf(geometry, end, width, i) * (lead === undefined ? (own?.length ?? 1) : lead / YED_HEAD_LENGTH);
-    const aspect = own?.aspect ?? (TRIANGLE_PROPORTIONS.has(shape) ? geometry.aspect : undefined);
+    const aspect =
+        own?.aspect ?? (TRIANGLE_PROPORTIONS.has(shape) ? triangleAspect(geometry, end, width, i) : undefined);
     const breadth =
         aspect === undefined || OWN_PROPORTIONS.has(shape)
             ? null

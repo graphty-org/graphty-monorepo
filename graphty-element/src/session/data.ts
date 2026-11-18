@@ -101,7 +101,14 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
-import { type DataDeriveCommand, derivedColumnsOf, derivedRows, type ValuesWhere } from "./commands/derive";
+import {
+    type DataDeriveCommand,
+    derivedColumnsOf,
+    derivedRows,
+    isTerms,
+    scoreExpression,
+    type ValuesWhere,
+} from "./commands/derive";
 import {
     Draft,
     draftStyles,
@@ -246,6 +253,7 @@ import type {
     ResultColumn,
     ResultColumnDescriptor,
     RowUpdate,
+    ScoreTerm,
     SessionAttributes,
     SessionDataApi,
     SessionDataConfig,
@@ -5403,6 +5411,40 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Add a score: a computed column whose values are its terms' rescaled values, weighted and summed.
+     * @param name - the column's name
+     * @param terms - the columns and their weights
+     * @param options - nodes or edges
+     * @returns settles once the step is recorded
+     */
+    async deriveScore(name: string, terms: readonly ScoreTerm[], options: DeriveOptions = {}): Promise<void> {
+        this.requireLive("deriveScore");
+        if (!Array.isArray(terms) || terms.length === 0) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A score has at least one term.",
+                source: "data",
+                details: { reason: "no-terms", column: name },
+            });
+        }
+
+        if (!isTerms(terms)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "Each term of a score is a path with a finite weight, or none.",
+                source: "data",
+                details: { reason: "bad-weight", column: name, terms },
+            });
+        }
+
+        const score = terms.map((term) => Object.freeze({ path: term.path, weight: term.weight ?? 1 }));
+        return this.afterLoads(
+            () => this.deriveNow(name, scoreExpression(score), options.kind ?? "node", score),
+            () => undefined,
+        );
+    }
+
+    /**
      * Every computed column.
      * @returns the columns, in the order they were added
      */
@@ -5431,9 +5473,15 @@ export class SessionData implements SessionDataApi {
      * @param name - as derive takes it
      * @param expression - as derive takes it
      * @param kind - nodes or edges
+     * @param score - a score's terms, for deriveScore; absent for derive
      * @returns what derive returns
      */
-    private async deriveNow(name: string, expression: Query, kind: "node" | "edge"): Promise<void> {
+    private async deriveNow(
+        name: string,
+        expression: Query,
+        kind: "node" | "edge",
+        score?: readonly ScoreTerm[],
+    ): Promise<void> {
         this.requireLive("derive");
         const refuse = (reason: string, message: string): GraphtyError =>
             new GraphtyError({
@@ -5475,7 +5523,8 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        const column: DerivedColumn = { kind, name, expression };
+        const column: DerivedColumn =
+            score === undefined ? { kind, name, expression } : { kind, name, expression, score };
         const columns = replacing
             ? existing.map((each) => (each.kind === kind && each.name === name ? column : each))
             : [...existing, column];

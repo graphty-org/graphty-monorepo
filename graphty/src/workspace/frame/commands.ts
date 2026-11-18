@@ -11,7 +11,8 @@ import { historyTip, undoOrRedo } from "./historyWords";
 
 /**
  * The keys graphty-element publishes for one of its graph keys, so Undo, Redo and Clear selection
- * show and answer exactly the keys the element's keymap does.
+ * show exactly the keys the element's keymap answers. The keys themselves are answered by that
+ * keymap (`attachKeymap`, attached by `useCommandKeys`), never dispatched as these commands.
  * @param action - The keymap action.
  * @returns Its keys.
  */
@@ -132,7 +133,8 @@ export const registration = defineRegistration({
         },
         {
             // Esc closes the innermost open thing first (each menu and dialog takes its own Esc),
-            // then clears the selection, leaving the graph's panel open (tier1-design.md 2.3).
+            // then clears the selection, leaving the graph's panel open (tier1-design.md 2.3):
+            // graphty-element's keymap answers it, and this command is the menus' Clear selection.
             id: "selection.clear",
             label: "Clear selection",
             group: "Selection",

@@ -231,7 +231,9 @@ function withIdText(
         const entries = Object.entries(row);
         return Object.fromEntries([
             ...entries.filter(([column]) => !named.has(column)),
-            ...entries.filter(([column]) => named.has(column)).map(([column, value]) => [column, idText(value, graph)]),
+            ...entries
+                .filter(([column]) => named.has(column))
+                .map(([column, value]): [string, unknown] => [column, idText(value, graph)]),
         ]);
     });
 }

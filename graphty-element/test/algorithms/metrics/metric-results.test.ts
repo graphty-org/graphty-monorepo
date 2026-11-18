@@ -222,10 +222,7 @@ describe("metric results", () => {
             assert.strictEqual(caveats.method, "power-iteration");
             assert.isBoolean(caveats.converged);
             assert.isNumber(caveats.iterations);
-            assert.isFalse(
-                caveats.notes.some((note) => note.includes("delta")),
-                caveats.notes.join(" | "),
-            );
+            assert.isEmpty(caveats.notes, "no note talks about a delta method");
         });
 
         it("eigenvector says it converged, because an unconverged run fails instead", async () => {
@@ -266,7 +263,7 @@ describe("metric results", () => {
                 assert.isNotEmpty(caveats.method, `${metric.key} names its method`);
                 assert.oneOf(caveats.direction, ["directed", "undirected", "as-loaded"]);
                 assert.strictEqual(caveats.precision, "f64");
-                assert.isNotEmpty(caveats.notes, `${metric.key} says what qualifies its numbers`);
+                assert.isNotEmpty(caveats.facts, `${metric.key} says what qualifies its numbers`);
             }
         });
 

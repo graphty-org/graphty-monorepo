@@ -9,29 +9,58 @@ type Planes = Float64Array | null;
 /** Planes by the positions array they were measured from: node meshes of one shape share it, so it is measured once. */
 const measured = new WeakMap<object, Planes>();
 
+/** A flat shape's slab: its outline as flat x, y pairs, and its depth (measured on first use), by positions array. */
+const slabs = new WeakMap<object, { outline: Float64Array; depth?: [number, number] }>();
+
+/**
+ * Record that a mesh is a flat outline walled round into a slab (`outlineSlab`), so a ray meets it from its outline
+ * rather than by a search of its triangles, convex or not (a star, a cross, Pajek's man).
+ * @param mesh - The slab, built.
+ * @param outline - The outline it was built from, in the mesh's own units.
+ */
+export function noteSlabOutline(mesh: AbstractMesh, outline: readonly (readonly [number, number])[]): void {
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (positions !== null) {
+        slabs.set(positions, { outline: Float64Array.from(outline.flat()) });
+    }
+}
+
 const inverse = new Matrix();
 const localOrigin = new Vector3();
 const localDirection = new Vector3();
 
 /**
  * Where a world ray first meets a mesh, worked out from the mesh's face planes when the mesh is a closed convex
- * solid (a box, cylinder, cone, polyhedron), so no triangle is searched. The point is the one
+ * solid (a box, cylinder, cone, polyhedron), or from its outline when it is a flat shape's slab (a star, a cross),
+ * so no triangle is searched. The point is the one
  * `ray.intersectsMeshes([mesh])[0].pickedPoint` gives, to float error: the nearest wall at or past the ray's origin.
  * @param mesh - The mesh, with its world matrix already computed.
  * @param ray - The ray, in the world.
  * @param world - Where the mesh's shape is drawn, when not at the mesh's own world matrix (a batch's row).
- * @returns The point in the world, null for a miss, or undefined when the mesh is not a closed convex solid and only a
- * search of its triangles can answer.
+ * @returns The point in the world, null for a miss, or undefined when the mesh is neither a closed convex solid nor a
+ * recorded slab and only a search of its triangles can answer.
  */
 export function convexRayHit(mesh: AbstractMesh, ray: Ray, world?: Matrix): Vector3 | null | undefined {
     const planes = planesOf(mesh, world === undefined);
-    if (planes === undefined || planes === null) {
+    const slab = planes === null ? slabOf(mesh) : undefined;
+    if (planes === undefined || (planes === null && slab === undefined)) {
         return undefined;
     }
 
     (world ?? mesh.getWorldMatrix()).invertToRef(inverse);
     Vector3.TransformCoordinatesToRef(ray.origin, inverse, localOrigin);
     Vector3.TransformNormalToRef(ray.direction, inverse, localDirection);
+    const t =
+        planes === null ? slabRayHit(slab?.outline ?? new Float64Array(), slab?.depth ?? [0, 0]) : planesRayHit(planes);
+    return t === null || t > ray.length ? null : ray.origin.add(ray.direction.scale(t));
+}
+
+/**
+ * Where the local ray first meets a closed convex solid at or past its origin.
+ * @param planes - Its face planes.
+ * @returns How far along the ray, or null for a miss.
+ */
+function planesRayHit(planes: Float64Array): number | null {
     const { x: ox, y: oy, z: oz } = localOrigin;
     const { x: dx, y: dy, z: dz } = localDirection;
 
@@ -57,11 +86,85 @@ export function convexRayHit(mesh: AbstractMesh, ray: Ray, world?: Matrix): Vect
 
     // the nearest wall at or past the origin: the way in, or from inside, the way out
     const t = enter >= 0 ? enter : leave;
-    if (enter > leave || t < 0 || t > ray.length) {
-        return null;
+    return enter > leave || t < 0 ? null : t;
+}
+
+/**
+ * A mesh's slab record ({@link noteSlabOutline}), its depth measured on first use, after any build step moved its
+ * faces along z (`placeByDrawOrder`).
+ * @param mesh - The mesh.
+ * @returns The record, or undefined when the mesh is not a recorded slab.
+ */
+function slabOf(mesh: AbstractMesh): { outline: Float64Array; depth?: [number, number] } | undefined {
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    const slab = positions === null ? undefined : slabs.get(positions);
+    if (positions !== null && slab !== undefined && slab.depth === undefined) {
+        let [near, far] = [Infinity, -Infinity];
+        for (let z = 2; z < positions.length; z += 3) {
+            near = Math.min(near, positions[z]);
+            far = Math.max(far, positions[z]);
+        }
+        slab.depth = [near, far];
+    }
+    return slab;
+}
+
+/**
+ * Where the local ray first meets a slab at or past its origin: its front or back face, inside the outline, or a wall
+ * of the outline, between the faces.
+ * @param outline - The outline, flat x, y pairs.
+ * @param depth - The slab's nearest and farthest z.
+ * @returns How far along the ray, or null for a miss.
+ */
+function slabRayHit(outline: Float64Array, depth: readonly [number, number]): number | null {
+    const { x: ox, y: oy, z: oz } = localOrigin;
+    const { x: dx, y: dy, z: dz } = localDirection;
+    let best = Infinity;
+
+    for (const face of dz === 0 ? [] : depth) {
+        const t = (face - oz) / dz;
+        if (t >= 0 && t < best && inside(outline, ox + t * dx, oy + t * dy)) {
+            best = t;
+        }
     }
 
-    return ray.origin.add(ray.direction.scale(t));
+    const n = outline.length / 2;
+    for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const [px, py] = [outline[2 * i], outline[2 * i + 1]];
+        const [ex, ey] = [outline[2 * j] - px, outline[2 * j + 1] - py];
+        const across = dx * ey - dy * ex;
+        const [wx, wy] = [px - ox, py - oy];
+        // where the ray crosses this wall's line (t), and how far along the wall (s)
+        const t = (wx * ey - wy * ex) / across;
+        const s = (wx * dy - wy * dx) / across;
+        const z = oz + t * dz;
+        if (across !== 0 && t >= 0 && t < best && s >= 0 && s <= 1 && z >= depth[0] && z <= depth[1]) {
+            best = t;
+        }
+    }
+
+    return best === Infinity ? null : best;
+}
+
+/**
+ * Whether a point is inside an outline, by the even-odd rule: a line from it to the right crosses the outline an odd
+ * number of times.
+ * @param outline - The outline, flat x, y pairs.
+ * @param px - The point's x.
+ * @param py - The point's y.
+ * @returns True inside.
+ */
+function inside(outline: Float64Array, px: number, py: number): boolean {
+    const n = outline.length / 2;
+    let odd = false;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+        const [ax, ay, bx, by] = [outline[2 * i], outline[2 * i + 1], outline[2 * j], outline[2 * j + 1]];
+        if (ay > py !== by > py && px < ax + ((py - ay) * (bx - ax)) / (by - ay)) {
+            odd = !odd;
+        }
+    }
+    return odd;
 }
 
 /**

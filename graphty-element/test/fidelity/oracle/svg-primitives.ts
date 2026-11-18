@@ -772,6 +772,26 @@ function clippedBand(el: Element, root: SVGSVGElement): "inside" | "outside" | n
 }
 
 /**
+ * Whether a stroked outline's mask erases its middle along the same path, a narrower black stroke of the same path data
+ * over white: a double line (Cytoscape.js strokes a double border or outline whole, then erases its middle third; the
+ * web oracle records the erase as such a mask).
+ * @param el - the stroked outline
+ * @param root - the SVG
+ * @returns true for a double line
+ */
+function erasedMiddle(el: Element, root: SVGSVGElement): boolean {
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(el.getAttribute("mask") ?? "");
+    const erase = ref === null ? null : root.querySelector(`mask[id="${ref[1]}"] > path[stroke]`);
+    const width = (e: Element): number => Number.parseFloat(e.getAttribute("stroke-width") ?? "1");
+    return (
+        erase !== null &&
+        erase.getAttribute("d") === el.getAttribute("d") &&
+        erase.getAttribute("stroke") === "black" &&
+        width(erase) < width(el)
+    );
+}
+
+/**
  * The box a filled shape's own clip keeps of it, where the clip is a box on the screen that cuts the shape: yEd paints
  * an entity relationship node twice, each time whole, and clips one to its header and the other to the rest. Any other
  * clip, a box the shape lies inside or one it lies outside, is null: the shape is read whole.
@@ -1605,6 +1625,8 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
         let lastFilledPath = "";
         // the primitive read from that filled path, which a framed edge's outline drawn next takes for its band's inside
         let lastFilledPrim: Prim | null = null;
+        // the last path stroked and not filled, which the same outline filled right after it makes a halo round glyphs
+        let lastHalo: { d: string; prim: Prim } | null = null;
         // yEd's own writer, ySVG, says so in a comment at the root: only yEd draws a framed edge
         const ySvg = [...root.childNodes].some(
             (n) => n.nodeType === Node.COMMENT_NODE && n.nodeValue?.includes("ySVG"),
@@ -1808,6 +1830,10 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
             }
+            // a ring with its middle erased (a centered one: a clipped band's erase only trims its edge)
+            if (band === null && stroke !== null && erasedMiddle(el, root)) {
+                stroke = { ...stroke, dash: null, dashClass: "double" };
+            }
             const uncut = boxOfPoints(points);
             const cut = fill !== null && stroke === null ? clipCut(el, root, m, uncut) : null;
             if (cut !== null) {
@@ -1851,10 +1877,25 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                     : undefined;
             // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
             const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
-            const lettering = pieces !== null && isLettering(pieces);
+            // glyphs drawn twice, their halo stroked and then the same outlines filled, are lettering however few
+            // (Cytoscape desktop's enhanced label, two letters of cx-polygenic-sle's where they cross a hexagon's border;
+            // every other program fills a shape before it strokes it)
+            const halo: boolean =
+                fill !== null &&
+                stroke === null &&
+                lastHalo !== null &&
+                lastHalo.d === d &&
+                prims.at(-1) === lastHalo.prim &&
+                d.split(/[Mm]/).length > 2;
+            if (halo && lastHalo !== null) {
+                lastHalo.prim.lettering = true;
+            }
+            const lettering: boolean = halo || (pieces !== null && isLettering(pieces));
             const nonzero = cs.fillRule !== "evenodd";
-            const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
-            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths, nonzero) : null;
+            const subpaths: Pt[][] | null =
+                fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
+            const painted: ReturnType<typeof outlinePaintedAsFill> =
+                subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths, nonzero) : null;
             const solid = subpaths !== null && nonzero ? solidOuter(subpaths) : null;
             if (solid !== null) {
                 points = [...solid];
@@ -1907,6 +1948,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             if (fill !== null && d !== "") {
                 lastFilledPrim = prim;
             }
+            lastHalo = fill === null && stroke !== null && d !== "" ? { d, prim } : null;
         }
         return {
             width: r3(rect.width),

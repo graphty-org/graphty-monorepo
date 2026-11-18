@@ -25,10 +25,25 @@ export const CI_AUDIENCE = "graphty-health";
 /** The results service's audience (tools/results/client.mjs), so CI's RESULTS_URL can name this API (#3607). */
 export const RESULTS_AUDIENCE = "graphty-results";
 /** The results service's reads this API answers as the Worker does (src/handlers/results.ts). */
-export const RESULTS_READS = ["/v1/plan", "/v1/site"];
+export const RESULTS_READS = [
+    "/v1/plan",
+    "/v1/site",
+    "/v1/quarantine",
+    "/v1/candidate",
+    "/v1/release-state",
+    "/v1/failures",
+    "/v1/durations/medians",
+    "/v1/durations/tests/{name}",
+    "/v1/story-captures",
+    "/v1/story-reach",
+];
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
 export const MONTHLY_BUDGET_USD = 50;
+/** The release scheduler's switch: "dry-run" logs the dispatch it would make, "live" makes it (#3608). */
+export const RELEASE_DISPATCH_MODE: "dry-run" | "live" = "dry-run";
+/** The release slots, in EventBridge Scheduler cron syntax (UTC): the Worker's four crons. */
+export const RELEASE_SLOTS = "cron(0 0,6,12,18 * * ? *)";
 /**
  * The tag on every resource of the stack. The Budget cannot filter on it: this project's account is
  * a linked account, and Billing refuses to activate cost-allocation tags there ("Linked account
@@ -46,6 +61,15 @@ export const CI_ROUTES = [
     "/v1/benchmarks",
     "/v1/issues",
     "/v1/channel-moves",
+    "/v1/hold",
+    "/v1/base-checks",
+    "/v1/story-captures",
+    "/v1/story-reach",
+];
+/** The results service's writes that are not a POST (src/handlers/ingest.ts). */
+export const CI_OTHER_WRITES: [apigw.HttpMethod, string][] = [
+    [apigw.HttpMethod.DELETE, "/v1/base-checks"],
+    [apigw.HttpMethod.PUT, "/v1/durations/tests/{name}"],
 ];
 export interface HealthStackProps extends StackProps {
     /**
@@ -197,6 +221,9 @@ export class HealthStack extends Stack {
             ...CI_ROUTES.flatMap((path) =>
                 api.addRoutes({ path, methods: [apigw.HttpMethod.POST], integration: ingestTarget, authorizer: jwt }),
             ),
+            ...CI_OTHER_WRITES.flatMap(([method, path]) =>
+                api.addRoutes({ path, methods: [method], integration: ingestTarget, authorizer: jwt }),
+            ),
             ...api.addRoutes({ path: "/v1/local/{kind}", methods: [apigw.HttpMethod.POST], integration: ingestTarget }),
         ];
         const stage = (api.defaultStage as apigw.HttpStage).node.defaultChild as apigw.CfnStage;
@@ -208,11 +235,28 @@ export class HealthStack extends Stack {
         // routeSettings is untyped JSON, so CloudFormation's own (PascalCase) keys go in as is.
         const write = { ThrottlingRateLimit: WRITE_THROTTLE.rate, ThrottlingBurstLimit: WRITE_THROTTLE.burst };
         stage.routeSettings = Object.fromEntries(
-            [...CI_ROUTES, "/v1/local/{kind}"].map((path) => [`POST ${path}`, write]),
+            [
+                ...[...CI_ROUTES, "/v1/local/{kind}"].map((path) => `POST ${path}`),
+                ...CI_OTHER_WRITES.map(([method, path]) => `${method} ${path}`),
+            ].map((key) => [key, write]),
         );
         for (const route of routes) {
             stage.node.addDependency(route);
         }
+
+        // The release scheduler (#3608), in dry run beside the Cloudflare Worker (tools/release-scheduler/): it logs the
+        // release.yml dispatch it would make and dispatches nothing until RELEASE_DISPATCH is "live".
+        const releaseScheduler = fn("ReleaseScheduler", 1, 30, 256, "release-scheduler");
+        releaseScheduler.addEnvironment("RELEASE_DISPATCH", RELEASE_DISPATCH_MODE);
+        readParams(releaseScheduler, ["ssm:GetParameters"], appParams("release-scheduler"));
+        new scheduler.Schedule(this, "ReleaseSchedule", {
+            schedule: scheduler.ScheduleExpression.expression(RELEASE_SLOTS),
+            target: new LambdaInvoke(releaseScheduler, {
+                retryAttempts: 0,
+                input: scheduler.ScheduleTargetInput.fromObject({ slot: scheduler.ContextAttribute.scheduledTime }),
+            }),
+            description: "Start release.yml at 00:00, 06:00, 12:00 and 18:00 UTC (dry run until RELEASE_DISPATCH=live)",
+        });
 
         new scheduler.Schedule(this, "CollectorSchedule", {
             schedule: scheduler.ScheduleExpression.rate(Duration.minutes(5)),
@@ -282,7 +326,7 @@ export class HealthStack extends Stack {
         alertsAlarm.addOkAction(new SnsAction(topic));
 
         // Spend protection, layer 2 (section 10.5): a monthly Budget that emails and, at 100%
-        // actual, attaches a deny-all policy to the five Lambda roles.
+        // actual, attaches a deny-all policy to the Lambda roles.
         const budgetName = "graphty-health";
         const notify = (
             notificationType: string,
@@ -314,7 +358,7 @@ export class HealthStack extends Stack {
             description: "Attached by the graphty-health Budget action at 100% of the monthly budget",
             statements: [new iam.PolicyStatement({ effect: iam.Effect.DENY, actions: ["*"], resources: ["*"] })],
         });
-        const roles = [ingest, read, results, collector, backfill].map((f) => f.role as iam.IRole);
+        const roles = [ingest, read, results, collector, backfill, releaseScheduler].map((f) => f.role as iam.IRole);
         const actionRole = new iam.Role(this, "BudgetActionRole", {
             assumedBy: new iam.ServicePrincipal("budgets.amazonaws.com", {
                 conditions: { StringEquals: { "aws:SourceAccount": this.account } },

@@ -7,8 +7,11 @@ status: planned
 algorithms: []
 used_by_workflows:
     - W04
+    - W21
 implemented_by_components:
     - community-panel
+    - cluster-table
+    - enrichment-results-table
 requirements:
     - Calculate community size (node count) for each community
     - Calculate internal density as internal_edges / (size * (size-1) / 2) with 4 decimal places

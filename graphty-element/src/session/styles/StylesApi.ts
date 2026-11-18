@@ -80,6 +80,7 @@
 
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
+import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
 import type {
@@ -209,6 +210,7 @@ import {
     unboundLayers,
     valueReach,
 } from "./explain";
+import { memberOf, type StyleFamilyValues, switchedPatch, valuesOf } from "./families";
 import {
     checkLayerSpec,
     type CompiledLayer,
@@ -877,6 +879,65 @@ export interface StylesApi {
      * @returns A fresh object; changing it changes nothing in the session.
      */
     highlightStyle(target: SelectorTarget): StaticStyle;
+    /**
+     * Which member of a style family a layer draws (see `STYLE_FAMILIES` in the catalog): a basic
+     * shape, a model or a shader drawn in the shape's place; a flat fill, a gradient or a picture.
+     * A style editor that offers "switch to" shows this one as chosen.
+     *
+     * ```ts
+     * session.styles.familyMember(layer.id, "node.fill"); // "solid", "gradient" or "picture"
+     * ```
+     * @param layer - The layer.
+     * @param family - A node or edge family's id.
+     * @returns The member's id, or undefined for a layer this session does not hold or a family
+     *     that is not a node or edge family.
+     * @since 3.59.0
+     */
+    familyMember(layer: LayerId, family: StyleFamilyId): string | undefined;
+    /**
+     * What one member of a style family holds on a layer: its own channels' values and bindings and
+     * its shader uses. An editor that lets a reader switch back to a member it left reads this
+     * before {@link StylesApi.switchFamily} and hands it back as the switch's `start`.
+     *
+     * ```ts
+     * const left = session.styles.familyValues(layer.id, "node.shape"); // the member drawn now
+     * ```
+     * @param layer - The layer.
+     * @param family - A node or edge family's id.
+     * @param member - The member's id; the one the layer draws now when left out.
+     * @returns Its values, or undefined for an unknown layer, family or member.
+     * @since 3.59.0
+     */
+    familyValues(layer: LayerId, family: StyleFamilyId, member?: string): StyleFamilyValues | undefined;
+    /**
+     * Switch a layer to another member of a style family, as one step: the member drawn now loses
+     * its own channels (less those the new one keeps, as a model keeps its fallback shape) and its
+     * shader uses, `start` is written for the new member, and everything belonging to the thing as
+     * a whole (a size, an opacity) stays. The layer stays even when nothing is left on it.
+     *
+     * ```ts
+     * await session.styles.switchFamily(layer.id, "node.fill", "gradient", {
+     *     set: { "node.gradientColors": "#ff0000 #ffffff" },
+     * });
+     * await session.styles.switchFamily(layer.id, "node.shape", "replace", { uses: [{ shader: "sticker" }] });
+     * ```
+     * @param layer - The layer.
+     * @param family - A node or edge family's id.
+     * @param member - The member to draw.
+     * @param start - What to write for it: values, bindings and shader uses. A member drawn by a
+     *     shader needs its use here.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer as it now is.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for an unknown layer, family or member.
+     * @since 3.59.0
+     */
+    switchFamily(
+        layer: LayerId,
+        family: StyleFamilyId,
+        member: string,
+        start?: Partial<StyleFamilyValues>,
+        options?: RunOptions,
+    ): Run<Layer>;
     /**
      * What the element draws for a channel when no layer writes it, on the graph as it is now:
      * the channel's catalog default (`ChannelDescriptor.default`), else its off value
@@ -1726,6 +1787,11 @@ export interface StylesSources {
      * @param batch - The edits that pass told.
      */
     readonly onBatch?: (batch: StyleBatchChange) => void;
+    /**
+     * Called when the highlight color changes (`setHighlightColor`).
+     * @param color - The color a highlight that names none paints now.
+     */
+    readonly onHighlightColor?: (color: string) => void;
     /**
      * Called when a branches view starts or ends.
      * @param shown - Whether one is drawn now.
@@ -2732,6 +2798,16 @@ function outsideInView(stack: readonly CompiledLayer[]): LayerSpec[] {
         selector: { match: "state", state: "outsideWindow" },
         set: { [`${target}.visible`]: false },
     }));
+}
+
+/**
+ * A node or edge style family by id: the families a layer's channels draw.
+ * @param id - The family's id.
+ * @returns The family, or undefined for a label or graph family or an unknown id.
+ */
+function drawnFamily(id: StyleFamilyId): StyleFamilyDescriptor | undefined {
+    const family = styleFamily(id);
+    return family?.target === "node" || family?.target === "edge" ? family : undefined;
 }
 
 /**
@@ -5616,6 +5692,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         setHighlightColor(color: string | undefined): void {
             if (color === undefined) {
                 highlightColor = DEFAULT_HIGHLIGHT.color;
+                sources.onHighlightColor?.(highlightColor);
                 return;
             }
 
@@ -5636,10 +5713,52 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             highlightColor = color;
+            sources.onHighlightColor?.(color);
         },
 
         highlightStyle(target: SelectorTarget): StaticStyle {
             return halfOfStyle(undefined, target, highlightColor) ?? {};
+        },
+
+        familyMember(layer: LayerId, family: StyleFamilyId): string | undefined {
+            const held = listed().byId.get(layer);
+            const descriptor = drawnFamily(family);
+            return held === undefined || descriptor === undefined ? undefined : memberOf(held, descriptor).id;
+        },
+
+        familyValues(layer: LayerId, family: StyleFamilyId, member?: string): StyleFamilyValues | undefined {
+            const held = listed().byId.get(layer);
+            const descriptor = drawnFamily(family);
+            if (held === undefined || descriptor === undefined) {
+                return undefined;
+            }
+
+            const chosen =
+                member === undefined
+                    ? memberOf(held, descriptor)
+                    : descriptor.members.find((each) => each.id === member);
+            return chosen === undefined ? undefined : valuesOf(held, descriptor, chosen);
+        },
+
+        switchFamily(
+            layer: LayerId,
+            family: StyleFamilyId,
+            member: string,
+            start?: Partial<StyleFamilyValues>,
+            options?: RunOptions,
+        ): Run<Layer> {
+            const held = listed().byId.get(layer);
+            const descriptor = drawnFamily(family);
+            const to = descriptor?.members.find((each) => each.id === member);
+            if (held === undefined || descriptor === undefined || to === undefined) {
+                throw badCommand(`No member "${member}" of family "${family}" on layer "${layer}" to switch to.`, {
+                    layer,
+                    family,
+                    member,
+                });
+            }
+
+            return api.update(layer, switchedPatch(held, descriptor, to, start), { ...options, keepEmpty: true });
         },
 
         defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined {

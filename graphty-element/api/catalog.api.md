@@ -611,6 +611,10 @@ export type ChannelCaveatCode = never;
 // @public
 export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
+    readonly appliesWhen?: {
+        readonly channel: Channel;
+        readonly values: readonly string[];
+    };
     readonly caveat?: string;
     readonly caveatCode?: ChannelCaveatCode;
     readonly channel: Channel;

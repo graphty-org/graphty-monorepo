@@ -1014,6 +1014,19 @@ const CASES: readonly Case[] = [
             }),
     },
     {
+        method: "StylesApi.switchFamily",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.switchFamily(id, "node.fill", "gradient", {
+                    set: { "node.gradientColors": `${BLUE} #ffffff` },
+                });
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "TimeApi.play",
         growth: "linear",
         prepare: async (session) => {

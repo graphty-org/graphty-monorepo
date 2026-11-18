@@ -1392,6 +1392,30 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
     highlightStyle: READ,
+    familyMember: READ,
+    familyValues: READ,
+    // A switch is one update of the layer it names: here the layer the call sets up.
+    switchFamily: {
+        kind: "dispatches",
+        op: "style.patch",
+        call: {
+            kind: "call",
+            args: ["door-red_1", "node.fill", "gradient", { set: { "node.gradientColors": "#ff0000 #ffffff" } }],
+            around: async (target) => {
+                await (target as { add(spec: LayerSpec): PromiseLike<unknown> }).add(DOOR_RED);
+                return () => Promise.resolve();
+            },
+        },
+        expect: [
+            {
+                op: "style.patch",
+                action: "update",
+                id: "door-red_1",
+                patch: { set: { "node.gradientColors": "#ff0000 #ffffff" }, encode: {} },
+                keepEmpty: true,
+            },
+        ],
+    },
     defaultValue: READ,
     mark: calls(
         [{ run: "no-such-run", set: { "node.color": "#ff0000" } }],

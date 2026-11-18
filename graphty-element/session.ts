@@ -802,6 +802,7 @@ export type {
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    StyleFamilyValues,
     StyleFileDocument,
     StyleGrayCollision,
     StyleGrayCollisionOptions,

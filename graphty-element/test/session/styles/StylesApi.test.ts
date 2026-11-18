@@ -1,6 +1,7 @@
-import { assert, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { clearRegisteredPalettesForTesting, registerPalette } from "../../../src/catalog/paletteRegistry";
+import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import type {
     Channel,
     FieldDescriptor,
@@ -54,7 +55,9 @@ import {
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
 import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
+import { defineShader } from "../../../src/simple/defineShader";
 import { takeCaughtErrors } from "../../helpers/caught-errors";
+import { makeSession } from "../helpers";
 
 /** A run fixture with the name its layers are given by default. */
 type NamedRun = EncodingRun & { readonly label: string };
@@ -1728,5 +1731,100 @@ describe("a style document, out and back in", () => {
 
         assert.strictEqual(code, "E_INTERNAL");
         assert.deepStrictEqual(namesOf(harness.styles), ["Default", ...DOCUMENT.layers.map((layer) => layer.name)]);
+    });
+});
+
+describe("StylesApi style families", () => {
+    beforeAll(() => {
+        defineShader({
+            id: "test/stand-in",
+            place: "replace",
+            glsl: "vec4 shade(NodeInput n) { return vec4(1.0); }",
+        });
+    });
+
+    afterAll(() => {
+        clearRegisteredShadersForTesting();
+    });
+
+    it("names the member a layer draws, and switches a fill keeping what the thing as a whole holds", async () => {
+        const { styles } = makeStyles();
+        const layer = await styles.add(layerSpec("fill", { set: { "node.color": "#ff0000", "node.opacity": 0.5 } }));
+
+        assert.strictEqual(styles.familyMember(layer.id, "node.fill"), "solid");
+        assert.deepStrictEqual(styles.familyValues(layer.id, "node.fill")?.set, { "node.color": "#ff0000" });
+
+        const switched = await styles.switchFamily(layer.id, "node.fill", "gradient", {
+            set: { "node.gradientColors": "#ff0000 #ffffff" },
+        });
+
+        assert.deepStrictEqual(switched.set, { "node.opacity": 0.5, "node.gradientColors": "#ff0000 #ffffff" });
+        assert.strictEqual(styles.familyMember(layer.id, "node.fill"), "gradient");
+    });
+
+    it("switches a basic shape to a shader in its place and back, keeping size and dropping only the shader", async () => {
+        // A whole session: a layer's shader names are checked against the shaders it holds.
+        const { styles } = makeSession({ directed: false }).session;
+        const layer = await styles.add(
+            layerSpec("shape", { set: { "node.shape": "star", "node.cornerRadius": 0.2, "node.size": 2 } }),
+        );
+
+        await styles.switchFamily(layer.id, "node.shape", "replace", { uses: [{ shader: "test/stand-in" }] });
+
+        assert.strictEqual(styles.familyMember(layer.id, "node.shape"), "replace");
+        assert.deepStrictEqual(styles.get(layer.id)?.set, {
+            "node.size": 2,
+            "node.shaders": [{ shader: "test/stand-in" }],
+        });
+        assert.deepStrictEqual(styles.familyValues(layer.id, "node.shape")?.uses, [{ shader: "test/stand-in" }]);
+
+        await styles.switchFamily(layer.id, "node.shape", "basic", {
+            set: { "node.shape": "star", "node.cornerRadius": 0.2 },
+        });
+
+        assert.deepStrictEqual(styles.get(layer.id)?.set, {
+            "node.size": 2,
+            "node.shape": "star",
+            "node.cornerRadius": 0.2,
+        });
+    });
+
+    it("keeps the fallback shape through a switch to a model", async () => {
+        const { styles } = makeStyles();
+        const layer = await styles.add(layerSpec("model", { set: { "node.shape": "box" } }));
+
+        await styles.switchFamily(layer.id, "node.shape", "model", { set: { "node.model": "asset:robot" } });
+
+        assert.deepStrictEqual(styles.get(layer.id)?.set, { "node.shape": "box", "node.model": "asset:robot" });
+        assert.strictEqual(styles.familyMember(layer.id, "node.shape"), "model");
+    });
+
+    it("refuses a member, family or layer it does not know, and answers undefined to reads of them", async () => {
+        const { styles } = makeStyles();
+        const layer = await styles.add(layerSpec("fill"));
+
+        assert.isUndefined(styles.familyMember("no-such-layer", "node.fill"));
+        assert.isUndefined(styles.familyMember(layer.id, "label.look"));
+        assert.isUndefined(styles.familyValues(layer.id, "node.fill", "no-such-member"));
+        try {
+            await styles.switchFamily(layer.id, "node.fill", "no-such-member");
+            assert.fail("switched to a member the family does not have");
+        } catch (error) {
+            assert.isTrue(isGraphtyError(error) && error.code === "E_BAD_COMMAND");
+        }
+    });
+
+    it("tells its change hook each highlight color it is given", () => {
+        const told: string[] = [];
+        const { styles } = makeStyles({
+            onHighlightColor: (color) => {
+                told.push(color);
+            },
+        });
+
+        styles.setHighlightColor("#000000");
+        styles.setHighlightColor(undefined);
+
+        assert.deepStrictEqual(told, ["#000000", DEFAULT_HIGHLIGHT.color]);
     });
 });

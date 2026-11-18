@@ -1275,3 +1275,27 @@ describe("which drawn part a channel adjusts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].stylePath, "effect.outline.width");
     });
 });
+
+describe("ChannelDescriptor.appliesWhen", () => {
+    it("names an enum channel of the same target and only values it accepts", () => {
+        const gated = Object.values(CHANNEL_DESCRIPTORS).filter((descriptor) => descriptor.appliesWhen !== undefined);
+        assert.isAbove(gated.length, 0);
+        for (const descriptor of gated) {
+            const when = descriptor.appliesWhen;
+            const on = when === undefined ? undefined : CHANNEL_DESCRIPTORS[when.channel];
+            assert.strictEqual(on?.accepts, "enum", descriptor.channel);
+            assert.strictEqual(on?.target, descriptor.target, descriptor.channel);
+            for (const value of when?.values ?? []) {
+                assert.include(on?.values ?? [], value, `${descriptor.channel}: ${value}`);
+            }
+        }
+    });
+
+    it("draws a gradient's direction only on a linear one and its center only on a radial one", () => {
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.gradientDirection"].appliesWhen, {
+            channel: "node.gradientKind",
+            values: ["linear"],
+        });
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.gradientRadius"].appliesWhen?.values, ["radial"]);
+    });
+});

@@ -4020,6 +4020,12 @@ export interface SessionEventMap {
      */
     "style:branches-shown-changed": { readonly shown: boolean };
     /**
+     * The highlight color changed (`styles.setHighlightColor`): what a highlight that names no
+     * style of its own paints now, so a control showing it stays current.
+     * @since 3.59.0
+     */
+    "style:highlight-color-changed": { readonly color: string };
+    /**
      * The element tried to paint something of its own and was refused.
      *
      * THE ONLY STYLE FAILURE A CONSUMER CANNOT OTHERWISE SEE. A style edit a consumer asks for

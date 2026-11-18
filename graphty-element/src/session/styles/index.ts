@@ -88,6 +88,7 @@ export type {
     UnboundLayerCode,
     UndrawnCode,
 } from "./explain";
+export type { StyleFamilyValues } from "./families";
 export type {
     CompiledLayer,
     Layer,

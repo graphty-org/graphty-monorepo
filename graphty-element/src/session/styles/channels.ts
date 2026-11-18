@@ -989,6 +989,14 @@ export interface ChannelDescriptor {
      * @since 3.40.0
      */
     readonly listOf?: "color" | "number";
+    /**
+     * The values of another channel this one is drawn with, on a channel that does something only
+     * while that channel holds one of them: a gradient's direction only on a linear gradient, a
+     * dash's length only on a dashed or dotted line. An unset `channel` counts as its `default`. A
+     * style editor offers the setting only then. Absent on a channel drawn whatever another holds.
+     * @since 3.59.0
+     */
+    readonly appliesWhen?: { readonly channel: Channel; readonly values: readonly string[] };
 }
 
 /**
@@ -5367,6 +5375,19 @@ const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color"
     ["edge.gradientStops", "number"],
 ]);
 
+/** Which channels are drawn only with some values of another: see {@link ChannelDescriptor.appliesWhen}. */
+const APPLIES_WHEN: ReadonlyMap<string, NonNullable<ChannelDescriptor["appliesWhen"]>> = new Map([
+    ["node.gradientDirection", { channel: "node.gradientKind", values: ["linear"] }],
+    ["node.gradientCenterX", { channel: "node.gradientKind", values: ["radial"] }],
+    ["node.gradientCenterY", { channel: "node.gradientKind", values: ["radial"] }],
+    ["node.gradientRadius", { channel: "node.gradientKind", values: ["radial"] }],
+    // A dash length or gap of its own is a dashed or dotted line's (EdgeMesh.joinedPattern).
+    ["edge.dashLength", { channel: "edge.style", values: ["dash", "dot"] }],
+    ["edge.dashGap", { channel: "edge.style", values: ["dash", "dot"] }],
+    ["edge.waveAmplitude", { channel: "edge.style", values: ["sinewave", "zigzag"] }],
+    ["edge.wavePeriod", { channel: "edge.style", values: ["sinewave", "zigzag"] }],
+] satisfies [Channel, NonNullable<ChannelDescriptor["appliesWhen"]>][]);
+
 /**
  * How far one step moves a number channel: see {@link ChannelDescriptor.step}.
  * @param descriptor - The declared descriptor.
@@ -5396,6 +5417,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
         const listOf = LIST_OF.get(descriptor.channel);
+        const appliesWhen = APPLIES_WHEN.get(descriptor.channel);
 
         return [
             descriptor.channel,
@@ -5405,6 +5427,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
                 ...(listOf === undefined ? {} : { listOf }),
+                ...(appliesWhen === undefined ? {} : { appliesWhen }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },

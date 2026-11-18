@@ -6393,6 +6393,9 @@ export interface SessionEventMap {
         readonly shown: boolean;
     };
     "style:changed": StyleChange;
+    "style:highlight-color-changed": {
+        readonly color: string;
+    };
     "style:problem": StyleProblem;
     "style:refused": StyleRefusal;
     "style:repaint-failed": StyleRepaintFailure;
@@ -7317,6 +7320,13 @@ export interface StyleExplanation {
 }
 
 // @public
+export interface StyleFamilyValues {
+    readonly encode: Encoding;
+    readonly set: StaticStyle;
+    readonly uses: readonly ShaderUse[];
+}
+
+// @public
 export interface StyleFileDocument extends StyleDocument {
     // (undocumented)
     readonly kind: "graphty-style";
@@ -7403,6 +7413,8 @@ export interface StylesApi {
     drawnValues(channel: Channel): readonly DrawnValue[];
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
+    familyMember(layer: LayerId, family: StyleFamilyId): string | undefined;
+    familyValues(layer: LayerId, family: StyleFamilyId, member?: string): StyleFamilyValues | undefined;
     get(id: LayerId): Layer | undefined;
     grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     groups(id: LayerId, path: Path): readonly ValueGroup[];
@@ -7456,6 +7468,7 @@ export interface StylesApi {
     readonly showingBranches: boolean;
     // @beta
     readonly shownBranches: BranchesView | null;
+    switchFamily(layer: LayerId, family: StyleFamilyId, member: string, start?: Partial<StyleFamilyValues>, options?: RunOptions): Run<Layer>;
     toDocument(): StyleDocument;
     toFile(): StyleFileDocument;
     tree(): readonly StyleRow[];

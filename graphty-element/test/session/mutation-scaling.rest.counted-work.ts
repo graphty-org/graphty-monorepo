@@ -14,6 +14,7 @@ export default {
         "SessionShaders.remove",
         "SessionShaders.replace",
         "StylesApi.setHighlightColor",
+        "StylesApi.switchFamily",
         "TimeApi.play",
     ],
 } satisfies CountedWork;

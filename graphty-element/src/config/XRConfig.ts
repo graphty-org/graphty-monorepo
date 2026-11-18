@@ -123,7 +123,7 @@ export type XRControllerButton = "a" | "b" | "x" | "y";
  * cards that show a held change, a question or an answer are keyed by their result code
  * (`AI_CONFIRMATION_NEEDED`, `AI_QUESTION_ASKED`, the answer's code). OPEN UNION.
  */
-export type XRAiControlCode = "XR_APPROVE" | "XR_DENY" | "XR_TRANSCRIPT" | (string & {}); // NOSONAR(S4335): the open-union idiom
+export type XRAiControlCode = "XR_APPROVE" | "XR_DENY" | "XR_TRANSCRIPT" | (string & {}); // the open-union idiom
 
 /**
  * The assistant in an immersive session (with `AiManagerConfig.voice`). Every part is on by

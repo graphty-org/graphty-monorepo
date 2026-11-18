@@ -8,8 +8,11 @@ algorithms: []
 used_by_workflows:
     - W09
     - W13
+    - W22
+    - W24
 implemented_by_components:
     - node-merge-dialog
+    - cluster-collapse-control
 requirements:
     - Allow selection of 2 or more nodes for merge operation
     - "Specify attribute conflict resolution: keep-first, keep-last, concatenate, or sum (numeric)"

@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { call, config } from "../results/client.mjs";
-import { parseEnvFile } from "../sonar/api.mjs";
+import { parseEnvFile } from "../results/env-file.mjs";
 
 export const CAPTURES_PATH = "/v1/story-captures";
 // what a decision can be taken on; unstable and failed renders are never offered

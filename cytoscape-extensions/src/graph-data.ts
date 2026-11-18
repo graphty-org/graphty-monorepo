@@ -70,8 +70,8 @@ export interface GraphtyGraphData {
      * `{ styles: true }` also reads the file's colors, sizes, shapes, ... and returns them as `stylesheet`;
      * `{ styles: true, applyStyles: true }` draws them too (the core needs `styleEnabled` when headless).
      * Without `styles`, a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness` also become data fields;
-     * these fields are deprecated and are removed in the next major release: use `styles: true`, which leaves
-     * them out of data and draws them through the stylesheet.
+     * these fields are deprecated and may be removed in a later release: use `styles: true`, which leaves them out
+     * of data and draws them through the stylesheet.
      */
     graphtyImport(
         input: ImportInput | ArrayBuffer,
@@ -166,33 +166,6 @@ function freeImportId(cy: Core): string {
 }
 
 /**
- * Sets each added element's style bypass. Cytoscape skips a definition whose id an earlier one took, so the added
- * collection is walked beside the definitions and a definition gets its bypass only when it is the next element.
- * @param added - what cy.add returned, in definition order
- * @param defs - the definitions, whose `data.id` cy.add filled in
- * @param bypass - one bypass or null per definition
- */
-function applyBypass(
-    added: CollectionReturnValue,
-    defs: ElementDefinition[],
-    bypass: readonly (Readonly<Record<string, string | number>> | null)[],
-): void {
-    let j = 0;
-    defs.forEach((def, i) => {
-        // cy.add skips a definition it refuses, so `added` can be shorter than `defs`
-        if (j >= added.length || added[j].id() !== def.data.id) {
-            return;
-        }
-        const ele = added[j];
-        j++;
-        const b = bypass[i];
-        if (b !== null) {
-            ele.style(b as never);
-        }
-    });
-}
-
-/**
  * Registers graphtyGenerate, graphtyDataset, graphtyImport and graphtyExport.
  * @param cytoscape - the cytoscape function
  */
@@ -212,7 +185,7 @@ export function registerGraphData(cytoscape: Register): void {
         "core",
         "graphtyImport",
         async function (this: Core, input: ImportInput | ArrayBuffer, format?: ImportFormat, options?: ImportOptions) {
-            const { importElements } = await loadPart(import("./io.js"), "graphtyImport");
+            const { applyBypass, importElements } = await loadPart(import("./io.js"), "graphtyImport");
             const styled = options?.styles !== undefined && options.styles !== false;
             const r = await importElements(input, format, {
                 ...options,
@@ -221,8 +194,6 @@ export function registerGraphData(cytoscape: Register): void {
             const apply = options?.applyStyles === true && r.stylesheet !== undefined;
             const elements = addTo(this, r.elements);
             if (apply && r.bypass !== undefined) {
-                // Set after the add, not as the definition's `style`: Cytoscape 3.31 applies a creation-time
-                // bypass before the edge has its endpoints, and a `curve-style` there throws in parallelEdges().
                 applyBypass(elements, r.elements, r.bypass);
             }
             const style = this.style() as unknown as AppendableStyle | undefined;

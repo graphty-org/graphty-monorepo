@@ -895,6 +895,10 @@ the secondary and primary buttons on the right.
 
 Inside a tooltip the chip sits at the end of the sentence with a 6px gap.
 In a menu row it is right-aligned. In a palette row it is the last cell.
+On a button or an action row it follows the label after a 6px gap, as in
+`Accept [A]`: every command with a binding shows its key on the visible
+control that runs it (principles.md, Rules, "Every shortcut is on a visible
+control").
 
 ### Dropdown menu (top bar Export, Views menu, header menus, row menus)
 
@@ -1931,12 +1935,14 @@ below is complete; copy it verbatim and change only the text.
 
 Overrides of earlier sections:
 
-- Section 9 "Key chip": the chip's allowed hosts are now closed. A binding
-  appears in exactly four places -- a tooltip bubble (last element of the
-  sentence, 6px gap), a menu row (right-aligned), a palette row (last cell),
-  and the shortcuts table. Never inside a button, an action row, a switch row
-  or a section header, and never in a trailing column that carries data on
-  other rows of the same list.
+- Section 9 "Key chip": the chip's allowed hosts are a button or an action
+  row (after the label, 6px gap), a menu row (right-aligned), a palette row
+  (last cell), a tooltip bubble (last element of the sentence, 6px gap) and
+  the shortcuts table. The control that runs a bound command always carries
+  its chip; the tooltip and the shortcuts table only repeat it. Never in a
+  switch row or a section header, and never in a trailing column that carries
+  data on other rows of the same list. (Owner rule, 2026-10-25: a binding
+  seen only on hover is not usable.)
 - Section 4 "Tooltip bubble": the same bubble at `max-width: 250px` is the info
   circle popover (below). The bubble is also the home for a technical name that
   a 24px slot cannot hold, and for the "Learn more" docs link.
@@ -2332,8 +2338,9 @@ with a centre dot.
 
 The corrected shape. Transparent at rest, no border, 24px tall, full panel
 width, 4px radius, a 14px leading icon in the dimmed colour, an 11px label at
-weight 500, hover as its only chrome. The binding is in the tooltip, never in
-the row. The trailing slot carries data about the action or nothing.
+weight 500, hover as its only chrome. A bound action shows its key chip right
+after the label (6px gap) and repeats it in the tooltip. The trailing slot
+carries data about the action or nothing, never the key.
 
 Wrong (do not draw this; it reads as a disabled text field with a suffix):
 a 24px box with `background: transparent; border: 1px solid #48525c;
@@ -2367,8 +2374,12 @@ Right, resting:
             <circle cx="8" cy="8" r="2"></circle>
         </svg>
     </span>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+    <span style="flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
         >Zoom to selection</span
+    >
+    <span
+        style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >F</span
     >
 </div>
 ```
@@ -2396,10 +2407,14 @@ With the trailing data slot (a count, a target or a Coming tag -- never a key):
             <path d="M4 2.5h8a1 1 0 0 1 1 1v10l-5-3-5 3v-10a1 1 0 0 1 1-1z"></path>
         </svg>
     </span>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+    <span style="flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
         >Save as subgraph</span
     >
-    <span style="flex: 0 0 auto; font-size: 11px; font-weight: 400; color: #7a828e;">new layer</span>
+    <span
+        style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >Shift+S</span
+    >
+    <span style="flex: 0 0 auto; margin-left: auto; font-size: 11px; font-weight: 400; color: #7a828e;">new layer</span>
 </div>
 ```
 
@@ -2410,9 +2425,10 @@ selection (F). Select something first"). The hover fill is `#374047`, not
 `#2a3035`, and the leading icon is mandatory: a transparent row is otherwise
 not obviously clickable in a dense panel.
 
-Key chip treatment: in an artboard the binding is the native `title` attribute
-and is spelled in parentheses at the end of the sentence -- `title="Show
-legend (L)"`. In the product it is the VOCAB key chip at the end of the tooltip
+Key chip treatment: the row shows the key chip after the label, as in the
+snippets above. The tooltip repeats it: in an artboard as the native `title`
+attribute, spelled in parentheses at the end of the sentence -- `title="Show
+legend (L)"`; in the product as the VOCAB key chip at the end of the tooltip
 sentence after a 6px gap. Two chips are not bindings in disguise and stay where
 they are: the top bar `Cmd K` pill and the `/` hint inside a search input, both
 printed inside a real input where a hint belongs.
@@ -5011,8 +5027,9 @@ gives is the line count, never a fact (FLOOR-1.9 rule 1).
 </div>
 ```
 
-The binding stays in the title (REGISTER-1.5 section 1); the label never carries
-a key chip.
+The binding stays in the title (REGISTER-1.5 section 1); the label carries no
+key chip while the verb is unshipped (section 10, "Coming tag"). Once it ships,
+the chip follows the label (section 9, "Key chip").
 
 ### 13.3 A section name that does not fit is not shortened; the circle beside it moves
 

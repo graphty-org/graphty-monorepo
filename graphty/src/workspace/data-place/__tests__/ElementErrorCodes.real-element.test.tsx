@@ -53,6 +53,13 @@ describe("the Data place keeps graphty-element's error codes", () => {
         const from = await screen.findByRole("textbox", { name: "value from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "9{Enter}");
+        // The new card is written on Done in the selection workspace.
+        const workspace = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(workspace ?? document.body).getByRole("button", { name: "Done" }));
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
@@ -60,13 +67,7 @@ describe("the Data place keeps graphty-element's error codes", () => {
             new GraphtyError({ code: "E_HELD_BY_TRANSACTION", message: "English", source: "history" }),
         );
         const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
-        await userEvent.click(within(list).getByRole("treeitem", { name: /^value / }));
-        const workspace = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>(".sel-ws");
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(await within(workspace).findByRole("button", { name: /^More for / }));
+        await userEvent.click(within(list).getByRole("button", { name: "More" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
 
         await screen.findByText("The filter could not be changed: another change is still being made; try again.");

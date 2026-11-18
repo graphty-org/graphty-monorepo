@@ -129,6 +129,7 @@ const colors = {
     bgYellow: "\x1b[43m",
 };
 
+/** Options of startLogServer(). */
 export interface LogServerOptions {
     /** Port to listen on (default: 9080) */
     port?: number;

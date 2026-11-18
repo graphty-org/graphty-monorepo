@@ -1,11 +1,13 @@
 # graphty-element 2.0: the breaking change register and migration guide
 
-Status: draft, for review
+Status: historical (the 2.0 migration, shipped as 2.0.0 on 2026-09-24)
 Date: 2026-09-19
 Subject: `@graphty/graphty-element`, today **1.10.0** (`graphty-element/package.json:3`)
 Proposed next version: **2.0.0**
 
-See `design/element-api/element-api-design.md` for the 2.0 API itself.
+See `design/element-api/element-api-design.md` for the 2.0 API itself. Text fields this
+document names were later replaced by codes with parameters (the 2026-10-03 presentation-neutral
+rule).
 
 Plain ASCII only. Every claim about the code as it stands today carries a `path:line` read on
 2026-09-19 at repo root `/home/apowers/Projects/graphty-monorepo`. Paths are repo-relative.

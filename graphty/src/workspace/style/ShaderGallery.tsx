@@ -342,7 +342,7 @@ export function ShaderGallery({
         );
     };
     return (
-        <div // NOSONAR(S6848): catches arrow keys and focus bubbling from its own tiles to rove the tab stop
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- catches arrow keys and focus bubbling from its own tiles to rove the tab stop
             ref={root}
             className="ws-gallery"
             data-testid="shader-gallery"
@@ -399,7 +399,7 @@ export function ShaderGallery({
                     ))}
                 </Group>
             </Chip.Group>
-            <div // NOSONAR(S6819): an ARIA group naming a two-column grid of tile buttons; a fieldset would draw its own border and legend
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a two-column grid of tile buttons; a fieldset would draw its own border and legend
                 className="ws-gallery-grid"
                 role="group"
                 aria-label={GALLERY_WORDS.tiles}

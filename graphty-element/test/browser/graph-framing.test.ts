@@ -86,6 +86,16 @@ describe("the framing setting", () => {
         assert.isAtMost(b.right, WIDTH, "b is whole on screen");
     });
 
+    it("keeps only the corners of the box it framed, not one spot per node", async () => {
+        const element = await mounted();
+        await framed(element);
+        // The spot list holds a Vector3 per node (97 MiB at a million nodes); the box kept after the
+        // fit is read only for its corners, to tell whether a repaint moved the extent.
+        const { fittedBox } = element.graph.getUpdateManager() as unknown as { fittedBox: object | undefined };
+        assert.isDefined(fittedBox, "the fit kept its box");
+        assert.sameMembers(Object.keys(fittedBox), ["min", "max"]);
+    });
+
     it("fits the node centers padding pixels in, and frames again when the setting changes", async () => {
         const element = await mounted();
         const before = await framed(element);

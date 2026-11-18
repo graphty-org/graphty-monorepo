@@ -58,6 +58,7 @@ function unknownDtypeColumn(): WireColumn {
             origin: null,
             dynamic: false,
             extra: {},
+            coordinates: null,
         },
         data: null,
         validity: null,

@@ -25,7 +25,7 @@ import type {
     StyleValue,
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
-import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily, vpStep } from "./lexicon.js";
+import { borderUnderFill, JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily, vpStep } from "./lexicon.js";
 import {
     type CytoscapeContinuousPoint,
     type CytoscapeMapping,
@@ -285,6 +285,20 @@ const CX2_WORDS: Readonly<Record<string, readonly [string, string]>> = {
 
 const desktopNumber: Write = String;
 const cx2Number: Write = (v) => v;
+// a node's border is the half desktop's fill leaves showing (lexicon.ts `visibleBorder`): its stroke is twice that
+const desktopBorder: Write = (v) => String(num6(2 * Number(v)));
+const cx2Border: Write = (v) => num6(2 * Number(v));
+
+/**
+ * A node's border as the writers take it: the border itself where desktop's fill covers half the stroke they write,
+ * else half of it, so the stroke they write is the border (lexicon.ts `borderUnderFill`).
+ * @param v - the node's border width
+ * @param value - the node's value of another property
+ * @returns the width to write
+ */
+function writtenBorder(v: StyleValue | null, value: (property: string) => unknown): StyleValue | null {
+    return typeof v !== "number" || borderUnderFill(value) ? v : num6(v / 2);
+}
 
 /**
  * A writer for a visual property Cytoscape holds as a whole number (a font size): the value is written as it is, and
@@ -318,7 +332,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["fillOpacity", { vp: "NODE_TRANSPARENCY", write: opacity255 }],
             ["borderColor", { vp: "NODE_BORDER_PAINT", write: colorOut }],
             ["borderOpacity", { vp: "NODE_BORDER_TRANSPARENCY", write: opacity255 }],
-            ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: desktopNumber }],
+            ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: desktopBorder }],
             [
                 "borderStyle",
                 {
@@ -379,7 +393,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["fillOpacity", { vp: "NODE_BACKGROUND_OPACITY", write: cx2Number }],
             ["borderColor", { vp: "NODE_BORDER_COLOR", write: colorOut }],
             ["borderOpacity", { vp: "NODE_BORDER_OPACITY", write: cx2Number }],
-            ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: cx2Number }],
+            ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: cx2Border }],
             [
                 "borderStyle",
                 {
@@ -641,6 +655,13 @@ function targetEmit(
     const rules = extracted.styles.rules.filter((r) => r.target === target);
     const written = new Set(rules.flatMap((r) => [...Object.keys(r.set ?? {}), ...Object.keys(r.map ?? {})]));
     const truth = new Map(Array.from(written, (p) => [p, resolveRules(rules, target, p, src)] as const));
+    const border = truth.get("borderWidth");
+    if (target === "node" && border !== undefined) {
+        truth.set(
+            "borderWidth",
+            border.map((v, i) => writtenBorder(v, (p) => truth.get(p)?.[i] ?? null)),
+        );
+    }
     return {
         target,
         extracted,
@@ -666,6 +687,8 @@ function targetEmit(
 const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
     // it measures each word with a space after it when it wraps a label
     ["labelWrapTrailingSpace", true],
+    // and counts that space after a line's last word too
+    ["labelWrapSkipEndSpace", false],
     // it curves an edge through its bends' midpoints
     ["bendCurve", "midpoints"],
 ]);
@@ -1024,7 +1047,8 @@ function passthroughMapping(
     const { target } = e;
     const kind = STYLE_PROPERTIES[target].get(p) ?? "";
     const cells = e.src.column(by) ?? [];
-    if (PASSTHROUGH_SAFE.has(kind)) {
+    // a border is written doubled (desktopBorder), which a passthrough cannot do
+    if (PASSTHROUGH_SAFE.has(kind) && p !== "borderWidth") {
         return { kind: "passthrough", column, type: typeOf(Array.from(cells)) };
     }
     const read = "style" in by ? (v: unknown): StyleValue | null => (isScalar(v) ? v : null) : canonicalFor(target, p);
@@ -1413,7 +1437,7 @@ export function cytoscapeWritableProperties(target: StyleTarget, dialect: Cytosc
         ...WRITERS[dialect][target].keys(),
         ...FONT_PROPS,
         ...FIXED[target].keys(),
-        ...(target === "node" ? ["labelWrapTrailingSpace"] : ["bendCurve"]),
+        ...(target === "node" ? ["labelWrapTrailingSpace", "labelWrapSkipEndSpace"] : ["bendCurve"]),
     ];
 }
 
@@ -1434,7 +1458,7 @@ export function cytoscapeElementProperties(
 ): Map<string, unknown> {
     const out = new Map<string, unknown>();
     for (const [p, w] of WRITERS[dialect][target]) {
-        const v = value(p);
+        const v = p === "borderWidth" ? writtenBorder(value(p), value) : value(p);
         if (v !== null) {
             out.set(
                 w.vp,

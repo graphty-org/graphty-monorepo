@@ -3,7 +3,7 @@ import { type ColumnRef, type GraphSession, isGraphtyError } from "@graphty/grap
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
-import { designate, panelsInView, timelineOn } from "../time/timeActions";
+import { designate, panelsInView } from "../time/timeActions";
 import { openFilterDraft } from "./filterCards";
 import { GONE_WORD, labelRefusalWords } from "./words";
 
@@ -82,7 +82,7 @@ function attributeActions(
         });
     }
     // Any column can be the time field; the Time section sets its unit and how the window moves.
-    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null && timelineOn(session)) {
+    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null) {
         const source = { start: descriptor.name };
         const isTime =
             (column.kind === "edge" ? session.time.field?.edges : session.time.field?.nodes)?.start === descriptor.name;

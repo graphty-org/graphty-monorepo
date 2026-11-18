@@ -1,5 +1,9 @@
 # Compact Mantine Theme Refactor Design
 
+> **Binding specification:** how every component looks and behaves is set by
+> [compact-mantine/design/figma-spec.md](../../compact-mantine/design/figma-spec.md), and the package is
+> locked to it. Where this document's values differ, the Figma spec wins.
+
 ## Overview
 
 This document outlines a comprehensive refactor of the `@graphty/compact-mantine` theme package to align with Mantine best practices and provide a more ergonomic API for application developers building dense, professional UIs (similar to design tools like Figma, VS Code, or Blender).

@@ -11,6 +11,7 @@ used_by_workflows:
     - W04
     - W10
     - W12
+    - W23
 implemented_by_components:
     - histogram
 requirements:

@@ -115,7 +115,6 @@ export interface TimeWindow {
      * when it starts before `to` and ends after `from`. A missing end is open; a missing start is
      * open when an end is present. Left out, `attribute` holds instants. `session.time` fills it in
      * from the designated field.
-     * @experimental timeline
      * @beta
      */
     readonly end?: Path;
@@ -123,7 +122,6 @@ export interface TimeWindow {
      * The attribute carrying a list of `{ start, end }`, `[start, end]` or bare instants, such as
      * `data.spells`: an element holding one is inside when any of them is, whatever `attribute` and
      * `end` hold. `session.time` fills it in from the designated field.
-     * @experimental timeline
      * @beta
      */
     readonly spells?: Path;
@@ -137,20 +135,17 @@ export interface TimeWindow {
      * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
      * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
      * window, and passing the filter, ends at it, so nodes follow their edges.
-     * @experimental timeline
      * @beta
      */
     readonly nodes?: "all" | "ends";
     /**
      * Whether an element of a kind that carries the attribute, but has no usable value for it, is
      * kept: `"inside"` (the default) or `"outside"`.
-     * @experimental timeline
      * @beta
      */
     readonly missing?: "inside" | "outside";
     /**
      * How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end.
-     * @experimental timeline
      * @beta
      */
     readonly mode?: "sliding" | "cumulative";
@@ -158,7 +153,6 @@ export interface TimeWindow {
      * The IANA zone `session.time`'s calendar steps and bins read in, such as `America/New_York`;
      * left out, {@link TimePlayback.timeZone}. Hours are absolute; a day and longer follow the
      * zone's clock, so a day across a clock change is 23 or 25 hours.
-     * @experimental timeline
      * @beta
      */
     readonly timeZone?: string;
@@ -168,7 +162,6 @@ export interface TimeWindow {
  * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
  * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
  * new window. See {@link TimePlayback.results}.
- * @experimental timeline
  * @beta
  */
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
@@ -177,7 +170,6 @@ export type TimeResultsPolicy = "keep" | "stale" | "rerun";
  * How `session.time` moves windows, held with the designated field rather than on one window, so
  * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
  * optional; one left out reads its default.
- * @experimental timeline
  * @beta
  */
 export interface TimePlayback {
@@ -193,10 +185,10 @@ export interface TimePlayback {
     /** Whether an element with no usable time is kept in every window; default `"inside"`. */
     readonly missing?: "inside" | "outside";
     /**
-     * What happens to elements outside the window: `"hide"` (the default) stops drawing them;
-     * `"ghost"` keeps them drawn and in the state `"ghosted"`, which a style layer selects with
-     * `{ match: "state", state: "ghosted" }`. Either way they are not visible: no count, run or
-     * export includes them.
+     * Read on load and never stored: how elements outside the window draw lives in the style
+     * layers selecting `{ match: "state", state: "outsideWindow" }` (see
+     * `session.time.settings.outside`). Either way they are not visible: no count, run or export
+     * includes them, and they keep their place in every layout.
      */
     readonly outside?: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
@@ -208,7 +200,6 @@ export interface TimePlayback {
      * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque, and so do
      * straight animated lines (`line.animationSpeed`) and patterned lines other than a dash or dot line that
      * bends or curves.
-     * @experimental timeline
      */
     readonly ageFade?: number;
 }
@@ -300,13 +291,11 @@ export interface FilterSources {
     readonly components?: () => ComponentLabels;
     /** Where to read attribute values. Absent refuses `range`, `categories` and a time window. */
     readonly values?: FilterValueSource;
-    /** Whether the timeline experiment is on; absent reads on. */
-    readonly timeline?: () => boolean;
     /**
      * Whether a window's bounds are instants of a time column's parsed values rather than values
-     * to compare as they stand: with the timeline on, or read from a project that saved them so.
+     * to compare as they stand.
      * @param window - The window.
-     * @returns True for instants. Absent, the answer is whether the timeline is on.
+     * @returns True for instants. Absent, true.
      */
     readonly holdsInstants?: (window: TimeWindow) => boolean;
     /**
@@ -958,20 +947,6 @@ export function assertVisibility(
 }
 
 /**
- * Whether a window asks for what only the timeline experiment applies.
- * @param window - The window, or null for none.
- * @returns True when it names `nodes: "ends"`, `missing: "outside"`, an `end` or `spells`.
- */
-export function windowNeedsTimeline(window: TimeWindow | null): boolean {
-    return (
-        window?.nodes === "ends" ||
-        window?.missing === "outside" ||
-        window?.end !== undefined ||
-        window?.spells !== undefined
-    );
-}
-
-/**
  * Refuse a state leaf, alone or in a union's steps, where nothing follows the reader. A union's
  * other leaves are checked as it is read; a state never can be there.
  * @param rule - The leaf.
@@ -1018,8 +993,7 @@ function assertStatesEvaluable(rule: RuleTree, sources: FilterSources): void {
  */
 export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | null, sources: FilterSources): void {
     assertVisibility(filter, window);
-    // With the timeline off a window's zone does nothing, so any value stays saved as it came.
-    if (window?.timeZone !== undefined && sources.timeline?.() !== false && !isTimeZone(window.timeZone)) {
+    if (window?.timeZone !== undefined && !isTimeZone(window.timeZone)) {
         throw malformed("A time window's timeZone is an IANA zone name, such as America/New_York.", {
             field: "timeZone",
             reason: "time-zone",
@@ -1027,8 +1001,7 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
         });
     }
 
-    // With the timeline off they are not read, so any value stays saved as it came.
-    if (window !== null && sources.timeline?.() !== false) {
+    if (window !== null) {
         for (const path of [window.end, window.spells]) {
             if (path !== undefined) {
                 assertPath(path, "window");
@@ -2644,7 +2617,7 @@ export function windowReadsRecords(graph: GraphSnapshot, window: TimeWindow, sou
         return false;
     }
 
-    const paths = windowPaths(window, sources.timeline?.() !== false);
+    const paths = windowPaths(window);
 
     return (
         ((indexed?.node ?? null) === null &&
@@ -2657,13 +2630,12 @@ export function windowReadsRecords(graph: GraphSnapshot, window: TimeWindow, sou
 /**
  * The attributes a window reads of a record.
  * @param window - The window.
- * @param timeline - Whether the timeline is on: off, its `end` and `spells` stay saved, unread.
  * @returns The paths, `attribute` first.
  */
-function windowPaths(window: TimeWindow, timeline: boolean): readonly Path[] {
+function windowPaths(window: TimeWindow): readonly Path[] {
     const { attribute, end, spells } = window;
 
-    return timeline ? [attribute, ...[end, spells].filter((path) => path !== undefined)] : [attribute];
+    return [attribute, ...[end, spells].filter((path) => path !== undefined)];
 }
 
 /**
@@ -2675,7 +2647,7 @@ function windowPaths(window: TimeWindow, timeline: boolean): readonly Path[] {
  */
 export function windowInstants(window: TimeWindow, sources: FilterSources): ReturnType<WindowIndexReader> {
     const indexed = sources.instants?.(window.attribute) ?? null;
-    if (indexed === null || sources.timeline?.() === false) {
+    if (indexed === null) {
         return indexed;
     }
 
@@ -2767,12 +2739,10 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
     const { graph } = context;
     const mark = markFor(context, window.attribute);
     const [from, to] = windowBounds(window, context.sources);
-    // With the timeline off a saved window's options stay saved and are not applied.
-    const timeline = context.sources.timeline?.() !== false;
-    const missingInside = !timeline || window.missing !== "outside";
-    const holdsInstants = context.sources.holdsInstants?.(window) ?? timeline;
+    const missingInside = window.missing !== "outside";
+    const holdsInstants = context.sources.holdsInstants?.(window) ?? true;
     const indexed = holdsInstants ? windowInstants(window, context.sources) : null;
-    const paths = windowPaths(window, timeline);
+    const paths = windowPaths(window);
 
     /**
      * The test of one kind: whether its instant falls inside the half-open window. An element
@@ -2829,7 +2799,7 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
     const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
     let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
-    if (timeline && window.nodes === "ends") {
+    if (window.nodes === "ends") {
         const list = graph.edgeList();
         const ends = new Uint8Array(graph.nodeCount);
         // Saying nothing of edges leaves each with no time, which passes only under "inside".
@@ -2906,9 +2876,9 @@ export function compileVisibility(
 
     const halves: CompiledHalves[] = [];
     const compiledFilter = filter === null ? null : compileOne(filter, context);
-    // Only a slide reads the answers again, so with the timeline off a pass runs the tests as they are.
+    // Only a slide reads the answers again.
     const filtering =
-        window === null || compiledFilter === null || sources.timeline?.() !== true
+        window === null || compiledFilter === null
             ? compiledFilter
             : {
                   node: remembered(compiledFilter.node, graph.nodeCount),
@@ -3077,14 +3047,14 @@ export async function runPassInSlices(
         });
 
         if (signal.aborted) {
-            throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         deadline = performance.now() + SLICE_MS;
     };
 
     if (signal.aborted) {
-        throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+        throw signal.reason as Error; // rethrows the abort signal's reason, as the platform does
     }
 
     for (let from = 0; from < nodeCount; from += CHUNK) {

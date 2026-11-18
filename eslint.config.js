@@ -2,6 +2,7 @@
 // This config focuses on ERROR PREVENTION, not stylistic rules
 // Formatting is handled by Prettier (.prettierrc)
 
+import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 import eslint from "@eslint/js";
 import jsdoc from "eslint-plugin-jsdoc";
 import jsxA11y from "eslint-plugin-jsx-a11y";
@@ -10,7 +11,9 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
+import noSourceProgram from "./tools/eslint-rules/no-source-program.mjs";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
+import sonarWay, { sonarWayTypedOff } from "./tools/eslint-rules/sonar-way.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -21,10 +24,14 @@ export default tseslint.config(
             "**/dist/**",
             "**/node_modules/**",
             "**/coverage/**",
+            // Coverage parts a whole-shard test run writes (tools/run-tests.sh), merged later; gitignored.
+            "**/.coverage-parts/**",
             "**/storybook-static/**",
             "**/gh-pages/**",
             "**/tmp/**",
             "**/.worktrees/**",
+            // Built copies of each package that benchmarks/compare checks out and builds (gitignored).
+            "benchmarks/compare/builds/**",
             // Storybook configuration directories, not yet linted. graphty and compact-mantine keep
             // .storybook out of every tsconfig, so a type-aware pass reports "not found by the
             // project service" on each file; the other packages have a handful of real findings
@@ -62,6 +69,22 @@ export default tseslint.config(
     // BASE JAVASCRIPT RULES
     // ============================================
     eslint.configs.recommended,
+
+    // ============================================
+    // DISABLE DIRECTIVES: NAMED, EXPLAINED, NEEDED
+    // ============================================
+    // A disable comment names the rules it turns off and says why after " -- ", and one that no
+    // longer suppresses anything is an error, so a stale exception cannot outlive its reason.
+    {
+        linterOptions: { reportUnusedDisableDirectives: "error" },
+    },
+    {
+        plugins: { "eslint-comments": eslintComments },
+        rules: {
+            "eslint-comments/require-description": "error",
+            "eslint-comments/no-unlimited-disable": "error",
+        },
+    },
 
     // ============================================
     // JSDOC RULES FOR PUBLIC API DOCUMENTATION
@@ -299,6 +322,46 @@ export default tseslint.config(
     },
 
     // ============================================
+    // SONARQUBE'S RULES (Sonar way, less the rules turned off here)
+    // ============================================
+    // The rules SonarQube applied, run by ESLint: the list, where each applies and what was left out
+    // are in tools/eslint-rules/sonar-way.mjs. Placed before the blocks below, so the test, story and
+    // script relaxations still win. Existing findings are held in eslint-suppressions.json files.
+    ...sonarWay,
+    // Files SonarQube skipped for one rule, carried over with the reason. The packages with their own
+    // eslint.config.js list theirs there, as these globs are root-relative.
+    {
+        // Seeded random number generators and test-data generators: the randomness is the point and
+        // nothing security-related depends on it.
+        files: ["layout/src/simulation/seed.ts", "layout/src/utils/random.ts", "algorithms/benchmarks/**"],
+        rules: { "sonarjs/pseudo-random": "off" },
+    },
+    {
+        // Developer tooling that runs git, pnpm, node and the like from the developer's own PATH.
+        files: ["tools/**", "**/scripts/**", "githerd/**"],
+        rules: { "sonarjs/no-os-command-from-path": "off" },
+    },
+    {
+        // Line-for-line ports of reference algorithms (the left-right planarity test and the
+        // de Fraysseix-Pach-Pollack drawing from NetworkX's planar_layout), kept in the reference's
+        // shape so they can be checked against it.
+        files: ["layout/src/indexed/planar.ts"],
+        rules: { "sonarjs/cognitive-complexity": "off" },
+    },
+    {
+        // Threefry-2x32 is 32-bit integer arithmetic: `| 0` there is addition modulo 2^32, not
+        // truncation, and Math.trunc would change every random draw.
+        files: ["graph-samples/src/random/threefry.ts"],
+        rules: { "unicorn/prefer-math-trunc": "off" },
+    },
+    {
+        // Tables written by graph-samples/scripts/convert-datasets.mjs, which writes every string as
+        // JSON.stringify does; a backslash in a source name is data, escaped.
+        files: ["graph-samples/data/*.ts"],
+        rules: { "unicorn/prefer-string-raw": "off" },
+    },
+
+    // ============================================
     // ACCESSIBILITY RULES FOR compact-mantine JSX
     // ============================================
     // Scoped to compact-mantine, which publishes React components that have to
@@ -321,6 +384,25 @@ export default tseslint.config(
     {
         files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
         rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
+    },
+    // The files that need Mantine's own SegmentedControl, Slider, RangeSlider and ScrollArea: the
+    // wrappers that replace them, the theme that styles them, the stories of the themed stock
+    // components, and the tests of that theme.
+    {
+        files: [
+            "compact-mantine/src/components/SegmentedControl.tsx",
+            "compact-mantine/src/components/Slider.tsx",
+            "compact-mantine/src/components/ScrollArea.tsx",
+            "compact-mantine/src/theme/**/*.ts",
+            "compact-mantine/stories/mantine/**/*.tsx",
+            "compact-mantine/tests/**/*.{ts,tsx}",
+        ],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { paths: MANTINE_REPLACEMENTS.filter((entry) => !entry.importNames.includes("ScrollArea")) },
+            ],
+        },
     },
 
     // ============================================
@@ -396,6 +478,28 @@ export default tseslint.config(
             "jsdoc/check-tag-names": "off",
             "jsdoc/tag-lines": "off",
         },
+    },
+
+    // ============================================
+    // NOTHING AFTER A LOAD KNOWS WHICH PROGRAM WROTE THE FILE
+    // ============================================
+    // graph-io translates each program's look into generic style values and ordinary layers; graphty-element and
+    // the graphty app never read the program graph-io reports, import its per-program names or keep a trace of a
+    // layer's origin (owner, 2026-11-15; #8259). The rule and what it reports: tools/eslint-rules/no-source-program.mjs.
+    // Test code and the fidelity harnesses may name programs, so only source is checked. "src/**" is how
+    // graphty-element and graphty, linted with their own eslint.config.js, see their own files.
+    {
+        files: ["graphty-element/src/**/*.{ts,tsx}", "graphty/src/**/*.{ts,tsx}", "src/**/*.{ts,tsx}"],
+        ignores: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}", "**/__tests__/**", "**/*.stories.{ts,tsx}"],
+        // Its own plugin name: graphty-element's config registers other rules as "local" on the same files.
+        plugins: { "source-blind": { rules: { "no-source-program": noSourceProgram } } },
+        rules: { "source-blind/no-source-program": "error" },
+    },
+    // Reading an older saved project rewrites the `file:` template earlier loads put on a layer into an
+    // ordinary one; nothing else may name that prefix.
+    {
+        files: ["graphty-element/src/session/projectFile.ts", "src/session/projectFile.ts"],
+        rules: { "source-blind/no-source-program": ["error", { filePrefix: false }] },
     },
 
     // ============================================
@@ -529,14 +633,15 @@ export default tseslint.config(
     // A package that adds its stories to its tsconfig should drop it the same way.
     {
         name: "stories/no-type-information",
-        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        // compact-mantine's stories/ also holds a worked example a story imports (LabelSettingsPopout.tsx).
+        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts", "compact-mantine/stories/**/*.tsx"],
         languageOptions: {
             parserOptions: {
                 projectService: false,
                 project: false,
             },
         },
-        rules: tseslint.configs.disableTypeChecked.rules,
+        rules: { ...tseslint.configs.disableTypeChecked.rules, ...sonarWayTypedOff },
     },
 
     // ============================================
@@ -564,6 +669,7 @@ export default tseslint.config(
         },
         rules: {
             ...tseslint.configs.disableTypeChecked.rules,
+            ...sonarWayTypedOff,
         },
     },
 
@@ -609,6 +715,7 @@ export default tseslint.config(
         },
         rules: {
             ...tseslint.configs.disableTypeChecked.rules,
+            ...sonarWayTypedOff,
             "@typescript-eslint/explicit-function-return-type": "off",
             "jsdoc/no-types": "off",
             // The JSDoc type parser rejects `readonly T[]`, which tsc accepts and these scripts use.

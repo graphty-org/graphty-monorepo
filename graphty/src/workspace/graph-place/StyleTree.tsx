@@ -3,7 +3,6 @@ import type { GraphSession, StaleNote, StyleRow, UnionLeaf } from "@graphty/grap
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
@@ -93,7 +92,7 @@ function RowCount({ paints }: Readonly<{ paints: Paints }>): React.JSX.Element {
 function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Element {
     return (
         <Tooltip label={words}>
-            <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+            <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a span holding an SVG glyph, named as one image; an img needs a source
                 role="img"
                 aria-label={words}
                 className="ws-row-over"
@@ -105,8 +104,7 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
 }
 
 /**
- * The wait mark of a layer whose Which nodes reads a run that was removed (the
- * `selection-workspace` experiment): the step waits for the reader's Run, which the layer's Which
+ * The wait mark of a layer whose Which nodes reads a run that was removed: the step waits for the reader's Run, which the layer's Which
  * nodes offers beside Edit. Read live from graphty-element (`scope.watchSteps`).
  * @param props - Component props
  * @param props.session - the element's session
@@ -126,7 +124,7 @@ function WaitMark({
         <>
             {waits && (
                 <Tooltip label={words}>
-                    <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                    <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a span holding an SVG glyph, named as one image; an img needs a source
                         role="img"
                         aria-label={words}
                         className="ws-row-over"
@@ -167,7 +165,7 @@ function OutOfDateMark({ words, children }: Readonly<{ words: string; children: 
     return (
         <span className="ws-row-stale">
             <Tooltip label={words}>
-                <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a span holding an SVG glyph, named as one image; an img needs a source
                     role="img"
                     aria-label={words}
                     className="ws-row-over"
@@ -434,7 +432,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             ) : (
                 <OutOfDateMark words={staleWords(stale, unitOf(session))}>{plainCount}</OutOfDateMark>
             );
-        const measured = selectionWorkspaceOn(session) ? measuredSelection(session, row.id) : null;
+        const measured = measuredSelection(session, row.id);
         const counted =
             measured === null ? (
                 marked
@@ -511,7 +509,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         );
         if (command?.disabled(row, session) === null) {
             event.preventDefault();
-            void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
+            void command.run(workspace, row); // a deliberately unawaited promise, marked as no-floating-promises asks
         }
     };
 

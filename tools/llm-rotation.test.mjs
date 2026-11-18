@@ -11,7 +11,8 @@ import { parse as parseYaml } from "yaml";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
-import { caseResults, nextState, planSelection } from "./llm-rotation.mjs";
+import { AI_PATHS } from "./bisect-ci.mjs";
+import { caseResults, nextState, planSelection, ROTATION_PATHS } from "./llm-rotation.mjs";
 
 const state = { sha: "b".repeat(40), slice: 1, slices: 4, lastFull: "a".repeat(40), failed: [] };
 const plan = (o) => planSelection({ state, slices: 4, full: false, runNumber: 7, changed: [], ...o });
@@ -58,6 +59,12 @@ describe("planSelection", () => {
         const p = plan({ state: { ...state, failed } });
         assert.deepEqual(p.also, [failed[0].name]);
         assert.deepEqual(p.extras, [{ name: failed[0].name, why: "failed in https://run/1" }]);
+    });
+});
+
+describe("ROTATION_PATHS", () => {
+    it("covers every path an LLM-lane bisect takes a candidate for, so a green slice run never hides a candidate's break", () => {
+        for (const path of AI_PATHS) assert.ok(ROTATION_PATHS.includes(path), path);
     });
 });
 

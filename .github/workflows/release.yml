@@ -790,8 +790,8 @@ jobs:
     # all of them. The cases are split by a hash of their names into LLM_REGRESSION_SLICES slices (a repository
     # variable, default 4) and each run takes the slice after the last run's, so every case runs at least once every
     # 4 runs (about once a day) at about a quarter of the cost. A run also executes every case that failed the last
-    # time it ran, and every case when graphty-element/src/ai/ or the LLM tests changed since the last run that
-    # executed them all. Shadow and legacy runs, and a dispatch with llm_full, run every case. The record of the last
+    # time it ran, and every case when graphty-element's AI code, its tests or the lockfile changed since the last run
+    # that executed them all (every path an LLM bisect blames, so a green slice run never hides a candidate's break). Shadow and legacy runs, and a dispatch with llm_full, run every case. The record of the last
     # run is this job's llm-regression-state artifact; the job summary names the slice, the case count and every
     # case added and why. Rules and reasons: tools/llm-rotation.mjs. This changes how many cases run, not when the job
     # runs.

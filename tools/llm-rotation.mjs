@@ -12,8 +12,8 @@
 //
 // A run also executes:
 // - every case that failed the last time a run executed it, so a fix is confirmed and a regression re-checked at once;
-// - every case, when files under graphty-element/src/ai/ or the LLM regression tests changed since the last run that
-//   ran every case (or no such run is recorded, or its commit cannot be read), so AI code changes get full coverage;
+// - every case, when the AI code, its tests or the lockfile changed since the last run that ran every case (or no such
+//   run is recorded, or its commit cannot be read), so such a change gets full coverage at once (ROTATION_PATHS);
 // - every case, when FULL=true (the owner's shadow run, whose gate needs it, or a run by hand).
 //
 // The record is the `llm-regression-state` artifact of the newest LLM job that finished its tests (release.yml reads
@@ -30,14 +30,17 @@ import { relative } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
+import { AI_PATHS } from "./bisect-ci.mjs";
+
 export const DEFAULT_SLICES = 4;
 
-/** The paths whose change since the last full run makes a run execute every case. */
-export const ROTATION_PATHS = [
-    "graphty-element/src/ai",
-    "graphty-element/test/ai/llm-regression",
-    "graphty-element/test/helpers/llm-regression-*",
-];
+/**
+ * The paths whose change since the last full run makes a run execute every case: at least every path an LLM-lane
+ * bisect takes a merge as a candidate for (bisect-ci.mjs AI_PATHS). A bisect blames a merge whose parent is the last
+ * green run without testing that parent, which is sound only when the merges before it could not have broken a case
+ * the green run's slice left out: each such merge made the run after it execute every case.
+ */
+export const ROTATION_PATHS = [...AI_PATHS, "graphty-element/test/helpers/llm-regression-*"];
 
 /**
  * What a run executes.

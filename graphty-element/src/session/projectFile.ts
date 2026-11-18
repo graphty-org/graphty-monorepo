@@ -800,7 +800,11 @@ export function dataMember(
     // So is a row the last open held bare for a reference it could not read, while it is still
     // bare and that load's alone, so a reference that comes back fills it.
     const unread = unreadLoads(session);
-    const heldFor = (supplied: readonly SourceKey[], record: object, bareKeys: readonly string[]): string | undefined =>
+    const heldFor = (
+        supplied: readonly SourceKey[],
+        record: object,
+        bareKeys: readonly string[],
+    ): string | undefined =>
         supplied.length === 1 &&
         unread.has(supplied[0]) &&
         Object.keys(record).every((name) => name === "_source.loads" || bareKeys.includes(name))

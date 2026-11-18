@@ -515,9 +515,7 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
     };
     const nodes = input.nodes.flatMap((row) =>
         // A placeholder for an id the file also embeds is dropped: the embedded record wins.
-        hasRef(row) && embeddedIds.has(String(row.id))
-            ? []
-            : fill(row, (ref) => nodesOf.get(ref)?.get(String(row.id))),
+        hasRef(row) && embeddedIds.has(String(row.id)) ? [] : fill(row, (ref) => nodesOf.get(ref)?.get(String(row.id))),
     );
     const links = input.links.flatMap((row) =>
         fill(row, (ref) => {

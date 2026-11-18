@@ -414,9 +414,12 @@ describe("a sample read by URL, as an application opens its own samples", () => 
         stubSite({ "/samples/graph.json": GRAPH, [SAMPLE]: GRAPH });
         const session = createGraphSession({ features: ["source-references"] });
         session.network.setPolicy("allow");
-        await session.data.import({ type: "json", name: "Sample", config: { url: "/samples/graph.json" } }, {
-            origin: "sample",
-        });
+        await session.data.import(
+            { type: "json", name: "Sample", config: { url: "/samples/graph.json" } },
+            {
+                origin: "sample",
+            },
+        );
         const key = session.data.sources()[0]?.key ?? "";
         assert.strictEqual(session.data.sources()[0]?.kind, "sample");
         assert.deepEqual(session.data.copies(), [{ source: key, copy: "copy" }]);

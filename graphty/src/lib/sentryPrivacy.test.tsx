@@ -168,6 +168,40 @@ describe("error messages", () => {
     });
 });
 
+/** Throws graphty-element's error with a code this build does not know and a name it does not quote. */
+function UnknownCodePanel(): React.JSX.Element {
+    throw new GraphtyError({
+        code: "E_FROM_A_LATER_ELEMENT" as never,
+        message: "No node column is named SECRET_UNQUOTED",
+        source: "data",
+    });
+}
+
+describe("a graphty-element error whose code is not known", () => {
+    afterEach(() => {
+        stopSentry();
+    });
+
+    it("sends no message, from the error or the error boundary's copy of it", async () => {
+        const sent = startRecording();
+        const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        render(
+            <PanelBoundary name="Inspector">
+                <UnknownCodePanel />
+            </PanelBoundary>,
+        );
+        await screen.findByText("This panel could not be shown");
+        await Sentry.flush();
+        quiet.mockRestore();
+
+        const all = sent.join("\n");
+        // Not vacuous: both the error and the boundary's copy were sent.
+        assert.include(all, '"type":"GraphtyError"');
+        assert.include(all, '"type":"React ErrorBoundary GraphtyError"');
+        assert.notInclude(all, "SECRET_UNQUOTED");
+    });
+});
+
 describe("URLs of another site", () => {
     it("are replaced in a breadcrumb, a message, a stack frame and the request", async () => {
         const crumb = privacyFilters.beforeBreadcrumb?.(

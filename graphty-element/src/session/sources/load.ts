@@ -205,6 +205,7 @@ async function readRows(
  * @param input - the source and its params
  * @param read - the rows
  * @param options - the load choices
+ * @param callerKey - the caller's key, stamped with `trigger: "load"` on the step's journal entry
  * @returns settles once they are drawn
  */
 function dispatchRows(
@@ -213,8 +214,12 @@ function dispatchRows(
     input: SourceInput,
     read: Read,
     options: SourceLoadOptions,
+    callerKey: string | undefined,
 ): Promise<unknown> {
-    return host.dispatch(importCommand(host, key, input, read, options));
+    return host.dispatch(importCommand(host, key, input, read, options), {
+        trigger: "load",
+        ...(callerKey === undefined ? {} : { callerKey }),
+    });
 }
 
 /**
@@ -471,7 +476,8 @@ export async function importSource(
     const record = host.ledger.addLoad(loadFacts(input, read, access, options, total ?? held?.known));
     const listed = host.sourceKeys?.() ?? new Set<SourceKey>();
     try {
-        await dispatchRows(host, record.key, input, read, options);
+        // Stamped with this call's own key, never one a read was made with.
+        await dispatchRows(host, record.key, input, read, options, given.callerKey);
     } catch (error) {
         host.ledger.fromMember(before);
         host.pending.clear();

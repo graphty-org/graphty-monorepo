@@ -76,12 +76,6 @@ afterEach(() => {
 });
 
 describe("SurveyCard", () => {
-    it("renders nothing while usage data is not shared", () => {
-        render(<SurveyCard />);
-        moment(succeeded);
-        assert.isNull(card());
-    });
-
     it("asks the use case at a measure's first result, and not before", () => {
         share();
         render(<SurveyCard />);
@@ -168,7 +162,7 @@ describe("SurveyCard", () => {
         assert.isNull(card());
     });
 
-    it("asks PostHog nothing after sharing stopped", () => {
+    it("asks PostHog nothing, and shows nothing, while sharing is off", () => {
         share();
         render(<SurveyCard />);
         act(() => {

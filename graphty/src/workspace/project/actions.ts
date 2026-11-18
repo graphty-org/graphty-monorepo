@@ -168,10 +168,11 @@ export interface FileSource {
     /**
      * Loads the file when `project.open` reads it as data (`opened: "graph"`) rather than a
      * project: the draft it was read into (read onto the graph when the graph holds data), or, for
-     * a file the element could not read as data, none, so the caller reads it and says why;
-     * `fresh` when it opens a new project from the start screen.
+     * a file the element could not read as data, the element's refusal (`refused`), for the caller
+     * to say why without reading the file again; `fresh` when it opens a new project from the
+     * start screen.
      */
-    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft) => Promise<void>;
+    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft, refused?: unknown) => Promise<void>;
 }
 
 /** A file waiting to open, and whether it opens a new project from the start screen. */
@@ -669,8 +670,9 @@ async function openInSession(
     } catch (error) {
         focusLater(false);
         if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
-            // A data file the element could not read: the data import says why, in its own words.
-            await onData(ctx, fresh);
+            // A data file the element could not read: the data import says why, in its own words,
+            // from this refusal. Read once: a second read would fail, and count, a second time.
+            await onData(ctx, fresh, undefined, error);
             return true;
         }
         return openFailed(ctx, session, pending, error);

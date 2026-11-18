@@ -26,6 +26,7 @@
  */
 
 import { redactSecrets } from "@graphty/graphty-element/logging";
+import { isGraphtyErrorCode } from "@graphty/graphty-element/session";
 import type {
     Breadcrumb,
     BrowserOptions,
@@ -145,43 +146,25 @@ function cleanMessage(text: unknown): string | undefined {
     return typeof text === "string" ? cleanText(text.replaceAll(QUOTED, QUOTED_TEXT)) : undefined;
 }
 
-/** Reads whether a value is one of graphty-element's error codes; loaded on the first error. */
+/** Reads whether a value is one of graphty-element's error codes. */
 type CodeCheck = (value: unknown) => boolean;
-let codeCheck: Promise<CodeCheck> | undefined;
-/** The check once it has loaded: from then on an error is cleaned at once, not after an await. */
-let loadedCodeCheck: CodeCheck | undefined;
 
 /**
- * graphty-element's own check for its error codes, loaded with its session entry when error
- * reporting starts (see {@link preloadErrorCodes}) or on the first error, so the landing page never
- * downloads it for error reporting alone.
- * @returns the check, or one that knows no code when the entry cannot load.
+ * Whether an error's name is graphty-element's error, or a copy of one: Sentry's React error
+ * boundary adds a cause named "React ErrorBoundary " plus the name, with the same message.
+ * @param name - the error's name, or an exception's type.
+ * @returns true for graphty-element's error and its copies.
  */
-function loadCodeCheck(): Promise<CodeCheck> {
-    codeCheck ??= import("@graphty/graphty-element/session").then(
-        (session) => session.isGraphtyErrorCode,
-        () => () => false,
-    );
-    void codeCheck.then((check) => {
-        loadedCodeCheck = check;
-    });
-    return codeCheck;
-}
-
-/**
- * Starts loading graphty-element's error code check, so errors are cleaned synchronously: an
- * error captured while reporting is off is refused at once, and never sent by a quick Share after
- * it while an await was pending. Called when error reporting starts.
- */
-export function preloadErrorCodes(): void {
-    void loadCodeCheck();
+function isGraphtyErrorName(name: unknown): boolean {
+    return typeof name === "string" && name.endsWith("GraphtyError");
 }
 
 /**
  * The graphty-element error codes of an error and its causes, by their message.
  * @param error - the error Sentry was handed.
  * @param isCode - graphty-element's check for its codes.
- * @returns each message that belongs to an error with a known code, and that code.
+ * @returns each message that belongs to graphty-element's error, and its code, or "" when the code
+ * is not known (its message is then dropped).
  */
 function codesByMessage(error: unknown, isCode: CodeCheck): Map<string, string> {
     const codes = new Map<string, string>();
@@ -192,6 +175,8 @@ function codesByMessage(error: unknown, isCode: CodeCheck): Map<string, string> 
         const { code } = each as { code?: unknown };
         if (isCode(code)) {
             codes.set(each.message, code as string);
+        } else if (isGraphtyErrorName(each.name) && !codes.has(each.message)) {
+            codes.set(each.message, "");
         }
         each = each.cause;
     }
@@ -232,6 +217,21 @@ function cleanBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
 }
 
 /**
+ * What an exception sends as its message: a graphty-element error, and any copy of it with its
+ * message, is its code alone, and nothing when its code is not known; any other error its message
+ * with quoted text removed.
+ * @param exception - one exception of the event.
+ * @param code - its graphty-element code by message: "" for one not known, undefined for none.
+ * @returns the value sent.
+ */
+function exceptionValue(exception: Exception, code: string | undefined): string | undefined {
+    if (code !== undefined) {
+        return code === "" ? undefined : code;
+    }
+    return isGraphtyErrorName(exception.type) ? undefined : cleanMessage(exception.value);
+}
+
+/**
  * An exception with only its type, its code or cleaned message, its stack and how it was caught.
  * @param exception - one exception of the event.
  * @param codes - the graphty-element codes of the error and its causes, by message.
@@ -245,8 +245,7 @@ function cleanException(exception: Exception, codes: ReadonlyMap<string, string>
     }));
     return {
         ...pick(exception, ["type", "module"]),
-        // A graphty-element error is its code alone; one whose code is not known sends no message.
-        value: code ?? (exception.type === "GraphtyError" ? undefined : cleanMessage(exception.value)),
+        value: exceptionValue(exception, code),
         stacktrace: frames ? { frames } : undefined,
         mechanism: exception.mechanism ? pick(exception.mechanism, MECHANISM_FIELDS) : undefined,
     };
@@ -321,14 +320,11 @@ export function beforeAddRecordingEvent(event: ReplayFrameEvent): ReplayFrameEve
  * @param hint - what Sentry was handed, the error with its causes.
  * @returns the event that is sent.
  */
-function cleanErrorEvent(event: ErrorEvent, hint: EventHint): ErrorEvent | Promise<ErrorEvent> {
+function cleanErrorEvent(event: ErrorEvent, hint: EventHint): ErrorEvent {
     if (!event.exception?.values) {
         return cleanEvent(event);
     }
-    if (loadedCodeCheck !== undefined) {
-        return cleanEvent(event, codesByMessage(hint.originalException, loadedCodeCheck));
-    }
-    return loadCodeCheck().then((isCode) => cleanEvent(event, codesByMessage(hint.originalException, isCode)));
+    return cleanEvent(event, codesByMessage(hint.originalException, isGraphtyErrorCode));
 }
 
 export const privacyFilters: Pick<BrowserOptions, "beforeSend" | "beforeBreadcrumb"> = {

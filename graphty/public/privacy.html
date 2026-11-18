@@ -247,6 +247,10 @@
                 </li>
                 <li><b>Page speed</b> (Web Vitals timings), and when you leave the page.</li>
                 <li>
+                    With each event, your browser, operating system, device type, screen and window size, language and
+                    time zone.
+                </li>
+                <li>
                     <b>Survey answers</b>, if you answer a short survey, including any text you type in its Other box.
                     Do not paste data from your graph there: what you type is sent.
                 </li>
@@ -283,7 +287,7 @@
             <h2 id="report">Problem reports</h2>
             <p>
                 <b>Help &gt; Report a problem</b> sends to Sentry your message, an optional name and email, and any
-                attachments you add. Today it works only while Share usage data is on.
+                attachments you add. No replay is sent with it. Today it works only while Share usage data is on.
             </p>
 
             <h2 id="never">Never sent</h2>
@@ -294,8 +298,10 @@
                 <li>Project names and note text.</li>
                 <li>A PostHog id, or anything at all to PostHog or Sentry, before you choose Share usage data.</li>
                 <li>
-                    A location from PostHog or Sentry: PostHog's IP location lookup is off, and Sentry is told never to
-                    record your IP address. (Umami's approximate location is listed above, under Always sent.)
+                    A location with your PostHog events or from Sentry: PostHog's IP location lookup is off for every
+                    event it stores, and Sentry is told never to record your IP address. PostHog's settings requests
+                    (when it starts, and every few minutes while sharing is on) do reach it with your IP address and
+                    time zone, like any web request. (Umami's approximate location is listed above, under Always sent.)
                 </li>
             </ul>
             <p>

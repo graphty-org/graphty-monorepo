@@ -199,6 +199,13 @@ describe("the real posthog-js chunk", () => {
             assert.notInclude(urls.join("\n"), secret);
         }
 
+        // An allowlisted capture is queued while sharing, so the same call after the stop can fail.
+        assert.isDefined(client.capture("sample_loaded", { sample: "karate" }), "queued while sharing");
+        // Sent before the stop, so it is not left in the queue for a later case to see.
+        await vi.waitFor(() => {
+            assert.include(bodies.join("\n"), "sample_loaded");
+        });
+
         // Stop: opted out, no id kept, and nothing reaches PostHog's flags or reset after it.
         const reset = vi.spyOn(client, "reset");
         const reload = vi.spyOn(client, "reloadFeatureFlags");
@@ -209,7 +216,7 @@ describe("the real posthog-js chunk", () => {
         // Counted work, not a wait for a batch that may never flush: every capture after the stop,
         // the click's autocapture included, returns nothing, so nothing was queued to send later.
         const capture = vi.spyOn(client, "capture");
-        const capturedAfter = client.capture("after_stop");
+        const capturedAfter = client.capture("sample_loaded", { sample: "karate" });
         assert.isUndefined(capturedAfter, "a capture after stop is dropped before it is queued");
         await userEvent.click(button);
         assert.isTrue(
@@ -249,6 +256,37 @@ describe("the real posthog-js chunk", () => {
             assert.notInclude(stored, old);
         }
         assert.notInclude(urls.join("\n"), "/i/v1/logs");
+        stopPostHog();
+    });
+
+    it("counts one reader as one person across tabs: another tab's Share hands this tab its new id", async () => {
+        startPostHog();
+        await vi.waitFor(() => {
+            assert.isDefined(postHog());
+        });
+        const client = postHog() as unknown as PostHog;
+        const storeKey = `ph_${KEY}_posthog`;
+
+        // The tab where the reader says Share makes the new id and saves it at once, before
+        // usageData.ts stores the answer that starts the other tabs.
+        stopPostHog();
+        startPostHog();
+        const made = client.get_distinct_id();
+        const saved = localStorage.getItem(storeKey) ?? "";
+        assert.include(saved, made, "saved before the answer is stored");
+
+        // A tab started by that answer takes the saved id, not one of its own.
+        stopPostHog();
+        localStorage.setItem(storeKey, saved.replaceAll(made, "OTHER_TAB_ID"));
+        startPostHog(false);
+        assert.strictEqual(client.get_distinct_id(), "OTHER_TAB_ID");
+        assert.strictEqual(client.get_property("$device_id"), "OTHER_TAB_ID");
+        const from = bodies.length;
+        count("sample_loaded", { sample: "karate" });
+        await vi.waitFor(() => {
+            assert.include(bodies.slice(from).join("\n"), "sample_loaded");
+        });
+        assert.include(bodies.slice(from).join("\n"), "OTHER_TAB_ID");
         stopPostHog();
     });
 

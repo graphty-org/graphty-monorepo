@@ -8,7 +8,7 @@ import * as SentrySdk from "@sentry/react";
 
 import { siteConfig } from "../siteConfig";
 import { sentryMaskedAttributes } from "./analytics";
-import { beforeAddRecordingEvent, preloadErrorCodes, privacyFilters } from "./sentryPrivacy";
+import { beforeAddRecordingEvent, privacyFilters } from "./sentryPrivacy";
 
 /** The parts of Sentry's SDK this module calls. */
 export type SentryCalls = Pick<
@@ -18,6 +18,7 @@ export type SentryCalls = Pick<
     | "replayIntegration"
     | "captureException"
     | "captureFeedback"
+    | "flush"
     | "getCurrentScope"
     | "getIsolationScope"
 >;
@@ -150,7 +151,6 @@ export function initSentry(config?: SentryConfig): void {
         initialized = true;
         return;
     }
-    preloadErrorCodes();
     replay ??= Sentry.replayIntegration({
         maskAllText: true,
         maskAllInputs: true,
@@ -302,11 +302,28 @@ export function captureUserFeedback(feedback: FeedbackData): FeedbackResult {
         }
     }
 
+    // Feedback carries no replay: the reader was told a replay goes only with an error. Sentry's
+    // replay uploads its buffer with any feedback event it sees while enabled, so it is stopped
+    // (its buffer dropped) before the capture and buffers again once the capture is processed.
+    const integration = replay;
+    const wasBuffering = integration?.getRecordingMode() !== undefined;
+    if (wasBuffering) {
+        void integration?.stop({ flush: false }).catch(() => undefined);
+    }
     Sentry.captureFeedback({
         message: feedback.message,
         name: feedback.name,
         email: feedback.email,
     });
+    if (wasBuffering) {
+        void Sentry.flush()
+            .catch(() => false)
+            .then(() => {
+                if (initialized) {
+                    integration?.startBuffering();
+                }
+            });
+    }
 
     // Clear attachments after sending
     scope.clearAttachments();

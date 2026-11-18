@@ -68,9 +68,35 @@ describe("the usage data gate", () => {
                 }),
             );
         });
-        assert.equal(initSentry.mock.calls.length, 1);
+        // Started as a follower: it takes the PostHog id the answering tab made (startPostHog).
+        assert.deepEqual(initSentry.mock.calls, [[false]]);
         assert.equal(result.current, "share");
         unmount();
+    });
+
+    it("keeps a No that storage cannot hold: the older Share is removed, so the next launch stays off", () => {
+        answerUsageData("share");
+        initSentry.mockClear();
+        // A full storage: reads still work, a longer write throws.
+        const realSet = Storage.prototype.setItem;
+        const full = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+            this: Storage,
+            key: string,
+            value: string,
+        ) {
+            if (key === "graphty.usageData.v1") {
+                throw new DOMException("full", "QuotaExceededError");
+            }
+            realSet.call(this, key, value);
+        });
+        answerUsageData("declined");
+        full.mockRestore();
+
+        assert.equal(stopSentry.mock.calls.length, 1);
+        assert.equal(readUsageAnswer(), "declined", "this page shows what it does");
+        assert.isNull(localStorage.getItem("graphty.usageData.v1"), "no Share is left for the next launch");
+        startUsageDataIfShared();
+        assert.equal(initSentry.mock.calls.length, 0);
     });
 
     it("stops sending after a later No, and stays off at the next launch", () => {

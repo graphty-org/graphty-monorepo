@@ -44,7 +44,7 @@
   },
   "src/lib/sentryPrivacy.ts": {
     "unicorn/no-array-callback-reference": {
-      "count": 2
+      "count": 1
     }
   },
   "src/main.tsx": {

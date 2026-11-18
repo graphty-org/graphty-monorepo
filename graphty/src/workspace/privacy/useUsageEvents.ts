@@ -32,6 +32,7 @@ import { DISCARD_DIALOG, KEEP_ASSETS_DIALOG, SAVE_AS_DIALOG } from "../project/a
 import { EXPAND_DIALOG, SERVER_DIALOG } from "../server/commands";
 import { NETWORK_DIALOG } from "../start/NetworkDataDialog";
 import type { WorkspaceStore } from "../state/store";
+import { TOOLBAR_POPOVERS } from "../toolbar/popover";
 
 /** A run's endings `algorithm_run` sends: the element's own terminal statuses. */
 const RUN_OUTCOMES: ReadonlySet<RunStatus> = new Set(TERMINAL_RUN_STATUSES);
@@ -49,21 +50,17 @@ const PATCH_ACTIONS: ReadonlySet<string> = new Set<Extract<SessionCommand, { op:
  */
 export const PANEL_IDS: ReadonlySet<string> = new Set([
     // dialogs
+    ...TOOLBAR_POPOVERS,
     "about",
-    "analyze",
     "custom-model",
     "export",
     "generators",
-    "layout",
-    "path",
-    "quick-actions",
     "report",
     "samples",
     "score",
     "settings",
     "shader-editor",
     "shortcuts",
-    "view",
     NETWORK_DIALOG,
     SERVER_DIALOG,
     EXPAND_DIALOG,

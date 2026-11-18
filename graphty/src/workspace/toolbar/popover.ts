@@ -4,7 +4,8 @@ import type { WorkspaceStore } from "../state/store";
  * The toolbar's popovers and menus, by the id they hold in the store's one `dialog` slot; "view" is
  * the Mode tool's menu.
  */
-export type ToolbarPopover = "analyze" | "path" | "layout" | "camera" | "view" | "quick-actions";
+export const TOOLBAR_POPOVERS = ["analyze", "path", "layout", "camera", "view", "quick-actions"] as const;
+export type ToolbarPopover = (typeof TOOLBAR_POPOVERS)[number];
 
 /**
  * Where focus goes back to when a popover opened by a key or a menu closes, by popover; a popover

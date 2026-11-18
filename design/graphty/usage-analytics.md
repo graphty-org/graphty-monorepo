@@ -246,7 +246,7 @@ The hostname and the DNT/GPC reads go through the test seam (section 10, graphty
 
 ## 6. PostHog setup (exact)
 
-Loading uses `import("posthog-js/full/no-external")`, the documented entry (its `package.json` points at `dist/module.full.no-external.js`; types come from `dist/module.d.ts`). It inlines the recorder, surveys, web vitals and dead clicks and loads nothing external. It is one lazy chunk of about 821 KB raw and 240 KB gzip at posthog-js 1.450.1. PostHog contacts two hosts: the ingest host (`eu.i.posthog.com`) and the assets host (`eu-assets.i.posthog.com`) for the remote config JSON.
+Loading uses `import("posthog-js/full/no-external")`, the documented entry (its `package.json` points at `dist/module.full.no-external.js`; types come from `dist/module.d.ts`). It inlines the recorder, surveys, web vitals and dead clicks and loads nothing external. It is one lazy chunk of about 790 KB raw and 231 KB gzip at posthog-js 1.445.1, the pinned version. PostHog contacts two hosts: the ingest host (`eu.i.posthog.com`) and the assets host (`eu-assets.i.posthog.com`) for the remote config JSON.
 
 ```ts
 posthog.init(key, {
@@ -309,7 +309,7 @@ The lifecycle mirrors Sentry's page singleton:
 - `startPostHog()` does nothing without a key, then sets `wanted = true` synchronously.
     - If PostHog was already initialized on this page, it calls `reset(true)`, then `opt_in_capturing()`, then `startSessionRecording()`. `reset(true)` makes a new device id as well as a new distinct id: opt-out removed the stored ids but posthog-js still holds them in memory, and a plain `reset()` keeps `$device_id` and saves it again, linking the reader to what was recorded before they said No. The flags request that `reset()` makes is fine here: the reader has just shared.
     - Otherwise it awaits one memoized import promise (a second start while the import is in flight reuses it). It sets an `initialized` flag synchronously when it calls `init`, so two starts give exactly one `init`. It calls `init` only if `wanted` is still true, so a No that arrives before the chunk loads wins. After `init` it calls `opt_in_capturing()` and flushes the buffer from section 3. The query was already stripped by the sender (section 3).
-- `stopPostHog()` sets `wanted = false` and clears the buffer; from then on `postHog()` returns undefined. If PostHog was initialized, it calls `stopSessionRecording()` and `opt_out_capturing()`. It never calls `reset()`: in posthog-js 1.450.1 `reset()` always ends with `reloadFeatureFlags()`, which posts a new `distinct_id`, `$device_id`, person properties and the time zone to `/flags`, and that request is not a capture, so neither the opt-out nor `before_send` stops it. Deleting the id is persistence's job: with `opt_out_persistence_by_default: true`, `opt_out_capturing()` disables persistence and removes `ph_<token>_posthog` itself, and every later save (a debounced save, a session-id touch, a survey cache write) writes nothing. As a backstop it then removes every other `ph_`-prefixed key in localStorage and sessionStorage, keeping the `__ph_opt_in_out_<token>` marker, which says "out". It also deletes the stored `use_case` choice from `graphty.surveys.v1` (section 4.4). Every step is best effort, inside try/catch.
+- `stopPostHog()` sets `wanted = false` and clears the buffer; from then on `postHog()` returns undefined. If PostHog was initialized, it calls `stopSessionRecording()` and `opt_out_capturing()`. It never calls `reset()`: in posthog-js 1.445.1 `reset()` always ends with `reloadFeatureFlags()`, which posts a new `distinct_id`, `$device_id`, person properties and the time zone to `/flags`, and that request is not a capture, so neither the opt-out nor `before_send` stops it. Deleting the id is persistence's job: with `opt_out_persistence_by_default: true`, `opt_out_capturing()` disables persistence and removes `ph_<token>_posthog` itself, and every later save (a debounced save, a session-id touch, a survey cache write) writes nothing. As a backstop it then removes every other `ph_`-prefixed key in localStorage and sessionStorage, keeping the `__ph_opt_in_out_<token>` marker, which says "out". It also deletes the stored `use_case` choice from `graphty.surveys.v1` (section 4.4). Every step is best effort, inside try/catch.
 
 **Events captured before No.** An event captured while consent held may still be sent after the reader withdraws. posthog-js batches captures in a request queue that flushes every few seconds, and a failed send waits in a retry queue; `opt_out_capturing()` stops new captures but drains neither, and posthog-js offers no public call that drops them. So the last few seconds of events captured before the stop, the `$autocapture` of the No click itself included, can still go out, under the id that was just deleted from storage. They were captured with consent, nothing captured after the stop is sent, and the privacy page says so ("How to turn it off"). Sentry is disabled at once instead of closed (section 7), so it sends nothing captured after the stop either.
 
@@ -501,7 +501,7 @@ readonly analytics?: {
     readonly umamiWebsiteId?: string;
     /** PostHog project key ("phc_..."). */
     readonly posthogKey?: string;
-    /** PostHog ingest host: exactly "https://eu.i.posthog.com" or "https://us.i.posthog.com". */
+    /** PostHog ingest host: exactly "https://eu.i.posthog.com". */
     readonly posthogHost?: string;
 };
 ```
@@ -510,7 +510,7 @@ The validation rules are:
 
 - `umamiWebsiteId` must match a UUID regex.
 - `posthogKey` must match `/^phc_[A-Za-z0-9]+$/`.
-- `posthogHost` must be one of the two hosts.
+- `posthogHost` must be exactly `https://eu.i.posthog.com`. The US host is refused: the privacy page names the EU region (decision 9), so a site that wrote the US host would send readers' data somewhere they were not told about. A refused block switches PostHog off for that site, silently.
 
 Tests never point PostHog at another host through `site.json`; they use the test seam (section 10, graphty app item 3).
 

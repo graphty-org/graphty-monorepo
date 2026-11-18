@@ -6,8 +6,38 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession, type JournalEntry, type RunChange } from "../../session";
+import {
+    createGraphSession,
+    defineSource,
+    type GraphSession,
+    type JournalEntry,
+    registerSource,
+    type RunChange,
+} from "../../session";
 import { blankSession, fixtureSession } from "./history/fixture-session";
+
+// A network source with one example, answered by the fetch each test passes.
+registerSource(
+    defineSource({
+        id: "trigger-people",
+        descriptor: {
+            plainName: "People",
+            params: [],
+            examples: [{ id: "trigger-demo", plainName: "The demo", params: { team: "core" } }],
+        },
+        async records(params: { team: string }, ctx) {
+            return { nodes: await ctx.fetchJson<{ id: string }[]>(`https://people.example/${params.team}`) };
+        },
+    }),
+);
+
+/**
+ * A fetch that answers two people.
+ * @returns the fetch
+ */
+function people(): (input: string | URL | Request) => Promise<Response> {
+    return () => Promise.resolve(Response.json([{ id: "p1" }, { id: "p2" }]));
+}
 
 describe("JournalEntry.trigger", () => {
     it("marks the suggestion entries a batch releases, and not the runs", async () => {
@@ -222,6 +252,42 @@ describe("JournalEntry.trigger load", () => {
         assert.isNotEmpty(heard, "the replace wrote entries");
         assert.isTrue(heard.every((entry) => entry.trigger === "load" && entry.callerKey === "replaced"));
         assert.lengthOf(loaded, 0);
+        session.dispose();
+    });
+
+    it("stamps a network source's import with load and the caller's key", async () => {
+        const session = createGraphSession();
+        const heard = entriesOf(session);
+
+        await session.data.import(
+            { source: "trigger-people", config: { team: "core" } },
+            { fetch: people(), callerKey: "net" },
+        );
+
+        assert.include(
+            heard.map((entry) => entry.command.op),
+            "data.import-source",
+        );
+        assert.isTrue(heard.every((entry) => entry.trigger === "load" && entry.callerKey === "net"));
+        session.dispose();
+    });
+
+    it("stamps loadExample's entries with load and the caller's key", async () => {
+        const session = createGraphSession();
+        const heard = entriesOf(session);
+
+        await session.data.loadExample("trigger-people", "trigger-demo", { fetch: people(), callerKey: "ex" });
+
+        assert.isNotEmpty(heard, "the example load wrote entries");
+        assert.isTrue(heard.every((entry) => entry.trigger === "load" && entry.callerKey === "ex"));
+
+        heard.length = 0;
+        await session.data.loadExample("trigger-people", "trigger-demo", { fetch: people() });
+        assert.isNotEmpty(heard);
+        assert.isTrue(
+            heard.every((entry) => entry.trigger === "load" && !("callerKey" in entry)),
+            "no key given, none echoed",
+        );
         session.dispose();
     });
 

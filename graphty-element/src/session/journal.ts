@@ -56,8 +56,10 @@ export interface JournalEntry {
      * held paint released, or `applySuggestedStyles`). `"project"`: one of the commands that
      * opening a project ran. `"load"`: one of the commands a load ran -- the import and the
      * configuration the load settled beside it, such as the label path a graph file names its
-     * nodes by -- for `data.import`, `data.loadDataset`, `data.generate`, a draft's `load`,
-     * `data.replaceSource` and `data.reloadSource`.
+     * nodes by -- for `data.import` (a network source's too), `data.loadExample`,
+     * `data.loadDataset`, `data.generate`, a draft's `load`, `data.replaceSource`,
+     * `data.reloadSource`, and the graph's own loads (`addDataFromSource`, `loadFromFile`,
+     * `loadFromUrl`, the `data-source` attribute).
      *
      * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
      * @since 3.40.0

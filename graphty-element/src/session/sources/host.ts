@@ -25,6 +25,12 @@ interface HostPlacement {
     readonly pinned: boolean;
 }
 
+/** What a load stamps on its journal entries: `trigger: "load"` and the caller's key. */
+export interface LoadStamp {
+    readonly trigger: "load";
+    readonly callerKey?: string;
+}
+
 /** The session pieces a source load or expansion works through. */
 export interface SourceHost {
     /** The load records. */
@@ -60,9 +66,10 @@ export interface SourceHost {
     /**
      * Dispatch a command through the session's dispatcher, as one undoable step.
      * @param command - the command
+     * @param stamp - for a load: what its journal entry carries
      * @returns what it settles with
      */
-    dispatch(command: SessionCommand): Promise<unknown>;
+    dispatch(command: SessionCommand, stamp?: LoadStamp): Promise<unknown>;
     /**
      * Waits for every load asked for before this one to dispatch, for a load that holds a
      * place in line (`session.data.import`, `loadExample`); unset, or undefined, when none is ahead.

@@ -106,6 +106,7 @@ type Fake = Record<
     | "opt_in_capturing"
     | "opt_out_capturing"
     | "reset"
+    | "get_distinct_id"
     | "register"
     | "startSessionRecording"
     | "stopSessionRecording"
@@ -124,6 +125,7 @@ function fakePostHog(): Fake {
         opt_in_capturing: vi.fn(),
         opt_out_capturing: vi.fn(),
         reset: vi.fn(),
+        get_distinct_id: vi.fn(),
         register: vi.fn(),
         startSessionRecording: vi.fn(),
         stopSessionRecording: vi.fn(),

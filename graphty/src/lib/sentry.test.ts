@@ -27,6 +27,8 @@ const mockReplay = vi.fn(() => ({
     start: mockReplayStart,
     startBuffering: mockReplayStartBuffering,
     stop: vi.fn(() => Promise.resolve()),
+    // the stand-in records nothing; sentryReplay.test.ts covers a recording replay
+    getRecordingMode: () => undefined,
 }));
 const mockCaptureException = vi.fn();
 const mockCaptureFeedback = vi.fn();

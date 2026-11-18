@@ -267,6 +267,21 @@ describe("usage counts from the real element", () => {
         sendsNone("SECRET_BAD", "SECRET_LABEL");
     });
 
+    it("sends one load_failed for a file dropped on the start screen that cannot be read", async () => {
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        await screen.findByRole("button", { name: "New project" });
+        drop(new File(['<graphml><node id="SECRET_LABEL"'], "SECRET_BAD.graphml"));
+        // Settled: the refusal is shown and the start screen is back.
+        await waitFor(() => {
+            const { notice, project } = store.get();
+            assert.isTrue(notice?.error, "the refusal is shown");
+            assert.isNull(project);
+        });
+        assert.lengthOf(sent("load_failed").posthog, 1);
+        sendsNone("SECRET_BAD", "SECRET_LABEL");
+    });
+
     it("counts a finished run by its catalog key, never the data it ran over", async () => {
         const session = await emptyProject();
         const loaded = next("own_file_opened");
@@ -281,11 +296,17 @@ describe("usage counts from the real element", () => {
 
     it("sends a journaled change as a graph action by its op alone", async () => {
         const { session } = await loadedProject();
+        const before = sent("graph_action").posthog.length;
         const action = next("graph_action");
         await session.layout.setDimension("2d");
         const props = await action;
         assert.strictEqual(props.op, "view.dimension");
         assert.notProperty(props, "suggested");
+        // What PostHog was handed, past cleanPostHogEvent: the one action, by its op.
+        const [handed, ...more] = sent("graph_action").posthog.slice(before);
+        assert.isEmpty(more);
+        assert.strictEqual(handed?.op, "view.dimension");
+        assert.notProperty(handed, "suggested");
         sendsNone("SECRET_GENES", "TP53");
     });
 
@@ -431,7 +452,15 @@ describe("usage counts from the real element", () => {
         const zoomed = next("camera_used");
         await wheelOver(canvas, -120);
         assert.deepEqual({ ...(await zoomed) }, { kind: "zoom" });
-        // PostHog only.
+        // PostHog only, by kind alone.
+        assert.deepEqual(
+            sent("canvas_selected").posthog.map(({ target, count, via }) => ({ target, count, via })),
+            [{ target: "node", count: "1", via: "click" }],
+        );
+        assert.deepEqual(
+            sent("camera_used").posthog.map(({ kind }) => ({ kind })),
+            [{ kind: "zoom" }],
+        );
         assert.isEmpty(sent("canvas_selected").umami);
         assert.isEmpty(sent("camera_used").umami);
         sendsNone("SECRET_GENES", "TP53");

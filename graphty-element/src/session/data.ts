@@ -165,7 +165,7 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
-import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
+import { ExpansionState, type HostEdge, type LoadStamp, type SourceHost } from "./sources/host";
 import { isSourceFactKey, SOURCE_ATTR, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import {
@@ -1933,10 +1933,10 @@ export class SessionData implements SessionDataApi {
         return {
             ...host,
             waitTurn: () => turn.wait(),
-            dispatch: (command) =>
+            dispatch: (command, stamp) =>
                 hold
-                    ? (turn.wait()?.then(() => host.dispatch(command)) ?? host.dispatch(command))
-                    : turn.take(() => host.dispatch(command)),
+                    ? (turn.wait()?.then(() => host.dispatch(command, stamp)) ?? host.dispatch(command, stamp))
+                    : turn.take(() => host.dispatch(command, stamp)),
         };
     }
 
@@ -2062,7 +2062,7 @@ export class SessionData implements SessionDataApi {
             },
             positionScale: () => this.readConfig().knownFields.positionScale,
             directed: () => this.current().directed,
-            dispatch: (command) =>
+            dispatch: (command, stamp) =>
                 writes.send === undefined
                     ? Promise.reject(
                           new GraphtyError({
@@ -2071,7 +2071,7 @@ export class SessionData implements SessionDataApi {
                               message: "This session cannot dispatch a source command.",
                           }),
                       )
-                    : writes.send(command),
+                    : writes.send(command, stamp),
             emit: (event, detail) => writes.emit?.(event, detail),
             sourceKeys: () => new Set(this.storedSources().map((each) => each.key)),
             loaded: (before, mode, facts) => {
@@ -7232,12 +7232,6 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
  */
 function callerKeyOf(options: { readonly callerKey?: string }): { callerKey?: string } {
     return options.callerKey === undefined ? {} : { callerKey: options.callerKey };
-}
-
-/** What a load door stamps on its journal entries: `trigger: "load"` and the caller's key. */
-interface LoadStamp {
-    readonly trigger: "load";
-    readonly callerKey?: string;
 }
 
 /**

@@ -282,6 +282,8 @@ export type PostHogClient = Pick<
     | "opt_in_capturing"
     | "opt_out_capturing"
     | "reset"
+    | "get_distinct_id"
+    | "persistence"
     | "startSessionRecording"
     | "stopSessionRecording"
     | "getActiveMatchingSurveys"
@@ -1068,10 +1070,24 @@ function flushBuffer(): void {
 }
 
 /**
+ * Takes the id another tab's Share made and saved, so one reader is one person across tabs.
+ * @param posthog - this page's client.
+ * @returns true when a new id was read; false when storage holds none (that tab has not saved one).
+ */
+function adoptStoredId(posthog: PostHogClient): boolean {
+    const before = posthog.get_distinct_id();
+    posthog.persistence?.load(true);
+    const after = posthog.get_distinct_id();
+    return typeof after === "string" && after !== "" && after !== before;
+}
+
+/**
  * Starts PostHog: the reader said Share. Loads its code on the first start of the page, and only
  * then; a later start opts the same client in again with a fresh id.
+ * @param fresh - true (the default) when the Share was made in this tab, which makes the new id;
+ * false when another tab's Share started this one, which takes that tab's id.
  */
-export function startPostHog(): void {
+export function startPostHog(fresh = true): void {
     const config = siteConfig();
     const key = config.analytics?.posthogKey;
     const host = calls.posthogHost ?? config.analytics?.posthogHost;
@@ -1085,8 +1101,13 @@ export function startPostHog(): void {
             // after it holds. reset(true) makes a new device id too: stop deleted the stored one,
             // but posthog-js still holds it in memory, and a plain reset() would keep it and save
             // it again, linking this reader to what was recorded before they said No.
-            client.reset(true);
+            if (fresh || !adoptStoredId(client)) {
+                client.reset(true);
+            }
             client.opt_in_capturing();
+            // Saved now, not after posthog-js's debounce: usageData.ts stores the answer after this,
+            // and the other tabs take the id when they see the answer.
+            client.persistence?.flush();
             client.startSessionRecording();
         } catch {
             // Best effort.
@@ -1177,6 +1198,7 @@ export function setPostHogClientForTests(standIn: Partial<PostHogClient>): () =>
         opt_in_capturing: noop,
         opt_out_capturing: noop,
         reset: noop,
+        get_distinct_id: () => "",
         startSessionRecording: noop,
         stopSessionRecording: noop,
         getActiveMatchingSurveys: (callback) => {

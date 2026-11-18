@@ -496,17 +496,18 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
  * @param ctx.session - the new project's session.
  * @param incoming - the source.
  * @param read - the source already read into a draft by the new project's session (`project.open`).
+ * @param refused - the element's refusal when `project.open` could not read it: not read again.
  */
-async function openFirst({ workspace, session }: CommandContext, incoming: Incoming, read?: LoadDraft): Promise<void> {
+async function openFirst(
+    { workspace, session }: CommandContext,
+    incoming: Incoming,
+    read?: LoadDraft,
+    refused?: unknown,
+): Promise<void> {
     if (session === null) {
         return;
     }
-    const focusLater = focusOpenedGraphLater();
-    try {
-        await drawFirst(workspace, session, incoming.source, true, read, incoming.origin, incoming.callerKey);
-        focusLater();
-    } catch (error) {
-        focusLater(false);
+    const backToStart = (error: unknown): void => {
         workspace.set({
             project: null,
             page: "panels",
@@ -515,6 +516,18 @@ async function openFirst({ workspace, session }: CommandContext, incoming: Incom
             renaming: false,
             notice: { message: refusalFor(error, incoming.name).what, error: true },
         });
+    };
+    if (refused !== undefined) {
+        backToStart(refused);
+        return;
+    }
+    const focusLater = focusOpenedGraphLater();
+    try {
+        await drawFirst(workspace, session, incoming.source, true, read, incoming.origin, incoming.callerKey);
+        focusLater();
+    } catch (error) {
+        focusLater(false);
+        backToStart(error);
     }
 }
 
@@ -566,9 +579,13 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
     if (files.length === 1 && incoming !== undefined) {
         void openProjectFile(ctx, files[0], {
             name: incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
-            onData: (next, fresh, draft) => {
+            onData: (next, fresh, draft, refused) => {
                 if (fresh) {
-                    return openFirst(next, incoming, draft);
+                    return openFirst(next, incoming, draft, refused);
+                }
+                if (refused !== undefined) {
+                    next.workspace.set({ notice: { message: refusalFor(refused, incoming.name).what } });
+                    return Promise.resolve();
                 }
                 addSource(next, incoming, draft);
                 return Promise.resolve();

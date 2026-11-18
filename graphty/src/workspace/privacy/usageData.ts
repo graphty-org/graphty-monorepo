@@ -17,14 +17,18 @@ const KEY = "graphty.usageData.v1";
 const listeners = new Set<() => void>();
 /** What Share and No switch on and off: the address bar's query is removed before either recorder starts. */
 const live = {
-    start: (): void => {
+    /**
+     * Starts PostHog and error reporting.
+     * @param fresh - false when another tab's Share started this one (see startPostHog).
+     */
+    start: (fresh = true): void => {
         // Off the site's own host (a local build serving a real site's site.json) nothing starts.
         if (!onOwnHost()) {
             return;
         }
         stripQueryForRecorders();
         initSentry();
-        startPostHog();
+        startPostHog(fresh);
     },
     stop: (): void => {
         stopSentry();
@@ -42,18 +46,23 @@ let sending = live;
  * @param sender.start - called where sending would start.
  * @param sender.stop - called where sending would stop.
  */
-export function setUsageSenderForTests(sender?: { start: () => void; stop: () => void }): void {
+export function setUsageSenderForTests(sender?: { start: (fresh?: boolean) => void; stop: () => void }): void {
     sending = sender ?? live;
 }
 
 /** The answer when browser storage is unavailable (a private window): kept for this page view. */
 let remembered: UsageAnswer | null = null;
+/** True when this page's answer could not be stored: it wins over what storage still holds. */
+let unsaved = false;
 
 /**
  * The reader's answer.
  * @returns the answer, or null while it is unanswered.
  */
 export function readUsageAnswer(): UsageAnswer | null {
+    if (unsaved) {
+        return remembered;
+    }
     try {
         const stored = localStorage.getItem(KEY);
         if (stored === "share" || stored === "declined") {
@@ -66,21 +75,40 @@ export function readUsageAnswer(): UsageAnswer | null {
 }
 
 /**
+ * Stores an answer. When it cannot be written (storage blocked, or full while still readable), the
+ * stored one is removed, which needs no room, so an older Share never outlives a No, and this page's
+ * answer is the one read.
+ * @param answer - the reader's answer.
+ */
+function store(answer: UsageAnswer): void {
+    try {
+        localStorage.setItem(KEY, answer);
+        unsaved = false;
+    } catch {
+        unsaved = true;
+        try {
+            localStorage.removeItem(KEY);
+        } catch {
+            // Storage blocked: nothing is stored to outlive the answer.
+        }
+    }
+}
+
+/**
  * Records an answer and acts on it: Share starts sending, No stops it.
  * @param answer - the reader's answer.
  */
 export function answerUsageData(answer: UsageAnswer): void {
     remembered = answer;
-    try {
-        localStorage.setItem(KEY, answer);
-    } catch {
-        // Storage blocked: the answer holds for this page view only.
-    }
     if (answer === "share") {
         // Counted before PostHog starts, so it reaches Umami only: its count over first_visit is the opt-in rate.
         count("usage_data_shared");
+        // Started before the answer is stored: the other tabs start when they see it, and take the
+        // PostHog id this start saved (startPostHog).
         sending.start();
+        store(answer);
     } else {
+        store(answer);
         sending.stop();
     }
     listeners.forEach((listener) => {
@@ -96,9 +124,10 @@ globalThis.addEventListener("storage", (event) => {
     if (event.key !== KEY && event.key !== null) {
         return;
     }
+    unsaved = false;
     if (event.newValue === "share") {
         remembered = "share";
-        sending.start();
+        sending.start(false);
     } else {
         remembered = event.newValue === "declined" ? "declined" : null;
         sending.stop();
@@ -134,6 +163,7 @@ export function assumeUsageDeclinedForTests(): void {
  */
 export function forgetUsageAnswer(): void {
     remembered = null;
+    unsaved = false;
     try {
         localStorage.removeItem(KEY);
     } catch {

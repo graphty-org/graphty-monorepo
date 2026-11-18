@@ -7,7 +7,14 @@
 import * as Sentry from "@sentry/react";
 import { afterAll, assert, it, vi } from "vitest";
 
-import { initSentry, resetSentryState, sentryStoppedForTests, setSentryCallsForTests, stopSentry } from "./sentry";
+import {
+    captureUserFeedback,
+    initSentry,
+    resetSentryState,
+    sentryStoppedForTests,
+    setSentryCallsForTests,
+    stopSentry,
+} from "./sentry";
 
 afterAll(() => {
     stopSentry();
@@ -110,13 +117,33 @@ it("sends an error's replay once, then buffers again under a new replay, never r
         assert.isDefined(live?.getReplayId());
         assert.notStrictEqual(live?.getReplayId(), before);
     });
-    // A buffer uploads nothing by itself: the change below stays on the page until another error.
-    const marker = document.createElement("span");
-    marker.className = "AFTER_ONE_SHOT_MARKER";
-    document.body.append(marker);
+    // Buffer mode is the proof that nothing more is uploaded by itself: a buffer is only sent by a
+    // flush, which only an error asks for (the check above).
+});
+
+it("sends feedback with no replay, and buffers again afterwards", async () => {
+    const live = Sentry.getReplay();
+    await vi.waitFor(() => {
+        assert.strictEqual(live?.getRecordingMode(), "buffer");
+    });
+    const before = live?.getReplayId();
+    const from = sent.length;
+
+    const result = captureUserFeedback({ message: "FEEDBACK_ONLY_MESSAGE" });
+    assert.isTrue(result.success);
+
     await Sentry.flush();
-    assert.notInclude(sent.slice(from).join("\n"), "AFTER_ONE_SHOT_MARKER");
-    marker.remove();
+    const after = sent.slice(from).join("\n");
+    assert.include(after, "FEEDBACK_ONLY_MESSAGE");
+    // The replay ties itself to feedback it sees (and then uploads its buffer) by writing replay_id.
+    assert.notInclude(after, "replay_id");
+    assert.notInclude(after, '"type":"replay_recording"');
+    // Buffering again under a new replay: the buffer held before the feedback was dropped, not sent.
+    await vi.waitFor(() => {
+        assert.strictEqual(live?.getRecordingMode(), "buffer");
+        assert.isDefined(live?.getReplayId());
+        assert.notStrictEqual(live?.getReplayId(), before);
+    });
 });
 
 it("sends no pending replay segment once usage data is turned off, even while recording a session", async () => {

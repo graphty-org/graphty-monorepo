@@ -183,8 +183,8 @@ specification's 0.18 gray, and when the set names one texture-coordinate primvar
 
 A glTF summary's bounds are those of its meshes where the scene's node transforms put them (a
 skinned mesh where its first joint draws it in the rest pose). A PLY file does not say its up axis:
-its `upAxis` is guessed from its extent, `"z"` when its Y extent is its thinnest and less than half
-its Z extent, else `"y"`, with `W_MODEL_UP_GUESSED` saying which; an STL file's is `"z"`. When a set holds a USD layer and the `.usdz`
+its `upAxis` is guessed from its extent, `"z"` when its Y extent is less than half of both its X
+and its Z extent, else `"y"`, with `W_MODEL_UP_GUESSED` saying which; an STL file's is `"z"`. When a set holds a USD layer and the `.usdz`
 it references, the layer is the main file.
 
 ## License

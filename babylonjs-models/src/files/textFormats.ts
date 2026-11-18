@@ -633,9 +633,11 @@ function pointFacts(
 }
 
 /**
- * The up axis a PLY is guessed to have, from its extent: a PLY does not say. Z when its Y extent is
- * the thinnest and less than half its Z extent (a model lying flat in Y-up terms stands in Z), else Y.
- * ponytail: a shape guess; a Y-up model that really is flat and deep is stood up wrongly.
+ * The up axis a PLY is guessed to have, from its extent: a PLY does not say. Z only when its Y
+ * extent is under half of both its X and its Z extent (three.js dolphins.ply, 827 x 173 x 747,
+ * lying flat in Y-up terms), else Y: a car, board or sword laid along Z in Y-up terms is wider
+ * than half its height, so it stays Y up.
+ * ponytail: a shape guess; a Y-up model flat in both directions (a terrain tile) is stood up wrongly.
  * @param bounds - The box around its vertices.
  * @returns The axis.
  */
@@ -644,7 +646,7 @@ function plyUpAxis(bounds: ModelSummary["bounds"]): "y" | "z" {
         return "y";
     }
     const [x, y, z] = bounds.max.map((v, i) => v - bounds.min[i]);
-    return y < x && y * 2 < z ? "z" : "y";
+    return y * 2 < x && y * 2 < z ? "z" : "y";
 }
 
 /**

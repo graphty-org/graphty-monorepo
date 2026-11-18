@@ -132,6 +132,9 @@ describe("summary bounds", () => {
         );
         const standing = await summaryOf({ "standing.ply": ply("0 0 0\n1 4 0\n0 0 1") });
         assert.strictEqual(standing.upAxis, "y");
+        // A car modeled Y up along Z (1.8 wide, 1.4 high, 4.5 long) stays Y up, not on its nose.
+        const car = await summaryOf({ "car.ply": ply("0 0 0\n1.8 1.4 0\n0 0 4.5") });
+        assert.strictEqual(car.upAxis, "y");
     });
 
     it("count a USD text layer's selected variant only, its selection in prim metadata", async () => {

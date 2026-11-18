@@ -9,41 +9,16 @@
  * test, which also counts the workers ended and the requests posted to them.
  */
 
-import { Engine } from "@babylonjs/core/Engines/engine.js";
-import { Scene } from "@babylonjs/core/scene.js";
-import { afterEach, assert, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { loadModel, ModelLoadFailure } from "../../../src/models/loadModel";
+import { cleanups, makeScene } from "./scene";
 
 const FIXTURES = import.meta.glob<string>("../../../../babylonjs-models/test/fixtures/variants/usdz/*", {
     query: "?url",
     import: "default",
     eager: true,
 });
-
-const cleanups: (() => void)[] = [];
-
-afterEach(() => {
-    for (const cleanup of cleanups.splice(0).reverse()) {
-        cleanup();
-    }
-});
-
-/**
- * A WebGL engine and scene on a canvas in the page.
- * @returns The scene.
- */
-function makeScene(): Scene {
-    const canvas = document.createElement("canvas");
-    document.body.appendChild(canvas);
-    const engine = new Engine(canvas, false);
-    const scene = new Scene(engine);
-    cleanups.push(() => {
-        engine.dispose();
-        canvas.remove();
-    });
-    return scene;
-}
 
 /**
  * The USDZ cube's files.

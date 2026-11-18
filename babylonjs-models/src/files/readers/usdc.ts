@@ -448,6 +448,22 @@ class CrateReader implements Crate {
         return this.reader.view.getFloat64(rep.payload, true);
     }
 
+    /**
+     * Read the element count at the start of an array value, leaving the reader after it.
+     * @param payload - Where the array starts.
+     * @param width - Four-byte words per element.
+     * @returns The count, refused when it cannot fit in what is left of the file.
+     */
+    private arrayLength(payload: number, width: number): number {
+        const { reader } = this;
+        reader.at = payload;
+        const n = this.minor < 7 ? reader.u32() : reader.u64();
+        if (n > MAX_COUNT || n * 4 * width > this.left.left) {
+            fail();
+        }
+        return n;
+    }
+
     numbers(rep: ValueRep | undefined): ArrayLike<number> | undefined {
         if (rep?.array !== true || rep.inline || !NUMBER_ARRAYS.has(rep.type)) {
             return undefined;
@@ -456,12 +472,8 @@ class CrateReader implements Crate {
             return [];
         }
         const { reader } = this;
-        reader.at = rep.payload;
-        const n = this.minor < 7 ? reader.u32() : reader.u64();
         const width = rep.type === TYPE.vec3f ? 3 : 1;
-        if (n > MAX_COUNT || n * 4 * width > this.left.left) {
-            fail();
-        }
+        const n = this.arrayLength(rep.payload, width);
         if (rep.compressed) {
             // Compressed floats ('i' as ints, 't' through a table) are not needed for a summary.
             return rep.type === TYPE.int || rep.type === TYPE.uint ? readInts(reader, n, this.left) : undefined;
@@ -504,11 +516,7 @@ class CrateReader implements Crate {
             return [];
         }
         const { reader } = this;
-        reader.at = rep.payload;
-        const n = this.minor < 7 ? reader.u32() : reader.u64();
-        if (n > MAX_COUNT || n * 4 > this.left.left) {
-            fail();
-        }
+        const n = this.arrayLength(rep.payload, 1);
         return Array.from({ length: n }, () => this.tokens[reader.u32()] ?? fail());
     }
 

@@ -4,14 +4,13 @@
  * (`@pkg.usdz[geo.usda]@`), a point instancer and transforms, with the size of the whole as drawn.
  */
 
-import { Engine } from "@babylonjs/core/Engines/engine.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
-import { Scene } from "@babylonjs/core/scene.js";
 import { checkModelFiles, DEFAULT_MODEL_LIMITS } from "babylonjs-models/files";
-import { afterEach, assert, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { loadModel } from "../../../src/models/loadModel";
+import { cleanups, makeScene } from "./scene";
 
 const FIXTURES = import.meta.glob<string>(
     [
@@ -20,30 +19,6 @@ const FIXTURES = import.meta.glob<string>(
     ],
     { query: "?url", import: "default", eager: true },
 );
-
-const cleanups: (() => void)[] = [];
-
-afterEach(() => {
-    for (const cleanup of cleanups.splice(0).reverse()) {
-        cleanup();
-    }
-});
-
-/**
- * A WebGL engine and scene on a canvas in the page.
- * @returns The scene.
- */
-function makeScene(): Scene {
-    const canvas = document.createElement("canvas");
-    document.body.appendChild(canvas);
-    const engine = new Engine(canvas, false);
-    const scene = new Scene(engine);
-    cleanups.push(() => {
-        engine.dispose();
-        canvas.remove();
-    });
-    return scene;
-}
 
 /**
  * Some fixture files, as a set.

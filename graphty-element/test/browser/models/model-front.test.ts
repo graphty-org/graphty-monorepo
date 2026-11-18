@@ -5,36 +5,12 @@
  * mirrors Z) came out facing the other way, and drew their backs.
  */
 
-import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { VertexBuffer } from "@babylonjs/core/Meshes/buffer.js";
-import { Scene } from "@babylonjs/core/scene.js";
 import { loadModel } from "babylonjs-models";
-import { afterEach, assert, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
-const cleanups: (() => void)[] = [];
-
-afterEach(() => {
-    for (const cleanup of cleanups.splice(0).reverse()) {
-        cleanup();
-    }
-});
-
-/**
- * A WebGL engine and scene on a canvas in the page.
- * @returns The scene.
- */
-function makeScene(): Scene {
-    const canvas = document.createElement("canvas");
-    document.body.appendChild(canvas);
-    const engine = new Engine(canvas, false);
-    const scene = new Scene(engine);
-    cleanups.push(() => {
-        engine.dispose();
-        canvas.remove();
-    });
-    return scene;
-}
+import { makeScene } from "./scene";
 
 /**
  * Where the first vertex of a one-triangle model lands once loaded.

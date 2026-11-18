@@ -160,6 +160,8 @@ describe("timeline ghosts", () => {
     it("hides what lies outside through the Timeline Hidden row, which selects the state and counts it", async () => {
         const session = await trace();
         await session.time.window({ from: 3, to: 6 });
+        // `explain` reads what was last painted: the window's repaint, once the styles settle.
+        await session.styles.settled();
         assert.strictEqual(session.visibility.summary.visibleNodes, 10, "hidden by style, still visible");
         assert.isFalse(drawn(session, { node: "s0" }));
         assert.isFalse(drawn(session, { edge: firstEdge(session) }));

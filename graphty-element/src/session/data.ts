@@ -39,6 +39,7 @@ import type {
     AttributeType,
     AttributeUse,
     EdgeId,
+    LayerId,
     Measurement,
     MeasurementDeclaration,
     Path,
@@ -100,7 +101,14 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
-import { type DataDeriveCommand, derivedColumnsOf, derivedRows, type ValuesWhere } from "./commands/derive";
+import {
+    type DataDeriveCommand,
+    derivedColumnsOf,
+    derivedRows,
+    isTerms,
+    scoreExpression,
+    type ValuesWhere,
+} from "./commands/derive";
 import {
     Draft,
     draftStyles,
@@ -194,6 +202,7 @@ import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
+import { columnsOf, layersReadingOnly } from "./styles/staleLayers";
 import type {
     ColumnHistogram,
     ColumnRole,
@@ -244,6 +253,7 @@ import type {
     ResultColumn,
     ResultColumnDescriptor,
     RowUpdate,
+    ScoreTerm,
     SessionAttributes,
     SessionDataApi,
     SessionDataConfig,
@@ -3340,6 +3350,7 @@ export class SessionData implements SessionDataApi {
         }
 
         const before = { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
+        const stale = this.staleLayers(goingNodes, goingEdges);
         await this.writes.send({
             op: "batch",
             label: `Removed ${entry.name ?? key}`,
@@ -3354,6 +3365,7 @@ export class SessionData implements SessionDataApi {
                     sources: left,
                     provenance: going.reduce((held, each) => withoutSource(held, each.key), provenance),
                 },
+                ...stale.map((id) => ({ op: "style.patch" as const, action: "remove" as const, id })),
             ],
         });
         const after = this.current();
@@ -3365,6 +3377,31 @@ export class SessionData implements SessionDataApi {
                 edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
             }),
             alsoRemoved: Object.freeze(going.map((each) => each.key).filter((each) => each !== key)),
+        });
+    }
+
+    /**
+     * The layers that read only columns the removed nodes and edges held and no element left holds.
+     * @param nodes - The nodes going.
+     * @param edges - The edges going.
+     * @returns The layers to remove with them.
+     */
+    private staleLayers(nodes: readonly NodeId[], edges: readonly EdgeId[]): LayerId[] {
+        const { nodes: nodeRecords, edges: edgeRecords } = this.writes.slice();
+        const goneOf = <K>(records: ReadonlyMap<K, GraphRecord>, going: readonly K[]): Set<string> => {
+            const leaving = new Set(going);
+            const gone = columnsOf(
+                going.flatMap((id): GraphRecord[] => {
+                    const record = records.get(id);
+                    return record === undefined ? [] : [record];
+                }),
+            );
+            const staying = columnsOf([...records].filter(([id]) => !leaving.has(id)).map(([, record]) => record));
+            return new Set([...gone].filter((column) => !staying.has(column)));
+        };
+        return layersReadingOnly(this.writes.readers().styles, {
+            node: goneOf(nodeRecords, nodes),
+            edge: goneOf(edgeRecords, edges),
         });
     }
 
@@ -5374,6 +5411,40 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Add a score: a computed column whose values are its terms' rescaled values, weighted and summed.
+     * @param name - the column's name
+     * @param terms - the columns and their weights
+     * @param options - nodes or edges
+     * @returns settles once the step is recorded
+     */
+    async deriveScore(name: string, terms: readonly ScoreTerm[], options: DeriveOptions = {}): Promise<void> {
+        this.requireLive("deriveScore");
+        if (!Array.isArray(terms) || terms.length === 0) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A score has at least one term.",
+                source: "data",
+                details: { reason: "no-terms", column: name },
+            });
+        }
+
+        if (!isTerms(terms)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "Each term of a score is a path with a finite weight, or none.",
+                source: "data",
+                details: { reason: "bad-weight", column: name, terms },
+            });
+        }
+
+        const score = terms.map((term) => Object.freeze({ path: term.path, weight: term.weight ?? 1 }));
+        return this.afterLoads(
+            () => this.deriveNow(name, scoreExpression(score), options.kind ?? "node", score),
+            () => undefined,
+        );
+    }
+
+    /**
      * Every computed column.
      * @returns the columns, in the order they were added
      */
@@ -5402,9 +5473,15 @@ export class SessionData implements SessionDataApi {
      * @param name - as derive takes it
      * @param expression - as derive takes it
      * @param kind - nodes or edges
+     * @param score - a score's terms, for deriveScore; absent for derive
      * @returns what derive returns
      */
-    private async deriveNow(name: string, expression: Query, kind: "node" | "edge"): Promise<void> {
+    private async deriveNow(
+        name: string,
+        expression: Query,
+        kind: "node" | "edge",
+        score?: readonly ScoreTerm[],
+    ): Promise<void> {
         this.requireLive("derive");
         const refuse = (reason: string, message: string): GraphtyError =>
             new GraphtyError({
@@ -5446,7 +5523,8 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        const column: DerivedColumn = { kind, name, expression };
+        const column: DerivedColumn =
+            score === undefined ? { kind, name, expression } : { kind, name, expression, score };
         const columns = replacing
             ? existing.map((each) => (each.kind === kind && each.name === name ? column : each))
             : [...existing, column];

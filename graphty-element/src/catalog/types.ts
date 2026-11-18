@@ -23,8 +23,9 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { EstimateRefusalCode } from "../session/cost/estimate";
+import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
-import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelStyle } from "./label-style";
@@ -149,9 +150,6 @@ export type Query = string;
 /**
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
  * the built-in set without a catalogue instance.
- *
- * One of these names is deprecated: `all-paths` is reserved but not implemented, and starting it
- * fails with `E_UNSUPPORTED`. See {@link DEPRECATED_ALGORITHMS}.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -167,7 +165,6 @@ export const KNOWN_ALGORITHMS = [
     "components",
     "shortest-path",
     "all-pairs-distance",
-    "all-paths",
     "max-flow",
     "min-cut",
     "k-core",
@@ -184,27 +181,11 @@ export const KNOWN_ALGORITHMS = [
     "hierarchical-clustering",
     "astar",
     "edge-betweenness",
+    "removal-impact",
 ] as const;
 
-/**
- * One of the built-in algorithms. `all-paths` is deprecated and does not run; see
- * {@link DEPRECATED_ALGORITHMS}.
- */
+/** One of the built-in algorithms. */
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
-
-/**
- * The built-in algorithm names the element reserves but does not run.
- *
- * Nothing implements this one yet. The name stays in {@link KNOWN_ALGORITHMS}, so no plugin can
- * claim it and no code that names it stops compiling, but starting it fails with `E_UNSUPPORTED`
- * rather than `E_UNKNOWN_ALGORITHM`. It is removed at the next major release unless it is
- * implemented first; `all-paths` is tracked by issue #329. `clustering-coefficient`, reserved here
- * until issue #330, now runs.
- */
-export const DEPRECATED_ALGORITHMS = ["all-paths"] as const satisfies readonly KnownAlgorithm[];
-
-/** A built-in algorithm name the element reserves but does not run, and will remove. */
-export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 /**
  * An algorithm key. The built-in names keep autocomplete alive; the string arm accepts a
@@ -557,6 +538,8 @@ export const OPTION_TYPES = [
     "ordering",
     /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
     "color",
+    /** A list of edge ids. @since 3.40.0 */
+    "edge-set",
     "unknown",
 ] as const;
 
@@ -674,7 +657,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -699,9 +682,12 @@ export type Channel =
     | "node.labelItalic"
     | "node.labelWrapWidth"
     | "node.labelWrapTrailingSpace"
+    | "node.labelWrapSkipEndSpace"
     | "node.labelWrapEllipsis"
     | "node.labelWrapAnywhere"
     | "node.labelWrapSpaceCount"
+    | "node.labelMaxLines"
+    | "node.labelMaxLinesEllipsis"
     | "node.labelRunAlign"
     | "node.labelMinScreenSize"
     | "node.labelOnTop"
@@ -722,6 +708,9 @@ export type Channel =
     | "node.labelPadding"
     | "node.labelCornerRadius"
     | "node.labelLineHeight"
+    | "node.labelLineBox"
+    | "node.labelBorderAlign"
+    | "node.labelBackgroundShape"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
     | "node.labelShiftX"
@@ -804,6 +793,7 @@ export type Channel =
     | "node.labelFitQuantum"
     | "node.labelFitImage"
     | "node.labelFitImagePadding"
+    | "node.imageAspect"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
@@ -1025,9 +1015,12 @@ export type Channel =
     | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
+    | "edge.labelWrapSkipEndSpace"
     | "edge.labelWrapEllipsis"
     | "edge.labelWrapAnywhere"
     | "edge.labelWrapSpaceCount"
+    | "edge.labelMaxLines"
+    | "edge.labelMaxLinesEllipsis"
     | "edge.labelRunAlign"
     | "edge.labelMinScreenSize"
     | "edge.labelOnTop"
@@ -1046,6 +1039,9 @@ export type Channel =
     | "edge.labelTable"
     | "edge.labelCornerRadius"
     | "edge.labelLineHeight"
+    | "edge.labelLineBox"
+    | "edge.labelBorderAlign"
+    | "edge.labelBackgroundShape"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
@@ -1402,13 +1398,6 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
-    /**
-     * Where a layer made from a file's styles came from: the element's facts about it, set when
-     * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
-     * Absent on every other layer. An update that does not name it keeps it.
-     * @experimental file-styles
-     */
-    fileStyle?: FileStyleOrigin;
     /**
      * The row this layer is a part of: the id of the row's node part. Two layers sharing a row
      * are one entry that paints nodes and edges (`styles.addRow` with target `"both"`), and
@@ -2127,15 +2116,18 @@ export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
  * Whether a metric can be computed on this graph, what it would cost, and whether it has
  * already been run. Metrics that have never been run are listed too, which is what makes the
  * catalogue self-describing: a stranger can see everything the element could compute, with a
- * cost and an availability reason beside each entry, before computing anything.
+ * cost and why it is unavailable beside each entry, before computing anything.
  */
 export interface MetricAvailability {
     key: AlgorithmKey;
     plainName: string;
     technicalName: string;
     available: boolean;
-    /** Why it is unavailable on this graph. Present only when `available` is false. */
-    reason?: string;
+    /**
+     * Why it is unavailable on this graph, as a code and the values it is about, as
+     * `CostEstimate.refusal` reports it. Present only when `available` is false.
+     */
+    refusal?: CodedFact<EstimateRefusalCode>;
     costClass: CostClass;
     estimateSeconds: number;
     hasRun: boolean;
@@ -3112,15 +3104,6 @@ export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
  */
 export function isOptionType(value: unknown): value is OptionType {
     return typeof value === "string" && (OPTION_TYPES as readonly string[]).includes(value);
-}
-
-/**
- * Tell whether an algorithm key names a built-in the element reserves but does not run.
- * @param key - The algorithm key.
- * @returns True when the key is a member of DEPRECATED_ALGORITHMS.
- */
-export function isDeprecatedAlgorithm(key: string): key is DeprecatedAlgorithm {
-    return (DEPRECATED_ALGORITHMS as readonly string[]).includes(key);
 }
 
 /**

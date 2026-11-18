@@ -2,7 +2,6 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import type { EdgeId, NodeId, Scope } from "../../../src/catalog/types";
-import { isGraphtyError } from "../../../src/errors";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -19,7 +18,7 @@ import {
     type ScopeSources,
     type ScopeVisibilitySource,
 } from "../../../src/session/scope/index";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow, rejectionCode } from "../helpers";
 
 /** A session with data in it, plus the resolver reading the same store. */
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): Harness {
@@ -56,17 +55,6 @@ function fillWith<TId>(mask: ElementMask<TId>, ids: readonly TId[]): ElementMask
     }
 
     return mask;
-}
-
-/** The code a call refused with, or null when it did not refuse. */
-function codeOf(call: () => unknown): string | null {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
-    }
-
-    return null;
 }
 
 describe("resolving a scope", () => {
@@ -146,15 +134,15 @@ describe("resolving a scope", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
         assert.strictEqual(
-            codeOf(() => scope.resolveNow("everything" as unknown as Scope)),
+            rejectionCode(() => scope.resolveNow("everything" as unknown as Scope)),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(
-            codeOf(() => scope.resolveNow({} as unknown as Scope)),
+            rejectionCode(() => scope.resolveNow({} as unknown as Scope)),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(
-            codeOf(() => scope.resolveNow(null as unknown as Scope)),
+            rejectionCode(() => scope.resolveNow(null as unknown as Scope)),
             "E_BAD_COMMAND",
         );
         harness.session.dispose();
@@ -284,7 +272,7 @@ describe("resolving against what is visible and what is selected", () => {
 
         for (const spec of ["selection", "largest-component"] as const) {
             assert.strictEqual(
-                codeOf(() => scope.resolveNow(spec)),
+                rejectionCode(() => scope.resolveNow(spec)),
                 "E_UNSUPPORTED",
                 spec,
             );
@@ -351,7 +339,7 @@ describe("resolving the largest component and a predicate", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
         assert.strictEqual(
-            codeOf(() => scope.resolveNow({ where: "a == `1`" })),
+            rejectionCode(() => scope.resolveNow({ where: "a == `1`" })),
             "E_UNSUPPORTED",
         );
         harness.session.dispose();
@@ -432,11 +420,11 @@ describe("counting a scope", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
         assert.strictEqual(
-            codeOf(() => scope.count("selection", { sample: 0 })),
+            rejectionCode(() => scope.count("selection", { sample: 0 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => scope.count("selection", { sample: 1.5 })),
+            rejectionCode(() => scope.count("selection", { sample: 1.5 })),
             "E_OPTION_RANGE",
         );
         harness.session.dispose();
@@ -476,11 +464,11 @@ describe("saving a scope under a name", () => {
         scope.save("mine", "graph");
 
         assert.strictEqual(
-            codeOf(() => scope.save("mine", { nodes: ["a"] })),
+            rejectionCode(() => scope.save("mine", { nodes: ["a"] })),
             "E_DUPLICATE_ID",
         );
         assert.strictEqual(
-            codeOf(() => scope.save("  ", "graph")),
+            rejectionCode(() => scope.save("  ", "graph")),
             "E_BAD_COMMAND",
             "a name is how a person finds it",
         );
@@ -492,7 +480,7 @@ describe("saving a scope under a name", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
         assert.strictEqual(
-            codeOf(() => scope.save("broken", { set: "set_nothing" })),
+            rejectionCode(() => scope.save("broken", { set: "set_nothing" })),
             "E_BAD_COMMAND",
         );
         harness.session.dispose();
@@ -513,11 +501,11 @@ describe("saving a scope under a name", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
         assert.strictEqual(
-            codeOf(() => scope.resolveNow({ set: "set_nothing" })),
+            rejectionCode(() => scope.resolveNow({ set: "set_nothing" })),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(
-            codeOf(() => scope.remove("set_nothing")),
+            rejectionCode(() => scope.remove("set_nothing")),
             "E_BAD_COMMAND",
         );
         harness.session.dispose();
@@ -550,7 +538,7 @@ describe("saving a scope under a name", () => {
         scope.save("all", "graph");
         // Saving the selection keeps its current members, so it needs the selection now.
         assert.strictEqual(
-            codeOf(() => scope.save("chosen", "selection")),
+            rejectionCode(() => scope.save("chosen", "selection")),
             "E_UNSUPPORTED",
         );
         scope.save("biggest", "largest-component");
@@ -579,7 +567,7 @@ describe("saving a scope under a name", () => {
         // A removed id is never issued again, so the ring can only be closed by redefining the
         // first to name the second: first -> second -> first. That write is refused.
         assert.strictEqual(
-            codeOf(() =>
+            rejectionCode(() =>
                 scope.sets.redefine(first, {
                     kind: "rule",
                     where: { kind: "member", of: { set: second } },

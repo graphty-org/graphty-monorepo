@@ -60,13 +60,16 @@ export function pointsDrawn(count: number): number {
 }
 
 /**
- * Mirror geometry on X and reverse its winding: a right-handed file (STL, PLY, the glTF 1.0 and
- * OBJ conventions) into Babylon's left-handed space, keeping its up axis and its front faces.
+ * Mirror geometry on X: a right-handed file (STL, PLY, the glTF 1.0 and OBJ conventions) into
+ * Babylon's left-handed space, keeping its up axis and its front faces. The mirror alone turns a
+ * triangle wound counter-clockwise seen from outside (the right-handed front) into Babylon's
+ * front winding, so the indices stay as they are (reversing them too drew models inside out,
+ * issue #8654).
  * @param geometry - Changed in place.
  * @returns The same geometry.
  */
 export function toLeftHanded(geometry: Geometry): Geometry {
-    const { positions, indices, normals } = geometry;
+    const { positions, normals } = geometry;
     for (let i = 0; i < positions.length; i += 3) {
         positions[i] = -positions[i];
     }
@@ -75,12 +78,6 @@ export function toLeftHanded(geometry: Geometry): Geometry {
         for (let i = 0; i < normals.length; i += 3) {
             normals[i] = -normals[i];
         }
-    }
-
-    for (let i = 0; i + 2 < indices.length; i += 3) {
-        const second = indices[i + 1];
-        indices[i + 1] = indices[i + 2];
-        indices[i + 2] = second;
     }
 
     return geometry;

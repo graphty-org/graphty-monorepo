@@ -187,7 +187,6 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         kind: "categorical",
         swatches: [],
         facts: [],
-        departures: [],
         ...over,
     };
 }
@@ -334,15 +333,15 @@ describe("the legend card", () => {
         runId: "run-pr",
         kind: "sequential",
         swatches: [
-            { label: "0.01", value: 0.01, color: "#f0f0f0" },
-            { label: "0.1", value: 0.1, color: "#202020" },
+            { value: 0.01, color: "#f0f0f0" },
+            { value: 0.1, color: "#202020" },
         ],
     });
     const groups = block({
         layerId: "layer-groups",
         swatches: [
-            { label: "Group 1", value: 1, color: "#ff0000", count: 12 },
-            { label: "Other: 3 groups", value: [7, 8, 9], color: "#888888", count: 5, role: "other" },
+            { value: 1, color: "#ff0000", count: 12 },
+            { value: [7, 8, 9], color: "#888888", count: 5, role: "other" },
         ],
         overflow: { hidden: 28 },
     });
@@ -362,7 +361,7 @@ describe("the legend card", () => {
     });
 
     it("draws a run's node and edge highlight in one color as one line: the chip and the run", () => {
-        const black = [{ label: "#000000", value: "#000000", color: "#000000" }];
+        const black = [{ value: "#000000", color: "#000000" }];
         const highlight = { runId: "run-path", kind: "highlight", swatches: black } as const;
         const blocks = [
             block({ ...highlight, layerId: "path-edges", channel: "edge.color" }),
@@ -387,8 +386,8 @@ describe("the legend card", () => {
 
     it("titles a reader's layer that colors by a column after the column, not the layer", () => {
         const byDept = block({
-            field: { plainName: "dept", technicalName: "dept", path: "data.dept" },
-            swatches: [{ label: "east", value: "east", color: "#ff0000" }],
+            field: { technicalName: "dept", path: "data.dept" },
+            swatches: [{ value: "east", color: "#ff0000" }],
         });
         renderOver(
             standIn({ blocks: [byDept], layers: { "layer-1": "Everything" }, columns: { "data.dept": "Dept" } })
@@ -402,17 +401,11 @@ describe("the legend card", () => {
     it("names the shape a category paints", () => {
         const shapes = block({
             channel: "node.shape",
-            swatches: [{ label: "Group 1", value: 1, paints: "box" }],
+            swatches: [{ value: 1, paints: "box" }],
         });
         renderOver(standIn({ blocks: [shapes], layers: { "layer-1": "Shapes" } }).session);
         const section = screen.getByRole("group", { name: "Shape: Shapes" });
         assert.isNotNull(within(section).getByText("Box"));
-    });
-
-    it("prints none of the element's English departures", () => {
-        const confessing = block({ departures: ["Values above p98 are drawn at the top color."] });
-        renderOver(standIn({ blocks: [confessing], layers: { "layer-1": "Mine" } }).session);
-        assert.isNull(screen.queryByText(/p98/));
     });
 
     /**
@@ -468,9 +461,9 @@ describe("the legend card", () => {
         const kinds = block({
             layerId: "kind",
             swatches: [
-                { label: "agency", value: "agency", color: "#009e73", count: 4, paintedOverBy: "agencies" },
-                { label: "donor", value: "donor", color: "#e69f00", count: 9 },
-                { label: "staff", value: "staff", color: "#56b4e9", count: 3 },
+                { value: "agency", color: "#009e73", count: 4, paintedOverBy: "agencies" },
+                { value: "donor", color: "#e69f00", count: 9 },
+                { value: "staff", color: "#56b4e9", count: 3 },
             ],
         });
         renderOver(standIn({ blocks: [kinds], layers: { kind: "Kind", agencies: "Agencies" } }).session);

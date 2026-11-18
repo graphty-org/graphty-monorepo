@@ -11,7 +11,13 @@ import { basename, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
-import { type ExtractedStyles, resolveStyles, type StyleRule, type StyleValue } from "../../../src/styles/internal.js";
+import {
+    type ExtractedStyles,
+    resolveStyles,
+    type StyleRule,
+    type StyleValue,
+    unsettledStyles,
+} from "../../../src/styles/internal.js";
 import { importForStyles, readCorpusFile, styleTruth } from "../../styles/harness.js";
 
 const registry = createRegistry();
@@ -161,7 +167,9 @@ describe("one NDEx network read from CX and from CX2", () => {
         const cx2 = await registry.importGraph(file("cx2"), { format: "cx2", styles: true });
         expect(cx2.snapshot.nodeCount).toBe(cx.snapshot.nodeCount);
         const properties = new Set(
-            [...(cx.styles?.styles.rules ?? []), ...(cx2.styles?.styles.rules ?? [])]
+            // the properties the files give, not the order each file lists its nodes in (drawOrder)
+            [cx.styles, cx2.styles]
+                .flatMap((s) => (s === null || s === undefined ? [] : unsettledStyles(s).styles.rules))
                 .filter((r) => r.target === "node")
                 .flatMap((r) => [...Object.keys(r.set ?? {}), ...Object.keys(r.map ?? {})]),
         );
@@ -177,7 +185,7 @@ describe("one NDEx network read from CX and from CX2", () => {
 
 describe("writing CX styles", () => {
     const rules = (x: ExtractedStyles | null | undefined): StyleRule[] =>
-        JSON.parse(JSON.stringify(x?.styles.rules ?? [])) as StyleRule[];
+        JSON.parse(JSON.stringify(x === null || x === undefined ? [] : unsettledStyles(x).styles.rules)) as StyleRule[];
 
     it("writes a Cytoscape style, bypasses and the block that read back as the same rules and values", async () => {
         const first = await load(STYLED);

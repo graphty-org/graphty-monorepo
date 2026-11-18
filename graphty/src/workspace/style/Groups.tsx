@@ -18,6 +18,7 @@ import { cosmographOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { ControlLabel } from "./ControlLabel";
 import { offeredChannel } from "./offered";
 import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
@@ -756,6 +757,11 @@ function GroupNameCell({
     onRenamed,
 }: CellProps & { readonly renaming: boolean; readonly onRenamed: () => void }): React.JSX.Element {
     const { channel, target } = descriptor;
+    // What it has and whether it is folded into Other: the name's tooltip, never words beside it (#8739).
+    const more = [
+        ...(row.has === undefined ? [] : [`has ${row.has}`]),
+        ...(row.group.folded === true ? ["in Other"] : []),
+    ];
     return (
         <Box style={{ minWidth: 0, width: "100%" }} data-group-row={row.key}>
             {renaming ? (
@@ -781,24 +787,17 @@ function GroupNameCell({
                     }}
                 />
             ) : (
-                <Text size="xs" truncate data-group-name title={row.name}>
+                <ControlLabel size="xs" truncate data-group-name title={[row.name, ...more].join(" ")}>
                     {row.name}
-                    {row.has === undefined ? null : (
-                        <Text span size="xs" c="var(--cm-text-secondary)">{` has ${row.has}`}</Text>
-                    )}
-                    {row.group.folded === true ? (
-                        <Text span size="xs" c="var(--cm-text-secondary)">
-                            {" in Other"}
-                        </Text>
-                    ) : null}
-                    {/* What a screen reader hears after the name: size and every other property
-                        (the row's own field already says this list's property). */}
+                    {/* What a screen reader hears after the name: what it has, whether it is in Other, its size
+                        and every other property (the row's own field already says this list's property). */}
                     <span style={VISUALLY_HIDDEN}>
+                        {more.length === 0 ? "" : ` ${more.join(" ")}`}
                         {`, ${[countOf(row.group.count, target), lookWords(target, from.paints, row.key, channel)]
                             .filter((part) => part !== "")
                             .join(", ")}`}
                     </span>
-                </Text>
+                </ControlLabel>
             )}
         </Box>
     );
@@ -1244,11 +1243,6 @@ function GroupRows({
                             open(picked);
                         }
                     }}
-                    empty={
-                        <Text size="xs" c="dimmed" p={6}>
-                            No group matches
-                        </Text>
-                    }
                 />
             </div>
             {groups.length > GROUPS_SHOWN + pinnedCount ? (
@@ -1469,15 +1463,9 @@ export function GroupDetail({
                         </ActionIcon>
                     </Tooltip>
                 )}
-                <Text size="xs" fw={600} truncate>
+                <ControlLabel size="xs" fw={600} truncate>
                     {title}
-                </Text>
-                <Text size="xs" c="var(--cm-text-secondary)" style={{ flex: "none" }}>
-                    {countOf(
-                        groups.reduce((sum, g) => sum + g.count, 0),
-                        target,
-                    )}
-                </Text>
+                </ControlLabel>
             </Group>
             {single === undefined ? null : (
                 <TextInput
@@ -1513,9 +1501,9 @@ export function GroupDetail({
                 const name = channelWord(channel);
                 return (
                     <Group key={channel} gap={4} wrap="nowrap" data-group-field={channel}>
-                        <Text size="xs" w={64} style={{ flex: "none" }} aria-hidden>
+                        <ControlLabel size="xs" w={64} style={{ flex: "none" }} aria-hidden>
                             {name}
-                        </Text>
+                        </ControlLabel>
                         <Box style={{ flex: 1, minWidth: 0 }}>
                             <ValueField
                                 descriptor={descriptor}

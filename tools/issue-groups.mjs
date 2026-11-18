@@ -29,6 +29,8 @@
 //                                          families of ready, unopened branches that may be merged into one new
 //                                          branch from master and opened as one pull request
 //   metrics [--append] [--json]            throughput and guardrails over the last 7 days
+//   idle [--json]                          whether the issue-round session sits idle while jobs are startable
+//                                          (exit 1 when it does: start jobs); writes idle.json beside the ledger
 //
 // Exit codes: 0 done, 1 refused (the reason is printed), 2 usage, 3 the ledger is busy (run it again).
 import { execFileSync } from "node:child_process";
@@ -42,11 +44,13 @@ import {
     writeFileSync,
     closeSync,
 } from "node:fs";
+import { cpus, loadavg } from "node:os";
 import { dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { fetchOpen, queue, trustedText } from "./issue-queue.mjs";
+import { fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
+import { liveTickets, slotCount, slotDir } from "./test-slots.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
 const DEFAULT_LEDGER = fileURLToPath(new URL("../tmp/issue-round/groups.json", import.meta.url));
@@ -1135,6 +1139,7 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
         }
         out.push(...memberDrift(g, facts.issues));
     }
+    out.push(...prWaitDrift(ledger, facts));
     for (const w of liveWaits(ledger).filter((w) => isX9(w))) {
         const sha = String(w.test).split(" ")[1];
         if (sha && isAncestor(sha)) {
@@ -1149,6 +1154,40 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
     }
     return out;
 }
+
+/**
+ * The pull request a wait names outside a frozen group (a frozen group's merge or close settles its own waits):
+ * `{ pr }` for `#<n>` anywhere in the target, else `{ branch }` for a branch name, else null (a group id).
+ * @param ledger the ledger
+ * @param w the wait
+ * @returns `{ pr }`, `{ branch }` or null
+ */
+export function waitPrRef(ledger, w) {
+    if (isX9(w) || resolveTarget(ledger, w.on)?.state === "frozen") return null;
+    const text = String(w.on);
+    const pr = /#(\d+)/.exec(text);
+    if (pr) return { pr: Number(pr[1]) };
+    const branch = text.split(" ")[0];
+    return /^[\w.-]+\/[\w./-]+$/.test(branch) ? { branch } : null;
+}
+
+// Waits on a pull request that merged or closed end: nothing is left to wait for.
+const prWaitDrift = (ledger, facts) =>
+    liveWaits(ledger).flatMap((w) => {
+        const ref = waitPrRef(ledger, w);
+        const pr = ref?.pr ? facts.prs.get(ref.pr) : ref?.branch && facts.branchPrs?.get(ref.branch);
+        if (pr?.state !== "MERGED" && pr?.state !== "CLOSED") return [];
+        const why = `#${pr.number ?? ref.pr} ${pr.state === "MERGED" ? "merged" : "closed unmerged"}`;
+        return [
+            {
+                group: null,
+                issue: w.issue,
+                kind: "wait-target-done",
+                detail: why,
+                fix: { op: "end-wait", wait: w, why },
+            },
+        ];
+    });
 
 // A ready branch's class is read from its diff too, so a group declared docs that changed source is over the source
 // cap, and the round splits it rather than open it.
@@ -1348,7 +1387,7 @@ const settleWait = (ledger, fix, now) => {
         (x) => x.issue === fix.wait.issue && x.on === fix.wait.on && x.since === fix.wait.since,
     );
     const ending = fix.op === "end-wait";
-    if (w && ending) w.ended = `${at} landed`;
+    if (w && ending) w.ended = `${at} ${fix.why ?? "landed"}`;
     if (w && !ending) w.expired = `${at} ${fix.reason}`;
     return `wait of #${fix.wait.issue} on ${fix.wait.on} ${ending ? "ended" : "expired"}`;
 };
@@ -1694,17 +1733,42 @@ function graphql(query) {
 const ACTOR = "{ __typename login }";
 const [OWNER, NAME] = REPO.split("/");
 
+// A pull request node's state, mergeability and head commit (an issue's number read as a pull request has no fields).
+const prFact = (v) => {
+    const head = v.commits?.nodes?.[0]?.commit;
+    return {
+        state: v.state,
+        mergeable: v.mergeable,
+        headAt: head?.committedDate ?? null,
+        checks: head?.statusCheckRollup?.state ?? null,
+    };
+};
+
+// One aliased node of fetchFacts' query into its map: `i` an issue, `p` a pull request, `h` a branch's newest one.
+const storeFact = (out, key, v, branchList) => {
+    if (key.startsWith("h")) {
+        if (v.nodes?.[0]) out.branchPrs.set(branchList[Number(key.slice(1))], v.nodes[0]);
+    } else if (key.startsWith("i")) {
+        out.issues.set(v.number, {
+            state: v.state,
+            labels: v.labels.nodes.map((l) => l.name),
+            comments: v.comments?.nodes ?? [],
+        });
+    } else if (v.number) out.prs.set(v.number, prFact(v));
+};
+
 /**
  * Issue and pull request facts in batches of 40 per GraphQL query (aliases), never one call per issue.
  * @param numbers issue numbers
  * @param prNumbers pull request numbers
  * @param run `(query) => data`
  * @param comments whether to read each issue's last 30 comments (for markers)
- * @returns `{ issues: Map, prs: Map }`
+ * @param branches branch names whose newest pull request (any state) to read
+ * @returns `{ issues: Map, prs: Map, branchPrs: Map branch -> { number, state } }`
  */
-export function fetchFacts(numbers, prNumbers, run = graphql, comments = false) {
-    const issues = new Map();
-    const prs = new Map();
+export function fetchFacts(numbers, prNumbers, run = graphql, comments = false, branches = []) {
+    const out = { issues: new Map(), prs: new Map(), branchPrs: new Map() };
+    const branchList = [...new Set(branches)].filter((b) => /^[\w./-]+$/.test(b));
     const commentPart = comments
         ? `comments(last: 30) { nodes { databaseId createdAt body author ${ACTOR} editor ${ACTOR} lastEditedAt } }`
         : "";
@@ -1714,33 +1778,20 @@ export function fetchFacts(numbers, prNumbers, run = graphql, comments = false) 
         ),
         ...[...new Set(prNumbers)].map(
             (n) =>
-                `p${n}: pullRequest(number: ${n}) { number state mergeable commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } }`,
+                `p${n}: issueOrPullRequest(number: ${n}) { ... on PullRequest { number state mergeable commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }`,
+        ),
+        ...branchList.map(
+            (b, i) =>
+                `h${i}: pullRequests(headRefName: "${b}", first: 1, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { number state } }`,
         ),
     ];
     for (let k = 0; k < items.length; k += 40) {
         const data = run(
             `query { repository(owner: "${OWNER}", name: "${NAME}") { ${items.slice(k, k + 40).join("\n")} } }`,
         );
-        for (const [key, v] of Object.entries(data?.repository ?? {})) {
-            if (!v) continue;
-            if (key.startsWith("i")) {
-                issues.set(v.number, {
-                    state: v.state,
-                    labels: v.labels.nodes.map((l) => l.name),
-                    comments: v.comments?.nodes ?? [],
-                });
-            } else {
-                const head = v.commits?.nodes?.[0]?.commit;
-                prs.set(v.number, {
-                    state: v.state,
-                    mergeable: v.mergeable,
-                    headAt: head?.committedDate ?? null,
-                    checks: head?.statusCheckRollup?.state ?? null,
-                });
-            }
-        }
+        for (const [key, v] of Object.entries(data?.repository ?? {})) if (v) storeFact(out, key, v, branchList);
     }
-    return { issues, prs };
+    return out;
 }
 
 const SEARCH_QUERY = (q, after) => {
@@ -1863,6 +1914,92 @@ const fallbackJobs = (rest) => {
 };
 
 // ---------------------------------------------------------------------------------------------------------------
+// Idle: whether the issue-round session should be starting jobs (2026-11-16: an hour of pipeline plumbing with ten
+// jobs startable and test slots free).
+
+const SLOT_WAIT_LIMIT_MS = 10 * 60_000;
+
+/**
+ * The fix jobs a session runs: issues whose newest state marker is that session's `taken`, one job per branch.
+ * @param issues Map n -> `{ comments }` (fetchFacts with comments)
+ * @param session the session id
+ * @returns `{ jobs, issues }`: the job count and the issue numbers
+ */
+export function runningJobs(issues, session) {
+    const branches = new Set();
+    const held = [];
+    if (!session) return { jobs: 0, issues: held };
+    for (const [n, f] of issues) {
+        const m = newestMarker(f.comments ?? []);
+        if (m?.kind !== "taken" || /^by session ([^,\s]+)/.exec(m.text)?.[1] !== session) continue;
+        held.push(n);
+        branches.add(m.branch ?? `#${n}`);
+    }
+    return { jobs: branches.size, issues: held.sort((a, b) => a - b) };
+}
+
+/**
+ * The idle verdict.
+ * @param f `{ running, slots: { count, held, waitedMs }, load, cores, startable }`; slots.count 0 means no limit
+ * @returns `{ idle, reason, line, ...f, free }`
+ */
+export function idleVerdict(f) {
+    const free = f.slots.count === 0 ? Infinity : Math.max(0, f.slots.count - f.slots.held);
+    const slots = f.slots.count === 0 ? "slots off" : `slots free ${free} of ${f.slots.count}`;
+    const load = Math.round(f.load);
+    let reason = "start jobs";
+    if (f.startable === 0) reason = "nothing startable";
+    else if (f.running >= free) reason = "the running jobs fill the free slots";
+    else if (f.slots.waitedMs > SLOT_WAIT_LIMIT_MS)
+        reason = `a run has waited ${Math.round(f.slots.waitedMs / 60_000)} min for a slot`;
+    else if (f.load >= f.cores) reason = "load is at or over the cores";
+    const idle = reason === "start jobs";
+    const line = `idle: running ${f.running}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} -- ${reason}`;
+    return { idle, reason, line, ...f, free: Number.isFinite(free) ? free : null };
+}
+
+const slotFacts = (now) => {
+    let tickets = [];
+    try {
+        tickets = liveTickets(slotDir());
+    } catch {
+        // no ticket directory yet: nothing runs
+    }
+    const waits = tickets.filter((t) => !t.granted).map((t) => now - t.since);
+    return { count: slotCount(), held: tickets.length - waits.length, waitedMs: Math.max(0, ...waits) };
+};
+
+const lastRoundSession = (ledgerPath) => {
+    try {
+        return (
+            readFileSync(`${dirname(ledgerPath)}/last-round`, "utf8")
+                .trim()
+                .split(/\s+/)[1] ?? null
+        );
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * The facts of `idle`: the open issues once (the queue `jobs` reads), the comments of the in-progress ones once
+ * (the marker read `check` makes), the test slots and the load from this machine.
+ * @param c the command context
+ * @returns the facts for idleVerdict(), plus `session` and `issues` (the running jobs' issues)
+ */
+const idleFacts = (c) => {
+    const open = c.fetchOpen();
+    const inProgress = open
+        .filter((i) => (i.labels?.nodes ?? []).some((l) => l.name === "in-progress"))
+        .map((i) => i.number);
+    const session = c.session();
+    const running = runningJobs(inProgress.length ? c.markers(inProgress) : new Map(), session);
+    const startable = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now).jobs.length;
+    const machine = c.machine();
+    return { session, running: running.jobs, issues: running.issues, startable, ...machine };
+};
+
+// ---------------------------------------------------------------------------------------------------------------
 // The command line.
 
 const OPTIONS = {
@@ -1885,7 +2022,7 @@ const OPTIONS = {
 };
 
 const USAGE =
-    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json]";
+    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
 
 const num = (s) => {
     if (!/^#?\d+$/.test(s ?? "")) throw new Refused(`not an issue number: ${s}`);
@@ -2079,6 +2216,16 @@ const COMMANDS = {
         return ok(c.o.json ? JSON.stringify(plan, null, 2) : combineLines(plan).join("\n"));
     },
     metrics: (c) => metricsCommand(c),
+    idle: (c) => {
+        const v = idleVerdict(idleFacts(c));
+        // the Stop hook (tools/issue-round-idle-hook.mjs) reads this: the GitHub reads take ~10 s, too slow for a hook
+        try {
+            writeFileSync(`${dirname(c.ledgerPath)}/idle.json`, `${JSON.stringify({ at: c.now, ...v })}\n`);
+        } catch {
+            // no cache, no hook block: the verdict is still printed
+        }
+        return { code: v.idle ? 1 : 0, out: c.o.json ? JSON.stringify(v, null, 2) : v.line };
+    },
 };
 
 const FREE_QUEUE = fileURLToPath(new URL("../tmp/issue-round/free-queue.json", import.meta.url));
@@ -2086,7 +2233,8 @@ const FREE_QUEUE = fileURLToPath(new URL("../tmp/issue-round/free-queue.json", i
 /**
  * The command line.
  * @param argv arguments after the script
- * @param deps `{ ledgerPath, run, now, fetchQueue, readFile, isAncestor, fallback, metricsLog, git, guard }`
+ * @param deps `{ ledgerPath, run, now, fetchQueue, fetchOpen, readFile, isAncestor, fallback, metricsLog, git, guard,
+ *   session, markers, machine }`
  * @returns `{ code, out }`
  */
 export function main(argv, deps = {}) {
@@ -2117,6 +2265,10 @@ export function main(argv, deps = {}) {
         guard: deps.guard ?? readGuard,
         change: (fn) => mutate(ledgerPath, fn),
         facts: (numbers) => fetchFacts(numbers, [], run).issues,
+        fetchOpen: deps.fetchOpen ?? (() => fetchOpen()),
+        session: deps.session ?? (() => lastRoundSession(ledgerPath)),
+        markers: deps.markers ?? ((numbers) => fetchFacts(numbers, [], run, true).issues),
+        machine: deps.machine ?? (() => ({ slots: slotFacts(now), load: loadavg()[0], cores: cpus().length })),
     };
     try {
         return command(ctx);
@@ -2146,8 +2298,11 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
     const ledger = readLedger(ledgerPath);
     const live = ledger.groups.filter((g) => isLive(g));
     const numbers = live.filter((g) => g.state !== "frozen").flatMap((g) => g.members.map((m) => m.n));
+    const refs = liveWaits(ledger).map((w) => waitPrRef(ledger, w));
     const prs = live.filter((g) => g.state === "frozen" && g.pr).map((g) => g.pr);
-    const facts = fetchFacts(numbers, prs, ctx.run, true);
+    prs.push(...refs.filter((r) => r?.pr).map((r) => r.pr));
+    const branches = refs.filter((r) => r?.branch).map((r) => r.branch);
+    const facts = fetchFacts(numbers, prs, ctx.run, true, branches);
     const readyBranches = live.filter((g) => g.state === "ready" && g.branch).map((g) => g.branch);
     facts.diffs = new Map(readyBranches.map((b) => [b, ctx.git.diff(b)]));
     if (!o.fix) {
@@ -2176,13 +2331,4 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
     });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-    try {
-        const { code, out } = main(process.argv.slice(2));
-        (code === 0 ? console.log : console.error)(out);
-        process.exitCode = code;
-    } catch (error) {
-        console.error(`issue-groups: ${error.message.split("\n")[0]}`);
-        process.exitCode = 2;
-    }
-}
+runCli(import.meta.url, "issue-groups", main);

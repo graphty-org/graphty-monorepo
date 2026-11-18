@@ -1,5 +1,5 @@
 import { accelerated, type AcceleratedAlgorithms } from "@graphty/algorithms";
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { edgeIsDirected, type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 
 import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
@@ -428,6 +428,29 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     parallelEdgePolicy(): SimplifyPolicy | undefined {
         return (this.constructor as typeof Algorithm).parallelEdges;
+    }
+
+    /**
+     * The direction this run reads every edge with, when its input mixes directed and undirected
+     * edges: the graph's one default, since an algorithm does not read an edge's own.
+     * @returns True when every edge is read as directed, false when as undirected; null when the
+     *     run's input does not mix the two.
+     * @internal
+     */
+    mixedDirection(): boolean | null {
+        const { graph, edges } = this.input("declared");
+        let directed = false;
+        let undirected = false;
+        for (let edge = 0; edge < graph.edgeCount && !(directed && undirected); edge++) {
+            if (maskTest(edges, edge)) {
+                if (edgeIsDirected(graph, edge)) {
+                    directed = true;
+                } else {
+                    undirected = true;
+                }
+            }
+        }
+        return directed && undirected ? graph.directed : null;
     }
 
     /**

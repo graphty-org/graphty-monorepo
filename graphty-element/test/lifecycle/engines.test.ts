@@ -9,10 +9,8 @@
  * chromium.test.ts, under a launch without Playwright's flags.
  */
 
-import { rmSync } from "node:fs";
-
 import type { BrowserContext, Page } from "playwright";
-import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import {
     assertInvariant,
@@ -25,33 +23,12 @@ import {
     pageProcesses,
     profile,
 } from "./engines";
-import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
+import { type LogEvent, type PageCheck, useLifecycleFixture } from "./fixture";
 
 /** 50,000 and 100,000 nodes run only on the release train. */
 const FULL = process.env.GRAPHTY_LIFECYCLE_FULL === "1";
 
-let fx: Fixture;
-const open: { context: BrowserContext; dir: string }[] = [];
-
-beforeAll(async () => {
-    fx = await startFixture();
-});
-
-afterAll(async () => {
-    await fx.close();
-});
-
-afterEach(async () => {
-    if (process.env.LIFECYCLE_DEBUG === "1") {
-        const t0 = (fx.log[0]?.at as number) ?? 0;
-        console.log(fx.log.map((e) => `${(e.at as number) - t0} ${JSON.stringify(e)}`).join("\n"));
-    }
-
-    for (const { context, dir } of open.splice(0)) {
-        await context.close().catch(() => undefined);
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    }
-});
+const { fx, track } = useLifecycleFixture();
 
 /**
  * Launch an engine on a fresh profile, closed after the test.
@@ -66,10 +43,7 @@ async function start(
     const dir = profile(engine);
     const context = await launch(engine, dir, prefs);
     const entry = { context, dir };
-    open.push(entry);
-    onTestFailed(() => {
-        console.log(`last reports: ${JSON.stringify(fx.log.slice(-25))}`);
-    });
+    track(() => context.close(), dir);
     return entry;
 }
 
@@ -110,7 +84,7 @@ function check(page: Page): Promise<PageCheck> {
  * @param revision - The revision.
  */
 async function saved(tab: string, revision: number): Promise<void> {
-    await fx.waitFor((e) => e.tab === tab && e.type === "saved" && (e.revision as number) >= revision);
+    await fx.report(tab, "saved", 0, (e) => (e.revision as number) >= revision);
 }
 
 /**
@@ -167,7 +141,7 @@ describe.each(ENGINES)("%s", (engine) => {
         );
 
         const relaunched = await launch(engine, dir);
-        open.push({ context: relaunched, dir });
+        track(() => relaunched.close(), dir);
         const reopened = await openFixture(relaunched, { key, tab: tab("a2") });
         assertInvariant(await check(reopened), fx, [tab("a")], before);
     });
@@ -206,7 +180,7 @@ describe.each(ENGINES)("%s", (engine) => {
         await third.reload();
         await third.evaluate("fixture.ready()");
         // The page loaded again (Firefox reports a Playwright reload as a "navigate").
-        await fx.waitFor((e) => e.seq >= reloaded && e.tab === tab("c") && e.type === "boot");
+        await fx.report(tab("c"), "boot", reloaded);
         assertInvariant(await check(third), fx, [tab("c")], before);
 
         // Leave the page and come back.
@@ -215,7 +189,7 @@ describe.each(ENGINES)("%s", (engine) => {
         await third.goto(`${fx.origin}/away.html`);
         await third.goBack();
         await third.evaluate("fixture.ready()");
-        const shown = await fx.waitFor((e) => e.tab === tab("c") && e.type === "pageshow" && e.seq >= left);
+        const shown = await fx.report(tab("c"), "pageshow", left);
         const after = await check(third);
         if (shown.persisted === true) {
             // Back from the back/forward cache: the page never unloaded, so nothing was restored.

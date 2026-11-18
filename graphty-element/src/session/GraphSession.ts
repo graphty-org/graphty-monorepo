@@ -11,7 +11,7 @@
  * entry point's import graph and fails if a renderer appears in it.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { directedness, edgeIsDirected, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import {
     ACCELERATION_POLICY_DEFAULT,
@@ -23,7 +23,7 @@ import {
 import { sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
 import type { CameraState } from "../camera/types";
-import { arrangedDimension, LAYOUT_CATALOG } from "../catalog/layouts";
+import { arrangedDimension, LAYOUT_CATALOG, LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
     EdgeId,
@@ -58,22 +58,22 @@ import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
+import { GRAPHVIZ_PACKAGE } from "../layout/graphviz/engines";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
-import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./commands/data";
+import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, registerDispatcher } from "./dispatchers";
-import { englishRunLabel } from "./english";
+import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
-import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
+import { type LayoutRecommendation, recommendLayout } from "./layout";
 import { LayoutRunner } from "./layoutRunner";
 import { RenderLimits } from "./limits";
 import { loadLineOf } from "./loadLine";
@@ -93,7 +93,8 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
-export { dispatcherOf } from "./dispatchers";
+export { dispatcherOf, sessionRunsOf } from "./dispatchers";
+import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -185,8 +186,6 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { fileStyleWords, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
-import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
 import type { CompiledLayer } from "./styles/Layer";
@@ -234,6 +233,7 @@ import type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    SessionAnnotations,
     SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
@@ -404,6 +404,7 @@ const TX_PARTS = [
     "shaders",
     "time",
     "views",
+    "annotations",
     "positions",
     "config",
 ] as const satisfies readonly (keyof GraphSession)[];
@@ -575,6 +576,7 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
+    readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
@@ -770,9 +772,10 @@ class Session implements ElementSession {
         };
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
-        SESSION_RUNS.set(this, this.sessionRuns);
+        registerSessionRuns(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
+        this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.
             working: () => (this.working.enabled ? this.working.filtered() : this.working.view("graph")),
@@ -796,12 +799,14 @@ class Session implements ElementSession {
             this.layoutDrive(),
         );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
-        const fileGraph = (): FileGraphValue | undefined =>
-            this.dispatcher.state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
+        const requested = (): RequestedLayoutValue | undefined =>
+            this.dispatcher.state.graph.values.get(REQUESTED_LAYOUT_VALUE) as RequestedLayoutValue | undefined;
         let graphviz: boolean | undefined;
         this.dispatcher.services.layoutPrepare = async () => {
-            const file = fileGraph();
-            if (graphviz === undefined && file !== undefined && graphvizEngineFor(file) !== null) {
+            // Probed only when the requested layout needs the Graphviz package.
+            const id = requested()?.layout;
+            const needs = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === id)?.requires?.package;
+            if (graphviz === undefined && needs === GRAPHVIZ_PACKAGE) {
                 graphviz = await graphvizAvailability().then(({ available }) => available);
             }
         };
@@ -811,7 +816,7 @@ class Session implements ElementSession {
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
             const advice = recommendLayout(this.data.statistics({ scope: "all" }), {
                 placedNodes: this.store.seededNodeCount + groups.length,
-                file: fileGraph(),
+                requested: requested(),
                 graphvizAvailable: graphviz === true,
             });
             if (advice === undefined) {
@@ -1063,7 +1068,8 @@ class Session implements ElementSession {
             get: (_target, key) => {
                 const value: unknown = Reflect.get(part, key, part);
                 return typeof value === "function"
-                    ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
+                    ? (...args: unknown[]): unknown =>
+                          this.dispatcher.routed(via, (): unknown => Reflect.apply(value, part, args))
                     : value;
             },
             // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the
@@ -1491,28 +1497,6 @@ class Session implements ElementSession {
     }
 }
 
-/** Each session's runs API with the parts only the element reaches; see {@link sessionRunsOf}. */
-const SESSION_RUNS = new WeakMap<GraphSession, SessionRunsApi>();
-
-/**
- * The runs API behind a session, with `startVia`: how the renderer starts the on-load runs as
- * deferred members of the command that added the rows. Not published.
- * @param session - A session this module built.
- * @returns Its runs API.
- */
-export function sessionRunsOf(session: GraphSession): SessionRunsApi {
-    const runs = SESSION_RUNS.get(session);
-    if (runs === undefined) {
-        throw new GraphtyError({
-            code: "E_INTERNAL",
-            message: "This session was not built by createGraphSession, so it has no runs API of its own.",
-            source: "run",
-        });
-    }
-
-    return runs;
-}
-
 /** Each headless session's `graph` repaint hook, by dispatcher, to unregister. */
 const HEADLESS_GRAPH_PAINT = new WeakMap<Dispatcher, () => void>();
 
@@ -1923,6 +1907,34 @@ function layoutOf(
  */
 const IGNORED_IN_2D_OPTIONS: ReadonlyMap<string, string> = new Map([["location-map.mapDimension", "2d"]]);
 
+/**
+ * The annotations: the `annotations` graph value, read live, with the verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The annotations surface.
+ */
+function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
+    const held = (): DrawnAnnotations | null =>
+        drawnAnnotationsOf(dispatcher.state.graph.values.get(ANNOTATIONS_VALUE));
+    return Object.freeze({
+        get scale() {
+            return held()?.scale ?? 1;
+        },
+        list: () => held()?.annotations ?? Object.freeze([]),
+        add: async (annotation: DrawnAnnotation) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "add", annotation });
+        },
+        update: async (id: string, patch: Readonly<Record<string, unknown>>) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "update", id, patch });
+        },
+        remove: async (id: string) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "remove", id });
+        },
+        clear: async () => {
+            await dispatcher.dispatch({ op: "annotations.set", annotations: [], scale: held()?.scale ?? 1 });
+        },
+    });
+}
+
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
     const views: SessionViews = Object.freeze({
@@ -2016,6 +2028,9 @@ function configOf(
         },
         get timelineHiddenLook() {
             return read().timelineHiddenLook;
+        },
+        get timelineHiddenAdded() {
+            return read().timelineHiddenAdded;
         },
         get runPlacement() {
             return read().runPlacement;
@@ -2343,12 +2358,6 @@ function fieldKindsOf(
     const end = edgeEndPathOf(path);
     if (end !== undefined) {
         return fieldKindsOf(end.node, data, fieldsOf).includes("node") ? ["edge"] : [];
-    }
-
-    // The values graphty-element provides: a file's style value is on the kind its path names.
-    const style = parseFileStylePath(path);
-    if (style !== undefined) {
-        return [style.kind];
     }
 
     if (noteFieldOf(path) !== undefined) {
@@ -2680,24 +2689,18 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
- * @param fileStyles - Reads the file-style store as it stands now.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionData, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
+function pathDirectoryOf(data: SessionData, runs: RunsApi): PathDirectory {
     return {
-        // A note value is always answerable: it reads nothing until a note names the element. A
-        // file-style column is answerable wherever a load holds it.
+        // A note value is always answerable: it reads nothing until a note names the element.
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
                 return target === "edge" && answersReadable(data, runs, end.node, "node");
             }
 
-            return (
-                noteFieldOf(path) !== undefined ||
-                answersFileStyle(fileStyles(), path, target) ||
-                answersReadable(data, runs, path, target)
-            );
+            return noteFieldOf(path) !== undefined || answersReadable(data, runs, path, target);
         },
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
@@ -2715,18 +2718,6 @@ function searchedPaths(data: SessionData, kind: "node" | "edge"): readonly Path[
         .readableValues()
         .filter((value) => value.on === kind && value.from !== "element" && value.end === undefined)
         .map((value) => value.path);
-}
-
-/**
- * Whether a file-style path names a column some load holds, for the kind of element asking.
- * @param store - The file-style store.
- * @param path - The path.
- * @param target - Whether the asking layer paints nodes or edges.
- * @returns True when the store holds that column.
- */
-function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "edge"): boolean {
-    const parts = parseFileStylePath(path);
-    return parts?.kind === target && fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
 }
 
 /**
@@ -2759,13 +2750,11 @@ function fieldWordsOf(
             }
         }
 
-        // The values graphty-element keeps itself: a node's degrees and a file's style columns.
+        // The values graphty-element keeps itself: a node's degrees.
         const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
-        if (structure !== undefined) {
-            return { plainName: structure.plainName, technicalName: structure.technicalName };
-        }
-
-        return parseFileStylePath(path)?.kind === target ? fileStyleWords(path) : undefined;
+        return structure === undefined
+            ? undefined
+            : { plainName: structure.plainName, technicalName: structure.technicalName };
     };
 }
 
@@ -2807,10 +2796,11 @@ function runIdOf(ref: RunRef): RunId {
  * @param runs - The runs this session holds.
  * @returns The source.
  */
-function encodingSourceOf(runs: RunsApi): EncodingSource {
+function encodingSourceOf(runs: SessionRunsApi): EncodingSource {
     return {
         run: (ref: RunRef): EncodingRun | undefined => runs.get(runIdOf(ref)),
         runIds: (): readonly RunId[] => runs.list().map((run) => run.id),
+        defaultLayerName: (id: RunId): string | undefined => runs.defaultLayerName(id),
     };
 }
 
@@ -3291,7 +3281,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // What status and "Used by" read of a run. Late-bound: the runs are built below.
     const statusRun = (run: Run): StatusRun => ({
         id: run.id,
-        label: englishRunLabel(run),
+        label: runs.defaultLayerName(run.id) ?? run.algorithm,
         algorithm: run.algorithm,
         registered: SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === run.algorithm),
         execution: executionOf(run.id),
@@ -3302,7 +3292,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
     const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({
         id: run.id,
-        label: englishRunLabel(run),
+        label: runs.defaultLayerName(run.id) ?? run.algorithm,
         result: run.result,
     });
     const offering = createOffering({
@@ -3825,7 +3815,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
-        entries: () => runs.list().map((run) => toResultsEntry(run)),
+        entries: () => runs.list().map((run) => toResultsEntry(runs, run)),
     });
 
     // Notes, published as `session.notes`: a result a note names is known while its run is, and
@@ -3868,7 +3858,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
-    const readFileStyles = (): FileStyleStore => asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE));
     const elements: SessionSelectorSource = createSelectorSource({
         snapshot,
         results: (runId) => runs.get(runId)?.result,
@@ -3878,13 +3867,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => dispatcher.lane.writes("notes"),
             snapshot,
         ),
-        // The file-style store, read from the project as it stands now: a load writes a new store
-        // object, so a reader never holds a stale one.
-        fileStyles: (namespace, kind, key) => fileStyleColumn(readFileStyles(), namespace, kind, key),
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
-    const paths = pathDirectoryOf(data, runs, readFileStyles);
+    const paths = pathDirectoryOf(data, runs);
     query = createQueryEngine({
         snapshot,
         revision: () => inputs.tick.value,
@@ -4341,7 +4327,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
         transient: () => peekLayers,
-        directed: () => snapshot().directed,
+        // Any edge directed: a file can mix directed and undirected edges (graph-format's role
+        // "directed" column), and a head no layer chose is drawn on each directed one.
+        directed: () => directedness(snapshot()) !== "undirected",
+        edgeDirected: (edge: number) => edgeIsDirected(snapshot(), edge),
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
         liftDrawn: () => {
             const layout = dispatcher.state.layout ?? DEFAULT_LAYOUT;
@@ -4650,13 +4639,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const recordsOnly = ![...dirty].some(
                 (key) => key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:")),
             );
-            // A load's style values moved: every layer reading a `graphty.style.` path repaints.
-            const stylesMoved = dirty.has(FILE_STYLES_KEY);
-            const readers = recordsOnly
-                ? stack.filter(
-                      (entry) => readsAnyField(entry, changed) || (stylesMoved && entry.reads.some(isFileStylePath)),
-                  )
-                : stack;
+            const readers = recordsOnly ? stack.filter((entry) => readsAnyField(entry, changed)) : stack;
             if (readers.length === 0) {
                 return;
             }
@@ -4950,17 +4933,13 @@ function changesRowsOnly(key: string): boolean {
     return (
         key.startsWith("n:") ||
         namesEdges(key) ||
-        // A graph value (the import report an add replaces) is read by no layer; the file-style
-        // store is, so a change to it repaints what reads it rather than only the rows.
-        (key.startsWith("v:") && key !== FILE_STYLES_KEY) ||
+        // A graph value (the import report an add replaces) is read by no layer.
+        key.startsWith("v:") ||
         key === ROWS_MOVED ||
         key === NODES_ADDED ||
         key === EDGES_ADDED
     );
 }
-
-/** The dirty key a write of the file-style store raises in the `graph` hook. */
-const FILE_STYLES_KEY = `v:${FILE_STYLES_VALUE}`;
 
 /**
  * Whether a layer paints each element from that element alone: fixed values only, selected by
@@ -5351,13 +5330,13 @@ function tellData(
 
 /**
  * One run, in the shape the results API looks runs up in.
+ * @param runs - The runs this session holds, which name it.
  * @param run - The run.
  * @returns The entry.
  */
-function toResultsEntry(run: Run): ResultsRunEntry {
+function toResultsEntry(runs: SessionRunsApi, run: Run): ResultsRunEntry {
     return {
         id: run.id,
-        label: englishRunLabel(run),
         distinguishedBy: run.distinguishedBy,
         siblingsDifferBy: run.siblingsDifferBy,
         shape: run.shape,
@@ -5372,10 +5351,10 @@ function toResultsEntry(run: Run): ResultsRunEntry {
  * @param id - The run id.
  * @returns The entry, or undefined when there is no such run.
  */
-function runEntry(runs: RunsApi, id: string): ResultsRunEntry | undefined {
+function runEntry(runs: SessionRunsApi, id: string): ResultsRunEntry | undefined {
     const run = runs.get(id);
 
-    return run === undefined ? undefined : toResultsEntry(run);
+    return run === undefined ? undefined : toResultsEntry(runs, run);
 }
 
 /**

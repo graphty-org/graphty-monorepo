@@ -1,15 +1,16 @@
 /**
- * @file The camera moves the graphty app's toolbar and Views menu make, as element members.
+ * @file The camera moves a toolbar and a Views menu make, as element members.
  *
- * Each app helper in `graphty/src/components/shell/graphCommands.ts` is written out below as the
- * sequence of raw `Graph` calls it makes today, and the element member that replaces it must put
- * the camera exactly where that sequence does, on the same graph from the same starting camera.
+ * Each recipe below is written out as the sequence of raw `Graph` calls that reaches the
+ * behavior the element member documents (`zoomStep`'s step factor of 1.25 in `src/Graph.ts`,
+ * `zoomToSelection` turning the camera to the selection), and the element member must put the
+ * camera exactly where that sequence does, on the same graph from the same starting camera.
  * Every one is view state, so each call must leave the project state digest and the history
  * alone and dispatch nothing.
  *
  * Reset view and XR-button control are `resetCamera` and `setXRConfig` already, and the Top,
  * Front and Side presets are `loadCameraPreset` with the element's own view names; those rows
- * pin that the app's calls and the element's members agree.
+ * pin that the raw calls and the element's members agree.
  */
 
 import { afterEach, assert, describe, it } from "vitest";
@@ -65,7 +66,8 @@ async function loadedGraph(mode: "2d" | "3d"): Promise<Graph> {
 }
 
 /**
- * The app's Zoom in / Zoom out helper, as the raw calls it makes.
+ * One Zoom in / Zoom out step as raw calls: the camera distance (3D) or zoom (2D) scaled by
+ * `zoomStep`'s documented factor of 1.25.
  * @param graph - The graph.
  * @param direction - Which way.
  */
@@ -83,7 +85,7 @@ async function appZoomStep(graph: Graph, direction: "in" | "out"): Promise<void>
 }
 
 /**
- * The app's Zoom to selection helper, as the raw calls it makes.
+ * Zoom to a single selected node as raw calls: the camera target moved to the node's position.
  * @param graph - The graph.
  * @param nodeId - The selected node.
  */
@@ -95,7 +97,7 @@ async function appZoomToSelection(graph: Graph, nodeId: string): Promise<void> {
     await graph.setCameraTarget({ x, y, z });
 }
 
-/** The app's view-preset table. */
+/** A Top, Front and Side preset menu's rows, by the element's view names. */
 const APP_PRESETS = { top: "topView", front: "frontView", side: "sideView" } as const;
 
 /**

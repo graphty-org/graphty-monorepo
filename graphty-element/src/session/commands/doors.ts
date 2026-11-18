@@ -32,6 +32,7 @@ import { fromEdgeArrays } from "@graphty/graph-format";
 import { defineSource, registerSource, registry } from "@graphty/graph-io";
 
 import type { LayerSpec } from "../../catalog/types";
+import type { DrawnAnnotation } from "../annotations";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
 
@@ -962,6 +963,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     shaders: READ,
     views: READ,
+    annotations: READ,
     layout: READ,
     positions: READ,
     hidden: READ,
@@ -1217,6 +1219,24 @@ const TIME_API: Readonly<Record<string, Door>> = {
     playing: READ,
     mode: READ,
     interval: READ,
+};
+
+/** An annotation the annotation doors add. */
+const DOOR_ANNOTATION: DrawnAnnotation = {
+    id: "door-note",
+    kind: "text",
+    layer: "foreground",
+    z: 0,
+    rotation: 0,
+    text: "door note",
+    at: { x: 0, y: 0 },
+    anchor: "center",
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    bold: false,
+    italic: false,
+    color: "#000000",
+    opacity: 1,
 };
 
 /** A layer the style doors add. */
@@ -2254,7 +2274,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         doors: {
             id: READ,
-            label: READ,
             distinguishedBy: READ,
             siblingsDifferBy: READ,
             algorithm: READ,
@@ -2803,6 +2822,36 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         nodes: [{ id: "door-derive", values: { doorDerived: 2 } }],
                         edges: [],
                         column: { kind: "node", name: "doorDerived" },
+                    },
+                ],
+            },
+            // The same op as derive: the score's definition and its values, as one step.
+            deriveScore: {
+                kind: "dispatches",
+                op: "data.derive",
+                call: {
+                    kind: "call",
+                    args: ["doorScore", [{ path: "data.doorInput", weight: 2 }]],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-score", doorInput: 2 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "data.derive",
+                        columns: [
+                            {
+                                kind: "node",
+                                name: "doorScore",
+                                expression: "data.doorInput * `2`",
+                                score: [{ path: "data.doorInput", weight: 2 }],
+                            },
+                        ],
+                        nodes: [{ id: "door-score", values: { doorScore: 0 } }],
+                        edges: [],
+                        column: { kind: "node", name: "doorScore" },
                     },
                 ],
             },
@@ -3765,6 +3814,25 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "SessionAnnotations",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            scale: READ,
+            list: READ,
+            add: calls([DOOR_ANNOTATION], [{ op: "annotations.patch", action: "add", annotation: DOOR_ANNOTATION }]),
+            update: calls(
+                ["no-such-annotation", { text: "renamed" }],
+                [{ op: "annotations.patch", action: "update", id: "no-such-annotation", patch: { text: "renamed" } }],
+            ),
+            remove: calls(
+                ["no-such-annotation"],
+                [{ op: "annotations.patch", action: "remove", id: "no-such-annotation" }],
+            ),
+            clear: calls([], [{ op: "annotations.set", annotations: [], scale: 1 }]),
+        },
+    },
+    {
         name: "SessionViews",
         file: "src/session/types.ts",
         half: "session",
@@ -3852,6 +3920,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startingRows: READ,
             editableBase: READ,
             timelineHiddenLook: READ,
+            timelineHiddenAdded: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
@@ -4072,6 +4141,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
             clusterColumn: READ,
+            // A row's stored record and a node id's store row, for `clusterBy` over rows with no `Node`; the layout
+            // manager fills both in when it starts the engine.
+            rowRecord: READ,
+            storeRowOf: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
             // The box the last publish left the rows in, read by the batched fit; walks no row.
@@ -4382,9 +4455,6 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.collapse":
         "session.data.collapse on a node a network source expanded (src/session/sources/expand.ts); checked by " +
         "test/session/sources/expand.test.ts.",
-    "data.setFileStyles":
-        "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
-        "checked by test/session/styles/file-style-store.test.ts.",
 };
 
 /**

@@ -1,5 +1,5 @@
 /**
- * PipelineCache (spec 5.1; contract 3.9): compile-once compute pipelines keyed by
+ * PipelineCache: compile-once compute pipelines keyed by
  * `(id, overrides, needs present on the device, snippets)` with EXPLICIT bind-group layouts derived from
  * `spec.bindings` (never `layout: "auto"`, so one layout serves every dummy-binding variant and bind groups are
  * reused across variants). A WGSL error is `E_SHADER_COMPILE { stage: "compile", messages, lines }` with
@@ -60,7 +60,7 @@ function hashSnippets(snippets: Readonly<Record<string, string>> | undefined): s
 }
 
 /**
- * The cache key of a spec on a device (pure; PLAN DECISION: exported so the override-matrix helper of P2-T2 can
+ * The cache key of a spec on a device (pure; exported so the override-matrix test helper can
  * compute keys without a device): `id + "|" + stableJson(overrides) + "|" + needs.filter(present).join(",") + "|" + hash(snippets)`.
  * @param spec - the module
  * @param caps - the device capabilities (the feature set decides which needs are present)
@@ -80,7 +80,7 @@ function messageOf(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-/** Compile-once pipelines keyed by (id, overrides, needs present on the device, snippets) with explicit bind-group layouts (spec 5.1). */
+/** Compile-once pipelines keyed by (id, overrides, needs present on the device, snippets) with explicit bind-group layouts. */
 export class PipelineCache {
     private readonly device: GPUDevice;
     private readonly caps: PlanCaps;
@@ -147,7 +147,7 @@ export class PipelineCache {
 
     /**
      * Every key created so far, in creation order (the override-matrix coverage test reads it).
-     * PLAN DECISION: keys are listed in compile-START order and only those whose compile finished (warm() compiles
+     * Keys are listed in compile-START order and only those whose compile finished (warm() compiles
      * concurrently, so completion order is not deterministic; a failed compile is removed).
      * @returns the keys
      * @internal
@@ -167,7 +167,7 @@ export class PipelineCache {
     }
 
     /**
-     * PLAN DECISION: forgets every pipeline and refuses further compiles with E_DISPOSED (the context's dispose()
+     * Forgets every pipeline and refuses further compiles with E_DISPOSED (the context's dispose()
      * may call it; a GPUComputePipeline has no destroy(), so the objects are simply released).
      */
     dispose(): void {
@@ -217,8 +217,8 @@ export class PipelineCache {
     /**
      * One compile: compose, create the shader module inside a synchronous push / pop validation pair (so concurrent
      * compiles never interleave scopes), check the compilation info, create the layouts and the pipeline.
-     * PLAN DECISION: `E_SHADER_COMPILE` at stage "compile" also carries `lines` (the body-relative 1-based line of every
-     * error message, from `composed.bodyLine`) next to the contract's `messages`; a `createComputePipelineAsync`
+     * `E_SHADER_COMPILE` at stage "compile" also carries `lines` (the body-relative 1-based line of every
+     * error message, from `composed.bodyLine`) next to `messages`; a `createComputePipelineAsync`
      * rejection (a GPUPipelineError, which pushes nothing into a validation scope on Dawn 0.4.0) is
      * `E_VALIDATION { label: "<id>|pipeline", message }`; bool overrides travel as the pipeline constants 1 / 0
      * because dawn.node's WebIDL layer rejects a boolean constant.

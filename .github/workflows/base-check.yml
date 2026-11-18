@@ -13,7 +13,8 @@ name: Base check
 # - `[FAIL]` or `[NEW-FLAKY]` of a test whose imports the pull request changed but not the test file itself; repeat 1
 #   or 5. When master fails one of the same tests (`failed`) here, this run re-runs the one job of the pull request's
 #   run that failed it (`job`), whose re-run reads this run's records as master's and passes the failure as `[KNOWN]`
-#   or quarantined (#8363). Such a check carries no `tests`: a touched test's flake is likely the pull request's own.
+#   or quarantined (#8363). A `[NEW-FLAKY]` check carries its tests in `tests` too, and files their issues when all 5
+#   pass (#8795): the pull request changed only the test's imports, often a lint pass or a dependency bump.
 # Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
 
 on:

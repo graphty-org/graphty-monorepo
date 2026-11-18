@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/registry.js";
+import { num6 } from "../../src/styles/canon/number.js";
 import { toolDefaults } from "../../src/styles/defaults.js";
 import { resolveStyles, type StyleProperty, type StyleTarget } from "../../src/styles/internal.js";
 
@@ -144,14 +145,14 @@ describe("vis-network node colors and labels", () => {
             options: { physics: false },
         });
         // the vadjust, below the 2 + 14 / 6 a label under a node sized by `size` hangs lower than a bottom label
-        expect(value(r, "node", "labelOffsetY", 0)).toBeCloseTo(12 + 2 + 14 / 6, 9);
+        expect(value(r, "node", "labelOffsetY", 0)).toBe(num6(12 + 2 + 14 / 6));
         // Box.draw: the label's box starts its left and top margins in from the node's corner
         expect(value(r, "node", "labelOffsetX", 1)).toBe(-8);
         expect(value(r, "node", "labelOffsetY", 1)).toBe(-5);
         expect(value(r, "node", "labelTextAlign", 2)).toBe("right");
         expect(value(r, "node", "labelTextAlign", 3)).toBe("left");
         // a hexagon's own label place, then the vadjust below it
-        expect(value(r, "node", "labelOffsetY", 4)).toBeCloseTo(((2 - Math.sqrt(3)) * 10) / 2 - 3 + 2 + 14 / 6, 6);
+        expect(value(r, "node", "labelOffsetY", 4)).toBe(num6(((2 - Math.sqrt(3)) * 10) / 2 - 3 + 2 + 14 / 6));
     });
 });
 
@@ -218,7 +219,7 @@ describe("vis-network multi-font labels", () => {
         expect(value(r, "node", "labelRunAlign", 0)).toBe("hanging");
         // half of the 5 px its line is taller than one font size, under the label's own vadjust of 1, and the 2 + 10 / 6
         // a label under a node sized by `size` hangs lower than a bottom label
-        expect(value(r, "node", "labelOffsetY", 0)).toBeCloseTo(3.5 + 2 + 10 / 6, 9);
+        expect(value(r, "node", "labelOffsetY", 0)).toBe(num6(3.5 + 2 + 10 / 6));
         expect(JSON.parse(value(r, "node", "labelRuns", 1) as string)).toEqual([
             { text: "B", weight: "bold", shift: -3 },
             { text: " x" },

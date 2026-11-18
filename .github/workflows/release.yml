@@ -789,6 +789,7 @@ jobs:
         permissions:
             actions: read # this month's release.yml runs' jobs, for tools/llm-spend.mjs
             contents: read
+            id-token: write # the results store: the test step's record (tools/results/run-group.mjs)
         outputs:
             owner_item: ${{ steps.llm.outputs.owner_item }}
         steps:
@@ -835,6 +836,11 @@ jobs:
                   GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
                   # each priced cost as it is spent, so a run cut off mid-file still logs it (the cost steps below)
                   LLM_REGRESSION_USAGE_FILE: ${{ runner.temp }}/llm-usage.jsonl
+                  # the run's record in the results store, run once as it would bare (no retry: every case is a
+                  # paid call; tools/results/run-group.mjs RESULTS_RECORD_ONLY)
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RESULTS_RECORD_ONLY: "1"
               # +e: GitHub runs this as `bash -e`, which would exit on the failed pipe before the refusal is read,
               # leaving owner_item empty, so a refused account was judged a code red and bisected (#8227)
               run: |
@@ -844,7 +850,7 @@ jobs:
                       echo "::error::the GOOGLE_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"
                       exit 1
                   fi
-                  npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
+                  (cd .. && node tools/results/run-group.mjs llm-regression "cd graphty-element && npx vitest run --project llm-regression") 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
                   status=${PIPESTATUS[0]}
                   if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
                       echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"

@@ -23,7 +23,7 @@ with that category's state, so every page repeats the status line; Issues has no
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                                                                                                                                                                                                      |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner". **Issue grouping** (fixing related issues in one pull request, design/ci/issue-grouping.md): issues closed per merged PR, merged PRs closing 2+ issues, runner-minutes per issue closed, grouped issues released as not part of their branch, and finished branches not opened.                                                                                                                                        |
 | CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget, and for full runs each test group's members added up per run against its test step's deadline (not OK past 80%), with the members slower than their `GROUP_MEMBER_SECONDS` entry; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend. |
 | Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                                                                                                                                                                                                              |
 | Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -221,10 +221,16 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 | `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
 | `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
 | `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
+| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)    | `POST /v1/local/grouping`    |
 
 Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
 (the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
 runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
+The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`). Only
+these fields are posted, as the source `grouping-ledger` (age limit 48 hours): `issuesPerMergedPr` and `multiFixShare`
+(the ledger counts a pull request's closing links and its commits' Fixes lines, so the dashboard never counts issues
+itself), `ledger.releasedNotPartShare`, `ledger.ready`, `combinable` and `combinableBranches`. A field a line lacks is
+not posted. Runner-minutes per issue closed is Runner-minutes per merge divided by the newest `issuesPerMergedPr`.
 
 Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
 its content, so a retried post is harmless.
@@ -278,15 +284,15 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 - SSM SecureStrings under `/graphty-health/`, read by the Lambdas. A member whose parameter is missing
   shows "not set up":
 
-| Parameter                                                                    | Used for                                       |
-| ---------------------------------------------------------------------------- | ---------------------------------------------- |
-| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                     |
-| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex) |
-| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                         |
-| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)        |
-| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)            |
-| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads   |
-| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher dispatches as     |
+| Parameter                                                                    | Used for                                                           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                                         |
+| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex)                     |
+| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                                             |
+| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)                            |
+| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)                                |
+| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads                       |
+| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher and the release scheduler dispatch as |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
 (past it, writes get 429 and Data sources turns red), a 50 USD monthly AWS Budget whose action denies
@@ -400,6 +406,16 @@ its own, and shows the last data this browser loaded for the view, with its age,
 - **"answered HTTP 404"**: the page asked for a route the deployed API does not have, usually a page newer
   than the last deploy.
 - `/v1/status` answering while the view fails points at that view's route alone.
+
+## The release scheduler
+
+The Lambda `ReleaseScheduler`, invoked by the schedule `ReleaseSchedule` at 00:00, 06:00, 12:00 and 18:00 UTC,
+is the AWS copy of the Cloudflare Worker in `tools/release-scheduler/`, which still starts the release train. It
+runs in dry run (`RELEASE_DISPATCH_MODE` in `infra/health-stack.ts`): each slot logs one JSON line,
+`{"releaseScheduler":"dry-run","slot":...,"dispatched":false,"dispatch":{...}}`, the release.yml dispatch it would
+make, and dispatches nothing. To check the slots, look up its log group in the stack (below) and filter on
+`"releaseScheduler"`. Once it has logged all 56 slots of two weeks, one change sets the mode to `"live"` and
+deletes the Worker.
 
 ## Deployment
 

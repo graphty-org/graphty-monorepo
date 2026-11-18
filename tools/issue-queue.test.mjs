@@ -1,12 +1,12 @@
 // Tests of tools/issue-queue.mjs on GraphQL answers shaped like GitHub's (the fields its queries ask for).
 // Run: node tools/issue-queue.test.mjs
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { heldBy, heldEntry, main, sweepClaims } from "./issue-queue.mjs";
+import { claimsCommand, heldBy, heldEntry, main, namedIssues, sweepClaims } from "./issue-queue.mjs";
 
 const NOW = Date.parse("2026-11-02T12:00:00Z");
 const user = (login) => ({ __typename: "User", login });
@@ -601,6 +601,173 @@ describe("sweepClaims", () => {
         assert.ok(state.includes("branch fix/100-a,"));
         assert.ok(!state.includes("branch fix/1-a,"), "a released claim no longer holds its worktree");
         assert.equal(JSON.parse(state).claims.length, 140);
+    });
+});
+
+describe("claims judged by the work that names them (2026-11-18: 18 live claims released)", () => {
+    const MIN = 60_000;
+    const HOUR = 60 * MIN;
+    const bare = (n, age) => ({
+        id: `I_${n}`,
+        number: n,
+        title: `t${n}`,
+        labels: { nodes: [{ id: "L_ip", name: "in-progress" }] },
+        comments: { nodes: [] },
+        timelineItems: {
+            nodes: [{ createdAt: new Date(NOW - age).toISOString(), label: { name: "in-progress" } }],
+        },
+    });
+    const marker = (id, body, at) => ({
+        databaseId: id,
+        createdAt: new Date(at).toISOString(),
+        body,
+        author: user("graphty-agent"),
+        editor: null,
+        lastEditedAt: null,
+    });
+    const taken7284 = {
+        ...bare(7284, 9 * HOUR),
+        comments: {
+            nodes: [
+                marker(
+                    1,
+                    "pipeline-round: taken by session round, branch fix/7284-node-size, worktree .worktrees/w1 -- x",
+                    NOW - 9 * HOUR,
+                ),
+            ],
+        },
+    };
+    // The model dialog branch of live session c03ac0af, last commit 2 hours earlier, names four issues it closes.
+    const modelDialog = {
+        name: "fix/8609-model-dialog-round-5",
+        messages:
+            "fix(graphty): model dialog round 5\n\nFixes #8604\nFixes #8605\n\n" +
+            "docs(graphty): name the model dialog issues this branch closes\n\nRefs #8606, #8311\n",
+    };
+    // Pull request #8757 names #7284 from a branch whose name does not.
+    const pr8757 = {
+        number: 8757,
+        headRefName: "fix/8700-sizing",
+        title: "fix(graphty): node sizes",
+        body: "Fixes #7284",
+    };
+    const deadFacts = {
+        openPrBranches: new Set(["fix/8700-sizing"]),
+        roundSession: "round",
+        branchCommitAt: () => 0,
+        worktreeChangedAt: () => 0,
+        ticketIn: () => false,
+        transcriptAt: () => 0,
+        sessionAlive: () => false,
+        commitsAhead: () => 0,
+        recentBranches: () => [modelDialog],
+    };
+    const fakeRun = (issues, prs, mutations) => (query, vars) => {
+        if (query.startsWith("mutation")) {
+            mutations.push(query);
+            return {};
+        }
+        if (query.includes("pullRequests(states: OPEN")) {
+            return { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: prs } } };
+        }
+        const nodes = vars.label === "in-progress" ? issues : [];
+        return { repository: { issues: { pageInfo: { hasNextPage: false }, nodes } } };
+    };
+
+    it("keeps #8604-#8606, #8311 and #7284 live and releases only the claim nothing names", () => {
+        const issues = [8604, 8605, 8606, 8311].map((n) => bare(n, 3 * HOUR)).concat([taken7284, bare(9001, 3 * HOUR)]);
+        const mutations = [];
+        const r = main(["claims", "--fix"], fakeRun(issues, [pr8757], mutations), NOW, undefined, {
+            claims: { dir: mkdtempSync(join(tmpdir(), "claims-")), facts: deadFacts },
+        });
+        const by = new Map(r.claims.map((c) => [c.n, c]));
+        for (const n of [8604, 8605, 8606, 8311]) {
+            assert.equal(by.get(n).live, true, `#${n}`);
+            assert.match(by.get(n).why, /branch fix\/8609-model-dialog-round-5/);
+        }
+        assert.equal(by.get(7284).live, true);
+        assert.equal(by.get(7284).why, "open pull request #8757 names it");
+        assert.equal(by.get(9001).action, "release");
+        const sent = mutations.join("\n");
+        assert.equal((sent.match(/addComment/g) ?? []).length, 1);
+        assert.match(sent, /subjectId: "I_9001"/);
+        for (const n of [8604, 8605, 8606, 8311, 7284]) assert.doesNotMatch(sent, new RegExp(`"I_${n}"`));
+    });
+
+    it("never removes a label or posts a release comment on an issue an open pull request names", () => {
+        const released = {
+            ...bare(7284, 9 * HOUR),
+            comments: {
+                nodes: [
+                    taken7284.comments.nodes[0],
+                    marker(2, "pipeline-round: released -- claims sweep: no activity", NOW - 8 * HOUR),
+                ],
+            },
+        };
+        const judged = sweepClaims([released], { ...deadFacts, namedBy: () => null }, NOW).claims[0];
+        assert.equal(judged.action, "unlabel", "the label-only case on its own");
+        const mutations = [];
+        const r = main(["claims", "--fix"], fakeRun([released], [pr8757], mutations), NOW, undefined, {
+            claims: { dir: mkdtempSync(join(tmpdir(), "claims-")), facts: deadFacts },
+        });
+        assert.equal(r.claims[0].action, null);
+        assert.deepEqual(mutations, []);
+    });
+
+    it("names an issue by #n, Fixes/Refs/Closes lines or a branch number, never by a longer number", () => {
+        const named = namedIssues({
+            prs: [{ number: 1, headRefName: "fix/42-x", title: "closes #7", body: "Refs #86040" }],
+            branches: [{ name: "chore/99", messages: "Closes #12" }],
+        });
+        assert.deepEqual(
+            [...named.keys()].sort((a, b) => a - b),
+            [7, 12, 42, 99, 86040],
+        );
+        assert.equal(named.has(8604), false);
+    });
+});
+
+describe("tests never reach GitHub", () => {
+    // A fake gh first on PATH records any spawn; the tools refuse before spawning, since node was not started with them.
+    const withFakeGh = (fn) => {
+        const bin = mkdtempSync(join(tmpdir(), "fake-gh-"));
+        const log = join(bin, "called");
+        writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> ${JSON.stringify(log)}\necho '{"data":{}}'\n`);
+        chmodSync(join(bin, "gh"), 0o755);
+        const path = process.env.PATH;
+        process.env.PATH = `${bin}:${path}`;
+        try {
+            fn();
+        } finally {
+            process.env.PATH = path;
+        }
+        return existsSync(log);
+    };
+
+    it("refuses the default runner in claims --fix, list and taken without spawning gh", () => {
+        const dir = mkdtempSync(join(tmpdir(), "claims-"));
+        const spawned = withFakeGh(() => {
+            assert.throws(
+                () => main(["claims", "--fix"], undefined, NOW, undefined, { claims: { dir, facts: {} } }),
+                /gh refused/,
+            );
+            assert.throws(() => main(["list"], undefined, NOW), /gh refused/);
+            const taken = main(
+                ["taken", "fix/1-a", ".worktrees/a", "1", "--files", "a", "--why", "x"],
+                undefined,
+                NOW,
+                undefined,
+                {
+                    env: { CLAUDE_CODE_SESSION_ID: "s" },
+                },
+            );
+            assert.match(taken.out, /gh refused/);
+        });
+        assert.equal(spawned, false);
+    });
+
+    it("refuses a claims sweep with no runner at all", () => {
+        assert.throws(() => claimsCommand({ fix: true, now: NOW, facts: {} }), /no GraphQL runner/);
     });
 });
 

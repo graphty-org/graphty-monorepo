@@ -52,6 +52,8 @@ import { parseArgs } from "node:util";
 import {
     claimsCommand,
     fetchOpen,
+    gh,
+    ghAllowed,
     guardPaths,
     mainRoot,
     queue,
@@ -1886,6 +1888,7 @@ export function summary(ledger) {
 // GitHub.
 
 function graphql(query) {
+    ghAllowed();
     const out = execFileSync("gh", ["api", "graphql", "-f", `query=${query}`], {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "inherit"],
@@ -2242,7 +2245,7 @@ const readJson = (path) => {
  * (`jobs`, `idle`, `check --fix`) runs it, so no claim outlives its work for want of a prose step. It never refuses:
  * when GitHub or git cannot be read, the line says `claims unknown` and the last state file's claims are used.
  * @param dir the ledger's directory (state.json lives there)
- * @param o `{ now, force }`
+ * @param o `{ now, force, run }`: run is the GraphQL runner (issue-queue gh)
  * @returns `{ line, claims, unknown }`
  */
 export function sweepIfStale(dir, o) {
@@ -2253,7 +2256,7 @@ export function sweepIfStale(dir, o) {
         return { line: `claims: swept ${Math.round(age / 60_000)} min ago`, claims: old.claims ?? [] };
     }
     try {
-        const r = claimsCommand({ fix: true, now: o.now, dir });
+        const r = claimsCommand({ fix: true, now: o.now, dir, run: o.run });
         return { line: r.out.split("\n").at(-1), claims: r.claims };
     } catch (error) {
         const msg = String(error.message).split("\n")[0];
@@ -2576,7 +2579,7 @@ const COMMANDS = {
 const sideEffects = (deps, ledgerPath, now, run) => {
     const dir = dirname(ledgerPath);
     const real = {
-        sweep: (force) => sweepIfStale(dir, { now, force }),
+        sweep: (force) => sweepIfStale(dir, { now, force, run: gh }),
         sinks: () => machineSinks(dir, now),
         sync: () => syncWorkspace(mainRoot(), { now }),
         fetchPrs: () => fetchAgentPrs(run),

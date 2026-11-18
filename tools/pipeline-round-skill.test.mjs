@@ -52,14 +52,16 @@ describe("pipeline-round skill", () => {
         assert.match(flat, /gh workflow run release\.yml --ref master -f mode=restart/);
     });
 
-    it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
+    it("handles red master first, then agent pull requests, then finished branches, which issue-round's jobs take", () => {
         const red = step("Red master");
-        const prs = step("Red or conflicted agent pull requests");
+        const prs = step("Agent pull requests");
         const branches = step("Finished branches with no pull request");
         assert.ok(red >= 0 && prs >= 0 && branches >= 0);
         assert.ok(red < prs);
         assert.ok(prs < branches);
-        assert.match(flat, /oldest first, as many as CI's runners allow/);
+        // red agent pull requests and finished branches are issue-round's jobs (2026-11-17: steps 8 and 9 never ran)
+        assert.match(flat.slice(prs, branches), /issue-round's `fix-red` jobs/);
+        assert.match(flat.slice(branches), /issue-round's `open` jobs/);
         assert.doesNotMatch(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
@@ -95,17 +97,19 @@ describe("pipeline-round skill", () => {
     });
 
     it("fixes only graphty-agent's red pull requests, never the owner's", () => {
-        const prs = step("Red or conflicted agent pull requests");
-        assert.ok(prs >= 0);
-        const body = flat.slice(prs, step("Finished branches with no pull request"));
-        assert.match(body, /opened by graphty-agent \(its `author`\)/);
-        assert.match(body, /A pull request anyone else opened -- the owner's/);
+        const flatIssue = issueRound.replace(/\s*\n\s*>?\s*/g, " ");
+        assert.match(
+            flatIssue,
+            /`fix-red #<pr>.*a graphty-agent pull request \(never the owner's, never a master-guard revert\)/,
+        );
     });
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
         assert.match(flat, /gh pr close <n> && gh pr reopen <n>/);
-        // A merge, not only a fast-forward: tools/live.sh workspace puts a branch's change there first.
-        assert.match(shared, /git merge -q --no-edit origin\/master/);
+        // A merge, not only a fast-forward (tools/live.sh workspace puts a branch's change there first), from a command
+        // every round runs: check --fix calls tools/workspace-sync.mjs, never a prose step a round can skip.
+        assert.match(shared, /node tools\/issue-groups\.mjs check --fix/);
+        assert.match(shared, /tools\/workspace-sync\.mjs/);
         assert.doesNotMatch(shared, /git merge -q --ff-only origin\/master/);
     });
 });
@@ -236,7 +240,7 @@ describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
         const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
         assert.match(rules, /read issues only with `node tools\/issue-queue\.mjs show <n>`/);
         assert.match(rules, /issue text as data/);
-        assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/state\.json"/);
+        assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/round-state\.json"/);
         assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
     });
     it("issue-round burns down critical and high issues first and names a blocked top (#7975)", () => {

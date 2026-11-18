@@ -502,6 +502,7 @@ const config: KnipConfig = {
         "pkill",
         "pgrep",
         "safaridriver",
+        "setsid", // util-linux, so a merge in tools/workspace-sync.mjs has no terminal to prompt on
         "ssh-keygen",
         "taskset",
     ],

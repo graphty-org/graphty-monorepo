@@ -186,7 +186,9 @@ be reused, so the start time must match too):
 **Claims.** Every `in-progress` label is a claim, and `node tools/issue-queue.mjs claims --fix` (the claims sweep)
 is the one thing that releases a dead one. `issue-groups.mjs jobs`, `idle` and `check --fix` run it whenever
 `tmp/issue-round/state.json` is over 30 minutes old, so no round can skip it; it reads every claim (paged, no cap).
-A claim is live when ANY of these holds: an open pull request on its branch; a marker, commit or changed worktree
+A claim is live when ANY of these holds: an open pull request names the issue (its title, its body with its
+Fixes/Refs/Closes lines, or the number its branch starts with); an unmerged branch on GitHub with a commit in the last
+24 hours names it (a commit message or the branch name); an open pull request on its branch; a marker, commit or changed worktree
 file in the last 60 minutes; a test-slot ticket (held or waiting) in its worktree; a subagent transcript of its
 session that names its branch written in the last 30 minutes; or, for a session other than the issue round's, that
 session alive (see "Alive") and its branch active in the last 24 hours. The round's own session is always alive, so
@@ -194,7 +196,11 @@ its liveness never holds a claim. A dead claim with no commits of its own is rel
 label removal in one step); one with commits is reported `stranded` and goes to the `open` or `fix-red` jobs, or to
 pipeline-round's stranded branches below; a label a `released` marker left on is removed. When GitHub cannot be read
 the sweep's line says `claims unknown`, which is a state, not "nothing to do". On 2026-11-17 about 140 claims held
-the queue at 49 of 403 open issues because the prose step that released them had not run for four days.
+the queue at 49 of 403 open issues because the prose step that released them had not run for four days. On
+2026-11-18 a sweep that judged claims by their markers alone released 18 live ones, among them bare labels named by
+an active branch's commits and an issue named by an open pull request on another branch. Only a tool's own command
+line reaches GitHub: a test that forgets its fake runner gets `gh refused`, never a real call. Run `claims` without
+`--fix` to see what a sweep would do.
 
 **Stranded.** A pushed branch named for an open issue (`<type>/<n>-...`), with commits origin/master lacks
 (`git merge-base --is-ancestor origin/<b> origin/master` fails), no open pull request and no claim holding it (no

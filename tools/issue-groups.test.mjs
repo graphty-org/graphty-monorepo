@@ -1870,3 +1870,9 @@ describe("landed branches", () => {
         assert.match(summary(l), /; 1 owner-blocked$/);
     });
 });
+
+describe("tests never reach GitHub", () => {
+    it("refuses the default GraphQL runner, since node was not started with the tool", () => {
+        assert.throws(() => fetchAgentPrs(), /gh refused/);
+    });
+});

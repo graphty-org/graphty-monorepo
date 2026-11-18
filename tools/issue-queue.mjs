@@ -25,7 +25,9 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { liveTickets, slotDir } from "./test-slots.mjs";
+// Optional: tools/pr-review.sh runs a copy of this file alone, extracted from master into a bare temporary directory,
+// so it imports no sibling module statically. Without test-slots.mjs the claims sweep sees no tickets.
+const slots = await import("./test-slots.mjs").catch(() => null);
 
 let rootCache = null;
 
@@ -417,7 +419,20 @@ const SHOW_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   }
 }`;
 
-const ghCli = (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+// Only a command line reaches GitHub: runCli() sets this when node was started with the tool itself, so a test (whose
+// argv[1] is the test runner) that forgets to pass its own runner gets a refusal, never a real gh call. On 2026-11-18
+// a test-time `claims --fix` with the default runner released 18 live claims on GitHub.
+let fromCli = false;
+
+/** Throws unless this process is one of the tools' own command lines (runCli). */
+export function ghAllowed() {
+    if (!fromCli) throw new Error("gh refused: only a tool's command line reaches GitHub; pass a runner");
+}
+
+const ghCli = (args) => {
+    ghAllowed();
+    return execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+};
 
 const readFreeQueue = () => {
     try {
@@ -428,7 +443,14 @@ const readFreeQueue = () => {
     }
 };
 
-function gh(query, vars) {
+/**
+ * The real GraphQL runner, for a tool's command line only (ghAllowed).
+ * @param query GraphQL
+ * @param vars its variables
+ * @returns the response's data
+ */
+export function gh(query, vars = {}) {
+    ghAllowed();
     const args = ["api", "graphql", "-f", `query=${query}`];
     for (const [k, v] of Object.entries(vars)) {
         if (v !== undefined) args.push(typeof v === "number" ? "-F" : "-f", `${k}=${v}`);
@@ -528,12 +550,17 @@ export function claimOf(issue) {
  * session is alive and the branch was active in the last 24 hours. The round's own session is always alive, so its
  * liveness never holds a claim. A dead claim with commits of its own is stranded: never released here.
  * @param c from claimOf()
- * @param f `{ openPrBranches: Set, branchCommitAt(b), worktreeChangedAt(wt), ticketIn(wt), transcriptAt(session, b),
+ * @param f `{ namedBy(n), openPrBranches: Set, branchCommitAt(b), worktreeChangedAt(wt), ticketIn(wt), transcriptAt(session, b),
  *   sessionAlive(session), commitsAhead(b, wt), roundSession }`, times in ms (0 for none)
  * @param now ms
  * @returns `{ live, why, at, stranded, commits }`
  */
 export function judgeClaim(c, f, now) {
+    // Work that names the issue holds it whatever the markers say: on 2026-11-18 #8604-#8606 and #8311 (a bare label,
+    // named by commits on fix/8609-model-dialog-round-5) and #7284 (named by open pull request #8757 on another
+    // branch) were released while live. A label after a `released` marker is checked here too, before it is removed.
+    const named = f.namedBy?.(c.n);
+    if (named) return { live: true, why: named, at: c.at };
     if (c.kind === "released") return { live: false, why: "released, label left on", at: c.at, labelOnly: true };
     const at = Math.max(
         c.at || 0,
@@ -550,6 +577,33 @@ export function judgeClaim(c, f, now) {
         return { live: true, why: "its session is alive", at };
     const commits = c.branch || c.worktree ? f.commitsAhead(c.branch, c.worktree) : 0;
     return { live: false, why: `no activity for ${ago}`, at, stranded: commits > 0, commits };
+}
+
+/**
+ * Which issues open pull requests and recently active branches name, for judgeClaim's namedBy: a pull request names
+ * an issue by `#n` in its title or body (Fixes, Refs and Closes lines included) or by the number its branch starts
+ * with; an unmerged branch by `#n` in one of its own commit messages or by its name.
+ * @param o the open pull requests and the active branches
+ * @param o.prs open pull requests `[{ number, headRefName, title, body }]`
+ * @param o.branches `[{ name, messages }]`, only unmerged branches with a commit in the last 24 h
+ * @returns Map from issue number to the reason it is live
+ */
+export function namedIssues({ prs = [], branches = [] }) {
+    const named = new Map();
+    const add = (n, why) => named.has(n) || named.set(n, why);
+    const refs = (text) => [...(text ?? "").matchAll(/#(\d+)(?!\d)/g)].map((m) => Number(m[1]));
+    const numberOf = (b) => /(?:^|\/)(\d+)(?:-|$)/.exec(b ?? "")?.[1];
+    for (const p of prs) {
+        const why = `open pull request #${p.number} names it`;
+        for (const n of refs(`${p.title}\n${p.body}`)) add(n, why);
+        if (numberOf(p.headRefName)) add(Number(numberOf(p.headRefName)), why);
+    }
+    for (const b of branches) {
+        const why = `branch ${b.name}, active in 24 h, names it`;
+        for (const n of refs(b.messages)) add(n, why);
+        if (numberOf(b.name)) add(Number(numberOf(b.name)), why);
+    }
+    return named;
 }
 
 /**
@@ -647,7 +701,7 @@ const HELD_QUERY = LIST_QUERY.replace(
 );
 const OPEN_PR_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { number headRefName } }
+    pullRequests(states: OPEN, first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { number headRefName title body } }
   }
 }`;
 
@@ -718,7 +772,7 @@ export function machineFacts(root, openPrBranches) {
     const abs = (wt) => resolve(root, wt);
     let cwds = [];
     try {
-        cwds = liveTickets(slotDir()).map((t) => {
+        cwds = (slots?.liveTickets(slots.slotDir()) ?? []).map((t) => {
             try {
                 return readlinkSync(`/proc/${t.pid}/cwd`);
             } catch {
@@ -740,6 +794,23 @@ export function machineFacts(root, openPrBranches) {
     return {
         openPrBranches,
         roundSession,
+        // every unmerged branch on GitHub with a commit in the last 24 h, and its own commit messages
+        recentBranches: (now) =>
+            (
+                git(root, ["for-each-ref", "--format=%(refname:short) %(committerdate:unix)", "refs/remotes/origin"]) ??
+                ""
+            )
+                .split("\n")
+                .map((l) => l.split(" "))
+                .filter(
+                    ([ref, t]) =>
+                        ref?.startsWith("origin/") && ref !== "origin/master" && now - t * 1000 < OTHER_SESSION_MS,
+                )
+                .map(([ref]) => ({
+                    name: ref.slice("origin/".length),
+                    messages: git(root, ["log", "--no-merges", "--format=%B", `origin/master..${ref}`]) ?? "",
+                }))
+                .filter((b) => b.messages),
         branchCommitAt: (b) => Number(git(root, ["log", "-1", "--format=%ct", `origin/${b}`]) ?? 0) * 1000,
         worktreeChangedAt: (wt) => {
             const dir = abs(wt);
@@ -826,14 +897,18 @@ export function stateRecord(claims, now) {
  * @returns `{ code, out, claims }`
  */
 export function claimsCommand(o = {}) {
-    const { fix = false, run = gh, now = Date.now(), root = mainRoot() } = o;
+    const { fix = false, run, now = Date.now(), root = mainRoot() } = o;
+    // no default runner: the caller names GitHub (the command line, sweepIfStale) or a fake (tests)
+    if (typeof run !== "function") throw new Error("claims: no GraphQL runner given");
     const dir = o.dir ?? join(root, "tmp", "issue-round");
     if (!o.facts && git(root, ["fetch", "-q", "--prune", "--no-tags", "origin"]) === null) {
         throw new Error("git fetch failed: claims unknown");
     }
     const issues = fetchLabelled("in-progress", run);
-    const prBranches = new Set(paged(run, OPEN_PR_QUERY, {}, (r) => r.pullRequests).map((p) => p.headRefName));
-    const facts = o.facts ?? machineFacts(root, prBranches);
+    const prs = paged(run, OPEN_PR_QUERY, {}, (r) => r.pullRequests);
+    const machine = o.facts ?? machineFacts(root, new Set(prs.map((p) => p.headRefName)));
+    const named = namedIssues({ prs, branches: machine.recentBranches?.(now) ?? [] });
+    const facts = { ...machine, namedBy: (n) => named.get(n) ?? null };
     const { claims } = sweepClaims(issues, facts, now);
     const by = (a) => claims.filter((c) => c.action === a);
     const lines = [];
@@ -1041,6 +1116,7 @@ export function main(argv, run = gh, now = Date.now(), stdin = () => readFileSyn
  */
 export function runCli(url, name, main) {
     if (url !== pathToFileURL(process.argv[1] ?? "").href) return;
+    fromCli = true;
     try {
         const { code, out } = main(process.argv.slice(2));
         (code === 0 ? console.log : console.error)(out);

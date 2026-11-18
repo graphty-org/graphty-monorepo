@@ -1933,6 +1933,8 @@ class GmlImport {
      */
     private writeNode(plan: ColumnPlan, index: number, v: number): void {
         if (plan.list) {
+            // declared at its first item, so the column keeps its place in the file's key order
+            this.handleOf(plan, "node");
             this.collectItem(plan, v, this.seqNow, this.touched);
             return;
         }
@@ -1947,6 +1949,8 @@ class GmlImport {
      */
     private writeEdge(plan: ColumnPlan, edge: number, v: number): void {
         if (plan.list) {
+            // declared at its first item, so the column keeps its place in the file's key order
+            this.handleOf(plan, "edge");
             this.collectItem(plan, v, this.seqNow, this.touched);
             return;
         }

@@ -75,13 +75,28 @@ describe("Cytoscape.js label boxes", () => {
         expect(evaluateCytoscapeJs(doc({})).node.values.labelLineHeight).toBeUndefined();
     });
 
-    it("notes a circle box, which no neutral box shape draws", () => {
-        const notes = new StyleNotes();
-        evaluateCytoscapeJs({
-            ...doc({ "text-background-opacity": 1, "text-background-shape": "circle" }),
-            notes,
-        });
-        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBackground", 0)).toBe(true);
+    it("reads a box one font size tall a line, its line centered on its edge, and a circle", () => {
+        const dress = {
+            "text-background-opacity": 1,
+            "text-background-color": "yellow",
+            "text-background-shape": "circle",
+            "text-border-width": 2,
+            "text-border-opacity": 1,
+        };
+        const styles = evaluateCytoscapeJs(doc(dress, dress));
+        for (const kind of ["node", "edge"] as const) {
+            const { values } = styles[kind];
+            expect(["labelLineBox", "labelBorderAlign", "labelBackgroundShape"].map((p) => values[p]?.[0])).toEqual([
+                "size",
+                "center",
+                "circle",
+            ]);
+        }
+    });
+
+    it("reads text-metrics glyph as a box its letters' ink tall", () => {
+        const { values } = evaluateCytoscapeJs(doc({ "text-background-opacity": 1, "text-metrics": "glyph" })).node;
+        expect(values.labelLineBox?.[0]).toBe("glyphs");
     });
 });
 

@@ -30,13 +30,16 @@ import { buildLegend } from "../../../src/session/styles/legend";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createScaleRegistry } from "../../../src/session/styles/scales";
 
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = EncodingRun & { readonly label: string };
+
 const scales = createScaleRegistry();
 
 function field(name: string, kind: FieldDescriptor["kind"], type: FieldDescriptor["type"]): FieldDescriptor {
     return { name, plainName: name, technicalName: name, kind, type, path: `results.x.${name}` };
 }
 
-const LOUVAIN: EncodingRun = {
+const LOUVAIN: NamedRun = {
     id: "louvain",
     label: "Communities",
     distinguishedBy: null,
@@ -47,7 +50,7 @@ const LOUVAIN: EncodingRun = {
     fields: [field("group", "node", "integer")],
 };
 
-const EDGE_GROUPS: EncodingRun = {
+const EDGE_GROUPS: NamedRun = {
     id: "edgegroups",
     label: "Edge groups",
     distinguishedBy: null,
@@ -58,7 +61,7 @@ const EDGE_GROUPS: EncodingRun = {
     fields: [field("value", "edge", "string")],
 };
 
-const DEGREE: EncodingRun = {
+const DEGREE: NamedRun = {
     id: "degree",
     label: "Degree",
     distinguishedBy: null,
@@ -69,11 +72,12 @@ const DEGREE: EncodingRun = {
     fields: [field("value", "node", "number")],
 };
 
-const RUNS = [LOUVAIN, EDGE_GROUPS, DEGREE];
+const RUNS: readonly NamedRun[] = [LOUVAIN, EDGE_GROUPS, DEGREE];
 
 const SOURCE: EncodingSource = {
     run: (ref: RunRef) => RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => RUNS.find((entry) => entry.id === id)?.label,
 };
 
 function plan(spec: EncodingSpec): LayerSpec {
@@ -198,13 +202,13 @@ describe('overflow: "other"', () => {
         const blocks = buildLegend({
             layers: () => [compiled],
             encoding: () => [prepareBinding({ channel: "node.color", binding, column: values, scales })],
-            scales,
         });
         const swatches = blocks[0]?.swatches ?? [];
         const last = swatches[swatches.length - 1];
 
         assert.lengthOf(swatches, 9);
-        assert.strictEqual(last?.label, "other: 2 groups");
+        assert.strictEqual(last?.role, "other");
+        assert.lengthOf(last?.value as unknown[], 2);
         assert.strictEqual(last?.color?.toLowerCase(), grey);
     });
 });

@@ -9,8 +9,10 @@ import {
 } from "@graphty/compact-mantine";
 import { channelsFor, LABEL_STYLE_DEFAULTS, labelLook } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
+import { Group, SimpleGrid, Stack, TextInput } from "@mantine/core";
 import React, { useId } from "react";
+
+import { ControlLabel } from "./ControlLabel";
 
 /** A field of the label style as the popover draws it. */
 type Field =
@@ -355,9 +357,9 @@ function FieldGroupView({
             aria-labelledby={caption === undefined ? undefined : id}
         >
             {caption === undefined ? null : (
-                <Text id={id} component="h3" size="xs" fw={600} m={0}>
+                <ControlLabel id={id} component="h3" size="xs" fw={600} m={0}>
                     {caption}
-                </Text>
+                </ControlLabel>
             )}
             {children}
         </Stack>
@@ -700,9 +702,9 @@ function ColorsField({
             aria-label={word}
             data-set={list(value) === undefined ? undefined : ""}
         >
-            <Text size="xs" component="div" aria-hidden>
+            <ControlLabel size="xs" component="div" aria-hidden>
                 {word}
-            </Text>
+            </ControlLabel>
             <GradientEditor
                 // Keyed by the colors, so Undo or another edit redraws the stops.
                 key={shown.join(",")}

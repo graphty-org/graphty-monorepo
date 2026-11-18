@@ -13,20 +13,7 @@ import {
     WIDENING_ORDER,
     wideningRank,
 } from "../../src/columns/infer.js";
-import { GraphFormatError } from "../../src/errors.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 describe("widening order", () => {
     it("is (unset) -> bool -> i32 -> f64 -> string -> json and monotone", () => {

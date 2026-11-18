@@ -1,16 +1,16 @@
 /**
- * @file The GEXF and GraphML readers' old style record keys.
+ * @file The style record keys of the GEXF and GraphML readers.
  *
  * Before file styles, a GEXF node's viz color and size reached the graph as `color` and `size` record
- * keys, and a yEd file's graphics as record keys rebuilt from graph-io's `yfiles.*` columns (with
- * the yFiles shape names mapped to `sphere` or `box`). Those keys are deprecated: a load that draws
+ * keys, and a yEd file's graphics as record keys too. The GEXF keys are deprecated: a load that draws
  * the file's styles (`styles: "file"`) leaves them out, because its layers carry the same values,
- * and a load without (`"none"`, the default) writes them exactly as before. The digests in
- * `old-style-paths.digests.json` were taken from the readers before file styles existed; run with
+ * and a load without (`"none"`, the default) writes them as before. A GraphML file's yFiles look
+ * fields land under their field names (`width`, `color`, `shape` as the file spells it) on a load
+ * without styles, and are left out by one with, as every format's presentation columns are. The
+ * digests in `old-style-paths.digests.json` pin the records a load without styles writes; run with
  * `UPDATE_OLD_STYLE_DIGESTS=1` to rewrite them.
  *
- * The guard: no code in graphty-element reads a style role column (or a `yfiles.*` column) beside
- * the two deprecated readers.
+ * The guard: no code in graphty-element reads a style role column beside the deprecated GEXF reader.
  */
 
 import "../../src/data/index";
@@ -45,8 +45,8 @@ const STYLE_KEYS = {
     },
 } as const;
 
-/** The deprecated readers, the only files that may read a style role column or a `yfiles.*` column. */
-const ALLOWED: readonly string[] = ["data/GEXFDataSource.ts", "data/GraphMLDataSource.ts"];
+/** The deprecated reader, the only file that may read a style role column. */
+const ALLOWED: readonly string[] = ["data/GEXFDataSource.ts"];
 
 /**
  * Every graph file under a directory.
@@ -153,7 +153,7 @@ function drawnColor(session: GraphSession, target: { node: string } | { edge: st
 }
 
 describe('the old style record keys with styles: "none"', () => {
-    it("writes every GEXF and GraphML record exactly as before file styles", async () => {
+    it("writes every GEXF and GraphML record as pinned", async () => {
         const update = process.env.UPDATE_OLD_STYLE_DIGESTS === "1";
         const now: Record<string, string> = {};
         for (const type of ["gexf", "graphml"] as const) {
@@ -293,7 +293,7 @@ describe('the old style record keys with styles: "file"', () => {
 });
 
 describe("the guard against new style paths", () => {
-    it("finds no code beside the two deprecated readers reading a style role column", () => {
+    it("finds no code beside the deprecated GEXF reader reading a style role column", () => {
         assert.deepEqual(outside(roleReadsUnder(SRC), ALLOWED), []);
     });
 

@@ -112,9 +112,11 @@ describe("value popovers", () => {
         await settled(dialog);
         const after = dialog.getBoundingClientRect();
         const grown = after.height - before.height;
-        // It grows down from where it was, or, already on the window's bottom, up by what it grew.
+        // It grows down from where it was, or, already on the window's bottom (less the 6 px a
+        // pop-out keeps off it), up by what it grew.
         const kept = Math.round(after.top) === Math.round(before.top);
-        const pinned = Math.round(after.bottom) === Math.round(window.innerHeight);
+        const pinned =
+            Math.round(after.bottom) === Math.round(before.bottom) && window.innerHeight - after.bottom <= 6.5;
         assert.isTrue(kept || pinned, `top ${String(before.top)} -> ${String(after.top)}`);
         assert.isAtMost(before.top - after.top, grown + 0.5, "never moves more than it grew");
         assert.isAtLeast(after.top, before.top - grown - 0.5);

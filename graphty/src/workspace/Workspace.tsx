@@ -8,6 +8,7 @@ import { flushSync } from "react-dom";
 import { bootSignal } from "../bootSignal";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
+import { ScoreDialog } from "./data-place/ScoreDialog";
 import { ExportDialog } from "./export/ExportDialog";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
@@ -21,7 +22,7 @@ import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
-import { readAuthor } from "./settings/preferences";
+import { readAuthor, readPreference, TIMELINE_STYLE } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
@@ -126,7 +127,9 @@ export function Workspace({
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
         // the style tree starts with Everything, Selected, Pinned and Hovered, Everything holds the
         // base look as values a reader edits, a pinned node wears a thin gray ring (under Selected,
-        // which wins), and a finished run's layer lands on top, where the reader sees it. Set
+        // which wins), a finished run's layer lands on top, where the reader sees it, and the
+        // Timeline Hidden row, added when the timeline first turns on, starts with the reader's
+        // Default timeline style. Set
         // before anything loads, so the rows are there from the first frame.
         // The app's run limits for selection steps (design/ui/selection-groups/spec.md, section 6):
         // a run that follows hover or edits starts under 50 ms; one above a second waits for Run.
@@ -142,7 +145,13 @@ export function Workspace({
         const patch = {
             ...(session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top"
                 ? {}
-                : { startingRows: true, editableBase: true, runPlacement: "top" as const, pinnedStyle: PINNED_LOOK }),
+                : {
+                      startingRows: true,
+                      editableBase: true,
+                      runPlacement: "top" as const,
+                      pinnedStyle: PINNED_LOOK,
+                      timelineHiddenLook: readPreference(TIMELINE_STYLE),
+                  }),
             ...(author === "" || session.config.author === author ? {} : { author }),
         };
         const defaults =
@@ -412,6 +421,7 @@ export function Workspace({
             {projectOpen || checking ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
+            <ScoreDialog />
             <ShaderEditorHost />
             <CustomModelHost />
             <SettingsDialog />

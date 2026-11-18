@@ -10,6 +10,8 @@
  */
 
 import { GpuContext } from "../../src/context.js";
+import { createFruchtermanReingold } from "../../src/layouts/fruchterman-reingold.js";
+import { createSpringElectrical } from "../../src/layouts/spring-electrical.js";
 import { type GpuLayoutTuning } from "../../src/types/layout.js";
 import {
     BASE_OPTIONS,
@@ -19,11 +21,24 @@ import {
     startPositions,
     withSim,
 } from "../helpers/fa2-parity.js";
+import { FR_BASE_OPTIONS } from "../helpers/fr-parity.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
+import { SE_BASE_OPTIONS } from "../helpers/se-parity.js";
 import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
 
 /** The grid tuning of every case. */
 const GRID: GpuLayoutTuning = Object.freeze({ repulsion: "grid", compat: "paper" });
+
+/** Spring-electrical (ngraph) on the grid tier. */
+const SE_GRID = { ...SE_BASE_OPTIONS, dim: 2, repulsion: "grid" } as const;
+/** Fruchterman-Reingold on the grid tier, with a budget past the long run's 101 iterations. */
+const FR_GRID = { ...FR_BASE_OPTIONS, iterations: 1000, repulsion: "grid" } as const;
+/** Every model that builds the RepulsionGrid stage: its name, its options and its grid-tier simulation. */
+const LONG_RUN_MODELS = [
+    ["forceatlas2", BASE_OPTIONS, (ctx: GpuContext) => createSim(ctx, BASE_OPTIONS, GRID)],
+    ["spring-electrical", SE_GRID, (ctx: GpuContext) => createSpringElectrical(ctx, SE_GRID)],
+    ["fruchterman-reingold", FR_GRID, (ctx: GpuContext) => createFruchtermanReingold(ctx, FR_GRID)],
+] as const;
 
 /** One macrotask. */
 function tick(): Promise<void> {
@@ -66,6 +81,38 @@ describe("FA2 grid-tier lifecycle (spec 11.3)", () => {
         expect(counter.destroyed).toBe(counter.created);
         counter.restore();
     });
+
+    it.for(LONG_RUN_MODELS)(
+        "%s: a long run holds the buffers of its first step and no more (issue #8545: the sort's params grew per iteration)",
+        async ([, options, create], t) => {
+            requireGpu(t);
+            const { device } = await acquireRaw();
+            const counter = LeakCounter.wrap(device);
+            const own = GpuContext.from(device);
+            const s = paritySnapshot("rmat14", gpuScale(), false);
+            try {
+                const sim = create(own);
+                sim.load(s, startPositions(s, options, false));
+                await sim.step(1);
+                expect(sim.stats.repulsionTier).toBe("grid");
+                const bytes = own.pool.liveBytes;
+                const buffers = counter.live;
+                for (let i = 0; i < 20; i++) {
+                    await sim.step(5);
+                }
+                expect(sim.iterationsDone).toBe(101);
+                expect(own.pool.liveBytes, "pool bytes after 100 more iterations").toBe(bytes);
+                expect(counter.live, "live buffers after 100 more iterations").toBe(buffers);
+                sim.dispose();
+                expect(own.pool.liveBytes, "dispose() released the lease").toBe(0);
+                own.release(s);
+            } finally {
+                own.dispose();
+            }
+            expect(counter.live, "live buffers after release + dispose").toBe(0);
+            counter.restore();
+        },
+    );
 
     it("release(snapshot) during a live simulation: the next step() rejects E_RELEASED; a load of another snapshot works; snapshots === 1", async (t) => {
         requireGpu(t);

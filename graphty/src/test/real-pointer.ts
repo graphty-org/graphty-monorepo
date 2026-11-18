@@ -88,6 +88,17 @@ export async function dragTo(element: Element, to: { x: number; y: number }): Pr
 }
 
 /**
+ * Moves the mouse onto the middle of an element and leaves it there, as a reader hovers for a
+ * tooltip. `userEvent.hover` waits for the element to be still, which a bar a few pixels wide in a
+ * scaled test frame may never be to its eyes.
+ * @param element - What the pointer rests on.
+ */
+export async function hoverOver(element: Element): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...middleOf(element) });
+}
+
+/**
  * Turns the mouse wheel over the middle of an element, as the reader's wheel does.
  * @param element - What the pointer is over.
  * @param deltaY - How far, in CSS pixels; negative scrolls up.

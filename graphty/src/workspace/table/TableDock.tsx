@@ -11,10 +11,10 @@ import type { DataIssue, GraphSession, IssueId, ScopeInput, SummaryGroup } from 
 import { ActionIcon, Button, Chip, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { runName } from "../runWords";
+import { TABLE_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -38,7 +38,6 @@ import { HeaderIcons, HeaderWarning, RenamePopover } from "./HeaderCell";
 import { HeaderMenu, type HeaderMenuActions } from "./HeaderMenu";
 import { MaximizedPanel } from "./MaximizedPanel";
 import { RecordTable } from "./RecordTable";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** The smallest table drawn, while the dock is being measured. */
 const MIN_TABLE_HEIGHT = 32;
@@ -787,11 +786,11 @@ export function TableDock(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const tab = useWorkspaceState((state) => state.dockTab);
     const maximized = useWorkspaceState((state) => state.dockMaximized);
-    useSessionVersion(session);
+    useSessionEvents(session, TABLE_EVENTS);
     // The reader's Number format respells the counts and the dock's chips.
     useNumberFormats();
     // A filter step changes which records the table lists.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const { ref: bodyRef, height: bodyHeight } = useBoxSize();
     const [renaming, setRenaming] = useState<string | null>(null);
     const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);

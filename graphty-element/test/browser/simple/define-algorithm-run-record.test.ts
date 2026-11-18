@@ -162,8 +162,8 @@ describe("a function that holds the page", () => {
                 code: "defined.long-task",
                 params: { algorithm: "acme-spin", member: "nodes", ms: 200 },
             });
-            // The deprecated English notes and the console word the same fact.
-            assert.include(run.caveats.notes, advice);
+            // The fact is for a reader's application; the console warning is for the author.
+            assert.notInclude(run.caveats.notes, advice);
             assert.include(warned, advice);
         } finally {
             console.warn = original;
@@ -208,9 +208,10 @@ describe("parallel edges and self-loops", () => {
         const run = element.run("acme-count");
         const result = await run;
 
-        assert.isFalse(
-            run.caveats.notes.some((note) => note.includes("merged")),
-            `no merge note; the notes are ${JSON.stringify(run.caveats.notes)}`,
+        assert.notInclude(
+            run.caveats.facts.map((fact) => fact.code),
+            "parallel-edges.merged",
+            "no merge fact",
         );
         assert.strictEqual(result.node("b")?.value, 4, "b touches a-b twice, b-a and c-b");
     });

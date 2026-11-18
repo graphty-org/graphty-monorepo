@@ -222,14 +222,12 @@ describe("the Style tab's property rows", () => {
         }
     });
 
-    it("gives a varied field its second line: a community's chits and the scale it is read on", async () => {
+    it("gives a varied field no second line, and says the scale it is read on in its pill's description", async () => {
         const { session, runs } = await openScene();
         const louvain = await openStyle(runs.louvain);
-        await waitFor(() => {
-            const chits = louvain.querySelectorAll("[data-varied-line] .ws-varied-chit");
-            assert.isAbove(chits.length, 0, "the groups' colors");
-            assert.isAtMost(chits.length, 8, "at most 8, then +N");
-        });
+        // Only the pill: its groups and notes are in its tooltip and description (#8739).
+        await within(louvain).findByRole("button", { name: /^Node color: / });
+        assert.isNull(louvain.querySelector("[data-varied-line]"), "no line under the pill");
 
         const degree = session.styles.list().find((l) => l.name === runs.degree);
         const bound = Object.entries(degree?.encode ?? {}).find(([, b]) => "by" in b);
@@ -240,7 +238,11 @@ describe("the Style tab's property rows", () => {
         });
         await session.styles.settled();
         const tab = await openStyle(runs.degree);
-        await within(tab).findByText("Logarithmic scale", {});
+        await waitFor(() => {
+            const pill = within(tab).getAllByRole("button", { name: /^Node (color|size): / })[0];
+            const described = document.getElementById(pill.getAttribute("aria-describedby") ?? "");
+            assert.include(described?.textContent, "Logarithmic scale");
+        });
     });
 
     it("shows the Which picker on every layer, run or not, and draws no reset 'x' in the fields", async () => {

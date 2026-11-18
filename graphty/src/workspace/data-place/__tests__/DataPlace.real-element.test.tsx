@@ -9,13 +9,12 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
 import { withFeatures } from "../../../test/features";
-import { siteFeatures } from "../../../test/siteFeatures";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
@@ -61,7 +60,7 @@ function drop(...files: File[]): void {
  * section beside the table.
  * @returns the queries.
  */
-const place = (): ReturnType<typeof within> => within(screen.getByRole("region", { name: "Data place" }));
+const place = (): Within => within(screen.getByRole("region", { name: "Data place" }));
 
 /**
  * The Data place's Fields: each load's section, on the Sources tab.
@@ -96,7 +95,7 @@ const shown = (label: string): string =>
     within(fieldsGroup()).getByRole<HTMLInputElement>("combobox", { name: label }).value;
 
 /**
- * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the list that
+ * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the submenu that
  * opens.
  * @param side - node or edge.
  * @param kind - the kind of field, as "+" lists it.
@@ -104,8 +103,9 @@ const shown = (label: string): string =>
  */
 async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
     await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
-    await userEvent.click(await screen.findByRole("option", { name: column }));
+    // No obvious column for these: the kind opens a submenu of its columns.
+    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
 }
 
 /**
@@ -230,9 +230,6 @@ describe("the Data place's sidebar on the real element", () => {
     });
 
     it("draws a node column's Role menu as Fields' one list, the current role checked, with no ends", async () => {
-        // Time is the timeline experiment's role: the list holds it only with the experiment on.
-        await siteFeatures(["timeline"]);
-        onTestFinished(() => siteFeatures([]));
         await openDataPlace();
         // The auth log's ends are not found from its values, so it opens in the table as nodes.
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
@@ -263,10 +260,13 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
-        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        // Two number columns: neither is obvious, so Weight opens a submenu, those first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Weight" }));
+        await screen.findByRole("menuitem", { name: "bytes" });
+        const options = screen.getAllByRole("menuitem").map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
         assert.notInclude(options, "user");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 
@@ -509,21 +509,54 @@ describe("the Data place's sidebar on the real element", () => {
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map((item) => item.textContent),
-            ["File...Ctrl+O", "Samples...", "Network data...", "PasteCtrl+V"],
+            ["File...Ctrl+O", "Samples...", "Generator...", "Network data...", "PasteCtrl+V"],
         );
         for (const item of items) {
             assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has a glyph`);
         }
         assert.equal(items[0]?.getAttribute("aria-keyshortcuts"), "Control+O");
-        assert.equal(items[3]?.getAttribute("aria-keyshortcuts"), "Control+V");
+        assert.equal(items[4]?.getAttribute("aria-keyshortcuts"), "Control+V");
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("adds a generated graph as a source from Sources + > Generator..., with the parameters set", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        assert.lengthOf(session.data.nodes(), 5);
+
+        await userEvent.click(place().getByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Generator..." }));
+        const samples = await screen.findByRole("dialog", { name: "Samples" });
+        // It opens on graph-samples' generators, and only them.
+        assert.deepEqual(
+            within(samples)
+                .getAllByRole("region")
+                .map((section) => section.getAttribute("aria-label")),
+            ["Generated"],
+        );
+        await userEvent.click(within(samples).getByRole("button", { name: "Path" }));
+
+        const path = await screen.findByRole("dialog", { name: "Path" });
+        const count = within(path).getByRole("textbox", { name: "Nodes" });
+        await userEvent.clear(count);
+        await userEvent.type(count, "7");
+        await userEvent.click(within(path).getByRole("button", { name: "Generate" }));
+
+        // A second source beside the log, and its 7 nodes and 6 edges added to the log's 5 and 4.
+        await waitFor(() => {
+            assert.lengthOf(session.data.sources(), 2);
+            assert.lengthOf(session.data.nodes(), 12);
+            assert.lengthOf(session.data.edges(), 10);
+        });
+        const added = session.data.sources()[1]?.name ?? "";
+        assert.isNotNull(await place().findByRole("listitem", { name: added }));
     });
 
     it("renames a source on a double-click or F2, and its menu shows F2 by Rename", async () => {
         const session = await openDataPlace();
         await loadLog(session);
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
-        const main = row.querySelector(".dp-source-main") as HTMLElement | null;
+        const main = row.querySelector<HTMLElement>(".dp-source-main");
         assert.isNotNull(main);
         await userEvent.dblClick(main);
         const input = await screen.findByRole("textbox", { name: "Source name" });
@@ -535,9 +568,7 @@ describe("the Data place's sidebar on the real element", () => {
             assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
         });
 
-        (place().getByRole("listitem", { name: "auth-log.csv" }) as HTMLElement)
-            .querySelector<HTMLElement>(".dp-source-main")
-            ?.focus();
+        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>(".dp-source-main")?.focus();
         await userEvent.keyboard("{F2}");
         const again = await screen.findByRole("textbox", { name: "Source name" });
         await userEvent.clear(again);

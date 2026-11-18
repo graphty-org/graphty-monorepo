@@ -15,9 +15,6 @@ import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
 import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
-// Re-export theme for tests and other modules
-export { theme } from "./theme";
-
 // Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
 // Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
 // site.json (fetched first, before the element) has said how this site labels its errors.
@@ -55,13 +52,30 @@ function logPageStart(): void {
     });
 }
 
+/** Logs every error and promise rejection nothing caught, with its stack, so the remote log shows what broke. */
+function logUncaught(): void {
+    const log = GraphtyLogger.getLogger(["graphty", "workspace"]);
+    globalThis.addEventListener("error", (event) => {
+        log.error("uncaught error", event.error instanceof Error ? event.error : new Error(event.message), {
+            source: event.filename,
+            line: event.lineno,
+            column: event.colno,
+        });
+    });
+    globalThis.addEventListener("unhandledrejection", (event) => {
+        const { reason } = event as PromiseRejectionEvent & { reason: unknown };
+        log.error("unhandled rejection", reason instanceof Error ? reason : new Error(String(reason)));
+    });
+}
+
 // A dev server with the remote logger attached: enough facts to tell afterwards what a page did.
 if (import.meta.env.VITE_REMOTE_LOG_URL) {
     const remoteLogging = GraphtyLogger.configure({
         enabled: true,
         level: LogLevel.INFO,
-        modules: ["autosave", "workspace", "view"],
+        modules: ["autosave", "workspace", "view", "algorithm", "acceleration"],
     });
+    logUncaught();
     void remoteLogging.then(logPageStart); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the logger
 }
 

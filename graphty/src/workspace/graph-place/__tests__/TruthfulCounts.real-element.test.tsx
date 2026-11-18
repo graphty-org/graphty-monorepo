@@ -137,13 +137,17 @@ describe("counts that say only what a layer paints", () => {
             }
         });
 
-        // The folder's Color line shows the one color the drawing shows.
+        // The folder's Color pill names the one color the drawing shows.
         await userEvent.click(folder);
         await waitFor(() => {
-            const chits = [...document.querySelectorAll("[data-varied-line] .ws-varied-chit")].map((chit) =>
-                chit.getAttribute("data-name"),
+            const pill = document.querySelector(
+                '[data-testid="style-tab"] .ws-row[data-line="node.color"] .ws-varied button',
             );
-            assert.deepEqual(chits, [top]);
+            const named = pill?.getAttribute("aria-label") ?? "";
+            assert.include(named, top);
+            for (const group of groups.slice(0, -1)) {
+                assert.notInclude(named, group.name, `${group.name} is painted over`);
+            }
         });
     });
 });

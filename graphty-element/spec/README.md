@@ -454,7 +454,7 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 4. A path reads `data.<column>` or `results.<as>.<field>`: a style section names a run by its name
    (`as`), and so does a layer's `source.runId`. A bare set id names a recipe's set.
 5. A style section MUST NOT name an element or a dataset. A writer MUST leave out, and report
-   (`W_ELEMENT_NAMING_LEFT_OUT`, params `{ section, pointer }`), every layer section 5 rule 5
+   (`W_ELEMENT_NAMING_LEFT_OUT`, params `{ section, pointer }`, the writer's own `layer` id when it has one, and `movedTo: "view"` when the same save writes the view section that carries the layer), every layer section 5 rule 5
    places in view.
 6. **Data built-ins are carried.** Every palette a binding names MUST be in `palettes`; every shader
    a layer, encode key or background names MUST be in `shaders` as `{ "id", "text" }`.
@@ -1002,7 +1002,7 @@ application words them.
 | `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved            | `section`, `version`, `reason`            |
 | `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                | `section`, `extension`                    |
 | `W_SECTION_UPGRADED`          | an older version was migrated on read                                        | `section`, `from`, `to`                   |
-| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`                      |
+| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`, `layer`, `movedTo`  |
 | `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over             | `kind` or `section`, `field` or `pointer` |
 | `W_SOURCE_NO_PATH`            | a file source asked to be referenced was embedded: its `path` is not known   | `source`                                  |
 | `W_SOURCE_UNAVAILABLE`        | a referenced source could not be fetched or picked                           | `source`, `reason`                        |

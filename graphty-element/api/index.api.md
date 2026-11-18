@@ -1045,10 +1045,37 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 export { defineSource }
 
 // @beta
+export const DOCUMENT_SECTIONS: readonly DocumentSection[];
+
+// @beta
+export interface DocumentBindFacts {
+    readonly file: boolean;
+    readonly open: boolean;
+}
+
+// @beta
 export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
 
 // @beta
+export interface DocumentHeldFacts {
+    readonly reads: number | null;
+    readonly reason: DocumentHeldReason;
+    readonly version: number | null;
+}
+
+// @beta
+export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs";
+
+// @beta
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
+// @beta
+export interface DocumentSectionFacts {
+    readonly counts: Readonly<Record<string, number>>;
+    readonly held?: DocumentHeldFacts;
+    readonly name?: string;
+    readonly section: DocumentSection;
+}
 
 // @public
 export interface DrawnShaders {
@@ -7476,8 +7503,12 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
+    // @beta
+    describe(): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
+    // @beta
+    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -7496,8 +7527,45 @@ export interface ProjectAssetChoice {
     readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
+// @beta
+export interface ProjectFileFacts {
+    readonly form: "full" | "section";
+    readonly name: string | null;
+    readonly problems: readonly ProjectProblem[];
+    readonly runs: readonly ProjectFileRun[];
+    readonly sections: readonly ProjectFileSection[];
+    readonly sources: readonly ProjectFileSource[];
+}
+
 // @public
-export function projectFileName(name: string | null | undefined): string;
+export function projectFileName(name: string | null | undefined, options?: {
+    readonly section?: DocumentSection;
+}): string;
+
+// @beta
+export interface ProjectFileRun {
+    readonly algorithm?: string;
+    readonly id: string;
+    readonly name?: string;
+    readonly replayable: boolean;
+    readonly restorable: boolean;
+}
+
+// @beta
+export interface ProjectFileSection extends DocumentSectionFacts {
+    readonly binds?: DocumentBindFacts;
+    readonly version: number | null;
+}
+
+// @beta
+export interface ProjectFileSource {
+    readonly id: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly path?: string;
+    readonly storage: SourceStorage;
+    readonly url?: string;
+}
 
 // @public
 export interface ProjectOpenOptions {
@@ -7528,6 +7596,8 @@ export interface ProjectOpenOptions {
     // @beta
     readonly rerun?: boolean;
     // @beta
+    readonly runs?: Readonly<Record<string, boolean>>;
+    // @beta
     readonly sections?: readonly DocumentSection[];
     // @beta
     readonly signal?: AbortSignal;
@@ -7545,6 +7615,12 @@ export interface ProjectOpenReport {
 
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
+
+// @beta
+export interface ProjectSaveFacts {
+    readonly sections: readonly ProjectSaveSection[];
+    readonly sources: readonly ProjectSourceChoice[];
+}
 
 // @public
 export interface ProjectSaveOptions {
@@ -7573,8 +7649,32 @@ export interface ProjectSaveReport {
     readonly written: readonly string[];
 }
 
+// @beta
+export interface ProjectSaveSection extends DocumentSectionFacts {
+    readonly required: boolean;
+    readonly saved: boolean;
+}
+
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
+
+// @beta
+export interface ProjectSourceChoice {
+    readonly edges: number;
+    readonly format?: string;
+    readonly id: string;
+    readonly key?: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly nodes: number;
+    readonly operations?: number;
+    readonly referable: boolean;
+    readonly refused?: CodedFact<DocumentCode>;
+    readonly storage: SourceStorage;
+}
+
+// @beta
+export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
 export interface ProjectStatus {

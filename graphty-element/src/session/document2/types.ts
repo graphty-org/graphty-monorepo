@@ -20,7 +20,12 @@ import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
  */
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
-/** The sections in the order a full file writes them (spec 1). */
+/**
+ * The sections in the order a full file writes them (spec 1).
+ * @since 3.40.0
+ * @experimental save-files-v2
+ * @beta
+ */
 export const DOCUMENT_SECTIONS: readonly DocumentSection[] = Object.freeze([
     "data",
     "style",

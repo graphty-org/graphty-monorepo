@@ -478,9 +478,10 @@ function palettesFor(
  * The section's header and body from the session as it is now.
  * @param session - The session.
  * @param problems - Where to report the layers left out.
+ * @param toView - Whether the same save writes the view section, which carries those layers.
  * @returns What the codec writes.
  */
-function compose(session: GraphSession, problems: DocumentProblem[]): SectionWrite {
+function compose(session: GraphSession, problems: DocumentProblem[], toView = false): SectionWrite {
     const memory = memoryOf(session);
     const document = withAcceptedAssetIds(session, session.styles.toDocument());
     const ids = session.styles
@@ -518,7 +519,14 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
             placeIds.push(undefined);
             problems.push({
                 code: "W_ELEMENT_NAMING_LEFT_OUT",
-                params: { section: "style", pointer: `/layers/${place}` },
+                // `layer`: the session's layer, so a caller can name what was left out; `movedTo`:
+                // the section of the same save that carries it instead.
+                params: {
+                    section: "style",
+                    pointer: `/layers/${place}`,
+                    layer: id,
+                    ...(toView ? { movedTo: "view" } : {}),
+                },
             });
             return;
         }
@@ -1199,7 +1207,7 @@ export const styleCodec: SectionCodec = {
     bound: false,
     members: ["palettes", "shaders", "layers", "tree", "valueLabels", "assets"],
     write(context: WriteContext) {
-        return Promise.resolve(compose(context.session, context.problems));
+        return Promise.resolve(compose(context.session, context.problems, context.sections.has("view")));
     },
     read,
 };

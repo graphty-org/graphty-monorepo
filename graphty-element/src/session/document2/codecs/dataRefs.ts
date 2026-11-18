@@ -2044,6 +2044,75 @@ export function dataBodyOf(
     return { body, stamp };
 }
 
+/** One source of the open data as a version 2 save would keep it, before the save (`project.describe`). */
+export interface SourceChoiceFacts {
+    readonly id: string;
+    readonly key?: string;
+    readonly name: string;
+    readonly kind: string;
+    readonly format?: string;
+    readonly storage: SourceStorage;
+    readonly referable: boolean;
+    readonly refused?: DocumentProblem;
+    readonly nodes: number;
+    readonly edges: number;
+    readonly operations?: number;
+}
+
+/**
+ * Every source of the open data, the reader source first, with how a save keeps it when not told
+ * (`storage`) and whether asking for a reference would hold: the refusal a save would report, else
+ * none. Asks `storageOf` itself, so the answer is the save's.
+ * @param session - The session.
+ * @param paths - The paths a save would be given, per source id or load key.
+ * @returns The sources.
+ */
+export function sourceChoicesOf(
+    session: GraphSession,
+    paths: Readonly<Record<string, string>> = {},
+): SourceChoiceFacts[] {
+    const model = dataModelOf(session);
+    const memory = memoryOf(session);
+    const out: SourceChoiceFacts[] = [];
+    if (model.reader !== undefined) {
+        out.push({
+            id: READER,
+            name: READER,
+            kind: "reader",
+            storage: "embedded",
+            referable: false,
+            nodes: 0,
+            edges: 0,
+            operations: model.reader.operations.length,
+        });
+    }
+
+    for (const source of model.sources) {
+        const kind = kindOfSource(source, memory);
+        const { load } = source;
+        const neverFetched = model.unavailable.has(source.id) && source.nodes.length + source.edges.length === 0;
+        const problems: DocumentProblem[] = [];
+        const asked =
+            neverFetched || kind === "derived"
+                ? undefined
+                : storageOf(source, model, "referenced", chosenFor(paths, source), problems);
+        out.push({
+            id: source.id,
+            key: load.key,
+            name: load.name ?? load.fileName ?? source.id,
+            kind,
+            ...(load.type === undefined ? {} : { format: load.type }),
+            storage: memory.referenced.has(source.id) || neverFetched ? "referenced" : "embedded",
+            referable: neverFetched || asked === "referenced",
+            ...(problems.length === 0 ? {} : { refused: problems[0] }),
+            nodes: source.nodes.length,
+            edges: source.edges.length,
+        });
+    }
+
+    return out;
+}
+
 /**
  * A column's name (spec 4.1.8 rule 3): the key itself when free, else `<key> (<source id>)`, else
  * that name followed by ` 2`, ` 3`, ... until free.

@@ -100,7 +100,7 @@ function dataIdOf(state: DocumentState): string {
  * @param session - The session.
  * @returns A getter that builds them once.
  */
-function lazyRefs(session: GraphSession): () => ElementRefs {
+export function lazyRefs(session: GraphSession): () => ElementRefs {
     let refs: ElementRefs | undefined;
     return () => {
         refs ??= elementRefsOf(session);
@@ -119,7 +119,7 @@ function lazyRefs(session: GraphSession): () => ElementRefs {
  * @param refs - The element references, built once per save.
  * @returns The context.
  */
-function writeContextOf(
+export function writeContextOf(
     session: GraphSession,
     state: DocumentState,
     sections: ReadonlySet<DocumentSection>,
@@ -220,7 +220,7 @@ async function rememberBaselines(
  * @throws A `GraphtyError` with `E_BAD_COMMAND` for a section file of other than one section, or
  *     a section name that is not one of the seven.
  */
-function sectionsToSave(choices: SaveChoices, state: DocumentState): DocumentSection[] {
+export function sectionsToSave(choices: SaveChoices, state: DocumentState): DocumentSection[] {
     const asked =
         choices.sections ?? DOCUMENT_SECTIONS.filter((name) => name !== "results" || state.hadResults === true);
     const unknown = asked.find((name) => !DOCUMENT_SECTIONS.includes(name));

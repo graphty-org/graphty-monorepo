@@ -81,9 +81,10 @@ import {
     UNKNOWN_PARENT_CODE,
     WIDENED_CODE,
 } from "../../common/codes.js";
+import { scanCxDocument } from "../../common/cx-import.js";
 import { DirectionResolver } from "../../common/direction.js";
-import { IdCoercer } from "../../common/ids.js";
-import { textChunks, throwIfAborted } from "../../common/input.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
+import { throwIfAborted } from "../../common/input.js";
 import {
     type AspectEvent,
     cxId,
@@ -94,13 +95,11 @@ import {
     headText,
     inexactLiteral,
     isRecord,
-    JsonScanError,
     keptPrecision,
     plainJson,
     positionDecl,
     reportSharedBlock,
     reportTooDeep,
-    scanAspects,
     zDecl,
 } from "../../common/json-elements.js";
 import {
@@ -111,6 +110,7 @@ import {
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
+    zAsOption,
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
@@ -125,7 +125,6 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
 import { blockOfAspect, type CxStyleSource, readCxStyles } from "./styles.js";
 
 /** The format name. */
@@ -1159,21 +1158,9 @@ async function readDocument(
         unknownNames: new Set<string>(),
         lastBlock: -1,
     };
-    let sinceCheck = 0;
-    try {
-        for await (const event of scanAspects(textChunks(input, report, options), report)) {
-            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
-                sinceCheck = 0;
-                throwIfAborted(options.signal);
-            }
-            readAspectEvent(scan, event);
-        }
-    } catch (err) {
-        if (err instanceof JsonScanError) {
-            report.fail(err.empty ? EMPTY_INPUT_CODE : SYNTAX_CODE, err.message, { line: err.line });
-        }
-        throw err;
-    }
+    await scanCxDocument(input, report, options, (event) => {
+        readAspectEvent(scan, event);
+    });
     finishDocument(scan);
     return doc;
 }

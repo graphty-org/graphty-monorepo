@@ -1,5 +1,5 @@
 /**
- * The `segmented-reduce` kernel body (spec 6 row 3; contract 4.5) in its three degree tiers (P4-T5, PD-6). Every
+ * The `segmented-reduce` kernel body in its three degree tiers. Every
  * tier folds the VALUE snippet over a row's arcs inside the bound window [P.arcBase, P.arcEnd) and writes out[i]
  * as f32 (a row with no arcs gets the identity element: 0 for sum, F32_MAX for min, -F32_MAX for max); the row is
  * `perm[row]` under USE_PERM and `row` otherwise, over the rows [P.start, P.end) of the dispatch. TIER 0 is one row
@@ -64,7 +64,7 @@ fn row_fold_dense(i: u32) -> f32 {                              // TIER 0's stri
     return acc;
 }
 fn finish(i: u32, acc: f32) { out[i] = select(acc, comb(out[i], acc), P.accumulate == 1u); }
-fn tier0(wid: vec3<u32>, lane: u32) {                            // TIER 0: one row per thread over [P.start, P.end); no barrier, so the early return is legal (3.5 rule 1)
+fn tier0(wid: vec3<u32>, lane: u32) {                            // TIER 0: one row per thread over [P.start, P.end); no barrier, so the early return is legal
     let row = linear_id(wid, lane) + P.start;
     if (row >= P.end) { return; }
     let i = row_node(row);
@@ -73,7 +73,7 @@ fn tier0(wid: vec3<u32>, lane: u32) {                            // TIER 0: one 
 
 var<workgroup> sh: array<f32, WG>;
 
-fn tiered(wid: vec3<u32>, lid: u32) {                            // TIER 1: 32 lanes per row, WG / 32 rows per workgroup; TIER 2: WG lanes per row (PD-6)
+fn tiered(wid: vec3<u32>, lid: u32) {                            // TIER 1: 32 lanes per row, WG / 32 rows per workgroup; TIER 2: WG lanes per row
     let g = group_id(wid);
     var row = P.start + g;
     var lane = lid;

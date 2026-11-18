@@ -22,7 +22,7 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { findNodes } from "../references";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -119,206 +119,7 @@ function row(id: string): HTMLElement {
     return found;
 }
 
-/**
- * Where every row of the outline sits.
- * @returns "id@top" per row.
- */
-function rowTops(): string[] {
-    return [...document.querySelectorAll<HTMLElement>(".sel-ws .sel-outline [data-row]")].map(
-        (each) => `${each.dataset.row ?? ""}@${String(Math.round(each.getBoundingClientRect().top))}`,
-    );
-}
-
 const DEGREE_6_TO_10: RuleTree = { kind: "range", attribute: "graphty.degree", min: 6, max: 10 };
-
-/** Two groups: A, degree 6 to 10 from All; B, Valjean alone. */
-const TWO_GROUPS: UnionLeaf = {
-    kind: "union",
-    side: "nodes",
-    within: "visible",
-    branches: [
-        { id: "a", start: "all", steps: [{ id: "deg", op: "keep", rule: DEGREE_6_TO_10 }] },
-        { id: "b", start: "none", steps: [{ id: "iso", op: "add", rule: { kind: "isolated" } }] },
-    ],
-};
-
-describe("the outline holds only recipe rows", () => {
-    it("selecting the title, a group or a step moves no row; And... and Or... are in the pane", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await openWs();
-        await userEvent.click(row("title").querySelector(".sel-title") ?? row("title"));
-        await waitFor(() => {
-            assert.isNotNull(document.querySelector(".sel-pane-box"));
-        });
-        const before = rowTops();
-        for (const id of ["a", "deg", "b", "iso", "title"]) {
-            // The row itself: a group's letter is also every matching table row's Group cell, so a
-            // click found by the letter alone is ambiguous once the group holds nodes.
-            await userEvent.click(row(id));
-            await waitFor(() => {
-                assert.equal(row(id).getAttribute("aria-selected"), "true");
-            });
-            assert.deepEqual(rowTops(), before, `selecting ${id}`);
-            const pane = document.querySelector<HTMLElement>(".sel-pane-box") ?? document.body;
-            assert.isNotNull(within(pane).queryByRole("button", { name: "Or..." }), `Or... in ${id}'s pane`);
-        }
-        assert.isNull(screen.queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ }));
-    });
-
-    it("the title pane has no bare Select: Select N is in its '...', with Group colors", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await openWs();
-        await userEvent.click(row("title").querySelector(".sel-title") ?? row("title"));
-        // The workspace opens on a step's pane (ws-polish 2); the title row selects the title pane.
-        await userEvent.click(
-            await waitFor(() => {
-                const found = document.querySelector<HTMLElement>('.sel-ws-outline [data-row="title"]');
-                assert.isNotNull(found);
-                return found ?? document.body;
-            }),
-        );
-        const pane = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>(".sel-pane-box");
-            assert.isNotNull(found);
-            return found;
-        });
-        if (pane === null) {
-            return;
-        }
-        assert.isNull(within(pane).queryByRole("button", { name: /^Select/ }), "no Select button");
-        assert.isNull(within(pane).queryByRole("button", { name: "Group colors" }), "no unlabeled palette");
-        await userEvent.click(within(pane).getByRole("button", { name: /^More for / }));
-        await screen.findByRole("menuitem", { name: /^Select \d+/ });
-        // Group colors is the header's segment, never repeated in the title menu.
-        assert.isNull(screen.queryByRole("menuitem", { name: /group colors/ }));
-    });
-
-    it("a group whose start empties it says Passes none on its row", async () => {
-        const session = await lesMis();
-        const emptied: UnionLeaf = {
-            ...TWO_GROUPS,
-            branches: [
-                TWO_GROUPS.branches[0],
-                { id: "b", start: "none", steps: [{ id: "deg2", op: "keep", rule: DEGREE_6_TO_10 }] },
-            ],
-        };
-        await openLayer(session, "Emptied", { match: "rule", where: emptied });
-        await openWs();
-        await waitFor(() => {
-            assert.match(row("b").getAttribute("aria-label") ?? "", /passes none/);
-        });
-        assert.include(row("b").textContent ?? "", "Passes none");
-    });
-});
-
-describe("a condition is said once", () => {
-    it("All nodes and Keep are not drawn for a group's first Keep; groups after the first read 'or'", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await openWs();
-        assert.isNull(screen.queryByRole("treeitem", { name: "All nodes" }), "no All nodes row");
-        assert.equal(row("deg").querySelector(".sel-verb")?.textContent, "", "no Keep on the first step");
-        assert.equal(row("iso").querySelector(".sel-verb")?.textContent, "", "no Add on a None group's first");
-        assert.equal(row("a").querySelector(".sel-verb")?.textContent, "");
-        assert.equal(row("b").querySelector(".sel-verb")?.textContent, "or");
-    });
-
-    it("a first Except keeps All nodes and its verb", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Except", {
-            match: "rule",
-            where: {
-                kind: "union",
-                side: "nodes",
-                within: "visible",
-                branches: [{ id: "a", start: "all", steps: [{ id: "deg", op: "except", rule: DEGREE_6_TO_10 }] }],
-            },
-        });
-        await openWs();
-        assert.isNotNull(screen.queryByRole("treeitem", { name: "All nodes" }));
-        assert.equal(row("deg").querySelector(".sel-verb")?.textContent, "Except");
-    });
-
-    it("a lone verb is no segment, and the step pane draws its count so far", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await openWs();
-        await userEvent.click(row("iso").querySelector(".sel-value") ?? row("iso"));
-        const pane = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>('[data-step-pane="iso"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.isNull(screen.queryByRole("radiogroup", { name: "Verb" }), "Add alone is said, not a segment");
-        await waitFor(() => {
-            assert.match(pane?.textContent ?? "", /\d+ so far/);
-        });
-    });
-
-    it("a selected row keeps its state word, as the sidebar's does (ws-polish 2)", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Untested", {
-            match: "rule",
-            where: {
-                kind: "union",
-                side: "nodes",
-                within: "visible",
-                branches: [
-                    {
-                        id: "a",
-                        start: "all",
-                        steps: [{ id: "deg", op: "keep", rule: { kind: "range", attribute: "graphty.degree" } }],
-                    },
-                ],
-            },
-        });
-        // Untested, the step is its value alone: no state word (ws-polish 3).
-        await openWs();
-        await waitFor(() => {
-            assert.include(row("deg").textContent ?? "", "Degree");
-            assert.isNull(row("deg").querySelector(".sel-state"));
-        });
-        await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
-        await waitFor(() => {
-            assert.strictEqual(row("deg").getAttribute("aria-selected"), "true");
-            assert.isNull(row("deg").querySelector(".sel-state"));
-        });
-    });
-});
-
-describe("a relative condition is never cut", () => {
-    it("While with no reference reads its whole value with no test column; Within 2 hops of is whole", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Relative", {
-            match: "rule",
-            where: {
-                kind: "union",
-                side: "nodes",
-                within: "visible",
-                branches: [
-                    {
-                        id: "a",
-                        start: "all",
-                        steps: [
-                            { id: "while", op: "keep", rule: { kind: "nonempty" } },
-                            { id: "near", op: "keep", rule: { kind: "hops", max: 2 } },
-                        ],
-                    },
-                ],
-            },
-        });
-        await openWs();
-        const whileValue = row("while").querySelector<HTMLElement>(".sel-value");
-        assert.equal(whileValue?.textContent, "While ... has nodes");
-        assert.isNull(row("while").querySelector(".sel-test"), "no test column");
-        for (const id of ["while", "near"]) {
-            const value = row(id).querySelector<HTMLElement>(".sel-value");
-            assert.isAtMost(value?.scrollWidth ?? 0, value?.clientWidth ?? 0, `${id}'s value is whole`);
-        }
-    });
-});
 
 describe("the reference search on a large graph", () => {
     it("lists a node whose id is exactly the text first, however little it is connected", async () => {
@@ -339,14 +140,6 @@ describe("the reference search on a large graph", () => {
 });
 
 describe("filter cards", () => {
-    it("a card that removes is named with its verb", async () => {
-        const session = await lesMis("data");
-        await session.visibility.addCondition({ id: "deg", effect: "exclude", rule: DEGREE_6_TO_10 });
-        const list = await screen.findByRole("list", { name: "Filters" });
-        const card = await within(list).findByRole("group", { name: /^Except / });
-        assert.match(card.getAttribute("aria-label") ?? "", /^Except Degree 6 to 10/);
-    });
-
     it("a saved Select card reads in its own words and counts what stays: all of it", async () => {
         const session = await lesMis("data");
         await session.visibility.addCondition({ id: "sel", effect: "select", rule: DEGREE_6_TO_10 });
@@ -355,35 +148,6 @@ describe("filter cards", () => {
         await waitFor(() => {
             assert.include(card.textContent ?? "", "77 of 77");
         });
-    });
-
-    it("a collapsed card is the open card's type size, opens from anywhere on its row, and focuses its title", async () => {
-        const session = await lesMis("data");
-        await session.visibility.addCondition({ id: "a", effect: "keep", rule: DEGREE_6_TO_10 });
-        await session.visibility.addCondition({ id: "b", effect: "keep", rule: { kind: "isolated" } });
-        const list = await screen.findByRole("list", { name: "Filters" });
-        const card = await within(list).findByRole("group", { name: /^Degree 6 to 10/ });
-        const name = card.querySelector<HTMLElement>(".dp-filter-title");
-        const size = name === null ? "" : getComputedStyle(name).fontSize;
-        const count = card.querySelector<HTMLElement>(".dp-filter-name .sel-count");
-        if (count === null) {
-            throw new Error("the collapsed card draws its count");
-        }
-        await userEvent.click(count);
-        const title = await within(card).findByRole("treeitem", { name: /^Degree 6 to 10, / });
-        assert.equal(getComputedStyle(title.querySelector(".sel-title") ?? title).fontSize, size, "same type size");
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, title, "focus is on the card's title row");
-        });
-        const conditions = session.visibility.conditions.length;
-        await userEvent.keyboard(" ");
-        await waitFor(() => {
-            assert.isFalse(
-                session.visibility.conditions.find((each) => each.id === "a")?.on ?? true,
-                "Space turned it off",
-            );
-        });
-        assert.lengthOf(session.visibility.conditions, conditions, "no card was added");
     });
 });
 
@@ -446,40 +210,7 @@ describe("a narrowing step's checklist", () => {
     });
 });
 
-describe("moving between filter cards", () => {
-    it("with one card's workspace open, a click on another card's row switches it to that card", async () => {
-        const session = await lesMis("data");
-        await session.visibility.addCondition({ id: "a", effect: "keep", rule: DEGREE_6_TO_10 });
-        await session.visibility.addCondition({ id: "b", effect: "keep", rule: { kind: "isolated" } });
-        const list = await screen.findByRole("list", { name: "Filters" });
-        const upper = await within(list).findByRole("group", { name: /^Degree 6 to 10/ });
-        await userEvent.click(upper.querySelector(".dp-filter-title") ?? upper);
-        const title = await within(upper).findByRole("treeitem", { name: /^Degree 6 to 10, / });
-        await userEvent.click(title.querySelector(".sel-title") ?? title);
-        await screen.findByRole("region", { name: "Degree 6 to 10 -- Filters" });
-        const lower = await within(list).findByRole("group", { name: /^Isolated/ });
-        // While a card's workspace is open the other cards drop their counts (ws-polish 2): its name.
-        const name = lower.querySelector<HTMLElement>(".dp-filter-title");
-        if (name === null) {
-            throw new Error("the lower card draws its name");
-        }
-        await userEvent.click(name);
-        await within(lower).findByRole("treeitem", { name: /^Isolated, / });
-        await screen.findByRole("region", { name: "Isolated -- Filters" });
-    });
-});
-
 describe("keys and boxes in the panes", () => {
-    it("F2 on a step row never opens the project's rename", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await openWs();
-        row("deg").focus();
-        await userEvent.keyboard("{F2}");
-        assert.notEqual(document.activeElement?.getAttribute("aria-label"), "Project name");
-        assert.strictEqual(document.activeElement, row("deg"));
-    });
-
     it("leaving the text box by Tab commits its text", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Named", { match: "everything" });
@@ -498,47 +229,5 @@ describe("keys and boxes in the panes", () => {
             const step = unionOf(session, layer.id)?.branches[0]?.steps[0];
             assert.include(JSON.stringify(step?.rule ?? {}), "Val");
         });
-    });
-
-    it("every pane control is the default size: the verb segment's labels and the rows read alike", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Busy", {
-            match: "rule",
-            where: {
-                kind: "union",
-                side: "nodes",
-                within: "visible",
-                branches: [
-                    {
-                        id: "a",
-                        start: "all",
-                        steps: [
-                            { id: "deg", op: "keep", rule: DEGREE_6_TO_10 },
-                            { id: "iso", op: "keep", rule: { kind: "isolated" } },
-                        ],
-                    },
-                ],
-            },
-        });
-        await openWs();
-        await userEvent.click(row("iso").querySelector(".sel-value") ?? row("iso"));
-        // A narrowing step's one verb control is its Except switch (ws-polish 2).
-        const label = (await screen.findByRole("switch", { name: /^Except/ })).closest("label") ?? document.body;
-        const rowText = row("deg").querySelector<HTMLElement>(".sel-value");
-        assert.equal(getComputedStyle(label).fontSize, rowText === null ? "" : getComputedStyle(rowText).fontSize);
-        // The value field is the compact Select's trigger: as tall as the pane's Select beside it.
-        await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
-        const pane = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>('[data-step-pane="deg"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        const value = within(pane).getByRole("button", { name: /^Value: / });
-        const select = pane.querySelector<HTMLElement>(".mantine-Select-input");
-        assert.isNotNull(select, "the pane's By value Select");
-        assert.strictEqual(
-            Math.round(value.getBoundingClientRect().height),
-            Math.round(select?.getBoundingClientRect().height ?? 0),
-        );
     });
 });

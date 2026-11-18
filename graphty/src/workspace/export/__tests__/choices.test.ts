@@ -53,7 +53,6 @@ describe("the Export dialog's choices", () => {
         const result: ExportResult = {
             format: "csv",
             losses: [],
-            lossNotes: [],
             text: () => {
                 whole++;
                 return Promise.reject(new Error("read the whole file"));

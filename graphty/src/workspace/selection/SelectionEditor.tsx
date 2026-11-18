@@ -740,7 +740,7 @@ export function SelectionEditor({
             const rows = [...root.querySelectorAll<HTMLElement>(ROW)];
             target = rows[Math.min(want, rows.length - 1)];
         } else if (want === PANE_FOCUS) {
-            target = paneTarget(root);
+            target = paneTarget(root, selected);
         } else {
             target = (typeof want === "string" ? [want] : want)
                 .map((each) => root.querySelector<HTMLElement>(each))
@@ -768,7 +768,7 @@ export function SelectionEditor({
         reading.branches.find((branch) => branch.id === id);
 
     const focusPane = (): boolean => {
-        const target = paneTarget(wsBox.current);
+        const target = paneTarget(wsBox.current, selected);
         if (target === undefined) {
             return false;
         }
@@ -1345,7 +1345,7 @@ export function SelectionEditor({
                     const branchId = branch.id ?? "";
                     const newOp = adding?.op ?? newVerb(branch);
                     return (
-                        <div // NOSONAR(S6819): a tree's subtree is an ARIA group of treeitems; a fieldset is not one
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a tree's subtree is an ARIA group of treeitems; a fieldset is not one
                             key={branch.id}
                             role="group"
                             className="sel-group"
@@ -1358,7 +1358,7 @@ export function SelectionEditor({
                                     disabled={!ws || !previewing || underOf(at).length === 0}
                                     openDelay={500}
                                 >
-                                    <div // NOSONAR(S6848): a treeitem; rowProps gives its role, tab stop and keys
+                                    <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- a treeitem; rowProps gives its role, tab stop and keys
                                         {...rowProps(
                                             branchId,
                                             branchId,
@@ -1449,7 +1449,7 @@ export function SelectionEditor({
                             )}
                             {/* Hidden while a step is added to the group: the new step's row says what it starts from. */}
                             {allRow(branch) && !(ws && adding?.branch === branch.id) && (
-                                <div // NOSONAR(S6848): a pointer shortcut; its group's own row above is the keyboard stop
+                                <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- a pointer shortcut; its group's own row above is the keyboard stop
                                     {...(multi
                                         ? { "data-selects": branchId, className: "sel-row sel-all-row" }
                                         : {
@@ -1723,8 +1723,6 @@ export function SelectionEditor({
                     host={host}
                     of={of}
                     first={index === 0}
-                    last={index === branch.steps.length - 1}
-                    total={reading.total.count}
                     hostPicks={hostPicks}
                     adds={
                         natural ? undefined : (
@@ -1733,7 +1731,6 @@ export function SelectionEditor({
                             </Text>
                         )
                     }
-                    cards
                     done={
                         index === 0 ? undefined : (
                             <TargetTooltip label="Remove">
@@ -1753,18 +1750,6 @@ export function SelectionEditor({
                     onStep={(patch) => {
                         lastEdited.current = id;
                         onChange(editStep(rule, branchId, id, patch));
-                    }}
-                    onMove={(by) => {
-                        moveStepBy(branch, id, by);
-                    }}
-                    onToggle={() => {
-                        toggle(branch, id);
-                    }}
-                    onDuplicate={() => {
-                        duplicate(branch, id);
-                    }}
-                    onRemove={() => {
-                        removeStepAt(branch, id);
                     }}
                 />
             </div>
@@ -2291,7 +2276,7 @@ export function SelectionEditor({
                   <PopoutManager>
                       <DrawnSwatches.Provider value={!colors}>
                           <div className="sel-ws-scrim" aria-hidden />
-                          <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
+                          <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches keys and presses bubbling from its own controls
                               ref={wsBox}
                               role="dialog"
                               aria-modal="true"
@@ -2407,7 +2392,6 @@ export function SelectionEditor({
                                               rule={reading.rule}
                                               title={name}
                                               branch={stripBranch}
-                                              modal
                                           />
                                       )}
                                   </div>
@@ -2428,14 +2412,16 @@ export function SelectionEditor({
 }
 
 /**
- * The control focus goes to in the workspace's pane: the first of {@link PANE_FOCUS} that can take
- * focus (a box inside a collapsed Advanced cannot).
+ * The control focus goes to in the selected step's card: the first of {@link PANE_FOCUS} that can
+ * take focus.
  * @param root - the workspace.
+ * @param step - the selected step, whose card is searched; with none, the first card that has one.
  * @returns the control, or undefined when none can take focus.
  */
-function paneTarget(root: HTMLElement | null): HTMLElement | undefined {
+function paneTarget(root: HTMLElement | null, step: string | null): HTMLElement | undefined {
+    const card = step === null ? "" : `[data-step-pane="${CSS.escape(step)}"] `;
     for (const selector of PANE_FOCUS) {
-        const found = [...(root?.querySelectorAll<HTMLElement>(selector) ?? [])].find(
+        const found = [...(root?.querySelectorAll<HTMLElement>(card + selector) ?? [])].find(
             (each) => canFocus(each) && each.tabIndex >= 0,
         );
         if (found !== undefined) {
@@ -2479,12 +2465,12 @@ const TEST_FOCUS: readonly string[] = [
     ".sel-ws-cards .sel-test-box input:not([type=hidden])",
 ];
 
-/** Where focus goes in a pane that was entered: its first box to type in, else its first control. */
+/** Where focus goes in a step's card that was entered: its test's first box to type in, else its first control. */
 const PANE_FOCUS: readonly string[] = [
-    ".sel-pane-box [data-first-focus]",
-    ".sel-pane-box input:not([type=hidden], [type=checkbox], [type=radio], [readonly])",
-    ".sel-pane-box input:not([type=hidden])",
-    ".sel-pane-box button",
+    ".sel-test-box [data-first-focus]",
+    ".sel-test-box input:not([type=hidden], [type=checkbox], [type=radio], [readonly])",
+    ".sel-test-box input:not([type=hidden])",
+    ".sel-test-box button",
 ];
 
 /**

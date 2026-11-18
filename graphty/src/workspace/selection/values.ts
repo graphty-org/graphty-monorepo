@@ -59,7 +59,8 @@ export const STATE_WORDS: Readonly<Record<ElementState, string>> = {
     selected: "Selected",
     hovered: "Hovered",
     pinned: "Pinned",
-    ghosted: "Outside the time window",
+    ghosted: "Held out by the condition being edited",
+    outsideWindow: "Outside the time window",
 };
 
 /** The hosts a selection is edited in: a style layer's selector, or an import filter card. */
@@ -397,7 +398,8 @@ export function pickSections(
                   item("self-loop", "Self-loops", GLYPHS.edge, { kind: "self-loop" }),
                   item("repeated", "Repeated edges", GLYPHS.edge, { kind: "repeated-edge" }),
               ];
-    const directed = session.data.statistics().directedness === "directed";
+    // Some edge has a direction to follow: a directed graph, or one mixing both kinds.
+    const directed = session.data.statistics().directedness !== "undirected";
     const relative =
         side === "node"
             ? [
@@ -448,7 +450,7 @@ function stateItems(
     item: (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree) => ExtraItem,
 ): ExtraItem[] {
     const states: readonly ElementState[] =
-        side === "node" ? ["selected", "hovered", "pinned", "ghosted"] : ["selected", "ghosted"];
+        side === "node" ? ["selected", "hovered", "pinned", "outsideWindow"] : ["selected", "outsideWindow"];
     return states.map((state) => item(state, STATE_WORDS[state], GLYPHS.selection, { kind: "state", state }));
 }
 

@@ -16,6 +16,7 @@ used_by_workflows:
     - W10
     - W11
     - W17
+    - W23
 implemented_by_components:
     - algorithm-card
     - algorithm-panel

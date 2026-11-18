@@ -913,7 +913,7 @@ threshold so screenshots and label animations proceed (section 4.3).
 
 ## Sources
 
-Monorepo (read-only), all under `/home/apowers/Projects/graphty-monorepo/`:
+Monorepo (read-only), all relative to the monorepo root:
 
 - `layout/src/layouts/force-directed/forceatlas2.ts` (448 lines),
   `fruchterman-reingold.ts` (163), `spring.ts` (34), `arf.ts` (132),
@@ -949,7 +949,7 @@ Monorepo (read-only), all under `/home/apowers/Projects/graphty-monorepo/`:
   `04-graphty-element-usage.md` (sections 4.2-6), `09-webgpu-requirements.md`
   (sections 0 and 3)
 
-Staged packages under `/home/apowers/Projects/webgpu-graph-algorithms/`:
+Staged packages under `<staging>/`:
 
 - `packages/graph-format/src/types/columns.ts` (lines 700-730: `NodeMask`),
   `src/types/snapshot.ts` (lines 380-640: `GraphSnapshotContract`),

@@ -207,7 +207,7 @@ export function ModelsPopover({
                         }}
                     >
                         <SectionHeading>Samples</SectionHeading>
-                        <div // NOSONAR(S6819): an ARIA group naming a grid of tile buttons; a fieldset would draw its own border and legend
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a grid of tile buttons; a fieldset would draw its own border and legend
                             className="ws-gallery-grid"
                             role="group"
                             aria-label="Samples"
@@ -235,7 +235,7 @@ export function ModelsPopover({
                         {own.length === 0 ? null : (
                             <>
                                 <SectionHeading>In this project</SectionHeading>
-                                <div // NOSONAR(S6819): an ARIA group naming a grid of tile buttons; a fieldset would draw its own border and legend
+                                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a grid of tile buttons; a fieldset would draw its own border and legend
                                     className="ws-gallery-grid"
                                     role="group"
                                     aria-label="In this project"

@@ -1,5 +1,9 @@
 # Feature Design: Run Algorithm Modal
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 - **User Value**: Enables users to run graph algorithms directly from the UI without code, visualizing results like centrality, communities, and shortest paths through automatically applied styles

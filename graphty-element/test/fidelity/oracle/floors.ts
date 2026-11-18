@@ -506,7 +506,7 @@ export function ratchetDrops(
         out[gate.key] = row;
     }
     const left = Object.fromEntries(Object.entries(out).filter(([, row]) => Object.keys(row).length > 0));
-    return { drops: sortedKeys(left), removed, added, unaccepted };
+    return { drops: sortedByKey(left), removed, added, unaccepted };
 }
 
 /**
@@ -569,7 +569,7 @@ export function ratchetKnown(
         }
     }
     const reasons = added > 0 ? [...records.reasons, record] : records.reasons;
-    return { records: { about: records.about, known: sortedKeys(known), reasons }, removed, added, unlisted };
+    return { records: { about: records.about, known: sortedByKey(known), reasons }, removed, added, unlisted };
 }
 
 /**
@@ -592,31 +592,67 @@ export function raiseFloors(table: Floors, key: string, scores: Readonly<Record<
     return raised;
 }
 
-const sortedKeys = <T>(o: Record<string, T>): Record<string, T> =>
-    Object.fromEntries(
-        Object.keys(o)
-            .sort()
-            .map((k) => [k, o[k]]),
+/** Orders two keys by UTF-16 code units, the same on every machine and locale. */
+const byKey = (a: string, b: string): number => (a < b ? -1 : Number(a > b));
+
+/**
+ * A record's entries sorted by key. Every writer of the fidelity record files keeps their entries in this order, so
+ * two branches that add different entries insert them in different places and git merges them without a conflict
+ * (#8729).
+ * @param o - the entries
+ * @returns the same entries, sorted by key
+ */
+const sortedByKey = <T>(o: Readonly<Record<string, T>>): Record<string, T> =>
+    Object.fromEntries(Object.entries(o).sort(([a], [b]) => byKey(a, b)));
+
+/**
+ * The reasons in the order the files keep them: by the reason's text (which names its issue first), then by date, so
+ * two branches adding reasons for different issues insert them in different places rather than both at the end.
+ * @param reasons - the reasons
+ * @returns them sorted
+ */
+const sortedReasons = (reasons: readonly KnownReason[]): KnownReason[] =>
+    [...reasons].sort(
+        (a, b) => byKey(a.reason, b.reason) || byKey(a.date, b.date) || byKey(JSON.stringify(a), JSON.stringify(b)),
     );
+
+/**
+ * A floors file (oracle-floors.json, requested-floors.json, drawn-floors.json) as text, the entries of each of its
+ * sections (`floors`, `lowered`, `drops`, `allowedDrops`, ...) sorted by key.
+ * @param file - the file's contents
+ * @returns the file's text
+ */
+export function floorsFileText(file: object): string {
+    const sorted = Object.fromEntries(
+        Object.entries(file).map(([k, v]: [string, unknown]) => [
+            k,
+            typeof v === "object" && v !== null && !Array.isArray(v) ? sortedByKey(v as Record<string, unknown>) : v,
+        ]),
+    );
+    return `${JSON.stringify(sorted, null, 4)}\n`;
+}
 
 /**
  * The known failures as text: one line per key and property, and one per reason, so a diff shows which elements a fix
  * took off the list and why any were added. Prettier leaves the files alone (`.prettierignore`): it would spread the
- * lists over a line per element id.
+ * lists over a line per element id. Keys, floors and reasons are written sorted (`sortedByKey`, by reason text), so
+ * concurrent additions merge cleanly.
  * @param records - the known failures
  * @param floors - recorded pass rates to keep in the same file, before the known failures (the drawn-scene scorecard's)
  * @returns the file's text
  */
 export function knownText(records: KnownRecords, floors?: Floors): string {
-    const lines = Object.entries(records.known).map(
+    const lines = Object.entries(sortedByKey(records.known)).map(
         ([key, props]) =>
             `        ${JSON.stringify(key)}: {\n${Object.entries(props)
                 .map(([p, ids]) => `            ${JSON.stringify(p)}: ${JSON.stringify(ids)}`)
                 .join(",\n")}\n        }`,
     );
-    const reasons = records.reasons.map((r) => `        ${JSON.stringify(r)}`);
+    const reasons = sortedReasons(records.reasons).map((r) => `        ${JSON.stringify(r)}`);
     const floorsText =
-        floors === undefined ? "" : `    "floors": ${JSON.stringify(floors, null, 4).replaceAll("\n", "\n    ")},\n`;
+        floors === undefined
+            ? ""
+            : `    "floors": ${JSON.stringify(sortedByKey(floors), null, 4).replaceAll("\n", "\n    ")},\n`;
     return `{\n    "about": ${JSON.stringify(records.about)},\n${floorsText}    "known": {${lines.length === 0 ? "" : `\n${lines.join(",\n")}\n    `}},\n    "reasons": [${reasons.length === 0 ? "" : `\n${reasons.join(",\n")}\n    `}]\n}\n`;
 }
 

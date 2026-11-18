@@ -17,7 +17,7 @@ export interface MarkovOptions {
     readonly pruningThreshold?: number | undefined;
     /** Give every node a self-loop of weight 1 before the first round; default true. */
     readonly selfLoops?: boolean | undefined;
-    /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
+    /** Per-arc weight override, arcCount long; f64 weights here are used exactly. */
     readonly weights?: NumericVector | undefined;
 }
 

@@ -99,7 +99,7 @@ export function checkLazySource(source: LazySource): void {
  * const people = defineSource({
  *     id: "people",
  *     async records(params: { team: string }, ctx) {
- *         const rows = await ctx.fetchJson<{ id: string; name: string }[]>(`/api/people?team=${params.team}`);
+ *         const rows = await ctx.fetchJson<{ id: string; name: string }[]>(`/api/people?team=${encodeURIComponent(params.team)}`);
  *         return { nodes: rows };
  *     },
  * });
@@ -191,5 +191,54 @@ export function checkParams(
         if (reason !== null) {
             failOn(report, "E_SOURCE_PARAM", `parameter ${p.name}: ${reason}`, { name: p.name, reason });
         }
+    }
+}
+
+/**
+ * The endpoint a load runs against: the one given, else the value of the descriptor's
+ * `endpointParam` (the `url` source's address), else its `defaultEndpoint`, else null. A
+ * credential is bound to this endpoint's origin, so remember one under the same value. Experimental.
+ * @param descriptor - the source's descriptor
+ * @param params - the load's params
+ * @param given - the endpoint the caller names, if any
+ * @returns the endpoint, or null for none
+ * @category Network sources
+ */
+export function sourceEndpoint(
+    descriptor: SourceDescriptor | undefined,
+    params: Readonly<Record<string, unknown>>,
+    given?: string | URL | null,
+): string | URL | null {
+    if (given !== undefined && given !== null) {
+        return given;
+    }
+    const name = descriptor?.endpointParam;
+    const fromParam = name === undefined ? undefined : params[name];
+    return typeof fromParam === "string" && fromParam !== "" ? fromParam : (descriptor?.defaultEndpoint ?? null);
+}
+
+/**
+ * The file name of a load whose address is a param (the `url` source's `url`): the address's last
+ * path segment, decoded ("buildings.csv"). Undefined for a source without an address param, an
+ * address that is not a URL, or one that ends in "/". Experimental.
+ * @param descriptor - the source's descriptor
+ * @param params - the load's params
+ * @returns the name, or undefined
+ * @category Network sources
+ */
+export function sourceFileName(
+    descriptor: SourceDescriptor | undefined,
+    params: Readonly<Record<string, unknown>>,
+): string | undefined {
+    const name = descriptor?.endpointParam;
+    const address = name === undefined ? undefined : params[name];
+    if (typeof address !== "string" || !URL.canParse(address)) {
+        return undefined;
+    }
+    const last = new URL(address).pathname.split("/").pop() ?? "";
+    try {
+        return last === "" ? undefined : decodeURIComponent(last);
+    } catch {
+        return last;
     }
 }

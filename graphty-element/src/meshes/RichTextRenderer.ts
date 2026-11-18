@@ -1,5 +1,5 @@
 import type { TextSegment } from "./RichTextLabel.ts";
-import { measureLine, type RunAlign } from "./RichTextParser";
+import { type LineBox, measureLine, type RunAlign } from "./RichTextParser";
 
 interface RenderOptions {
     textAlignment: "left" | "center" | "right";
@@ -19,6 +19,7 @@ interface RenderOptions {
     textOutlineWidth: number;
     textOutlineJoin: CanvasLineJoin;
     runAlign?: RunAlign;
+    lineBox?: LineBox;
 }
 
 /**

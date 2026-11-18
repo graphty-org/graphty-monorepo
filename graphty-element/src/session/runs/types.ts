@@ -183,7 +183,6 @@ export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 /**
  * The time window a run over the visible graph was computed in, and what it left visible then.
  * Numbers only: `from` and `to` are epoch milliseconds (or ordinal values), half-open.
- * @experimental timeline
  * @beta
  */
 export interface RunWindow {
@@ -217,7 +216,6 @@ export interface StaleNote {
     /**
      * With `reason: "window-moved"`: the window the run was computed in, `{ code: "window-moved",
      * params: { from, to, nodes, edges } }`.
-     * @experimental timeline
      * @beta
      */
     readonly window?: CodedFact<"window-moved">;
@@ -295,7 +293,6 @@ export interface Caveats {
     readonly windowScope?: boolean;
     /**
      * The time window a run over the visible graph was computed in, and its visible counts.
-     * @experimental timeline
      * @beta
      */
     readonly window?: RunWindow;
@@ -320,17 +317,10 @@ export interface Caveats {
     /**
      * Why a run stopped before it finished, when it did, as a code and its values. Present when
      * the run resolved with `partial` set, whatever stopped it: a time box, a cancellation, a
-     * batch that did not finish, or the algorithm's own iteration cap. Absent for a run an
-     * extension stopped and explained only in words, in {@link Caveats.partialReason}.
+     * batch that did not finish, or the algorithm's own iteration cap.
      * @since 3.18.0
      */
     readonly partialCause?: CodedFact<PartialCode>;
-    /**
-     * Why a run stopped before it finished, as an English sentence. Present exactly when the run
-     * resolved with `partial` set.
-     * @deprecated Word {@link Caveats.partialCause} yourself. Removed in the next major.
-     */
-    readonly partialReason?: string;
     /**
      * Anything else a reader should know, one fact per remark, in the order a reader reads them.
      * See {@link CaveatCode} for every code and its parameters.
@@ -338,8 +328,9 @@ export interface Caveats {
      */
     readonly facts: readonly CodedFact<CaveatCode>[];
     /**
-     * The same remarks as English sentences, followed by any sentence an extension wrote in words.
-     * @deprecated Word {@link Caveats.facts} yourself. Removed in the next major.
+     * Sentences an extension wrote itself, in its own words (`context.note()` in
+     * `defineAlgorithm`, or the `notes` an algorithm's caveats declare). The element's own
+     * remarks are in {@link Caveats.facts} only, never here. Empty for every built-in algorithm.
      */
     readonly notes: readonly string[];
 }
@@ -381,7 +372,6 @@ export interface RunScopeRecord {
     /**
      * For a scope over the visible graph: the time window in force when it resolved, or null when
      * there was none. Absent for every other scope.
-     * @experimental timeline
      * @beta
      */
     readonly window?: RunWindow | null;
@@ -726,12 +716,6 @@ export interface RunRecord {
     /** The run id. */
     readonly id: RunId;
     /**
-     * What the run is called, computed by the element.
-     * @deprecated Word the run from its `algorithm`, {@link RunRecord.distinguishedBy} and
-     *   {@link RunRecord.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
-    /**
      * The option this run's name was suggested by, once it left its default: what tells it apart
      * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
      * caller named with `as`, a batch, and a run of an algorithm registered with its own
@@ -766,7 +750,7 @@ export interface RunRecord {
     readonly startedAt: string | null;
     /** How long it took, in milliseconds, or null until it finishes. */
     readonly durationMs: number | null;
-    /** Whether it stopped early and published what it had: true exactly when `caveats.partialReason` is set. */
+    /** Whether it stopped early and published what it had: true exactly when `caveats.partialCause` is set. */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */
     readonly stale: StaleNote | null;
@@ -808,17 +792,6 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     /** The run id: stable, selector-safe, and author-assignable through `as`. */
     readonly id: RunId;
     /**
-     * What to call the run.
-     *
-     * Computed by the element, never by the consumer: the algorithm's plain name on its own
-     * while it is the only run of that algorithm, gaining the parameter that differs in
-     * parentheses the moment a sibling exists. One string, used by the layer row, the legend,
-     * the journal and every export.
-     * @deprecated Word the run from its `algorithm`, {@link Run.distinguishedBy} and
-     *   {@link Run.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
-    /**
      * The option this run's name was suggested by, once it left its default: what tells it apart
      * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
      * caller named with `as`, a batch, and a run of an algorithm registered with its own
@@ -856,7 +829,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly durationMs: number | null;
     /**
      * Whether it stopped early and published what it had. Not a failure. True exactly when
-     * `caveats.partialReason` is set, whatever stopped it -- a time box or an iteration cap.
+     * `caveats.partialCause` is set, whatever stopped it -- a time box or an iteration cap.
      */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */

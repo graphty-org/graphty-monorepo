@@ -58,7 +58,7 @@ console.log(graph.session.capabilities.limits.renderCeiling); // 1000000
 ```
 
 On `"objects"` the `limits` are ignored and the element fires `limits-warning` with the code
-`W_LIMITS_IGNORED`. See [Renderer](./renderer.md#loading-more-than-100000-nodes) for the caps on
+`W_LIMITS_IGNORED`. See [Renderer](./renderer.md#loading-past-the-size-caps) for the caps on
 how many object rows a batched graph may hold.
 
 ## Loading the fastest way
@@ -78,7 +78,9 @@ await graph.session.data.importColumns({
 ## Faster frames with many edges
 
 With a million edges, most of each frame is smoothing the lines. `antialias="false"` turns
-smoothing off, for harder edges and faster frames; see [Renderer](./renderer.md#smoothing-antialias).
+smoothing off, for harder edges and faster frames. `antialias="shader"` costs about as little and
+keeps plain straight lines smooth, though nodes stay hard-edged; see
+[Renderer](./renderer.md#smoothing-antialias).
 
 ```html
 <graphty-element render-path="batched" antialias="false"></graphty-element>

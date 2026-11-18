@@ -27,6 +27,7 @@ import {
     Check,
     ChevronDown,
     ChevronLeft,
+    ChevronRight,
     ChevronsRight,
     Circle,
     CircleAlert,
@@ -302,6 +303,8 @@ export const GLYPHS = {
     // Take a property off the value it varies by, keeping one value.
     unlink: Unlink2,
     back: ChevronLeft,
+    // The next one of several, as back is the one before.
+    next: ChevronRight,
     // The current choice in a list.
     check: Check,
     expand: ChevronDown,
@@ -385,6 +388,8 @@ export const GLYPHS = {
     wholeTimeline: ZoomOut,
     // The window moved to where the selection is.
     jumpToSelection: LocateFixed,
+    // The model preview's Reset view: back to the first view of the model.
+    resetView: LocateFixed,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

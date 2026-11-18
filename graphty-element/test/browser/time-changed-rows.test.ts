@@ -48,6 +48,9 @@ async function slidingElement(
     { nodes, edges } = { nodes: NODES, edges: EDGES },
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // Born on "objects", named rather than the default (the forced-batched project makes "batched" the default): a
+    // test that counts the batched rows' pass switches to "batched" itself, in `prepare`.
+    element.renderPath = "objects";
     // The working graph off: Ghost steps draw only with it off, and a step must move no node.
     element.workingGraph = false;
     element.style.width = "400px";
@@ -357,6 +360,8 @@ describe("changed rows on real nodes and edges", () => {
 
     it("draws the nodes a Ghost step rebuilt on a frozen scene, when no edge moved", async () => {
         const element = document.createElement("graphty-element");
+        // A rebuilt node's own mesh is what the frozen list must take up again, so on "objects", named.
+        element.renderPath = "objects";
         // The working graph off: Ghost steps draw only with it off, and a step must move no node.
         element.workingGraph = false;
         element.style.width = "400px";

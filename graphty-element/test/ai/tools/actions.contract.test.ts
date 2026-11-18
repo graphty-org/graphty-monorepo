@@ -473,6 +473,7 @@ const ROWS: Record<string, Row> = {
     "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },
     "columns.set_role": { args: { action: "set_role", column: "team", role: "label" } },
     "columns.compute": { args: { action: "compute", column: "heavy", expression: "data.load > `0.5`" } },
+    "columns.score": { args: { action: "score", column: "weighted", terms: [{ path: "data.load", weight: 2 }] } },
     "columns.hide": { args: { action: "hide", columns: ["team"] } },
     "columns.label_value": { args: { action: "label_value", column: "team", value: "red", label: "Reds" } },
     "sources.list": { args: { action: "list" }, setup: withLoad },

@@ -8,6 +8,7 @@ import { flushSync } from "react-dom";
 import { bootSignal } from "../bootSignal";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
+import { ScoreDialog } from "./data-place/ScoreDialog";
 import { ExportDialog } from "./export/ExportDialog";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
@@ -420,6 +421,7 @@ export function Workspace({
             {projectOpen || checking ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
+            <ScoreDialog />
             <ShaderEditorHost />
             <CustomModelHost />
             <SettingsDialog />

@@ -294,10 +294,11 @@ export const EverythingHidden: Story = sceneStory(async () => {
     await openStyle("Everything");
 });
 
-/** The Annotations folder: the Style panel acting on its rows, under its scope line. */
+/** The Annotations folder: the Style panel acting on its rows, under the folder's name. */
 export const FolderPanel: Story = sceneStory(async () => {
     await clickRow("Annotations");
-    await page().findByText(/ in Annotations\b/, {});
+    await page().findByRole("heading", { level: 2, name: "Annotations" });
+    await page().findByTestId("style-tab", {});
 });
 
 /** Key people and Degree selected together: one panel for both, Mixed with who sets it where one sets a property. */
@@ -314,7 +315,7 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
 
 /**
  * Runs Leiden from Analyze, as a reader does, and selects the folder of group layers it makes: the
- * Style panel then acts on every group layer, under its scope line, with Fill showing each one's color.
+ * Style panel then acts on every group layer, under the folder's name, with Fill showing each one's color.
  * @returns the Style tab.
  */
 async function openLeidenFolder(): Promise<HTMLElement> {
@@ -354,7 +355,7 @@ async function openLeidenFolder(): Promise<HTMLElement> {
     const tree = await page().findByRole("tree", { name: "Style layers" });
     const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / });
     await userEvent.click(folder);
-    await page().findByText(/ layers in Leiden\b/, {});
+    await page().findByRole("heading", { level: 2, name: "Leiden" });
     return page().findByTestId("style-tab", {});
 }
 
@@ -371,7 +372,7 @@ async function fillRow(tab: HTMLElement): Promise<HTMLElement> {
     });
 }
 
-/** Leiden's folder of group layers selected: the scope line, and Fill showing each group layer's own color in list order. */
+/** Leiden's folder of group layers selected: Fill showing each group layer's own color in list order. */
 export const BulkFolder: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);

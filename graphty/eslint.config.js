@@ -14,6 +14,7 @@ import tseslint from "typescript-eslint";
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 import noSpecialLayers from "./eslint-rules/no-special-layers.js";
+import styleSidebarControls from "./eslint-rules/style-sidebar-controls.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
 // it reaches graph functionality through graphty-element's published entry points and nothing
@@ -25,7 +26,13 @@ const ELEMENT_EXPORTS = Object.keys(
     .filter((key) => key !== ".")
     .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
 /** The app's own lint rules: one object, because ESLint refuses a plugin name defined twice. */
-const graphtyPlugin = { rules: { "no-element-mutation": noElementMutation, "no-special-layers": noSpecialLayers } };
+const graphtyPlugin = {
+    rules: {
+        "no-element-mutation": noElementMutation,
+        "no-special-layers": noSpecialLayers,
+        "style-sidebar-controls": styleSidebarControls,
+    },
+};
 
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
@@ -153,6 +160,35 @@ export default tseslint.config(
         ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
         plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-special-layers": "error" },
+    },
+
+    // ============================================
+    // THE STYLE SIDEBAR DRAWS ONLY APPROVED CONTROLS (issue #8739)
+    // ============================================
+    // The rule and the list it reads: eslint-rules/style-sidebar-controls.js and
+    // src/workspace/style/approved-controls.json. Inside the files it checks, what sits in a pop-over's
+    // panel, a menu's list, a dialog or a tooltip's label is not in the sidebar and is left alone.
+    {
+        files: ["src/workspace/style/**/*.tsx"],
+        ignores: [
+            "**/__tests__/**",
+            "**/*.stories.tsx",
+            // The approved label itself, built on Mantine's Text.
+            "src/workspace/style/ControlLabel.tsx",
+            // Drawn only inside a pop-over or a dialog.
+            "src/workspace/style/BindingPopover.tsx",
+            "src/workspace/style/CustomModelDialog.tsx",
+            "src/workspace/style/ModelChip.tsx",
+            "src/workspace/style/ModelSettings.tsx",
+            "src/workspace/style/ModelsPopover.tsx",
+            "src/workspace/style/PartsPopover.tsx",
+            "src/workspace/style/ShaderEditorDialog.tsx",
+            "src/workspace/style/ShaderGallery.tsx",
+            "src/workspace/style/ShaderParamRows.tsx",
+            "src/workspace/style/ShaderParams.tsx",
+        ],
+        plugins: { graphty: graphtyPlugin },
+        rules: { "graphty/style-sidebar-controls": "error" },
     },
 
     // ============================================

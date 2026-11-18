@@ -946,11 +946,20 @@ describe("yEd Live GraphML: spellings yEd Live 8.5.16 reads, and the ones it ign
         expect(p3("labelWrapAnywhere", "v2-wrapping-character")).toBe(true);
         expect(p3("labelWrapWidth", "v2-wrapping-word")).toBe(50);
         expect(p3("labelWrapAnywhere", "v2-wrapping-word")).toBe(null);
-        // -p2 draws a 3.0 *_ELLIPSIS label on one line cut between letters with an ellipsis ("A long la...")
+        // its box holds two 12px lines: WORD drops the third ("Wrap" / "this"), WORD_ELLIPSIS runs on ("this t...")
+        expect(p3("labelMaxLines", "v2-wrapping-word")).toBe(2);
+        expect(p3("labelMaxLinesEllipsis", "v2-wrapping-word")).toBe(false);
+        expect(p3("labelMaxLinesEllipsis", "v2-wrapping-word-ellipsis")).toBe(true);
+        // -p2's 3.0 box holds one 10px line: "A long lab" for WRAP_CHARACTER, "A long la..." for the *_ELLIPSIS ones
         const p2 = (await sheet("specimen-labels-p2.graphml")).node;
         expect(p2("labelWrapWidth", "wrapping-trim-character-ellipsis")).toBe(56);
-        expect(p2("labelWrapEllipsis", "wrapping-trim-character-ellipsis")).toBe(true);
-        expect(p2("labelWrapEllipsis", "wrapping-wrap-word-ellipsis")).toBe(true);
+        expect(p2("labelMaxLines", "wrapping-wrap-character")).toBe(1);
+        expect(p2("labelWrapAnywhere", "wrapping-wrap-character")).toBe(true);
+        expect(p2("labelMaxLinesEllipsis", "wrapping-wrap-character")).toBe(false);
+        expect(p2("labelMaxLines", "wrapping-wrap-word-ellipsis")).toBe(1);
+        expect(p2("labelMaxLinesEllipsis", "wrapping-wrap-word-ellipsis")).toBe(true);
+        // a TRIM_ wrapping keeps one line whatever its box holds
+        expect(p2("labelMaxLines", "wrapping-trim-word")).toBe(1);
         // -p2 and -p4 turn a stretch label on the left or the vertical middle up (-90) and on the right down (90)
         expect(p2("labelRotation", "model-stretch-left")).toBe(270);
         expect(p2("labelRotation", "model-stretch-center-vertical")).toBe(270);

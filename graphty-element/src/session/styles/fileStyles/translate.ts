@@ -866,6 +866,8 @@ function channelPlans(
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
             ["labelKeepBlankLines", [keepBlankLines("node")]],
+            ["labelMaxLines", [id("node.labelMaxLines")]],
+            ["labelMaxLinesEllipsis", [id("node.labelMaxLinesEllipsis")]],
             ["labelRunAlign", [id("node.labelRunAlign")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
@@ -1065,6 +1067,8 @@ function channelPlans(
         ["labelWrapAnywhere", [id("edge.labelWrapAnywhere")]],
         ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
         ["labelKeepBlankLines", [keepBlankLines("edge")]],
+        ["labelMaxLines", [id("edge.labelMaxLines")]],
+        ["labelMaxLinesEllipsis", [id("edge.labelMaxLinesEllipsis")]],
         ["labelRunAlign", [id("edge.labelRunAlign")]],
         ...labelBox,
         // its lengths in label units, as its padding is

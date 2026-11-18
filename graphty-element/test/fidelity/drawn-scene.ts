@@ -676,7 +676,13 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
             !known || ((bgCss === null || bgCss.alpha <= 0) && borderCss === null)
                 ? null
                 : {
-                      box: onScreen(0, 0, dims.width, dims.height),
+                      // the panel, without the room round it for its shadow and the words' outline (#8746)
+                      box: onScreen(
+                          inner.shadowMargin,
+                          inner.shadowMargin,
+                          dims.width - inner.shadowMargin * 2,
+                          dims.height - inner.shadowMargin * 2,
+                      ),
                       color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
                       opacity: (bgCss?.alpha ?? 0) * planeAlpha,
                       rounded: (opt.cornerRadius ?? 0) > 0,

@@ -1,7 +1,7 @@
-import { ResultRow, SearchInput } from "@graphty/compact-mantine";
+import { ResultRow, ScrollArea, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
-import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
+import { Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { focusInspectorTitle } from "../frame/focus";

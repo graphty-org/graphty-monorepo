@@ -1,4 +1,5 @@
-import { ActionIcon, Button, Checkbox, SegmentedControl, Slider, Switch } from "@mantine/core";
+import { SegmentedControl, Slider } from "@graphty/compact-mantine";
+import { ActionIcon, Button, Checkbox, Switch } from "@mantine/core";
 import { Check } from "lucide-react";
 import { describe, expect, it } from "vitest";
 

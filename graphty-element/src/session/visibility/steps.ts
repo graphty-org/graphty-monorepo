@@ -1,9 +1,11 @@
 /**
  * @file Filter steps: an ordered list of rules, each switchable on and off, combined with AND.
  *
- * The steps are project state beside the single filter (`visibility.filter`); the masks are
- * evaluated from both, so what is visible is the single filter AND every step that is on. A step
- * that is off keeps its rule and hides nothing.
+ * The steps are not stored on their own: they are the keep and exclude conditions of the
+ * `visibility` slice's `conditions`, seen through `stepsOf` and `conditionsOfSteps`
+ * (`visibility/conditions.ts`), and the `visibility.steps` op writes `conditions`. The masks are
+ * evaluated from the single filter (`visibility.filter`) and the conditions, so what is visible is
+ * the single filter AND every step that is on. A step that is off keeps its rule and hides nothing.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */

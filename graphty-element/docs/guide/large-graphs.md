@@ -78,7 +78,9 @@ await graph.session.data.importColumns({
 ## Faster frames with many edges
 
 With a million edges, most of each frame is smoothing the lines. `antialias="false"` turns
-smoothing off, for harder edges and faster frames; see [Renderer](./renderer.md#smoothing-antialias).
+smoothing off, for harder edges and faster frames. `antialias="shader"` costs about as little and
+keeps plain straight lines smooth, though nodes stay hard-edged; see
+[Renderer](./renderer.md#smoothing-antialias).
 
 ```html
 <graphty-element render-path="batched" antialias="false"></graphty-element>

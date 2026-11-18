@@ -44,7 +44,6 @@ function resultOf(runId: string, shape: ResultShape, values: Record<string, numb
 function apiOf(...results: RunResult[]): ReturnType<typeof createResultsApi> {
     const entries: ResultsRunEntry[] = results.map((result) => ({
         id: result.runId,
-        label: result.runId,
         distinguishedBy: null,
         siblingsDifferBy: null,
         shape: result.shape,

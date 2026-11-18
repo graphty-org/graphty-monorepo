@@ -1,6 +1,7 @@
 /**
  * What yEd draws inside a node beside its outline, as a picture over the node: the lines inside a flowchart predefined
- * process and internal storage (`yed-graphml-specimen-node-shapes-p2`), and a UML class's stereotype, constraint,
+ * process, internal storage, direct data and database and a sequential data's tail (`yed-graphml-specimen-node-shapes-p2`,
+ * and yEd Live in `yed-live-graphml-specimen-node-shapes-p3`), and a UML class's stereotype, constraint,
  * attributes and methods. The symbols inside BPMN nodes are `yedBpmnPicture`'s (styles-yed-live-drawing.ts).
  */
 import { escapeSvg, svgPicture } from "./styles-yed-live-drawing.js";
@@ -21,8 +22,9 @@ interface FlowchartNode {
 }
 
 /**
- * The picture of the lines yEd draws inside a flowchart predefined process or internal storage, in its border's color,
- * or null for a node of another kind.
+ * The picture of the lines yEd draws inside a flowchart predefined process, internal storage, direct data or database,
+ * or beside a sequential data, in its border's color, or null for a node of another kind. The node's size is its
+ * outline's, a sequential data's square.
  * @param node - the node
  * @returns the picture URL, drawn over the node's box, or null
  */
@@ -36,6 +38,15 @@ export function yedNodePicture(node: FlowchartNode): string | null {
         lines = `M${inset},0L${inset},${n(h)}M${n(w - FLOWCHART_INSET)},0L${n(w - FLOWCHART_INSET)},${n(h)}`;
     } else if (kind === "flowchart.internalstorage") {
         lines = `M${inset},0L${inset},${n(h)}M0,${inset}L${n(w)},${inset}`;
+    } else if (kind === "flowchart.directdata") {
+        // the near rim of the drum on its side, bulging in by a quarter of its height
+        lines = `M${n(w - h / 8)},0Q${n(w - (3 * h) / 8)},${n(h / 2)} ${n(w - h / 8)},${n(h)}`;
+    } else if (kind === "flowchart.database") {
+        // the near rim of the cylinder's top, a fifth of its height down
+        lines = `M${n(w)},${n(h / 5)}C${n(w * 0.97)},${n((2 * h) / 5)} ${n(w * 0.03)},${n((2 * h) / 5)} 0,${n(h / 5)}`;
+    } else if (kind === "flowchart.sequentialdata") {
+        // the tape's tail, from the bottom of the circle to its right
+        lines = `M${n(w / 2)},${n(h)}L${n(w)},${n(h)}`;
     } else {
         return null;
     }

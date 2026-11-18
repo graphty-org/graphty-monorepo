@@ -321,7 +321,8 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
 
             await userEvent.click(await row("Annotations"));
             const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-            await within(inspector).findByText(/ in Annotations\b/);
+            await within(inspector).findByRole("heading", { level: 2, name: "Annotations" });
+            await within(inspector).findByTestId("style-tab");
             await page.screenshot({ path: `${SHOTS}/folder-panel-${size}.png` });
 
             await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));

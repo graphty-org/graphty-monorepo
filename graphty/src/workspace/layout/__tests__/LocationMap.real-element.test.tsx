@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { MAP_DEPTH_INDEPENDENT_SIZE } from "../../settings/preferences";
 import { datasetBase } from "../../start/open";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -88,7 +88,7 @@ const CITIES = [
  * The Data place, opened from the rail as a reader does.
  * @returns queries inside it.
  */
-async function openDataPlace(): Promise<ReturnType<typeof within>> {
+async function openDataPlace(): Promise<Within> {
     await userEvent.click(screen.getByRole("button", { name: "Data" }));
     return within(await screen.findByRole("region", { name: "Data place" }));
 }
@@ -99,7 +99,7 @@ async function openDataPlace(): Promise<ReturnType<typeof within>> {
  * @param row - the row's name.
  * @param column - the column.
  */
-async function pickField(place: ReturnType<typeof within>, row: string, column: string): Promise<void> {
+async function pickField(place: Within, row: string, column: string): Promise<void> {
     const field = await place.findByRole("combobox", { name: row });
     await userEvent.click(field);
     // Within the field's own list: a role query over a large graph's whole page is slow.
@@ -373,10 +373,10 @@ describe("the location map", () => {
         const element = await openAirports(false, CITIES);
         const place = await openDataPlace();
         // Listed with no action from the reader: the pair the element finds by name.
-        const latitude = (await place.findByRole("combobox", { name: "Node latitude column" })) as HTMLInputElement;
+        const latitude = await place.findByRole<HTMLInputElement>("combobox", { name: "Node latitude column" });
         assert.strictEqual(latitude.value, "lat");
         assert.strictEqual(
-            (place.getByRole("combobox", { name: "Node longitude column" }) as HTMLInputElement).value,
+            place.getByRole<HTMLInputElement>("combobox", { name: "Node longitude column" }).value,
             "lng",
         );
 
@@ -387,8 +387,8 @@ describe("the location map", () => {
             assert.isNull(place.queryByRole("combobox", { name: "Node longitude column" }));
         });
         await userEvent.click(place.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Coordinates" }));
-        await userEvent.click(await screen.findByRole("option", { name: "home" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Coordinates" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "home" }));
         await waitFor(() => {
             assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",
@@ -399,7 +399,7 @@ describe("the location map", () => {
                 within: null,
             });
             assert.strictEqual(
-                (place.getByRole("combobox", { name: "Node coordinates column" }) as HTMLInputElement).value,
+                place.getByRole<HTMLInputElement>("combobox", { name: "Node coordinates column" }).value,
                 "home",
             );
             assert.isNull(place.queryByRole("combobox", { name: "Node latitude column" }));

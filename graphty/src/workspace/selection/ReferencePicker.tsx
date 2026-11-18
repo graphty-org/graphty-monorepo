@@ -4,9 +4,9 @@
  * (`references.ts`).
  */
 
-import { FieldCaret, focusWithRing, LISTBOX_CLASS_NAMES, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, focusWithRing, LISTBOX_CLASS_NAMES, ScrollArea, TargetTooltip } from "@graphty/compact-mantine";
 import type { GraphSession, NodeId, StepReference } from "@graphty/graphty-element/session";
-import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, Text, useCombobox } from "@mantine/core";
+import { ActionIcon, Combobox, Group, Input, InputBase, Text, useCombobox } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";

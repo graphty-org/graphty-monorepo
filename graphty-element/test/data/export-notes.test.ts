@@ -60,9 +60,9 @@ describe("notes in exports", () => {
             const text = await result.text();
             assert.notInclude(text, "graphty.notes", format);
             assert.notInclude(text, "older", format);
-            const loss = result.lossNotes.filter((note) => note.code === "W_GRAPHTY_NOTES");
+            const loss = result.losses.filter((loss) => loss.code === "W_GRAPHTY_NOTES");
             assert.lengthOf(loss, 1, format);
-            assert.strictEqual(loss[0].count, 3, "the count is every note held");
+            assert.strictEqual(loss[0].params.count, 3, "the count is every note held");
         }
 
         h.session.dispose();
@@ -71,7 +71,7 @@ describe("notes in exports", () => {
     it("note-26b: { notes: true } writes both columns on noted elements and still reports the loss", async () => {
         const h = noted();
         const result = exportSession(h.session, "graphml", { notes: true });
-        assert.strictEqual(result.lossNotes.find((note) => note.code === "W_GRAPHTY_NOTES")?.count, 3);
+        assert.strictEqual(result.losses.find((loss) => loss.code === "W_GRAPHTY_NOTES")?.params.count, 3);
         const text = await result.text();
         assert.include(text, `attr.name="${COUNT}"`);
         assert.include(text, `attr.name="${TEXT}"`);
@@ -95,7 +95,10 @@ describe("notes in exports", () => {
         const result = exportSession(h.session, "csv", { table: "nodes", notes: true });
         const text = await result.text();
         assert.include(text, "'=SUM(A1)");
-        assert.isAtLeast(result.lossNotes.find((note) => note.code === "W_GRAPHTY_CSV_NEUTRALIZED")?.count ?? 0, 1);
+        assert.isAtLeast(
+            Number(result.losses.find((loss) => loss.code === "W_GRAPHTY_CSV_NEUTRALIZED")?.params.count ?? 0),
+            1,
+        );
         h.session.dispose();
     });
 
@@ -105,9 +108,9 @@ describe("notes in exports", () => {
         h.session.notes.add({ text: "\u00e9".repeat(40_000), targets: [{ node: "a" }] });
         h.session.notes.add({ text: "\u00e8".repeat(40_000), targets: [{ node: "a" }] });
         const result = exportSession(h.session, "json", { notes: true });
-        const truncated = result.lossNotes.find((note) => note.code === "W_GRAPHTY_TRUNCATED");
-        assert.strictEqual(truncated?.count, 1);
-        assert.strictEqual(truncated?.column, TEXT);
+        const truncated = result.losses.find((loss) => loss.code === "W_GRAPHTY_TRUNCATED");
+        assert.strictEqual(truncated?.params.count, 1);
+        assert.deepEqual(truncated?.params.columns, [TEXT]);
         const document = JSON.parse(await result.text()) as { nodes: Record<string, unknown>[] };
         const cell = document.nodes.find((node) => node.id === "a")?.[TEXT] as string;
         assert.isAtMost(new TextEncoder().encode(cell).length, 65_536);
@@ -118,8 +121,8 @@ describe("notes in exports", () => {
 
     it("reports nothing new for a session without notes", () => {
         const h = notesHarness();
-        assert.deepEqual(exportSession(h.session, "graphml").lossNotes, []);
-        assert.deepEqual(exportSession(h.session, "graphml", { notes: true }).lossNotes, []);
+        assert.deepEqual(exportSession(h.session, "graphml").losses, []);
+        assert.deepEqual(exportSession(h.session, "graphml", { notes: true }).losses, []);
         h.session.dispose();
     });
 
@@ -136,7 +139,7 @@ describe("notes in exports", () => {
         for (const [format, options] of cases) {
             const result = exportSession(h.session, format, { ...options, notes: true });
             assert.isString(await result.text(), format);
-            assert.strictEqual(result.lossNotes.find((note) => note.code === "W_GRAPHTY_NOTES")?.count, 3, format);
+            assert.strictEqual(result.losses.find((loss) => loss.code === "W_GRAPHTY_NOTES")?.params.count, 3, format);
         }
 
         h.session.dispose();
@@ -148,10 +151,10 @@ describe("notes in exports", () => {
         for (const format of ["gexf", "graphml", "csv", "json"] as const) {
             const result = exportSession(h.session, format);
             assert.notInclude(await result.text(), "keepme", format);
-            const loss = result.lossNotes.filter((note) => note.code === "W_GRAPHTY_COLUMN_DROPPED");
+            const loss = result.losses.filter((loss) => loss.code === "W_GRAPHTY_COLUMN_DROPPED");
             assert.deepEqual(
-                loss.map((note) => [note.column, note.count]),
-                [["graphty.x", 1]],
+                loss.map((entry) => [entry.params.columns, entry.params.count]),
+                [[["graphty.x"], 1]],
                 format,
             );
         }

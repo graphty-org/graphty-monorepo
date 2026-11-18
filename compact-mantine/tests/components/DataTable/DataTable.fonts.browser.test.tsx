@@ -107,3 +107,50 @@ describe("DataTable content widths and fonts", () => {
         document.fonts.delete(face);
     });
 });
+
+describe("DataTable content widths by density and header parts", () => {
+    /**
+     * Render a content-sized table of the given density and columns.
+     * @param label - The table's accessible name
+     * @param columns - The columns
+     * @param density - The density
+     * @returns The grid
+     */
+    function renderSized(
+        label: string,
+        columns: DataTableColumn<Point>[],
+        density: "default" | "compact" = "default",
+    ): HTMLElement {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <div style={{ width: 900 }}>
+                    <DataTable
+                        columns={columns}
+                        data={POINTS}
+                        getRowId={(point) => point.id}
+                        label={label}
+                        columnSizing="content"
+                        density={density}
+                    />
+                </div>
+            </MantineProvider>,
+        );
+        return screen.getByRole("grid", { name: label });
+    }
+
+    it("fits a compact table's columns tighter than a default one's, every value still whole", async () => {
+        await document.fonts.load('450 11px "Inter Variable"');
+        const roomy = renderSized("Roomy", COLUMNS);
+        const tight = renderSized("Tight", COLUMNS, "compact");
+        await waitFor(() => {
+            expectNothingCut(tight);
+            const wide = columnWidths(roomy);
+            // The last column takes whatever width is left, so it is not compared.
+            columnWidths(tight)
+                .slice(0, -1)
+                .forEach((width, i) => {
+                    expect(width).toBeLessThan(wide[i]);
+                });
+        });
+    });
+});

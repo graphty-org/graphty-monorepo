@@ -381,12 +381,24 @@ describe("model variant words", () => {
         }
         assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
         // A refused format is named; a glTF refused for an extension names the extension.
-        assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "spz" } }).word, "SPZ not read");
-        const splatGltf = {
+        assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "dae" } }).word, "DAE not read");
+        const required = {
             code: "E_MODEL_FORMAT_UNSUPPORTED",
-            params: { format: "gltf", extension: "KHR_gaussian_splatting" },
+            params: { format: "gltf", extension: "EXT_foo" },
         } as const;
-        assert.equal(modelChip(splatGltf).tip, "KHR_gaussian_splatting");
-        assert.match(modelWords(splatGltf), /needs KHR_gaussian_splatting/);
+        assert.equal(modelChip(required).tip, "EXT_foo");
+        assert.match(modelWords(required), /needs EXT_foo/);
+        // Splats, in any format, are said to be splats and not supported, never a raw format code.
+        const splats: readonly Readonly<Record<string, string>>[] = [
+            { format: "spz" },
+            { format: "splat-ply" },
+            { format: "gltf", extension: "KHR_gaussian_splatting" },
+            { format: "gltf", extension: "KHR_gaussian_splatting_compression_spz" },
+        ];
+        for (const params of splats) {
+            const splat = { code: "E_MODEL_FORMAT_UNSUPPORTED", params } as const;
+            assert.deepEqual(modelChip(splat), { word: "Not loaded", tip: "Gaussian splats are not supported" });
+            assert.equal(modelWords(splat), "Gaussian splats are not supported.");
+        }
     });
 });

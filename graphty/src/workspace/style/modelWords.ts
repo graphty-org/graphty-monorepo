@@ -121,6 +121,24 @@ function tooLargeTip(p: CodedFact["params"]): string {
     return both(size(p.found), word, "over", size(p.limit));
 }
 
+/** The formats graphty-element names Gaussian splats by (`E_MODEL_FORMAT_UNSUPPORTED`'s `params.format`). */
+const SPLAT_FORMATS: ReadonlySet<string> = new Set(["splat", "spz", "sog", "splat-ply"]);
+
+/**
+ * Whether a refusal is of Gaussian splats: a splat format, or a glTF that uses the Gaussian
+ * splatting extension. No other format is worth suggesting for one, since every splat is refused.
+ * @param fact - the refusal.
+ * @returns true for splats.
+ */
+export function isSplatRefusal(fact: CodedFact): boolean {
+    const { format, extension } = fact.params;
+    return (
+        fact.code === "E_MODEL_FORMAT_UNSUPPORTED" &&
+        ((typeof format === "string" && SPLAT_FORMATS.has(format)) ||
+            (typeof extension === "string" && extension.startsWith("KHR_gaussian_splatting")))
+    );
+}
+
 /** What a reader of `E_MODEL_STRUCTURE` is told, by `params.rule`; any other rule is a damaged file. */
 const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
     delayLoad: "meshes kept in other files",
@@ -158,10 +176,15 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
         word: `${String((Array.isArray(p.candidates) ? p.candidates.length : 0) + (typeof p.more === "number" ? p.more : 0))} models`,
         tip: said(p.candidates),
     }),
-    E_MODEL_FORMAT_UNSUPPORTED: (p) =>
-        p.assetKind === "image"
-            ? { word: "Picture", tip: "this file is a picture" }
-            : { word: `${said(p.format).toUpperCase()} not read`, tip: said(p.extension) || "Export as GLB" },
+    E_MODEL_FORMAT_UNSUPPORTED: (p) => {
+        if (p.assetKind === "image") {
+            return { word: "Picture", tip: "this file is a picture" };
+        }
+        if (isSplatRefusal({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: p })) {
+            return { word: "Not loaded", tip: "Gaussian splats are not supported" };
+        }
+        return { word: `${said(p.format).toUpperCase()} not read`, tip: said(p.extension) || "Export as GLB" };
+    },
     E_MODEL_WEB_PAGE: (p) => ({ word: "Web page", tip: hostOf(p) }),
     E_MODEL_FETCH: (p) => ({
         word: "Not reached",

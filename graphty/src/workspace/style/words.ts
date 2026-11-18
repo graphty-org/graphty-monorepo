@@ -38,7 +38,7 @@ import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
-import { megabytes } from "./modelWords";
+import { isSplatRefusal, megabytes } from "./modelWords";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -1062,10 +1062,14 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
         p.rule === "delayLoad"
             ? "This .babylon file keeps its meshes in other files. Export it as one file or as .glb."
             : "The model file is damaged.",
-    E_MODEL_FORMAT_UNSUPPORTED: (p) =>
-        typeof p.extension === "string"
+    E_MODEL_FORMAT_UNSUPPORTED: (p) => {
+        if (isSplatRefusal({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: p })) {
+            return "Gaussian splats are not supported.";
+        }
+        return typeof p.extension === "string"
             ? `This model needs ${p.extension}, which cannot be loaded yet.`
-            : `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
+            : `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`;
+    },
     E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
     E_MODEL_AMBIGUOUS: (p) => `Which one is the model? ${said(p.candidates)}. Drop just one of them.`,
     E_MODEL_MISSING_FILE: (p) =>

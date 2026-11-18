@@ -189,7 +189,12 @@ describe("every model format and variant, through the Load custom model dialog",
         }
         if (variant.refused !== null) {
             const refusal = await within(dialog).findByTestId("model-refusal");
-            assert.match(refusal.textContent, new RegExp(`^${variant.format.toUpperCase()} not read`), "names it");
+            if (["splat", "spz", "sog", "splat-ply"].includes(variant.format)) {
+                // Every splat is refused, so no other format is suggested for one.
+                assert.equal(refusal.textContent, "Not loaded: Gaussian splats are not supported", "says splats");
+            } else {
+                assert.match(refusal.textContent, new RegExp(`^${variant.format.toUpperCase()} not read`), "names it");
+            }
             assert.isNull(within(dialog).queryByRole("img"), "no preview");
             return;
         }

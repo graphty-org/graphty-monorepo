@@ -28,7 +28,7 @@ import { failureOf, fileStem, type ModelLive, modelName, useModelPreview } from 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { SettingRows } from "./ModelSettings";
-import { chipLine, middleCut, PART_CODES, roleWord } from "./modelWords";
+import { chipLine, isSplatRefusal, middleCut, PART_CODES, roleWord } from "./modelWords";
 import { PartRow, RoleGlyph } from "./PartsPopover";
 import { PictureField, PicturePopover } from "./PicturePopover";
 import { useStillOpen } from "./useStillOpen";
@@ -334,7 +334,10 @@ function refusalLine(fact: CodedFact): string {
     if (ADDRESS_CODES.has(fact.code)) {
         return `${chipLine(fact)} -- ${CUSTOM_MODEL.checkAddress}`;
     }
-    return FORMAT_CODES.has(fact.code) ? `${chipLine(fact)} -- ${CUSTOM_MODEL.reads(MODEL_FORMATS)}` : chipLine(fact);
+    // Every splat format is refused, so no other format is suggested for one.
+    return FORMAT_CODES.has(fact.code) && !isSplatRefusal(fact)
+        ? `${chipLine(fact)} -- ${CUSTOM_MODEL.reads(MODEL_FORMATS)}`
+        : chipLine(fact);
 }
 
 /**

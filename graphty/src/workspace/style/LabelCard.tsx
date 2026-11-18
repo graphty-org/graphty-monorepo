@@ -6,9 +6,10 @@ import {
     labelTemplateRow,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Menu, Stack, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
+import { ControlLabel } from "./ControlLabel";
 import { type DataChoice, propose, sourceName, type Target } from "./row";
 import { ValuePicker } from "./ValuePicker";
 
@@ -80,9 +81,9 @@ export function CardContents({
     return (
         <Stack gap={2} role="group" aria-label="Card contents">
             <Group gap={4} h={24} wrap="nowrap" justify="space-between">
-                <Text size="xs" fw={600} pl={4}>
+                <ControlLabel size="xs" fw={600} pl={4}>
                     Card contents
-                </Text>
+                </ControlLabel>
                 <Popout opened={adding} onOpenChange={setAdding}>
                     <Popout.Trigger>
                         <Tooltip label="Add card row">
@@ -283,9 +284,15 @@ function CardRow({
         return (
             <Stack gap={0} data-card-row={at}>
                 <FieldRow trailing={menu}>
-                    <Text size="xs" c="dimmed" truncate title={line} aria-label={`${place}, written by hand: ${line}`}>
+                    <ControlLabel
+                        size="xs"
+                        c="dimmed"
+                        truncate
+                        title={line}
+                        aria-label={`${place}, written by hand: ${line}`}
+                    >
                         {line}
-                    </Text>
+                    </ControlLabel>
                 </FieldRow>
                 <FieldRow>{picker}</FieldRow>
             </Stack>

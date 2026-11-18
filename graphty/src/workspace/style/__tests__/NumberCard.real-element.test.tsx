@@ -309,7 +309,7 @@ describe("number card", () => {
         });
         await userEvent.click(screen.getByRole("button", { name: "Done" }));
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        assert.include((row.textContent ?? "").replaceAll("\u00a0", " "), `${name}: all ${total}, ${total} nodes`);
+        assert.include(row.getAttribute("aria-label") ?? "", `${name}: all ${total}, ${total} nodes`);
         panelShown();
     });
 
@@ -324,10 +324,7 @@ describe("number card", () => {
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const kept = session.styles.counts(id).matched;
         await waitFor(() => {
-            assert.include(
-                (row.textContent ?? "").replaceAll("\u00a0", " "),
-                `top 10 by ${name}, ${String(kept)} nodes`,
-            );
+            assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
         });
         assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
     });

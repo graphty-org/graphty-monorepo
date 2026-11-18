@@ -7,7 +7,7 @@ import {
 } from "@graphty/graphty-element/catalog";
 import { type Channel, type LabelStyle, labelTemplateLine } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Stack, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -387,10 +387,19 @@ export function LabelSection({
                                 })}
                                 <span className="ws-field-name">{KIND_WORDS[kind.id] ?? kind.name}</span>
                             </span>
-                            <Text size="xs" style={{ flex: 1 }}>
-                                {some.set < some.of ? `Set on ${String(some.set)} of ${String(some.of)}` : "Mixed"}
-                            </Text>
-                            <Tooltip label={`Remove ${noun} from every row`}>
+                            <span style={{ flex: 1 }} />
+                            <Tooltip
+                                label={
+                                    <>
+                                        {`Remove ${noun} from every row`}
+                                        <div>
+                                            {some.set < some.of
+                                                ? `Set on ${String(some.set)} of ${String(some.of)}`
+                                                : "Mixed"}
+                                        </div>
+                                    </>
+                                }
+                            >
                                 <ActionIcon
                                     variant="subtle"
                                     size="sm"
@@ -857,7 +866,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <span className="ws-slot" />
                 </div>
             ) : null}
-            <UndrawnNote session={session} line={words} channel={kind.words} />
             {/* The look, the size and the position on the panel's field column, each with Clear. */}
             <StyleLine
                 word="Look"
@@ -899,39 +907,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 />
             </StyleLine>
         </Stack>
-    );
-}
-
-/**
- * Why an end label draws nothing, worded from the element's `caption.noArrow` fact: an end label
- * hangs from that end's arrowhead, and these edges draw none.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.line - the layer line that writes the words, if any
- * @param props.channel - the words' channel
- * @returns The note, or nothing while the element reports no undrawn text on this channel
- */
-function UndrawnNote({
-    session,
-    line,
-    channel,
-}: Readonly<{ session: GraphSession; line: Line | undefined; channel: Channel }>): React.JSX.Element | null {
-    if (line === undefined) {
-        return null;
-    }
-    const fact = session.styles
-        .counts(line.layer.id)
-        ?.undrawn.find((f) => f.code === "caption.noArrow" && f.params.channel === channel);
-    if (fact === undefined) {
-        return null;
-    }
-    const end = fact.params.arrow === "edge.arrowTail" ? "source" : "target";
-    const count = Number(fact.params.count);
-    const edges = count === 1 ? "1 edge" : `${String(count)} edges`;
-    return (
-        <Text size="xs" c="dimmed" pl={4}>
-            {`Not drawn on ${edges}: it shows beside a ${end} arrowhead, and they have none. Add one under Arrowheads.`}
-        </Text>
     );
 }
 

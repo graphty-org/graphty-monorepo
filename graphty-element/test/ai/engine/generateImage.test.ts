@@ -66,6 +66,7 @@ describe("generateImage", () => {
     });
 
     it("asks OpenAI's image model for a picture and decodes its base64 answer", async () => {
+        // eslint-disable-next-line camelcase -- b64_json is the field name in OpenAI's images API answer
         const recorded = recordedFetch({ created: 1, data: [{ b64_json: RECORDED_PNG_BASE64 }] });
         const openai = engine("openai", recorded.fetch);
         assert.deepStrictEqual(openai.imageModel, AI_IMAGE_MODELS.openai);

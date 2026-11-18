@@ -625,6 +625,105 @@ function fbxFiles(
 }
 
 /**
+ * A USD set's text layers.
+ * @param files - The set.
+ * @returns Each text layer's text, by path.
+ */
+function usdTextLayers(files: ReadonlyMap<string, Uint8Array>): Map<string, string> {
+    const texts = new Map<string, string>();
+    for (const [path, bytes] of files) {
+        if (bytes[0] === 0x23 && new TextDecoder().decode(bytes.subarray(0, 6)) === "#usda ") {
+            texts.set(path, new TextDecoder().decode(bytes));
+        }
+    }
+
+    return texts;
+}
+
+const PREVIEW_SURFACE = 'info:id = "UsdPreviewSurface"';
+
+/**
+ * Where a USD text body that opens at a brace closes.
+ * @param text - The layer's text.
+ * @param open - Its opening brace.
+ * @returns Its closing brace, or the text's end.
+ */
+function bodyEnd(text: string, open: number): number {
+    let depth = 0;
+    for (let at = open; at < text.length; at++) {
+        depth += Number(text[at] === "{") - Number(text[at] === "}");
+        if (depth === 0) {
+            return at;
+        }
+    }
+
+    return text.length;
+}
+
+/**
+ * A USD set's text layers with the UsdPreviewSurface default base color written out where a shader
+ * leaves it out. The specification's default is 0.18 gray; Babylon's USD importer (9.37) draws
+ * white instead, so a surface that only glows (usduvtexture_color_test.usda's swatches) drew a
+ * washed-out pale color: its glow plus a lit white. Delete when the importer uses the default.
+ * ponytail: only text layers; a binary layer's surfaces keep the importer's white.
+ * @param files - The set.
+ * @returns The set, its text layers given the default where it was left out.
+ */
+export function withPreviewSurfaceDefaults(files: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, Uint8Array> {
+    const out = new Map(files);
+    for (const [path, text] of usdTextLayers(files)) {
+        let changed = text;
+        for (let at = changed.indexOf(PREVIEW_SURFACE); at >= 0; at = changed.indexOf(PREVIEW_SURFACE, at + 1)) {
+            const open = changed.lastIndexOf("{", at);
+            if (open >= 0 && !changed.slice(open, bodyEnd(changed, open)).includes("inputs:diffuseColor")) {
+                const line = changed.indexOf("\n", at);
+                const indent = /\n([ \t]*)[^\n]*$/.exec(changed.slice(0, at))?.[1] ?? "";
+                changed = `${changed.slice(0, line)}\n${indent}color3f inputs:diffuseColor = (0.18, 0.18, 0.18)${changed.slice(line)}`;
+            }
+        }
+        if (changed !== text) {
+            out.set(path, new TextEncoder().encode(changed));
+        }
+    }
+
+    return out;
+}
+
+/**
+ * A USD set's text layers with their one texture-coordinate primvar named `st`. A UsdUVTexture
+ * with no `inputs:st` reads the primvar `st` in Babylon's USD importer (9.37), which drops every
+ * mesh that lacks it and then fails the whole load; the USD Mini Car Kit's meshes name theirs
+ * `map1` and its textures connect none, so no car loaded. Renamed, they draw.
+ * ponytail: only text layers, and only when the set names one texture-coordinate primvar and none
+ * is `st`; a binary layer's primvars keep their names. Delete when the importer falls back itself.
+ * @param files - The set.
+ * @returns The set, its text layers renamed when that applies.
+ */
+export function withStPrimvar(files: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, Uint8Array> {
+    const texts = usdTextLayers(files);
+    const all = [...texts.values()];
+    const names = new Set(all.flatMap((t) => [...t.matchAll(/texCoord2[dfh]\[\] primvars:(\w+)/g)].map((m) => m[1])));
+    if (
+        names.size !== 1 ||
+        all.some((t) => /primvars:st\b/.test(t)) ||
+        !all.some((t) => t.includes('"UsdUVTexture"'))
+    ) {
+        return files;
+    }
+
+    const [name] = names;
+    const out = new Map(files);
+    for (const [path, text] of texts) {
+        const renamed = text
+            .replaceAll(new RegExp(String.raw`primvars:${name}\b`, "g"), "primvars:st")
+            .replaceAll(`varname = "${name}"`, 'varname = "st"');
+        out.set(path, new TextEncoder().encode(renamed));
+    }
+
+    return out;
+}
+
+/**
  * A USD model's set as OpenUSD reads it, as virtual files: a USDZ's entries unpacked (its first
  * is the root layer), and every picture drawn without swapped for a 1 x 1 white stand-in, taken
  * off once loaded. A picture OpenUSD cannot find is not a plain color: the parts whose material
@@ -662,7 +761,7 @@ function usdFiles(
         }
     }
 
-    return { files: out, main: root };
+    return { files: withPreviewSurfaceDefaults(withStPrimvar(out)), main: root };
 }
 
 /**

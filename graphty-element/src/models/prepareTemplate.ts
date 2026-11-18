@@ -24,6 +24,7 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
 import { Material } from "@babylonjs/core/Materials/material.js";
+import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
@@ -232,8 +233,44 @@ function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): 
 }
 
 /**
- * Bake one mesh, placed by a world matrix, into parts: one, or one per thin instance.
- * @param mesh - The mesh whose vertices and material are baked.
+ * A mesh's slices by material: one per sub-mesh when a MultiMaterial colors its sub-meshes
+ * (a USD mesh's GeomSubsets, each bound to its own material: the USD Mini Car Kit's sedan drew
+ * all over in its first subset's front-light yellow), else the whole mesh in its one material.
+ * @param mesh - The mesh.
+ * @returns Each slice's material and, for a sub-mesh, its range of the mesh's indices.
+ */
+function slicesOf(mesh: Mesh): { material: Material | null; range?: [number, number] }[] {
+    const { material } = mesh;
+    if (!(material instanceof MultiMaterial) || mesh.subMeshes.length < 2) {
+        return [{ material: material instanceof MultiMaterial ? material.subMaterials[0] : material }];
+    }
+
+    return mesh.subMeshes.map((sub) => ({
+        material: material.subMaterials[sub.materialIndex] ?? null,
+        range: [sub.indexStart, sub.indexStart + sub.indexCount],
+    }));
+}
+
+/**
+ * Vertex data cut to a range of its indices (all its vertices kept).
+ * @param data - The data.
+ * @param range - The range, or undefined for all of it.
+ * @returns The data, a copy when cut.
+ */
+function cut(data: VertexData, range: [number, number] | undefined): VertexData {
+    if (range === undefined) {
+        return data;
+    }
+
+    const copy = data.clone();
+    copy.indices = Array.from(data.indices ?? []).slice(range[0], range[1]);
+    return copy;
+}
+
+/**
+ * Bake one mesh, placed by a world matrix, into parts: one per material slice, and one per thin
+ * instance.
+ * @param mesh - The mesh whose vertices and materials are baked.
  * @param world - Where it stands: its own world matrix, or that of an instance of it.
  * @param turn - The orientation to bake in.
  * @param animated - Whether the part keeps its own vertices and its mesh, to animate.
@@ -244,20 +281,24 @@ function bakeMesh(mesh: Mesh, world: Matrix, turn: Matrix, animated: boolean): P
         return [];
     }
 
-    const data = withoutWhiteColors(restPose(mesh));
-    const { material } = mesh;
-    const signature = [data.uvs, data.uvs2, data.colors, data.tangents].map((a) => (a ? 1 : 0)).join("");
-    const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
-    const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
+    const whole = withoutWhiteColors(restPose(mesh));
+    const signature = [whole.uvs, whole.uvs2, whole.colors, whole.tangents].map((a) => (a ? 1 : 0)).join("");
     const placed = world.multiply(turn);
     // A thin instance's matrix places it in the mesh's own space, before the mesh's world matrix.
     // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
     const instances = mesh.thinInstanceGetWorldMatrices();
     // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) or a reused mesh's copy is drawn still; give each copy a bone if a file animates one.
-    const movable = animated && instances.length === 0 ? { mesh, local: withoutWhiteColors(ownVertices(mesh)) } : {};
-    return (instances.length === 0 ? [Matrix.Identity()] : instances).map((instance) => {
-        const copy = instances.length > 1 ? data.clone() : data;
-        return { vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable };
+    const local = animated && instances.length === 0 ? withoutWhiteColors(ownVertices(mesh)) : undefined;
+    // ponytail: a sliced mesh keeps all its vertices in each slice; compact them if a file needs the memory.
+    return slicesOf(mesh).flatMap(({ material, range }) => {
+        const data = cut(whole, range);
+        const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
+        const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
+        const movable = local === undefined ? {} : { mesh, local: cut(local, range) };
+        return (instances.length === 0 ? [Matrix.Identity()] : instances).map((instance) => {
+            const copy = instances.length > 1 ? data.clone() : data;
+            return { vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable };
+        });
     });
 }
 

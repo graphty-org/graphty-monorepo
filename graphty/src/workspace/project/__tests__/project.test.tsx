@@ -244,6 +244,16 @@ describe("the Project package", () => {
             saveProblemSentence("Karate", new GraphtyError({ code: "E_TOO_LARGE", message: "x", source: "data" })),
             "Karate could not be saved: this browser's storage for graphty is full.",
         );
+        const unsupported = (reason: string): GraphtyError =>
+            new GraphtyError({ code: "E_UNSUPPORTED", message: "x", source: "data", details: { reason } });
+        assert.equal(
+            saveProblemSentence("Karate", unsupported("no-indexeddb")),
+            "Karate could not be saved: this browser does not let graphty keep projects. Save a local copy instead.",
+        );
+        assert.equal(
+            saveProblemSentence("Karate", unsupported("storage-failed")),
+            "Karate could not be saved: this browser's storage refused it. Save a local copy instead.",
+        );
     });
 });
 

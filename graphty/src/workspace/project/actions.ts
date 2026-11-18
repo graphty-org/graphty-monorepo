@@ -321,7 +321,10 @@ export function saveProblemSentence(name: string, error: unknown): string {
         case "E_TOO_LARGE":
             return `${name} could not be saved: this browser's storage for graphty is full.`;
         case "E_UNSUPPORTED":
-            return `${name} could not be saved: this browser does not let graphty keep projects. Save a local copy instead.`;
+            // "no-indexeddb": the browser has no storage; "storage-failed": it has storage that refused the write.
+            return isGraphtyError(error) && error.details?.reason === "storage-failed"
+                ? `${name} could not be saved: this browser's storage refused it. Save a local copy instead.`
+                : `${name} could not be saved: this browser does not let graphty keep projects. Save a local copy instead.`;
         default:
             return `${name} could not be saved.`;
     }

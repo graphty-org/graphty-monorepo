@@ -80,15 +80,15 @@ const white = await graph.captureScreenshot({
 
 ### A legend in the image
 
-`legend` draws a key into the image, at the capture's resolution, so a colour-encoded picture
-still says what its colours mean once it leaves the page. It is drawn from the element's legend
+`legend` draws a key into the image, at the capture's resolution, so a color-encoded picture
+still says what its colors mean once it leaves the page. It is drawn from the element's legend
 model (`session.styles.legend()`), not copied from the page.
 
 ```typescript
 // The element's own legend, in the bottom-right corner
 await graph.captureScreenshot({ legend: true });
 
-// Only when a layer binds a value (a colour by degree, a size by betweenness)
+// Only when a layer binds a value (a color by degree, a size by betweenness)
 await graph.captureScreenshot({ legend: "auto" });
 
 // Another corner, and a heading in your own words
@@ -104,7 +104,7 @@ await graph.captureScreenshot({ legend: { position: "top-left", title: "Degree" 
 | an array of sections    | Exactly the sections you pass, top left, every word yours            |
 
 The element's legend writes no words of its own: each section is headed by the field's name, and
-lists the data's values (or the names readers gave them) beside their colours, or a ramp between
+lists the data's values (or the names readers gave them) beside their colors, or a ramp between
 the lowest and highest value. To word the key yourself, build the sections from
 `session.styles.legend()` and pass the array:
 
@@ -158,9 +158,10 @@ A PDF needs no extra package: its text is set in the fonts every PDF reader has 
 or Courier, whichever is nearest each label's font), so characters outside Western European
 alphabets print as `?`; use SVG for those.
 
-A figure draws each node's flat color, without the canvas's lighting, draws edges straight, without
-arrowheads, and draws a label's solid background as a box behind its text; curved edges,
-arrowheads, node borders and gradient label backgrounds are not in it yet.
+A figure draws each node's flat color, without the canvas's lighting, with its border; draws edges
+straight, with their arrowheads in the shape, size and color the canvas draws them; and draws a
+label's solid background as a box behind its text. Curved edges, picture arrowheads and gradient
+label backgrounds are not in it yet.
 
 ## Checking Capabilities
 
@@ -284,6 +285,15 @@ Cancel an ongoing recording:
 
 ```typescript
 graph.cancelAnimationCapture();
+```
+
+Stop a recording early and keep what was recorded -- the `captureAnimation` promise resolves with
+the video so far, so a long `duration` records until the reader stops:
+
+```typescript
+const recording = graph.captureAnimation({ duration: 300_000, cameraMode: "stationary" });
+stopButton.onclick = () => graph.stopAnimationCapture();
+const { blob } = await recording;
 ```
 
 ## Downloading Video

@@ -106,7 +106,7 @@
             "arrows": 1,
             "edgePath": 1,
             "edgeLabel": 1,
-            "annotations": 0.5,
+            "annotations": 1,
             "background": 1
         },
         "dot-profile": {
@@ -249,7 +249,7 @@
         },
         "cys-annotation-example": {
             "edgePath": [],
-            "annotations": ["arrow#2","arrow#3","extra arrow#0","extra arrow#5"]
+            "annotations": []
         },
         "gexf-miserables": {
             "labelText": [],

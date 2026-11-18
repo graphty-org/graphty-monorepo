@@ -308,6 +308,64 @@ describe("bisect.yml", () => {
     });
 });
 
+// #8733: a round's state passed by value as a dispatch input passed GitHub's 65 KB limit (HTTP 422) and stopped the
+// bisect after round 1; it goes by reference now, the judging run's bisect-next artifact.
+describe("the next round's state goes by reference", () => {
+    const jobs = parseYaml(readFileSync(new URL("../.github/workflows/bisect.yml", import.meta.url), "utf8")).jobs;
+
+    it("the judge uploads bisect-next and dispatches its own run id; the plan downloads it from that run", () => {
+        const steps = jobs.judge.steps;
+        const upload = steps.findIndex((s) => s.with?.name === "bisect-next");
+        const dispatch = steps.findIndex((s) => s.name === "Dispatch the next round");
+        assert.ok(upload >= 0 && upload < dispatch, "uploaded before the next round is dispatched");
+        assert.equal(steps[upload].with.path, "next.json");
+        assert.equal(steps[upload].if, steps[dispatch].if);
+        assert.match(steps[dispatch].run, /-f state_run="\$GITHUB_RUN_ID"/);
+        assert.doesNotMatch(steps[dispatch].run, /-f state=/, "no state by value");
+
+        const get = jobs.plan.steps.find((s) => s.with?.name === "bisect-next");
+        assert.equal(get.with["run-id"], "${{ inputs.state_run }}");
+        assert.equal(get.with["github-token"], "${{ github.token }}");
+        assert.equal(jobs.plan.permissions.actions, "read");
+        assert.match(jobs.plan.steps.find((s) => s.id === "plan").run, /plan .*--state next\/next\.json/);
+    });
+
+    it("plans round 2 from the judged round 1 file, the same as from STATE", () => {
+        const { dir, good, merges } = scratchRange(6, 3);
+        dirs.push(dir);
+        execFileSync("git", ["update-ref", "refs/remotes/origin/master", merges.at(-1)], { cwd: dir });
+        const bad = merges.at(-1);
+        const cli = (args, env = {}) =>
+            execFileSync("node", [new URL("bisect-ci.mjs", import.meta.url).pathname, ...args], {
+                cwd: dir,
+                env: { ...process.env, GITHUB_OUTPUT: "", GITHUB_STEP_SUMMARY: "", BISECT_ROOT: dir, ...env },
+                encoding: "utf8",
+            });
+        const f = (n) => join(dir, n);
+        cli(["plan", "--out", f("state.json")], {
+            LANE: "ci",
+            GOOD: good,
+            BAD: bad,
+            TARGETS: JSON.stringify([TEST]),
+            STATE: "",
+        });
+        const round1 = JSON.parse(readFileSync(f("state.json"), "utf8"));
+        execFileSync("mkdir", ["-p", f("results")]);
+        writeFileSync(
+            f("results/r.json"),
+            JSON.stringify({ sha: bad, runs: round1.next.runs, failed: { [ID]: round1.next.runs } }),
+        );
+        cli(["judge", "--state", f("state.json"), "--results", f("results"), "--out", f("next.json")]);
+        const next = readFileSync(f("next.json"), "utf8");
+        assert.ok(JSON.parse(next).next.points.length > 1, "round 1 confirmed the red, so round 2 bisects");
+
+        cli(["plan", "--state", f("next.json"), "--out", f("by-ref.json")]);
+        cli(["plan", "--out", f("by-value.json")], { STATE: next });
+        assert.deepEqual(JSON.parse(readFileSync(f("by-ref.json"), "utf8")), JSON.parse(next));
+        assert.deepEqual(JSON.parse(readFileSync(f("by-value.json"), "utf8")), JSON.parse(next));
+    });
+});
+
 describe("a lane point runs with its own workflow files", () => {
     const read = (f) => readFileSync(new URL(`../.github/workflows/${f}`, import.meta.url), "utf8");
     const bisect = parseYaml(read("bisect.yml")).jobs;

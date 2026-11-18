@@ -3,7 +3,8 @@ name: Metric Distribution Charts
 category: visualization
 description: Display histograms and distribution charts for any numeric node or edge attribute, enabling statistical
     understanding of graph properties.
-status: planned
+status: implemented
+notes: "Ships: the session's histogram and graphty/src/workspace/inspector/Distribution.tsx."
 algorithms: []
 used_by_workflows:
     - W01

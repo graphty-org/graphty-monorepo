@@ -254,8 +254,11 @@ type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["lin
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
-/** How heavy a label's letters are, as the `labelWeight` channels take it. */
-type LabelWeightValue = "normal" | "bold";
+/**
+ * How heavy a label's letters are, as the `labelWeight` channels take it: `normal` (CSS 400), `bold` (CSS 700) or
+ * another CSS numeric weight, `100` (thin) to `900` (black).
+ */
+type LabelWeightValue = "normal" | "bold" | "100" | "200" | "300" | "500" | "600" | "800" | "900";
 
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 type LabelRunAlignValue = "baseline" | "hanging" | "middle";
@@ -1336,12 +1339,11 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             group: "arrows",
             default: 0,
             accepts: "number",
-            min: 0,
             stylePath: `arrow${end}.gap`,
             renderable: true,
             caveat:
                 "How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the " +
-                "line stops there too. 0 puts the cap against the node.",
+                "line stops there too. 0 puts the cap against the node; below 0 it overlaps the node.",
         },
         {
             ...id("Stack"),
@@ -1432,6 +1434,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             shortName: `${end} caption size`,
             group: "arrows",
             accepts: "number",
+            min: 1,
             stylePath: `arrow${end}.text.fontSize`,
             renderable: true,
             caveat: ARROW_CAPTION_CAVEAT,
@@ -1768,8 +1771,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
     });
     const rows = [
         row("Color", "Color", { accepts: "color" }),
-        // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
-        row("Size", "Size", { accepts: "number" }),
+        row("Size", "Size", { accepts: "number", min: 1 }),
         row("LetterSize", "Letter Size", { accepts: "number", min: 0 }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
@@ -1985,7 +1987,17 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
 };
 
 /** Every weight the `labelWeight` channels take. */
-const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
+const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = [
+    "normal",
+    "bold",
+    "100",
+    "200",
+    "300",
+    "500",
+    "600",
+    "800",
+    "900",
+];
 
 /** Every place the `labelRunAlign` channels take. */
 const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
@@ -2209,8 +2221,7 @@ function textLookChannels<Base extends string>(
             shortName: `${shortName} size`,
             default: LABEL_SIZE_PER_WORLD_UNIT,
             accepts: "number",
-            // No min: the channel takes every number its style schema takes. A size under 1 draws
-            // no text (MIN_DRAWN_FONT_SIZE), and a layer that writes one is told W_TEXT_TOO_SMALL.
+            min: 1,
             perWorldUnit: LABEL_SIZE_PER_WORLD_UNIT,
             stylePath: `${block}.fontSize`,
         },

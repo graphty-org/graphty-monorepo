@@ -37,9 +37,9 @@ from `@graphty/graphty-element`:
 
 | Field     | What it holds                                                                                                                                                                       |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `x`, `y`  | The node's centre in CSS pixels from the element's top-left corner, the same pixels `worldToScreen` returns. A click there selects the node.                                        |
-| `visible` | `true` when the centre is inside the element, in front of the camera and the node is not hidden by the visibility filter. A node drawn behind another node still counts as visible. |
-| `radius`  | How big the node is drawn: its largest half-extent, in pixels. A click within this distance of the centre lands on the node. `0` when the node is behind the camera.                |
+| `x`, `y`  | The node's center in CSS pixels from the element's top-left corner, the same pixels `worldToScreen` returns. A click there selects the node.                                        |
+| `visible` | `true` when the center is inside the element, in front of the camera and the node is not hidden by the visibility filter. A node drawn behind another node still counts as visible. |
+| `radius`  | How big the node is drawn: its largest half-extent, in pixels. A click within this distance of the center lands on the node. `0` when the node is behind the camera.                |
 
 The answer is a snapshot. Ask again after the camera, the layout or the element's size changes.
 `x` and `y` are given even when `visible` is `false`, so you can point toward a node that is off

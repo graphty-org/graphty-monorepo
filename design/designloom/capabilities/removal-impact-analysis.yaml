@@ -3,7 +3,8 @@ name: Removal Impact Analysis
 category: analysis
 description: Simulate the effect of removing selected nodes or edges from the graph to assess network resilience,
     identify critical dependencies, and model disruption scenarios.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/RemovalImpactAlgorithm.ts."
 algorithms: []
 used_by_workflows:
     - W09

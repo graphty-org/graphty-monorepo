@@ -73,6 +73,35 @@ describe("summary bounds", () => {
         ]);
     });
 
+    it("put a skinned glTF mesh where its skin draws it, not under its scaled armature", async () => {
+        const json = JSON.parse(new TextDecoder().decode(fixture("gltf-textured", "cube.gltf"))) as Record<
+            string,
+            Record<string, unknown>[]
+        >;
+        // An armature turned 90 degrees about X and scaled 0.01, as Mixamo exports write it; the
+        // inverse bind matrix undoes it, so the skin draws the unit cube as its positions say.
+        json.nodes = [
+            { children: [1, 2], rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2], scale: [0.01, 0.01, 0.01] },
+            { mesh: 0, skin: 0 },
+            { translation: [0, 100, 0] },
+        ];
+        json.skins = [{ joints: [2], inverseBindMatrices: 4 }];
+        json.accessors.push({ bufferView: 4, componentType: 5126, count: 1, type: "MAT4" });
+        json.bufferViews.push({ buffer: 1, byteLength: 64 });
+        json.buffers.push({ uri: "ibm.bin", byteLength: 64 });
+        const ibm = new Float32Array([100, 0, 0, 0, 0, 0, -100, 0, 0, 100, 0, 0, 0, -100, 0, 1]);
+        const summary = await summaryOf({
+            "cube.gltf": JSON.stringify(json),
+            "cube.bin": fixture("gltf-textured", "cube.bin"),
+            "cube.png": fixture("gltf-textured", "cube.png"),
+            "ibm.bin": new Uint8Array(ibm.buffer),
+        });
+        assert.deepStrictEqual(boundsOf(summary), [
+            [-0.5, -0.5, -0.5],
+            [0.5, 0.5, 0.5],
+        ]);
+    });
+
     it("give an FBX file's curves bounds, where their models' transforms put them", async () => {
         const nurbs = new TextDecoder()
             .decode(fixture("fbx-curves", "nurbs.fbx"))

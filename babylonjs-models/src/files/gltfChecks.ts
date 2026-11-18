@@ -834,41 +834,59 @@ function localOf(node: Record<string, unknown>): Affine {
 }
 
 /**
- * The node a skinned mesh is drawn under, as Babylon's glTF loader places it: the parent of the
- * skeleton root (`skin.skeleton`, else the joints' nearest common ancestor), or the mesh node's own
- * parent when that is the mesh node itself; -1 for the scene root.
- * @param n - The mesh node.
- * @param skin - Its skin.
- * @param parent - Each node's parent.
- * @returns The node.
+ * A skin's first inverse bind matrix, as an affine; the identity when the skin has none, and
+ * undefined when it cannot be read here (compressed or sparse).
+ * @param skin - The skin.
+ * @param data - The glTF's accessors, buffer views and buffers' bytes.
+ * @param data.accessors - Its accessors.
+ * @param data.views - Its buffer views.
+ * @param data.buffers - Its buffers' bytes.
+ * @returns The matrix.
  */
-function skinnedParent(n: number, skin: Record<string, unknown>, parent: Int32Array): number {
-    const joints = Array.isArray(skin.joints) ? (skin.joints as number[]) : [];
-    const chain = (j: number): number[] => {
-        const out: number[] = [];
-        for (let at = j; at !== -1; at = parent[at]) {
-            out.unshift(at);
-        }
-        return out;
-    };
-    let root = typeof skin.skeleton === "number" ? skin.skeleton : -1;
-    if (root === -1 && joints.length > 0) {
-        const paths = joints.map((j) => chain(j));
-        for (let i = 0; paths.every((p) => p[i] !== undefined && p[i] === paths[0][i]); i++) {
-            root = paths[0][i];
-        }
+function firstInverseBind(
+    skin: Record<string, unknown>,
+    data: {
+        accessors: readonly Record<string, unknown>[];
+        views: readonly Record<string, unknown>[];
+        buffers: readonly Uint8Array[];
+    },
+): Affine | undefined {
+    if (skin.inverseBindMatrices === undefined) {
+        return IDENTITY;
     }
-    const above = root === -1 ? -1 : parent[root];
-    return above === n ? parent[n] : above;
+
+    const accessor = data.accessors[skin.inverseBindMatrices as number] as Record<string, unknown> | undefined;
+    const view = data.views[accessor?.bufferView as number] as Record<string, unknown> | undefined;
+    const bytes = data.buffers[view?.buffer as number] as Uint8Array | undefined;
+    if (accessor?.componentType !== 5126 || accessor.sparse !== undefined || view === undefined || bytes === undefined) {
+        return undefined;
+    }
+
+    const start =
+        bytes.byteOffset + integer(view.byteOffset, "bufferView.byteOffset", 0) + integer(accessor.byteOffset, "accessor.byteOffset", 0);
+    if (start + 64 > bytes.byteOffset + bytes.length) {
+        return undefined;
+    }
+
+    const at = new DataView(bytes.buffer, start, 64);
+    const m = Array.from({ length: 16 }, (_, i) => at.getFloat32(i * 4, true));
+    return [m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14]];
 }
 
 /**
  * The box around what the scene's nodes draw, each mesh where its node's transforms put it.
- * ponytail: the rest pose; GPU instances, morph targets and a skin's joints are left out.
+ * A skinned mesh is placed as its first joint draws it in the rest pose (that joint's world matrix
+ * times its inverse bind matrix), which is where the skin puts the mesh when the rest pose is the
+ * bind pose.
+ * ponytail: the rest pose, by one joint; GPU instances and morph targets are left out.
  * @param reached - The scene's nodes.
  * @param nodes - The glTF's nodes.
  * @param skins - Its skins.
  * @param boxes - Each mesh's box, in its own frame.
+ * @param data - The glTF's accessors, buffer views and buffers' bytes, to read inverse bind matrices.
+ * @param data.accessors - Its accessors.
+ * @param data.views - Its buffer views.
+ * @param data.buffers - Its buffers' bytes.
  * @returns The box, or undefined when no mesh says its bounds.
  */
 function sceneBounds(
@@ -876,6 +894,11 @@ function sceneBounds(
     nodes: readonly Record<string, unknown>[],
     skins: readonly Record<string, unknown>[],
     boxes: readonly (Bounds | undefined)[],
+    data: {
+        accessors: readonly Record<string, unknown>[];
+        views: readonly Record<string, unknown>[];
+        buffers: readonly Uint8Array[];
+    },
 ): Bounds | undefined {
     const parent = parentsOf(nodes);
     const worlds = new Map<number, Affine>();
@@ -897,7 +920,12 @@ function sceneBounds(
             continue;
         }
         const skin = typeof nodes[n].skin === "number" ? skins[nodes[n].skin] : undefined;
-        const placed = placeBox(box, skin === undefined ? worldOf(n) : worldOf(skinnedParent(n, skin, parent)));
+        const joint = Array.isArray(skin?.joints) ? (skin.joints[0] as number | undefined) : undefined;
+        const bind = skin === undefined ? undefined : firstInverseBind(skin, data);
+        const placed = placeBox(
+            box,
+            joint === undefined || bind === undefined ? worldOf(n) : compose(worldOf(joint), bind),
+        );
         out = mergeBounds(out, { min: placed.min, max: placed.max });
     }
     return out;
@@ -1421,7 +1449,7 @@ export function checkGltf(input: GltfInput): GltfChecked {
         views.length,
     );
     const drawn = drawnTriangles(reached, nodes, triangles, limits, accessors);
-    const bounds = sceneBounds(reached, nodes, skins, boxes);
+    const bounds = sceneBounds(reached, nodes, skins, boxes, { accessors, views, buffers });
 
     cap("nodes", nodes.length, limits.maxNodes);
     cap("meshes", meshes.length, limits.maxMeshes);

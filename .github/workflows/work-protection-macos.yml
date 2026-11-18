@@ -159,7 +159,8 @@ jobs:
         needs: bundle
         if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/ios-simulator.test.ts') }}
         runs-on: macos-26
-        timeout-minutes: 40
+        # Setup about 6 minutes, the boot step's 25 and the test step's 30, each its own limit.
+        timeout-minutes: 65
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
@@ -180,11 +181,30 @@ jobs:
               env: { HUSKY: "0" }
             - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
+            # Booted here, not in the test's beforeAll: a first boot on a fresh runner took 22 minutes (#8861),
+            # and inside the test it counted against the test file's hang guard, which ended a passing run.
+            - name: Boot the iOS Simulator
+              timeout-minutes: 25
+              run: pnpm exec tsx test/lifecycle/ios-device.ts
             - name: App switch, memory warning, Safari or its web content process killed, return to a discarded tab
               timeout-minutes: 30
-              # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them (vitest's
-              # lifecycle project allows them with GRAPHTY_LIFECYCLE_MACOS set).
+              # Safari's first launch takes minutes: the step's limit bounds it (vitest's lifecycle project allows
+              # it with GRAPHTY_LIFECYCLE_MACOS set).
               run: pnpm exec vitest run --project=lifecycle test/lifecycle/ios-simulator.test.ts
+            # The test saves a failed scenario's own diagnostics, but a run the hang guard or a time limit
+            # ends never gets there (#8861): keep the Simulator's screen, its devices and its log here too.
+            - name: Collect the Simulator's screen and log of a failed run
+              if: failure()
+              timeout-minutes: 5
+              run: |
+                  mkdir -p test-results/ios/job
+                  xcrun simctl list devices > test-results/ios/job/devices.txt 2>&1 || true
+                  xcrun simctl io booted screenshot test-results/ios/job/screen.png || echo "no booted Simulator"
+                  xcrun simctl spawn booted log show --last 70m --style compact \
+                      --predicate 'process == "MobileSafari" OR process BEGINSWITH "com.apple.WebKit" OR process == "SpringBoard"' \
+                      > test-results/ios/job/log.txt || true
+                  log show --last 70m --style compact --predicate 'process BEGINSWITH "com.apple.CoreSimulator" OR process == "simctl"' \
+                      > test-results/ios/job/coresimulator.log || true
             - name: Keep the Simulator's screen and Safari's log of a failed scenario
               if: failure()
               uses: actions/upload-artifact@v7

@@ -233,6 +233,50 @@ describe("a project saved with a reference", () => {
         assert.isFalse(opened.project.dirty);
     });
 
+    it("writes an edit made while the save reads the reference again", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = await twoLoads();
+        const key = session.data.sources()[0]?.key ?? "";
+        session.data.setCopy(key, "reference");
+        // Hold the save's read of the reference open until the edit is in.
+        let release = (): void => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        vi.stubGlobal("fetch", async () => {
+            await gate;
+            return new Response(GRAPH, { status: 200 });
+        });
+        const saving = session.project.save();
+        await session.data.updateNodes([{ id: "a", values: { label: "EDITED" } }]);
+        release();
+        const saved = await saving;
+        assert.strictEqual(dataOf(saved.text).nodes[0]?.label, "EDITED");
+        assert.isFalse(session.project.dirty);
+        const { session: opened } = await reopen(saved.text);
+        assert.strictEqual(labels(opened).a, "EDITED");
+    });
+
+    it("tells readers of sources() the restored copy choices once an open is done", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = await twoLoads();
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        const saved = await session.project.save();
+
+        const opened = createGraphSession({ features: ["source-references"] });
+        opened.network.setPolicy("allow");
+        // What a reader that renders on each event last saw.
+        let seen: unknown[] = [];
+        const look = (): void => {
+            seen = opened.data.sources().map((load) => load.copy ?? null);
+        };
+        opened.on("project:changed", look);
+        opened.on("source:copy", look);
+        await opened.project.open(saved.text);
+        assert.deepEqual(seen, ["reference", null]);
+        assert.isFalse(opened.project.dirty);
+    });
+
     it("brings back a finished run's node and edge values and a style over referenced rows", async () => {
         stubSite({ [URL_A]: GRAPH });
         const session = sessionWithRuns(["source-references"]);

@@ -3247,7 +3247,11 @@ export function projectOf(
                 computed: { node: named("node"), edge: named("edge") },
                 scratch,
                 network: network(),
-            }).then((plan) => saveNow(options, plan));
+            }).then((plan) => {
+                // Worked out now, in the tick the file is written, from the graph as it is now.
+                const still = (session.data as SessionData).referenceLoads().map((each) => each.key);
+                return expandedGraph(session) === null ? saveNow(options, plan(new Set(still))) : saveNow(options);
+            });
         },
         markSaved(saved) {
             rememberOf.get(saved)?.();

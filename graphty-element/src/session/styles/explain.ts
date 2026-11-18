@@ -11,7 +11,7 @@
  * hand edit ON THE SAME REPAINT, so a control offered for a calculated channel would take a
  * value, write it, and be overwritten before the frame was drawn. That is a fact about the
  * element's merge, so the element is what should state it. {@link explainStyle} does, in
- * {@link ChannelExplanation.editable} and its `reason`.
+ * {@link ChannelExplanation.editable} and its `fact`.
  *
  * THE ANSWER IS COMPUTED THE WAY THE PICTURE WAS. The stack is walked bottom first, each layer's
  * selector is asked about this one element, and each of its prepared bindings is asked for this
@@ -49,7 +49,6 @@ import type {
     TopTies,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import type { CodedFact } from "../shared";
 import {
@@ -101,12 +100,6 @@ export interface ChannelExplanation {
     readonly mode: "static" | "encoded";
     /** Whether a consumer may offer a control that writes this channel on that layer. */
     readonly editable: boolean;
-    /**
-     * Why not, when it is not. A sentence, written for the person who would have edited it.
-     * @deprecated English written by the element. Word {@link ChannelExplanation.fact} instead;
-     * removed in the next major release.
-     */
-    readonly reason?: string;
     /**
      * Why not, when it is not, as a code and its values for the application to word. Present
      * exactly when `editable` is false.
@@ -435,12 +428,6 @@ export interface UnboundLayer {
     /** The layer. */
     readonly layerId: LayerId;
     /**
-     * Why it paints nothing, in a sentence.
-     * @deprecated English written by the element. Word {@link UnboundLayer.fact} instead; removed
-     * in the next major release.
-     */
-    readonly reason: string;
-    /**
      * Why it paints nothing, as a code and its values for the application to word.
      * @since 3.17.0
      */
@@ -514,6 +501,11 @@ export interface ExplainSources {
      * one. Absent reads as directed, as the painter does.
      */
     readonly directed?: () => boolean;
+    /**
+     * Whether the edge on a row is directed: its own direction in a graph that mixes both, the
+     * graph's otherwise. Absent reads every edge as {@link ExplainSources.directed} says.
+     */
+    readonly edgeDirected?: (edge: number) => boolean;
     /**
      * Whether `edge.lift` draws now: only for a flat layout in the 3D view. Absent, the session
      * cannot say, and no lift is reported as drawing nothing.
@@ -713,28 +705,19 @@ function paintOne(
  * send a person down a road that also ends in `E_PROTECTED`.
  * @param winner - The layer that won the channel and how.
  * @param channel - The channel.
- * @returns The sentence and its fact, or undefined when a control may be offered.
+ * @returns The fact, or undefined when a control may be offered.
  */
-function refusal(
-    winner: Winner,
-    channel: Channel,
-): { reason: string; fact: CodedFact<ChannelRefusalCode> } | undefined {
+function refusal(winner: Winner, channel: Channel): { fact: CodedFact<ChannelRefusalCode> } | undefined {
     const { layer, mode, path } = winner;
 
     if (layer.locked) {
         return {
-            reason:
-                `"${layer.name}" belongs to the element, so it cannot be edited. ` +
-                "Add a layer of your own above it instead.",
             fact: { code: "layer.locked", params: { layerId: layer.id, name: layer.name } },
         };
     }
 
     if (mode === "encoded") {
         return {
-            reason:
-                `"${layer.name}" works ${channel} out from "${String(path)}", so a fixed value written here ` +
-                "would be replaced the next time the layer paints. Resolve the rule to a fixed value first.",
             fact: {
                 code: "channel.encoded",
                 params: { layerId: layer.id, name: layer.name, channel, path: String(path) },
@@ -987,13 +970,7 @@ export function styleAgreement(
 
         const groups = new Map<string, { index: number; weight: number }>();
         for (const index of indices) {
-            const key = appliesKey(stack, { target, index });
-            const group = groups.get(key);
-            if (group === undefined) {
-                groups.set(key, { index, weight: 1 });
-            } else {
-                group.weight++;
-            }
+            countInGroup(groups, appliesKey(stack, { target, index }), index);
         }
 
         for (const { index, weight } of groups.values()) {
@@ -1129,7 +1106,7 @@ interface WinTally {
     /** The tally of the covering layers per channel. */
     readonly perChannel: Map<Channel, Map<LayerId, number>>;
     /** Told each element's walk, to count what the layer wins that draws nothing. */
-    readonly undrawn: (found: ElementWins, weight: number) => void;
+    readonly undrawn: (found: ElementWins, weight: number, index: number) => void;
 }
 
 /**
@@ -1307,7 +1284,7 @@ function countWins(
         }
     }
 
-    undrawn(found, weight);
+    undrawn(found, weight, at.index);
 }
 
 /** One shader fact being counted, by its key. */
@@ -1410,25 +1387,25 @@ const CAPTION_ARROW: Partial<Record<Channel, Channel>> = {
 
 /**
  * A tally of the end captions a layer wins on edges whose end draws no arrow.
- * @param directed - Whether the graph is directed, which gives an edge a head no layer chose.
+ * @param directed - Whether the edge on a row is directed, which gives it a head no layer chose.
  * @returns The tally, and a function to read it out as facts.
  */
-function captionTally(directed: boolean): {
-    readonly add: (channel: Channel, values: Partial<Record<Channel, unknown>>, weight: number) => void;
+function captionTally(directed: (edge: number) => boolean): {
+    readonly add: (channel: Channel, values: Partial<Record<Channel, unknown>>, weight: number, edge: number) => void;
     readonly facts: () => readonly CodedFact<UndrawnCode>[];
 } {
     const counts = new Map<Channel, number>();
 
     return {
-        add(channel, values, weight): void {
+        add(channel, values, weight, edge): void {
             const arrow = CAPTION_ARROW[channel];
             if (arrow === undefined) {
                 return;
             }
 
             // The same default the painter draws (StylePainter.edgePaintOf): a head no layer chose
-            // only on a directed graph, never a tail.
-            const type = values[arrow] ?? (arrow === "edge.arrowHead" && directed ? "normal" : "none");
+            // only on a directed edge, never a tail.
+            const type = values[arrow] ?? (arrow === "edge.arrowHead" && directed(edge) ? "normal" : "none");
             if (type === "none") {
                 counts.set(channel, (counts.get(channel) ?? 0) + weight);
             }
@@ -1441,6 +1418,16 @@ function captionTally(directed: boolean): {
                 })),
             ),
     };
+}
+
+/**
+ * Whether the edge on a row is directed, as the sources say: its own direction, else the graph's.
+ * @param sources - The sources.
+ * @returns A reader by edge row.
+ */
+function edgeDirectedOf(sources: ExplainSources): (edge: number) => boolean {
+    const graph = sources.directed ?? ((): boolean => true);
+    return sources.edgeDirected ?? ((): boolean => graph());
 }
 
 /** Work done by {@link styleCounts}, for a test that counts it rather than times it. */
@@ -1461,6 +1448,22 @@ function readsNoData(stack: readonly StackEntry[], own: readonly PreparedBinding
         own.every(({ path }) => path === null) &&
         stack.every(({ bindings }) => bindings.every(({ path }) => path === null))
     );
+}
+
+/**
+ * Counts one element into the group of elements the same layers apply to, the first one standing
+ * for the group.
+ * @param groups - The groups by key.
+ * @param key - The element's key ({@link appliesKey}).
+ * @param index - The element.
+ */
+function countInGroup(groups: Map<string, { index: number; weight: number }>, key: string, index: number): void {
+    const group = groups.get(key);
+    if (group === undefined) {
+        groups.set(key, { index, weight: 1 });
+    } else {
+        group.weight++;
+    }
 }
 
 /**
@@ -1511,7 +1514,8 @@ export function styleCounts(
     let noValue = 0;
     let outsideScale = 0;
     const others = new Map<LayerId, number>();
-    const captions = captionTally(sources.directed?.() ?? true);
+    const edgeDirected = edgeDirectedOf(sources);
+    const captions = captionTally(edgeDirected);
     const shaders = shaderTally(layer.target);
     // A lift the layer wins on an edge drawn flat; see `edge.lift-needs-flat-layout`.
     const liftFlat = layer.target === "edge" && sources.liftDrawn?.() === false;
@@ -1525,10 +1529,10 @@ export function styleCounts(
         painted,
         others,
         perChannel,
-        undrawn: (found, weight) => {
+        undrawn: (found, weight, index) => {
             for (const [channel, winner] of found.winners) {
                 if (winner === layerId) {
-                    captions.add(channel, found.values, weight);
+                    captions.add(channel, found.values, weight, index);
                 }
             }
 
@@ -1570,13 +1574,12 @@ export function styleCounts(
             continue;
         }
 
-        const key = appliesKey(stack, { target: layer.target, index });
-        const group = groups.get(key);
-        if (group === undefined) {
-            groups.set(key, { index, weight: 1 });
-        } else {
-            group.weight++;
-        }
+        // An edge's own direction decides the head no layer chose, so edges of differing direction
+        // never stand for each other.
+        const key =
+            appliesKey(stack, { target: layer.target, index }) +
+            (layer.target === "edge" && edgeDirected(index) ? "d" : "");
+        countInGroup(groups, key, index);
     }
 
     for (const { index, weight } of groups?.values() ?? []) {
@@ -1844,7 +1847,6 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
         if (detached !== undefined) {
             unbound.push({
                 layerId: layer.id,
-                reason: `"${layer.name}" names a scope that cannot be resolved, so it is detached and paints nothing. ${detached.message}`,
                 fact: {
                     code: "layer.detached",
                     params: { layerId: layer.id, name: layer.name, error: detached.code },
@@ -1869,9 +1871,6 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
         if (needs.length === wanted.size) {
             unbound.push({
                 layerId: layer.id,
-                reason:
-                    `"${layer.name}" reads ${quoteEach(needs, ", ")}, ` +
-                    "which nothing in this session answers, so it paints nothing.",
                 fact: { code: "layer.unanswered", params: { layerId: layer.id, name: layer.name, paths: needs } },
                 needs: Object.freeze(needs),
             });

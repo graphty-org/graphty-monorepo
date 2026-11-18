@@ -14,12 +14,13 @@
  */
 import "../../src/graphty-element";
 
-import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 
 /** The two graph sizes: big enough that a cost per call that grows with the graph is 4x. */
 const SIZES = [100, 400] as const;
@@ -31,15 +32,7 @@ const SIZES = [100, 400] as const;
  * @returns The element.
  */
 async function mount(size: number): Promise<Graphty> {
-    const element = document.createElement("graphty-element");
-    element.style.width = "400px";
-    element.style.height = "300px";
-    element.style.display = "block";
-    document.body.appendChild(element);
-    await element.updateComplete;
-    await vi.waitFor(() => {
-        assert.isTrue(element.graph.initialized, "the element initialised its graph");
-    });
+    const element = await mountElement();
     const { graph } = element;
     graph.engine.stopRenderLoop();
     await graph.setLayout("random");
@@ -182,7 +175,7 @@ describe("repainting or disposing one node or edge costs the same at any graph s
                         check();
                         return visits;
                     } finally {
-                        element.remove();
+                        unmountElements();
                     }
                 },
                 { sizes: SIZES, growth: "constant", counter: `elements visited by ${method}`, superlinear },

@@ -43,18 +43,16 @@ import {
 } from "../../common/cx-export.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
+import { ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { isRecord, POSITION_COLUMN } from "../../common/json-elements.js";
-import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { type ResolvedExportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
-import { encodeChunks, joinText } from "../../common/writer.js";
 import { neutralPositions } from "../../positions/convert.js";
 import { cytoscapeCxAspect, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
-import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
-import { ORIGINAL_ID_ATTRIBUTE } from "../cx2/importer.js";
-import { blockAspect, CX_STYLE_CAPABILITIES, cytoscapeStyledExport, snapshotBlock } from "./styles.js";
+import { blockAspect, CX_STYLE_CAPABILITIES, cytoscapeExporter, snapshotBlock } from "./styles.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -1512,58 +1510,11 @@ function* mapIterable<T, U>(items: Iterable<T>, fn: (item: T) => U): Generator<U
  * The CX version 1 exporter plugin.
  * @category Built-in formats
  */
-export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
+export const cxExporter: GraphExporter<CxExportOptions> = cytoscapeExporter({
     format: CX_FORMAT,
-    options: Object.freeze([]),
     capabilities: CX_CAPABILITIES,
-    styles: Object.freeze({ capabilities: CX_STYLE_CAPABILITIES }),
-
-    /**
-     * Pre-flight: what export() would lose, without writing anything.
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: CxExportOptions & ExporterStyleOptions): readonly LossNote[] {
-        const styled = cytoscapeStyledExport(snapshot, options?.styles, "desktop");
-        return Object.freeze([
-            ...plan(styled?.snapshot ?? snapshot, resolveExportOptions(options)).notes,
-            ...(styled?.notes ?? []),
-        ]);
-    },
-
-    /**
-     * Write the document as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: CxExportOptions & ExporterStyleOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(written(snapshot, options));
-    },
-
-    /**
-     * Write the document as one string.
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: CxExportOptions & ExporterStyleOptions): Promise<string> {
-        return joinText(written(snapshot, options));
-    },
+    styleCapabilities: CX_STYLE_CAPABILITIES,
+    dialect: "desktop",
+    plan,
+    write,
 });
-
-/**
- * The document's text, with the styles when they are given.
- * @param snapshot - the snapshot
- * @param options - the options
- * @returns the text parts
- */
-function written(
-    snapshot: GraphSnapshot,
-    options: (CxExportOptions & ExporterStyleOptions) | undefined,
-): Generator<string, void, undefined> {
-    const styled = cytoscapeStyledExport(snapshot, options?.styles, "desktop");
-    const target = styled?.snapshot ?? snapshot;
-    return write(target, plan(target, resolveExportOptions(options)), styled?.styled ?? null);
-}

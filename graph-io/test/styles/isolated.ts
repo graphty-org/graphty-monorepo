@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import { extractStyles } from "../../src/styles/internal.js";
+import { readFileStyles } from "../../src/styles/internal.js";
 import { checkInput, fileInput, readCorpusFile, roundTrip, styleFormats, type StyleResult } from "./harness.js";
 import { resultsTable } from "./results.js";
 
@@ -27,7 +27,7 @@ if (mode === "table") {
     const roundTripFailures: string[] = [];
     if (format.writer !== undefined && checked.result.styled) {
         const loaded = await input.load();
-        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        const ex = readFileStyles(loaded.importer, loaded.snapshot, loaded.report);
         if (ex !== null) {
             roundTripFailures.push(...(await roundTrip(format.writer, loaded, ex)));
         }

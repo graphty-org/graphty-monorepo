@@ -60,9 +60,12 @@ describe("PageRankAlgorithm", () => {
         assert.isNumber(maxRank);
         assert.isAtLeast(asNumber(maxRank), 0, "Max rank should be non-negative");
 
-        // The damping factor the run used is in the caveats' notes, which is where a reader is
+        // The damping factor the run used is in the caveats' facts, which is where a reader is
         // told what the numbers mean rather than handed a parameter back as a result.
-        assert.ok(pr.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
+        assert.deepInclude(pr.result?.summary().caveats.facts ?? [], {
+            code: "pagerank.damping",
+            params: { dampingFactor: 0.85 },
+        });
     });
 
     it("handles empty graph gracefully", async () => {

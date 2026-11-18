@@ -2,13 +2,13 @@ import "./notes.css";
 
 import { ControlSection } from "@graphty/compact-mantine";
 import type { GraphSession, Note, NoteTarget, NoteTargetInput } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Stack, Text, Textarea, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Pill, Select, Stack, TagsInput, Text, Textarea, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { aboutWords, noteTimeWords, targetStateWords, targetWords } from "./words";
+import { aboutWords, type NoteSort, noteTimeWords, sortNotes, targetStateWords, targetWords } from "./words";
 
 /**
  * Re-renders whenever the notes change, and when the filter or the data change what a target
@@ -144,6 +144,7 @@ function Editor({
 }: Readonly<{ onSaved: (id: string) => void; onClosed: () => void }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
+    const warningClosed = useWorkspaceState((state) => state.authorWarningClosed);
     const [error, setError] = useState<string | null>(null);
     // Add note while a note is open (its text kept, or new targets) puts the cursor back in it:
     // notes.add writes a fresh `targets`, typing does not.
@@ -166,7 +167,7 @@ function Editor({
         }
         let id: string;
         try {
-            id = session.notes.add({ text: draft.text, targets: draft.targets });
+            id = session.notes.add({ text: draft.text, targets: draft.targets, tags: draft.tags ?? [] });
         } catch {
             setError("This note could not be saved");
             return;
@@ -189,6 +190,35 @@ function Editor({
                 }
             }}
         >
+            {session.config.author === undefined && !warningClosed && (
+                <Group gap={4} wrap="nowrap">
+                    <GLYPHS.warning size={14} aria-hidden />
+                    <Text size="xs" style={{ flex: 1 }}>
+                        No author name
+                    </Text>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        onClick={() => {
+                            store.set({ dialog: "settings:general" });
+                        }}
+                    >
+                        Set name
+                    </Button>
+                    <Tooltip label="Dismiss">
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label="Dismiss"
+                            onClick={() => {
+                                store.set({ authorWarningClosed: true });
+                            }}
+                        >
+                            <GLYPHS.close size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                </Group>
+            )}
             <Group gap={4}>
                 <Text size="xs" c="dimmed">
                     About
@@ -212,6 +242,16 @@ function Editor({
                         event.preventDefault();
                         close();
                     }
+                }}
+            />
+            <TagsInput
+                label="Tags"
+                size="xs"
+                data={session.notes.tags()}
+                value={[...(draft.tags ?? [])]}
+                clearable
+                onChange={(tags) => {
+                    store.set({ noteDraft: { ...draft, tags } });
                 }}
             />
             <Group gap={6} justify="flex-end">
@@ -322,9 +362,22 @@ export function NoteList({
                             }
                         }}
                     >
-                        <Text size="sm" className="nt-note-text">
+                        <Text
+                            size="sm"
+                            className="nt-note-text"
+                            td={note.done === undefined ? undefined : "line-through"}
+                        >
                             {note.text}
                         </Text>
+                        {note.tags !== undefined && (
+                            <Group gap={4} aria-label="Tags">
+                                {note.tags.map((tag) => (
+                                    <Pill key={tag} size="xs">
+                                        {tag}
+                                    </Pill>
+                                ))}
+                            </Group>
+                        )}
                         <div className="nt-note-foot">
                             <Chips
                                 session={session}
@@ -337,8 +390,24 @@ export function NoteList({
                                 }}
                             />
                             <Text size="xs" c="dimmed">
-                                {noteTimeWords(note.time, note.edited)}
+                                {[note.author, noteTimeWords(note.time, note.edited)]
+                                    .filter((part) => part !== undefined)
+                                    .join(", ")}
                             </Text>
+                            <Tooltip label={note.done === undefined ? "Mark done" : "Mark open"}>
+                                <ActionIcon
+                                    variant={note.done === undefined ? "subtle" : "light"}
+                                    size="sm"
+                                    aria-label={`${note.done === undefined ? "Mark done" : "Mark open"}: ${noteName(note.text)}`}
+                                    aria-pressed={note.done !== undefined}
+                                    tabIndex={tabbable ? 0 : -1}
+                                    onClick={() => {
+                                        session.notes.update(note.id, { done: note.done === undefined });
+                                    }}
+                                >
+                                    <GLYPHS.check size={14} aria-hidden />
+                                </ActionIcon>
+                            </Tooltip>
                             <Tooltip label="Delete note">
                                 <ActionIcon
                                     variant="subtle"
@@ -360,9 +429,102 @@ export function NoteList({
     );
 }
 
+/** The Notes place's filter and order: every field "all" or null shows every note. */
+interface NoteView {
+    readonly status: "all" | "open" | "done";
+    readonly tag: string | null;
+    readonly author: string | null;
+    readonly sort: NoteSort;
+}
+
+const ALL_NOTES: NoteView = { status: "all", tag: null, author: null, sort: "newest" };
+
 /**
- * The Notes place (tier2-design.md section 3): the editor when a note is being written, then the
- * notes, newest first (`NoteList`). A saved note takes focus itself; Cancel, or deleting the last
+ * The filter row over the notes: Status, Tag and Author (each only once a note has one), and Sort.
+ * @param props - Component props
+ * @param props.view - The filter and order now
+ * @param props.tags - Every tag in use
+ * @param props.authors - Every author in use
+ * @param props.onChange - Called with the new filter and order
+ * @returns The row
+ */
+function NoteFilters({
+    view,
+    tags,
+    authors,
+    onChange,
+}: Readonly<{
+    view: NoteView;
+    tags: readonly string[];
+    authors: readonly string[];
+    onChange: (view: NoteView) => void;
+}>): React.JSX.Element {
+    const pick = (
+        label: string,
+        value: string,
+        data: { value: string; label: string }[],
+        set: (v: string) => void,
+    ): React.JSX.Element => (
+        <Select
+            size="xs"
+            label={label}
+            data={data}
+            value={value}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: false }}
+            style={{ flex: "1 1 6rem", minWidth: 0 }}
+            onChange={(picked) => {
+                if (picked !== null) {
+                    set(picked);
+                }
+            }}
+        />
+    );
+    const anyOf = (values: readonly string[]): { value: string; label: string }[] => [
+        { value: "", label: "All" },
+        ...values.map((value) => ({ value, label: value })),
+    ];
+    return (
+        <Group gap={6} px="md" py={4} wrap="wrap" align="flex-end">
+            {pick(
+                "Status",
+                view.status,
+                [
+                    { value: "all", label: "All" },
+                    { value: "open", label: "Open" },
+                    { value: "done", label: "Done" },
+                ],
+                (status) => {
+                    onChange({ ...view, status: status as NoteView["status"] });
+                },
+            )}
+            {tags.length > 0 &&
+                pick("Tag", view.tag ?? "", anyOf(tags), (tag) => {
+                    onChange({ ...view, tag: tag === "" ? null : tag });
+                })}
+            {authors.length > 0 &&
+                pick("Author", view.author ?? "", anyOf(authors), (author) => {
+                    onChange({ ...view, author: author === "" ? null : author });
+                })}
+            {pick(
+                "Sort",
+                view.sort,
+                [
+                    { value: "newest", label: "Newest" },
+                    { value: "oldest", label: "Oldest" },
+                    { value: "element", label: "Element" },
+                ],
+                (sort) => {
+                    onChange({ ...view, sort: sort as NoteSort });
+                },
+            )}
+        </Group>
+    );
+}
+
+/**
+ * The Notes place (tier2-design.md section 3): the editor when a note is being written, the
+ * filter row, then the notes, newest first unless the reader picked another order (`NoteList`). A saved note takes focus itself; Cancel, or deleting the last
  * note, puts focus on "+".
  * @returns The Notes place
  */
@@ -371,7 +533,25 @@ export function NotesPlace(): React.JSX.Element {
     // Re-reads the notes on every change to them, or to what their targets point at.
     useNotesVersion(session);
     const editing = useWorkspaceState((state) => state.noteDraft !== null);
-    const notes = session?.notes.list() ?? [];
+    const [view, setView] = useState(ALL_NOTES);
+    const any = (session?.notes.counts().notes ?? 0) > 0;
+    const tags = session?.notes.tags() ?? [];
+    const authors = session?.notes.authors() ?? [];
+    // A tag or author no note carries any more shows every note again.
+    const tag = view.tag !== null && tags.includes(view.tag) ? view.tag : undefined;
+    const author = view.author !== null && authors.includes(view.author) ? view.author : undefined;
+    const notes =
+        session === null
+            ? []
+            : sortNotes(
+                  session,
+                  session.notes.list({
+                      ...(view.status === "all" ? {} : { done: view.status === "done" }),
+                      ...(tag === undefined ? {} : { tag }),
+                      ...(author === undefined ? {} : { author }),
+                  }),
+                  view.sort,
+              );
     const plus = useRef<HTMLSpanElement>(null);
     // The note to focus once the list has drawn it: the one just saved.
     const pending = useRef<string | null>(null);
@@ -397,10 +577,11 @@ export function NotesPlace(): React.JSX.Element {
                     tooltip over the note just written. A closed one hands focus to "+", where it
                     was opened, rather than dropping it to the page. */}
                 <Editor onSaved={focusWhenDrawn} onClosed={focusPlus} />
+                {any && <NoteFilters view={view} tags={tags} authors={authors} onChange={setView} />}
                 {notes.length === 0 ? (
                     !editing && (
                         <Text size="sm" c="dimmed" px="md" py="xs">
-                            No notes.
+                            {any ? "No matching notes." : "No notes."}
                         </Text>
                     )
                 ) : (

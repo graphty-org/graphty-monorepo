@@ -7,17 +7,6 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 /**
- * Whether the full-screen selection workspace is on (issue #5805). Off, Edit on a selection opens the
- * outline-and-pane editor and nothing of the experiment is drawn.
- * @param session - the element's session, or null before it comes up.
- * @returns true when the element switched the experiment on.
- */
-export function selectionWorkspaceOn(session: GraphSession | null | undefined): boolean {
-    const features = new Set<string>(session?.features.enabled ?? []);
-    return features.has("selection-workspace");
-}
-
-/**
  * Whether the Cosmograph-inspired rendering is on (issue #3247). On, the app draws its graph with
  * graphty-element's batched render path and the Style tab's Line section offers the long-edge fade
  * and blending; off, nothing of it is drawn or set.

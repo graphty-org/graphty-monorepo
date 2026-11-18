@@ -2,7 +2,7 @@ import { ComboInput, PanelField, Slider } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { CodedFact, GraphSession, ModelSummary } from "@graphty/graphty-element/session";
-import { ActionIcon, Stack, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { useModelStates } from "../canvas/models";
@@ -169,16 +169,24 @@ function PoseRow({
                     </span>
                 </span>
                 <div className="ws-field-control">
-                    <Slider
-                        size="xs"
-                        min={0}
-                        max={Math.max(seconds, 0.01)}
-                        step={0.01}
-                        value={Math.min(value, seconds)}
-                        label={(v) => `${v.toFixed(2)} s`}
-                        thumbLabel={CUSTOM_MODEL.pose}
-                        onChange={write}
-                    />
+                    <Group gap={6} wrap="nowrap">
+                        <Slider
+                            size="xs"
+                            style={{ flex: 1 }}
+                            min={0}
+                            max={Math.max(seconds, 0.01)}
+                            step={0.01}
+                            value={Math.min(value, seconds)}
+                            // The time is written beside the slider: a label over the thumb covered the Animation row.
+                            label={null}
+                            thumbLabel={CUSTOM_MODEL.pose}
+                            thumbProps={{ "aria-valuetext": `${Math.min(value, seconds).toFixed(2)} s` }}
+                            onChange={write}
+                        />
+                        <Text size="xs" c="dimmed" aria-hidden>
+                            {`${Math.min(value, seconds).toFixed(2)} s`}
+                        </Text>
+                    </Group>
                 </div>
                 <span className="ws-slot" />
             </div>

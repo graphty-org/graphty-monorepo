@@ -25,8 +25,7 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
-import type { NodeStyleConfig } from "../../src/config/NodeStyle";
-import type { Edge, EdgeCapEnd } from "../../src/Edge";
+import { type Edge, type EdgeCapEnd, edgeInternals } from "../../src/Edge";
 import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
@@ -39,12 +38,11 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { projectedVertices } from "../../src/meshes/NodeShapeGeometry";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
-import type { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
-import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { labelInternals, type RichTextLabel, type TextSegment } from "../../src/meshes/RichTextLabel";
 import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { convexHull, isFlatShape, piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
-import type { Node } from "../../src/Node";
+import { type Node, nodeInternals } from "../../src/Node";
 import { FIGURE_FILLS, twiceArea } from "./oracle/primitives";
 import { spansAlongCenters } from "./pattern-spans";
 
@@ -213,36 +211,13 @@ export function cssColor(css: string): { hex: string; alpha: number } {
     return { hex: hex({ r: r / 255, g: g / 255, b: b / 255 }), alpha: Number.isFinite(a) ? a : 1 };
 }
 
-/** The renderer's own internals this reader takes, typed for test code. */
-interface EdgeInternals {
-    lineBatch: EdgeLineBatch | null;
-    pulled: { batch: PulledLineBatch; piece: number; run: number[] | null } | null;
-    lineSlots: number[];
-    outlineBatch: EdgeLineBatch | null;
-    outlineSlots: number[];
-    haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
-    lineIsCurve: boolean;
-    drawnStyle: {
-        line?: { bezier?: boolean; gradient?: { kind?: string }; taper?: number };
-        arrowHead?: { gap?: number; position?: number };
-        arrowTail?: { gap?: number; position?: number };
-    } | null;
-}
+/** The renderer's own internals this reader takes; see `edgeInternals` in src/Edge.ts. */
+type EdgeInternals = ReturnType<typeof edgeInternals.drawn>;
 interface PatternInternals {
     width: number;
     color: string;
     opacity: number;
     wave: WaveShape | undefined;
-}
-interface NodeInternals {
-    border: AbstractMesh | null;
-    outerBorder: AbstractMesh | null;
-    drawnStyle: NodeStyleConfig | null;
-    decorationPieces: readonly NodeDecorationPiece[];
-    tableTexts: readonly unknown[] | null;
-    shadow: readonly AbstractMesh[];
-    underlay: AbstractMesh | null;
-    overlay: AbstractMesh | null;
 }
 
 /** A piece a node draws over its face, on screen: a body piece with its fill. */
@@ -261,7 +236,7 @@ interface ScreenPiece {
  * @returns the label, or null for a node whose label is not a table
  */
 function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
-    const count = (node as unknown as NodeInternals).tableTexts?.length ?? 0;
+    const count = nodeInternals.drawn(node).tableTexts?.length ?? 0;
     const cells = count === 0 ? [] : node.shapeTextLabels.slice(-count).flatMap((l) => readLabel(l, p) ?? []);
     const [first] = cells;
     if (first === undefined) {
@@ -294,7 +269,7 @@ function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
  * @returns the pieces
  */
 function readPieces(node: Node, p: Projector): ScreenPiece[] {
-    const pieces = (node as unknown as NodeInternals).decorationPieces;
+    const pieces = node.decorationPieces;
     if (pieces.length === 0 || !node.mesh.isEnabled()) {
         return [];
     }
@@ -322,27 +297,7 @@ function readPieces(node: Node, p: Projector): ScreenPiece[] {
         };
     });
 }
-interface LabelInternals {
-    actualDimensions: { width: number; height: number };
-    /** The area inside the borders (the background), in label units. */
-    contentArea: { x: number; y: number; width: number; height: number };
-    /** The words' own extent, in label units. */
-    textSize: { width: number; height: number };
-    options: {
-        textAlign?: string;
-        marginLeft?: number;
-        marginTop?: number;
-        backgroundPadding?: number;
-        backgroundColor?: unknown;
-        cornerRadius?: number;
-        borders?: { width: number; color?: string }[];
-        textOutline?: boolean;
-        textOutlineColor?: string;
-        textOutlineWidth?: number;
-        lineHeight?: number;
-        runAlign?: LineOptions["runAlign"];
-    };
-}
+type LabelInternals = ReturnType<typeof labelInternals.drawn>;
 interface BlurInternals {
     _kernel?: number;
 }
@@ -508,9 +463,10 @@ export interface DrawnLabel {
     opacity: number;
     /**
      * A label shown only while its node is drawn at least `min` px across (`minNodeScreenSize`, sigma's
-     * labelRenderedSizeThreshold): the node's size across on screen now, and whether that rule alone hides it.
+     * labelRenderedSizeThreshold), or else while its letters are drawn at least `min` px tall (`minScreenSize`,
+     * vis-network's drawThreshold): that size on screen now, and whether that rule alone hides it.
      */
-    nodeSizeRule?: { acrossPx: number; min: number; hidden: boolean };
+    sizeRule?: { acrossPx: number; min: number; hidden: boolean };
     /** How many lines the words are drawn on. */
     lineCount: number;
     /**
@@ -530,6 +486,8 @@ export interface DrawnLabel {
         color: string | null;
         opacity: number;
         rounded: boolean;
+        /** Whether it is a disc (`backgroundShape: "circle"`). */
+        circle: boolean;
         border: { color: string; opacity: number; width: number } | null;
     } | null;
 }
@@ -557,24 +515,30 @@ export function cssWeight(weight: string | undefined): number {
 }
 
 /**
- * A label's node-size rule as drawn (`RichTextLabel.tooSmall`'s second half): its node's size across on screen, the
- * least that shows the label, and whether the rule alone hides it now (the mesh otherwise shown).
+ * A label's size rule as drawn (`RichTextLabel.tooSmall`): its node's size across on screen under a node-size rule,
+ * else its letters' height under a font-size rule; the least that shows the label; and whether the rule alone hides it
+ * now (the mesh otherwise shown). ponytail: one rule per label, the node's first; no format sets both.
  * @param label - the label
- * @returns `{ nodeSizeRule }`, or nothing for a label under no such rule
+ * @returns `{ sizeRule }`, or nothing for a label under no such rule
  */
-function nodeSizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "nodeSizeRule"> {
-    const { minNodeScreenSize: min, attachTo } = (
-        label as unknown as { options: { minNodeScreenSize?: number; attachTo?: unknown } }
-    ).options;
+function sizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "sizeRule"> {
+    const { minNodeScreenSize, minScreenSize, attachTo } = labelInternals.drawn(label).options;
     const mesh = label.labelMesh;
     const camera = mesh?.getScene().activeCamera;
-    if (min === undefined || min <= 0 || !(attachTo instanceof AbstractMesh) || !mesh || !camera) {
+    if (!mesh || !camera) {
         return {};
     }
-    const { extendSizeWorld, centerWorld } = attachTo.getBoundingInfo().boundingBox;
-    const acrossPx = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y) * pixelsPerUnit(camera, centerWorld);
-    const hidden = acrossPx < min && mesh.isEnabled() && mesh.isVisible && mesh.visibility === 0;
-    return { nodeSizeRule: { acrossPx, min, hidden } };
+    const shownElse = mesh.isEnabled() && mesh.isVisible && mesh.visibility === 0;
+    if (minNodeScreenSize !== undefined && minNodeScreenSize > 0 && attachTo instanceof AbstractMesh) {
+        const { extendSizeWorld, centerWorld } = attachTo.getBoundingInfo().boundingBox;
+        const acrossPx = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y) * pixelsPerUnit(camera, centerWorld);
+        return { sizeRule: { acrossPx, min: minNodeScreenSize, hidden: acrossPx < minNodeScreenSize && shownElse } };
+    }
+    if (minScreenSize !== undefined && minScreenSize > 0) {
+        const acrossPx = label.screenFontPx(camera);
+        return { sizeRule: { acrossPx, min: minScreenSize, hidden: acrossPx < minScreenSize && shownElse } };
+    }
+    return {};
 }
 
 /**
@@ -594,13 +558,35 @@ function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [numbe
     ctx.textRendering = "geometricPrecision";
     const options: LineOptions = {
         lineHeight,
-        textOutline: opt.textOutline === true,
+        textOutline: opt.textOutline,
         textOutlineWidth: opt.textOutlineWidth ?? 0,
         runAlign: opt.runAlign,
     };
     const half = (line: readonly TextSegment[]): number =>
         (measureLine(ctx, [...line], options).lineBox * (1 - 1 / lineHeight)) / 2;
     return [half(lines[0]), half(lines[lines.length - 1])];
+}
+
+/**
+ * The panel behind a label's words on screen: its canvas without the room round it for a shadow and an outline, or
+ * for a disc, the square its circle fills, as wide as the panel's shorter side and centered on it.
+ * @param margin - the room round the panel, in label units
+ * @param dims - the label's canvas, in label units
+ * @param dims.width - its width
+ * @param dims.height - its height
+ * @param circle - whether the panel is a disc
+ * @param onScreen - a box in label units on screen
+ * @returns the box
+ */
+function panelBox<B>(
+    margin: number,
+    dims: { width: number; height: number },
+    circle: boolean,
+    onScreen: (x: number, y: number, w: number, h: number) => B,
+): B {
+    const [w, h] = [dims.width - margin * 2, dims.height - margin * 2];
+    const d = circle ? Math.min(w, h) : 0;
+    return circle ? onScreen(margin + (w - d) / 2, margin + (h - d) / 2, d, d) : onScreen(margin, margin, w, h);
 }
 
 /**
@@ -616,7 +602,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         return null;
     }
     const box = p.box(mesh);
-    const textureHeight = (label as unknown as LabelInternals).actualDimensions.height;
+    const textureHeight = labelInternals.drawn(label).actualDimensions.height;
     const run = label.textRuns[0]?.[0];
     const material = materialColor(mesh.material);
     const world = mesh.computeWorldMatrix(true);
@@ -628,7 +614,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const bottom = p.point(Vector3.TransformCoordinates(new Vector3(0, -half, 0), world));
     const planePx = Math.hypot(top.x - bottom.x, top.y - bottom.y);
     const fontPx = run && textureHeight > 0 ? (run.style.size * planePx) / textureHeight : 0;
-    const inner = label as unknown as LabelInternals;
+    const inner = labelInternals.drawn(label);
     const dims = inner.actualDimensions;
     const opt = inner.options;
     // a rectangle in label units (x right, y down from the plane's top left) on screen, through the plane's matrix
@@ -681,7 +667,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const bgCss = typeof opt.backgroundColor === "string" ? cssColor(opt.backgroundColor) : null;
     const border = (opt.borders ?? []).find((b) => b.width > 0);
     const borderCss = border === undefined ? null : cssColor(border.color ?? "#000000");
-    const outlineCss = opt.textOutline === true ? cssColor(opt.textOutlineColor ?? "#000000") : null;
+    const outlineCss = opt.textOutline ? cssColor(opt.textOutlineColor ?? "#000000") : null;
     const lineCount = label.textRuns.filter((line) => line.some((r) => r.text.trim() !== "")).length;
     const align = ({ left: "start", right: "end" } as const)[opt.textAlign as "left" | "right"] ?? "middle";
     return {
@@ -697,7 +683,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         rotation: (Math.atan2(x.y - o.y, x.x - o.x) * 180) / Math.PI,
         textBox,
         opacity: textColor.alpha * planeAlpha,
-        ...nodeSizeRuleOf(label),
+        ...sizeRuleOf(label),
         lineCount,
         tall: label.textRuns.map((line) => line.length > 0),
         align,
@@ -714,10 +700,13 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
             !known || ((bgCss === null || bgCss.alpha <= 0) && borderCss === null)
                 ? null
                 : {
-                      box: onScreen(0, 0, dims.width, dims.height),
+                      // the panel, without the room round it for its shadow and the words' outline (#8746); a disc
+                      // as wide as its shorter side
+                      box: panelBox(inner.shadowMargin, dims, opt.backgroundShape === "circle", onScreen),
                       color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
                       opacity: (bgCss?.alpha ?? 0) * planeAlpha,
                       rounded: (opt.cornerRadius ?? 0) > 0,
+                      circle: opt.backgroundShape === "circle",
                       border:
                           border === undefined || borderCss === null
                               ? null
@@ -840,7 +829,7 @@ export interface DrawnBorder {
  * @returns the outline, or null when the cells draw none
  */
 function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
-    const { drawnStyle } = node as unknown as NodeInternals;
+    const { drawnStyle } = nodeInternals.drawn(node);
     const shape = drawnStyle?.shape;
     // the style as painted, before the table's lines are added: their width is the cells' border, as the node draws it
     const table = readLabelTable(shape?.labelTable);
@@ -872,7 +861,7 @@ function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
  * draws no such line
  */
 function readInnerLine(node: Node, p: Projector): { border: DrawnBorder; box: ScreenBox; outline: boolean } | null {
-    const { drawnStyle } = node as unknown as NodeInternals;
+    const { drawnStyle } = nodeInternals.drawn(node);
     const shape = drawnStyle?.shape;
     const lists = pointLists(shape?.lines);
     const [first, last] = [lists[0]?.[0], lists[0]?.at(-1)];
@@ -913,7 +902,7 @@ function readInnerLine(node: Node, p: Projector): { border: DrawnBorder; box: Sc
  * @returns the drawn border, or null when none is drawn
  */
 function readBorder(node: Node, p: Projector): DrawnBorder | null {
-    const { border, drawnStyle } = node as unknown as NodeInternals;
+    const { border, drawnStyle } = nodeInternals.drawn(node);
     if (border === null || border.isDisposed() || !border.isEnabled() || !border.isVisible) {
         return null;
     }
@@ -947,7 +936,7 @@ function drawnWidthPx(node: Node, ring: AbstractMesh, style: string, p: Projecto
     if (style === "marks") {
         return markRingPx(node, ring, p);
     }
-    const shape = (node as unknown as NodeInternals).drawnStyle?.shape?.type ?? "";
+    const shape = nodeInternals.drawn(node).drawnStyle?.shape?.type ?? "";
     const sided = ringBandPx(node.mesh, ring, isFlatShape(shape), p);
     // a fill drawn in to a point (a centered border wider than its node) has no sides: the ring reaches from its middle
     const span = (b: ScreenBox): number => Math.min(b.x1 - b.x0, b.y1 - b.y0);
@@ -1261,7 +1250,7 @@ function frontThickness(mesh: AbstractMesh): number {
  * @returns the ring and its gap, or null
  */
 function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx: number; ringsPx: number } | null {
-    const { outerBorder, drawnStyle } = node as unknown as NodeInternals;
+    const { outerBorder, drawnStyle } = nodeInternals.drawn(node);
     const style = drawnStyle?.outerBorder;
     if (outerBorder === null || outerBorder.isDisposed() || !outerBorder.isEnabled() || style === undefined) {
         return null;
@@ -1299,7 +1288,7 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
  * @returns the box, or null for a node that draws no shadow
  */
 function readShadow(node: Node, p: Projector): ScreenBox | null {
-    const [outer] = (node as unknown as NodeInternals).shadow;
+    const [outer] = nodeInternals.drawn(node).shadow;
     return outer === undefined ? null : meshBox(outer, p);
 }
 
@@ -1311,7 +1300,7 @@ function readShadow(node: Node, p: Projector): ScreenBox | null {
  * @returns the shapes, none for a node that draws neither
  */
 function readHalos(node: Node, p: Projector): { box: ScreenBox; fill: string }[] {
-    const { underlay, overlay } = node as unknown as NodeInternals;
+    const { underlay, overlay } = nodeInternals.drawn(node);
     return [underlay, overlay].flatMap((mesh) => {
         const box = mesh === null ? null : meshBox(mesh, p);
         const material = mesh instanceof InstancedMesh ? mesh.sourceMesh.material : null;
@@ -1358,7 +1347,7 @@ function meshBox(mesh: AbstractMesh, p: Projector): ScreenBox | null {
  * @returns the inset on each side
  */
 function readInset(node: Node, p: Projector): number {
-    const { drawnStyle } = node as unknown as NodeInternals;
+    const { drawnStyle } = nodeInternals.drawn(node);
     const border = drawnStyle?.border;
     const shape = drawnStyle?.shape;
     const { inset } = NodeMesh.borderFit(
@@ -1381,7 +1370,7 @@ function readInset(node: Node, p: Projector): number {
  * @returns the ramp, or null when the node's style holds no gradient
  */
 function rampOf(node: Node): DrawnNode["ramp"] {
-    const color = (node as unknown as NodeInternals).drawnStyle?.texture?.color as
+    const color = nodeInternals.drawn(node).drawnStyle?.texture?.color as
         | {
               colorType?: string;
               colors?: unknown[];
@@ -1447,7 +1436,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         .map((r) => ({ kind: r.kind, color: r.color(source), reachPx: r.reachPx, inner: r.inner }))
         .sort((a, b) => b.reachPx - a.reachPx)[0];
     const outer = readOuterBorder(node, p);
-    const { drawnStyle } = node as unknown as NodeInternals;
+    const { drawnStyle } = nodeInternals.drawn(node);
     // a node with an outer border (Cytoscape.js's outline) shows that ring as its outline: the node is drawn out to
     // its inner edge, past the border and the gap, and the ring is its stroke
     const own = readBorder(node, p);
@@ -1460,7 +1449,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     // a table label's background on a node that draws no face of its own (Graphviz's `shape=none` round a `<TABLE
     // BGCOLOR>`) is the node's body, as the program's filled table is its node: drawn in the table's box and color
     const tableBody =
-        ownFace || (node as unknown as NodeInternals).tableTexts === null
+        ownFace || nodeInternals.drawn(node).tableTexts === null
             ? []
             : pieces.filter((piece) => piece.kind === "body" && piece.fill !== undefined);
     const imagePiece = pieces.find((piece) => piece.kind === "image");
@@ -1505,7 +1494,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         box: drawnBox,
         meshName: source.name,
         shapeType: node.shapeType,
-        polygon: (node as unknown as NodeInternals).drawnStyle?.shape?.points,
+        polygon: nodeInternals.drawn(node).drawnStyle?.shape?.points,
         fillDrawn: tableFill?.hex ?? ramp?.colors[0] ?? (rgb ? hex(rgb) : null),
         fillOpacity: tableFill?.opacity ?? (faces ? (base?.alpha ?? 1) * source.visibility : 0),
         gradient: base?.texture === true,
@@ -1864,7 +1853,7 @@ function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Proj
  * @returns the drawn edge
  */
 export function readEdge(edge: Edge, p: Projector): DrawnEdge {
-    const internal = edge as unknown as EdgeInternals;
+    const internal = edgeInternals.drawn(edge);
     const batch = internal.lineBatch;
     let world: Vector3[] = [];
     let kind: DrawnEdge["kind"] = "other";

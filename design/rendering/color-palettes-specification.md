@@ -509,7 +509,7 @@ export const binary_blue_highlight = {
     name: "Blue Highlight",
     description: "Blue highlight for selected, gray for unselected",
     highlight: "#0072B2", // Okabe-Ito blue
-    muted: "#CCCCCC", // Light gray
+    muted: "#CCCCCC", // Light gray: for a reader's own dimming layer, never in suggestedStyles
     contrast: 4.5, // WCAG AAA
 };
 ```
@@ -662,6 +662,7 @@ export class DegreeAlgorithm extends Algorithm {
         layers: [
             {
                 node: {
+                    selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this result
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.degree.degreePct"],
                         output: "style.texture.color",
@@ -690,6 +691,7 @@ export class LouvainAlgorithm extends Algorithm {
         layers: [
             {
                 node: {
+                    selector: "algorithmResults.graphty.louvain.communityId != `null`", // Only the nodes carrying this result
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.louvain.communityId"],
                         output: "style.texture.color",
@@ -718,21 +720,23 @@ export class DijkstraAlgorithm extends Algorithm {
         layers: [
             {
                 edge: {
+                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`", // Only the edges carrying this result
                     calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.dijkstra.inPath"],
+                        inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
                         output: "style.line.color",
-                        // Highlight path in blue, mute others
+                        // Highlight path in blue; other edges are left alone
                         expr: `{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }`,
                     },
                 },
             },
             {
                 edge: {
+                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`", // Only the edges carrying this result
                     calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.dijkstra.inPath"],
+                        inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
                         output: "style.line.width",
-                        // Path edges 3x wider
-                        expr: `{ return arguments[0] ? 3 : 1 }`,
+                        // Path edges 3 wide; other edges keep their width
+                        expr: `{ return 3 }`,
                     },
                 },
             },

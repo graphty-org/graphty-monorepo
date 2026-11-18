@@ -21,7 +21,8 @@ import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { fieldName, valueWords } from "../words";
+import { fieldName } from "../words";
+import { receiptSays } from "./tooltip";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
@@ -296,28 +297,21 @@ async function eachOwn(
 }
 
 /**
- * What a bound field shows at rest: its strip, its pill's name and the line under it -- the
- * line's chits, its "+N" and its words.
+ * What a bound field shows at rest: the pill's name and its strip, and no line under it.
  * @param row - The property row.
  * @returns What it shows.
  */
 function atRest(row: HTMLElement): {
     readonly name: Element | null;
     readonly strip: HTMLElement | null;
-    readonly chits: HTMLElement[];
-    readonly more: string | null;
-    readonly words: string;
 } {
     const varied = row.querySelector(".ws-varied");
     assert.isNotNull(varied, "drawn as a bound field");
-    const lineOf = varied?.querySelector("[data-varied-line]");
-    assert.isNotNull(lineOf, "with its line under the pill");
+    // Only the pill: what the line under it said is in its tooltip and description (#8739).
+    assert.isNull(varied?.querySelector("[data-varied-line]"), "no line under the pill");
     return {
         name: varied?.querySelector(".cm-var-name, .cm-var-pill") ?? null,
         strip: varied?.querySelector<HTMLElement>(".cm-var-chit") ?? null,
-        chits: [...(lineOf?.querySelectorAll<HTMLElement>(".ws-varied-chit") ?? [])],
-        more: lineOf?.querySelector("[data-more]")?.textContent ?? null,
-        words: lineOf?.textContent ?? "",
     };
 }
 
@@ -377,7 +371,7 @@ describe("vary by layer", () => {
         for (const id of groups) {
             assert.isUndefined(session.styles.get(id)?.encode?.["node.color"], "a plain value, no rule");
         }
-        await within(fill).findByText(new RegExp(`: ${String(groups.length)} changed`));
+        assert.match(await receiptSays(fill), new RegExp(`: ${String(groups.length)} changed`));
 
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
@@ -731,7 +725,7 @@ describe("several layers holding different values", () => {
         }
 
         const row = await line(channel);
-        const { name, chits, more, words } = atRest(row);
+        const { name } = atRest(row);
         assert.strictEqual(name?.textContent, "\u00ABLayer\u00BB", "Layer, set off, where the source's name goes");
         assert.strictEqual(name?.getAttribute("data-tone"), "component");
         const kind = channel === "node.color" ? "colors" : "values";
@@ -740,32 +734,7 @@ describe("several layers holding different values", () => {
             name: new RegExp(`^${fieldName(channel)}: from each layer, ${String(n)} layers, ${String(n)} ${kind}: `),
         });
         assert.notInclude(row.textContent ?? "", "Mixed");
-        assert.isNull(row.querySelector("[data-breakdown]"), "every layer sets it: no breakdown");
-        if (channel === "node.color") {
-            const drawn = n <= 6 ? n : 5;
-            assert.lengthOf(chits, drawn, "every chit up to 6, else the first 5");
-            assert.strictEqual(more, n <= 6 ? null : `+${String(n - 5)}`);
-            for (const [at, chit] of chits.entries()) {
-                assert.strictEqual(
-                    chit.dataset.name,
-                    session.styles.get(layers[at])?.name,
-                    "in layer order, top first",
-                );
-                assert.strictEqual(getComputedStyle(chit).backgroundColor, rgbOf(String(values[at])));
-            }
-            // The line is one row inside the field: nothing wraps, nothing is clipped.
-            const box = row.querySelector(".ws-field-control")?.getBoundingClientRect();
-            const tops = new Set(chits.map((chit) => Math.round(chit.getBoundingClientRect().top)));
-            assert.strictEqual(tops.size, 1, "one row");
-            for (const each of [...chits, ...row.querySelectorAll("[data-varied-line] [data-more]")]) {
-                assert.isTrue(box !== undefined && each.getBoundingClientRect().right <= box.right, "inside the field");
-            }
-        } else {
-            // Not a color: the first 3 values in words, then "+N".
-            const first = values.slice(0, 3).map((value) => valueWords(descriptor, value));
-            assert.strictEqual(words, `${first.join(", ")}${n > 3 ? ` +${String(n - 3)}` : ""}`);
-        }
-
+        assert.isNull(row.querySelector("[data-notes]"), "every layer sets it: no breakdown");
         // A click opens all of them, by Layer.
         await userEvent.click(within(row).getByRole("button", { name: /^Node \w+: / }));
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
@@ -801,7 +770,7 @@ describe("several layers holding different values", () => {
             assert.deepEqual(written(session, layers, "node.size"), [1, 7, 3], "the edited row, the rest as they were");
         });
         // Only the edited layer changed, and the receipt says so.
-        await within(await line("node.size")).findByText(/: 1 changed/);
+        assert.match(await receiptSays(await line("node.size")), /: 1 changed/);
         for (const id of layers) {
             assert.isUndefined(session.styles.get(id)?.encode?.["node.size"], "a plain value, no rule");
         }
@@ -855,7 +824,7 @@ describe("several layers holding different values", () => {
         await userEvent.keyboard("{Control>}a{/Control}000000{Enter}");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
-        await within(await line("node.color")).findByText(/: 1 changed/);
+        assert.match(await receiptSays(await line("node.color")), /: 1 changed/);
     });
 
     it("closes a row's color picker on Escape, then the popover on the next, writing the pick", async () => {
@@ -884,7 +853,7 @@ describe("several layers holding different values", () => {
         await waitFor(() => {
             assert.deepEqual(written(session, layers, "node.color"), [TWELVE_COLORS[0], "#000000", TWELVE_COLORS[2]]);
         });
-        await within(await line("node.color")).findByText(/: 1 changed/);
+        assert.match(await receiptSays(await line("node.color")), /: 1 changed/);
     });
 
     it("gives each hand-made layer of many groups its own real Degree rule, as one layer gets alone; same popover", async () => {
@@ -946,13 +915,7 @@ describe("several layers holding different values", () => {
                 assert.isUndefined(session.styles.get(id)?.set?.["node.color"]);
             }
         });
-        const atNodeColor = await line("node.color");
-        const receipt = await waitFor(() => {
-            const found = atNodeColor.querySelector<HTMLElement>("[data-receipt]");
-            assert.isNotNull(found, "the receipt is drawn");
-            return found;
-        });
-        assert.match(receipt.textContent ?? "", /: 2 changed/);
+        assert.match(await receiptSays(await line("node.color")), /: 2 changed/);
     });
 });
 
@@ -1041,28 +1004,23 @@ describe("color sets from 2 to dozens", () => {
             assert.isAbove(drawn.colors.length, 1);
         });
         within(bound).getByRole("button", { name: /^Node color: Degree, \d+ to \d+, / });
-        assert.lengthOf(bound.querySelectorAll("[data-varied-line] .ws-varied-ends span"), 2, "the ramp's two ends");
     });
 
     // 38, not 40: each layer paints two of the sample's 77 nodes, so a 39th would land on the
     // first layer's nodes, painted over everywhere, and the line leaves such a layer out.
-    it.each([
-        [6, 6, null],
-        [7, 5, "+2"],
-        [38, 5, "+33"],
-    ] as const)("draws every chit up to 6, else the first 5 and +N, never +1: %i colors", async (n, chits, more) => {
-        const session = await openSample();
-        await eachOwn(session, `Line${String(n)}`, "node.color", manyColors(n));
-        await clickRow(`Line${String(n)}`);
-        const row = await line("node.color");
-        const shown = atRest(row);
-        assert.lengthOf(shown.chits, chits, `${String(n)} colors`);
-        assert.strictEqual(shown.more, more, `${String(n)} colors`);
-        assert.notInclude(shown.words, "+1");
-        within(row).getByRole("button", {
-            name: new RegExp(`^Node color: from each layer, ${String(n)} layers, ${String(n)} colors: `),
-        });
-    });
+    it.each([6, 7, 38] as const)(
+        "names every layer's color in the pill, and draws no chits under it: %i colors",
+        async (n) => {
+            const session = await openSample();
+            await eachOwn(session, `Line${String(n)}`, "node.color", manyColors(n));
+            await clickRow(`Line${String(n)}`);
+            const row = await line("node.color");
+            atRest(row);
+            within(row).getByRole("button", {
+                name: new RegExp(`^Node color: from each layer, ${String(n)} layers, ${String(n)} colors: `),
+            });
+        },
+    );
 
     it("extends the palette shown, not a ramp, when 35 numbered groups go past it", async () => {
         const session = await openSample();
@@ -1090,14 +1048,12 @@ describe("color sets from 2 to dozens", () => {
         await waitFor(() => {
             const block = session.styles.legendOf(layer.id).find((b) => b.channel === "node.color");
             assert.strictEqual(block?.kind, "categorical", "still one color per group, not a ramp");
-            const { chits, more } = atRest(row);
-            assert.lengthOf(chits, 5);
-            assert.match(more ?? "", /^\+\d+$/);
+            atRest(row);
         });
         within(row).getByRole("button", { name: new RegExp(`${shown}: `) });
     });
 
-    it("draws the lumped Other chit last, uncounted, with its note", async () => {
+    it("says the lumped Other's note in the pill's description, with no line under it", async () => {
         const { session, layerId } = await louvainSelected();
         const binding = session.styles.get(layerId)?.encode?.["node.color"];
         const by = binding !== undefined && "by" in binding ? binding.by : "";
@@ -1106,17 +1062,13 @@ describe("color sets from 2 to dozens", () => {
         const block = session.styles.legendOf(layerId).find((b) => b.channel === "node.color");
         const other = block?.swatches.find((s) => s.role === "other");
         assert.isDefined(other, "groups under 12 nodes are lumped into Other");
-        const groups = (block?.swatches.length ?? 1) - 1 + (block?.overflow?.hidden ?? 0);
         const row = await line("node.color");
+        atRest(row);
         await waitFor(() => {
-            const { chits, more } = atRest(row);
-            const last = chits.at(-1);
-            assert.isTrue(last?.hasAttribute("data-other"), "Other is the last chit");
-            assert.strictEqual(last?.style.background, rgbOf(other?.color ?? "#000000"));
-            assert.lengthOf(chits, (groups <= 6 ? groups : 5) + 1, "Other is not counted in +N");
-            assert.strictEqual(more, groups <= 6 ? null : `+${String(groups - 5)}`);
+            const pill = within(row).getByRole("button", { name: /^Node color: / });
+            const described = document.getElementById(pill.getAttribute("aria-describedby") ?? "");
+            assert.notStrictEqual(described?.textContent ?? "", "", "the lumped note stays, in the description");
         });
-        assert.isAbove(row.querySelectorAll("[data-varied-note]").length, 0, "the lumped note stays");
     });
 
     it("draws one layer bound to Louvain and the same colors from each layer alike, but for the Layer token", async () => {
@@ -1124,8 +1076,6 @@ describe("color sets from 2 to dozens", () => {
         // Read at once: selecting another row draws a new field.
         const drawnOf = (shown: ReturnType<typeof atRest>): unknown => ({
             strip: stopsOf(shown.strip),
-            chits: shown.chits.map((c) => getComputedStyle(c).backgroundColor),
-            more: shown.more,
             tone: shown.name?.getAttribute("data-tone") ?? null,
         });
         const single = drawnOf(atRest(await line("node.color")));
@@ -1145,7 +1095,7 @@ describe("color sets from 2 to dozens", () => {
         await clickRow("Same");
         const bulk = drawnOf(atRest(await line("node.color")));
         assert.strictEqual(await pillOf(), singlePill, "the same pill");
-        // The same strip, chits and +N; only the token's tone differs.
+        // The same strip; only the token's tone differs.
         assert.deepEqual(bulk, { ...(single as object), tone: "component" });
         assert.propertyVal(single, "tone", null, "a data source is drawn plain");
         assert.isNull(document.querySelector(".ws-spread, [data-spread]"), "no second drawing anywhere");
@@ -1164,7 +1114,7 @@ describe("color sets from 2 to dozens", () => {
             assert.include(named, name, "each drawn layer by name");
         }
         assert.match(named, / and 2 more$/);
-        assert.isTrue(row.querySelector("[data-varied-line]")?.getAttribute("aria-hidden") === "true");
+        assert.isNull(row.querySelector("[data-varied-line]"));
         assert.isTrue(atRest(row).strip?.getAttribute("aria-hidden") === "true");
     });
 

@@ -1493,7 +1493,7 @@ if (styles) {
 <!-- generated:begin output:styles/importer -->
 
 ```text
-[ 'node.by.team (mapping)' ]
+[ 'node.by.team (mapping)', 'node.draw-order (passthrough)' ]
 #ff0000 #ff0000 #ff0000 #ff0000 #0000ff #0000ff #0000ff #0000ff
 ```
 

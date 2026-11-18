@@ -235,7 +235,7 @@ describe("the key field's words", () => {
 describe("effectLine", () => {
     it("words each kind of change", () => {
         assert.strictEqual(
-            effectLine(null, effect("AI_EFFECT_STYLE", { channel: "edge.size", edges: 1, source: "weight" })),
+            effectLine(null, effect("AI_EFFECT_STYLE", { channel: "edge.width", edges: 1, source: "weight" })),
             "Sized 1 edge by weight",
         );
         assert.strictEqual(

@@ -26,7 +26,6 @@ import {
     type ColumnDecl,
     type ColumnHandle,
     type Dtype,
-    GraphFormatError,
     type GraphMetaPatch,
     type GraphSink,
     INVALID_INDEX,
@@ -74,9 +73,12 @@ import {
     UNKNOWN_ELEMENT_CODE,
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
+// Both CX formats import the same generic helper set from common/, so this list is a deliberate parallel of cx/importer.ts.
+// jscpd:ignore-start
+import { scanCxDocument } from "../../common/cx-import.js";
 import { DirectionResolver } from "../../common/direction.js";
-import { IdCoercer } from "../../common/ids.js";
-import { textChunks, throwIfAborted } from "../../common/input.js";
+import { IdCoercer, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
+import { throwIfAborted } from "../../common/input.js";
 import {
     type AspectEvent,
     cxId,
@@ -87,13 +89,11 @@ import {
     headText,
     inexactLiteral,
     isRecord,
-    JsonScanError,
     keptPrecision,
     plainJson,
     positionDecl,
     reportSharedBlock,
     reportTooDeep,
-    scanAspects,
     setOwn,
     zDecl,
 } from "../../common/json-elements.js";
@@ -103,6 +103,7 @@ import {
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
+    zAsOption,
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
@@ -112,18 +113,13 @@ import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import { blockOfAspect, type Cx2StyleSource } from "../cx/styles.js";
 import { readCx2Styles } from "./styles.js";
+// jscpd:ignore-end
 
 /**
  * The format name.
  * @category Plugin helpers
  */
 export const CX2_FORMAT = "cx2";
-
-/**
- * The node attribute the exporter's `sanitizeIds: "mangle"` keeps an original id in.
- * @category Plugin helpers
- */
-export const ORIGINAL_ID_ATTRIBUTE = "graphty:originalId";
 
 /**
  * The origin namespace of the per-element visual property columns.
@@ -582,21 +578,9 @@ async function readDocument(
     options: ResolvedImportOptions,
 ): Promise<Cx2Document> {
     const scan = new Cx2Scan(report);
-    let sinceCheck = 0;
-    try {
-        for await (const event of scanAspects(textChunks(input, report, options), report)) {
-            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
-                sinceCheck = 0;
-                throwIfAborted(options.signal);
-            }
-            scan.event(event);
-        }
-    } catch (err) {
-        if (err instanceof JsonScanError) {
-            report.fail(err.empty ? EMPTY_INPUT_CODE : SYNTAX_CODE, err.message, { line: err.line });
-        }
-        throw err;
-    }
+    await scanCxDocument(input, report, options, (event) => {
+        scan.event(event);
+    });
     if (!scan.descriptor) {
         report.fail(CX2_ISSUE.NO_DESCRIPTOR, "the document is an empty array; a CX2 document starts with a descriptor");
     }
@@ -2658,25 +2642,6 @@ function describeStyle(aspect: string, elements: readonly unknown[]): string {
         return `visualProperties: ${defaults} default${plural(defaults)}, ${count("nodeMapping")} node mapping${plural(count("nodeMapping"))}, ${count("edgeMapping")} edge mapping${plural(count("edgeMapping"))}`;
     }
     return `${aspect}: ${elements.length} element${plural(elements.length)}`;
-}
-
-/**
- * Resolve the zAs option.
- * @param value - the option
- * @returns the mode; E_UNSUPPORTED for any other value
- * @category Plugin helpers
- */
-export function zAsOption(value: unknown): "column" | "position" {
-    if (value === undefined) {
-        return "column";
-    }
-    if (value === "column" || value === "position") {
-        return value;
-    }
-    throw new GraphFormatError("E_UNSUPPORTED", `option zAs: ${shown(value)} is not one of "column", "position"`, {
-        option: "zAs",
-        found: typeof value === "string" ? value : typeof value,
-    });
 }
 
 /**

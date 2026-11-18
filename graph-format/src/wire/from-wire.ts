@@ -25,8 +25,7 @@ import { ALIGNMENT, FORMAT_VERSION, MAX_COUNT, WIRE_FORMAT, WIRE_MAJOR } from ".
 import { GraphFormatError } from "../errors.js";
 import { type NodeIdMap, nodeIdMapFromTyped, type NodeIdMapTypedParts } from "../ids/node-id-map.js";
 import { checkUtf8Layout, decodeUtf8Rows, Utf8Store } from "../ids/string-store.js";
-import { createSnapshot, type GraphSnapshot, seedView } from "../snapshot/graph-snapshot.js";
-import { cooViewOf, edgeListViewOf, ReverseAdjacency, rowLengths } from "../snapshot/views.js";
+import { createSnapshot, type GraphSnapshot } from "../snapshot/graph-snapshot.js";
 import {
     type ArenaLayout,
     type ArenaSegment,
@@ -36,6 +35,7 @@ import {
     type ColumnMeta,
     type ColumnOrigin,
     type ColumnOriginInput,
+    type CoordinateSystemInput,
     type CoreArrayName,
     type Dtype,
     type F32,
@@ -54,22 +54,11 @@ import {
     type WireSnapshot,
 } from "../types/index.js";
 import { type MutableColumnParts, type SnapshotParts } from "../types/internal.js";
+import { describeValue } from "../util/options.js";
 import { canViewAsPaddedU32, copyToPaddedStore, padTo4 } from "../util/typed-array.js";
-import {
-    checkCooSrc,
-    checkDegree,
-    checkDegreeOrder,
-    checkEdgeList,
-    checkF64View,
-    checkInDegree,
-    checkMate,
-    checkOutDegree,
-    checkReverse,
-    checkSelfLoopArcs,
-    checkSelfLoopsPerNode,
-    CoreFacts,
-} from "./carried-views.js";
-import { defineJsonKey } from "./to-wire.js";
+import { badWire } from "./bad-wire.js";
+import { type CarriedViews, installViews } from "./carried-views.js";
+import { decodeJsonValue, parseGuardedJson } from "./json-tags.js";
 
 // ============================================================ vocabularies
 
@@ -99,48 +88,10 @@ const TIME_REPRESENTATIONS: ReadonlySet<GraphMeta["timeRepresentation"] & string
     "timestamp",
 ] as const);
 const MODES: ReadonlySet<GraphMeta["mode"] & string> = new Set(["static", "dynamic", "slice"] as const);
-const FORBIDDEN_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
-const NUM_TAG = "$num";
-const ESC_TAG = "$esc";
-/** The deepest JSON nesting a manifest value may have; deeper input is refused instead of overflowing the stack. */
-const MAX_JSON_DEPTH = 256;
-
-/**
- * A short plain-ASCII rendering of an untrusted manifest value for an error message: strings are
- * quoted, everything else is named by type (a bigint or a null-prototype object cannot be
- * stringified, and a structuredClone-delivered manifest can carry both).
- * @param value - the value
- * @returns the rendering
- */
-function describe(value: unknown): string {
-    if (typeof value === "string") {
-        return JSON.stringify(value.length > 40 ? `${value.slice(0, 37)}...` : value);
-    }
-    if (typeof value === "number" || typeof value === "boolean" || value === null) {
-        return String(value);
-    }
-    return value === undefined ? "undefined" : `a ${typeof value}`;
-}
-
 /** The meta.extra key naming the columns dropped under unknownColumns: "skip" (design section 9.1). */
 export const SKIPPED_COLUMNS_KEY = "graphty.skippedColumns";
 
 // ============================================================ errors and shape readers
-
-/**
- * The E_BAD_SERIALIZATION error of a malformed manifest member or buffer reference.
- * @param ref - the manifest path, e.g. "nodeColumns[2].data"
- * @param reason - what is wrong
- * @param details - extra context
- * @returns the error
- */
-export function badWire(
-    ref: string,
-    reason: string,
-    details: Readonly<Record<string, unknown>> = {},
-): GraphFormatError {
-    return new GraphFormatError("E_BAD_SERIALIZATION", `${ref}: ${reason}`, { ref, reason, ...details });
-}
 
 function asObject(value: unknown, path: string): Record<string, unknown> {
     if (!isPlainObject(value)) {
@@ -197,7 +148,7 @@ function asEnum<T extends string>(value: unknown, path: string, allowed: Readonl
         return null;
     }
     if (typeof value !== "string" || !(allowed as ReadonlySet<string>).has(value)) {
-        throw badWire(path, `unexpected value ${describe(value)}`, { found: value });
+        throw badWire(path, `unexpected value ${describeValue(value)}`, { found: value });
     }
     return value as T;
 }
@@ -209,117 +160,6 @@ function asEnum<T extends string>(value: unknown, path: string, allowed: Readonl
  */
 function isKnownDtype(value: unknown): value is Dtype {
     return typeof value === "string" && COLUMN_DTYPES.has(value);
-}
-
-// ============================================================ JSON values (5.9)
-
-/**
- * Decode a manifest JSON value (design section 5.9): `{ "$num": "Infinity" | "-Infinity" | "NaN" |
- * "-0" }` becomes the number, `{ "$esc": { ... } }` unwraps a user object whose only key collided
- * with a tag (the writer's escape), arrays and plain objects are rebuilt recursively (a key named
- * `__proto__`, `constructor` or `prototype` is refused), everything else is returned as is. Nesting
- * deeper than MAX_JSON_DEPTH is E_BAD_SERIALIZATION rather than a stack overflow.
- * @param value - the value from the manifest
- * @param path - the manifest path for error messages
- * @param depth - the current nesting depth
- * @returns the decoded value
- */
-export function decodeJsonValue(value: unknown, path: string, depth = 0): unknown {
-    if (depth > MAX_JSON_DEPTH) {
-        throw badWire(path, `JSON nesting deeper than ${MAX_JSON_DEPTH}`, { reason: "nesting" });
-    }
-    if (Array.isArray(value)) {
-        return value.map((item: unknown, i) => decodeJsonValue(item, `${path}[${i}]`, depth + 1));
-    }
-    if (!isPlainObject(value)) {
-        return value;
-    }
-    const keys = Object.keys(value);
-    if (keys.length === 1 && keys[0] === NUM_TAG) {
-        const tag: unknown = value[NUM_TAG];
-        switch (tag) {
-            case "NaN":
-                return Number.NaN;
-            case "Infinity":
-                return Infinity;
-            case "-Infinity":
-                return -Infinity;
-            case "-0":
-                return -0;
-            default:
-                throw badWire(path, `unknown number tag ${describe(tag)}`, { found: tag });
-        }
-    }
-    if (keys.length === 1 && keys[0] === ESC_TAG) {
-        const inner: unknown = value[ESC_TAG];
-        if (!isPlainObject(inner)) {
-            throw badWire(path, "an escaped object must hold a plain object", { found: typeof inner });
-        }
-        return decodeJsonObject(inner, path, depth);
-    }
-    return decodeJsonObject(value, path, depth);
-}
-
-/**
- * Rebuild a plain object's members (no tag interpretation of the object itself).
- * @param value - the plain object
- * @param path - the manifest path
- * @param depth - the nesting depth of the object
- * @returns the rebuilt object
- */
-function decodeJsonObject(value: Record<string, unknown>, path: string, depth: number): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const key of Object.keys(value)) {
-        if (FORBIDDEN_KEYS.has(key)) {
-            throw badWire(path, `forbidden key "${key}"`, { key });
-        }
-        defineJsonKey(out, key, decodeJsonValue(value[key], `${path}.${key}`, depth + 1));
-    }
-    return out;
-}
-
-/**
- * Refuse the prototype-pollution keys of design section 9.5 anywhere in a parsed JSON value.
- * JSON.parse defines them as plain own properties, so checking after the parse is as safe as a
- * reviver, and far cheaper: V8's reviver path (JSON.parse source text access) costs about eight
- * times the parse itself. An explicit stack keeps deep nesting off the call stack.
- * @param root - the parsed value
- */
-function refuseForbiddenKeys(root: unknown): void {
-    const stack: unknown[] = [root];
-    while (stack.length > 0) {
-        const value = stack.pop();
-        if (Array.isArray(value)) {
-            for (const item of value) {
-                stack.push(item);
-            }
-        } else if (typeof value === "object" && value !== null) {
-            for (const key of Object.keys(value)) {
-                if (FORBIDDEN_KEYS.has(key)) {
-                    throw badWire("manifest", `forbidden key "${key}"`, { key });
-                }
-                stack.push((value as Record<string, unknown>)[key]);
-            }
-        }
-    }
-}
-
-/**
- * Parse JSON text from a container (the manifest or one json column row) and refuse the
- * prototype-pollution keys. A syntax error is E_BAD_SERIALIZATION.
- * @param text - the JSON text
- * @param path - the manifest path for error messages
- * @returns the parsed value
- */
-export function parseGuardedJson(text: string, path: string): unknown {
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(text) as unknown;
-    } catch (err) {
-        throw badWire(path, `not valid JSON (${err instanceof Error ? err.message : String(err)})`);
-    }
-    refuseForbiddenKeys(parsed);
-    return parsed;
 }
 
 // ============================================================ options and regions
@@ -521,7 +361,7 @@ function readRef(value: unknown, path: string): WireBufferRef {
     const o = asObject(value, path);
     const { dtype } = o;
     if (typeof dtype !== "string" || !WIRE_DTYPES.has(dtype)) {
-        throw badWire(path, `unknown wire dtype ${describe(dtype)}`, { found: dtype });
+        throw badWire(path, `unknown wire dtype ${describeValue(dtype)}`, { found: dtype });
     }
     const fields = ["buffer", "byteOffset", "byteLength", "length"] as const;
     for (const field of fields) {
@@ -812,7 +652,7 @@ class WireDecoder {
         if (this.structure && column.nullCount !== declaredNullCount) {
             throw badWire(
                 `${path}.nullCount`,
-                `manifest says ${describe(declaredNullCount)}, the bitmap says ${column.nullCount}`,
+                `manifest says ${describeValue(declaredNullCount)}, the bitmap says ${column.nullCount}`,
                 {
                     expected: column.nullCount,
                     found: declaredNullCount,
@@ -854,7 +694,7 @@ class WireDecoder {
             return false;
         }
         const found = dtype === "list" ? itemDtype : dtype;
-        const foundName = typeof found === "string" ? found : describe(found);
+        const foundName = typeof found === "string" ? found : describeValue(found);
         if (this.options.unknownColumns === "skip") {
             this.skipped.push({ domain, table, name, dtype: foundName });
             return true;
@@ -895,6 +735,7 @@ class WireDecoder {
             origin: optional("origin", (v) => v as ColumnOriginInput),
             dynamic: optional("dynamic", asBoolean),
             extra: optional("extra", (v, p) => decodeJsonValue(v, p) as Readonly<Record<string, unknown>>),
+            coordinates: optional("coordinates", (v) => v as CoordinateSystemInput),
         };
         try {
             return resolveColumnMeta(name, domain, decl);
@@ -968,7 +809,7 @@ class WireDecoder {
         const o = asObject(value, "ids");
         const kindRaw = o.kind;
         if (typeof kindRaw !== "string" || !ID_MAP_KINDS.has(kindRaw)) {
-            throw new GraphFormatError("E_UNSUPPORTED", `unknown id map kind ${describe(kindRaw)}`, {
+            throw new GraphFormatError("E_UNSUPPORTED", `unknown id map kind ${describeValue(kindRaw)}`, {
                 kind: kindRaw,
                 ref: "ids.kind",
             });
@@ -1045,327 +886,6 @@ class WireDecoder {
         }
         return out;
     }
-}
-
-// ============================================================ carried views
-
-/** The member arrays of the views a manifest carried, keyed by view name then member name. */
-type CarriedViews = Map<string, Map<string, TypedArrayData>>;
-
-/**
- * One member array of a carried view, checked for class and length.
- * @param members - the view's member arrays
- * @param view - the view name (for the error path)
- * @param member - the member name
- * @param ctor - the required typed-array class
- * @param length - the required length
- * @param required - whether an absent member is an error
- * @returns the array, or null when absent and not required
- */
-function viewMember<T extends TypedArrayData>(
-    members: ReadonlyMap<string, TypedArrayData>,
-    view: string,
-    member: string,
-    ctor: new (length: number) => T,
-    length: number,
-    required: boolean,
-): T | null {
-    const path = `views.${view}.${member}`;
-    const array = members.get(member);
-    if (array === undefined) {
-        if (required) {
-            throw badWire(path, "the carried view is missing this member");
-        }
-        return null;
-    }
-    if (!(array instanceof ctor)) {
-        throw badWire(path, `expected ${ctor.name}, found ${array.constructor.name}`, {
-            expected: ctor.name,
-            found: array.constructor.name,
-        });
-    }
-    if (array.length !== length) {
-        throw badWire(path, `expected ${length} entries, found ${array.length}`, {
-            expected: length,
-            found: array.length,
-        });
-    }
-    return array;
-}
-
-/**
- * The per-node or per-arc array of a single-member view.
- * @param members - the view's member arrays
- * @param view - the view name
- * @param ctor - the required typed-array class
- * @param length - the required length
- * @returns the array
- */
-function dataMember<T extends TypedArrayData>(
-    members: ReadonlyMap<string, TypedArrayData>,
-    view: string,
-    ctor: new (length: number) => T,
-    length: number,
-): T {
-    return viewMember(members, view, "data", ctor, length, true) as T;
-}
-
-/**
- * Install the views a manifest carried into the snapshot's cache (design section 9.1), so the
- * receiver does not recompute them. Views that alias another view on an undirected snapshot
- * (`reverse`, `inDegree`, `weightedInDegree`, `reverseDegreeOrder`) are left to the snapshot, which
- * produces the alias itself; `mate` on a directed snapshot and unknown view names are ignored.
- * Every installed member must have the class and length of the view it claims to be
- * (E_BAD_SERIALIZATION otherwise); at the "structure" level (`verify`) every carried view is also
- * checked against the core before it is installed (src/wire/carried-views.ts), so a corrupt or
- * forged view never enters the cache below "full".
- * @param snapshot - the freshly built snapshot
- * @param carried - the carried member arrays
- * @param verify - whether to check the contents (the "structure" level)
- */
-function installViews(snapshot: GraphSnapshot, carried: CarriedViews, verify: boolean): void {
-    let facts: CoreFacts | null = null;
-    const ctx: ViewInstall = {
-        snapshot,
-        verify,
-        facts: (): CoreFacts => {
-            facts ??= new CoreFacts(snapshot);
-            return facts;
-        },
-    };
-    for (const [name, members] of carried) {
-        if (!isAliasView(name, snapshot.directed)) {
-            installView(ctx, name, members);
-        }
-    }
-}
-
-/** What installing one carried view needs. */
-interface ViewInstall {
-    readonly snapshot: GraphSnapshot;
-    /** Whether to check the contents against the core (the "structure" level). */
-    readonly verify: boolean;
-    /** The core facts, computed on first use and shared by every view. */
-    readonly facts: () => CoreFacts;
-}
-
-type ViewMembers = ReadonlyMap<string, TypedArrayData>;
-
-/** The views an undirected snapshot produces as aliases of another view. */
-const UNDIRECTED_ALIAS_VIEWS: ReadonlySet<string> = new Set([
-    "reverse",
-    "inDegree",
-    "weightedInDegree",
-    "reverseDegreeOrder",
-]);
-
-/**
- * Whether a carried view is left to the snapshot: an alias on an undirected snapshot, or `mate` on a
- * directed one.
- * @param name - the view name
- * @param directed - whether the snapshot is directed
- * @returns true when the carried view is ignored
- */
-function isAliasView(name: string, directed: boolean): boolean {
-    return directed ? name === "mate" : UNDIRECTED_ALIAS_VIEWS.has(name);
-}
-
-/**
- * Install one carried view by name; unknown names (a newer minor) and scalar views are ignored and
- * recomputed.
- * @param ctx - the snapshot, the level and the core facts
- * @param name - the view name
- * @param members - the view's member arrays
- */
-function installView(ctx: ViewInstall, name: string, members: ViewMembers): void {
-    const { snapshot } = ctx;
-    switch (name) {
-        case "reverse":
-            installReverse(ctx, members);
-            break;
-        case "coo":
-            installCoo(ctx, members);
-            break;
-        case "edgeList":
-            installEdgeList(ctx, members);
-            break;
-        case "outDegree":
-            installCountView(ctx, "outDegree", members, snapshot.nodeCount, (data) => {
-                checkOutDegree(snapshot, data);
-            });
-            break;
-        case "degree":
-            installCountView(ctx, "degree", members, snapshot.nodeCount, (data) => {
-                checkDegree(snapshot, ctx.facts(), data);
-            });
-            break;
-        case "selfLoopsPerNode":
-            installCountView(ctx, "selfLoopsPerNode", members, snapshot.nodeCount, (data) => {
-                checkSelfLoopsPerNode(ctx.facts(), data);
-            });
-            break;
-        case "inDegree":
-            installCountView(ctx, "inDegree", members, snapshot.nodeCount, (data) => {
-                checkInDegree(ctx.facts(), data);
-            });
-            break;
-        case "selfLoopArcs":
-            installCountView(ctx, "selfLoopArcs", members, snapshot.selfLoopCount, (data) => {
-                checkSelfLoopArcs(snapshot, ctx.facts(), data);
-            });
-            break;
-        case "mate":
-            installCountView(ctx, "mate", members, snapshot.arcCount, (data) => {
-                checkMate(snapshot, ctx.facts(), data);
-            });
-            break;
-        case "weightedOutDegree":
-        case "weightedInDegree":
-        case "weightedDegree":
-        case "selfLoopWeight":
-            installF64View(ctx, name, members);
-            break;
-        case "degreeOrder":
-        case "reverseDegreeOrder":
-            installDegreeOrder(ctx, name, members);
-            break;
-        default:
-            // An unknown view name (a newer minor) or a scalar view: ignored and recomputed.
-            break;
-    }
-}
-
-/**
- * Refuse a weights member carried for an unweighted snapshot.
- * @param snapshot - the snapshot
- * @param view - the view name
- * @param weights - the carried weights, or null
- */
-function rejectStrayWeights(snapshot: GraphSnapshot, view: string, weights: F32 | null): void {
-    if (weights !== null && snapshot.weights === null) {
-        throw badWire(`views.${view}.weights`, "weights carried for an unweighted snapshot");
-    }
-}
-
-/**
- * Install a carried directed `reverse` view.
- * @param ctx - the snapshot, the level and the core facts
- * @param members - the view's member arrays
- */
-function installReverse(ctx: ViewInstall, members: ViewMembers): void {
-    const { snapshot } = ctx;
-    const { nodeCount, arcCount } = snapshot;
-    const rowPtr = viewMember(members, "reverse", "rowPtr", Uint32Array, nodeCount + 1, true) as U32;
-    const colIdx = viewMember(members, "reverse", "colIdx", Uint32Array, arcCount, true) as U32;
-    const fwdArc = viewMember(members, "reverse", "fwdArc", Uint32Array, arcCount, true) as U32;
-    const weights = viewMember(members, "reverse", "weights", Float32Array, arcCount, snapshot.weights !== null);
-    rejectStrayWeights(snapshot, "reverse", weights);
-    const reverse = new ReverseAdjacency(snapshot, rowPtr, colIdx, weights, fwdArc);
-    if (ctx.verify) {
-        checkReverse(snapshot, ctx.facts(), reverse);
-    }
-    seedView(snapshot, "reverse", reverse);
-}
-
-/**
- * Install a carried `coo` view (its src array; dst is the core colIdx).
- * @param ctx - the snapshot, the level and the core facts
- * @param members - the view's member arrays
- */
-function installCoo(ctx: ViewInstall, members: ViewMembers): void {
-    const { snapshot } = ctx;
-    const src = viewMember(members, "coo", "src", Uint32Array, snapshot.arcCount, true) as U32;
-    if (ctx.verify) {
-        checkCooSrc(ctx.facts(), src);
-    }
-    seedView(snapshot, "coo", cooViewOf(snapshot, src));
-}
-
-/**
- * Install a carried `edgeList` view; dst and weights are omitted when arcToEdge is the identity.
- * @param ctx - the snapshot, the level and the core facts
- * @param members - the view's member arrays
- */
-function installEdgeList(ctx: ViewInstall, members: ViewMembers): void {
-    const { snapshot } = ctx;
-    const { edgeCount } = snapshot;
-    const identity = snapshot.flags.arcToEdgeIsIdentity;
-    const src = viewMember(members, "edgeList", "src", Uint32Array, edgeCount, true) as U32;
-    const dst = viewMember(members, "edgeList", "dst", Uint32Array, edgeCount, !identity);
-    const weights = viewMember(
-        members,
-        "edgeList",
-        "weights",
-        Float32Array,
-        edgeCount,
-        snapshot.weights !== null && !identity,
-    );
-    rejectStrayWeights(snapshot, "edgeList", weights);
-    if (ctx.verify) {
-        checkEdgeList(snapshot, ctx.facts(), src, dst, weights);
-    }
-    seedView(snapshot, "edgeList", edgeListViewOf(snapshot, src, dst ?? snapshot.colIdx, weights ?? snapshot.weights));
-}
-
-/**
- * Install a single-member u32 view (a per-node count, the self-loop arcs or the mates).
- * @param ctx - the snapshot, the level and the core facts
- * @param name - the view name
- * @param members - the view's member arrays
- * @param length - the required length
- * @param check - the contents check run under `verify`
- */
-function installCountView(
-    ctx: ViewInstall,
-    name: "outDegree" | "degree" | "selfLoopsPerNode" | "inDegree" | "selfLoopArcs" | "mate",
-    members: ViewMembers,
-    length: number,
-    check: (data: U32) => void,
-): void {
-    const data = dataMember(members, name, Uint32Array, length);
-    if (ctx.verify) {
-        check(data);
-    }
-    seedView(ctx.snapshot, name, data);
-}
-
-/**
- * Install an f64 view; under `verify` it is compared with the snapshot's own computation instead
- * (which then stays cached), so a corrupt value array never enters the cache.
- * @param ctx - the snapshot, the level and the core facts
- * @param name - the view
- * @param members - the view's member arrays
- */
-function installF64View(
-    ctx: ViewInstall,
-    name: "weightedOutDegree" | "weightedInDegree" | "weightedDegree" | "selfLoopWeight",
-    members: ViewMembers,
-): void {
-    const { snapshot } = ctx;
-    const data = dataMember(members, name, Float64Array, snapshot.nodeCount);
-    if (ctx.verify) {
-        checkF64View(name, data, snapshot[name]());
-        return;
-    }
-    seedView(snapshot, name, data);
-}
-
-/**
- * Install a carried degree order (`degreeOrder`, or `reverseDegreeOrder` on a directed snapshot).
- * @param ctx - the snapshot, the level and the core facts
- * @param name - the view
- * @param members - the view's member arrays
- */
-function installDegreeOrder(ctx: ViewInstall, name: "degreeOrder" | "reverseDegreeOrder", members: ViewMembers): void {
-    const { snapshot } = ctx;
-    const { nodeCount } = snapshot;
-    const perm = viewMember(members, name, "perm", Uint32Array, nodeCount, true) as U32;
-    const segmentOffsets = viewMember(members, name, "segmentOffsets", Uint32Array, 5, true) as U32;
-    if (ctx.verify) {
-        const degree = name === "degreeOrder" ? rowLengths(snapshot.rowPtr, nodeCount) : ctx.facts().inDegree;
-        checkDegreeOrder(name, degree, perm, segmentOffsets);
-    }
-    seedView(snapshot, name, Object.freeze({ perm, segmentOffsets }));
 }
 
 // ============================================================ core, arena, meta
@@ -1585,7 +1105,7 @@ function decodeArena(
     if (structure && a.hotByteLength !== hotByteLength) {
         throw badWire(
             "arena.hotByteLength",
-            `manifest says ${describe(a.hotByteLength)}, the segments say ${hotByteLength}`,
+            `manifest says ${describeValue(a.hotByteLength)}, the segments say ${hotByteLength}`,
             {
                 expected: hotByteLength,
                 found: a.hotByteLength,
@@ -1683,7 +1203,7 @@ function readGraphMeta(value: unknown): GraphMeta {
  */
 export function checkManifestVersions(manifest: Record<string, unknown>): readonly [number, number] {
     if (manifest.format !== WIRE_FORMAT) {
-        throw badWire("format", `expected "${WIRE_FORMAT}", found ${describe(manifest.format)}`, {
+        throw badWire("format", `expected "${WIRE_FORMAT}", found ${describeValue(manifest.format)}`, {
             found: manifest.format,
         });
     }
@@ -1712,7 +1232,7 @@ export function checkManifestVersions(manifest: Record<string, unknown>): readon
     if (manifest.formatVersion !== FORMAT_VERSION) {
         throw new GraphFormatError(
             "E_UNSUPPORTED_VERSION",
-            `formatVersion ${describe(manifest.formatVersion)} is not supported (reader: ${FORMAT_VERSION})`,
+            `formatVersion ${describeValue(manifest.formatVersion)} is not supported (reader: ${FORMAT_VERSION})`,
             { kind: "format", found: manifest.formatVersion, supported: FORMAT_VERSION },
         );
     }

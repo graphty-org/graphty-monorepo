@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
 import { type ExtractedStyles, resolveStyles, type StyleProperty } from "../../../src/styles/index.js";
+import { unsettledStyles } from "../../../src/styles/settle.js";
 
 const registry = createRegistry();
 
@@ -20,7 +21,8 @@ async function load(doc: string): Promise<{ snapshot: GraphSnapshot; styles: Ext
     if (result.styles === null || result.styles === undefined) {
         throw new Error("no styles");
     }
-    return { snapshot: result.snapshot, styles: result.styles };
+    // the reader's values, before they are settled for drawing
+    return { snapshot: result.snapshot, styles: unsettledStyles(result.styles) };
 }
 
 /**

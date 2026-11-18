@@ -4,6 +4,7 @@
  * Nothing here reads what is in a file.
  */
 
+import { pickFiles } from "@graphty/compact-mantine";
 import { PROJECT_FILE } from "@graphty/graphty-element/session";
 
 /** The file type a project is saved as, for the pickers: graphty-element's project file. */
@@ -78,17 +79,7 @@ export async function locateFile(): Promise<{ file: File; handle?: FileSystemFil
             throw error;
         }
     }
-    return new Promise((resolve) => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".json,application/json";
-        input.addEventListener("change", () => {
-            const file = input.files?.[0];
-            resolve(file === undefined ? undefined : { file });
-        });
-        input.addEventListener("cancel", () => {
-            resolve(undefined);
-        });
-        input.click();
-    });
+    // compact-mantine's picker keeps its input alive while Safari's file panel is open.
+    const [file] = await pickFiles({ accept: ".json,application/json" });
+    return file === undefined ? undefined : { file };
 }

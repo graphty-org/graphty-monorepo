@@ -329,41 +329,18 @@ export function newCore(container: HTMLElement, elements: ElementDefinition[] = 
 const FIT_PADDING = 30;
 
 /**
- * The nodes of the largest connected component, by union-find over the edges' endpoints. Cytoscape's components()
- * walks every element as a collection and took 7.7 s of the main thread on the 210,000 elements of the 50,000-node
- * network, after the layout had finished and while its working panel still showed the last second it counted.
+ * The nodes of the largest connected component, from the package's own graphtyConnectedComponents. Cytoscape's
+ * components() walks every element as a collection and took 7.7 s of the main thread on the 210,000 elements of the
+ * 50,000-node network, after the layout had finished and while its working panel still showed the last second it
+ * counted.
  * @param cy - the core
  * @returns the component's nodes
  */
 export function mainComponent(cy: Core): NodeCollection {
-    const nodes = cy.nodes();
-    const index = new Map<string, number>();
-    nodes.forEach((n, i) => {
-        index.set(n.id(), i);
-    });
-    const parent = Int32Array.from({ length: nodes.length }, (_, i) => i);
-    const root = (i: number): number => {
-        while (parent[i] !== i) {
-            parent[i] = parent[parent[i]];
-            i = parent[i];
-        }
-        return i;
-    };
-    cy.edges().forEach((e) => {
-        const a = root(index.get(e.data("source") as string) ?? 0);
-        const b = root(index.get(e.data("target") as string) ?? 0);
-        parent[Math.max(a, b)] = Math.min(a, b);
-    });
-    const size = new Int32Array(nodes.length);
-    let best = 0;
-    for (let i = 0; i < nodes.length; i++) {
-        const r = root(i);
-        size[r]++;
-        if (size[r] > size[best]) {
-            best = r;
-        }
+    if (cy.nodes().empty()) {
+        return cy.collection();
     }
-    return nodes.filter((_n, i) => root(i) === best);
+    return cy.graphtyConnectedComponents().reduce((a, c) => (c.length > a.length ? c : a));
 }
 
 /**

@@ -454,6 +454,25 @@ describe("route", () => {
         assert.equal(l.waits[3].ended, null);
         assert.deepEqual(drift(l, { issues: new Map(), prs, branchPrs }, NOW), [], "a second check finds nothing");
     });
+
+    it("lets a wait with a due time hold its issue only until then, and check --fix ends it after", () => {
+        const l = fresh();
+        l.scannedAt = new Date(NOW).toISOString();
+        const due = new Date(NOW + HOUR).toISOString();
+        assert.match(addWait(l, { n: 3, on: "#8667", due, why: "re-measure", now: NOW }), /until/);
+        assert.throws(() => addWait(l, { n: 4, on: "#1", due: "soon", why: "x", now: NOW }), /not a time/);
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), NOW).rescan, [], "held before the due time");
+        assert.deepEqual(drift(l, { issues: new Map(), prs: new Map() }, NOW), []);
+        const later = NOW + 2 * HOUR;
+        assert.deepEqual(ledgerJobs(l, q([3, "high"]), later).rescan, [3], "offered once the due time passed");
+        const found = drift(l, { issues: new Map(), prs: new Map() }, later);
+        assert.deepEqual(
+            found.map((d) => d.kind),
+            ["wait-due"],
+        );
+        applyFix(l, found[0], later);
+        assert.match(l.waits[0].ended, /due .* passed$/);
+    });
 });
 
 describe("fetchFacts", () => {
@@ -1065,6 +1084,22 @@ describe("jobs", () => {
         assert.deepEqual(ledgerJobs(l, q([4, "high"]), NOW).rescan, [4], "each import replaces the blocked list");
     });
 
+    it("offers a blocked issue again past the block's due time, and names critical/high blocks with no end", () => {
+        const l = fresh();
+        const blocked = [
+            { issue: 1, reason: "waits for a measurement", due: new Date(NOW - HOUR).toISOString() },
+            { issue: 2, reason: "waits for a measurement" },
+            { issue: 3, reason: "owner-only: visual-review/trusted" },
+            { issue: 4, reason: "waits on armable #8465" },
+            { issue: 5, reason: "stranded branch" },
+        ];
+        importScan(l, { builtAt: new Date(NOW).toISOString(), jobs: [], blocked }, NOW);
+        const r = ledgerJobs(l, q([1, "high"], [2, "critical"], [3, "high"], [4, "high"], [5, "low"]), NOW);
+        assert.deepEqual(r.rescan, [1]);
+        assert.deepEqual(r.unjustified, [2]);
+        assert.ok(jobLines(r).some((line) => /^unjustified blocks: #2 /.test(line)));
+    });
+
     it("asks for a scan when the last one is over 2 hours old", () => {
         const l = fresh();
         l.scannedAt = new Date(NOW - 3 * HOUR).toISOString();
@@ -1530,7 +1565,17 @@ describe("idle", () => {
     it("is idle with startable jobs, free slots, no long wait and load under the cores", () => {
         const v = idleVerdict(base);
         assert.equal(v.idle, true);
-        assert.equal(v.line, "idle: running 0, slots free 3 of 4, load 6/32, startable 10 -- start jobs");
+        assert.equal(
+            v.line,
+            "idle: running 0, slots free 3 of 4, load 6/32, startable 10 (critical/high 0) -- start jobs",
+        );
+    });
+
+    it("says so when only medium or low jobs are startable while critical or high issues are held", () => {
+        const v = idleVerdict({ ...base, critHigh: 0, critHighHeld: 7 });
+        assert.equal(v.idle, true);
+        assert.match(v.line, /startable 10 \(critical\/high 0, 7 held\) -- start jobs; no critical\/high job/);
+        assert.equal(idleVerdict({ ...base, critHigh: 2, critHighHeld: 7 }).reason, "start jobs");
     });
 
     it("is not idle when nothing is startable, the slots are full, a run waits or the load is high", () => {
@@ -1587,7 +1632,10 @@ describe("idle", () => {
         };
         const r = main(["idle"], deps);
         assert.equal(r.code, 1);
-        assert.equal(r.out, "idle: running 1, slots free 4 of 4, load 1/32, startable 1 -- start jobs");
+        assert.equal(
+            r.out,
+            "idle: running 1, slots free 4 of 4, load 1/32, startable 1 (critical/high 1) -- start jobs",
+        );
         assert.deepEqual(asked, [[2]]);
         const cached = JSON.parse(readFileSync(join(dir, "idle.json"), "utf8"));
         assert.equal(cached.at, NOW);

@@ -315,7 +315,10 @@ review, an owner decision): any pull request with a non-zero `totalCount`, or wi
 saying auto-merge stays off, or that it needs the owner), is never armed by this rule. For one that qualifies, do
 not copy pr-open.sh's hold rules: re-run `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` from the
 branch's worktree; it finds the open pull request and arms it only when none of its own checks (`GUARD_PATHS`,
-breaking commits and footers, `release-not-breaking.json`, renames, large file lists) holds it for the owner. A
+breaking commits and footers, `release-not-breaking.json`, renames, large file lists) holds it for the owner. pr-open's own "auto-merge is NOT on ... it changes what guards the owner"
+is not such a hold: a green, CLEAN graphty-agent pull request whose only hold is a `GUARD_PATHS` change, with no
+`AUTO_MERGE_DISABLED` event by the owner and no owner-approval file, is armed by step 7, critical before high before
+oldest (by its `Fixes` issues), one at a time and only while master is green. A
 green pull request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master`
 (same as a red one above). The round's last line names every pull request armed and every conflicted one sent to a
 fix, by number.

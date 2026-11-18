@@ -175,9 +175,18 @@ rounds had closed 161 low bugs and 160 high ones in 7 days while 13 of 20 open c
       (`jobs` merges it in; step 3 when stale), since it costs no extra slot.
 - [ ] When the top critical or high issue is not startable, skip to the next critical or high one, never silently
       lower. The round's last line names why the top is blocked, as `top of queue #<n> <priority> <reason>`, the
-      reason one of owner-only, needs-decision, `waits on #<m>` or `file collision with #<m>`. Only when no critical
+      reason one of owner-only, needs-decision, `waits on #<m>`, `waits on armable #<m>` (a green pull request
+      only its guarded path holds, which pipeline-round arms) or `file collision with #<m>`. Only when no critical
       or high issue is startable may medium and low jobs start; idle slots go first to diagnoses of the blocked
       critical and high issues (step 1).
+- [ ] An `unjustified blocks:` line from `jobs` names critical or high issues the scan blocked with no `due` time
+      and none of those reasons (nor in flight, nor a recurrence): give each a diagnosis job this round.
+- [ ] `issue-queue.mjs list` ends with `critical/high open N: in the queue Q, alarms A, held H` and the
+      `owner-rule candidates` (critical or high issues behind `ux-owner`, `needs-decision` or `blocked`). Each
+      round, release every candidate a standing rule decides (below), and on the rest write once
+      `issue-round: stays owner's -- <reason>`. The round's last line carries the three counts and
+      `owner-rule candidates N undecided`; `alarms` (ci-budget and alarm titles, which tools file and close) are
+      never counted as critical or high work.
 
 A load-sensitive failure (critical by the owner's rule, 2026-10-22) keeps its label: never lower it, and its job
 reproduces it under `taskset -c 0`, names the mechanism and never fixes it with a longer wait. Never lower a priority
@@ -247,7 +256,8 @@ floors, oracles, snapshots), never a directory. Compare them with the open pull 
 `family:` label, into one job of up to four. Write only `tmp/issue-round/free-queue.json` in the main checkout, as
 `{ builtAt, jobs: [{ issues: [<n>...], files: [<path>...], why }], blocked: [{ issue, prs: [<n>...], reason }] }`,
 where every issue of the queue is in a job or in `blocked` (a reason such as owner-only or needs-decision with no
-pull request is fine)." followed by the read-only rules paragraph from step 1. The tool merges any jobs the scan left
+pull request is fine). A block that waits for a measurement, a number of merges or a date also carries
+`due: <ISO time>`, when to look again; past it the tools offer the issue again." followed by the read-only rules paragraph from step 1. The tool merges any jobs the scan left
 apart that share a file or family, so the scan need not be perfect, only complete.
 
 **Shared files are not overlaps.** Generated, append-mostly or registry files: `*/api/*.api.md` (API reports),

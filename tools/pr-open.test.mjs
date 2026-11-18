@@ -442,6 +442,7 @@ describe("pr-open.sh", () => {
         assert.match(r.out, /auto-merge is NOT on for .*: it holds a breaking change/);
         assert.equal(armed().length, 0);
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
+        assert.match(r.out, /The owner merges it when he gives the go/);
     });
 
     it("arms auto-merge for a breaking commit master's release-not-breaking.json rules not breaking", () => {
@@ -492,6 +493,7 @@ describe("pr-open.sh", () => {
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/11 graphty-agent" });
         assert.equal(r.code, 0, r.out);
         assert.match(r.out, /guards the owner: visual-review\/passkeys\.json/);
+        assert.match(r.out, /pipeline-round arms it once green/, "a guarded path is not an owner merge");
         assert.equal(armed().length, 0);
     });
 

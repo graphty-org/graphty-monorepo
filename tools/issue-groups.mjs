@@ -20,7 +20,8 @@
 //   import-scan [<free-queue.json>]        replaces the proposed groups with the free-queue scan's jobs
 //   start <group> <branch> | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged
 //   release <group> <n> --why <reason>     a member that turned out not to belong (never routed back there)
-//   wait <n> --on <group|branch|#pr> [--x9 <sha>] --why <reason>
+//   wait <n> --on <group|branch|#pr> [--x9 <sha>] [--due <ISO time>] --why <reason>
+//                                          --due: past it the wait no longer holds the issue and check --fix ends it
 //   archive                                moves groups closed or dissolved over 7 days ago to groups-archive.jsonl
 //   compact                                archive, plus drops stale proposals, settled waits and old history
 //   check [--fix] [--json]                 drift against GitHub: markers, labels, pull request states
@@ -49,7 +50,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
+import { blockHolds, fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
 import { liveTickets, slotCount, slotDir } from "./test-slots.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -500,6 +501,9 @@ const refuseExcluded = (n, facts, suffix = "") => {
 };
 
 const liveWaits = (ledger) => ledger.waits.filter((w) => !w.ended && !w.expired);
+// A wait with a due time stops holding its issue once the time passes (2026-11-18: waits for "a recurrence" or "a
+// measurement" held critical and high issues for days with nothing ever ending them).
+const pastDue = (w, now) => Boolean(w.due) && Date.parse(w.due) <= now;
 
 /**
  * Routes an issue (design section "Routing a new issue"). With no target, or a closed or dissolved one, it starts a
@@ -788,14 +792,16 @@ export function release(ledger, id, n, why, now) {
  * @returns one line
  */
 export function addWait(ledger, spec) {
-    const { n, on, x9, why, now } = spec;
+    const { n, on, x9, why, now, due } = spec;
     if (!on) throw new Refused("--on is required");
     if (!why?.trim()) throw new Refused("--why is required");
+    if (due !== undefined && Number.isNaN(Date.parse(due))) throw new Refused(`--due ${due} is not a time`);
     const test = x9 ? `X9 ${x9}` : "X6";
     const at = new Date(now).toISOString();
     if (liveWaits(ledger).some((w) => w.issue === n && w.on === on)) return `#${n} already waits on ${on}`;
-    ledger.waits.push({ issue: n, on, test, since: at, why, ended: null, expired: null });
-    return `#${n} waits on ${on} (${test})`;
+    ledger.waits.push({ issue: n, on, test, since: at, why, ...(due ? { due } : {}), ended: null, expired: null });
+    const until = due ? ` until ${due}` : "";
+    return `#${n} waits on ${on} (${test})${until}`;
 }
 
 /**
@@ -979,8 +985,12 @@ const reviewable = (members, everyMemberReviewed = EVERY_MEMBER_REVIEWED) => {
 // Issues no job may take now: members of started, ready, frozen and held groups, of follow-up groups whose base is
 // still live, members recorded under an exclusion (a test starting with X: owner-only, tracker, unmerged cause), and
 // issues with a live wait.
-const busyIssues = (ledger) => {
-    const busy = new Set(liveWaits(ledger).map((w) => w.issue));
+const busyIssues = (ledger, now) => {
+    const busy = new Set(
+        liveWaits(ledger)
+            .filter((w) => !pastDue(w, now))
+            .map((w) => w.issue),
+    );
     for (const g of ledger.groups.filter((x) => isLive(x))) {
         const base = g.after && ledger.groups.find((x) => x.id === g.after);
         const blocked = g.state !== "proposed" || g.held || (base && isLive(base));
@@ -999,12 +1009,13 @@ const busyIssues = (ledger) => {
  * @param q the queue, from issue-queue.mjs queue()
  * @param now ms
  * @param options `{ everyMemberReviewed }`, default EVERY_MEMBER_REVIEWED
- * @returns `{ jobs, rescan, stale }`
+ * @returns `{ jobs, rescan, stale, unjustified }`, unjustified the critical and high issues the scan blocked with no
+ *   `due` time and none of the reasons in JUSTIFIED_BLOCK
  */
 export function ledgerJobs(ledger, q, now, options = {}) {
     const pos = new Map(q.map((i, k) => [i.number, k]));
     const byNumber = new Map(q.map((i) => [i.number, i]));
-    const busy = busyIssues(ledger);
+    const busy = busyIssues(ledger, now);
     const seen = new Set();
     const out = [];
     for (const g of ledger.groups.filter((x) => x.state === "proposed")) {
@@ -1030,8 +1041,13 @@ export function ledgerJobs(ledger, q, now, options = {}) {
             });
         }
     }
-    const blocked = new Set((ledger.blocked ?? []).map((b) => b.issue));
+    const holding = (ledger.blocked ?? []).filter((b) => blockHolds(b, now));
+    const blocked = new Set(holding.map((b) => b.issue));
     const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n));
+    const unjustified = holding
+        .filter((b) => ["critical", "high"].includes(byNumber.get(b.issue)?.priority) && !b.due)
+        .filter((b) => !JUSTIFIED_BLOCK.test(b.reason ?? ""))
+        .map((b) => b.issue);
     const top = new Set(q.slice(0, 10).map((i) => i.number));
     let rescan = free.filter((n) => top.has(n));
     if (!rescan.length && !out.length && free.length) rescan = [free[0]];
@@ -1050,8 +1066,12 @@ export function ledgerJobs(ledger, q, now, options = {}) {
     const age = now - Date.parse(ledger.scannedAt ?? 0);
     const stale =
         Number.isNaN(age) || age > SCAN_STALE_MS ? `the last scan is older than 2 hours (${ledger.scannedAt})` : null;
-    return { jobs: out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead)), rescan, stale };
+    return { jobs: out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead)), rescan, stale, unjustified };
 }
+
+// The reasons a critical or high issue may stay blocked with no end time (issue-round step 2): anything else needs a
+// `due` time in the scan, or the round sends the issue a diagnosis job.
+const JUSTIFIED_BLOCK = /owner-only|needs-decision|in flight|waits on (armable )?#\d+|collision with #\d+|recur/i;
 
 const hashes = (numbers) => numbers.map((n) => `#${n}`).join(" ");
 const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
@@ -1074,6 +1094,11 @@ export function jobLines(result) {
     const issues = result.jobs.reduce((t, j) => t + j.issues.length, 0);
     const grouped = result.jobs.filter((j) => j.issues.length > 1).length;
     lines.push(`${result.jobs.length} jobs, ${issues} issues, ${grouped} grouped`);
+    if (result.unjustified?.length) {
+        lines.push(
+            `unjustified blocks: ${hashes(result.unjustified)} -- critical/high blocked with no due time and no allowed reason: diagnose each, or rescan with a due time`,
+        );
+    }
     if (result.rescan.length || result.stale) {
         const why = result.stale ?? "not in the ledger";
         lines.push(`rescan: ${hashes(result.rescan) || "(none unscanned)"} -- start the free-queue scan (${why})`);
@@ -1140,6 +1165,10 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
         out.push(...memberDrift(g, facts.issues));
     }
     out.push(...prWaitDrift(ledger, facts));
+    for (const w of liveWaits(ledger).filter((x) => pastDue(x, now))) {
+        const why = `due ${w.due} passed`;
+        out.push({ group: null, issue: w.issue, kind: "wait-due", detail: why, fix: { op: "end-wait", wait: w, why } });
+    }
     for (const w of liveWaits(ledger).filter((w) => isX9(w))) {
         const sha = String(w.test).split(" ")[1];
         if (sha && isAncestor(sha)) {
@@ -1940,7 +1969,9 @@ export function runningJobs(issues, session) {
 
 /**
  * The idle verdict.
- * @param f `{ running, slots: { count, held, waitedMs }, load, cores, startable }`; slots.count 0 means no limit
+ * @param f `{ running, slots: { count, held, waitedMs }, load, cores, startable, critHigh, critHighHeld }`; slots.count 0
+ *   means no limit; critHigh is how many startable jobs a critical or high issue leads, critHighHeld how many critical
+ *   or high issues of the queue no job offers
  * @returns `{ idle, reason, line, ...f, free }`
  */
 export function idleVerdict(f) {
@@ -1949,12 +1980,15 @@ export function idleVerdict(f) {
     const load = Math.round(f.load);
     let reason = "start jobs";
     if (f.startable === 0) reason = "nothing startable";
+    else if (!f.critHigh && f.critHighHeld) reason = "start jobs; no critical/high job is startable, say why";
     else if (f.running >= free) reason = "the running jobs fill the free slots";
     else if (f.slots.waitedMs > SLOT_WAIT_LIMIT_MS)
         reason = `a run has waited ${Math.round(f.slots.waitedMs / 60_000)} min for a slot`;
     else if (f.load >= f.cores) reason = "load is at or over the cores";
-    const idle = reason === "start jobs";
-    const line = `idle: running ${f.running}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} -- ${reason}`;
+    const idle = reason.startsWith("start jobs");
+    const held = f.critHighHeld ? `, ${f.critHighHeld} held` : "";
+    const ch = `critical/high ${f.critHigh ?? 0}${held}`;
+    const line = `idle: running ${f.running}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} (${ch}) -- ${reason}`;
     return { idle, reason, line, ...f, free: Number.isFinite(free) ? free : null };
 }
 
@@ -1994,9 +2028,22 @@ const idleFacts = (c) => {
         .map((i) => i.number);
     const session = c.session();
     const running = runningJobs(inProgress.length ? c.markers(inProgress) : new Map(), session);
-    const startable = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now).jobs.length;
+    const q = queue(open, c.now).queue;
+    const { jobs } = ledgerJobs(readLedger(c.ledgerPath), q, c.now);
+    const urgent = (p) => p === "critical" || p === "high";
+    const offered = new Set(jobs.flatMap((j) => j.issues));
+    const critHigh = jobs.filter((j) => urgent(j.priority)).length;
+    const critHighHeld = q.filter((i) => urgent(i.priority) && !offered.has(i.number)).length;
     const machine = c.machine();
-    return { session, running: running.jobs, issues: running.issues, startable, ...machine };
+    return {
+        session,
+        running: running.jobs,
+        issues: running.issues,
+        startable: jobs.length,
+        critHigh,
+        critHighHeld,
+        ...machine,
+    };
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -2009,6 +2056,7 @@ const OPTIONS = {
     to: { type: "string" },
     on: { type: "string" },
     x9: { type: "string" },
+    due: { type: "string" },
     merged: { type: "boolean" },
     unmerged: { type: "boolean" },
     json: { type: "boolean" },
@@ -2022,7 +2070,7 @@ const OPTIONS = {
 };
 
 const USAGE =
-    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
+    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] [--due <time>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
 
 const num = (s) => {
     if (!/^#?\d+$/.test(s ?? "")) throw new Refused(`not an issue number: ${s}`);
@@ -2183,7 +2231,7 @@ const COMMANDS = {
         return c.change((ledger) => ok(`${release(ledger, c.pos[0], n, c.o.why, c.now).id} released #${n}`));
     },
     wait: (c) => {
-        const spec = { n: num(c.pos[0]), on: c.o.on, x9: c.o.x9, why: c.o.why, now: c.now };
+        const spec = { n: num(c.pos[0]), on: c.o.on, x9: c.o.x9, due: c.o.due, why: c.o.why, now: c.now };
         return c.change((ledger) => ok(addWait(ledger, spec)));
     },
     archive: (c) =>

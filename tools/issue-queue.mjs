@@ -158,21 +158,56 @@ export function compare(a, b) {
     );
 }
 
+// Labels that hold an issue for the owner until a standing rule or his comment releases it (issue-round step 2).
+const OWNER_GATES = ["ux-owner", "needs-decision", "blocked"];
+const URGENT = new Set(["priority:critical", "priority:high"]);
+
 /**
- * The queue from every open issue.
+ * The queue from every open issue, plus where the open critical and high issues stand: `critHigh` counts them as
+ * `queue` (offered), `alarms` (ci-budget and alarm titles: tools file and close these, so they are not burn-down
+ * work), `held` (everything else); `ownerRule` lists the held ones behind an owner gate label, for the round to
+ * release by a standing rule or to record why each stays the owner's.
  * @param issues GraphQL Issues
  * @param now ms
- * @returns `{ queue, untrusted }`, the queue sorted
+ * @returns `{ queue, untrusted, critHigh: { queue, alarms, held }, ownerRule }`, the queue sorted
  */
 export function queue(issues, now) {
     const kept = issues.filter(trustedText);
+    const critHigh = { queue: 0, alarms: 0, held: 0 };
+    const ownerRule = [];
+    for (const i of kept) {
+        const labels = labelsOf(i);
+        if (!labels.some((l) => URGENT.has(l))) continue;
+        const why = skipReason(i);
+        if (!why) critHigh.queue++;
+        else if (labels.includes("ci-budget") || /alarm$/.test(why)) critHigh.alarms++;
+        else {
+            critHigh.held++;
+            const gate = OWNER_GATES.find((l) => labels.includes(l));
+            if (gate && !labels.includes("in-progress")) ownerRule.push({ ...describe(i, now), gate });
+        }
+    }
     return {
         queue: kept
             .filter((i) => !skipReason(i))
             .map((i) => describe(i, now))
             .sort(compare),
         untrusted: issues.length - kept.length,
+        critHigh,
+        ownerRule: ownerRule.sort(compare),
     };
+}
+
+/**
+ * Whether a free-queue `blocked` entry still holds its issue: one with a `due` time stops at that time, so a wait
+ * for a recurrence or a measurement ends and the issue is offered again.
+ * @param b `{ issue, reason, due? }`
+ * @param now ms
+ * @returns true while it holds
+ */
+export function blockHolds(b, now) {
+    const due = Date.parse(b.due);
+    return !b.due || Number.isNaN(due) || due > now;
 }
 
 const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
@@ -190,6 +225,19 @@ export function listLines(result, limit) {
         return ascii(`#${i.number} ${tag}${i.priority} ${i.type} effort:${i.effort} ${i.ageDays}d ${i.title}`);
     });
     lines.push(`${q.length} issues in the queue; ${untrusted} open issues dropped as untrusted (author or editor)`);
+    if (result.critHigh) {
+        const c = result.critHigh;
+        lines.push(
+            `critical/high open ${c.queue + c.alarms + c.held}: in the queue ${c.queue}, alarms ${c.alarms}, held ${c.held}`,
+        );
+    }
+    if (result.ownerRule?.length) {
+        lines.push(
+            `owner-rule candidates ${result.ownerRule.length} (release by a standing rule, or say why each stays the owner's):`,
+        );
+        for (const i of result.ownerRule)
+            lines.push(ascii(`  #${i.number} ${i.priority} ${i.gate} ${i.ageDays}d ${i.title}`));
+    }
     return lines;
 }
 
@@ -271,7 +319,7 @@ export function jobs(cache, q, now) {
         return { stale: `the free queue is older than 2 hours (${cache.builtAt})` };
     const pos = new Map(q.map((i, k) => [i.number, k]));
     const byNumber = new Map(q.map((i) => [i.number, i]));
-    const blocked = new Set((cache.blocked ?? []).map((b) => b.issue));
+    const blocked = new Set((cache.blocked ?? []).filter((b) => blockHolds(b, now)).map((b) => b.issue));
     const seen = new Set();
     const cleaned = cache.jobs
         .flatMap((j) => {

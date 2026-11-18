@@ -106,13 +106,17 @@ export function dynamoStore(
                         TableName: tableName,
                         KeyConditionExpression: cond,
                         ExpressionAttributeValues: values,
-                        ConsistentRead: true,
+                        // a newest-first read is the results plan's history (handlers/results.ts): half the read cost
+                        ConsistentRead: range.newest === undefined,
                         ExclusiveStartKey: start,
+                        ...(range.newest === undefined
+                            ? {}
+                            : { ScanIndexForward: false, Limit: range.newest - out.length }),
                     }),
                 );
                 out.push(...((r.Items ?? []) as Item[]));
                 start = r.LastEvaluatedKey;
-            } while (start);
+            } while (start && (range.newest === undefined || out.length < range.newest));
             return out;
         },
 
@@ -205,25 +209,19 @@ export function dynamoStore(
                 last.set(id, op);
             }
             const items = [...last.values()].map((op) => {
-                if (!("put" in op)) {
-                    return { Delete: { TableName: tableName, Key: keyOf(op.delete) } };
-                }
                 const names: Record<string, string> = {};
                 const values: Record<string, unknown> = {};
                 const expr = conditionOf(op.condition, names, values);
-                return {
-                    Put: {
-                        TableName: tableName,
-                        Item: op.put,
-                        ...(expr
-                            ? {
-                                  ConditionExpression: expr,
-                                  ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
-                                  ...(Object.keys(values).length ? { ExpressionAttributeValues: values } : {}),
-                              }
-                            : {}),
-                    },
-                };
+                const checked = expr
+                    ? {
+                          ConditionExpression: expr,
+                          ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
+                          ...(Object.keys(values).length ? { ExpressionAttributeValues: values } : {}),
+                      }
+                    : {};
+                return "put" in op
+                    ? { Put: { TableName: tableName, Item: op.put, ...checked } }
+                    : { Delete: { TableName: tableName, Key: keyOf(op.delete), ...checked } };
             });
             // A concurrent write to one of the keys, or throttling, cancels the transaction: try again.
             for (let tries = 0; ; tries++) {

@@ -316,7 +316,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D and VR or AR", async () => {
+    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D, VR and AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         // Named with the mode its face shows (WCAG 2.5.3).
@@ -335,17 +335,13 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Key 5 is shown on the row it switches to, not on the current one.
         assert.include(twoD.textContent, "5");
         assert.notInclude(threeD.textContent, "5");
-        // Without a headset (the test browser), VR and AR are drawn, disabled, with a reason.
-        await waitFor(() => {
-            const xr = within(menu)
-                .getAllByRole("menuitemradio")
-                .filter((row) => /^(VR|AR)/.test(row.textContent));
-            assert.isAbove(xr.length, 0);
-            for (const row of xr) {
-                assert.equal(row.getAttribute("aria-disabled"), "true");
-                assert.notInclude(row.textContent, "Checking");
-            }
-        });
+        // Without a headset (the test browser), VR and AR are a row each, disabled, saying only
+        // "Not available".
+        for (const name of [/^VR/, /^AR/]) {
+            const row = within(menu).getByRole("menuitemradio", { name });
+            assert.equal(row.getAttribute("aria-disabled"), "true");
+            assert.equal(row.textContent, `${name.source.slice(1)}Not available`);
+        }
         // The camera moves are the Camera tool's, not here.
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Front/ }));
         // The workspace turns XR on (graphty-element leaves it off unless a page asks), so a
@@ -399,6 +395,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Zoom in/ }));
         const rotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(rotate.getAttribute("aria-checked"), "false");
+        // Auto-rotate shows its key, 9, on its row.
+        assert.equal(rotate.getAttribute("aria-keyshortcuts"), "9");
         assert.equal(element.autoRotate, 0);
         await userEvent.click(rotate);
         await waitFor(() => {
@@ -409,6 +407,16 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const on = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(on.getAttribute("aria-checked"), "true");
         await userEvent.click(on);
+        await waitFor(() => {
+            assert.equal(element.autoRotate, 0);
+        });
+
+        // 9 turns it on and off from the keyboard.
+        await userEvent.keyboard("9");
+        await waitFor(() => {
+            assert.isAbove(element.autoRotate, 0);
+        });
+        await userEvent.keyboard("9");
         await waitFor(() => {
             assert.equal(element.autoRotate, 0);
         });
@@ -426,6 +434,78 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.include(flatRotate.textContent, "Only in 3D");
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom in/ }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
+    });
+
+    it("saves the camera as a view, goes back to it, removes it, and turns Follow selection off", async () => {
+        const session = await openKarate();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        await element.waitForStableFrame();
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        // Save view keeps the camera under the first free name, and Camera lists it.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await waitFor(() => {
+            assert.isTrue(session.views.has("View 1"));
+        });
+        const saved = session.views.get("View 1");
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Top/ }));
+        await element.waitForStableFrame();
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await waitFor(() => {
+            assert.deepEqual([...session.views.keys()], ["View 1", "View 2"]);
+        });
+
+        // Its row moves the camera back.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^View 1$/ }));
+        await waitFor(() => {
+            const now = element.getCameraState();
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.closeTo(
+                    now.position?.[axis] ?? Number.NaN,
+                    saved?.position?.[axis] ?? 0,
+                    1e-3,
+                    `position.${axis}`,
+                );
+            }
+        });
+
+        // Remove view forgets it.
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Remove view/ }));
+        const removeMenu = (await screen.findAllByRole("menu")).at(-1);
+        assert.isDefined(removeMenu);
+        if (removeMenu === undefined) {
+            return;
+        }
+        await userEvent.click(within(removeMenu).getByRole("menuitem", { name: /^View 1$/ }));
+        await waitFor(() => {
+            assert.deepEqual([...session.views.keys()], ["View 2"]);
+        });
+
+        // Follow selection is on, and turning it off leaves the camera where it is on a pick.
+        await userEvent.keyboard("{Escape}");
+        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        assert.equal(follow.getAttribute("aria-checked"), "true");
+        await userEvent.click(follow);
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.camera?.pivotOnSelection);
+        });
+        await element.waitForStableFrame();
+        const before = element.getCameraState();
+        await session.selection.apply({ nodes: [session.data.nodes()[0].id] }, "replace", { cause: "user" });
+        await element.waitForStableFrame();
+        assert.deepEqual(element.getCameraState().target, before.target);
+        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        assert.equal(off.getAttribute("aria-checked"), "false");
     });
 
     it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {

@@ -4,11 +4,10 @@ import { useFileDrop } from "@graphty/compact-mantine";
 import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
@@ -250,9 +249,7 @@ function SampleLibrary(): React.JSX.Element {
         }
     };
     const query = text.trim().toLowerCase();
-    // The first paint does not wait for the site's configuration.
-    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const library = offeredTiles(timeline);
+    const library = offeredTiles();
     // In the order the sections are drawn: samples, network data, then generated.
     const offered = [
         ...library.filter((tile) => tile.field !== GENERATED),

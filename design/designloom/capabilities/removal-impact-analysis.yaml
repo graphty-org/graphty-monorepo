@@ -8,6 +8,7 @@ algorithms: []
 used_by_workflows:
     - W09
     - W11
+    - W23
 implemented_by_components:
     - impact-analysis-dialog
 requirements:

@@ -14,6 +14,7 @@ import { sniffJsonDialect } from "../../src/formats/json/dialect.js";
 import { JSON_ISSUE, jsonImporter, type JsonImportOptions } from "../../src/formats/json/index.js";
 import { importGraph } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../src/types.js";
+import { codes } from "./helpers.js";
 
 type Options = JsonImportOptions & CommonImportOptions;
 
@@ -39,10 +40,6 @@ async function fails(doc: string, options?: Options): Promise<ImportError> {
         return err as ImportError;
     }
     throw new Error("expected ImportError");
-}
-
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
 }
 
 function cell(s: GraphSnapshot, column: string, id: string): unknown {

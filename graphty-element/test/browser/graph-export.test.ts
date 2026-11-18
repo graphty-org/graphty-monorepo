@@ -22,8 +22,8 @@ import graphml from "../../../graph-io/test/corpus/graphml/simple.graphml?raw";
 import json from "../../../graph-io/test/corpus/json/sigma-format.json?raw";
 import neo4j from "../../../graph-io/test/corpus/neo4j/typed-properties.csv?raw";
 import pajek from "../../../graph-io/test/corpus/pajek/karate.net?raw";
-import { type GraphtyError, isGraphtyError, type LossNote } from "../../extend";
-import type { ExportResult } from "../../index.js";
+import { type GraphtyError, isGraphtyError } from "../../extend";
+import type { ExportLoss, ExportResult } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { fileStylesOn } from "../helpers/file-styles-on";
 
@@ -83,8 +83,8 @@ function keysOf(records: readonly Readonly<Record<string, unknown>>[]): Set<stri
  * @param notes - The export's loss notes.
  * @returns The unreported losses.
  */
-function unreported(before: Set<string>, after: Set<string>, notes: readonly LossNote[]): string[] {
-    const noted = new Set(notes.map((note) => note.column));
+function unreported(before: Set<string>, after: Set<string>, losses: readonly ExportLoss[]): string[] {
+    const noted = new Set(losses.flatMap((loss) => loss.params.columns));
     return [...before].filter((key) => !after.has(key) && !noted.has(key));
 }
 
@@ -121,8 +121,8 @@ describe("exportGraph round trip", () => {
             const ends = (records: readonly { source: unknown; target: unknown }[]): string[] =>
                 records.map((edge) => `${String(edge.source)}->${String(edge.target)}`).sort();
             assert.deepEqual(ends(again.data.edges()), ends(edges), "edge endpoints");
-            assert.deepEqual(unreported(keysOf(nodes), keysOf(again.data.nodes()), result.lossNotes), [], "node keys");
-            assert.deepEqual(unreported(keysOf(edges), keysOf(again.data.edges()), result.lossNotes), [], "edge keys");
+            assert.deepEqual(unreported(keysOf(nodes), keysOf(again.data.nodes()), result.losses), [], "node keys");
+            assert.deepEqual(unreported(keysOf(edges), keysOf(again.data.edges()), result.losses), [], "edge keys");
 
             const chunks: Uint8Array[] = [];
             for await (const chunk of result.bytes) {
@@ -191,12 +191,12 @@ describe("what an export carries", () => {
 
         // CSV has no place for positions or style: the export says so rather than dropping them.
         const csvOut = await graph.exportGraph("csv");
-        const noted = new Set(csvOut.lossNotes.map((note) => note.column));
+        const noted = new Set(csvOut.losses.flatMap((loss) => loss.params.columns));
         assert.isTrue(noted.has("position"), "the positions are reported lost");
         assert.isTrue(noted.has("style.color"), "the colours are reported lost");
         // An edge table has no place for node attributes, the results among them: reported too.
         assert.include(
-            csvOut.lossNotes.map((note) => note.code),
+            csvOut.losses.map((loss) => loss.code),
             "W_CSV_NODE_TABLE",
             "node attributes, results included, are reported lost from an edge table",
         );

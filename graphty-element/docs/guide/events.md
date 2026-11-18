@@ -54,9 +54,7 @@ when data arrives should skip those, or it starts the work again on every undo. 
 [Undo and History](./undo#following-changes).
 
 `code` on `operation-cancelled` says why the operation stopped: `"queue-cleared"` or
-`"cancelled"`. Write the words you show from it. The detail also carries `reason`, an English
-sentence (`"Queue cleared"`, `"Manual cancellation"`); it is deprecated and is removed in the next
-major release, so read `code` instead.
+`"cancelled"`. Write the words you show from it.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
 with a serialisable detail, when edge picking lands.

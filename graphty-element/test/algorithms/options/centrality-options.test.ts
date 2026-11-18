@@ -168,7 +168,8 @@ describe("Centrality Algorithm Options", () => {
                 const schema = KatzCentralityAlgorithm.getOptionsSchema();
                 assert.isDefined(schema.alpha);
                 assert.strictEqual(schema.alpha.type, "number");
-                assert.strictEqual(schema.alpha.default, 0.1);
+                // Empty: the run derives an alpha that converges on its graph (0.1 wherever that does).
+                assert.strictEqual(schema.alpha.default, null);
                 assert.strictEqual(schema.alpha.min, 0.01);
                 assert.strictEqual(schema.alpha.max, 0.5);
                 assert.strictEqual(schema.alpha.step, 0.01);

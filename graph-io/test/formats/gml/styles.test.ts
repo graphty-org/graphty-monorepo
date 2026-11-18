@@ -21,6 +21,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editGmlNodeFill, replaceGmlBlock } from "../../styles/formats/gml.js";
 
@@ -53,7 +54,10 @@ async function load(doc: string | Uint8Array, toolDefaults = true) {
 }
 
 const file = (name: string): Uint8Array => new Uint8Array(readFileSync(join(GENERATED, name)));
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 const toolRules = (ex: ExtractedStyles): StyleRule[] => ex.styles.rules.filter((r) => r.origin === "tool");
 
 /** Every neutral node label position and yEd's GML anchor for it: the inside places, then the outside ones. */
@@ -519,13 +523,13 @@ describe("GML styles: who wrote the file", () => {
         expect(gmlPositions(snapshot)?.yAxis).toBe("up");
     });
 
-    it("gives an unknown writer (NetworkX writes no Creator) its own values and no defaults", async () => {
+    it("gives an unknown writer (NetworkX writes no Creator) its own values, drawn as Tk draws them, and no defaults", async () => {
         for (const doc of [
             file("networkx-graphics.gml"),
             new Uint8Array(readFileSync(join(CORPUS, "di-unipi-socc_dgLBF__germany50.gml"))),
         ]) {
             const { snapshot, styles } = await load(doc);
-            expect(styles.styles.source.tool).toBeNull();
+            expect(styles.styles.source.tool).toBe("tk");
             expect(toolRules(styles)).toEqual([]);
             expect(resolveStyles(styles, "node", "fill", snapshot).every((v) => v !== null)).toBe(true);
         }

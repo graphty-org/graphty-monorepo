@@ -1,5 +1,5 @@
 /**
- * Capability capture (spec 2.2 step 4, 3.3, 5.1, 5.2; contract 3.4): the GpuCaps record of a DEVICE (its
+ * Capability capture (step 4 of create()): the GpuCaps record of a DEVICE (its
  * limits and features, never the adapter's), the zero-cost variant for an adopted device, the two planner
  * facts asserted at create(), and the workgroup size a device runs.
  */
@@ -12,7 +12,7 @@ import { isSoftwareAdapter } from "./acquire.js";
 /**
  * Step 4 of create(): the GpuCaps of a DEVICE (device.limits, never adapter.limits) with the adapter info
  * and the runtime tag. The subgroup sizes are the adapter's only when the device has the "subgroups"
- * feature, else 0 (spec 3.3).
+ * feature, else 0.
  * @param device - the device the caps describe
  * @param info - the adapter's info (vendor, architecture, subgroup sizes)
  * @param runtime - the tag the creating entry sets ("unknown" for consumers of the core)
@@ -70,7 +70,7 @@ export function capsFromDevice(device: GPUDevice, info: Partial<GpuCaps> | undef
 
 /**
  * The workgroup size a device runs: min(WORKGROUP_SIZE, caps.limits.maxComputeInvocationsPerWorkgroup) rounded
- * down to a power of two (spec 5.1; the formula of contract 3.2 / 3.4). maxComputeWorkgroupSizeX is not a term:
+ * down to a power of two. maxComputeWorkgroupSizeX is not a term:
  * every adapter supports its 256 default (WebGPU 3.6.2), so the result never exceeds it. Rounds down by doubling
  * (no bitwise operator).
  * @param caps - the capability record (a GpuCaps is a PlanCaps)
@@ -87,8 +87,8 @@ export function workgroupSizeFor(caps: PlanCaps): number {
 
 /**
  * Asserts the two facts the planners bake in: maxComputeWorkgroupsPerDimension === MAX_WORKGROUPS_PER_DIM
- * (the prelude's linear_id and plan1d / plan2d use the constant) and WG is a power of two >= 64 (spec 2.2,
- * 5.2). The limit is never requested, so a device reports the spec default whatever its adapter says.
+ * (the prelude's linear_id and plan1d / plan2d use the constant) and WG is a power of two >= 64. The
+ * limit is never requested, so a device reports the spec default whatever its adapter says.
  * @param caps - the capability record of the device
  */
 export function assertPlanLimits(caps: GpuCaps): void {

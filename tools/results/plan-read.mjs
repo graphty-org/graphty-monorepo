@@ -187,7 +187,40 @@ async function storePlan(cfg, { sha, base, variants, files }) {
     // the inputs key is per group and not known before the bins exist: no `passedWithInputs` reuse yet
     const r = await fetchPlan(cfg, { sha, base, variants, inputs: variants.map(() => "-"), files });
     if (r.ok && r.data) return { plan: r.data, why: "" };
-    return { plan: null, why: r.ok ? "the store answered with no plan" : r.why };
+    const why = r.ok ? "the store answered with no plan" : r.why;
+    return /^HTTP 5\d\d\b/.test(why) ? planByFamily(cfg, { sha, base, variants, files }, why) : { plan: null, why };
+}
+
+/**
+ * The plan read one family at a time, in turn, after the whole read answered 5xx: the store answers small reads it
+ * refuses as one (a light check's ~47 variants overloaded D1 while each family alone answered, #8363), and without a
+ * plan a pull request loses the master excuse and the quarantine. Answers are merged; the families whose read failed
+ * are listed in `unanswered`, so run-group.mjs reads those again itself.
+ * @param cfg config()
+ * @param q the read
+ * @param [q.sha] the commit tested
+ * @param [q.base] the base commit
+ * @param q.variants variant names
+ * @param q.files the changed files
+ * @param why why the whole read failed
+ * @returns `{ plan, why }`; plan is null when no family answered
+ */
+async function planByFamily(cfg, { sha, base, variants, files }, why) {
+    const plan = { quarantine: [], failingOnBase: [], variants: {}, unanswered: [] };
+    for (const vs of Map.groupBy(variants, (v) => v.split("|")[0].replace(/-shots$/, "")).values()) {
+        const r = await fetchPlan(cfg, { sha, base, variants: vs, inputs: vs.map(() => "-"), files });
+        if (!r.ok || !r.data) {
+            plan.unanswered.push(...new Set(vs.map((v) => v.split("|")[0])));
+            continue;
+        }
+        plan.quarantine.push(...(r.data.quarantine ?? []));
+        plan.failingOnBase.push(...(r.data.failingOnBase ?? []));
+        Object.assign(plan.variants, r.data.variants);
+    }
+    const asked = new Set(variants.map((v) => v.split("|")[0])).size;
+    if (plan.unanswered.length === asked) return { plan: null, why };
+    console.log(`::warning::results store: the whole plan read failed (${why}); read one family at a time instead`);
+    return { plan, why: "" };
 }
 
 /**
@@ -219,9 +252,10 @@ export async function planRead({ root, affected, out, sha, base, files = [], sna
     mkdirSync(out, { recursive: true });
     // `changed`: the files the pull request changes, which prJudge() never excuses (a re-run's plan keeps it)
     const changed = files.length > 0 ? { changed: files } : {};
+    // `changed` even with no plan: run-group.mjs reads the store again per family, and judges by it (#8363)
     writeFileSync(
         join(out, "results-plan.json"),
-        JSON.stringify(plan ? { ...plan, families, ...changed } : { unavailable: why }),
+        JSON.stringify(plan ? { ...plan, families, ...changed } : { unavailable: why, ...changed }),
     );
     writeFileSync(join(out, "durations.json"), JSON.stringify(durations));
     const n = Object.values(durations).reduce((t, d) => t + Object.keys(d).length, 0);

@@ -17,6 +17,7 @@ const read = (p) => readFileSync(join(root, p), "utf8");
 const ELSEWHERE = {
     "tools/api-report.test.mjs": { script: "check:api-report" },
     "tools/eslint-rules/no-test-timing.test.mjs": { script: "lint:eslint-root" },
+    "tools/eslint-rules/no-source-program.test.mjs": { script: "lint:eslint-root" },
     "tools/release-hold.test.mjs": { script: "check:release-hold" },
     "tools/release-approvals.test.mjs": { script: "check:release-hold" },
     "tools/release-not-breaking.test.mjs": { script: "check:release-hold" },

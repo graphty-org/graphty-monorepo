@@ -139,7 +139,7 @@ export const PajekShapesAndMidLineArrows: Story = {
         );
 
         // Every line meets both its nodes' outlines -- a node with no body included, at its box.
-        const unmet = [...scene.graph.getDataManager().edges.values()].filter((edge) => {
+        const unmet = scene.element.getEdges().filter((edge) => {
             const { srcPoint, dstPoint } = edge.getInterceptPoints();
             return srcPoint === null || dstPoint === null;
         });
@@ -149,7 +149,7 @@ export const PajekShapesAndMidLineArrows: Story = {
         );
 
         // Every arrowhead sits near the middle of its line, not at the target node.
-        const offMiddle = [...scene.graph.getDataManager().edges.values()].filter((edge) => {
+        const offMiddle = scene.element.getEdges().filter((edge) => {
             const cap = edge.arrowCap?.position;
             const src = edge.srcNode.drawnPosition;
             const dst = edge.dstNode.drawnPosition;

@@ -121,7 +121,7 @@ async function addCondition(name: string): Promise<void> {
 
 describe("the starting layers", () => {
     beforeAll(async () => {
-        await siteFeatures(["timeline"]);
+        await siteFeatures([]);
         await page.viewport(1366, 768);
     });
 

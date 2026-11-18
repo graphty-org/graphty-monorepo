@@ -125,35 +125,20 @@ describe("EdgeMesh", () => {
 
     describe("Arrow Head", () => {
         test("creates arrow head with calculated dimensions", () => {
-            const arrowCap = EdgeMesh.createArrowHead(
-                meshCache,
-                "test-arrow",
-                { type: "normal", width: 0.5, color: "#FF0000" },
-                scene,
-            );
+            const arrowCap = EdgeMesh.createArrowHead({ type: "normal", width: 0.5, color: "#FF0000" }, scene);
 
             assert.exists(arrowCap);
             assert.equal(arrowCap.name, "filled-triangle-arrow");
         });
 
         test("returns null for 'none' type", () => {
-            const arrowCap = EdgeMesh.createArrowHead(
-                meshCache,
-                "test-no-arrow",
-                { type: "none", width: 0.5, color: "#FF0000" },
-                scene,
-            );
+            const arrowCap = EdgeMesh.createArrowHead({ type: "none", width: 0.5, color: "#FF0000" }, scene);
 
             assert.isNull(arrowCap);
         });
 
         test("returns null when type is not specified", () => {
-            const arrowCap = EdgeMesh.createArrowHead(
-                meshCache,
-                "test-no-type",
-                { width: 0.5, color: "#FF0000" },
-                scene,
-            );
+            const arrowCap = EdgeMesh.createArrowHead({ width: 0.5, color: "#FF0000" }, scene);
 
             assert.isNull(arrowCap);
         });
@@ -161,8 +146,8 @@ describe("EdgeMesh", () => {
         test("uses cache for arrow heads", () => {
             const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 
-            const arrow1 = EdgeMesh.createArrowHead(meshCache, "cached-arrow", options, scene);
-            const arrow2 = EdgeMesh.createArrowHead(meshCache, "cached-arrow", options, scene);
+            const arrow1 = EdgeMesh.createArrowHead(options, scene);
+            const arrow2 = EdgeMesh.createArrowHead(options, scene);
 
             // Both should be instances from the same source mesh
             assert.exists(arrow1);
@@ -173,12 +158,7 @@ describe("EdgeMesh", () => {
 
         test("draws a cap at a width multiple from geometry of its own, as wide as asked across its line", () => {
             const across = (breadth?: number): { span: number; mesh: unknown } => {
-                const cap = EdgeMesh.createArrowHead(
-                    meshCache,
-                    "wide-arrow",
-                    { type: "normal", width: 0.5, color: "#FF0000", breadth },
-                    scene,
-                );
+                const cap = EdgeMesh.createArrowHead({ type: "normal", width: 0.5, color: "#FF0000", breadth }, scene);
                 assert.exists(cap);
                 const positions = cap.batchMesh?.getVerticesData("position") ?? [];
                 const z = Array.from(positions).filter((_v, i) => i % 3 === 2);
@@ -194,12 +174,7 @@ describe("EdgeMesh", () => {
 
         test("draws only one side of a cap cut along its line, left at -z, from geometry of its own", () => {
             const zs = (side?: "left" | "right"): { z: number[]; mesh: unknown } => {
-                const cap = EdgeMesh.createArrowHead(
-                    meshCache,
-                    "sided-arrow",
-                    { type: "crow", width: 0.5, color: "#FF0000", side },
-                    scene,
-                );
+                const cap = EdgeMesh.createArrowHead({ type: "crow", width: 0.5, color: "#FF0000", side }, scene);
                 assert.exists(cap);
                 const positions = cap.batchMesh?.getVerticesData("position") ?? [];
                 return { z: Array.from(positions).filter((_v, i) => i % 3 === 2), mesh: cap.batchMesh };
@@ -238,12 +213,7 @@ describe("EdgeMesh", () => {
             const end = EdgeMesh.calculateLineEndpoint(new Vector3(0, 0, 0), new Vector3(1, 0, 0), 3, geometry);
             // the delta is two thirds of the cap's length: the line stops 2 short of the tip, not 3
             assert.closeTo(end.x, -2, 1e-9);
-            const cap = EdgeMesh.createArrowHead(
-                meshCache,
-                "cross-delta",
-                { type: "cross-delta", width: 0.5, color: "#FF0000" },
-                scene,
-            );
+            const cap = EdgeMesh.createArrowHead({ type: "cross-delta", width: 0.5, color: "#FF0000" }, scene);
             assert.exists(cap);
             const positions = Array.from(cap.batchMesh?.getVerticesData("position") ?? []);
             const xs = positions.filter((_v, i) => i % 3 === 0);
@@ -279,8 +249,8 @@ describe("EdgeMesh", () => {
         test("creates different arrow for different styleId", () => {
             const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 
-            const arrow1 = EdgeMesh.createArrowHead(meshCache, "arrow1", options, scene);
-            const arrow2 = EdgeMesh.createArrowHead(meshCache, "arrow2", options, scene);
+            const arrow1 = EdgeMesh.createArrowHead(options, scene);
+            const arrow2 = EdgeMesh.createArrowHead(options, scene);
 
             assert.notStrictEqual(arrow1, arrow2);
         });

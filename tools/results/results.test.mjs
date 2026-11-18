@@ -725,6 +725,34 @@ describe("a screenshot run's own plan and inputs (#3648)", () => {
         assert.ok(s.seen.some((r) => r.url.startsWith("/v1/plan") && r.url.includes("layout-shots")));
     });
 
+    it("on the full path (no plan file) judges by the store's quarantine, else by the committed list (#3454)", async () => {
+        const s = await serve(() => ({ quarantine: [{ family: "layout", file: "l/a.test.ts", name: "A", issue: 7 }] }));
+        const root = join(TMP, "checkout-full-path-quarantine");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            RESULTS_URL: s.url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+            GITHUB_EVENT_NAME: "workflow_call",
+            RESULTS_PLAN: join(root, "absent.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        const judged = async (e) => {
+            assert.equal(await runGroup("layout", undefined, { root, env: e }), 0);
+            return JSON.parse(readFileSync(out, "utf8")).quarantine.map((q) => q.name);
+        };
+        assert.deepEqual(await judged({ ...env, RESULTS_STORE_QUARANTINE: "1" }), ["A"]);
+        assert.deepEqual(await judged(env), []);
+    });
+
     it("fails open to no plan when the store is not configured or does not answer", async () => {
         const facts = { sha: "a", base: null, family: "f-shots", variant: "f-shots|flags=off|shots" };
         assert.equal(await shotsPlan({ ...facts, cfg: null }), null);
@@ -990,6 +1018,58 @@ describe("planRead", () => {
         // the changed files stay in the plan, so a re-run's prJudge() still never excuses a changed test (#8051)
         assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")).changed, ["layout/src/x.ts"]);
     });
+    it("reads one family at a time when the whole read answers 5xx, and lists the families that did not answer (#8363)", async () => {
+        const seen = [];
+        mock.method(globalThis, "fetch", (url) => {
+            const variants = new URL(url).searchParams.get("variants").split(",");
+            seen.push(variants);
+            const families = new Set(variants.map((v) => v.split("|")[0].replace(/-shots$/, "")));
+            if (families.size > 1) return Promise.resolve(new Response('{"error":"internal error"}', { status: 500 }));
+            if (families.has("layout-storybook")) return Promise.resolve(new Response("refused", { status: 400 }));
+            if (!families.has("layout")) return Promise.resolve(new Response("{}"));
+            const answer = {
+                quarantine: [{ family: "layout", file: "q.test.ts", name: "q" }],
+                failingOnBase: [{ variant: variants[0], file: "k.test.ts", name: "k" }],
+                variants: Object.fromEntries(variants.map((v) => [v, { fileMs: { "layout/a.test.ts": 5 } }])),
+            };
+            return Promise.resolve(new Response(JSON.stringify(answer)));
+        });
+        const out = join(TMP, "plan-by-family");
+        try {
+            await planRead({
+                root: process.cwd(),
+                affected: ["layout"],
+                out,
+                base: "b1",
+                files: ["layout/src/x.ts"],
+                env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" },
+            });
+        } finally {
+            mock.restoreAll();
+        }
+        const plan = JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8"));
+        assert.equal(plan.unavailable, undefined);
+        assert.deepEqual(plan.unanswered, ["layout-storybook"]);
+        assert.deepEqual(plan.quarantine, [{ family: "layout", file: "q.test.ts", name: "q" }]);
+        assert.deepEqual(plan.failingOnBase[0].name, "k");
+        assert.deepEqual(plan.changed, ["layout/src/x.ts"]);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")).layout, {
+            "layout/a.test.ts": 5,
+        });
+        // the whole read and its two retries, then one read per family, layout with its -shots family
+        assert.equal(seen.slice(0, 3).filter((v) => v.length > 3).length, 3);
+        const one = seen.slice(3).map((v) => v.join(","));
+        assert.ok(one.includes("layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots"));
+        assert.ok(one.includes("layout-storybook|flags=off|whole,layout-storybook|flags=off|selected"));
+    });
+    it("keeps the changed files in an unavailable plan, for run-group.mjs's own read (#8363)", async () => {
+        const out = join(TMP, "plan-unavailable-changed");
+        await planRead({ root: process.cwd(), affected: ["layout"], out, files: ["a.ts"], env: {} });
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")), {
+            unavailable: "results store not configured",
+            changed: ["a.ts"],
+        });
+    });
     it("finds the packages that import an affected package by relative path, which nx leaves out (#6229)", () => {
         const packages = ["graph-io", "graphty-element", "graphty", "layout"];
         // graph-io's fidelity stories import ../../../graphty-element/index.ts; graph-io/project.json drops the edge
@@ -1079,6 +1159,33 @@ describe("the [NEW-FLAKY] rule without the store's answer (#4146)", () => {
         assert.equal(await verdict("nf-no-diff", { unavailable: "the test selector failed" }), 0, "no answer at all");
         assert.equal(await verdict("nf-push", outage, "push"), 0, "only a pull request");
     });
+
+    it("#8363: reads its own family's quarantine when the run's plan read failed, on the first attempt", async () => {
+        const c = flakyCheckout("nf-own-read");
+        const outage = { unavailable: "HTTP 500", base: "b1", affected: [FILE], unknownFamilies: [], changed: [FILE] };
+        writeFileSync(join(c.root, "plan.json"), JSON.stringify(outage));
+        const { url, seen } = await serve(() => ({
+            quarantine: [{ family: "graphty", file: FILE, name: "flips", issue: 9 }],
+            failingOnBase: [],
+        }));
+        const env = {
+            PATH: `${join(c.root, "bin")}:${process.env.PATH}`,
+            GITHUB_EVENT_NAME: "pull_request",
+            RESULTS_PLAN: join(c.root, "plan.json"),
+            RESULTS_URL: url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+        };
+        assert.equal(await runGroup("graphty-1", c.first, { root: c.root, env }), 0, "quarantined: not [NEW-FLAKY]");
+        const q = new URL(seen.find((r) => r.url.startsWith("/v1/plan")).url, url).searchParams;
+        assert.equal(q.get("base"), "b1");
+        assert.match(q.get("variants"), /^graphty\|flags=off\|whole,graphty\|flags=off\|selected/);
+        // the store does not answer this read either: the [NEW-FLAKY] rule stands
+        const down = flakyCheckout("nf-own-read-down");
+        writeFileSync(join(down.root, "plan.json"), JSON.stringify(outage));
+        const offline = { ...env, RESULTS_PLAN: join(down.root, "plan.json"), RESULTS_URL: "http://127.0.0.1:9" };
+        const storeMs = { record: 200, retry: [0, 0] };
+        assert.equal(await runGroup("graphty-1", down.first, { root: down.root, env: offline, storeMs }), 1);
+    });
 });
 
 describe("the pull request rules", () => {
@@ -1153,8 +1260,8 @@ describe("the pull request rules", () => {
         );
         const checks = readChecks(join(dir, "checks"));
         assert.deepEqual(checks, [
-            { base: "abc1234", file: "a.test.ts", variant, repeat: 5, names: ["flips"] },
-            { base: "abc1234", file: "b.test.ts", variant, repeat: 1 },
+            { base: "abc1234", file: "a.test.ts", variant, repeat: 5, names: ["flips"], touched: false },
+            { base: "abc1234", file: "b.test.ts", variant, repeat: 1, touched: false },
         ]);
         const calls = [];
         assert.equal(await dispatchChecks(checks, (args) => calls.push(args.join(" "))), 2);
@@ -1163,6 +1270,103 @@ describe("the pull request rules", () => {
             `workflow run base-check.yml --ref master -f base=abc1234 -f file=a.test.ts -f variant=${variant} -f repeat=5 -f tests=["flips"]`,
         );
         assert.deepEqual(readChecks(join(dir, "none")), []);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#8363: asks a base check for a touched failure only its imports changed, at most 2 a run, and annotates its file", () => {
+        const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
+        const out = join(dir, "checks");
+        const plan = {
+            quarantine: [],
+            failingOnBase: [],
+            affected: ["a.test.ts", "b.test.ts", "c.test.ts", "mine.test.ts"],
+            changed: ["mine.test.ts"],
+        };
+        const failures = [fail("x"), fail("y", "b.test.ts"), fail("z", "c.test.ts"), fail("own", "mine.test.ts")];
+        const d = decide({
+            family: FAMILY,
+            first: report(...failures, fail("flips", "d.test.ts")),
+            firstOutcome: "failed",
+            second: report(...failures),
+            list: [],
+        });
+        const logged = [];
+        mock.method(console, "log", (line) => logged.push(line));
+        let r;
+        try {
+            r = prJudge(
+                { ...plan, affected: [...plan.affected, "d.test.ts"] },
+                { ...o, base: "abc1234", out, env: { GITHUB_ACTIONS: "true" } },
+            )(d, { firstOutcome: "failed" });
+        } finally {
+            mock.restoreAll();
+        }
+        assert.equal(r.pass, false);
+        const text = (file) => r.lines.find((l) => l.text.includes(`${file} >`)).text;
+        assert.match(
+            text("a.test.ts"),
+            /^\[FAIL\] .* failed every time\. Base check: gh workflow run base-check\.yml .* -f repeat=1$/,
+        );
+        assert.match(text("d.test.ts"), /^\[NEW-FLAKY\] .*\. Base check: .* -f repeat=5$/);
+        assert.doesNotMatch(text("mine.test.ts"), /Base check/, "a changed test file is never excused");
+        assert.ok(
+            logged.includes(`::error file=mine.test.ts,title=[FAIL]::${text("mine.test.ts")}`),
+            logged.join("\n"),
+        );
+        // four touched tests asked (the flaky one and three failures); two are dispatched
+        const checks = readChecks(out);
+        assert.deepEqual(
+            checks.map((c) => [c.file, c.repeat, c.touched]),
+            [
+                ["d.test.ts", 5, true],
+                ["a.test.ts", 1, true],
+            ],
+        );
+        // a flake whose imports alone the pull request changed names its test, so a 5-repeat pass on master files
+        // its issue (#8795: such flakes went unfiled), besides the failed tests and job its re-run needs (#8363)
+        assert.deepEqual(checks[0].names, ["flips"]);
+        assert.deepEqual(checks[0].failed, ["flips"]);
+        rmSync(out, { recursive: true, force: true });
+        prJudge(
+            { ...plan, affected: [...plan.affected, "d.test.ts"] },
+            { ...o, base: "abc1234", out, env: { RESULTS_JOB_ID: "4242" } },
+        )(d, { firstOutcome: "failed" });
+        assert.deepEqual(
+            readChecks(out).map((c) => [c.file, c.job, c.failed]),
+            [
+                ["d.test.ts", "4242", ["flips"]],
+                ["a.test.ts", "4242", ["x"]],
+            ],
+        );
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#8795: a flake only its imports changed files its issue from a 5-repeat pass, before the touched cap drops it", async () => {
+        // 2026-11-16..18: five tests flaky on pull requests that changed only their imports (a lint pass, a
+        // Playwright bump) were [NEW-FLAKY]; their base checks named no test, so a pass on master filed nothing
+        const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
+        const variant = o.variant;
+        const line = (file, repeat, name) =>
+            JSON.stringify({ base: "abc1234", file, variant, repeat, name, touched: true, job: "7" });
+        writeFileSync(
+            join(dir, "s.jsonl"),
+            [
+                line("a.test.ts", 1, "x"),
+                line("b.test.ts", 1, "y"),
+                line("heap.test.ts", 5, "leaves nothing alive"),
+            ].join("\n"),
+        );
+        const checks = readChecks(dir);
+        assert.deepEqual(
+            checks.map((c) => [c.file, c.names]),
+            [
+                ["heap.test.ts", ["leaves nothing alive"]],
+                ["a.test.ts", undefined],
+            ],
+        );
+        const calls = [];
+        await dispatchChecks(checks, (args) => calls.push(args.join(" ")), { pr: "8", run: "9" });
+        assert.match(calls[0], /-f file=heap\.test\.ts .*-f repeat=5 .*-f tests=\["leaves nothing alive"\]/);
         rmSync(dir, { recursive: true, force: true });
     });
 
@@ -1269,6 +1473,7 @@ describe("the pull request rules", () => {
                 variant: "f|flags=off|selected",
                 repeat: 5,
                 names: ["d > one", "d > two"],
+                touched: false,
             },
         ]);
         rmSync(dir, { recursive: true, force: true });
@@ -1315,6 +1520,74 @@ describe("the pull request rules", () => {
         assert.match(create[create.indexOf("--body") + 1], /pull request #42.*\n.*abc1234/s);
     });
 
+    it("a closed flaky issue: left closed when the base lacks its fix, reopened otherwise", () => {
+        const closed = {
+            number: 8102,
+            title: "Flaky test: x/a.test.ts > d > one",
+            body: "",
+            state: "CLOSED",
+            stateReason: "COMPLETED",
+        };
+        // fix: the commit that closed the issue ("" when closed by hand); status: compare fix...base; null throws
+        const run = ({ issues = [closed], fix = "f1x", status = "ahead" } = {}) => {
+            const calls = [];
+            const gh = (args) => {
+                calls.push(args);
+                if (args[1] === "list") return JSON.stringify(issues);
+                if (args[0] === "api" && args[1].includes("/events")) return `${fix}\n`;
+                if (args[0] === "api" && status === null) throw new Error("HTTP 404");
+                if (args[0] === "api") return `${status}\n`;
+                if (args[1] === "create") return "https://github.com/o/r/issues/9\n";
+                return "";
+            };
+            const out = fileFlakyUnrelated(
+                { file: "x/a.test.ts", variant: "f|flags=off|selected", base: "abc1234", names: ["d > one"] },
+                gh,
+            );
+            const did = (verb, n) => calls.some((a) => a[1] === verb && (n === undefined || a[2] === String(n)));
+            return { out, calls, did };
+        };
+
+        for (const status of ["behind", "diverged"]) {
+            const older = run({ status });
+            assert.deepEqual(older.out, [{ name: "d > one", number: 8102 }]);
+            assert.ok(!older.did("create") && !older.did("reopen"), status);
+            assert.ok(older.calls.some((a) => a[1] === "repos/{owner}/{repo}/compare/f1x...abc1234"));
+        }
+
+        const newer = run();
+        assert.deepEqual(newer.out, [{ name: "d > one", number: 8102 }]);
+        assert.ok(newer.did("reopen", 8102));
+        const comment = newer.calls.find((a) => a[1] === "comment");
+        assert.match(comment[comment.indexOf("--body") + 1], /^Flaky again after this issue closed/);
+        assert.ok(!newer.did("create"));
+
+        // closed by hand, or GitHub cannot compare: keep filing, by reopening
+        assert.ok(run({ fix: "" }).did("reopen", 8102));
+        assert.ok(run({ status: null }).did("reopen", 8102));
+
+        // closed as not planned or a duplicate: never reopened, a new issue instead
+        for (const stateReason of ["NOT_PLANNED", "DUPLICATE"]) {
+            const settled = run({ issues: [{ ...closed, stateReason }] });
+            assert.deepEqual(settled.out, [{ name: "d > one", number: 9 }], stateReason);
+            assert.ok(!settled.did("reopen"), stateReason);
+        }
+
+        // an open and a closed issue for the same test: the open one wins, whichever comes first
+        const open = { ...closed, number: 8200, state: "OPEN", stateReason: null };
+        const both = run({ issues: [closed, open] });
+        assert.deepEqual(both.out, [{ name: "d > one", number: 8200 }]);
+        assert.ok(both.did("comment", 8200) && !both.did("reopen"));
+
+        const none = run({ issues: [] });
+        assert.deepEqual(none.out, [{ name: "d > one", number: 9 }]);
+        const create = none.calls.find((a) => a[1] === "create");
+        assert.ok(create.includes("priority:critical"));
+        const list = none.calls.find((a) => a[1] === "list");
+        assert.equal(list[list.indexOf("--state") + 1], "all");
+        assert.ok(list[list.indexOf("--json") + 1].split(",").includes("stateReason"));
+    });
+
     it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {
         const check = { base: "abc1234", file: "a.test.ts", variant: o.variant, repeat: 1 };
         const seen = new Set();
@@ -1329,6 +1602,15 @@ describe("the pull request rules", () => {
         assert.equal(await dispatchChecks([check], gh, { claim, pr: 42 }), 1);
         assert.equal(await dispatchChecks([check], gh, { claim, pr: 43 }), 0);
         assert.match(calls[0], / -f repeat=1 -f pr=42$/);
+        // only a touched check carries the run, its job and its failed tests: an untouched one's failure already
+        // passed the pull request, so a master failure re-runs nothing (#8363)
+        await dispatchChecks([{ ...check, base: "aaa1111", job: "88" }], gh, { pr: 42, run: "777" });
+        assert.match(calls.at(-1), / -f pr=42$/);
+        const touched = { ...check, base: "aaa3333", touched: true, job: "88", failed: ["d > x"] };
+        await dispatchChecks([touched], gh, { pr: 42, run: "777" });
+        assert.match(calls.at(-1), / -f pr=42 -f run=777 -f job=88 -f failed=\["d > x"\]$/);
+        await dispatchChecks([{ ...touched, base: "aaa2222" }], gh, { run: "7 x" });
+        assert.doesNotMatch(calls.at(-1), /run=/);
         // a store that cannot answer does not stop the check
         assert.equal(await dispatchChecks([{ ...check, base: "def5678" }], gh, { claim: async () => undefined }), 1);
     });
@@ -1914,6 +2196,24 @@ describe("health API fan-out", () => {
         assert.equal(post.headers["x-results-schema"], "1");
         assert.deepEqual(post.body, { invocation: "1.1.x" });
         assert.equal(s.seen[0].headers.authorization, "Bearer t");
+    });
+    it("sends a PUT and a DELETE to HEALTH_API_URL too, with their method, and never a GET", async () => {
+        const s = await serve();
+        const h = await serveHealth();
+        const cfg = config(healthEnv(s.url, h.url));
+        await call(cfg, "GET", "/v1/plan?variants=");
+        await call(cfg, "DELETE", "/v1/base-checks", { base: "abc" });
+        await call(cfg, "PUT", "/v1/durations/tests/x", { k: [1] });
+        await flushHealth();
+        const writes = h.seen.filter((r) => !r.url.startsWith("/token"));
+        // both are in flight at once, so they may arrive in either order
+        assert.deepEqual(
+            writes.map((r) => [r.method, r.url, r.body]).sort((a, b) => a[0].localeCompare(b[0])),
+            [
+                ["DELETE", "/v1/base-checks", { base: "abc" }],
+                ["PUT", "/v1/durations/tests/x", { k: [1] }],
+            ],
+        );
     });
     it("sends a shard's flaky tests to the health API alone, as try 1's failures marked flaky", async () => {
         const h = await serveHealth();

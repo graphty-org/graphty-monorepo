@@ -21,8 +21,8 @@ import { commands, userEvent } from "vitest/browser";
 
 import annotationSessionUrl from "../../../graph-io/test/corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys?url";
 import { GraphtyError } from "../../src/errors";
-import { Graph, operationQueueOf } from "../../src/Graph";
-import { forgetShaderCompilers, type RenderManager } from "../../src/managers/RenderManager";
+import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
+import { forgetShaderCompilers } from "../../src/managers/RenderManager";
 import { shadersControllerOf } from "../../src/session/shaders";
 import { VULKAN_GLSL_NAMES } from "../../src/shaders/runtime/wrap";
 import { defineShader } from "../../src/simple/defineShader";
@@ -485,15 +485,6 @@ async function holdWebGPUOpening(
             assert.equal(graph.rendererStatus?.active, "webgpu", graph.rendererStatus?.reason ?? "");
         },
     };
-}
-
-/**
- * The graph's render manager, for what only it can say.
- * @param graph - The graph.
- * @returns Its render manager.
- */
-function renderManagerOf(graph: Graph): RenderManager {
-    return (graph as unknown as { renderManager: RenderManager }).renderManager;
 }
 
 describe.skipIf(!GPU_LANE)(`work started before WebGPU opens (${ADAPTER})`, () => {

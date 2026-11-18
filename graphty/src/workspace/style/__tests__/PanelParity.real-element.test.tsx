@@ -290,7 +290,7 @@ function difference(row: Map<string, boolean>, reader: Map<string, boolean>): st
 
 describe("the panel of every style row", () => {
     beforeAll(async () => {
-        await siteFeatures(["timeline"]);
+        await siteFeatures([]);
         await page.viewport(1366, 768);
     });
 

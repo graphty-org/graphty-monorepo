@@ -69,9 +69,10 @@ export interface TemplateAnimation {
     /** Every moving part's reach over every frame, in the unit box: what the node is picked and culled by. */
     readonly bounds: { readonly min: Vector3; readonly max: Vector3 };
     /**
-     * The furthest any moving vertex is from the center in the pose drawn while no clip plays (the
-     * first frame of the first clip): what the model is framed and its edges trimmed by. Not every
-     * frame's reach, which for a clip that travels (a plane's flight path) is many times the model.
+     * The furthest any moving vertex gets from the center over every frame of a clip that plays in
+     * place (wings, legs): what the model is framed and its edges trimmed by. A clip that carries
+     * the model out of its own sphere (a plane's flight path) counts each frame's reach from that
+     * frame's own middle instead, so the path does not shrink the model to a speck.
      */
     readonly radius: number;
     /**
@@ -426,13 +427,40 @@ function furthestOf(positions: ArrayLike<number>, list: readonly number[]): Vect
     return [...new Set(chosen.filter((v) => v >= 0))].map((v) => Vector3.FromArray(positions, v * 3));
 }
 
-/** The box and the radius about the center every frame's posed vertices reach. */
+/** The box every frame's posed vertices reach. */
 interface Reach {
     readonly min: Vector3;
     readonly max: Vector3;
-    radius: number;
-    /** The radius the first frame written reaches. */
-    first?: number;
+}
+
+/** Where one frame's posed vertices are. */
+interface FrameReach {
+    /** The middle of their box. */
+    readonly middle: Vector3;
+    /** The furthest from the center. */
+    readonly reach: number;
+    /** The furthest from their own middle. */
+    readonly own: number;
+}
+
+/**
+ * The radius a clip's frames are framed by: every frame's reach about the center while the clip
+ * plays in place; each frame's reach about its own middle once the clip carries the model further
+ * from where it started than the model's own radius.
+ * @param frames - The clip's frames.
+ * @returns The radius.
+ */
+function clipRadius(frames: readonly FrameReach[]): number {
+    let reach = 0;
+    let own = 0;
+    let travel = 0;
+    for (const frame of frames) {
+        reach = Math.max(reach, frame.reach);
+        own = Math.max(own, frame.own);
+        travel = Math.max(travel, Vector3.Distance(frame.middle, frames[0].middle));
+    }
+
+    return travel > own ? own : reach;
 }
 
 /**
@@ -467,8 +495,9 @@ function boneMatrices(part: AnimatedPart, mesh: Mesh, bones: BoneMap, place: Mat
  * @param place - The orientation and fit every matrix ends with.
  * @param into - The texture data.
  * @param row - The frame's first float.
- * @param bounds - The box and radius seen so far, grown.
+ * @param bounds - The box seen so far, grown.
  * @param extremes - The points standing for each bone's vertices ({@link extremesOf}).
+ * @returns Where this frame's vertices are.
  */
 function writeFrame(
     parts: readonly AnimatedPart[],
@@ -478,9 +507,9 @@ function writeFrame(
     row: number,
     bounds: Reach,
     extremes: ReadonlyMap<AnimatedPart, Vector3[][]>,
-): void {
+): FrameReach {
     Matrix.IdentityReadOnly.copyToArray(into, row);
-    const corner = new Vector3();
+    const posed: Vector3[] = [];
     for (const part of parts) {
         const offset = bones.offsets.get(part);
         if (offset === undefined || part.mesh === undefined) {
@@ -492,16 +521,29 @@ function writeFrame(
         for (const [b, matrix] of matrices.entries()) {
             matrix.copyToArray(into, row + (offset + b) * 16);
             for (const point of points[b] ?? []) {
-                Vector3.TransformCoordinatesToRef(point, matrix, corner);
-                bounds.min.minimizeInPlace(corner);
-                bounds.max.maximizeInPlace(corner);
-                bounds.radius = Math.max(bounds.radius, corner.length());
+                posed.push(Vector3.TransformCoordinates(point, matrix));
             }
         }
     }
 
-    // The bounds start empty, so after the first frame they are its reach alone.
-    bounds.first ??= bounds.radius;
+    const min = new Vector3(Infinity, Infinity, Infinity);
+    const max = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const point of posed) {
+        min.minimizeInPlace(point);
+        max.maximizeInPlace(point);
+    }
+
+    bounds.min.minimizeInPlace(min);
+    bounds.max.maximizeInPlace(max);
+    const middle = posed.length === 0 ? Vector3.Zero() : min.add(max).scale(0.5);
+    let reach = 0;
+    let own = 0;
+    for (const point of posed) {
+        reach = Math.max(reach, point.length());
+        own = Math.max(own, Vector3.Distance(point, middle));
+    }
+
+    return { middle, reach, own };
 }
 
 /**
@@ -625,8 +667,8 @@ export function bakeAnimation(
     const bounds: Reach = {
         min: new Vector3(Infinity, Infinity, Infinity),
         max: new Vector3(-Infinity, -Infinity, -Infinity),
-        radius: 0,
     };
+    let radius = 0;
     const extremes = extremesOf(parts, bones);
     const ranges = new Map<string, { start: number; end: number }>();
     let frame = 0;
@@ -634,13 +676,15 @@ export function bakeAnimation(
     for (const clip of clips) {
         restAll();
         ranges.set(clip.name, { start: frame, end: frame + clip.frames - 1 });
+        const reaches: FrameReach[] = [];
         for (let k = 0; k < clip.frames; k++) {
             morph = poseAt(clip.group, clip.from + (k / fps) * clip.rate) || morph;
             for (const node of nodes) {
                 node.computeWorldMatrix(true);
             }
-            writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame, bounds, extremes);
+            reaches.push(writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame, bounds, extremes));
         }
+        radius = Math.max(radius, clipRadius(reaches));
         frame += clip.frames;
     }
 
@@ -654,7 +698,7 @@ export function bakeAnimation(
     }
 
     rebind(parts, bones);
-    return animationFor(scene, name, { data, bones: bones.count, total, fps, ranges, notes, bounds });
+    return animationFor(scene, name, { data, bones: bones.count, total, fps, ranges, notes, bounds, radius });
 }
 
 /**
@@ -668,7 +712,8 @@ export function bakeAnimation(
  * @param baked.fps - Frames a second.
  * @param baked.ranges - Each clip's frames.
  * @param baked.notes - What is worth saying.
- * @param baked.bounds - The box and radius every frame reaches.
+ * @param baked.bounds - The box every frame reaches.
+ * @param baked.radius - What the model is framed by ({@link TemplateAnimation.radius}).
  * @returns The animation.
  */
 function animationFor(
@@ -682,6 +727,7 @@ function animationFor(
         ranges: Map<string, { start: number; end: number }>;
         notes: CodedFact[];
         bounds: Reach;
+        radius: number;
     },
 ): TemplateAnimation {
     const texture = RawTexture.CreateRGBATexture(
@@ -716,7 +762,7 @@ function animationFor(
         fps: baked.fps,
         notes: baked.notes,
         bounds: { min: baked.bounds.min, max: baked.bounds.max },
-        radius: baked.bounds.first ?? 0,
+        radius: baked.radius,
         play(owner, instances, clip, speed, offset) {
             const range = (clip === null ? undefined : baked.ranges.get(clip)) ?? first;
             const length = range.end - range.start + 1;

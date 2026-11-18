@@ -4,7 +4,8 @@
  * #8607), an unnamed clip is listed by the
  * name that plays it (issue #8609), a playing skinned model is framed and boxed at its own size, and
  * a model whose clip travels (aerobatic_plane.glb's flight paths) is framed at its own size, not
- * the size of its path.
+ * the size of its path, while one whose clip moves in place (Parrot.glb's wings) is framed whole
+ * over every frame.
  */
 
 import { assert, describe, it } from "vitest";
@@ -62,17 +63,49 @@ async function coverage(url: string): Promise<number> {
 }
 
 /**
- * One triangle, alone or with a clip that carries it 100 times its size away and back.
- * @param travels - Whether it has the clip.
+ * How many pixels on a thumbnail's outermost ring are drawn: a model cut by the picture's edge.
+ * @param url - The PNG data URL.
+ * @returns The count.
+ */
+async function edgePixels(url: string): Promise<number> {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d");
+    assert.isNotNull(context);
+    context.drawImage(image, 0, 0);
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let drawn = 0;
+    for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+            const ring = x === 0 || y === 0 || x === canvas.width - 1 || y === canvas.height - 1;
+            if (ring && data[(y * canvas.width + x) * 4 + 3] > 0) {
+                drawn++;
+            }
+        }
+    }
+
+    return drawn;
+}
+
+/**
+ * One triangle, alone or with a one-second-out-and-back clip on its node.
+ * @param clip - The clip: the property it moves and its value at the turn, or none.
+ * @param clip.path - "translation" or "scale".
+ * @param clip.turn - The value at one second; the clip starts and ends at the rest value.
  * @returns The file set.
  */
-function triangle(travels: boolean): Map<string, Uint8Array> {
-    if (!travels) {
+function triangle(clip?: { path: "translation" | "scale"; turn: [number, number, number] }): Map<string, Uint8Array> {
+    if (clip === undefined) {
         return gltfPair();
     }
 
+    const rest = clip.path === "scale" ? [1, 1, 1] : [0, 0, 0];
     const times = new Float32Array([0, 1, 2]);
-    const places = new Float32Array([0, 0, 0, 100, 0, 0, 0, 0, 0]);
+    const places = new Float32Array([...rest, ...clip.turn, ...rest]);
     const bin = new Uint8Array(36 + 12 + 36);
     bin.set(TRIANGLE_BIN, 0);
     bin.set(new Uint8Array(times.buffer), 36);
@@ -93,7 +126,7 @@ function triangle(travels: boolean): Map<string, Uint8Array> {
             {
                 name: "Fly",
                 samplers: [{ input: 1, output: 2 }],
-                channels: [{ sampler: 0, target: { node: 0, path: "translation" } }],
+                channels: [{ sampler: 0, target: { node: 0, path: clip.path } }],
             },
         ],
     });
@@ -131,8 +164,10 @@ describe("skinned sample files", () => {
 
     it("frames a model whose clip travels at its own size, not the size of its path", async () => {
         const element = await mount();
-        const still = await element.session.assets.add({ files: triangle(false) });
-        const travels = await element.session.assets.add({ files: triangle(true) });
+        const still = await element.session.assets.add({ files: triangle() });
+        const travels = await element.session.assets.add({
+            files: triangle({ path: "translation", turn: [100, 0, 0] }),
+        });
         assert.deepEqual(
             element.session.assets.inspect(travels.id).animations.map((clip) => clip.name),
             ["Fly"],
@@ -147,6 +182,19 @@ describe("skinned sample files", () => {
         );
         // Framed by the whole path, the triangle was a hundredth of the picture across.
         assert.isAbove(flying, alone * 0.6, `the travelling triangle covers ${String(flying)} of ${String(alone)}`);
+    });
+
+    it("frames a model whose clip grows it in place whole at its largest frame, not its first", async () => {
+        const element = await mount();
+        const grows = await element.session.assets.add({ files: triangle({ path: "scale", turn: [4, 4, 1] }) });
+        // Held at one second, where the triangle is four times the size it starts at.
+        const largest = await element.modelThumbnail(grows.id, {
+            size: 96,
+            style: { "node.modelAnimation": "Fly", "node.modelAnimationOffset": 1, "node.modelAnimationSpeed": 0 },
+        });
+        assert.isAbove(await coverage(largest), 0);
+        // Framed by the first frame, the grown triangle ran off the picture on every side it reaches.
+        assert.equal(await edgePixels(largest), 0, "the grown triangle is cut by the thumbnail's edge");
     });
 
     it("boxes a node drawing a playing Fox at the model's fitted size, not the file's units (#8607)", async () => {

@@ -886,7 +886,7 @@ async function build(
     const size = lockBounds(meshes, fit, animation?.bounds);
     if (animation !== null) {
         // From the moving vertices themselves: the corners of their box would be its diagonal. The
-        // still pose's reach, not every frame's: a clip that travels would shrink the model to a speck.
+        // in-place reach over every frame, not a travelling clip's path, which would shrink the model to a speck.
         radius = Math.max(radius, animation.radius);
     }
 

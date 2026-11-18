@@ -383,7 +383,8 @@ describe("the USD checks", () => {
         const cycle = new Map([
             ["a.usda", text('def "A" ( references = </B> ) {}\ndef "B" ( references = </A> ) {}\n')],
         ]);
-        assert.strictEqual((await check(cycle)).summary.triangles, 0);
+        // It ends, and draws nothing.
+        assert.deepStrictEqual(await refusalOf(cycle), { code: "E_MODEL_STRUCTURE", params: { rule: "empty" } });
     });
 
     it("size a stage as drawn: each use where its transforms and an instancer's positions put it", async () => {
@@ -504,6 +505,13 @@ describe("the USD checks", () => {
         assert.deepStrictEqual(await refusalOf(new Map([["cube.usdz", picture]])), {
             code: "E_MODEL_STRUCTURE",
             params: { rule: "usdz" },
+        });
+        // An override layer: nothing defined to draw, so empty, not damaged.
+        const overrides =
+            '#usda 1.0\n\nover "Scene"\n{\n    over "teapot"\n    {\n        point3f[] points.timeSamples = {\n            1: [(0, 0, 0)],\n        }\n    }\n}\n';
+        assert.deepStrictEqual(await refusalOf(new Map([["anim.usda", new TextEncoder().encode(overrides)]]), {}), {
+            code: "E_MODEL_STRUCTURE",
+            params: { rule: "empty" },
         });
         // Text that is not a USD layer.
         assert.deepStrictEqual(await refusalOf(new Map([["cube.usda", new TextEncoder().encode("hello")]]), {}), {

@@ -173,10 +173,16 @@ meshes and triangles are counted against the limits; its bounds are those of its
 curves where its models' translation, rotation and scaling put them.
 
 A USD mesh is drawn as written: its `subdivisionScheme` (Catmull-Clark, Loop, creases and
-corners) is not applied, so a subdivision surface is drawn as its control cage.
+corners) is not applied, so a subdivision surface is drawn as its control cage. A stage that
+defines nothing to draw (an override layer of `over` prims alone) is refused with
+`E_MODEL_STRUCTURE` and `rule: "empty"`. OpenUSD reads PNG, JPEG, BMP and WebP pictures only:
+an OpenEXR or Radiance HDR picture is not drawn, and a surface it colored shows its base color.
+In a text layer, a UsdPreviewSurface that leaves its `diffuseColor` out gets the
+specification's 0.18 gray, and when the set names one texture-coordinate primvar and none is
+`st`, it is renamed `st` so a texture that connects no coordinate reads it.
 
 A glTF summary's bounds are those of its meshes where the scene's node transforms put them (a
-skinned mesh where Babylon's loader puts it, in its rest pose). A PLY file does not say its up axis:
+skinned mesh where its first joint draws it in the rest pose). A PLY file does not say its up axis:
 its `upAxis` is guessed from its extent, `"z"` when its Y extent is its thinnest and less than half
 its Z extent, else `"y"`, with `W_MODEL_UP_GUESSED` saying which; an STL file's is `"z"`. When a set holds a USD layer and the `.usdz`
 it references, the layer is the main file.

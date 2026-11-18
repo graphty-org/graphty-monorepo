@@ -1291,6 +1291,24 @@ function stagePictures(stage: Stage): { pictures: ModelPicture[]; textureBytes: 
     return { pictures, textureBytes };
 }
 
+/** Prim types that draw something, besides a mesh: a stage with none of these and no mesh is empty. */
+const GEOMETRY = new Set([
+    "Mesh",
+    "Points",
+    "BasisCurves",
+    "NurbsCurves",
+    "HermiteCurves",
+    "NurbsPatch",
+    "TetMesh",
+    "PointInstancer",
+    "Sphere",
+    "Cube",
+    "Cylinder",
+    "Cone",
+    "Capsule",
+    "Plane",
+]);
+
 /**
  * Check a USD model and summarize it. Its parts must have been found first ({@link findUsdParts}).
  * @param path - The main file's path.
@@ -1309,6 +1327,12 @@ export function scanUsd(
     const all = [...stage.layers.values()].map((layer) => layer.facts);
     const sum = (key: "skeletons" | "blendShapes"): number => all.reduce((total, facts) => total + facts[key], 0);
     const { triangles, meshes, box } = drawn(stage);
+    // A stage that defines nothing drawn (an override layer of `over` prims alone, whose geometry
+    // another layer defines) is not damaged: it is refused as empty, before the importer throws.
+    const types = all.flatMap((f) => [...f.prims.values()].map((prim) => prim.type));
+    if (meshes === 0 && !types.some((type) => type !== undefined && GEOMETRY.has(type))) {
+        refuse("E_MODEL_STRUCTURE", { rule: "empty" });
+    }
     if (triangles > limits.maxTriangles) {
         refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
     }

@@ -9,7 +9,6 @@ import {
     setAnalyticsCallsForTests,
     setPostHogClientForTests,
     startPageCounts,
-    type UmamiBody,
 } from "../../../lib/analytics";
 import * as sentry from "../../../lib/sentry";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
@@ -111,8 +110,22 @@ describe("the usage data gate", () => {
 });
 
 describe("the live sender", () => {
-    const sends: UmamiBody[] = [];
+    /** The event names the anonymous stand-in recorded. */
+    const sends: string[] = [];
+    const analytics = { posthogKey: "phc_testkey123", posthogHost: "https://eu.i.posthog.com" };
     const signals = { dnt: true, gpc: false };
+    /** Installs the anonymous mode's recording stand-in. */
+    const recordAnonymous = (): void => {
+        setPostHogClientForTests(
+            {
+                capture: (event) => {
+                    sends.push(event);
+                    return undefined;
+                },
+            },
+            "anonymous",
+        );
+    };
 
     beforeEach(async () => {
         signals.dnt = true;
@@ -123,18 +136,14 @@ describe("the live sender", () => {
         forgetUsageAnswer();
         sends.length = 0;
         setAnalyticsCallsForTests({
-            send: (body) => {
-                sends.push(body);
-                return undefined;
-            },
+            // The shared mode's code never loads here: the live Share leaves it pending.
+            importPostHog: () => new Promise(() => undefined),
+            afterFirstPaint: () => undefined,
             hostname: () => "graphty.app",
             privacySignals: () => signals,
         });
-        const file = {
-            site: "production",
-            features: [],
-            analytics: { umamiWebsiteId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
-        };
+        recordAnonymous();
+        const file = { site: "production", features: [], analytics };
         startPageCounts(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(file))}`));
         sends.length = 0;
     });
@@ -154,10 +163,7 @@ describe("the live sender", () => {
         answerUsageData("declined");
         assert.deepEqual(sends, []);
         answerUsageData("share");
-        assert.deepEqual(
-            sends.map((body) => body.payload.name),
-            ["usage_data_shared"],
-        );
+        assert.deepEqual(sends, ["usage_data_shared"]);
     });
 
     it("leaves a Share under Do Not Track or GPC out of the opt-in rate, as its visits are", () => {
@@ -165,18 +171,12 @@ describe("the live sender", () => {
         answerUsageData("share");
         forgetUsageAnswer();
         resetAnalyticsForTests();
-        startPageCounts({
-            site: "production",
-            features: [],
-            analytics: { umamiWebsiteId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
-        });
+        recordAnonymous();
+        startPageCounts({ site: "production", features: [], analytics });
         signals.dnt = false;
         signals.gpc = true;
         answerUsageData("share");
-        assert.notInclude(
-            sends.map((body) => body.payload.name),
-            "usage_data_shared",
-        );
+        assert.notInclude(sends, "usage_data_shared");
         // Not vacuous: the page views were sent.
         assert.isNotEmpty(sends);
     });

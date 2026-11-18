@@ -1,8 +1,9 @@
 /**
  * The usage data gate (design/graphty/usage-analytics.md, section 3): Share starts PostHog and
- * error reporting, No stops both, here and in every other open tab. Anonymous counts (Umami,
- * lib/analytics.ts) are sent whatever the answer; Share adds one, `usage_data_shared`. The answer
- * is the reader's own preference, kept in this browser.
+ * error reporting, No stops both, here and in every other open tab. Anonymous counts (PostHog's
+ * cookieless mode, lib/analytics.ts) are sent whatever the answer, and Share switches the counts to
+ * PostHog's shared mode; Share itself is one anonymous count, `usage_data_shared`. The answer is
+ * the reader's own preference, kept in this browser.
  */
 
 import { useSyncExternalStore } from "react";
@@ -101,7 +102,7 @@ function store(answer: UsageAnswer): void {
 export function answerUsageData(answer: UsageAnswer): void {
     remembered = answer;
     if (answer === "share") {
-        // Counted before PostHog starts, so it reaches Umami only: its count over first_visit is the opt-in rate.
+        // Counted before PostHog's shared mode starts, so it is always an anonymous-mode event: its count over first_visit is the opt-in rate.
         count("usage_data_shared");
         // Started before the answer is stored: the other tabs start when they see it, and take the
         // PostHog id this start saved (startPostHog).

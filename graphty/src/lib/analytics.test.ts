@@ -1,7 +1,7 @@
 /**
- * Usage analytics through its seams (no module mocks): Umami's counts and their payload, the visit
- * record, the address bar, PostHog's lifecycle with a stand-in client, and what `cleanPostHogEvent`
- * lets through. The `hostname`, `privacySignals` and `today` seams make graphty.app, no DNT and a
+ * Usage analytics through its seams (no module mocks): the anonymous counts and their payload, the
+ * visit record, the address bar, the two modes and the switch between them, PostHog's lifecycle with
+ * a stand-in client, and what `cleanPostHogEvent` lets through in each mode. The `hostname`, `privacySignals` and `today` seams make graphty.app, no DNT and a
  * fixed day the default, so no case depends on the clock.
  */
 import type { SourceLoaded } from "@graphty/graphty-element/session";
@@ -37,34 +37,52 @@ import {
     stopPostHog,
     stripQueryForRecorders,
     SURVEYS_KEY,
-    type UmamiBody,
     visitBucket,
     writeSurveyState,
 } from "./analytics";
 import { resetSentryState, type SentryCalls, setSentryCallsForTests, stopSentry } from "./sentry";
 
-const UMAMI = "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
 const KEY = "phc_testkey123";
 const HOST = "https://eu.i.posthog.com";
+/** A site's analytics block that turns PostHog on. */
+const PH: SiteAnalytics = { posthogKey: KEY, posthogHost: HOST };
 const VISITS = "graphty.visits.v1";
 const USAGE = "graphty.usageData.v1";
 
 /** The day every case runs on, through the `today` seam. */
 const TODAY = "2026-06-15";
 
-/** What the Umami seam received. */
-let sends: UmamiBody[] = [];
+/** What the anonymous stand-in recorded, after `cleanPostHogEvent(event, "anonymous")`. */
+let anon: { event: string; properties: Record<string, unknown> }[] = [];
+
+/** Installs a recording stand-in for the anonymous mode's instance. */
+function installAnonymous(): void {
+    setPostHogClientForTests(
+        {
+            capture: (event, properties) => {
+                anon.push({ event, properties: properties ?? {} });
+                return undefined;
+            },
+        },
+        "anonymous",
+    );
+}
+
+/** A fresh page: module state forgotten, the anonymous stand-in installed again and its records cleared. */
+function freshPage(): void {
+    resetAnalyticsForTests();
+    anon = [];
+    installAnonymous();
+}
 
 /**
- * Installs recording seams: graphty.app, no DNT, Umami sends recorded.
+ * Installs recording seams: graphty.app, no DNT, a fixed day, and a first paint that never comes
+ * (so nothing imports posthog-js unless a case runs the callback itself).
  * @param overrides - seams to replace too.
  */
 function installCalls(overrides: Parameters<typeof setAnalyticsCallsForTests>[0] = {}): void {
     setAnalyticsCallsForTests({
-        send: (body) => {
-            sends.push(body);
-            return undefined;
-        },
+        afterFirstPaint: () => undefined,
         hostname: () => "graphty.app",
         privacySignals: () => ({ dnt: false, gpc: false }),
         today: () => TODAY,
@@ -84,11 +102,11 @@ function site(analytics: SiteAnalytics): Promise<SiteConfig> {
 }
 
 /**
- * The names Umami received, page views as "pageview".
+ * The names the anonymous stand-in recorded.
  * @returns them in order.
  */
-function umamiNames(): string[] {
-    return sends.map((body) => body.payload.name ?? "pageview");
+function anonNames(): string[] {
+    return anon.map((record) => record.event);
 }
 
 /**
@@ -144,7 +162,8 @@ beforeEach(() => {
     resetAnalyticsForTests();
     resetSiteConfig();
     forgetUsageAnswer();
-    sends = [];
+    anon = [];
+    installAnonymous();
     installCalls();
     for (const key of [VISITS, SURVEYS_KEY]) {
         localStorage.removeItem(key);
@@ -155,6 +174,7 @@ afterEach(() => {
     resetAnalyticsForTests();
     resetSiteConfig();
     forgetUsageAnswer();
+    setUsageSenderForTests();
     setAnalyticsCallsForTests();
     stopSentry();
     resetSentryState();
@@ -162,15 +182,16 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe("Umami counts", () => {
-    it("sends nothing without a website id or off the site's host, and leaves the visit record alone", async () => {
+describe("anonymous counts", () => {
+    it("sends nothing without a key or off the site's host, and leaves the visit record alone", async () => {
         const info = vi.spyOn(console, "warn").mockImplementation(() => undefined);
         startPageCounts(await site({}));
-        installCalls({ hostname: () => "evil.example" });
-        startPageCounts(await site({ umamiWebsiteId: UMAMI }));
         count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+        installCalls({ hostname: () => "evil.example" });
+        startPageCounts(await site(PH));
+        count("export_done", { kind: "graph", format: "json", destination: "download" });
 
-        assert.deepEqual(sends, []);
+        assert.deepEqual(anon, []);
         assert.isNull(localStorage.getItem(VISITS));
         // A site whose host moved says why it went quiet.
         assert.isTrue(
@@ -200,26 +221,43 @@ describe("Umami counts", () => {
     ]) {
         it(`under ${signals.dnt ? "Do Not Track" : "GPC"} sends the page view and no visit event`, async () => {
             installCalls({ privacySignals: () => signals });
-            startPageCounts(await site({ umamiWebsiteId: UMAMI }));
+            startPageCounts(await site(PH));
 
-            assert.deepEqual(umamiNames(), ["pageview"]);
+            assert.deepEqual(anonNames(), ["$pageview"]);
             assert.isNull(localStorage.getItem(VISITS));
         });
     }
 
-    it("pins the payload: the boot path with known channels only, a referrer origin, a fixed title", async () => {
-        globalThis.history.replaceState(null, "", "?ref=hn&url=https://x.example/y.csv&features=a#h");
+    it("pins the page view: the boot path with known channels only, a referrer origin, no title", async () => {
+        globalThis.history.replaceState(
+            null,
+            "",
+            "?ref=hn&url=https://x.example/y.csv&utm_campaign=u_8f3k2q9&features=a#h",
+        );
         readChannel();
-        startPageCounts(await site({ umamiWebsiteId: UMAMI }));
+        startPageCounts(await site(PH));
 
-        const [view] = sends;
-        assert.deepEqual(Object.keys(view.payload).sort(), ["hostname", "referrer", "title", "url", "website"]);
-        assert.equal(view.type, "event");
-        assert.equal(view.payload.url, `${globalThis.location.pathname}?ref=hn`);
-        assert.equal(view.payload.title, "graphty");
-        assert.equal(view.payload.website, UMAMI);
-        assert.equal(view.payload.hostname, "graphty.app");
-        assert.match(view.payload.referrer, /^(|https?:\/\/[^/]+)$/);
+        // The positive control for the anonymous stand-in: a count on it is recorded.
+        const [view] = anon;
+        assert.equal(view.event, "$pageview");
+        const props = view.properties;
+        assert.equal(props.$current_url, `${globalThis.location.pathname}?ref=hn&utm_campaign=other`);
+        assert.equal(props.$pathname, globalThis.location.pathname);
+        assert.match(String(props.$referrer), /^(\$direct|https?:\/\/[^/]+)$/);
+        assert.include(props, {
+            tracking: "anonymous",
+            first_on_page: true,
+            $cookieless_mode: true,
+            distinct_id: "$posthog_cookieless",
+            $host: globalThis.location.host,
+            site: "production",
+            channel_ref: "hn",
+            utm_campaign: "other",
+            $geoip_disable: true,
+        });
+        for (const key of ["title", "$title", "$screen_height", "$browser_language", "use_case"]) {
+            assert.notProperty(props, key);
+        }
     });
 
     it("cuts URLs: unknown channel values to other, other sites to a fixed token", () => {
@@ -235,10 +273,10 @@ describe("Umami counts", () => {
 
     it("removes the channel from the address bar after the page view, and keeps the boot query", async () => {
         globalThis.history.replaceState(null, "", "?ref=hn&utm_source=x&features=a#h");
-        startAnalyticsAtBoot(await site({ umamiWebsiteId: UMAMI }));
+        startAnalyticsAtBoot(await site(PH));
 
         assert.deepEqual(
-            sends.filter((body) => body.payload.name === undefined).map((body) => body.payload.url),
+            anon.filter((record) => record.event === "$pageview").map((record) => record.properties.$current_url),
             [`${globalThis.location.pathname}?ref=hn&utm_source=x`],
         );
         assert.equal(globalThis.location.search, "?features=a");
@@ -270,10 +308,18 @@ describe("Umami counts", () => {
             },
         });
         localStorage.setItem(USAGE, "share");
-        startAnalyticsAtBoot(await site({ umamiWebsiteId: UMAMI, posthogKey: KEY, posthogHost: HOST }));
+        startAnalyticsAtBoot(await site(PH));
+        await vi.waitFor(() => {
+            assert.include(capturedNames(fake.capture), "$pageview");
+        });
 
         assert.deepEqual(seenAtStart, ["", ""]);
-        assert.equal(sends[0].payload.url, `${globalThis.location.pathname}?ref=hn&utm_source=x`);
+        // The page view went to the shared mode only, and still carries the boot channel.
+        assert.notInclude(anonNames(), "$pageview");
+        const [, props] = fake.capture.mock.calls.find((call) => call[0] === "$pageview") as [string, object];
+        const view = cleanPostHogEvent({ uuid: "u", event: "$pageview", properties: { ...props } });
+        assert.equal(view?.properties.$current_url, `${globalThis.location.pathname}?ref=hn&utm_source=x`);
+        assert.equal(view?.properties.tracking, "shared");
         assert.equal(bootQuery().get("features"), "a");
     });
 
@@ -310,21 +356,19 @@ describe("the visit record", () => {
     });
 
     it("sends first_visit, then one return_visit a day, and nothing more that day", async () => {
-        const config = await site({ umamiWebsiteId: UMAMI });
+        const config = await site(PH);
         startPageCounts(config);
-        assert.deepEqual(umamiNames(), ["pageview", "first_visit"]);
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit"]);
 
-        resetAnalyticsForTests();
-        sends = [];
+        freshPage();
         localStorage.setItem(VISITS, JSON.stringify({ first: dayFromToday(-3), last: dayFromToday(-1) }));
         startPageCounts(config);
-        assert.deepEqual(umamiNames(), ["pageview", "return_visit"]);
-        assert.deepEqual(sends[1].payload.data, { days: "2-7" });
+        assert.deepEqual(anonNames(), ["$pageview", "return_visit"]);
+        assert.equal(anon[1].properties.days, "2-7");
 
-        resetAnalyticsForTests();
-        sends = [];
+        freshPage();
         startPageCounts(config);
-        assert.deepEqual(umamiNames(), ["pageview"]);
+        assert.deepEqual(anonNames(), ["$pageview"]);
         assert.deepEqual(JSON.parse(localStorage.getItem(VISITS) ?? ""), {
             first: dayFromToday(-3),
             last: dayFromToday(0),
@@ -332,25 +376,24 @@ describe("the visit record", () => {
     });
 
     it("resets a record whose last visit is older than 395 days, and keeps a regular reader's", async () => {
-        const config = await site({ umamiWebsiteId: UMAMI });
+        const config = await site(PH);
         localStorage.setItem(VISITS, JSON.stringify({ first: dayFromToday(-400), last: dayFromToday(-2) }));
         startPageCounts(config);
-        assert.deepEqual(umamiNames(), ["pageview", "return_visit"]);
-        assert.deepEqual(sends[1].payload.data, { days: "30+" });
+        assert.deepEqual(anonNames(), ["$pageview", "return_visit"]);
+        assert.equal(anon[1].properties.days, "30+");
 
-        resetAnalyticsForTests();
-        sends = [];
+        freshPage();
         localStorage.setItem(VISITS, JSON.stringify({ first: dayFromToday(-500), last: dayFromToday(-400) }));
         startPageCounts(config);
-        assert.deepEqual(umamiNames(), ["pageview", "first_visit"]);
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit"]);
     });
 
     it("counts nothing again, and keeps the record, when the last visit is dated after today", async () => {
-        const config = await site({ umamiWebsiteId: UMAMI });
+        const config = await site(PH);
         const record = { first: dayFromToday(-10), last: dayFromToday(1) };
         localStorage.setItem(VISITS, JSON.stringify(record));
         startPageCounts(config);
-        assert.deepEqual(umamiNames(), ["pageview"]);
+        assert.deepEqual(anonNames(), ["$pageview"]);
         assert.deepEqual(JSON.parse(localStorage.getItem(VISITS) ?? ""), record);
     });
 
@@ -358,31 +401,126 @@ describe("the visit record", () => {
         vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
             throw new Error("blocked");
         });
-        startPageCounts(await site({ umamiWebsiteId: UMAMI }));
-        assert.deepEqual(umamiNames(), ["pageview"]);
+        startPageCounts(await site(PH));
+        assert.deepEqual(anonNames(), ["$pageview"]);
     });
 });
 
 describe("count and detail", () => {
-    it("sends each name to Umami once a page view, and every occurrence to PostHog", async () => {
-        startPageCounts(await site({ umamiWebsiteId: UMAMI }));
-        const capture = vi.fn();
-        setPostHogClientForTests({ capture });
-        sends = [];
+    it("sends each name once a page view in the anonymous mode, and every occurrence in the shared mode", async () => {
+        startPageCounts(await site(PH));
+        anon = [];
         for (let i = 0; i < 10; i++) {
             count("algorithm_run", { algorithm: `a${String(i)}`, outcome: "succeeded" });
         }
         count("layout_changed", { layout: "ngraph", outcome: "applied" });
         count("layout_changed", { layout: "circular", outcome: "applied" });
         count("export_done", { kind: "graph", format: "json", destination: "download" });
+        assert.deepEqual(anonNames(), ["algorithm_run", "layout_changed", "export_done"]);
+        assert.isTrue(anon.every((record) => record.properties.first_on_page === true));
 
-        assert.deepEqual(umamiNames(), ["algorithm_run", "layout_changed", "export_done"]);
-        assert.equal(capture.mock.calls.length, 13);
+        // Share: every occurrence goes to the shared mode, none first on the page again.
+        const capture = vi.fn();
+        setPostHogClientForTests({ capture });
+        for (let i = 0; i < 3; i++) {
+            count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+        }
+        assert.equal(capture.mock.calls.length, 3);
+        assert.isTrue(
+            capture.mock.calls.every((call) => (call[1] as Record<string, unknown>).first_on_page === undefined),
+        );
+        assert.isTrue(capture.mock.calls.every((call) => (call[1] as Record<string, unknown>).tracking === "shared"));
+        assert.lengthOf(anon, 3);
+
+        // A fresh page that shares first: the first occurrence is the first on the page.
+        freshPage();
+        const shared = vi.fn();
+        setPostHogClientForTests({ capture: shared });
+        count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+        count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+        assert.deepEqual(
+            shared.mock.calls.map((call) => (call[1] as Record<string, unknown>).first_on_page),
+            [true, undefined],
+        );
+    });
+
+    it("reports every count in exactly one mode, the one current when it was made", async () => {
+        const shared: string[] = [];
+        startPageCounts(await site(PH));
+        count("sample_loaded", { sample: "karate" });
+        setPostHogClientForTests({
+            capture: (event) => {
+                shared.push(event);
+                return undefined;
+            },
+        });
+        count("export_done", { kind: "graph", format: "json", destination: "download" });
+        stopPostHog();
+        count("layout_changed", { layout: "ngraph", outcome: "applied" });
+        // Already sent on this page, in the anonymous mode: not again.
+        count("sample_loaded", { sample: "karate" });
+        // Already sent on this page, in the shared mode: not again either.
+        count("export_done", { kind: "image", format: "png", destination: "download" });
+        startPostHog();
+        count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit", "sample_loaded", "layout_changed"]);
+        assert.deepEqual(shared, ["export_done", "algorithm_run"]);
+        assert.isTrue(anon.every((record) => record.properties.tracking === "anonymous"));
+    });
+
+    it("keeps counts made before either instance is ready, each for the mode it was made in", async () => {
+        resetAnalyticsForTests();
+        anon = [];
+        let resolve: (() => void) | undefined;
+        installCalls({
+            importPostHog: () =>
+                new Promise((done) => {
+                    resolve = () => {
+                        done({ default: fakePostHog() as unknown as PostHog });
+                    };
+                }),
+        });
+        startPageCounts(await site(PH));
+        count("sample_loaded", { sample: "karate" });
+        startPostHog();
+        count("export_done", { kind: "graph", format: "json", destination: "download" });
+        detail("command_run", { command: "view.fit" });
+
+        const shared = vi.fn();
+        installAnonymous();
+        setPostHogClientForTests({ capture: shared });
+        assert.deepEqual(anonNames(), ["$pageview", "first_visit", "sample_loaded"]);
+        assert.deepEqual(capturedNames(shared), ["export_done", "command_run"]);
+        assert.isDefined(resolve);
+    });
+
+    it("counts Share in the anonymous mode only, and nothing under Do Not Track or for No", async () => {
+        setUsageSenderForTests({ start: () => undefined, stop: () => undefined });
+        startPageCounts(await site(PH));
+        anon = [];
+        answerUsageData("share");
+        assert.deepEqual(anonNames(), ["usage_data_shared"]);
+
+        freshPage();
+        forgetUsageAnswer();
+        startPageCounts(await site(PH));
+        anon = [];
+        answerUsageData("declined");
+        assert.deepEqual(anon, []);
+
+        freshPage();
+        forgetUsageAnswer();
+        installCalls({ privacySignals: () => ({ dnt: true, gpc: false }) });
+        startPageCounts(await site(PH));
+        anon = [];
+        answerUsageData("share");
+        assert.deepEqual(anon, []);
     });
 
     it("drops keys off the event's allowlist and unknown names, and tells listeners", async () => {
-        startPageCounts(await site({ umamiWebsiteId: UMAMI }));
-        sends = [];
+        startPageCounts(await site(PH));
+        anon = [];
         const heard: [string, unknown][] = [];
         const stop = onUsageEvent((name, props) => heard.push([name, props]));
         count("sample_loaded", { sample: "karate", fileName: "SECRET.csv" });
@@ -395,8 +533,8 @@ describe("count and detail", () => {
             ["sample_loaded", { sample: "karate" }],
             ["command_run", { command: "view.fit" }],
         ]);
-        assert.deepEqual(umamiNames(), ["sample_loaded"]);
-        assert.notInclude(JSON.stringify(sends), "SECRET");
+        assert.deepEqual(anonNames(), ["sample_loaded"]);
+        assert.notInclude(JSON.stringify(anon), "SECRET");
     });
 
     it("maps load events and allowlists ids, and never forwards a source key or id", () => {
@@ -460,76 +598,6 @@ describe("count and detail", () => {
     });
 });
 
-describe("the default Umami sender", () => {
-    it("posts to Umami's endpoint with exactly its headers, keeps nothing it returns, and swallows failures", async () => {
-        setAnalyticsCallsForTests({
-            hostname: () => "graphty.app",
-            privacySignals: () => ({ dnt: true, gpc: false }),
-        });
-        // site.json is read through fetch, so it is loaded before fetch is replaced.
-        const config = await site({ umamiWebsiteId: UMAMI });
-        const echo = { cache: "CACHE_TOKEN_X", sessionId: "SESSION_X", visitId: "VISIT_X" };
-        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(echo)));
-        startPageCounts(config);
-        count("sample_loaded", { sample: "karate" });
-
-        assert.equal(fetchSpy.mock.calls.length, 2);
-        const [url, options] = fetchSpy.mock.calls[0];
-        assert.equal(url, "https://gateway.umami.is/api/send");
-        assert.deepEqual(
-            { ...options, body: undefined },
-            {
-                method: "POST",
-                keepalive: true,
-                credentials: "omit",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-umami-website-id": UMAMI,
-                    "x-umami-hostname": "graphty.app",
-                },
-                body: undefined,
-            },
-        );
-        const all =
-            JSON.stringify(fetchSpy.mock.calls) +
-            JSON.stringify(Object.keys(localStorage).map((key) => localStorage.getItem(key))) +
-            JSON.stringify(Object.keys(sessionStorage).map((key) => sessionStorage.getItem(key)));
-        for (const value of Object.values(echo)) {
-            assert.notInclude(all, value);
-        }
-
-        fetchSpy.mockRejectedValueOnce(new Error("offline"));
-        fetchSpy.mockImplementationOnce(() => {
-            throw new Error("blocked");
-        });
-        count("own_file_opened", { format: "csv", via: "file" });
-        count("export_done", { kind: "image", format: "png", destination: "download" });
-        assert.equal(fetchSpy.mock.calls.length, 4);
-    });
-
-    it("sends nothing more on the page once Umami says the site is disabled", async () => {
-        setAnalyticsCallsForTests({
-            hostname: () => "graphty.app",
-            privacySignals: () => ({ dnt: true, gpc: false }),
-        });
-        const config = await site({ umamiWebsiteId: UMAMI });
-        const reply = Promise.resolve({ disabled: true });
-        const json = vi.fn(() => reply);
-        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({ json } as unknown as Response);
-        startPageCounts(config);
-        // The sender awaited this reply before the test does, so it has read it once this settles.
-        await vi.waitFor(() => {
-            assert.equal(json.mock.calls.length, 1);
-        });
-        await reply;
-
-        count("sample_loaded", { sample: "karate" });
-        count("export_done", { kind: "graph" });
-        count("layout_changed", { layout: "ngraph", outcome: "applied" });
-        assert.equal(fetchSpy.mock.calls.length, 1);
-    });
-});
-
 describe("PostHog", () => {
     /**
      * A PostHog stand-in served by the import seam.
@@ -545,7 +613,7 @@ describe("PostHog", () => {
 
     it("never loads without a key", async () => {
         const { imports } = serve();
-        await site({ umamiWebsiteId: UMAMI });
+        await site({});
         startPostHog();
         assert.equal(imports.mock.calls.length, 0);
         assert.isUndefined(postHog());
@@ -561,7 +629,7 @@ describe("PostHog", () => {
         });
         // The live sender, as the app runs it.
         setUsageSenderForTests();
-        await site({ umamiWebsiteId: UMAMI, posthogKey: KEY, posthogHost: HOST });
+        await site(PH);
         answerUsageData("share");
         startPostHog();
         assert.equal(imports.mock.calls.length, 0);
@@ -589,7 +657,7 @@ describe("PostHog", () => {
             opt_out_capturing_by_default: true,
             disable_external_dependency_loading: true,
             advanced_disable_flags: false,
-            capture_pageview: true,
+            capture_pageview: false,
             capture_pageleave: true,
             autocapture: { dom_event_allowlist: ["click", "change", "submit"], capture_copied_text: false },
             mask_all_text: true,
@@ -699,24 +767,76 @@ describe("PostHog", () => {
         assert.deepEqual(capturedNames(second.fake.capture), []);
     });
 
-    it("starts from boot for a reader who shared, and the first visit reaches it", async () => {
+    it("starts from boot for a reader who shared, and the first visit reaches the shared mode only", async () => {
         const { fake, imports, loaded } = serve();
         vi.spyOn(console, "warn").mockImplementation(() => undefined);
-        const config = await site({ umamiWebsiteId: UMAMI, posthogKey: KEY, posthogHost: HOST });
+        const config = await site(PH);
 
         localStorage.setItem(USAGE, "declined");
         startAnalyticsAtBoot(config);
         assert.equal(imports.mock.calls.length, 0);
-        assert.include(umamiNames(), "pageview");
+        assert.include(anonNames(), "$pageview");
 
-        resetAnalyticsForTests();
+        freshPage();
         localStorage.removeItem(VISITS);
         localStorage.setItem(USAGE, "share");
         startAnalyticsAtBoot(config);
         await loaded;
         assert.equal(imports.mock.calls.length, 1);
         assert.include(capturedNames(fake.capture), "first_visit");
+        assert.notInclude(anonNames(), "first_visit");
     });
+
+    for (const answer of ["declined", "share", null] as const) {
+        it(`loads posthog-js once, only after first paint, and creates the anonymous instance first (${String(answer)})`, async () => {
+            resetAnalyticsForTests();
+            const anonymous = fakePostHog();
+            const { fake, imports, loaded } = serve();
+            fake.init.mockImplementation((_key: string, _options: unknown, name?: string) =>
+                name === "anonymous" ? anonymous : fake,
+            );
+            let paint: (() => void) | undefined;
+            installCalls({
+                importPostHog: imports,
+                afterFirstPaint: (run) => {
+                    paint = run;
+                },
+            });
+            if (answer !== null) {
+                localStorage.setItem(USAGE, answer);
+            }
+            startAnalyticsAtBoot(await site(PH));
+            assert.equal(imports.mock.calls.length, answer === "share" ? 1 : 0, "Share loads at once");
+            paint?.();
+            await loaded;
+            await loaded;
+
+            assert.equal(imports.mock.calls.length, 1);
+            const inits = fake.init.mock.calls as [string, Record<string, unknown>, string?][];
+            assert.deepEqual(
+                inits.map((call) => call[2]),
+                answer === "share" ? ["anonymous", undefined] : ["anonymous"],
+            );
+            const [key, options] = inits[0];
+            assert.equal(key, KEY);
+            assert.include(options, {
+                api_host: HOST,
+                cookieless_mode: "always",
+                disable_persistence: true,
+                persistence: "memory",
+                persistence_name: "graphty_anonymous",
+                person_profiles: "never",
+                advanced_disable_flags: true,
+                capture_pageview: false,
+                capture_pageleave: false,
+                autocapture: false,
+                disable_session_recording: true,
+                disable_surveys: true,
+            });
+            assert.equal(capturedNames(anonymous.capture).includes("$pageview"), answer !== "share");
+            assert.equal(capturedNames(fake.capture).includes("$pageview"), answer === "share");
+        });
+    }
 });
 
 describe("cleanPostHogEvent", () => {
@@ -732,14 +852,79 @@ describe("cleanPostHogEvent", () => {
         properties,
     });
 
-    it("drops every event while sharing is off", () => {
+    it("drops every event while sharing is off, and a cookieless one in the shared mode", () => {
         assert.isNull(cleanPostHogEvent(ev("$pageview")));
+        setPostHogClientForTests({});
+        assert.isNull(cleanPostHogEvent(ev("$pageview", { $cookieless_mode: true })));
+        assert.equal(cleanPostHogEvent(ev("command_run", { command: "view.fit" }))?.properties.tracking, "shared");
+    });
+
+    it("in the anonymous mode keeps only the counts, their keys and the hash inputs", () => {
+        const cookieless = { $cookieless_mode: true };
+        for (const name of [
+            "$autocapture",
+            "$pageleave",
+            "$web_vitals",
+            "$$heatmap",
+            "$snapshot",
+            "$opt_in",
+            "command_run",
+            "survey shown",
+            "survey sent",
+            "survey dismissed",
+        ]) {
+            assert.isNull(cleanPostHogEvent(ev(name, cookieless), "anonymous"), name);
+        }
+        assert.isNull(cleanPostHogEvent(ev("$pageview"), "anonymous"), "not built in cookieless mode");
+        writeSurveyState({ seen: [], use_case: "teach" });
+        const out = cleanPostHogEvent(
+            ev("algorithm_run", {
+                ...cookieless,
+                algorithm: "katz",
+                outcome: "failed",
+                code: "E_X",
+                $raw_user_agent: "ua",
+                $host: "graphty.app",
+                $timezone: "UTC",
+                $browser: "Chrome",
+                $os: "Linux",
+                $browser_version: 1,
+                $os_version: "2",
+                $screen_height: 1,
+                $viewport_width: 1,
+                $browser_language: "en",
+                $timezone_offset: 0,
+                $device: "d",
+                ph_keyword: "SECRET",
+                use_case: "teach",
+                $future_key: "x",
+                $current_url: "https://private.example/SECRET",
+            }),
+            "anonymous",
+        );
+        assert.deepEqual(Object.keys(out?.properties ?? {}).sort(), [
+            "$browser",
+            "$cookieless_mode",
+            "$current_url",
+            "$geoip_disable",
+            "$host",
+            "$os",
+            "$raw_user_agent",
+            "$timezone",
+            "algorithm",
+            "code",
+            "outcome",
+            "site",
+            "tracking",
+        ]);
+        assert.equal(out?.properties.tracking, "anonymous");
+        assert.equal(out?.properties.$current_url, "external");
     });
 
     it("adds the super properties", async () => {
         globalThis.history.replaceState(null, "", "?ref=hn");
         readChannel();
-        startPageCounts(await site({ umamiWebsiteId: UMAMI }));
+        startPageCounts(await site(PH));
         setPostHogClientForTests({});
         const out = cleanPostHogEvent(ev("$pageview"));
 

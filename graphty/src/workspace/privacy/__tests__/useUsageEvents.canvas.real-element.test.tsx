@@ -23,6 +23,7 @@ import {
 import { openSampleFromStart } from "../../../test/open";
 import { dragAcross } from "../../../test/real-pointer";
 import { screen, waitFor } from "../../../test/test-utils";
+import { TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { clearRecent } from "../../project/recent";
 
 /** What reached the PostHog stand-in, after cleaning. */
@@ -196,14 +197,13 @@ describe("usage counts from the reader's hands on the canvas", () => {
         resetAnalyticsForTests();
         posthog.length = 0;
         setAnalyticsCallsForTests({
-            send: () => undefined,
             hostname: () => "graphty.app",
             privacySignals: () => ({ dnt: false, gpc: false }),
         });
         startPageCounts({
             site: "production",
             features: [],
-            analytics: { umamiWebsiteId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+            analytics: TEST_ANALYTICS,
         });
         undoPostHog = setPostHogClientForTests({
             capture: (event, properties) => {

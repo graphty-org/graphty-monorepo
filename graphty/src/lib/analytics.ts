@@ -1,10 +1,12 @@
 /**
- * Usage analytics (design/graphty/usage-analytics.md): anonymous counts to Umami for every visitor,
- * and PostHog for readers who said Share usage data.
+ * Usage analytics (design/graphty/usage-analytics.md): one PostHog project, two modes. Every reader
+ * who has not said Share usage data is counted by a named posthog-js instance in cookieless mode
+ * (`tracking: "anonymous"`); a reader who shares is counted by the default instance
+ * (`tracking: "shared"`). Each event goes to the one mode current when it is made.
  *
  * Nothing here may carry the reader's data. Every property value comes from an allowlist (catalog
- * ids, command ids, the app's own ids, fixed enums or buckets), every URL is cut by `cleanUrl`, and
- * PostHog's code is fetched only after Share.
+ * ids, command ids, the app's own ids, fixed enums or buckets), and every URL is cut by `cleanUrl`.
+ * PostHog's code is one lazy chunk, loaded after first paint (or at once when the reader shares).
  *
  * main.tsx imports this module, so it is part of the landing page: it imports only types and
  * modules already there. What only the workspace knows (the registered command ids, the element's
@@ -47,6 +49,7 @@ const VISITS_KEY = "graphty.visits.v1";
 
 /** Each own event's allowed property keys (section 4). An unknown name is never sent. */
 const EVENT_KEYS: Readonly<Record<string, readonly string[]>> = {
+    $pageview: [],
     first_visit: [],
     return_visit: ["days"],
     usage_data_shared: [],
@@ -66,8 +69,9 @@ const EVENT_KEYS: Readonly<Record<string, readonly string[]>> = {
     project_reopened: [],
     load_failed: ["code", "task"],
 };
-/** The names Umami counts (section 4.1); every other own name is PostHog's only. */
-const UMAMI_NAMES: ReadonlySet<string> = new Set([
+/** The names counted in both modes (section 4.1); every other own name is the shared mode's only. */
+const COUNTED_NAMES: ReadonlySet<string> = new Set([
+    "$pageview",
     "first_visit",
     "return_visit",
     "usage_data_shared",
@@ -104,6 +108,32 @@ const BASE_KEYS: ReadonlySet<string> = new Set([
     "utm_campaign",
     "visit",
     "use_case",
+    "tracking",
+    "first_on_page",
+]);
+/**
+ * The `$` keys an anonymous event keeps (section 5). `$cookieless_mode`, `$raw_user_agent`, `$host`
+ * and `$timezone` are the inputs of PostHog's server hash; everything else (versions, screen,
+ * language, any key a later posthog-js adds) is dropped.
+ */
+const ANONYMOUS_DOLLAR_KEYS: ReadonlySet<string> = new Set([
+    "$cookieless_mode",
+    "$raw_user_agent",
+    "$host",
+    "$timezone",
+    "$current_url",
+    "$pathname",
+    "$referrer",
+    "$referring_domain",
+    "$browser",
+    "$os",
+    "$device_type",
+    "$lib",
+    "$lib_version",
+    "$insert_id",
+    "$time",
+    "$config_defaults",
+    "$process_person_profile",
 ]);
 
 /**
@@ -242,26 +272,8 @@ export const SITE_HOSTS: Readonly<Partial<Record<string, string>>> = {
     nightly: "nightly.graphty.app",
     canary: "canary.graphty.app",
 };
-const UMAMI_URL = "https://gateway.umami.is/api/send";
-
-/** What one Umami request carries (section 5). */
-export interface UmamiBody {
-    readonly type: "event";
-    readonly payload: {
-        readonly website: string;
-        readonly hostname: string;
-        readonly title: "graphty";
-        readonly url: string;
-        readonly referrer: string;
-        readonly name?: string;
-        readonly data?: Record<string, Value>;
-    };
-}
-
 /** The module's edges to the network and the page, replaceable by tests (no `vi.mock`, issue #3416). */
 export interface AnalyticsCalls {
-    /** Sends one Umami request. */
-    send(body: UmamiBody): Promise<unknown> | undefined;
     /** Loads PostHog's code. */
     importPostHog(): Promise<{ default: PostHog }>;
     /** The page's host name. */
@@ -270,12 +282,33 @@ export interface AnalyticsCalls {
     privacySignals(): { dnt: boolean; gpc: boolean };
     /** Today's local calendar date, "YYYY-MM-DD". */
     today(): string;
+    /** Runs the callback after first paint: after `load`, then an idle moment of at most 2 s. */
+    afterFirstPaint(run: () => void): void;
     /** Tests only: PostHog's ingest host, with compression off so bodies are plain JSON. */
     posthogHost?: string;
 }
 
+/**
+ * Runs a callback after the page's `load` event and then an idle moment, capped at two seconds so a
+ * page that keeps the main thread busy (the start screen's live graph) still runs it.
+ * @param run - the callback.
+ */
+function afterLoadAndIdle(run: () => void): void {
+    const idle = (): void => {
+        if (typeof globalThis.requestIdleCallback === "function") {
+            globalThis.requestIdleCallback(run, { timeout: 2000 });
+        } else {
+            globalThis.setTimeout(run, 0);
+        }
+    };
+    if (document.readyState === "complete") {
+        idle();
+    } else {
+        globalThis.addEventListener("load", idle, { once: true });
+    }
+}
+
 const defaultCalls: AnalyticsCalls = {
-    send: sendToUmami,
     importPostHog: () => import("posthog-js/full/no-external"),
     hostname: () => globalThis.location.hostname,
     privacySignals: () => {
@@ -283,6 +316,7 @@ const defaultCalls: AnalyticsCalls = {
         return { dnt: nav.doNotTrack === "1", gpc: nav.globalPrivacyControl === true };
     },
     today: localDate,
+    afterFirstPaint: afterLoadAndIdle,
 };
 let calls: AnalyticsCalls = defaultCalls;
 
@@ -309,20 +343,29 @@ export type PostHogClient = Pick<
     | "getActiveMatchingSurveys"
 >;
 
+/** The two modes (decision 16): which instance an event goes to, named on it as `tracking`. */
+export type TrackingMode = "anonymous" | "shared";
+
 // Module state, all reset by resetAnalyticsForTests.
 let bootSearch: string | undefined;
 let channel: { path: string; params: Record<string, string> } | undefined;
-/** The Umami website id while counting is on for this page, else null. */
-let umamiWebsite: string | null = null;
-let umamiDisabled = false;
-const umamiSent = new Set<string>();
+/** True once the anonymous mode is on for this page: a PostHog key and the site's own host. */
+let counting = false;
+/** Section 4.1 names already sent on this page, in either mode (decision 14). */
+const sentOnPage = new Set<string>();
 /** The `visit` super property: "first" or the return bucket; absent under DNT or GPC. */
 let visit: string | undefined;
+/** True while the reader shares: the shared mode is current. */
 let wanted = false;
 let initialized = false;
+/** The shared-mode client (posthog-js's default instance). */
 let client: PostHogClient | undefined;
+/** The anonymous-mode client (the named cookieless instance). */
+let anonymousClient: Pick<PostHogClient, "capture"> | undefined;
+let anonymousStarted = false;
 let importing: Promise<{ default: PostHog }> | undefined;
-const buffer: [string, Record<string, Value>][] = [];
+/** Counts made before their mode's instance was ready, each tagged with that mode. */
+const buffer: { mode: TrackingMode; name: string; props: Record<string, Value> }[] = [];
 const BUFFER_MAX = 20;
 let commandAllowlist: ReadonlySet<string> = new Set();
 const listeners = new Set<(name: string, props: Readonly<Record<string, Value>>) => void>();
@@ -461,63 +504,6 @@ function removeChannelFromAddress(): void {
 }
 
 /**
- * The default Umami sender: Umami's documented collection endpoint, with the headers its own
- * tracker sends and no `x-umami-cache`. Of the reply only `disabled` is read; the cache token and
- * the session and visit ids it returns are never kept.
- * @param body - the request body.
- * @returns settles once sent; never rejects.
- */
-async function sendToUmami(body: UmamiBody): Promise<void> {
-    try {
-        const response = await fetch(UMAMI_URL, {
-            method: "POST",
-            keepalive: true,
-            credentials: "omit",
-            headers: {
-                "Content-Type": "application/json",
-                "x-umami-website-id": body.payload.website,
-                "x-umami-hostname": body.payload.hostname,
-            },
-            body: JSON.stringify(body),
-        });
-        const reply: unknown = await response.json();
-        if (typeof reply === "object" && reply !== null && (reply as { disabled?: unknown }).disabled === true) {
-            umamiDisabled = true;
-        }
-    } catch {
-        // Nothing retries and nothing queues.
-    }
-}
-
-/**
- * Sends one Umami request, swallowing every failure.
- * @param name - the event name, or undefined for the page view.
- * @param data - the allowlisted properties.
- */
-function sendUmami(name: string | undefined, data?: Record<string, Value>): void {
-    if (umamiWebsite === null || umamiDisabled) {
-        return;
-    }
-    const body: UmamiBody = {
-        type: "event",
-        payload: {
-            website: umamiWebsite,
-            hostname: calls.hostname(),
-            title: "graphty",
-            url: bootUrl(),
-            referrer: originOf(document.referrer),
-            ...(name === undefined ? {} : { name }),
-            ...(data === undefined || Object.keys(data).length === 0 ? {} : { data }),
-        },
-    };
-    try {
-        void Promise.resolve(calls.send(body)).catch(() => undefined);
-    } catch {
-        // A synchronous failure is swallowed too.
-    }
-}
-
-/**
  * Today's local calendar date.
  * @returns "YYYY-MM-DD".
  */
@@ -627,21 +613,32 @@ function visitsCounted(): boolean {
 }
 
 /**
- * Starts Umami's counts for this page view: the page view, then the visit event, then removes the
- * channel parameters from the address bar. Sends nothing without a website id or off the site's own host.
+ * The PostHog key and ingest host to send with, when PostHog may run on this page.
+ * @param config - the site's configuration.
+ * @returns them, or undefined without a key or host, or off the site's own host.
+ */
+function postHogTarget(config: SiteConfig): { key: string; host: string } | undefined {
+    const key = config.analytics?.posthogKey;
+    const host = calls.posthogHost ?? config.analytics?.posthogHost;
+    return key === undefined || host === undefined || !onOwnHost(config) ? undefined : { key, host };
+}
+
+/**
+ * Starts this page view's counts: the page view (into the mode current now), then the visit event,
+ * then removes the channel parameters from the address bar. Sends nothing without a PostHog key or
+ * off the site's own host.
  * @param config - the site's configuration.
  */
 export function startPageCounts(config: SiteConfig): void {
-    const website = config.analytics?.umamiWebsiteId;
     if (config.analytics !== undefined && !onOwnHost(config)) {
         // Off on purpose for a local build; on a site whose host moved, this line says why it went quiet.
         console.warn(
             `[graphty] analytics is off: ${calls.hostname()} is not the host of the ${config.site} site (${SITE_HOSTS[config.site] ?? "none"})`,
         );
     }
-    if (website !== undefined && onOwnHost(config)) {
-        umamiWebsite = website;
-        sendUmami(undefined);
+    if (postHogTarget(config) !== undefined) {
+        counting = true;
+        count("$pageview");
         if (visitsCounted()) {
             countVisit();
         }
@@ -657,6 +654,11 @@ export function startAnalyticsAtBoot(config: SiteConfig): void {
     readChannel();
     startUsageDataIfShared();
     startPageCounts(config);
+    if (postHogTarget(config) !== undefined) {
+        calls.afterFirstPaint(() => {
+            startAnonymous(config);
+        });
+    }
 }
 
 /**
@@ -681,22 +683,21 @@ function allowedProps(name: string, props: UsageProps): Record<string, Value> | 
 }
 
 /**
- * Hands an event to PostHog, or keeps it while PostHog loads.
+ * Hands an event to one mode's instance, or keeps it, tagged with that mode, while the instance loads.
+ * @param mode - the mode it is sent in.
  * @param name - the event name.
  * @param props - the allowlisted properties.
  */
-function toPostHog(name: string, props: Record<string, Value>): void {
-    if (!wanted) {
-        return;
-    }
-    if (client === undefined) {
+function toMode(mode: TrackingMode, name: string, props: Record<string, Value>): void {
+    const target = mode === "shared" ? client : anonymousClient;
+    if (target === undefined) {
         if (buffer.length < BUFFER_MAX) {
-            buffer.push([name, props]);
+            buffer.push({ mode, name, props });
         }
         return;
     }
     try {
-        client.capture(name, props);
+        target.capture(name, props);
     } catch {
         // Best effort.
     }
@@ -714,8 +715,9 @@ function notify(name: string, props: Readonly<Record<string, Value>>): void {
 }
 
 /**
- * Counts an event of section 4.1: to Umami at most once per name per page view, and to PostHog
- * every time while sharing is on.
+ * Counts an event of section 4.1 into the mode current now: in the anonymous mode at most once per
+ * name per page view, in the shared mode every time. The first of a name on the page, in either
+ * mode, carries `first_on_page: true`, so counting those counts each page view once.
  * @param name - the event name.
  * @param props - its properties; keys not on the event's allowlist are dropped.
  */
@@ -724,14 +726,19 @@ export function count(name: string, props: UsageProps = {}): void {
     if (clean === null) {
         return;
     }
-    // The opt-in rate is usage_data_shared over first_visit, so a reader whose visits are not
-    // counted (DNT or GPC) is left out of both.
-    const sameAsVisits = name !== "usage_data_shared" || visitsCounted();
-    if (UMAMI_NAMES.has(name) && !umamiSent.has(name) && umamiWebsite !== null && sameAsVisits) {
-        umamiSent.add(name);
-        sendUmami(name, clean);
+    const counted = COUNTED_NAMES.has(name);
+    const first = counted && !sentOnPage.has(name);
+    if (wanted) {
+        if (counted) {
+            sentOnPage.add(name);
+        }
+        toMode("shared", name, first ? { ...clean, first_on_page: true } : clean);
+    } else if (first && counting && (name !== "usage_data_shared" || visitsCounted())) {
+        // The opt-in rate is usage_data_shared over first_visit, so a reader whose visits are not
+        // counted (DNT or GPC) is left out of both.
+        sentOnPage.add(name);
+        toMode("anonymous", name, { ...clean, first_on_page: true });
     }
-    toPostHog(name, clean);
     notify(name, clean);
 }
 
@@ -745,7 +752,9 @@ export function detail(name: string, props: UsageProps = {}): void {
     if (clean === null) {
         return;
     }
-    toPostHog(name, clean);
+    if (wanted) {
+        toMode("shared", name, clean);
+    }
     notify(name, clean);
 }
 
@@ -914,13 +923,16 @@ export function writeSurveyState(state: SurveyState): void {
 }
 
 /**
- * The super properties merged into every PostHog event (section 4.2).
+ * The super properties merged into every PostHog event (section 4.2); `use_case`, a survey answer,
+ * is shared-mode data only.
+ * @param mode - the mode the event is sent in.
  * @returns them.
  */
-function superProperties(): Record<string, Value> {
+function superProperties(mode: TrackingMode): Record<string, Value> {
     const params = channel?.params ?? {};
-    const useCase = readSurveyState().use_case;
+    const useCase = mode === "shared" ? readSurveyState().use_case : undefined;
     return {
+        tracking: mode,
         site: siteConfig().site,
         ...(params.ref === undefined ? {} : { channel_ref: params.ref }),
         ...(params.utm_source === undefined ? {} : { utm_source: params.utm_source }),
@@ -971,24 +983,32 @@ function onCanvas(props: Record<string, unknown>): boolean {
 }
 
 /**
- * PostHog's `before_send` (section 6): drops what may not be sent and cuts what may.
+ * PostHog's `before_send` for each mode: drops what may not be sent and cuts what may. The shared
+ * mode's steps are in section 6, the anonymous mode's in section 5.
  * @param event - the event PostHog is about to send.
+ * @param mode - the instance it came from; the shared one by default.
  * @returns the event to send, or null to drop it.
  */
-export function cleanPostHogEvent(event: CaptureResult | null): CaptureResult | null {
-    if (!wanted || event === null) {
+export function cleanPostHogEvent(event: CaptureResult | null, mode: TrackingMode = "shared"): CaptureResult | null {
+    if (event === null) {
         return null;
     }
     const name = event.event;
+    const raw = (event.properties ?? {}) as Record<string, unknown>;
+    const cookieless = raw.$cookieless_mode === true;
+    // Each instance sends only what is its own: the shared one never runs cookieless, and an
+    // anonymous event proves it was built in cookieless mode.
+    if (mode === "shared" ? !wanted || cookieless : !COUNTED_NAMES.has(name) || !cookieless) {
+        return null;
+    }
     const ownKeys = EVENT_KEYS[name];
     if (ownKeys === undefined && !DOLLAR_EVENTS.has(name)) {
         return null;
     }
-    const raw = (event.properties ?? {}) as Record<string, unknown>;
     if (CLICK_EVENTS.has(name) && onCanvas(raw)) {
         return null;
     }
-    const merged: Record<string, unknown> = { ...raw, ...superProperties() };
+    const merged: Record<string, unknown> = { ...raw, ...superProperties(mode) };
     delete merged.$set;
     delete merged.$set_once;
     delete merged.title;
@@ -996,8 +1016,46 @@ export function cleanPostHogEvent(event: CaptureResult | null): CaptureResult | 
     // A recording is left whole: walking every batch costs CPU on each flush, and cutting its
     // stylesheet and font URLs breaks replay styling. The address-bar strip protects its URLs.
     const cleaned = name === "$snapshot" ? merged : cleanUrls(raw, merged);
+    if (name === "$pageview") {
+        Object.assign(cleaned, pageViewUrls());
+    }
     const { $set: _set, $set_once: _setOnce, ...rest } = event;
-    return { ...rest, properties: allowedKeys(name, ownKeys ?? [], cleaned) };
+    const properties =
+        mode === "shared" ? allowedKeys(name, ownKeys ?? [], cleaned) : anonymousKeys(ownKeys ?? [], cleaned);
+    return { ...rest, properties };
+}
+
+/**
+ * The page view's URLs: it is sent when its instance is ready, after the address bar lost its
+ * channel, so they come from the boot path and the referrer's origin, never from the address bar.
+ * @returns `$current_url`, `$pathname`, `$referrer` and `$referring_domain`.
+ */
+function pageViewUrls(): Record<string, string> {
+    const referrer = originOf(document.referrer);
+    return {
+        $current_url: bootUrl(),
+        $pathname: (channel ?? readChannel()).path,
+        $referrer: referrer === "" ? "$direct" : referrer,
+        $referring_domain: referrer === "" ? "$direct" : new URL(referrer).host,
+    };
+}
+
+/**
+ * The properties an anonymous event may carry (section 5, step 4): its own allowlist, the keys of
+ * every event and the few `$` keys PostHog needs; everything else is dropped.
+ * @param ownKeys - the event's own allowlist.
+ * @param properties - the cleaned properties.
+ * @returns the kept properties.
+ */
+function anonymousKeys(ownKeys: readonly string[], properties: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(properties)) {
+        if (ANONYMOUS_DOLLAR_KEYS.has(key) || (BASE_KEYS.has(key) && key !== "use_case") || ownKeys.includes(key)) {
+            out[key] = value;
+        }
+    }
+    out.$geoip_disable = true;
+    return out;
 }
 
 /**
@@ -1067,7 +1125,8 @@ function postHogOptions(host: string): Partial<PostHogConfig> {
         opt_out_capturing_by_default: true,
         disable_external_dependency_loading: true,
         advanced_disable_flags: false,
-        capture_pageview: true,
+        // The app's own count("$pageview") at boot is the only page view (section 3).
+        capture_pageview: false,
         capture_pageleave: true,
         autocapture: { dom_event_allowlist: ["click", "change", "submit"], capture_copied_text: false },
         mask_all_text: true,
@@ -1101,11 +1160,100 @@ function postHogOptions(host: string): Partial<PostHogConfig> {
     };
 }
 
-/** Sends the events kept while PostHog loaded. */
-function flushBuffer(): void {
-    for (const [name, props] of buffer.splice(0)) {
-        toPostHog(name, props);
+/**
+ * The anonymous instance's init options (section 5): cookieless, nothing stored, nothing captured
+ * on its own; the only thing it sends is what `count()` hands it.
+ * @param host - the ingest host.
+ * @returns the options.
+ */
+function anonymousOptions(host: string): Partial<PostHogConfig> {
+    return {
+        api_host: host,
+        defaults: "2026-08-30",
+        // No storage and no id from the page; $cookieless_mode on every event.
+        cookieless_mode: "always",
+        disable_persistence: true,
+        // Both needed: without its own name and memory persistence, this init's disabled
+        // persistence removes ph_<token>_posthog, the shared instance's stored id (section 5).
+        persistence: "memory",
+        persistence_name: "graphty_anonymous",
+        person_profiles: "never",
+        disable_external_dependency_loading: true,
+        advanced_disable_flags: true,
+        advanced_disable_feature_flags: true,
+        capture_pageview: false,
+        capture_pageleave: false,
+        autocapture: false,
+        rageclick: false,
+        capture_dead_clicks: false,
+        capture_heatmaps: false,
+        capture_exceptions: false,
+        capture_performance: false,
+        disable_session_recording: true,
+        disable_surveys: true,
+        disable_product_tours: true,
+        disable_conversations: true,
+        disable_scroll_properties: true,
+        save_referrer: false,
+        save_campaign_params: false,
+        before_send: (event) => cleanPostHogEvent(event, "anonymous"),
+        ...(calls.posthogHost === undefined ? {} : { disable_compression: true }),
+    };
+}
+
+/**
+ * Sends one mode's events kept while its instance loaded.
+ * @param mode - the mode whose instance is now ready.
+ */
+function flushBuffer(mode: TrackingMode): void {
+    const kept = buffer.filter((entry) => entry.mode === mode);
+    for (const entry of kept) {
+        buffer.splice(buffer.indexOf(entry), 1);
     }
+    for (const { name, props } of kept) {
+        toMode(mode, name, props);
+    }
+}
+
+/**
+ * Creates the anonymous instance from the loaded posthog-js, once per page, before the shared one.
+ * @param posthog - posthog-js's default export.
+ * @param target - the key and host.
+ * @param target.key - the PostHog project key.
+ * @param target.host - the ingest host.
+ */
+function initAnonymous(posthog: PostHog, target: { key: string; host: string }): void {
+    if (anonymousClient !== undefined) {
+        return;
+    }
+    const instance = posthog.init(target.key, anonymousOptions(target.host), "anonymous");
+    if (instance !== undefined) {
+        anonymousClient = instance;
+        flushBuffer("anonymous");
+    }
+}
+
+/**
+ * Starts the anonymous mode (section 5), after first paint: loads posthog-js once and creates the
+ * named cookieless instance, whatever the reader's answer, because a reader who withdraws needs it.
+ * @param config - the site's configuration.
+ */
+function startAnonymous(config: SiteConfig = siteConfig()): void {
+    const target = postHogTarget(config);
+    if (target === undefined || anonymousStarted) {
+        return;
+    }
+    anonymousStarted = true;
+    importing ??= calls.importPostHog();
+    importing.then(
+        ({ default: posthog }) => {
+            initAnonymous(posthog, target);
+        },
+        () => {
+            importing = undefined;
+            anonymousStarted = false;
+        },
+    );
 }
 
 /**
@@ -1174,12 +1322,11 @@ function stopWaitingForId(): void {
  * false when another tab's Share started this one, which takes that tab's id.
  */
 export function startPostHog(fresh = true): void {
-    const config = siteConfig();
-    const key = config.analytics?.posthogKey;
-    const host = calls.posthogHost ?? config.analytics?.posthogHost;
-    if (key === undefined || host === undefined || !onOwnHost(config)) {
+    const target = postHogTarget(siteConfig());
+    if (target === undefined) {
         return;
     }
+    const { key, host } = target;
     wanted = true;
     if (!fresh && !hasStoredId(key)) {
         // Events wait in the buffer meanwhile; a No stops the wait (stopPostHog).
@@ -1208,6 +1355,10 @@ export function startPostHog(fresh = true): void {
     importing ??= calls.importPostHog();
     importing.then(
         ({ default: posthog }) => {
+            if (counting || anonymousStarted) {
+                // Created first, so the order both inits run in is always the same (section 5).
+                initAnonymous(posthog, target);
+            }
             if (!wanted || initialized) {
                 return;
             }
@@ -1222,7 +1373,7 @@ export function startPostHog(fresh = true): void {
             // Saved now, not after posthog-js's debounce: a tab that another tab's Share started
             // waits for this id (waitForStoredId) rather than make its own.
             posthog.persistence?.flush();
-            flushBuffer();
+            flushBuffer("shared");
         },
         () => {
             // The chunk failed to load; a later start tries again.
@@ -1250,7 +1401,12 @@ function removePostHogKeys(storage: Storage): void {
 export function stopPostHog(): void {
     wanted = false;
     stopWaitingForId();
-    buffer.length = 0;
+    // Shared entries are dropped; anonymous ones stay theirs (section 3).
+    for (let index = buffer.length - 1; index >= 0; index--) {
+        if (buffer[index].mode === "shared") {
+            buffer.splice(index, 1);
+        }
+    }
     if (client !== undefined) {
         try {
             client.stopSessionRecording();
@@ -1284,13 +1440,38 @@ export function postHog(): PostHogClient | undefined {
 }
 
 /**
- * Marks PostHog on with a stand-in client, touching neither the address bar nor site.json. Every
- * `capture` on it passes through `cleanPostHogEvent` first, and the stand-in's own `capture` gets
- * what that returns (nothing when it returns null).
+ * Marks one mode's instance ready with a stand-in client, touching neither the address bar nor
+ * site.json. Every `capture` on it passes through `cleanPostHogEvent` for that mode first, and the
+ * stand-in's own `capture` gets what that returns (nothing when it returns null). The anonymous
+ * stand-in first adds what posthog-js's cookieless capture adds, so its cleaning sees a real shape.
  * @param standIn - the stand-in; members left out do nothing.
- * @returns a function that turns PostHog off again.
+ * @param mode - the mode it stands in for; "shared" (the default) also marks sharing on.
+ * @returns a function that removes it again.
  */
-export function setPostHogClientForTests(standIn: Partial<PostHogClient>): () => void {
+export function setPostHogClientForTests(standIn: Partial<PostHogClient>, mode: TrackingMode = "shared"): () => void {
+    if (mode === "anonymous") {
+        const anonymous: Pick<PostHogClient, "capture"> = {
+            capture: (event, properties) => {
+                const built = {
+                    ...properties,
+                    $cookieless_mode: true,
+                    distinct_id: "$posthog_cookieless",
+                    $raw_user_agent: navigator.userAgent,
+                    $host: globalThis.location.host,
+                    $timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                };
+                const cleaned = cleanPostHogEvent({ uuid: "", event, properties: built }, "anonymous");
+                return cleaned === null ? undefined : standIn.capture?.(cleaned.event, cleaned.properties);
+            },
+        };
+        anonymousClient = anonymous;
+        flushBuffer("anonymous");
+        return () => {
+            if (anonymousClient === anonymous) {
+                anonymousClient = undefined;
+            }
+        };
+    }
     const noop = (): undefined => undefined;
     const wrapped: PostHogClient = {
         init: noop as unknown as PostHogClient["init"],
@@ -1312,6 +1493,7 @@ export function setPostHogClientForTests(standIn: Partial<PostHogClient>): () =>
     wanted = true;
     initialized = true;
     client = wrapped;
+    flushBuffer("shared");
     return () => {
         if (client === wrapped) {
             wanted = false;
@@ -1325,13 +1507,14 @@ export function setPostHogClientForTests(standIn: Partial<PostHogClient>): () =>
 export function resetAnalyticsForTests(): void {
     bootSearch = undefined;
     channel = undefined;
-    umamiWebsite = null;
-    umamiDisabled = false;
-    umamiSent.clear();
+    counting = false;
+    sentOnPage.clear();
     visit = undefined;
     wanted = false;
     initialized = false;
     client = undefined;
+    anonymousClient = undefined;
+    anonymousStarted = false;
     importing = undefined;
     stopWaitingForId();
     buffer.length = 0;

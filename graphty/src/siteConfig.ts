@@ -29,8 +29,6 @@ export interface SiteConfig {
 
 /** The analytics block of a `site.json` (design/graphty/usage-analytics.md, section 9). */
 export interface SiteAnalytics {
-    /** Umami website id (a UUID). */
-    readonly umamiWebsiteId?: string;
     /** PostHog project key ("phc_..."); it takes effect only with `posthogHost`. */
     readonly posthogKey?: string;
     /**
@@ -40,7 +38,6 @@ export interface SiteAnalytics {
     readonly posthogHost?: string;
 }
 
-const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const POSTHOG_KEY = /^phc_[A-Za-z0-9]+$/;
 /**
  * PostHog Cloud's EU ingest host, the one region public/privacy.html names. A pattern, not the
@@ -94,14 +91,14 @@ function parseAnalytics(value: unknown): SiteAnalytics | undefined {
         return undefined;
     }
     const block = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
-    const { umamiWebsiteId, posthogKey, posthogHost } = block;
+    // Only the known keys are read: a leftover key (an earlier vendor's id, say) is ignored.
+    const { posthogKey, posthogHost } = block;
     const fits = (field: unknown, pattern: RegExp): boolean =>
         field === undefined || (typeof field === "string" && pattern.test(field));
     const valid =
         typeof value === "object" &&
         value !== null &&
         !Array.isArray(value) &&
-        fits(umamiWebsiteId, UUID) &&
         fits(posthogKey, POSTHOG_KEY) &&
         fits(posthogHost, POSTHOG_HOST) &&
         // A key with no host would send nowhere the reader was told about.
@@ -110,9 +107,7 @@ function parseAnalytics(value: unknown): SiteAnalytics | undefined {
         console.warn("[graphty] site.json: the analytics block is invalid; analytics is off");
         return undefined;
     }
-    return Object.fromEntries(
-        Object.entries({ umamiWebsiteId, posthogKey, posthogHost }).filter(([, field]) => field !== undefined),
-    );
+    return Object.fromEntries(Object.entries({ posthogKey, posthogHost }).filter(([, field]) => field !== undefined));
 }
 
 /**

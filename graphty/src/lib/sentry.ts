@@ -82,8 +82,8 @@ function sendErrorReplayOnce(): void {
 }
 
 /**
- * Sentry's default integrations this page leaves out: release-health session pings (Umami and
- * PostHog count visits), console breadcrumbs (dropped anyway) and gen-AI conversation tagging (the
+ * Sentry's default integrations this page leaves out: release-health session pings (PostHog
+ * counts visits), console breadcrumbs (dropped anyway) and gen-AI conversation tagging (the
  * app sends none).
  */
 const DROPPED_INTEGRATIONS: ReadonlySet<string> = new Set(["BrowserSession", "Console", "ConversationId"]);

@@ -1,7 +1,7 @@
 /**
  * Usage counts for the layout form, a filter slider and timeline playback, on the REAL
- * graphty-element and by real input (design/graphty/usage-analytics.md, section 4.2). PostHog is a
- * recording stand-in behind `cleanPostHogEvent`; Umami is recorded through the analytics seam.
+ * graphty-element and by real input (design/graphty/usage-analytics.md, section 4.2). Each PostHog
+ * mode is a recording stand-in behind `cleanPostHogEvent`.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -17,18 +17,17 @@ import {
     setAnalyticsCallsForTests,
     setPostHogClientForTests,
     startPageCounts,
-    type UmamiBody,
 } from "../../../lib/analytics";
 import { columnVerb } from "../../../test/column-header";
 import { dragTo } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-const UMAMI = "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
-
-const umami: UmamiBody[] = [];
+/** What the anonymous mode's stand-in recorded, after cleaning. */
+const anonymous: Recorded[] = [];
 const posthog: { event: string; properties: Record<string, unknown> }[] = [];
 let undoPostHog: () => void = () => undefined;
 
@@ -103,17 +102,14 @@ describe("usage counts for layout, filters and the timeline on the real element"
     beforeEach(async () => {
         await page.viewport(1440, 900);
         resetAnalyticsForTests();
-        umami.length = 0;
+        anonymous.length = 0;
         posthog.length = 0;
         setAnalyticsCallsForTests({
-            send: (body) => {
-                umami.push(body);
-                return undefined;
-            },
             hostname: () => "graphty.app",
             privacySignals: () => ({ dnt: false, gpc: false }),
         });
-        startPageCounts({ site: "production", features: [], analytics: { umamiWebsiteId: UMAMI } });
+        recordInto(anonymous, "anonymous");
+        startPageCounts({ site: "production", features: [], analytics: TEST_ANALYTICS });
         undoPostHog = setPostHogClientForTests({
             capture: (event, properties) => {
                 posthog.push({ event, properties: { ...properties } });
@@ -143,10 +139,9 @@ describe("usage counts for layout, filters and the timeline on the real element"
             captured("layout_changed").map(({ layout, outcome }) => ({ layout, outcome })),
             [{ layout: "grid", outcome: "applied" }],
         );
-        assert.deepEqual(
-            umami.filter((body) => body.payload.name === "layout_changed").map((body) => body.payload.data),
-            [{ layout: "grid", outcome: "applied" }],
-        );
+        assert.deepEqual(firstOnPage([...anonymous, ...posthog], "layout_changed"), [
+            { layout: "grid", outcome: "applied" },
+        ]);
         assert.notInclude(
             captured("graph_action").map((each) => each.op),
             "layout.set",
@@ -165,7 +160,7 @@ describe("usage counts for layout, filters and the timeline on the real element"
         });
         assert.lengthOf(captured("layout_changed"), 1, "undo and redo are not layouts the reader applied");
         assert.lengthOf(captured("graph_action"), actionsAfterApply, "undo and redo send no graph action");
-        assert.notInclude(JSON.stringify({ umami, posthog }), "SECRET_GRAPH");
+        assert.notInclude(JSON.stringify({ anonymous, posthog }), "SECRET_GRAPH");
     });
 
     it("sends one graph action for a filter slider dragged by the reader", async () => {
@@ -240,6 +235,6 @@ describe("usage counts for layout, filters and the timeline on the real element"
             .map((each) => each.op);
         assert.notInclude(ops, "visibility.window");
         assert.notInclude(ops, "visibility.playback");
-        assert.notInclude(JSON.stringify({ umami, posthog }), "SECRET_MAIL");
+        assert.notInclude(JSON.stringify({ anonymous, posthog }), "SECRET_MAIL");
     });
 });

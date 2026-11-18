@@ -13,6 +13,13 @@ import { commands, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
 import {
+    interceptPostHog,
+    POSTHOG_TEST_CONFIG,
+    POSTHOG_TEST_HOST,
+    type PostHogTestNetwork,
+    sentEvents,
+} from "../test/posthog-network";
+import {
     count,
     postHog,
     resetAnalyticsForTests,
@@ -31,88 +38,24 @@ declare module "vitest/browser" {
 }
 
 const KEY = "phc_realchunktest";
-/** The sentinel ingest host: a same-origin prefix answered by the wrappers below. */
-const PREFIX = `${globalThis.location.origin}/__posthog_test__`;
+/** The sentinel ingest host. */
+const PREFIX = POSTHOG_TEST_HOST;
 const SECRETS = ["SECRET_URL", "SECRET_LOG", "SECRET_TEXT", "SECRET_PROJECT"];
 
+/** The wrappers answering the sentinel host, installed per case. */
+let network: PostHogTestNetwork;
 /** Every request body sent to the sentinel host, as text. */
 let bodies: string[] = [];
 /** Every URL requested on the sentinel host. */
 let urls: string[] = [];
 
 const address = globalThis.location.href;
-const realFetch = globalThis.fetch;
-const realSend = XMLHttpRequest.prototype.send;
-const realOpen = XMLHttpRequest.prototype.open;
-const realBeacon = navigator.sendBeacon.bind(navigator);
-
-/**
- * Reads a request body as text.
- * @param body - what the page sent.
- * @returns its text.
- */
-async function bodyText(body: unknown): Promise<string> {
-    if (body === null || body === undefined) {
-        return "";
-    }
-    if (typeof body === "string") {
-        return body;
-    }
-    if (body instanceof Blob) {
-        return body.text();
-    }
-    if (body instanceof URLSearchParams || body instanceof FormData) {
-        return new Response(body).text();
-    }
-    return JSON.stringify(body);
-}
-
-/** The canned remote config and flags: autocapture allowed, recording, surveys and the rest off. */
-const CONFIG = JSON.stringify({
-    flags: {},
-    featureFlags: {},
-    featureFlagPayloads: {},
-    errorsWhileComputingFlags: false,
-    autocapture_opt_out: false,
-    sessionRecording: false,
-    surveys: false,
-    heatmaps: false,
-    capturePerformance: false,
-    supportedCompression: [],
-});
-
-/**
- * The canned answer for a request to the sentinel host.
- * @param url - the request URL.
- * @returns the JSON body.
- */
-function answer(url: string): string {
-    return url.includes("/flags") || url.includes("/config") ? remoteConfig : JSON.stringify({ status: 1 });
-}
-
-/** The remote config answered now: {@link CONFIG}, or the replay case's. */
-let remoteConfig = CONFIG;
 
 /** The canned remote config with session recording on, sampled at 100%, no minimum duration. */
 const RECORDING_CONFIG = JSON.stringify({
-    ...(JSON.parse(CONFIG) as Record<string, unknown>),
+    ...(JSON.parse(POSTHOG_TEST_CONFIG) as Record<string, unknown>),
     sessionRecording: { endpoint: "/s/", sampleRate: null, minimumDurationMilliseconds: 0 },
 });
-
-/** The browser facts posthog-js reads to drop a bot's events; Playwright's browser reports itself as one. */
-const BOT_TELLS = ["userAgent", "webdriver", "userAgentData"] as const;
-
-/** Makes the test browser look like a reader's, so posthog-js does not drop every event as a bot's. */
-function looksHuman(): void {
-    const values = {
-        userAgent: navigator.userAgent.replace(/Headless/g, ""),
-        webdriver: false,
-        userAgentData: undefined,
-    };
-    for (const name of BOT_TELLS) {
-        Object.defineProperty(navigator, name, { configurable: true, get: () => values[name] });
-    }
-}
 
 /**
  * The recorded request bodies that carry a replay snapshot.
@@ -120,28 +63,6 @@ function looksHuman(): void {
  */
 function snapshots(): string {
     return bodies.filter((body) => body.includes("$snapshot")).join("\n");
-}
-
-/**
- * The events in recorded batch bodies: an `{ batch }` object or a bare array of events.
- * @param texts - the bodies.
- * @returns each event with its properties.
- */
-function capturedEvents(texts: readonly string[]): { event: string; properties: { $time?: number } }[] {
-    const events: { event: string; properties: { $time?: number } }[] = [];
-    for (const text of texts) {
-        let parsed: unknown;
-        try {
-            parsed = JSON.parse(text);
-        } catch {
-            continue;
-        }
-        const batch = Array.isArray(parsed) ? parsed : (parsed as { batch?: unknown }).batch;
-        if (Array.isArray(batch)) {
-            events.push(...(batch as { event: string; properties: { $time?: number } }[]));
-        }
-    }
-    return events;
 }
 
 /**
@@ -171,47 +92,9 @@ function markedButton(marker: string): HTMLButtonElement {
     return button;
 }
 
-/** Answers every request to the sentinel host here, recording its body. */
-function interceptRequests(): void {
-    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-        const url = input instanceof Request ? input.url : String(input);
-        if (!url.startsWith(PREFIX)) {
-            return realFetch(input, init);
-        }
-        urls.push(url);
-        bodies.push(await bodyText(init?.body ?? (input instanceof Request ? await input.text() : undefined)));
-        return new Response(answer(url), { status: 200, headers: { "Content-Type": "application/json" } });
-    };
-    const opened = new WeakMap<XMLHttpRequest, string>();
-    XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, ...args: unknown[]): void {
-        opened.set(this, String(args[1]));
-        (realOpen as (...a: unknown[]) => void).apply(this, args);
-    };
-    XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-        const url = opened.get(this) ?? "";
-        if (!url.startsWith(PREFIX)) {
-            realSend.call(this, body);
-            return;
-        }
-        urls.push(url);
-        void bodyText(body).then((text) => bodies.push(text));
-    };
-    navigator.sendBeacon = (url: string | URL, data?: BodyInit | null): boolean => {
-        if (!String(url).startsWith(PREFIX)) {
-            return realBeacon(url, data);
-        }
-        urls.push(String(url));
-        void bodyText(data).then((text) => bodies.push(text));
-        return true;
-    };
-}
-
 beforeEach(async () => {
     resetAnalyticsForTests();
     resetSiteConfig();
-    bodies = [];
-    urls = [];
-    remoteConfig = CONFIG;
     // The site first: it is read through fetch, which the wrappers below replace.
     const site = {
         site: "production",
@@ -219,19 +102,13 @@ beforeEach(async () => {
         analytics: { posthogKey: KEY, posthogHost: "https://eu.i.posthog.com" },
     };
     await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
-    setAnalyticsCallsForTests({ send: () => undefined, hostname: () => "graphty.app", posthogHost: PREFIX });
-    interceptRequests();
-    looksHuman();
+    setAnalyticsCallsForTests({ hostname: () => "graphty.app", posthogHost: PREFIX });
+    network = interceptPostHog();
+    ({ bodies, urls } = network);
 });
 
 afterEach(() => {
-    globalThis.fetch = realFetch;
-    XMLHttpRequest.prototype.send = realSend;
-    XMLHttpRequest.prototype.open = realOpen;
-    navigator.sendBeacon = realBeacon;
-    for (const name of BOT_TELLS) {
-        Reflect.deleteProperty(navigator, name);
-    }
+    network.restore();
     globalThis.history.replaceState(null, "", address);
     Reflect.deleteProperty(document, "referrer");
     document.body.replaceChildren();
@@ -248,6 +125,8 @@ describe("the real posthog-js chunk", () => {
         // The live sender's start: strip the address bar, then start PostHog.
         stripQueryForRecorders();
         startPostHog();
+        // The app's own page view, as startPageCounts counts it: posthog-js sends none of its own.
+        count("$pageview");
         await vi.waitFor(() => {
             assert.isDefined(postHog());
         });
@@ -269,6 +148,10 @@ describe("the real posthog-js chunk", () => {
         });
         const sent = bodies.join("\n");
         assert.include(sent, "history.undo", "the click carries its control id");
+        const views = sentEvents(bodies).filter((event) => event.event === "$pageview");
+        assert.lengthOf(views, 1, "the app's page view, and none of posthog-js's own");
+        assert.equal(views[0].properties.tracking, "shared");
+        assert.notProperty(views[0].properties, "$cookieless_mode");
         for (const secret of SECRETS) {
             assert.notInclude(sent, secret);
             assert.notInclude(urls.join("\n"), secret);
@@ -371,7 +254,7 @@ describe("the real posthog-js chunk", () => {
             assert.include(bodies.slice(from).join("\n"), "sample_loaded");
         });
 
-        const after = capturedEvents(bodies.slice(from)).filter((event) => (event.properties.$time ?? 0) >= restarted);
+        const after = sentEvents(bodies.slice(from)).filter((event) => (event.properties.$time ?? 0) >= restarted);
         assert.include(
             after.map((event) => event.event),
             "sample_loaded",
@@ -435,7 +318,6 @@ describe("the real posthog-js chunk", () => {
         resetAnalyticsForTests();
         const imports = vi.fn(() => import("posthog-js/full/no-external"));
         setAnalyticsCallsForTests({
-            send: () => undefined,
             hostname: () => "graphty.app",
             posthogHost: PREFIX,
             importPostHog: imports,
@@ -470,9 +352,8 @@ describe("the real posthog-js chunk", () => {
     // Last, on an instance of its own: posthog-js reads its remote config once, at init, and the
     // other cases share the default instance, which has recording off.
     it("records a masked replay: the kept class shows, no reader text, query, picked file or JSON-LD does", async () => {
-        remoteConfig = RECORDING_CONFIG;
+        network.setRemoteConfig(RECORDING_CONFIG);
         setAnalyticsCallsForTests({
-            send: () => undefined,
             hostname: () => "graphty.app",
             posthogHost: PREFIX,
             importPostHog: async () => {

@@ -19,14 +19,14 @@ import {
     setAnalyticsCallsForTests,
     setPostHogClientForTests,
     startPageCounts,
-    type UmamiBody,
 } from "../../../lib/analytics";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** What Umami was sent. */
-const umami: UmamiBody[] = [];
+/** What the anonymous mode's stand-in recorded, after cleaning. */
+const anonymous: Recorded[] = [];
 /** What reached the PostHog stand-in, after cleaning. */
 const posthog: { event: string; properties: Record<string, unknown> }[] = [];
 let undoPostHog: () => void = () => undefined;
@@ -34,11 +34,12 @@ let undoPostHog: () => void = () => undefined;
 /**
  * The events of one name each recorder got.
  * @param name - the event name.
- * @returns Umami's payload data and PostHog's properties.
+ * @returns the own properties of its first occurrence on the page (in either mode), and every
+ * properties the shared mode's stand-in got.
  */
-function sent(name: string): { umami: unknown[]; posthog: Record<string, unknown>[] } {
+function sent(name: string): { counted: unknown[]; posthog: Record<string, unknown>[] } {
     return {
-        umami: umami.filter((body) => body.payload.name === name).map((body) => body.payload.data),
+        counted: firstOnPage([...anonymous, ...posthog], name),
         posthog: posthog.filter((each) => each.event === name).map((each) => each.properties),
     };
 }
@@ -121,20 +122,17 @@ describe("usage counts from Analyze", () => {
         // Wide enough that the canvas and its toolbar show beside the panels, as on a desktop.
         await page.viewport(1440, 900);
         resetAnalyticsForTests();
-        umami.length = 0;
+        anonymous.length = 0;
         posthog.length = 0;
         setAnalyticsCallsForTests({
-            send: (body) => {
-                umami.push(body);
-                return undefined;
-            },
             hostname: () => "graphty.app",
             privacySignals: () => ({ dnt: false, gpc: false }),
         });
+        recordInto(anonymous, "anonymous");
         startPageCounts({
             site: "production",
             features: [],
-            analytics: { umamiWebsiteId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+            analytics: TEST_ANALYTICS,
         });
         undoPostHog = setPostHogClientForTests({
             capture: (event, properties) => {
@@ -164,7 +162,7 @@ describe("usage counts from Analyze", () => {
         const ran = next("algorithm_run");
         await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
         assert.deepEqual({ ...(await ran) }, { algorithm: "pagerank", outcome: "succeeded" });
-        assert.deepEqual(sent("algorithm_run").umami, [{ algorithm: "pagerank", outcome: "succeeded" }]);
+        assert.deepEqual(sent("algorithm_run").counted, [{ algorithm: "pagerank", outcome: "succeeded" }]);
         assert.lengthOf(sent("algorithm_run").posthog, 1);
 
         const actionsBefore = sent("graph_action").posthog.length;
@@ -213,9 +211,9 @@ describe("usage counts from Analyze", () => {
             ["history.undo", "history.undo", "history.redo", "history.redo"],
             "each Undo and Redo counted once, from its button or its keys",
         );
-        // Umami never hears of graph actions or commands.
-        assert.isEmpty(sent("graph_action").umami);
-        assert.isEmpty(sent("command_run").umami);
+        // Graph actions and commands are shared-mode only, never first-on-page counts.
+        assert.isEmpty(sent("graph_action").counted);
+        assert.isEmpty(sent("command_run").counted);
     });
 
     it("counts a run that fails by its catalog key and the element's error code", async () => {
@@ -235,7 +233,7 @@ describe("usage counts from Analyze", () => {
         const code = run?.error?.code;
         assert.match(String(code), /^E_/, "the element reports a coded failure");
         assert.deepEqual({ ...props }, { algorithm: "katz", outcome: "failed", code });
-        assert.deepEqual(sent("algorithm_run").umami, [{ algorithm: "katz", outcome: "failed", code }]);
+        assert.deepEqual(sent("algorithm_run").counted, [{ algorithm: "katz", outcome: "failed", code }]);
         assert.lengthOf(sent("algorithm_run").posthog, 1);
         assert.isEmpty(sent("graph_action").posthog.filter((each) => each.op === "style.encode"));
     });

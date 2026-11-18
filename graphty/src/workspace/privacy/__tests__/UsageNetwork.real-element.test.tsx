@@ -1,10 +1,11 @@
 /**
  * What leaves the page for a reader who never shares usage data, with the REAL graphty-element and
- * the app's own analytics wiring (design/graphty/usage-analytics.md, section 11): PostHog is
- * configured, but its code is never loaded and no request reaches a PostHog or Sentry host; Umami
- * gets its anonymous counts, and none carries the address bar's secret, a file's name or a label.
- * Every request the browser makes off the test server is listed by the `watchOffOriginRequests`
- * command, a listener that leaves the HTTP cache alone.
+ * the app's own analytics wiring (design/graphty/usage-analytics.md, section 11): PostHog's real code
+ * loads once after first paint and sends only its anonymous, cookieless counts, none carrying the
+ * address bar's secret, a file's name or a label; Sentry never starts. PostHog's ingest host is a
+ * same-origin prefix answered by the test's own wrappers, and every request the browser makes off
+ * the test server is listed by the `watchOffOriginRequests` command, a listener that leaves the HTTP
+ * cache alone.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -21,11 +22,17 @@ import {
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
     startAnalyticsAtBoot,
-    type UmamiBody,
 } from "../../../lib/analytics";
 import { resetSentryState, type SentryCalls, setSentryCallsForTests } from "../../../lib/sentry";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import {
+    interceptPostHog,
+    POSTHOG_TEST_HOST,
+    type PostHogTestNetwork,
+    sentEvents,
+} from "../../../test/posthog-network";
 import { render, screen, within } from "../../../test/test-utils";
+import { TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -37,11 +44,10 @@ const watch = commands as unknown as {
     takeOffOriginRequests: () => Promise<string[]>;
 };
 
-const UMAMI = "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
 const SECRETS = ["SECRET_URL", "SECRET_GENES", "TP53", "SECRET_PROJECT"];
 
-/** What Umami was sent. */
-const umami: UmamiBody[] = [];
+/** The wrappers answering PostHog's sentinel host, installed per case. */
+let network: PostHogTestNetwork;
 /** How often PostHog's code was asked for. */
 let imports = 0;
 /** How often Sentry was started. */
@@ -91,15 +97,15 @@ async function secretFile(): Promise<File> {
 }
 
 /**
- * Boots analytics as main.tsx does, for a site with Umami and PostHog configured, from an address
- * that carries a secret, then shows the workspace's start page.
+ * Boots analytics as main.tsx does, for a site with PostHog configured, from an address that
+ * carries a secret, then shows the workspace's start page.
  */
 async function boot(): Promise<void> {
     globalThis.history.replaceState(null, "", "?url=https://SECRET_URL.example/SECRET_URL.csv&ref=hn");
     const site = {
         site: "production",
         features: [],
-        analytics: { umamiWebsiteId: UMAMI, posthogKey: "phc_testkey123", posthogHost: "https://eu.i.posthog.com" },
+        analytics: TEST_ANALYTICS,
     };
     startAnalyticsAtBoot(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`));
     render(<Workspace store={createWorkspaceStore()} />);
@@ -107,7 +113,7 @@ async function boot(): Promise<void> {
 
 /**
  * Opens the secret file from the start page and runs a measure in it, through the reader's drop and
- * the session, and waits until Umami has counted both.
+ * the session, and waits until both were counted.
  */
 async function useTheApp(): Promise<void> {
     const opened = next("own_file_opened");
@@ -122,37 +128,56 @@ async function useTheApp(): Promise<void> {
 }
 
 /**
- * Asserts what left the page: no PostHog code loaded, no PostHog or Sentry request, and Umami's
- * counts free of every secret.
+ * Waits until PostHog was sent an event of a name.
+ * @param name - the event name.
+ * @returns its properties.
+ */
+async function sentToPostHog(name: string): Promise<Record<string, unknown>> {
+    return vi.waitFor(() => {
+        const found = sentEvents(network.bodies).find((event) => event.event === name);
+        assert.isDefined(found, `${name} left the page`);
+        return found.properties;
+    });
+}
+
+/**
+ * Asserts what left the page: PostHog's code loaded once, only anonymous counts sent to it, free of
+ * every secret, and no request to Sentry or off the page to PostHog.
  */
 async function assertOnlyAnonymousCounts(): Promise<void> {
+    // Not vacuous: the counts were sent.
+    for (const name of ["$pageview", "own_file_opened", "algorithm_run"]) {
+        await sentToPostHog(name);
+    }
     const offOrigin = await watch.takeOffOriginRequests();
-    assert.strictEqual(imports, 0, "PostHog's code was never loaded");
+    assert.strictEqual(imports, 1, "PostHog's code loaded once, after first paint");
     assert.strictEqual(sentryStarts, 0, "Sentry never started");
     assert.isEmpty(
         offOrigin.filter((url) => /posthog|sentry/i.test(url)),
         "no request reached a PostHog or Sentry host",
     );
-    const names = umami.map((body) => body.payload.name ?? "pageview");
-    // Not vacuous: the counts were sent.
-    for (const name of ["pageview", "own_file_opened", "algorithm_run"]) {
-        assert.include(names, name);
+    for (const url of network.urls) {
+        assert.match(url, /\/e\/(\?|$)/, "PostHog was sent events only");
     }
-    const all = JSON.stringify({ umami, offOrigin });
+    for (const event of sentEvents(network.bodies)) {
+        assert.include(event.properties, { $cookieless_mode: true, tracking: "anonymous" }, event.event);
+    }
+    const all = JSON.stringify({ bodies: network.bodies, urls: network.urls, offOrigin });
     for (const secret of SECRETS) {
         assert.notInclude(all, secret);
     }
 }
 
 /**
- * The analytics seams these cases use: Umami recorded, PostHog's real code counted as it loads.
+ * The analytics seams these cases use: PostHog's real code, counted as it loads, sending to the
+ * sentinel host, and a first paint that has already happened.
  * @returns them.
  */
 function recordingCalls(): Partial<AnalyticsCalls> {
     return {
-        send: (body) => {
-            umami.push(body);
-            return undefined;
+        posthogHost: POSTHOG_TEST_HOST,
+        afterFirstPaint: (run) => {
+            run();
         },
         hostname: () => "graphty.app",
         privacySignals: () => ({ dnt: false, gpc: false }),
@@ -168,7 +193,6 @@ describe("a reader who never shares usage data", () => {
         resetAnalyticsForTests();
         resetSiteConfig();
         forgetUsageAnswer();
-        umami.length = 0;
         imports = 0;
         sentryStarts = 0;
         setAnalyticsCallsForTests(recordingCalls());
@@ -179,9 +203,11 @@ describe("a reader who never shares usage data", () => {
             defaultConfig: { dsn: "https://public@o0.ingest.sentry.io/0" },
         } as unknown as Partial<SentryCalls>);
         await watch.watchOffOriginRequests();
+        network = interceptPostHog();
     });
 
     afterEach(() => {
+        network.restore();
         globalThis.history.replaceState(null, "", address);
         forgetUsageAnswer();
         resetAnalyticsForTests();
@@ -191,31 +217,26 @@ describe("a reader who never shares usage data", () => {
         setSentryCallsForTests();
     });
 
-    it("sends PostHog and Sentry nothing after No thanks, and Umami no secret", async () => {
+    it("sends PostHog only anonymous counts and Sentry nothing after No thanks, with no secret", async () => {
         await boot();
         const card = screen.getByRole("complementary", { name: "Usage data" });
         await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
         await useTheApp();
         await assertOnlyAnonymousCounts();
         assert.notInclude(
-            umami.map((body) => body.payload.name),
+            sentEvents(network.bodies).map((event) => event.event),
             "usage_data_shared",
         );
     });
 
-    it("sends PostHog and Sentry nothing while the question is unanswered, and Umami no secret", async () => {
+    it("sends PostHog only anonymous counts and Sentry nothing while the question is unanswered", async () => {
         await boot();
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await useTheApp();
         await assertOnlyAnonymousCounts();
     });
 
-    it("stops PostHog for good when Share is turned off in Settings: opted out, no id kept, nothing captured", async () => {
-        // PostHog's requests go to this server, never off the page's origin.
-        setAnalyticsCallsForTests({
-            ...recordingCalls(),
-            posthogHost: `${globalThis.location.origin}/__posthog_never__`,
-        });
+    it("returns to anonymous counts for good when Share is turned off in Settings: opted out, no id kept", async () => {
         await boot();
         const card = screen.getByRole("complementary", { name: "Usage data" });
         await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
@@ -223,7 +244,7 @@ describe("a reader who never shares usage data", () => {
             assert.isDefined(postHog(), "Share loaded PostHog");
         });
         const client = postHog() as unknown as PostHog;
-        assert.strictEqual(imports, 1);
+        assert.strictEqual(imports, 1, "Share reused the chunk loaded after first paint");
 
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
@@ -243,9 +264,11 @@ describe("a reader who never shares usage data", () => {
         const capture = vi.spyOn(client, "capture");
         await userEvent.keyboard("{Escape}");
         await useTheApp();
+        // The barrier: the run's count left in the anonymous mode.
+        assert.include(await sentToPostHog("algorithm_run"), { $cookieless_mode: true, tracking: "anonymous" });
         assert.isTrue(
             capture.mock.results.every((result) => result.type === "return" && result.value === undefined),
-            "nothing was captured after Share was turned off",
+            "nothing was captured in the shared mode after Share was turned off",
         );
         const offOrigin = await watch.takeOffOriginRequests();
         assert.isEmpty(offOrigin.filter((url) => /posthog/i.test(url)));

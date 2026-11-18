@@ -1,7 +1,7 @@
 /**
  * Usage counts from the REAL graphty-element (design/graphty/usage-analytics.md, sections 4.1 and
- * 4.2). Umami's sends are recorded through the analytics seam with graphty.app as the host, and
- * PostHog is on with a recording stand-in whose captures pass through `cleanPostHogEvent`. Each case
+ * 4.2). graphty.app is the host through the analytics seam, and each PostHog mode is a recording
+ * stand-in whose captures pass through `cleanPostHogEvent`. Each case
  * waits on the event that proves its work finished, then checks both recorders and that no
  * recorded payload carries the case's sentinels.
  */
@@ -20,21 +20,20 @@ import {
     setAnalyticsCallsForTests,
     setPostHogClientForTests,
     startPageCounts,
-    type UmamiBody,
 } from "../../../lib/analytics";
 import { openSampleFromStart } from "../../../test/open";
 import { dragAcross, wheelOver } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { clearRecent } from "../../project/recent";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-const UMAMI = "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
 const VISITS = "graphty.visits.v1";
 
-/** What Umami was sent. */
-const umami: UmamiBody[] = [];
+/** What the anonymous mode's stand-in recorded, after cleaning. */
+const anonymous: Recorded[] = [];
 /** What reached the PostHog stand-in, after cleaning. */
 const posthog: { event: string; properties: Record<string, unknown> }[] = [];
 let undoPostHog: () => void = () => undefined;
@@ -42,11 +41,12 @@ let undoPostHog: () => void = () => undefined;
 /**
  * The events of one name each recorder got.
  * @param name - the event name.
- * @returns Umami's payload data and PostHog's properties.
+ * @returns the own properties of its first occurrence on the page (in either mode), and every
+ * properties the shared mode's stand-in got.
  */
-function sent(name: string): { umami: unknown[]; posthog: Record<string, unknown>[] } {
+function sent(name: string): { counted: unknown[]; posthog: Record<string, unknown>[] } {
     return {
-        umami: umami.filter((body) => body.payload.name === name).map((body) => body.payload.data),
+        counted: firstOnPage([...anonymous, ...posthog], name),
         posthog: posthog.filter((each) => each.event === name).map((each) => each.properties),
     };
 }
@@ -72,7 +72,7 @@ function next(name: string): Promise<Readonly<Record<string, unknown>>> {
  * @param sentinels - text that must never be sent.
  */
 function sendsNone(...sentinels: string[]): void {
-    const all = JSON.stringify({ umami, posthog });
+    const all = JSON.stringify({ anonymous, posthog });
     for (const sentinel of sentinels) {
         assert.notInclude(all, sentinel);
     }
@@ -191,17 +191,14 @@ describe("usage counts from the real element", () => {
         // Wide enough that the canvas and its toolbar show beside the panels, as on a desktop.
         await page.viewport(1440, 900);
         resetAnalyticsForTests();
-        umami.length = 0;
+        anonymous.length = 0;
         posthog.length = 0;
         setAnalyticsCallsForTests({
-            send: (body) => {
-                umami.push(body);
-                return undefined;
-            },
             hostname: () => "graphty.app",
             privacySignals: () => ({ dnt: false, gpc: false }),
         });
-        startPageCounts({ site: "production", features: [], analytics: { umamiWebsiteId: UMAMI } });
+        recordInto(anonymous, "anonymous");
+        startPageCounts({ site: "production", features: [], analytics: TEST_ANALYTICS });
         undoPostHog = setPostHogClientForTests({
             capture: (event, properties) => {
                 posthog.push({ event, properties: { ...properties } });
@@ -238,7 +235,7 @@ describe("usage counts from the real element", () => {
         assert.strictEqual(session.config.name, "Les Miserables");
         assert.notInclude(actionOps(), "config.set");
         const loaded = sent("sample_loaded");
-        assert.deepEqual(loaded.umami, [{ sample: "les-miserables" }]);
+        assert.deepEqual(loaded.counted, [{ sample: "les-miserables" }]);
         assert.lengthOf(loaded.posthog, 1);
         assert.strictEqual(loaded.posthog[0].sample, "les-miserables");
         assert.isEmpty(sent("own_file_opened").posthog);
@@ -251,7 +248,7 @@ describe("usage counts from the real element", () => {
         const opened = next("own_file_opened");
         drop(await fixtureAs("people.csv", "secret-PATIENT-ids.csv"));
         assert.deepEqual({ ...(await opened) }, { format: "csv", via: "file" });
-        assert.deepEqual(sent("own_file_opened").umami, [{ format: "csv", via: "file" }]);
+        assert.deepEqual(sent("own_file_opened").counted, [{ format: "csv", via: "file" }]);
         assert.isEmpty(sent("sample_loaded").posthog);
         sendsNone("secret", "PATIENT", "people");
     });
@@ -290,7 +287,7 @@ describe("usage counts from the real element", () => {
         const ran = next("algorithm_run");
         await session.runs.start("degree", {});
         assert.deepEqual({ ...(await ran) }, { algorithm: "degree", outcome: "succeeded" });
-        assert.deepEqual(sent("algorithm_run").umami, [{ algorithm: "degree", outcome: "succeeded" }]);
+        assert.deepEqual(sent("algorithm_run").counted, [{ algorithm: "degree", outcome: "succeeded" }]);
         sendsNone("SECRET_GENES", "TP53");
     });
 
@@ -406,7 +403,7 @@ describe("usage counts from the real element", () => {
         await session.runs.start("degree", {});
         const { text } = await session.project.save();
 
-        umami.length = 0;
+        anonymous.length = 0;
         posthog.length = 0;
         const members: JournalEntry[] = [];
         const off = session.on("journal:appended", ({ entry }) => {
@@ -422,7 +419,7 @@ describe("usage counts from the real element", () => {
         assert.isNotEmpty(session.runs.list(), "the project file holds a run");
         for (const name of ["graph_action", "own_file_opened", "sample_loaded", "nodes_dragged", "algorithm_run"]) {
             assert.isEmpty(sent(name).posthog, `${name} from a project open`);
-            assert.isEmpty(sent(name).umami, `${name} from a project open`);
+            assert.isEmpty(sent(name).counted, `${name} from a project open`);
         }
         sendsNone("SECRET_NOTE_TEXT", "SECRET_GENES");
     });
@@ -472,7 +469,7 @@ describe("usage counts from the real element", () => {
         });
         off();
         assert.lengthOf(sent("algorithm_run").posthog, 1);
-        assert.lengthOf(sent("algorithm_run").umami, 1);
+        assert.lengthOf(sent("algorithm_run").counted, 1);
         sendsNone("SECRET_MAIL");
     });
 
@@ -505,8 +502,8 @@ describe("usage counts from the real element", () => {
             sent("camera_used").posthog.map(({ kind }) => ({ kind })),
             [{ kind: "zoom" }],
         );
-        assert.isEmpty(sent("canvas_selected").umami);
-        assert.isEmpty(sent("camera_used").umami);
+        assert.isEmpty(sent("canvas_selected").counted);
+        assert.isEmpty(sent("camera_used").counted);
         sendsNone("SECRET_GENES", "TP53");
     });
 
@@ -544,8 +541,8 @@ describe("usage counts from the real element", () => {
         assert.lengthOf(actionOps(), actionsBefore, "an undo is not a new graph action");
 
         assert.lengthOf(sent("nodes_dragged").posthog, 1);
-        assert.isEmpty(sent("nodes_dragged").umami);
-        assert.isEmpty(sent("camera_used").umami);
+        assert.isEmpty(sent("nodes_dragged").counted);
+        assert.isEmpty(sent("camera_used").counted);
         sendsNone("SECRET_GENES", "TP53", String(first.id));
     });
 
@@ -557,7 +554,7 @@ describe("usage counts from the real element", () => {
         const changed = next("layout_changed");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         assert.deepEqual({ ...(await changed) }, { layout: "grid", outcome: "applied" });
-        assert.deepEqual(sent("layout_changed").umami, [{ layout: "grid", outcome: "applied" }]);
+        assert.deepEqual(sent("layout_changed").counted, [{ layout: "grid", outcome: "applied" }]);
     });
 
     it("counts each export pressed exactly once, by kind, format and destination only", async () => {
@@ -597,9 +594,9 @@ describe("usage counts from the real element", () => {
             assert.lengthOf(downloads, 3);
         });
 
-        // One event per file saved, on both recorders' PostHog side; Umami counts the name once.
+        // One event per file saved, in the shared mode; the first one is first on the page.
         assert.lengthOf(sent("export_done").posthog, downloads.length);
-        assert.lengthOf(sent("export_done").umami, 1);
+        assert.lengthOf(sent("export_done").counted, 1);
         sendsNone("SECRET_PROJECT", "SECRET_GENES");
     });
 
@@ -640,7 +637,7 @@ describe("usage counts from the real element", () => {
         assert.notInclude(actionOps().slice(actionsBefore), "config.set");
         // The open set the place and page itself: no panel the reader opened.
         assert.lengthOf(sent("panel_opened").posthog, panelsBefore);
-        assert.isEmpty(sent("project_reopened").umami);
+        assert.isEmpty(sent("project_reopened").counted);
         assert.lengthOf(sent("own_file_opened").posthog, 2, "the TSV and the dropped project file, not the reopen");
         sendsNone("SECRET_PROJECT_FILE", "SECRET_LAYER", "SECRET_GENES", "SECRET_SAVED");
     });
@@ -653,9 +650,9 @@ describe("usage counts from the real element", () => {
         await userEvent.click(button);
         assert.deepEqual({ ...(await panel) }, { panel: "settings" });
         assert.deepEqual(sent("command_run").posthog.at(-1)?.command, "settings.open");
-        // PostHog only: Umami never hears of commands or panels.
-        assert.isEmpty(sent("command_run").umami);
-        assert.isEmpty(sent("panel_opened").umami);
+        // Shared mode only: commands and panels are never counted for the whole audience.
+        assert.isEmpty(sent("command_run").counted);
+        assert.isEmpty(sent("panel_opened").counted);
         sendsNone("Untitled");
     });
 });

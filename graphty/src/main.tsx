@@ -16,8 +16,9 @@ import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
 
 // Analytics start once the site's site.json (fetched first, before the element) has given its ids:
-// anonymous counts for every visitor, and PostHog and error reporting for a reader who said Share
-// usage data, on this visit or an earlier one (lib/analytics.ts startAnalyticsAtBoot). Anything
+// PostHog's anonymous counts for every visitor (its code loads after first paint), and PostHog's
+// shared mode and error reporting for a reader who said Share usage data, on this visit or an
+// earlier one (lib/analytics.ts startAnalyticsAtBoot). Anything
 // that reads the query after boot reads bootQuery(): Share removes the query from the address bar.
 void loadSiteConfig().then(startAnalyticsAtBoot); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the fetch
 

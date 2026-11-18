@@ -3,8 +3,8 @@
  * sections 4.1 and 4.2): a network example from the start screen, this tab's work coming back after a
  * reload (an autosave restore, or opening it again when nothing was written), a graphty document that is
  * not a project, the Export dialog's choices, and the use case a survey answer adds to later PostHog
- * events. Umami's sends are recorded through the analytics seam with graphty.app as the host, and
- * PostHog is on with a recording stand-in whose captures pass through `cleanPostHogEvent`.
+ * events. graphty.app is the host through the analytics seam, and each PostHog mode is a recording
+ * stand-in whose captures pass through `cleanPostHogEvent`.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -22,12 +22,12 @@ import {
     setPostHogClientForTests,
     startPageCounts,
     SURVEYS_KEY,
-    type UmamiBody,
 } from "../../../lib/analytics";
 import { openBy } from "../../../test/open";
 import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { clearRecent } from "../../project/recent";
 // What www.ndexbio.org answered for WikiPathways WP5483 (graph-io's scripts/record-ndex.ts).
 import ndexRecordings from "../../server/__tests__/ndex-wp5483.json";
@@ -35,14 +35,13 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { USE_CASE_CHOICES, USE_CASE_SURVEY } from "./surveyFixtures";
 
-const UMAMI = "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
 const VISITS = "graphty.visits.v1";
 const NDEX = "https://www.ndexbio.org";
 /** The loads a reader's own opening sends, which a reopen of this tab's work never does. */
 const LOAD_EVENTS = ["own_file_opened", "sample_loaded", "algorithm_run", "graph_action"];
 
-/** What Umami was sent. */
-const umami: UmamiBody[] = [];
+/** What the anonymous mode's stand-in recorded, after cleaning. */
+const anonymous: Recorded[] = [];
 /** What reached the PostHog stand-in, after cleaning. */
 const posthog: { event: string; properties: Record<string, unknown> }[] = [];
 /** The surveys the stand-in offers. */
@@ -52,18 +51,19 @@ let undoPostHog: () => void = () => undefined;
 /**
  * The events of one name each recorder got.
  * @param name - the event name.
- * @returns Umami's payload data and PostHog's properties.
+ * @returns the own properties of its first occurrence on the page (in either mode), and every
+ * properties the shared mode's stand-in got.
  */
-function sent(name: string): { umami: unknown[]; posthog: Record<string, unknown>[] } {
+function sent(name: string): { counted: unknown[]; posthog: Record<string, unknown>[] } {
     return {
-        umami: umami.filter((body) => body.payload.name === name).map((body) => body.payload.data),
+        counted: firstOnPage([...anonymous, ...posthog], name),
         posthog: posthog.filter((each) => each.event === name).map((each) => each.properties),
     };
 }
 
 /** Forgets what both recorders got so far. */
 function forgetSent(): void {
-    umami.length = 0;
+    anonymous.length = 0;
     posthog.length = 0;
 }
 
@@ -119,7 +119,7 @@ function openedSession(): GraphSession {
 function sentNoLoads(why: string): void {
     for (const name of LOAD_EVENTS) {
         assert.isEmpty(sent(name).posthog, `${name} from ${why}`);
-        assert.isEmpty(sent(name).umami, `${name} from ${why}`);
+        assert.isEmpty(sent(name).counted, `${name} from ${why}`);
     }
 }
 
@@ -147,14 +147,11 @@ describe("usage counts when a project opens", () => {
         forgetSent();
         surveys = [];
         setAnalyticsCallsForTests({
-            send: (body) => {
-                umami.push(body);
-                return undefined;
-            },
             hostname: () => "graphty.app",
             privacySignals: () => ({ dnt: false, gpc: false }),
         });
-        startPageCounts({ site: "production", features: [], analytics: { umamiWebsiteId: UMAMI } });
+        recordInto(anonymous, "anonymous");
+        startPageCounts({ site: "production", features: [], analytics: TEST_ANALYTICS });
         undoPostHog = setPostHogClientForTests({
             getActiveMatchingSurveys: (callback) => {
                 callback(surveys);
@@ -190,7 +187,7 @@ describe("usage counts when a project opens", () => {
         const loaded = next("sample_loaded");
         await openBy(store, () => userEvent.click(tile));
         assert.deepEqual({ ...(await loaded) }, { sample: "ndex-wp5483" });
-        assert.deepEqual(sent("sample_loaded").umami, [{ sample: "ndex-wp5483" }]);
+        assert.deepEqual(sent("sample_loaded").counted, [{ sample: "ndex-wp5483" }]);
         assert.deepEqual(
             sent("sample_loaded").posthog.map(({ sample }) => sample),
             ["ndex-wp5483"],
@@ -218,7 +215,7 @@ describe("usage counts when a project opens", () => {
             "the layer came back",
         );
         sentNoLoads("an autosave restore");
-        assert.notInclude(JSON.stringify([umami, posthog]), "SECRET_LAYER");
+        assert.notInclude(JSON.stringify([anonymous, posthog]), "SECRET_LAYER");
     });
 
     it("sends no load when this tab's project is opened again because nothing of it was kept", async () => {
@@ -275,11 +272,11 @@ describe("usage counts when a project opens", () => {
         assert.deepEqual({ ...(await own) }, { format: "graphty", via: "file" });
         // Not vacuous: the document's graph is in (it is counted once the element's open returned).
         assert.isAbove(openedSession().data.statistics().nodeCount, 0);
-        assert.deepEqual(sent("own_file_opened").umami, [{ format: "graphty", via: "file" }]);
+        assert.deepEqual(sent("own_file_opened").counted, [{ format: "graphty", via: "file" }]);
         assert.lengthOf(sent("own_file_opened").posthog, 1);
         assert.isEmpty(sent("sample_loaded").posthog);
         assert.isEmpty(sent("graph_action").posthog, "the document's own entries are not the reader's");
-        assert.notInclude(JSON.stringify({ umami, posthog }), "SECRET_DOC");
+        assert.notInclude(JSON.stringify({ anonymous, posthog }), "SECRET_DOC");
     });
 
     it("sends no export for the Export dialog's choices, and exactly one for one press of Export", async () => {
@@ -306,7 +303,7 @@ describe("usage counts when a project opens", () => {
             });
         }
         assert.isEmpty(sent("export_done").posthog, "a choice is not an export");
-        assert.isEmpty(sent("export_done").umami, "a choice is not an export");
+        assert.isEmpty(sent("export_done").counted, "a choice is not an export");
         assert.isEmpty(downloads);
 
         const exported = next("export_done");
@@ -316,7 +313,7 @@ describe("usage counts when a project opens", () => {
             assert.lengthOf(downloads, 1);
         });
         assert.lengthOf(sent("export_done").posthog, 1);
-        assert.deepEqual(sent("export_done").umami, [{ kind: "graph", format: "graphml", destination: "download" }]);
+        assert.deepEqual(sent("export_done").counted, [{ kind: "graph", format: "graphml", destination: "download" }]);
     });
 
     it("adds the reader's use case to PostHog events after the survey is answered, never before", async () => {
@@ -360,7 +357,7 @@ describe("usage counts when a project opens", () => {
         for (const each of later) {
             assert.strictEqual(each.properties.use_case, "make-a-figure-for-a-paper-or-talk", each.event);
         }
-        // Umami never hears of the use case.
-        assert.notInclude(JSON.stringify(umami), "use_case");
+        // The anonymous mode never carries the use case.
+        assert.notInclude(JSON.stringify(anonymous), "use_case");
     });
 });

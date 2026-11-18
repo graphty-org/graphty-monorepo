@@ -4,7 +4,6 @@ import "../../src/graphty-element";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { doubleClickNode, holds } from "../assertions";
 import { loadRecordedSeed, PEOPLE_SEED } from "../fixtures/expand/source";
@@ -58,13 +57,13 @@ function render(): HTMLElement {
         element,
         (async () => {
             await element.updateComplete;
-            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForSettled();
             element.layoutBehavior = { expand: { trigger: "double-click" } };
             await element.session.styles.add(MORE_TO_FETCH_LAYER);
             await loadRecordedSeed(element.session, "recorded", { position: { x: 0, y: 0, z: 0 } });
-            await element.graph.setLayout("fixed", { dim: 2 });
+            await element.setLayout("fixed", { dim: 2 });
             await element.setViewMode("2d");
-            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForSettled();
             // One view for before and after: a lone seed framed to fit would fill the screen.
             element.autoFrame = false;
             await element.setCameraState({ zoom: 0.4, pan: { x: 0, y: 0 } });

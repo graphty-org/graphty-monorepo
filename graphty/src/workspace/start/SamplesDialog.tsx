@@ -1,15 +1,14 @@
 import { SearchInput } from "@graphty/compact-mantine";
 import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Chip, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useState, useSyncExternalStore } from "react";
+import React, { useState } from "react";
 
-import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { unlessUnsaved } from "../project/actions";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
-import { countWords, isLarge } from "./library";
+import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import {
     addGraph,
@@ -31,7 +30,6 @@ import {
     offeredTiles,
     type SampleCardData,
 } from "./sampleLibrary";
-import { JOIN_WALKS, PROTOTYPE_SAMPLES, type PrototypeSample, sampleName, sampleUrl } from "./samples";
 
 /** Where a picked sample goes: into this project (the {@link addSource} rule), or a new project. */
 type Target = "add" | "separate";
@@ -123,19 +121,6 @@ function bringNetwork(ctx: CommandContext, tile: NetworkTile, target: Target): v
 }
 
 /**
- * A fixture file's size: "60 nodes, 120 edges" where it draws them alone, else "120 rows".
- * @param sample - the fixture.
- * @returns the words.
- */
-function fileSize(sample: PrototypeSample): string {
-    const counts = [
-        sample.nodes === undefined ? undefined : `${countWords(sample.nodes)} nodes`,
-        sample.edges === undefined ? undefined : `${countWords(sample.edges)} edges`,
-    ].filter((each) => each !== undefined);
-    return counts.length === 0 ? `${countWords(sample.rows)} rows` : counts.join(", ");
-}
-
-/**
  * One of the start page's library tiles as a card of the dialog, under Samples or Generated.
  * @param ctx - the command context.
  * @param tile - the tile.
@@ -164,46 +149,16 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
 }
 
 /**
- * Every sample, once: the data prototype's fixture files by subject, then the start page's whole
- * library in its order (the app's own graphs and graph-samples' datasets the element opens, one
- * network sample of each kind of network source, and graph-samples' generators).
+ * Every sample, once: the start page's whole library in its order (the app's own graphs and
+ * graph-samples' datasets the element opens, one network sample of each kind of network source,
+ * and graph-samples' generators), read from the same list the start page reads, so the two cannot
+ * differ.
  * @param ctx - the command context.
- * @param timeline - whether the timeline experiment is on.
  * @param asks - what the dialog asks first.
  * @returns the cards, in order.
  */
-function sampleEntries(ctx: CommandContext, timeline: boolean, asks: Asks): SampleEntry[] {
-    const fileEntry = (sample: PrototypeSample, group: string, hook: string, field: string): SampleEntry => {
-        const name = sampleName(sample);
-        const incoming: Incoming = { name, source: { config: { url: sampleUrl(sample) }, name }, origin: "sample" };
-        return {
-            key: `${group}:${hook}:${sample.path}`,
-            group,
-            card: {
-                name,
-                hook,
-                field,
-                size: fileSize(sample),
-                sentence: name,
-                picture: () => undefined,
-                note: undefined,
-            },
-            words: `${name} ${group} ${hook}`.toLowerCase(),
-            open: (target) => {
-                bringFile(ctx, incoming, target);
-            },
-        };
-    };
-    const files = PROTOTYPE_SAMPLES.map((sample) => fileEntry(sample, sample.group, sampleName(sample), sample.group));
-    const joins = JOIN_WALKS.flatMap((walk) =>
-        walk.files.flatMap((path, at) => {
-            const sample = PROTOTYPE_SAMPLES.find((each) => each.path === path);
-            return sample === undefined
-                ? []
-                : [fileEntry(sample, "Join", `${walk.name} ${String(at + 1)} of ${String(walk.files.length)}`, "Join")];
-        }),
-    );
-    const library = offeredTiles(timeline).map((tile) => libraryEntry(ctx, tile, asks));
+function sampleEntries(ctx: CommandContext, asks: Asks): SampleEntry[] {
+    const library = offeredTiles().map((tile) => libraryEntry(ctx, tile, asks));
     const network = NETWORK_TILES.map((tile): SampleEntry => ({
         key: tile.id,
         group: NETWORK,
@@ -214,8 +169,6 @@ function sampleEntries(ctx: CommandContext, timeline: boolean, asks: Asks): Samp
         },
     }));
     return [
-        ...files,
-        ...joins,
         ...library.filter((entry) => entry.group !== GENERATED),
         ...network,
         ...library.filter((entry) => entry.group === GENERATED),
@@ -232,26 +185,27 @@ function cardLabel(card: SampleCardData): string {
 }
 
 /**
- * Samples..., from Sources "+": the data prototype's fixture files by subject, then the start page's
- * sample library in its order, drawn with the start page's own card (SampleCard), narrowed by a
+ * Samples..., from Sources "+": the start page's sample library in its order, drawn with the start page's own card (SampleCard), narrowed by a
  * search box and a group filter. Every sample goes into the project the way a dropped file does
  * (addSource); while the project holds data, each card also offers Open as a separate graph.
- * @returns the dialog, open while the workspace dialog is "samples"
+ * Generator... opens it on the generators (the workspace dialog "generators").
+ * @returns the dialog, open while the workspace dialog is "samples" or "generators"
  */
 export function SamplesDialog(): React.JSX.Element {
     const ctx = useWorkspace();
-    useSessionVersion(ctx.session);
-    const opened = useWorkspaceState((state) => state.dialog === "samples");
+    useSessionEvents(ctx.session, TOOLBAR_EVENTS);
+    const dialog = useWorkspaceState((state) => state.dialog);
+    const opened = dialog === "samples" || dialog === "generators";
     const [text, setText] = useState("");
-    const [group, setGroup] = useState("");
+    // Until the reader picks a group: all of them, or the generators when opened by Generator...
+    const [picked, setPicked] = useState<string | null>(null);
+    const group = picked ?? (dialog === "generators" ? GENERATED : "");
     const [asking, setAsking] = useState<{ dataset: DatasetMeta; target: Target } | null>(null);
     const [configuring, setConfiguring] = useState<{ generator: GeneratorDescriptor; target: Target } | null>(null);
     const close = (): void => {
         ctx.store.set({ dialog: null });
     };
-    // The first paint does not wait for the site's configuration.
-    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const entries = sampleEntries(ctx, timeline, {
+    const entries = sampleEntries(ctx, {
         ask: (dataset, target) => {
             setAsking({ dataset, target });
         },
@@ -273,14 +227,14 @@ export function SamplesDialog(): React.JSX.Element {
                 onClose={close}
                 onExitTransitionEnd={() => {
                     setText("");
-                    setGroup("");
+                    setPicked(null);
                 }}
                 title="Samples"
                 size={800}
             >
                 <Stack gap="sm">
                     <SearchInput aria-label="Search samples" placeholder="Search" value={text} onChange={setText} />
-                    <Chip.Group multiple={false} value={group} onChange={setGroup}>
+                    <Chip.Group multiple={false} value={group} onChange={setPicked}>
                         <Group gap={4} role="radiogroup" aria-label="Group">
                             {["", ...allGroups].map((each) => (
                                 <Chip key={each} value={each} size="xs" variant="light">

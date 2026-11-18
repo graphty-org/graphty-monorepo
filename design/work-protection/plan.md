@@ -1,6 +1,6 @@
 # Work protection: implementation plan
 
-Status: plan, 2026-10-13. Package: `@graphty/graphty-element`, plus a small change to the graphty app
+Status: executed; shipped in graphty-element 3.30.0 (`graphty-element/src/autosave/`). Planned 2026-10-13. Package: `@graphty/graphty-element`, plus a small change to the graphty app
 in the last step. The design is `design/work-protection/design.md`; section numbers below refer to it.
 
 Every step lands as its own commit (or pull request) that builds, lints, passes `npm run api:report`

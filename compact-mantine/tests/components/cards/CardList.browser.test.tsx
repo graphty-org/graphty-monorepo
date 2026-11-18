@@ -145,6 +145,28 @@ describe("CardList", () => {
         assert.deepEqual(titles(), ["Ones"]);
     });
 
+    it("reports no rename when the title is committed unchanged", async () => {
+        const renamed: string[] = [];
+        await renderThemed(
+            <CardList
+                label="Cards"
+                items={[{ id: "a", title: "A", off: true, className: "mine" }]}
+                onRename={(_id, title) => renamed.push(title)}
+            />,
+        );
+        const card = screen.getByRole("region", { name: "A" });
+        assert.isTrue(card.hasAttribute("data-off"));
+        assert.isFalse(card.hasAttribute("data-colored"));
+        assert.isTrue(card.classList.contains("mine"));
+        await userEvent.click(screen.getByRole("button", { name: "Rename A" }));
+        await screen.findByRole("textbox", { name: "Rename A" });
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("textbox"));
+        });
+        assert.deepEqual(renamed, []);
+    });
+
     it("shows the empty slot when there are no cards", async () => {
         await renderThemed(<Harness start={["A"]} />);
         await userEvent.click(screen.getByRole("button", { name: "Delete A" }));

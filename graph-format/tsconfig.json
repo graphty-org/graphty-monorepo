@@ -12,6 +12,6 @@
             "@graphty/graph-format": ["./src/index.ts"]
         }
     },
-    "include": ["graph-format.ts", "src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts"],
+    "include": ["graph-format.ts", "src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "docs/examples/**/*.ts"],
     "exclude": ["node_modules", "dist", "coverage", "tmp"]
 }

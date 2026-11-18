@@ -31,7 +31,7 @@ describe("health stack", () => {
         });
     });
 
-    it("reserves concurrency 20 / 5 / 1 / 1 on arm64 Node 22 with the right timeouts", () => {
+    it("reserves concurrency 20 / 5 / 5 / 1 / 1 / 1 on arm64 Node 22 with the right timeouts", () => {
         const fns = Object.values(t.findResources("AWS::Lambda::Function")).map((r) => r.Properties);
         const shapes = fns
             .map((p) => [p.ReservedConcurrentExecutions, p.Timeout, p.Runtime, p.Architectures[0]])
@@ -39,32 +39,47 @@ describe("health stack", () => {
         expect(shapes).toEqual([
             [20, 28, "nodejs22.x", "arm64"],
             [5, 10, "nodejs22.x", "arm64"],
+            [5, 28, "nodejs22.x", "arm64"],
             [1, 240, "nodejs22.x", "arm64"],
             [1, 900, "nodejs22.x", "arm64"],
+            [1, 30, "nodejs22.x", "arm64"],
         ]);
     });
 
     it("keeps logs 14 days", () => {
         const groups = Object.values(t.findResources("AWS::Logs::LogGroup"));
-        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14, 14]);
+        expect(groups.map((g) => g.Properties.RetentionInDays)).toEqual([14, 14, 14, 14, 14, 14]);
     });
 
     it("checks CI writes with the GitHub OIDC issuer and audience", () => {
         t.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
             AuthorizerType: "JWT",
-            JwtConfiguration: { Issuer: "https://token.actions.githubusercontent.com", Audience: ["graphty-health"] },
+            JwtConfiguration: {
+                Issuer: "https://token.actions.githubusercontent.com",
+                Audience: ["graphty-health", "graphty-results"],
+            },
         });
-        for (const path of ["invocations", "failures", "durations", "verdicts"]) {
-            t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
-                RouteKey: `POST /v1/${path}`,
-                AuthorizationType: "JWT",
-            });
+        const writes = ["invocations", "failures", "durations", "verdicts", "issues", "channel-moves", "hold"];
+        for (const key of [
+            ...[...writes, "base-checks", "story-captures", "story-reach"].map((path) => `POST /v1/${path}`),
+            "DELETE /v1/base-checks",
+            "PUT /v1/durations/tests/{name}",
+        ]) {
+            t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key, AuthorizationType: "JWT" });
         }
         t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
             RouteKey: "POST /v1/local/{kind}",
             AuthorizationType: "NONE",
         });
-        for (const key of ["GET /v1/health", "GET /v1/status", "GET /v1/page/{page}", "GET /v1/{proxy+}"]) {
+        const reads = ["GET /v1/health", "GET /v1/status", "GET /v1/page/{page}", "GET /v1/{proxy+}"];
+        const results = ["plan", "site", "quarantine", "candidate", "release-state", "failures", "story-reach"];
+        for (const key of [
+            ...reads,
+            ...results.map((path) => `GET /v1/${path}`),
+            "GET /v1/durations/medians",
+            "GET /v1/durations/tests/{name}",
+            "GET /v1/story-captures",
+        ]) {
             t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key, AuthorizationType: "NONE" });
         }
     });
@@ -76,6 +91,7 @@ describe("health stack", () => {
                 "POST /v1/invocations": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
                 "POST /v1/verdicts": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
                 "POST /v1/local/{kind}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
+                "PUT /v1/durations/tests/{name}": { ThrottlingRateLimit: 50, ThrottlingBurstLimit: 100 },
             },
         });
     });
@@ -91,6 +107,17 @@ describe("health stack", () => {
 
     it("runs the collector every 5 minutes", () => {
         t.hasResourceProperties("AWS::Scheduler::Schedule", { ScheduleExpression: "rate(5 minutes)" });
+    });
+
+    it("fires the release scheduler at the Worker's four UTC slots, in dry run, with the slot time (#3608)", () => {
+        t.hasResourceProperties("AWS::Scheduler::Schedule", {
+            ScheduleExpression: "cron(0 0,6,12,18 * * ? *)",
+            Target: Match.objectLike({ Input: JSON.stringify({ slot: "<aws.scheduler.scheduled-time>" }) }),
+        });
+        t.hasResourceProperties("AWS::Lambda::Function", {
+            Timeout: 30,
+            Environment: { Variables: Match.objectLike({ RELEASE_DISPATCH: "dry-run" }) },
+        });
     });
 
     it("alarms when no collector run succeeded in 20 minutes, on ALARM and OK", () => {
@@ -135,7 +162,7 @@ describe("health stack", () => {
         const action = Object.values(t.findResources("AWS::Budgets::BudgetsAction"))[0].Properties;
         expect(action.ActionType).toBe("APPLY_IAM_POLICY");
         expect(action.ActionThreshold).toEqual({ Type: "PERCENTAGE", Value: 100 });
-        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(4);
+        expect(action.Definition.IamActionDefinition.Roles).toHaveLength(6);
         t.hasResourceProperties("AWS::IAM::ManagedPolicy", {
             PolicyDocument: { Statement: [{ Effect: "Deny", Action: "*", Resource: "*" }], Version: "2012-10-17" },
         });
@@ -195,7 +222,11 @@ describe("health stack", () => {
             ].sort(),
         });
         expect(ssm("Backfill")).toEqual({ actions: ["ssm:GetParameters"], params: Object.values(APP_PARAMS).sort() });
-        for (const fn of ["Ingest", "Collector", "Backfill"]) {
+        expect(ssm("ReleaseScheduler")).toEqual({
+            actions: ["ssm:GetParameters"],
+            params: Object.values(DISPATCH_APP_PARAMS).sort(),
+        });
+        for (const fn of ["Ingest", "Collector", "Backfill", "ReleaseScheduler"]) {
             expect(kms(fn)).toBe(true);
         }
         const decrypt = Object.values(t.findResources("AWS::IAM::Policy"))

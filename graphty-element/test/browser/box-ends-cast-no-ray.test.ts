@@ -1,20 +1,25 @@
 /**
  * An edge between two boxes is trimmed at their faces by arithmetic, with no ray cast against their meshes, however
- * often it is placed (issue #412): a ray walks a node's triangles, once per end, on every frame its ends move.
+ * often it is placed (issue #412): a ray walks a node's triangles, once per end, on every frame its ends move. This is
+ * the object path, so it runs on it under every default; the batched path trims a box from its row by arithmetic.
  */
 import { Ray } from "@babylonjs/core/Culling/ray.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { renderPathDefault } from "../../src/meshes/NodeBatch";
+import { Node } from "../../src/Node";
 import { asData, edgeBetween, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
 let container: HTMLElement | undefined;
 let graph: Graph | undefined;
+const startingPath = renderPathDefault.value;
 
 afterEach(() => {
     vi.restoreAllMocks();
     graph?.dispose();
     container?.remove();
+    renderPathDefault.value = startingPath;
     graph = undefined;
     container = undefined;
 });
@@ -25,6 +30,7 @@ describe("an edge between two boxes", () => {
         container.style.width = "800px";
         container.style.height = "600px";
         document.body.append(container);
+        renderPathDefault.value = "objects";
         graph = new Graph(container);
         await graph.init();
         await graph.setLayout("fixed", { dim: 3 });
@@ -40,8 +46,9 @@ describe("an edge between two boxes", () => {
         assert(edge, "the edge is drawn");
         assert.isFalse(graph.getNode("A")?.drawnInBatch, "each box is drawn by its own mesh");
         const cast = vi.spyOn(Ray.prototype, "intersectsMeshes");
+        const shapeCast = vi.spyOn(Node.prototype, "drawnRayHit");
         const { srcPoint, dstPoint } = edge.getInterceptPoints();
-        assert.strictEqual(cast.mock.calls.length, 0, "no ray is cast");
+        assert.strictEqual(cast.mock.calls.length + shapeCast.mock.calls.length, 0, "no ray is cast");
         assert(srcPoint && dstPoint, "both ends are found");
 
         // the line from A's center toward B leaves A through its +x face, and meets B through its -x face

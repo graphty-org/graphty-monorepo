@@ -1,14 +1,12 @@
 /**
- * @file `data-source="url"`: with the timeline on, the element finds the format from the URL's
- * name, else its content, and a format it cannot find is reported on the data-loading channel.
- * With the timeline off, the type is an unknown format and nothing is read.
+ * @file `data-source="url"`: the element finds the format from the URL's name, else its content,
+ * and a format it cannot find is reported on the data-loading channel.
  */
 import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { ProgressChange } from "../../session.js";
 
 let mounted: Graphty | null = null;
 
@@ -20,12 +18,10 @@ afterEach(() => {
 /**
  * An element whose pair names a URL holding the given text.
  * @param text - What the URL serves; its address says nothing about the format.
- * @param features - The experiments to switch on.
  * @returns The element.
  */
-function elementOn(text: string, features: string[] = ["timeline"]): Graphty {
+function elementOn(text: string): Graphty {
     const made = document.createElement("graphty-element");
-    made.features = features;
     made.dataSource = "url";
     made.dataSourceConfig = { url: URL.createObjectURL(new Blob([text])) };
     document.body.appendChild(made);
@@ -55,22 +51,8 @@ describe('data-source="url"', () => {
         assert.strictEqual(errors.length, 1);
     });
 
-    it("takes features declared after the pair", async () => {
-        document.body.innerHTML = `<graphty-element data-source="url"
-            data-source-config='{"url": "${URL.createObjectURL(new Blob(["source,target\na,b\n"]))}"}'
-            features="timeline"></graphty-element>`;
-        const made = document.querySelector("graphty-element");
-        assert.isNotNull(made);
-        mounted = made;
-        await new Promise((resolve) => {
-            made.addEventListener("data-loaded", resolve, { once: true });
-        });
-        assert.strictEqual(made.session.visibility.summary.totalEdges, 1);
-    });
-
     it("loads a pair assigned after the first update", async () => {
         const made = document.createElement("graphty-element");
-        made.features = ["timeline"];
         document.body.appendChild(made);
         mounted = made;
         await made.updateComplete;
@@ -83,9 +65,8 @@ describe('data-source="url"', () => {
         assert.strictEqual(made.session.visibility.summary.totalEdges, 1);
     });
 
-    it("waits for an element that asks for the timeline to connect", async () => {
+    it("waits for the element to connect", async () => {
         const made = document.createElement("graphty-element");
-        made.features = ["timeline"];
         made.dataSource = "url";
         made.dataSourceConfig = { url: URL.createObjectURL(new Blob(["source,target\na,b\n"])) };
         await made.session.data.addNodes([{ id: "before" }]);
@@ -96,51 +77,6 @@ describe('data-source="url"', () => {
         mounted = made;
         await loaded;
         assert.strictEqual(made.session.visibility.summary.totalEdges, 1);
-    });
-
-    it("is an unknown format with the timeline off: the load fails, nothing is read or loaded", async () => {
-        const read = vi.spyOn(globalThis, "fetch");
-        const made = elementOn("source,target\na,b\n", []);
-        let loaded = 0;
-        made.addEventListener("data-loaded", () => {
-            loaded++;
-        });
-        const end = await new Promise<ProgressChange>((resolve) => {
-            made.session.on("progress:changed", (change) => {
-                if (change.task === "load" && change.phase === "end" && change.source?.url !== undefined) {
-                    resolve(change);
-                }
-            });
-        });
-        await made.waitForSettled();
-        assert.strictEqual(end.outcome, "failed");
-        assert.strictEqual(end.error?.code, "E_UNKNOWN_FORMAT");
-        assert.strictEqual(loaded, 0);
-        assert.strictEqual(read.mock.calls.length, 0);
-        assert.strictEqual(made.session.visibility.summary.totalEdges, 0);
-        read.mockRestore();
-    });
-
-    it("fails as an unknown format on an element never connected, and keeps nothing waiting", async () => {
-        const made = document.createElement("graphty-element");
-        made.features = [];
-        const ended = new Promise<ProgressChange>((resolve) => {
-            made.session.on("progress:changed", (change) => {
-                if (change.task === "load" && change.phase === "end" && change.source?.url !== undefined) {
-                    resolve(change);
-                }
-            });
-        });
-        made.dataSource = "url";
-        made.dataSourceConfig = { url: "not-fetched.csv" };
-        const end = await ended;
-        assert.strictEqual(end.error?.code, "E_UNKNOWN_FORMAT");
-        await made.session.data.addNodes([{ id: "after" }]);
-        assert.isFalse(made.isConnected);
-        assert.strictEqual(made.session.visibility.summary.totalNodes, 1);
-        // Connected only so the afterEach's removal disposes its engine.
-        document.body.appendChild(made);
-        mounted = made;
     });
 
     it("loads a new file when the URL changes, whatever format the last one was", async () => {

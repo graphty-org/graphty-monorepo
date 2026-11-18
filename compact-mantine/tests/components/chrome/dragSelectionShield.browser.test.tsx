@@ -90,8 +90,14 @@ describe("the drag selection shield (ResizeHandle)", () => {
         expect(selectStartCancelled()).toBe(true);
         expect(userSelect()).toBe("none");
 
-        // The system takes the touch over, and the browser cancels the pointer.
+        // The system takes the touch over, and the browser cancels the pointer. A touchcancel
+        // cannot be cancelled, so the browser acknowledges it without waiting for the page: the
+        // protocol call can return before the page has dispatched the pointercancel.
+        const cancelled = new Promise<void>((resolve) => {
+            globalThis.addEventListener("pointercancel", () => resolve(), { capture: true, once: true });
+        });
         await touchCancel();
+        await cancelled;
         expect(selectStartCancelled()).toBe(false);
         expect(userSelect()).toBe("text");
     });

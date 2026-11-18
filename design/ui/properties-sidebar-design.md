@@ -1,5 +1,9 @@
 # Properties Sidebar Design Specification
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 This document defines the design for a context-sensitive properties sidebar that changes based on what is currently selected in the application.
 
 ## Overview

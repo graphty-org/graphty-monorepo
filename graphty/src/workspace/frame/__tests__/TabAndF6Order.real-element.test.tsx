@@ -12,8 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -57,7 +56,7 @@ async function openRings(): Promise<{ session: GraphSession; store: WorkspaceSto
  * The inspector region.
  * @returns queries scoped to it.
  */
-const inspector = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Inspector" }));
+const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
 
 /**
  * A tree row, by the start of its name.
@@ -196,20 +195,13 @@ describe("F6 and Tab order, on the real element", () => {
         // Tab with letters typed takes the highlighted analysis (decided.md); its layer is up to
         // date, so its button is dimmed, and focus lands on a control that does something.
         await userEvent.keyboard("deg{Tab}");
-        if (selectionWorkspaceOn(session)) {
-            // The selection workspace's calm list: Degree is chosen and its Run, dimmed, stays out of reach.
-            const run = await waitFor(() => {
-                const button = document.querySelector<HTMLButtonElement>(".ws-analyze-run button");
-                assert.isNotNull(button, "Degree was not chosen");
-                return button;
-            });
-            assert.strictEqual(run?.getAttribute("aria-disabled"), "true");
-        } else {
-            const form = await screen.findByRole("form", { name: "Degree" });
-            await waitFor(() => {
-                assert.isTrue(form.contains(document.activeElement), `focus is not in the form: ${focused()}`);
-            });
-        }
+        // The calm list: Degree is chosen and its Run, dimmed, stays out of reach.
+        const run = await waitFor(() => {
+            const button = document.querySelector<HTMLButtonElement>(".ws-analyze-run button");
+            assert.isNotNull(button, "Degree was not chosen");
+            return button;
+        });
+        assert.strictEqual(run?.getAttribute("aria-disabled"), "true");
         assert.isFalse(
             document.activeElement?.matches(":disabled, [aria-disabled='true']") ?? true,
             `Tab landed on a dead stop: ${focused()}`,

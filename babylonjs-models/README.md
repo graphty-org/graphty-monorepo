@@ -70,7 +70,8 @@ for (const warning of warnings) console.log(warning.code, warning.params); // W_
 ```
 
 Options: `main` (which file is the model, when a set holds several), `format`, `skipped` (pictures
-or `.mtl` files to load without), `limits`, `signal`, `pluginOptions` (Babylon's loader options by
+or `.mtl` files to load without), `limits`, `signal` (stops the download and the load; it then rejects with the signal's reason),
+`pluginOptions` (Babylon's loader options by
 plugin, such as `{ gltf: { animationStartMode: 0 } }`) and `keepCamerasAndLights` (default true).
 
 A material that drew its color from a picture loaded without (`skipped` or `withoutPictures`) has
@@ -122,6 +123,10 @@ The Draco decoder, the KTX2 transcoders and the OpenUSD importer are in `dist/wa
 `new URL("../wasm/<file>", import.meta.url)`, which Vite, webpack and Parcel copy into a build. Each
 loads only for a model that uses it: Draco, meshopt and KTX2 for a glTF that names them, OpenUSD
 (a module worker and 10 MB of WebAssembly and data, 2.5 MB compressed) for a USD or USDZ model.
+USD models load one at a time in one worker: models loaded together (a graph's) start OpenUSD
+once, and the worker ends when no USD load waits, so an idle page holds none of its memory. A
+`signal` that stops a USD load ends the worker reading it. A page with no `Worker` gets
+`E_MODEL_DECODER_UNAVAILABLE` with `format: "usd"` and `reason: "missing"`.
 
 - With Vite, keep the package out of dependency pre-bundling, which moves modules away from their
   files: `optimizeDeps: { exclude: ["babylonjs-models"] }`.

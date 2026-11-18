@@ -12,7 +12,8 @@
  *   `.usdz`) and the BVH loader (motion capture, drawn as a figure by ./bvhFigure.ts), each
  *   registered by name and imported the first time a model of its format loads. The USD loader
  *   runs OpenUSD in a worker whose files this package ships (src/decoders/usd.ts);
- *   ./loadModel.ts hands it the model's files itself.
+ *   ./loadModel.ts hands it the model's files itself. Every USD load shares one loader, one load
+ *   at a time, so loads that follow one another start OpenUSD once ({@link usdTurn}).
  *
  * STL, PLY and `.babylon` are read by this package's
  * own readers (src/files/readers/), which build the container themselves ({@link loadOwnModel}).
@@ -89,6 +90,7 @@ import { FBXFileLoaderMetadata } from "@babylonjs/loaders/FBX/fbxFileLoader.meta
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation.js";
 import { SolidParser } from "@babylonjs/loaders/OBJ/solidParser.js";
 import { USDFileLoaderMetadata } from "@babylonjs/loaders/USD/usdFileLoader.metadata.js";
+import type { USDFileLoader } from "@babylonjs/loaders/USD/usdFileLoader.pure.js";
 
 import { babylonTextureNames, embeddedPictureName, readBabylon } from "../files/readers/babylon.js";
 import { type Geometry, ModelReadError } from "../files/readers/geometry.js";
@@ -116,7 +118,21 @@ RegisterSceneLoaderPlugin({
         const { USDFileLoader, _RegisterUSDLoaderDependencies } =
             await import("@babylonjs/loaders/USD/usdFileLoader.pure.js");
         _RegisterUSDLoaderDependencies();
-        return new USDFileLoader(options[USDFileLoaderMetadata.name]);
+        const given = (options[USDFileLoaderMetadata.name] ?? {}) as UsdLoadOptions &
+            ConstructorParameters<typeof USDFileLoader>[0];
+        usdShared ??= keepWorker(new USDFileLoader());
+        const shared = usdShared;
+        // This load's options, as Babylon's constructor completes them.
+        const own = (new USDFileLoader(given) as unknown as UsdLoaderInternals)._options;
+        type Loader = USDFileLoader;
+        return Object.assign(Object.create(shared) as Loader, {
+            loadAssetContainerAsync: (...args: Parameters<Loader["loadAssetContainerAsync"]>) =>
+                usdTurn(shared, own, given.signal, () => shared.loadAssetContainerAsync(...args)),
+            importMeshAsync: (...args: Parameters<Loader["importMeshAsync"]>) =>
+                usdTurn(shared, own, given.signal, () => shared.importMeshAsync(...args)),
+            loadAsync: (...args: Parameters<Loader["loadAsync"]>) =>
+                usdTurn(shared, own, given.signal, () => shared.loadAsync(...args)),
+        });
     },
 });
 RegisterSceneLoaderPlugin({
@@ -126,6 +142,118 @@ RegisterSceneLoaderPlugin({
         return new BVHFileLoader(options[BVHFileLoaderMetadata.name]);
     },
 });
+
+/** The USD loader's options, and the signal that stops a load ({@link usdTurn}). */
+interface UsdLoadOptions {
+    readonly signal?: AbortSignal;
+}
+
+/** What babylonjs-models reaches inside Babylon's USD loader (9.37): its options and its worker. */
+interface UsdLoaderInternals {
+    _options: object;
+    readonly _pending: ReadonlyMap<number, unknown>;
+    _terminateWorker: () => void;
+}
+
+/** The USD loader every USD load shares. */
+let usdShared: USDFileLoader | undefined;
+/** Settles when the last USD load queued has finished. */
+let usdQueue: Promise<unknown> = Promise.resolve();
+/** USD loads waiting for their turn. */
+let usdWaiting = 0;
+/** Ends the shared loader's worker, whatever is waiting (set by {@link keepWorker}). */
+let endWorker: (() => void) | undefined;
+
+/**
+ * Keep a USD loader's worker for the next load. Babylon's loader ends its worker (OpenUSD, about
+ * 10 MB of WebAssembly, downloaded and compiled again by the next worker) as soon as no load is in
+ * it; here it is kept while another USD load waits, and ended when none does, so a batch of
+ * models (a graph's) starts OpenUSD once and an idle page holds none of its memory. A worker that
+ * failed is ended as before.
+ * @param loader - The shared loader.
+ * @returns The loader.
+ */
+function keepWorker(loader: USDFileLoader): USDFileLoader {
+    const internals = loader as unknown as UsdLoaderInternals;
+    const terminate = internals._terminateWorker.bind(loader);
+    endWorker = terminate;
+    internals._terminateWorker = () => {
+        if (internals._pending.size > 0 || usdWaiting === 0) {
+            terminate();
+        }
+    };
+    return loader;
+}
+
+/**
+ * Run one USD load in its turn on the shared loader, with its own options. OpenUSD reads one stage
+ * at a time in its worker, so a turn costs nothing. A load stopped by its signal while it waits
+ * never starts; one stopped while it runs ends the worker, which is all that stops OpenUSD.
+ * @param shared - The shared loader.
+ * @param options - This load's options.
+ * @param signal - Stops the load.
+ * @param load - The load.
+ * @returns What the load returns.
+ */
+async function usdTurn<T>(
+    shared: USDFileLoader,
+    options: object,
+    signal: AbortSignal | undefined,
+    load: () => Promise<T>,
+): Promise<T> {
+    signal?.throwIfAborted();
+    const before = usdQueue;
+    let done = (): void => undefined;
+    usdQueue = Promise.all([
+        before,
+        new Promise<void>((resolve) => {
+            done = resolve;
+        }),
+    ]);
+    usdWaiting++;
+    let waiting = true;
+    let stop = (): void => undefined;
+    try {
+        await new Promise<void>((resolve, reject) => {
+            stop = () => {
+                reject(new Error("stopped"));
+            };
+            signal?.addEventListener("abort", stop, { once: true });
+            void before.then(() => {
+                resolve();
+            });
+        });
+        signal?.removeEventListener("abort", stop);
+        usdWaiting--;
+        waiting = false;
+        signal?.throwIfAborted();
+        // Read when the load starts, before its first await: the files, the root and the worker's URLs.
+        (shared as unknown as UsdLoaderInternals)._options = options;
+        // Ending the worker and the loader's requests rejects the load; the race also answers a
+        // stop that comes before the loader has a worker to end.
+        return await Promise.race([
+            load(),
+            new Promise<never>((_resolve, reject) => {
+                stop = () => {
+                    endWorker?.();
+                    shared.dispose();
+                    reject(new Error("stopped"));
+                };
+                signal?.addEventListener("abort", stop, { once: true });
+            }),
+        ]);
+    } catch (error) {
+        signal?.throwIfAborted();
+        throw error;
+    } finally {
+        // Stopped while it waited: a worker kept for it is ended unless another load needs it.
+        if (waiting && --usdWaiting === 0 && (shared as unknown as UsdLoaderInternals)._pending.size === 0) {
+            endWorker?.();
+        }
+        signal?.removeEventListener("abort", stop);
+        done();
+    }
+}
 
 // The glTF validator is a script on cdn.babylonjs.com. Loads never ask for validation; should
 // anything ask, the script it gets is a local one that fails.

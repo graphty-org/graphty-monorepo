@@ -60,6 +60,7 @@ export class ModelLoadFailure extends Error {
  * @param format - Its detected format.
  * @param skipped - Parts drawn without: a picture is a 1 x 1 white PNG, and an OBJ's MTL lines naming it are dropped.
  * @param withoutPictures - Pictures drawn without, by their summary names: the parts that drew one draw plain.
+ * @param signal - Stops the load, OpenUSD's worker included; it then rejects with the signal's reason.
  * @returns The container.
  * @throws {ModelLoadFailure} With `E_MODEL_FORMAT_UNSUPPORTED`, `E_MODEL_EXTERNAL_URL`, `E_MODEL_STRUCTURE`,
  *     `E_MODEL_DECODER_UNAVAILABLE` or `E_MODEL_PARSE`.
@@ -71,6 +72,7 @@ export async function loadModel(
     format: string,
     skipped: readonly string[] = [],
     withoutPictures: readonly string[] = [],
+    signal?: AbortSignal,
 ): Promise<AssetContainer> {
     let models: typeof import("babylonjs-models");
     let own: ModelChunk;
@@ -86,8 +88,10 @@ export async function loadModel(
             ...own.LOAD_OPTIONS,
             skipped,
             withoutPictures,
+            ...(signal === undefined ? {} : { signal }),
         });
     } catch (error) {
+        signal?.throwIfAborted();
         throw new ModelLoadFailure(
             error instanceof models.ModelError ? error.fact : { code: "E_MODEL_PARSE", params: { format } },
         );

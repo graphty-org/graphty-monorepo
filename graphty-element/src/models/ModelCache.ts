@@ -306,6 +306,8 @@ export class ModelCache {
     private readonly entries = new Map<string, Entry>();
     private readonly status = new Map<string, RefStatus>();
     private readonly queue: (() => Promise<void>)[] = [];
+    /** Stops the loads under way when the cache goes with its scene: a slow model holds no load slot. */
+    private readonly stopped = new AbortController();
     private running = 0;
     private readonly dirty = new Set<Entry>();
     private flushScheduled = false;
@@ -642,6 +644,7 @@ export class ModelCache {
                     record.format,
                     record.skipped,
                     entry.hidden,
+                    this.stopped.signal,
                 );
                 const chunk = await loadChunk();
                 entry.template = await chunk.prepareTemplate(
@@ -665,6 +668,10 @@ export class ModelCache {
 
                 this.requestRepaint(entry);
             } catch (error) {
+                if (this.stopped.signal.aborted) {
+                    // Stopped with the scene: there is nothing left to tell.
+                    return;
+                }
                 const fact =
                     error instanceof ModelLoadFailure
                         ? error.fact
@@ -994,8 +1001,9 @@ export class ModelCache {
         }
     }
 
-    /** Free every template and stop listening. */
+    /** Free every template, stop every load under way and stop listening. */
     private dispose(): void {
+        this.stopped.abort();
         this.unwatch();
         this.unwatchSupplied();
         this.unwatchAllowed();

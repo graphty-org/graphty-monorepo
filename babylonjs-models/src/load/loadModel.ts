@@ -502,6 +502,10 @@ async function withUsdFiles(
     files: ReadonlyMap<string, Uint8Array>,
     main: string,
 ): Promise<LoadModelFilesOptions> {
+    // OpenUSD runs in a worker: a page with none (a worker-less runtime) has no importer.
+    if (typeof Worker === "undefined") {
+        throw new ModelError("E_MODEL_DECODER_UNAVAILABLE", { format: "usd", reason: "missing" });
+    }
     const usd = (await requireDecoder("usd", { format: "usd" })) as typeof import("../decoders/usd.js");
     const others: Record<string, Uint8Array> = {};
     for (const [path, bytes] of files) {
@@ -515,7 +519,15 @@ async function withUsdFiles(
         ...options,
         pluginOptions: {
             ...options.pluginOptions,
-            usd: { ...given, ...usd.usdImporterUrls(), rootFileName: main, files: others, resolveByFileName: true },
+            usd: {
+                ...given,
+                ...usd.usdImporterUrls(),
+                rootFileName: main,
+                files: others,
+                resolveByFileName: true,
+                // Stops OpenUSD's work, not only the wait for it (./loaders.ts).
+                signal: options.signal,
+            },
         },
     };
 }
@@ -658,6 +670,11 @@ export interface LoadModelFilesOptions extends LoaderOptions {
      * Default: none.
      */
     readonly withoutPictures?: readonly string[];
+    /**
+     * Stops the load: a download, and a model being read (OpenUSD's worker is ended). The load then
+     * rejects with the signal's reason, and nothing it made is kept.
+     */
+    readonly signal?: AbortSignal;
 }
 
 /**
@@ -667,8 +684,8 @@ export interface LoadModelFilesOptions extends LoaderOptions {
  * @param files - The file set, by path.
  * @param main - The main file's path in `files`.
  * @param format - Its format, as `detectModelFormat` or a check names it.
- * @param options - Parts to load without, Babylon's plugin options, and whether to keep the file's
- *     cameras and lights.
+ * @param options - Parts to load without, Babylon's plugin options, whether to keep the file's
+ *     cameras and lights, and a signal that stops the load.
  * @returns The container. Add it to the scene with `container.addAllToScene()`.
  * @throws {ModelError} With `E_MODEL_FORMAT_UNSUPPORTED`, `E_MODEL_EXTERNAL_URL`, `E_MODEL_STRUCTURE`,
  *     `E_MODEL_DECODER_UNAVAILABLE` or `E_MODEL_PARSE`.
@@ -684,6 +701,31 @@ export async function loadModelFiles(
         throw new ModelError("E_MODEL_FORMAT_UNSUPPORTED", { format, fileName: main, ...splatKind(format) });
     }
 
+    options.signal?.throwIfAborted();
+    const container = await loadModelFilesNow(scene, files, main, format, options);
+    if (options.signal?.aborted === true) {
+        container.dispose();
+        options.signal.throwIfAborted();
+    }
+    return container;
+}
+
+/**
+ * {@link loadModelFiles}, once its format is known to be read.
+ * @param scene - The scene the container belongs to.
+ * @param files - The file set, by path.
+ * @param main - The main file's path in `files`.
+ * @param format - Its format.
+ * @param options - As for {@link loadModelFiles}.
+ * @returns The container.
+ */
+async function loadModelFilesNow(
+    scene: Scene,
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+    format: BuiltInModelFormat,
+    options: LoadModelFilesOptions,
+): Promise<AssetContainer> {
     const skipped = options.skipped ?? [];
     const hidden = options.withoutPictures ?? [];
     // An OBJ's MTL lines naming a picture drawn without are dropped below: its materials by name.
@@ -744,6 +786,7 @@ export async function loadModelFiles(
         markWithoutPictures(container, root, format === "fbx" ? [...skipped, ...hidden] : skipped, lostPicture);
         return container;
     } catch (error) {
+        options.signal?.throwIfAborted();
         const fact = failureOf(error, format);
         // Only a decoder that failed to load is dropped: a damaged file ("decode") or a KTX2
         // failure leaves the Draco decoder working.
@@ -765,8 +808,6 @@ export async function loadModelFiles(
 export interface LoadModelOptions extends LoadModelFilesOptions, Pick<ModelFileOptions, "main" | "format"> {
     /** The limits the files are checked against. Default: `DEFAULT_MODEL_LIMITS`. */
     readonly limits?: Partial<ModelLimits>;
-    /** Stops a download. */
-    readonly signal?: AbortSignal;
     /** Hears how far the files have been downloaded, read or unpacked. */
     readonly onProgress?: ModelProgressListener;
 }

@@ -848,13 +848,13 @@ async function fixtureFile(url: string, name: string): Promise<File> {
     return new File([await (await fetch(url)).arrayBuffer()], name);
 }
 
-/** The dialog with a binary PLY point cloud: its variant under the preview, and Guessed and Approximated on Details. */
+/** The dialog with a binary PLY point cloud: the model drawn, and its Details. */
 export const CustomModelPointCloud: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, [await fixtureFile(pointsPlyUrl, "points.ply")]);
         await within(dialog).findByRole("img", { name: /^points preview/ });
-        await within(dialog).findByText("Approximated");
+        await within(dialog).findByRole("region", { name: "Details" });
     }),
     "Custom model, point cloud",
 );
@@ -864,8 +864,8 @@ export const CustomModelDrawFailed: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, [await fixtureFile(damagedPlyUrl, "cube.ply")]);
-        // The model's box is drawn anew once the model is loaded: look it up once it says so.
-        await within(dialog).findByText("Not loaded");
+        // The line under the loader says why graphty-element could not draw it.
+        await within(dialog).findByTestId("model-refusal");
     }),
     "Custom model, draw failed",
 );

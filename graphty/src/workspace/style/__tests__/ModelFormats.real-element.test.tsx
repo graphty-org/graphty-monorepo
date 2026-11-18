@@ -19,7 +19,6 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { modelChip } from "../modelWords";
 import { CUSTOM_MODEL } from "../words";
 import {
     addModel,
@@ -157,15 +156,6 @@ function serveAddresses(served: ReadonlyMap<string, Uint8Array<ArrayBuffer>>): s
 }
 
 /**
- * The Details line, with its chips.
- * @param dialog - the dialog.
- * @returns the line.
- */
-function detailsLine(dialog: HTMLElement): HTMLElement {
-    return within(dialog).getByTestId("model-details-line");
-}
-
-/**
  * A fixture's bytes, read by the test runner.
  * @param path - below the variants folder.
  * @returns the bytes.
@@ -204,15 +194,16 @@ describe("every model format and variant, through the Load custom model dialog",
             return;
         }
         if (variant.drawFails !== undefined) {
-            // The box is drawn anew once the model is loaded, in the column that scrolls as one.
-            const said = await within(dialog).findByText("Not loaded");
-            const preview = within(dialog).getByTestId("model-preview");
-            assert.isTrue(preview.contains(said), "said in the model's box");
-            assert.isNull(preview.querySelector("img, canvas"));
-            const addButton = within(dialog).getByRole("button", { name: "Add model" });
-            assert.equal(addButton.getAttribute("aria-disabled"), "true");
-            // The reader is told, as an intake refusal is told.
+            // The reader is told by the line under the loader, as an intake refusal is told; the
+            // model's box holds only the model glyph, with no pill (owner, 2026-11-17).
             const refusal = await within(dialog).findByTestId("model-refusal");
+            const preview = within(dialog).getByTestId("model-preview");
+            assert.isNull(preview.querySelector("img, canvas"));
+            assert.isNull(within(preview).queryByText("Not loaded"), "no pill in the model's box");
+            const addButton = within(dialog).getByRole("button", { name: "Add model" });
+            await waitFor(() => {
+                assert.equal(addButton.getAttribute("aria-disabled"), "true");
+            });
             assert.equal(store.get().announcement, refusal.textContent, "the failure is announced");
             // Neither a click nor Enter or Space on the blocked Add adds the model. A browser clicks an
             // aria-disabled button; Playwright only does with `force`, which skips its own enabled check.
@@ -244,9 +235,9 @@ describe("every model format and variant, through the Load custom model dialog",
             CUSTOM_MODEL.variantLine(variant),
             "Details names the variant",
         );
-        for (const code of variant.warnings.filter((w) => w !== "W_MODEL_PART_SKIPPED")) {
-            assert.isNotNull(within(detailsLine(dialog)).getByText(modelChip({ code, params: {} }).word), code);
-        }
+        // No chip says the warnings (owner, 2026-11-17): Details' rows carry what matters.
+        assert.equal(within(dialog).getByTestId("model-details-line").textContent, "Details");
+        assert.isNull(dialog.querySelector(".mantine-Badge-root"), "no pill in the dialog");
 
         await addModel(dialog);
         const ref = String(written(session, "node.model"));
@@ -254,6 +245,13 @@ describe("every model format and variant, through the Load custom model dialog",
         const record = session.assets.find(ref);
         assert.equal(record?.state, "accepted");
         assert.isDefined(record);
+        for (const code of variant.warnings.filter((w) => w !== "W_MODEL_PART_SKIPPED")) {
+            assert.include(
+                record.problems.map((p) => p.code),
+                code,
+                code,
+            );
+        }
         const summary = session.assets.inspect(record.id);
         assert.equal(summary.format, variant.format);
         assert.equal(summary.geometry ?? "mesh", variant.geometry ?? "mesh");

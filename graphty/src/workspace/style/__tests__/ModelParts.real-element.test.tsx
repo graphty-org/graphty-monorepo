@@ -156,7 +156,7 @@ async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement;
     const chip = await within(tab).findByRole("button", { name: CHIP });
     assert.equal(chip.textContent, "Add parts");
     // The Style panel holds controls only: no chip, pill or description from the model under Shape.
-    assert.isNull(tab.querySelector(".ws-model-chips .mantine-Badge-root"), "no chip under the Shape field");
+    assert.isNull(tab.querySelector(".ws-model-actions .mantine-Badge-root"), "no chip under the Shape field");
     assert.isNull(within(tab).queryByText(/missing/), "no words about what is missing");
     assert.isNotNull(within(tab).getByRole("combobox", { name: "Node shape, police" }));
     return { session, tab, chip };
@@ -198,8 +198,19 @@ describe("a model missing parts, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose folder", [KIT_FOLDER]);
         await previewOf(dialog, "police");
+        // Until the graph draws it, the Shape field's spinner says the model is on its way.
+        let spun = false;
+        const watch = new MutationObserver(() => {
+            spun ||= tab.querySelector("[aria-label='Drawing police']") !== null;
+        });
+        watch.observe(tab, { subtree: true, childList: true, attributes: true });
         await addModel(dialog);
         await drawn(session);
+        await waitFor(() => {
+            assert.isNull(within(tab).queryByRole("status", { name: "Drawing police" }), "gone once drawn");
+        });
+        watch.disconnect();
+        assert.isTrue(spun, "a spinner showed while the model was not drawn yet");
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
     });
 
@@ -237,6 +248,30 @@ describe("a model missing parts, on the real element", () => {
         await finished(session, tab);
     });
 
+    it("says a dropped file the model does not use as a plain row, never a pill", async () => {
+        const { session, chip } = await policeAlone();
+        const parts = await openParts(chip);
+        const stray = new File([await bytesOf(colormapUrl)], "stray.png", { type: "image/png" });
+        dropOn(within(parts).getByText("Drop files here"), [stray]);
+        const row = await within(parts).findByRole("group", { name: "Not needed" });
+        assert.include(row.textContent, "stray.png");
+        assert.isNull(parts.querySelector(".mantine-Badge-root, .mantine-Pill-root"), "no pill in the Parts pop-over");
+        assert.notEqual(
+            session.assets.states().find((change) => change.ref === written(session, "node.model"))?.state,
+            "drawn",
+        );
+    });
+
+    it("says why a layer's model is not drawn as a plain row in its Model settings, never a pill", async () => {
+        const { tab } = await openShapes(["node-models"], () => Promise.resolve({ "node.model": "asset:not-held" }));
+        await userEvent.click(await within(tab).findByRole("button", { name: "Model settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Model settings" });
+        const notes = await within(settings).findByTestId("model-notes");
+        assert.isNotNull(within(notes).getByRole("group", { name: "Not loaded" }));
+        assert.include(notes.textContent, "model not in this project");
+        assert.isNull(settings.querySelector(".mantine-Badge-root, .mantine-Pill-root"), "no pill in Model settings");
+    });
+
     it("takes colormap.png from the row's Choose button", async () => {
         const { session, tab, chip } = await policeAlone();
         const parts = await openParts(chip);
@@ -252,7 +287,7 @@ describe("a model missing parts, on the real element", () => {
         await userEvent.click(within(parts).getByRole("button", { name: `Load without ${PART_NAME}` }));
         await finished(session, tab);
         assert.isNull(within(tab).queryByText(/^Without \d/), "no chip says what the model is drawn without");
-        assert.isNull(tab.querySelector(".ws-model-chips"), "no chip line under the Shape field");
+        assert.isNull(tab.querySelector(".ws-model-actions"), "no chip line under the Shape field");
     });
 
     it("takes the picture's address on the same site, and asks first for another site", async () => {
@@ -304,7 +339,7 @@ describe("a model missing parts, on the real element", () => {
 
         // Known as a page by its address: no question, and nothing fetched.
         const row = within(parts).getByRole("group", { name: PART_NAME });
-        assert.isNotNull(await within(row).findByText("Web page"));
+        assert.isNotNull(await within(row).findByText(/^Web page/));
         assert.isNull(screen.queryByRole("dialog", { name: "Open a web address?" }));
         assert.notInclude(requested, blob);
         await userEvent.click(within(row).getByRole("button", { name: "Use file address" }));

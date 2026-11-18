@@ -5,7 +5,7 @@
  * caused it. A notice's sentences are `modelWords` in words.ts.
  */
 
-import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode, ModelPart } from "@graphty/graphty-element/session";
+import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode } from "@graphty/graphty-element/session";
 
 import { formatCount } from "../settings/numberFormat";
 
@@ -47,6 +47,15 @@ function amount(value: CodedFact["params"][string] | undefined): string {
 }
 
 /**
+ * Bytes as a reader reads a file's size: "12.4 MB", "640 KB".
+ * @param bytes - how many.
+ * @returns the words.
+ */
+export function megabytes(bytes: number): string {
+    return bytes < 1_000_000 ? `${formatCount(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/**
  * Two words joined when both are there: "example.com 404".
  * @param parts - the words.
  * @returns them, with a space between.
@@ -83,18 +92,34 @@ function notLoaded(tip: string): () => ModelChipWords {
     return () => ({ word: "Not loaded", tip });
 }
 
-/** What each limit of `E_MODEL_TOO_LARGE` counts (`params.what`), in a reader's words. */
-const LIMIT_WORDS: Readonly<Record<string, string>> = {
-    bytes: "bytes",
-    unzipped: "bytes unzipped",
-    triangles: "triangles",
-    textureBytes: "picture bytes",
-    textureSize: "px picture",
-    decodedBytes: "bytes decoded",
-    sessionBytes: "bytes in this session",
-    documentBytes: "bytes in the project file",
-    count: "models",
+/**
+ * What each limit of `E_MODEL_TOO_LARGE` measures (`params.what`), in a reader's words, and
+ * whether it is bytes (said as a size). A count names what it counted in `params.item`.
+ */
+const LIMIT_WORDS: Readonly<Record<string, { readonly word: string; readonly bytes?: true }>> = {
+    bytes: { word: "", bytes: true },
+    unzipped: { word: "unzipped", bytes: true },
+    triangles: { word: "triangles" },
+    textureBytes: { word: "of pictures", bytes: true },
+    textureSize: { word: "px picture" },
+    decodedBytes: { word: "decoded", bytes: true },
+    sessionBytes: { word: "in this session", bytes: true },
+    documentBytes: { word: "in the project file", bytes: true },
 };
+
+/**
+ * An `E_MODEL_TOO_LARGE` in a few words: "148 materials over 64", "271.7 MB in this session over 268.4 MB".
+ * @param p - the params.
+ * @returns the tip.
+ */
+function tooLargeTip(p: CodedFact["params"]): string {
+    const what = said(p.what);
+    const limit = LIMIT_WORDS[what];
+    const size = (value: CodedFact["params"][string] | undefined): string =>
+        limit?.bytes === true && typeof value === "number" ? megabytes(value) : amount(value);
+    const word = what === "count" ? said(p.item) : (limit?.word ?? what);
+    return both(size(p.found), word, "over", size(p.limit));
+}
 
 /** What a reader of `E_MODEL_STRUCTURE` is told, by `params.rule`; any other rule is a damaged file. */
 const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
@@ -140,10 +165,7 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
         tip: both(hostOf(p), typeof p.status === "number" ? String(p.status) : "no answer"),
     }),
     E_MODEL_URL_BLOCKED: (p) => ({ word: "Blocked", tip: hostOf(p) }),
-    E_MODEL_TOO_LARGE: (p) => ({
-        word: "Too large",
-        tip: both(amount(p.found), LIMIT_WORDS[said(p.what)] ?? said(p.what), "over", amount(p.limit)),
-    }),
+    E_MODEL_TOO_LARGE: (p) => ({ word: "Too large", tip: tooLargeTip(p) }),
     E_MODEL_STRUCTURE: (p) => ({ word: "Not loaded", tip: STRUCTURE_TIPS[said(p.rule)] ?? "file damaged" }),
     E_MODEL_FORMAT_UNKNOWN: (p) => ({ word: "Not loaded", tip: both(said(p.fileName), "not a 3D model") }),
     E_MODEL_EXTERNAL_URL: notLoaded("parts on another site; export as GLB"),
@@ -235,31 +257,6 @@ export function roleWord(role: CodedFact["params"][string] | undefined): string 
             return "Texture";
         default:
             return "Part";
-    }
-}
-
-/**
- * A model part's state chip (node-models design 14.6), or none for a part found as named, found
- * under its own file name in another folder, or a file nothing names (its role says "Not used").
- * @param part - the part, from the element's `record.parts`.
- * @returns the chip's words, or undefined.
- */
-export function partChip(part: ModelPart): ModelChipWords | undefined {
-    const file = part.name.split("/").pop() ?? part.name;
-    switch (part.state) {
-        case "missing":
-            return { word: "Missing", tip: `${file} is not among the files` };
-        case "ambiguous":
-            return { word: "Which file?", tip: `more than one file could be ${file}` };
-        case "substituted":
-            // The file the model names, found elsewhere in the set: matched, nothing to flag.
-            return (part.file ?? "").split("/").pop() === file
-                ? undefined
-                : { word: "Substituted", tip: `used ${part.file ?? ""} for ${part.name}` };
-        case "skipped":
-            return { word: "Skipped", tip: `drawn without ${file}` };
-        default:
-            return undefined;
     }
 }
 

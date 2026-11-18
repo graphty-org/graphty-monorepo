@@ -7,12 +7,14 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fileStem, pictureName } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { ModelChip } from "./ModelChip";
 import { SectionHeading } from "./ModelsPopover";
-import { chipLine, modelChip } from "./modelWords";
+import { chipLine } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
 import { useStillOpen } from "./useStillOpen";
 import { logUnexpected } from "./words";
+
+/** The field's error for a 3D model given where a picture goes; Use as model sits under it. */
+const NOT_A_PICTURE = "Not a picture: this file is a 3D model";
 
 /** The files the chooser and the drop target take; the element says what arrived. */
 const ACCEPT = assetFileExtensions("image").join(",");
@@ -163,7 +165,7 @@ function useStray(session: GraphSession | null, opened: boolean, onLetGo: () => 
  * The Picture pop-over (node-models design 13.7), opened by the Picture line: the pictures this
  * project holds, then compact-mantine's file loader: a picture's address, Choose picture and a drop. What
  * arrives is added through `session.assets.add`; a picture is picked as it is accepted; a model
- * offers Use as model; any other refusal is a chip.
+ * offers Use as model; any other refusal is the field's error.
  * @param props - Component props
  * @param props.opened - whether it is open
  * @param props.anchor - the row it opens beside
@@ -258,6 +260,14 @@ export function PicturePopover({
         focused,
         chosen,
     );
+    // What went wrong is the field's error, as the dialog's address says it: a model given here
+    // (Use as model sits under it), else any other refusal.
+    let fieldError: string | undefined;
+    if (model !== null) {
+        fieldError = NOT_A_PICTURE;
+    } else if (problem !== null) {
+        fieldError = chipLine(problem);
+    }
 
     return (
         <Popout
@@ -331,6 +341,7 @@ export function PicturePopover({
                             hint="Or drop a picture here"
                             progress={busy ? null : undefined}
                             disabled={busy}
+                            error={fieldError}
                             onDiscard={() => {
                                 store.set({ announcement: "Address discarded" });
                             }}
@@ -341,17 +352,8 @@ export function PicturePopover({
                                 add(address, address);
                             }}
                         />
-                        {problem === null ? null : (
-                            <Group gap={4}>
-                                <ModelChip chip={modelChip(problem)} />
-                            </Group>
-                        )}
                         {model === null ? null : (
                             <Group gap={4} wrap="nowrap">
-                                <ModelChip
-                                    chip={{ word: "Not a picture", tip: "this file is a 3D model" }}
-                                    tone="warning"
-                                />
                                 <Tooltip label={`Use ${model.name} as model`}>
                                     <Button
                                         size="compact-xs"

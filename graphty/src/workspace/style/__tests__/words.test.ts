@@ -312,6 +312,21 @@ describe("model variant words", () => {
         assert.equal(CUSTOM_MODEL.bytes(640_000, null), "640 KB");
     });
 
+    it("names what a count limit counted, and says byte limits as sizes", () => {
+        const tip = (params: Record<string, string | number>): string =>
+            modelChip({ code: "E_MODEL_TOO_LARGE", params }).tip;
+        assert.equal(tip({ what: "count", item: "materials", found: 148, limit: 64 }), "148 materials over 64");
+        assert.equal(
+            tip({ what: "sessionBytes", found: 271_678_933, limit: 268_435_456 }),
+            "271.7 MB in this session over 268.4 MB",
+        );
+        assert.equal(tip({ what: "bytes", found: 2_000_000, limit: 1_000_000 }), "2.0 MB over 1.0 MB");
+        assert.equal(
+            tip({ what: "triangles", found: 1_500_000, limit: 1_000_000 }),
+            "1,500,000 triangles over 1,000,000",
+        );
+    });
+
     it("says why a decoder failed by its reason, and calls approximated points a chip", () => {
         const fact = (reason: string): Parameters<typeof modelChip>[0] => ({
             code: "E_MODEL_DECODER_UNAVAILABLE",

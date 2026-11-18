@@ -1,13 +1,12 @@
-import { FileSource, PanelField, Popout, useFileDrop } from "@graphty/compact-mantine";
+import { DataRow, FileSource, PanelField, Popout, useFileDrop } from "@graphty/compact-mantine";
 import { type CodedFact, type GraphSession, GraphtyError, type PartAnswer } from "@graphty/graphty-element/session";
-import { Button, Group, Loader, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
+import { Button, Group, Input, Loader, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { modelName, useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { FactChip } from "./ModelChip";
-import { countChip, middleCut, PART_CODES, roleWord } from "./modelWords";
+import { chipLine, countChip, middleCut, modelChip, PART_CODES, roleWord } from "./modelWords";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
 /** The pop-over's width: room for a part's name and its address. */
@@ -240,7 +239,7 @@ function SupplyPart({
  * @param props.errors - the problems about this part
  * @param props.onRetry - hands the last answer over again, when there is one
  * @param props.onUseAddress - fills in the file's own address
- * @returns The chips, or nothing
+ * @returns The errors and buttons, or nothing
  */
 function PartErrors({
     errors,
@@ -257,8 +256,9 @@ function PartErrors({
     const suggested = errors.find((e) => e.code === "E_MODEL_WEB_PAGE")?.params.suggested;
     return (
         <Group gap={4}>
+            {/* Said as a field's error is, under the part's field: no chip. */}
             {errors.map((fact) => (
-                <FactChip key={fact.code} fact={fact} />
+                <Input.Error key={fact.code}>{chipLine(fact)}</Input.Error>
             ))}
             {errors.some((e) => e.code === "E_MODEL_FETCH") && onRetry !== undefined ? (
                 <Button size="compact-xs" variant="default" onClick={onRetry}>
@@ -466,13 +466,10 @@ function PartsPopover({
                         <Text size="xs" c="var(--cm-text-secondary)">
                             Drop files here
                         </Text>
-                        {unused.length === 0 ? null : (
-                            <Group gap={4}>
-                                {unused.map((fact) => (
-                                    <FactChip key={String(fact.params.fileName)} fact={fact} />
-                                ))}
-                            </Group>
-                        )}
+                        {unused.map((fact) => {
+                            const { word, tip } = modelChip(fact);
+                            return <DataRow key={String(fact.params.fileName)} stat name={word} value={tip} />;
+                        })}
                     </Stack>
                 </Popout.Content>
             </Popout.Panel>
@@ -513,7 +510,8 @@ interface ModelProblemsProps {
 
 /**
  * What the Shape field offers for the model it names (design 13.9, 13.6), read from
- * graphty-element's model states: buttons only, never a chip or a description (the Style panel is
+ * graphty-element's model states: a spinner while the model is not drawn yet, and buttons; never a
+ * chip or a description (the Style panel is
  * for controls; what is wrong is said in Model settings and the Parts pop-over). Add parts while the
  * model waits for parts, opening the Parts pop-over, and Use as picture when the model named is a
  * picture.
@@ -568,11 +566,18 @@ export function ModelProblems({
     const partsChip = countChip(parts);
     const refusal = waiting ? undefined : problems.find((p) => p.code.startsWith("E_"));
     const asPicture = refusal?.params.assetKind === "image" && onUseAsPicture !== undefined;
-    if (partsChip === undefined && !asPicture) {
+    // Picked but not drawn yet (a large model can take a while): the nodes keep their shape meanwhile.
+    const drawing = change.state === "pending" || change.state === "accepted";
+    if (partsChip === undefined && !asPicture && !drawing) {
         return null;
     }
     return (
-        <Group gap={4} className="ws-model-chips">
+        <Group gap={4} className="ws-model-actions">
+            {drawing ? (
+                <output aria-label={CUSTOM_MODEL.drawing(name)}>
+                    <Loader size="xs" />
+                </output>
+            ) : null}
             {partsChip === undefined ? null : (
                 <Tooltip label={partsChip.tip}>
                     <Button

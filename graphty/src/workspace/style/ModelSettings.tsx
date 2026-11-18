@@ -1,4 +1,4 @@
-import { ComboInput, PanelField, Slider, ToggleRow } from "@graphty/compact-mantine";
+import { ComboInput, DataRow, PanelField, Slider, ToggleRow } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { CodedFact, GraphSession, ModelSummary } from "@graphty/graphty-element/session";
@@ -8,11 +8,10 @@ import React from "react";
 import { useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { FactChip, ModelChip } from "./ModelChip";
-import { PART_CODES } from "./modelWords";
+import { modelChip, PART_CODES } from "./modelWords";
 import type { RowContext } from "./PropertyRow";
 import { lineIn, removeLine, writeIn } from "./row";
-import { ANIMATION_CHANNELS, CUSTOM_MODEL, failureWords, MODEL_SETTING_CHIPS, MODEL_SETTING_ROWS } from "./words";
+import { ANIMATION_CHANNELS, CUSTOM_MODEL, failureWords, MODEL_SETTING_ROWS } from "./words";
 
 /** A model's clip, as graphty-element's summary lists it. */
 type ModelClip = ModelSummary["animations"][number];
@@ -209,8 +208,6 @@ interface SettingRowsProps {
     readonly channels: readonly Channel[];
     /** Each row's value as it is set here; an unset row shows graphty-element's default. */
     readonly values: Readonly<Partial<Record<Channel, unknown>>>;
-    /** What graphty-element says about the model, for the Up and Color chips. */
-    readonly problems: readonly CodedFact[];
     readonly write: (channel: Channel, value: ChannelValue) => void;
     /** Takes a set row back to its default; a set row shows its minus. */
     readonly remove: (channel: Channel) => void;
@@ -222,15 +219,13 @@ interface SettingRowsProps {
 
 /**
  * Model settings' rows (node-models design 13.3): one compact property row each, an unset one
- * showing graphty-element's default as its placeholder, a set one with its minus. The element's
- * `W_MODEL_UP_GUESSED` and `W_MODEL_COLOR_IGNORED` mark Up and Color with a chip. Shared by the
+ * showing graphty-element's default as its placeholder, a set one with its minus. Shared by the
  * Model settings pop-over and the Load custom model dialog, which writes a draft. A model with clips
  * gets an Animation group, above Sides: a Playing switch, the clip, then Speed and Start while it
  * plays, or a Pose slider (the moment of the clip the model holds) while it is still.
  * @param props - Component props
  * @param props.channels - the rows
  * @param props.values - each row's value
- * @param props.problems - the model's problems
  * @param props.write - writes a value
  * @param props.remove - takes a value back
  * @param props.clips - the model's clips
@@ -240,7 +235,6 @@ interface SettingRowsProps {
 export function SettingRows({
     channels,
     values,
-    problems,
     write,
     remove,
     clips = [],
@@ -256,8 +250,6 @@ export function SettingRows({
     const playing = clip !== undefined && own("node.modelAnimationSpeed") !== 0;
     const row = ({ channel, word, choices, unit, step }: (typeof MODEL_SETTING_ROWS)[number]): React.JSX.Element => {
         const value = values[channel];
-        const chip = MODEL_SETTING_CHIPS[channel];
-        const flagged = chip !== undefined && problems.some((p) => p.code === chip.code);
         const removeName = `Remove model ${word.toLowerCase()}`;
         const listed = choicesOf(channel, choices, clips);
         return (
@@ -305,11 +297,6 @@ export function SettingRows({
                         )}
                     </span>
                 </div>
-                {flagged ? (
-                    <div className="ws-model-chips">
-                        <ModelChip chip={{ word: chip.word, tip: chip.tip }} tone="warning" />
-                    </div>
-                ) : null}
             </div>
         );
     };
@@ -455,7 +442,6 @@ export function ModelSettings({ ctx, model }: Readonly<{ ctx: RowContext; model:
         <SettingRows
             channels={MODEL_SETTING_ROWS.map((row) => row.channel)}
             values={Object.fromEntries(MODEL_SETTING_ROWS.map((row) => [row.channel, owned(row.channel)?.value]))}
-            problems={problems}
             write={(channel, next) => {
                 writeIn(ctx, channel, { value: next }).catch(fail);
             }}
@@ -475,11 +461,12 @@ export function ModelSettings({ ctx, model }: Readonly<{ ctx: RowContext; model:
     }
     return (
         <Stack gap={6}>
-            <Group gap={4} data-testid="model-notes">
-                {notes.map((fact) => (
-                    <FactChip key={`${fact.code}:${JSON.stringify(fact.params)}`} fact={fact} />
-                ))}
-            </Group>
+            <div data-testid="model-notes">
+                {notes.map((fact) => {
+                    const { word, tip } = modelChip(fact);
+                    return <DataRow key={`${fact.code}:${JSON.stringify(fact.params)}`} stat name={word} value={tip} />;
+                })}
+            </div>
             {rows}
         </Stack>
     );

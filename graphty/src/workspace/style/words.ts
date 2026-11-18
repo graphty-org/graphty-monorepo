@@ -38,6 +38,7 @@ import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
+import { megabytes } from "./modelWords";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -1989,14 +1990,6 @@ function formatWord(format: string): string {
 }
 
 /** The Load custom model dialog's words (node-models design 14.6). */
-/**
- * Bytes as a reader reads a file's size: "12.4 MB", "640 KB".
- * @param bytes - how many.
- * @returns the words.
- */
-function megabytes(bytes: number): string {
-    return bytes < 1_000_000 ? `${formatCount(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
-}
 
 /**
  * The Details Textures row: how many, then the pictures not in yet or drawn without, else their size.
@@ -2043,8 +2036,6 @@ export const CUSTOM_MODEL = {
     chooseFolder: "Choose folder",
     /** The folder icon's hover text: when to use it. */
     folderTip: "Choose folder: for a model exported with its textures and parts in a folder",
-    /** The Animated chip's tip on the Details line: the dialog plays the first clip unless told otherwise. */
-    animatedTip: "plays its first clip; open Model settings to choose another, a pose or Still",
     cancelLoad: "Cancel load",
     /**
      * Said when the reader stops a load.
@@ -2132,14 +2123,11 @@ export const CUSTOM_MODEL = {
      */
     removed: (name: string): string => `${name} removed`,
     /**
-     * A part of a model still downloading: the model is shown and added without it meanwhile.
+     * A part of a model still downloading: the model is shown meanwhile, and Add waits for it.
      * @param file - the part's file name.
-     * @returns the chip's word and tooltip.
+     * @returns the spinner's name.
      */
-    downloadingChip: (file: string): { word: string; tip: string } => ({
-        word: "Downloading",
-        tip: `${file} is still downloading; Add takes the model without it`,
-    }),
+    downloadingPart: (file: string): string => `Downloading ${file}`,
     name: "Name",
     color: "Color",
     files: "Files",
@@ -2262,6 +2250,12 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     loading: (name: string): string => `Loading ${name}`,
+    /**
+     * A model a layer names, picked but not drawn on the graph yet.
+     * @param name - the model's name.
+     * @returns the spinner's name.
+     */
+    drawing: (name: string): string => `Drawing ${name}`,
     /**
      * Said once a model is in the dialog.
      * @param name - its name.
@@ -2428,14 +2422,6 @@ export const ANIMATION_CHANNELS: ReadonlySet<Channel> = new Set([
     "node.modelAnimationSpeed",
     "node.modelAnimationOffset",
 ]);
-
-/** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
-export const MODEL_SETTING_CHIPS: Readonly<
-    Partial<Record<Channel, { readonly code: string; readonly word: string; readonly tip: string }>>
-> = {
-    "node.modelSourceUp": { code: "W_MODEL_UP_GUESSED", word: "Guessed", tip: "up axis guessed from the file" },
-    "node.modelTint": { code: "W_MODEL_COLOR_IGNORED", word: "Color unused", tip: "node color not drawn on the model" },
-};
 
 /**
  * A rule as the reader reads and types it: its numbers without the backticks the element writes

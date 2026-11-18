@@ -125,6 +125,17 @@ async function closeSettings(): Promise<void> {
 }
 
 /**
+ * Asserts that no pill, chip or badge shows (owner, 2026-11-17: "remove pills from the model loading
+ * dialog"): a fact that matters is a Details row or a control's state.
+ * @param root - the dialog or pop-over.
+ * @param where - what it shows, for the message.
+ */
+function assertNoPills(root: HTMLElement, where: string): void {
+    const pills = root.querySelectorAll(".mantine-Badge-root, .mantine-Pill-root, .mantine-Chip-root, [class*='chip']");
+    assert.lengthOf(pills, 0, `no pill, chip or badge (${where}): ${[...pills].map((p) => p.textContent).join(", ")}`);
+}
+
+/**
  * Asserts the loaded dialog's two columns (the owner's layout, 2026-11-17): on the left the loading
  * (the loaded file and Files), on the right what was loaded, top to bottom: the model, a set's
  * arrows, Name with the Model settings gear, then Details, a box that scrolls on its own, each
@@ -134,6 +145,11 @@ async function closeSettings(): Promise<void> {
  * @param where - what the dialog shows, for the messages.
  */
 async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<void> {
+    assertNoPills(dialog, where);
+    const settings = screen.queryByRole("dialog", { name: "Model settings" });
+    if (settings !== null) {
+        assertNoPills(settings, `Model settings, ${where}`);
+    }
     const body = within(dialog).getByTestId("custom-model");
     assert.isUndefined(body.dataset.alone, `no one-column collapse (${where})`);
     const main = body.querySelector(".ws-model-main") as HTMLElement;
@@ -189,7 +205,10 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
         assert.isAtMost(at.bottom, window.innerHeight, `${String(button)} is in the window (${where})`);
     }
     if (side.scrollHeight <= side.clientHeight + 1) {
-        assert.isAtMost(detailsBox.getBoundingClientRect().bottom, right.bottom + 0.5, `Details in view (${where})`);
+        // Details' frame, bottom border included, ends inside the column's clip edge, never on it.
+        const frame = (detailsBox.querySelector(".ws-model-scroll") as HTMLElement).getBoundingClientRect();
+        const clip = right.top + side.clientTop + side.clientHeight;
+        assert.isAtMost(frame.bottom, clip - 0.5, `Details' bottom border in view (${where})`);
     }
     // Details: a box that scrolls past its height, never cutting a row's value off sideways.
     const list = details.getBoundingClientRect();
@@ -265,27 +284,43 @@ function slowFetch(url: string, body: Uint8Array): { push?: (chunk: Uint8Array) 
     return state;
 }
 
+/** A picture's download the test ends: `arrive` hands over its bytes, `stopped` says it was stopped. */
+interface PictureDownload {
+    stopped: boolean;
+    arrive: (bytes: Uint8Array) => void;
+}
+
 /**
- * Serves police.glb at an address at once, and its picture as a download that never arrives:
- * the model is shown while its picture still downloads, until Add or Cancel load stops it.
+ * Serves police.glb at an address at once, and its picture as a download that arrives only when
+ * the test hands it over: the model is shown while its picture still downloads.
  * @param base - the folder's address, ending in a slash.
- * @returns whether the picture's download was stopped.
+ * @returns the picture's download.
  */
-async function policeWaitingForPicture(base: string): Promise<{ stopped: boolean }> {
+async function policeWaitingForPicture(base: string): Promise<PictureDownload> {
     const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
     return waitingForPicture(`${base}police.glb`, police, `${base}Textures/colormap.png`);
 }
 
 /**
- * Serves a model at an address at once, and its picture as a download that never arrives.
+ * Serves a model at an address at once, and its picture as a download that arrives only when the
+ * test hands it over.
  * @param url - the model's address.
  * @param model - the model's bytes.
  * @param picture - the picture's address.
- * @returns whether the picture's download was stopped.
+ * @returns the picture's download.
  */
-function waitingForPicture(url: string, model: Uint8Array, picture: string): { stopped: boolean } {
+function waitingForPicture(url: string, model: Uint8Array, picture: string): PictureDownload {
     const original = globalThis.fetch.bind(globalThis);
-    const state = { stopped: false };
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+    let pending: Uint8Array | undefined;
+    const state: PictureDownload = {
+        stopped: false,
+        arrive: (bytes) => {
+            pending = bytes;
+            stream?.enqueue(bytes);
+            stream?.close();
+        },
+    };
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
         const to = input instanceof Request ? input.url : String(input);
         if (to === url) {
@@ -295,7 +330,16 @@ function waitingForPicture(url: string, model: Uint8Array, picture: string): { s
             init?.signal?.addEventListener("abort", () => {
                 state.stopped = true;
             });
-            return Promise.resolve(new Response(new ReadableStream<Uint8Array>(), { status: 200 }));
+            const body = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    stream = controller;
+                    if (pending !== undefined) {
+                        controller.enqueue(pending);
+                        controller.close();
+                    }
+                },
+            });
+            return Promise.resolve(new Response(body, { status: 200 }));
         }
         return original(input, init);
     });
@@ -547,14 +591,17 @@ describe("the Load custom model dialog, on the real element", () => {
         const position = await within(dialog).findByTestId("model-position");
         assert.equal(position.textContent, "1 of 2");
         const preview = within(dialog).getByTestId("model-preview");
-        assert.isNotNull(await within(preview).findByText("Not loaded"), "damaged.ply cannot be drawn");
+        const refusal = await within(dialog).findByTestId("model-refusal");
+        assert.match(refusal.textContent, /^Not loaded: /, "damaged.ply cannot be drawn, said under the loader");
+        assertNoPills(dialog, "a model it cannot draw");
         await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
         await previewOf(dialog, "points");
         const add = within(dialog).getByRole("button", { name: "Add 2 models" });
         assert.equal(add.getAttribute("aria-disabled"), "true", "the model not on screen still blocks Add");
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Previous model" }));
-        await within(preview).findByText("Not loaded");
+        await within(dialog).findByTestId("model-refusal");
+        assert.isNull(within(preview).queryByText(/Not loaded/), "the box shows the cube, not words");
         await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
         await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
         await previewOf(dialog, "points");
@@ -782,13 +829,14 @@ describe("the Load custom model dialog, on the real element", () => {
         await previewOf(dialog, "cube");
     });
 
-    it("keeps the cube and its missing chip for a .gltf waiting for its .bin", async () => {
+    it("keeps the cube, with no chip, for a .gltf waiting for its .bin: its row asks for it", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [`${VARIANTS}/gltf-bin/cube.gltf`]);
         await within(dialog).findByRole("group", { name: "cube.bin" });
         const preview = within(dialog).getByTestId("model-preview");
-        assert.isNotNull(within(preview).getByText("1 missing"));
+        assert.equal(preview.textContent, "", "no '1 missing' chip over the cube");
+        assertNoPills(dialog, "waiting for a part");
         assert.isNull(within(preview).queryByRole("img"), "nothing to draw without its geometry");
         assert.isNull(within(dialog).queryByTestId("model-refusal"), "and no refusal said");
     });
@@ -1010,6 +1058,7 @@ describe("the Load custom model dialog, on the real element", () => {
     for (const [width, height] of [
         [1024, 640],
         [1280, 720],
+        [1440, 900],
     ] as const) {
         it(`keeps two columns, Model settings reachable, and Cancel and Add in a ${width} x ${height} window (#8611, #8606)`, async () => {
             // openShapes sizes the window itself: this one is set after it.
@@ -1020,6 +1069,11 @@ describe("the Load custom model dialog, on the real element", () => {
                 await choose(dialog, "Choose file", ["../graphty-element/test/fixtures/models/Fox.glb"]);
                 await previewOf(dialog, "Fox");
                 await assertTwoColumns(dialog, "settings closed");
+                const side = dialog.querySelector(".ws-model-side") as HTMLElement;
+                if (height >= 720) {
+                    // Nothing pushes Details below the column's end (owner, 2026-11-17: its bottom was cut).
+                    assert.isAtMost(side.scrollHeight, side.clientHeight, "the model's column does not scroll");
+                }
                 const rows = await openSettings(dialog);
                 await assertTwoColumns(dialog, "settings open");
                 // The pop-over fits the window, and scrolls to whatever does not fit in it.
@@ -1042,21 +1096,32 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     }
 
-    it("fits a set's arrows, Name and Details in a 1280 x 720 window with no scroll of the model's column", async () => {
-        const { tab } = await openShapes();
-        await page.viewport(1280, 720);
-        try {
-            const dialog = await openCustom(tab);
-            dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), await fixture(policeUrl, "police.glb")]);
-            await within(dialog).findByTestId("model-position");
-            await previewOf(dialog, "police");
-            const side = dialog.querySelector(".ws-model-side") as HTMLElement;
-            assert.isAtMost(side.scrollHeight, side.clientHeight, "the model's column does not scroll");
-            await assertTwoColumns(dialog, "a set at 1280 x 720");
-        } finally {
-            await page.viewport(1440, 900);
-        }
-    });
+    for (const [width, height] of [
+        [1280, 720],
+        [1440, 900],
+    ] as const) {
+        it(`fits a set's arrows, Name and Details in a ${width} x ${height} window with no scroll of the model's column`, async () => {
+            const { tab } = await openShapes();
+            await page.viewport(width, height);
+            try {
+                const dialog = await openCustom(tab);
+                dropOn(within(dialog).getByTestId("custom-model"), [
+                    quadFile(),
+                    await fixture(policeUrl, "police.glb"),
+                ]);
+                await within(dialog).findByTestId("model-position");
+                await previewOf(dialog, "police");
+                const side = dialog.querySelector(".ws-model-side") as HTMLElement;
+                assert.isAtMost(side.scrollHeight, side.clientHeight, "the model's column does not scroll");
+                await assertTwoColumns(dialog, `a set at ${width} x ${height}`);
+                await openSettings(dialog);
+                assert.isAtMost(side.scrollHeight, side.clientHeight, "nor with Model settings open");
+                await assertTwoColumns(dialog, `a set at ${width} x ${height}, settings open`);
+            } finally {
+                await page.viewport(1440, 900);
+            }
+        });
+    }
 
     it("adds a file the project already holds as a second model, set up apart, leaving the first as it was (#8609, #8610)", async () => {
         const { session } = await openShapes();
@@ -1124,9 +1189,14 @@ describe("the Load custom model dialog, on the real element", () => {
                 return now;
             });
         }
-        await userEvent.hover(within(within(dialog).getByTestId("model-details-line")).getByText("Animated"));
-        await screen.findByRole("tooltip", { name: /open Model settings/ });
+        // No Animated chip (owner, 2026-11-17): Details' Animations row names the clips.
+        assert.equal(within(dialog).getByTestId("model-details-line").textContent, "Details");
+        assert.isNotNull(
+            within(within(dialog).getByTestId("model-details")).getByRole("group", { name: "Animations" }),
+        );
+        assertNoPills(dialog, "an animated model");
         const rows = await openSettings(dialog);
+        assertNoPills(rows, "Model settings of an animated model");
         const group = within(rows).getByRole("group", { name: "Animation" });
         assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, spin, / }), "the first clip");
         // Off, the model is still; a clip chosen from the menu then holds a pose of it.
@@ -1311,6 +1381,29 @@ describe("the Load custom model dialog, on the real element", () => {
         );
     });
 
+    it("ends a picture name too long for Model settings in an ellipsis, its whole name in a tooltip", async () => {
+        await openShapes();
+        const dialog = await fromMenu();
+        const long = "FlightHelmet_Materials_RubberWoodMat_OcclusionRoughMetal.png";
+        const obj = ["mtllib cube.mtl", "usemtl cube", "v 0 0 0", "v 1 0 0", "v 0 1 0", "vt 0 0", "vt 1 0", "vt 0 1"];
+        const mtl = ["newmtl cube", "Kd 1 1 1", `map_Kd ${long}`].join("\n");
+        dropOn(within(dialog).getByTestId("custom-model"), [
+            new File([[...obj, "f 1/1 2/2 3/3"].join("\n")], "cube.obj"),
+            new File([mtl], "cube.mtl"),
+            await fixture(colormapUrl, long),
+        ]);
+        await previewOf(dialog, "cube");
+        const rows = await openSettings(dialog);
+        assert.isNotNull(within(rows).getByRole("checkbox", { name: long }), "its whole name is the checkbox's");
+        const name = within(rows).getByText(long, { selector: ".ws-model-texture-name" });
+        assert.isAbove(name.scrollWidth, name.clientWidth, "cut short");
+        assert.equal(getComputedStyle(name).textOverflow, "ellipsis");
+        const edge = screen.getByRole("dialog", { name: "Model settings" }).getBoundingClientRect().right;
+        assert.isAtMost(name.getBoundingClientRect().right, edge, "inside the pop-over");
+        await userEvent.hover(name);
+        assert.isNotNull(await screen.findByText(long, { selector: ".mantine-Tooltip-tooltip" }));
+    });
+
     it("keeps a layer's own Turn over the model's, and says so in Model settings", async () => {
         const { tab } = await openShapes(["node-models"], { "node.shape": "cylinder", "node.modelTurn": 45 });
         const dialog = await openCustom(tab);
@@ -1441,7 +1534,8 @@ describe("the Load custom model dialog, on the real element", () => {
         watch.disconnect();
         assert.notMatch([...shown].join(" | "), /missing/, "the downloading picture is never said to be missing");
         const files = within(dialog).getByRole("region", { name: "Files" });
-        assert.isNotNull(within(files).getByText("Downloading"), "the picture is said to be downloading");
+        assert.isNotNull(within(files).getByLabelText("Downloading colormap.png"), "the picture's spinner");
+        assertNoPills(dialog, "a picture downloading");
         assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "and can still be stopped");
         const details = within(dialog).getByRole("region", { name: "Details" });
         const size = within(details).getByRole("group", { name: "File size" }).textContent;
@@ -1453,14 +1547,26 @@ describe("the Load custom model dialog, on the real element", () => {
         );
         const rows = await openSettings(dialog);
         await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
+        await closeSettings();
         const add = within(dialog).getByRole("button", { name: "Add to project" });
-        assert.isNull(add.getAttribute("aria-disabled"), "Add takes it before its picture arrives");
-        await addModel(dialog, "Add to project");
+        assert.isNull(add.getAttribute("aria-disabled"), "Add can be pressed before its picture arrives");
+        // Pressed while the picture downloads, Add waits for it: the model is added with its picture,
+        // never without it (FlightHelmet and Sponza lost half their textures to an early Add, #8609).
+        await userEvent.click(add);
         await waitFor(() => {
-            assert.include(models(session), "police.glb");
-            assert.isTrue(served.stopped, "the picture's download stopped");
+            assert.isNotNull(add.getAttribute("data-loading"), "Add shows it is waiting");
         });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Load custom model" }), "the dialog stays meanwhile");
+        assert.isFalse(served.stopped, "the picture still downloads");
+        served.arrive(new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer()));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }), "added once it arrived");
+        });
+        assert.include(models(session), "police.glb");
         const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
+        assert.isDefined(record);
+        assert.deepEqual([...(record?.skipped ?? [])], [], "with its picture");
+        assert.notInclude(record?.problems.map((p) => p.code) ?? [], "W_MODEL_PART_SKIPPED", "no picture left out");
         assert.equal(record?.defaults?.style["node.modelTurn"], 90, "with what the reader set meanwhile");
     });
 
@@ -1474,14 +1580,19 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.tab();
         await previewOf(dialog, "cube");
         assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "its picture still downloads");
-        await addModel(dialog, "Add to project");
-        const record = await waitFor(() => {
-            const found = session.assets.list().find((r) => r.state === "accepted" && r.path === "cube.glb");
-            assert.isDefined(found);
-            return found;
+        const add = within(dialog).getByRole("button", { name: "Add to project" });
+        await userEvent.click(add);
+        await waitFor(() => {
+            assert.isNotNull(add.getAttribute("data-loading"), "Add waits for the picture");
         });
-        assert.isTrue(served.stopped, "added without the picture");
-        assert.equal(record.defaults?.style["node.modelAnimation"], "spin", "the clip the dialog played");
+        served.arrive(dotPng());
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
+        });
+        const record = session.assets.list().find((r) => r.state === "accepted" && r.path === "cube.glb");
+        assert.isDefined(record);
+        assert.isFalse(served.stopped, "added with the picture");
+        assert.equal(record?.defaults?.style["node.modelAnimation"], "spin", "the clip the dialog played");
     });
 
     it("keeps a model by address when Cancel load stops only its pictures, and adds it without them", async () => {
@@ -1501,7 +1612,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.match(within(dialog).getByTestId("model-stopped").textContent, /^Stopped loading police/, "and shown");
         await previewOf(dialog, "police");
         const files = within(dialog).getByRole("region", { name: "Files" });
-        assert.isNull(within(files).queryByText("Downloading"), "the picture is no longer downloading");
+        assert.isNull(within(files).queryByLabelText("Downloading colormap.png"), "no longer downloading");
         assert.isNotNull(within(dialog).getByRole("group", { name: "colormap.png" }), "and is asked for");
         await addModel(dialog, "Add to project");
         await waitFor(() => {
@@ -1519,13 +1630,13 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.tab();
         await previewOf(dialog, "police");
         const files = within(dialog).getByRole("region", { name: "Files" });
-        assert.isNotNull(within(files).getByText("Downloading"), "the picture is still on its way");
+        assert.isNotNull(within(files).getByLabelText("Downloading colormap.png"), "still on its way");
         await userEvent.click(within(files).getByRole("button", { name: "Remove colormap.png" }));
         await waitFor(() => {
             assert.isTrue(served.stopped, "the picture's download stopped");
         });
         assert.isNotNull(await within(dialog).findByRole("group", { name: "colormap.png" }), "and is asked for");
-        assert.isNull(within(files).queryByText("Downloading"));
+        assert.isNull(within(files).queryByLabelText("Downloading colormap.png"));
         await previewOf(dialog, "police");
     });
 
@@ -1652,11 +1763,11 @@ describe("the Load custom model dialog, on the real element", () => {
     });
 
     it("adds a model once for a double click on Add, in one undo step", async () => {
-        // police.glb by address, its picture never arriving: Add stops the picture and takes the model
-        // without it (a real wait), and a Turn set in the dialog makes Add write one undo step. A
-        // second click while the first is taking the model must write no second one.
+        // police.glb by address, its picture arriving only after Add was pressed: Add waits for it
+        // (a real wait), and a Turn set in the dialog makes Add write one undo step. A second click
+        // while the first waits must write no second one.
         const base = "https://models.example.com/twice/";
-        await policeWaitingForPicture(base);
+        const served = await policeWaitingForPicture(base);
         const { session } = await openShapes();
         const dialog = await fromMenu();
         await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
@@ -1670,15 +1781,19 @@ describe("the Load custom model dialog, on the real element", () => {
         await waitFor(() => {
             assert.isNull(add.getAttribute("aria-disabled"));
         });
-        const adds = vi.spyOn(session.assets, "accept");
         await userEvent.dblClick(add);
+        served.arrive(new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer()));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
             const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
             assert.equal(record?.defaults?.style["node.modelTurn"], 90);
             assert.isAbove(session.history.steps.length, before);
         });
-        assert.strictEqual(adds.mock.calls.length, 1, "the model is taken once");
+        assert.lengthOf(
+            session.assets.list().filter((r) => r.path === "police.glb" && r.state === "accepted"),
+            1,
+            "the model is taken once",
+        );
         assert.strictEqual(session.history.steps.length, before + 1, "one undo step");
     });
 
@@ -1696,14 +1811,16 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     });
 
-    it("names a point cloud's variant in Details and flags it Approximated on the Details line", async () => {
+    it("names a point cloud's variant in Details, with no Approximated chip on the Details line", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [await fixture(pointsPlyUrl, "points.ply")]);
         await previewOf(dialog, "points");
         const table = within(dialog).getByRole("region", { name: "Details" });
         assert.include(within(table).getByRole("group", { name: "Format" }).textContent, "PLY, binary, point cloud");
-        assert.isNotNull(within(within(dialog).getByTestId("model-details-line")).getByText("Approximated"));
+        assert.equal(within(dialog).getByTestId("model-details-line").textContent, "Details");
+        assert.isNotNull(within(table).getByRole("group", { name: "Points" }), "Points is a Details row");
+        assertNoPills(dialog, "a point cloud");
         await addModel(dialog);
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
@@ -1715,11 +1832,12 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [await fixture(damagedPlyUrl, "cube.ply")]);
         // The box is drawn anew once the model is loaded, in the column that scrolls as one.
-        const said = await within(dialog).findByText("Not loaded");
+        const said = await within(dialog).findByTestId("model-refusal");
+        assert.match(said.textContent, /^Not loaded: /, "said under the loader");
         const preview = within(dialog).getByTestId("model-preview");
-        assert.isTrue(preview.contains(said), "said in the model's box");
+        assert.equal(preview.textContent, "", "the box shows the cube, with no chip");
         assert.isNull(preview.querySelector("img, canvas"));
-        assert.match(within(dialog).getByTestId("model-refusal").textContent, /^Not loaded: /);
+        assertNoPills(dialog, "a model it cannot draw");
         assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
     });
 

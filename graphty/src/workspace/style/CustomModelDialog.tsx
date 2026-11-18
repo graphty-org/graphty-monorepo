@@ -27,9 +27,8 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { failureOf, fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { FactChip, ModelChip } from "./ModelChip";
 import { SettingRows } from "./ModelSettings";
-import { chipLine, countChip, middleCut, modelChip, PART_CODES, partChip, roleWord } from "./modelWords";
+import { chipLine, middleCut, PART_CODES, roleWord } from "./modelWords";
 import { PartRow, RoleGlyph } from "./PartsPopover";
 import { PictureField, PicturePopover } from "./PicturePopover";
 import { useStillOpen } from "./useStillOpen";
@@ -67,16 +66,6 @@ const ADDRESS_CODES: ReadonlySet<string> = new Set(["E_MODEL_FETCH", "E_MODEL_UR
 
 /** Format refusals: the line says which formats would do. */
 const FORMAT_CODES: ReadonlySet<string> = new Set(["E_MODEL_FORMAT_UNKNOWN", "E_MODEL_FORMAT_UNSUPPORTED"]);
-
-/** The warnings the Details line shows as chips, in this order. */
-const DETAIL_CHIP_CODES: readonly string[] = [
-    "W_MODEL_UP_GUESSED",
-    "W_MODEL_HAS_ANIMATIONS",
-    "W_MODEL_EXTENSION_IGNORED",
-    "W_MODEL_BUDGET",
-    "W_MODEL_HEAVY",
-    "W_MODEL_POINTS_APPROXIMATED",
-];
 
 /** The settings a draft holds until Add. */
 export type ModelDraft = Readonly<Partial<Record<Channel, ChannelValue>>>;
@@ -282,7 +271,10 @@ interface Loading {
     readonly stage?: string;
     readonly completed: number;
     readonly total: number | null;
-    /** The model is held while its pictures still download: shown, set up and added without them. */
+    /**
+     * The model is held while its pictures still download: shown and set up meanwhile, and Add
+     * pressed meanwhile adds it once they are in, with them.
+     */
     readonly held?: boolean;
 }
 
@@ -398,7 +390,12 @@ function TextureRows({
                     <Checkbox
                         key={p.name}
                         size="xs"
-                        label={p.name}
+                        // A long name ends in an ellipsis at the pop-over's edge; its whole name is the tooltip.
+                        label={
+                            <Tooltip label={p.name}>
+                                <span className="ws-model-texture-name">{p.name}</span>
+                            </Tooltip>
+                        }
                         checked={!hidden.includes(p.name)}
                         onChange={(event) => {
                             onChange(
@@ -414,8 +411,7 @@ function TextureRows({
 
 /**
  * One file of the model that needs nothing from the reader: its role glyph, its name (the full path
- * in the tooltip), its role word, its state chip unless it was found (Downloading while it still
- * downloads), and an x that takes that one file back out (`assets.dropPart`).
+ * in the tooltip), its role word, a spinner while it still downloads, and an x that takes that one file back out (`assets.dropPart`).
  * @param props - Component props
  * @param props.part - the part
  * @param props.downloading - it is still downloading
@@ -428,7 +424,6 @@ function PartLine({
     onDrop,
 }: Readonly<{ part: ModelPart; downloading?: boolean; onDrop?: () => void }>): React.JSX.Element {
     const file = part.name.split("/").pop() ?? part.name;
-    const chip = downloading === true ? CUSTOM_MODEL.downloadingChip(file) : partChip(part);
     const removeName = CUSTOM_MODEL.remove(file);
     return (
         <Group gap={4} wrap="nowrap" data-part={part.name}>
@@ -439,7 +434,7 @@ function PartLine({
             <Text size="xs" c="var(--cm-text-secondary)">
                 {roleWord(part.role)}
             </Text>
-            {chip === undefined ? null : <ModelChip chip={chip} tone="warning" />}
+            {downloading === true ? <Loader size={12} aria-label={CUSTOM_MODEL.downloadingPart(file)} /> : null}
             {onDrop === undefined ? null : (
                 <Tooltip label={removeName}>
                     <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={onDrop}>
@@ -455,9 +450,9 @@ function PartLine({
 /**
  * What stands over the preview: graphty-element draws the model live in it (`modelPreview`) once it
  * is accepted or, while it waits for parts, with them stood in for; the reader turns it by dragging
- * or with the arrow keys, and its clip plays. Over it: a spinner while it loads or draws, the cube
- * and the "N missing" chip while it waits for a part it cannot be drawn without, or the cube and the
- * chip saying why graphty-element could not draw it.
+ * or with the arrow keys, and its clip plays. Over it: a spinner while it loads or draws, or the
+ * cube while it waits for a part it cannot be drawn without (the part's row asks for it) or when
+ * graphty-element could not draw it (the line under the loader says why).
  * @param held - the model, if any
  * @param name - its name
  * @param draw - whether graphty-element drew it, or why it could not
@@ -467,19 +462,12 @@ function PartLine({
 function previewOver(held: Held | null, name: string, draw: ModelLive, busy: boolean): React.ReactNode {
     const accepted = held?.record.state === "accepted";
     // A picture still downloading is not missing: the box shows it loading, not a failure.
-    const missing = countChip(
-        held?.record.problems.filter((p) => PART_CODES.has(p.code) && p.params.downloading !== true) ?? [],
-    );
+    const missing = (held?.record.problems ?? []).some((p) => PART_CODES.has(p.code) && p.params.downloading !== true);
     if (draw.drawn && !busy) {
         return null;
     }
     if (draw.failure !== undefined && !busy) {
-        return (
-            <Stack gap={4} align="center">
-                <GLYPHS.model size={32} aria-hidden />
-                <ModelChip chip={modelChip(draw.failure)} />
-            </Stack>
-        );
+        return <GLYPHS.model size={32} aria-hidden />;
     }
     if (held === null) {
         // Blank until a model is loaded: the loader row beside it takes files, and the whole dialog a drop.
@@ -489,15 +477,10 @@ function previewOver(held: Held | null, name: string, draw: ModelLive, busy: boo
         // The preview could not draw here (no WebGL context for it); the model itself may be fine.
         return <GLYPHS.model size={32} aria-hidden />;
     }
-    if (busy || accepted || missing === undefined) {
+    if (busy || accepted || !missing) {
         return <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
     }
-    return (
-        <Stack gap={4} align="center">
-            <GLYPHS.model size={32} aria-hidden />
-            <ModelChip chip={missing} />
-        </Stack>
-    );
+    return <GLYPHS.model size={32} aria-hidden />;
 }
 
 /**
@@ -981,10 +964,12 @@ export function CustomModelDialog({
     const [body, setBody] = useState<HTMLDivElement | null>(null);
     const start = useStillOpen(true);
     const uid = useId();
-    // Loading and nothing to show yet: a model held while its pictures download is shown and taken.
+    // Loading and nothing to show yet: a model held while its pictures download is shown.
     const busy = loading !== null && loading.held !== true;
     // Add pressed: a load settling after it holds nothing more.
     const adding = useRef(false);
+    // Add pressed while the model's pictures still download: it adds once they are in, with them.
+    const [addQueued, setAddQueued] = useState(false);
     // The x's on parts still taking their files out, in turn: Add waits for them.
     const [dropping, setDropping] = useState(0);
     const drops = useRef<Promise<void>>(Promise.resolve());
@@ -1087,6 +1072,14 @@ export function CustomModelDialog({
         },
         { folders: true },
     );
+    const addRef = useRef<() => Promise<void>>(() => Promise.resolve());
+    useEffect(() => {
+        // Add was pressed while the pictures downloaded: they are in (or were stopped), so it adds now.
+        if (addQueued && loading === null) {
+            setAddQueued(false);
+            void addRef.current();
+        }
+    }, [addQueued, loading]);
     if (session === null) {
         return null;
     }
@@ -1153,8 +1146,8 @@ export function CustomModelDialog({
         const left = new Set(rest.map((f) => f.name));
         say(files.map((f) => `${f.name} ${left.has(f.name) ? "not needed" : "added"}`).join(", "));
     };
-    // By address: once all but its pictures is in, the model is shown, set up and taken by Add
-    // while they download (graphty-element stops them when Add takes it without them).
+    // By address: once all but its pictures is in, the model is shown and set up while they
+    // download; Add pressed meanwhile waits for them, so the model is added with its pictures.
     const holdEarly =
         (url: string | undefined, controller: AbortController, live: () => boolean) =>
         (record: AssetRecord): void => {
@@ -1442,6 +1435,10 @@ export function CustomModelDialog({
         if (blocked !== null || taking.length === 0 || adding.current) {
             return;
         }
+        if (loading?.held === true) {
+            setAddQueued(true);
+            return;
+        }
         const ready = await acceptAll();
         if (ready === undefined) {
             return;
@@ -1483,6 +1480,7 @@ export function CustomModelDialog({
             saveDefaults,
         );
     };
+    addRef.current = add;
     const parts = held?.record.parts ?? [];
     const unusedParts = parts.filter((p) => p.state === "unused");
     const unused = unusedParts.map((p) => p.name);
@@ -1496,19 +1494,6 @@ export function CustomModelDialog({
     // A model waiting for pictures or materials is read as it is drawn meanwhile: set up before Add.
     const summary = held === null ? undefined : summaryOf(session, held.record.id);
     const clips = summary?.animations ?? [];
-    // One chip per word: a model over the budget and heavy for its nodes is "Heavy" once.
-    const detailChips = [
-        ...new Map(
-            DETAIL_CHIP_CODES.flatMap((code) => held?.record.problems.filter((p) => p.code === code) ?? [])
-                .map((p) =>
-                    // The dialog plays the first clip, and Model settings chooses another: say so.
-                    p.code === "W_MODEL_HAS_ANIMATIONS"
-                        ? { ...modelChip(p), tip: CUSTOM_MODEL.animatedTip }
-                        : modelChip(p),
-                )
-                .map((chip) => [chip.word, chip]),
-        ).values(),
-    ];
     // Pictures not in yet: Details gives no size for them.
     const missingPictures = (held?.record.problems ?? []).filter(
         (p) =>
@@ -1742,7 +1727,10 @@ export function CustomModelDialog({
                                     !unusedFiles.has(String(p.params.fileName).split("/").pop()),
                             )
                             .map((fact) => (
-                                <FactChip key={String(fact.params.fileName)} fact={fact} />
+                                <PartLine
+                                    key={String(fact.params.fileName)}
+                                    part={{ name: String(fact.params.fileName), role: "other", state: "unused" }}
+                                />
                             ))}
                     </Stack>
                 </ScrollList>
@@ -1911,7 +1899,6 @@ export function CustomModelDialog({
                     <SettingRows
                         channels={MODEL_DEFAULT_CHANNELS}
                         values={modelDraft}
-                        problems={held.record.problems}
                         write={write}
                         remove={unset}
                         clips={clips}
@@ -1927,13 +1914,7 @@ export function CustomModelDialog({
                             <Text size="xs" c="dimmed">
                                 {CUSTOM_MODEL.forThisLayer}
                             </Text>
-                            <SettingRows
-                                channels={LAYER_CHANNELS}
-                                values={draft}
-                                problems={held.record.problems}
-                                write={write}
-                                remove={unset}
-                            />
+                            <SettingRows channels={LAYER_CHANNELS} values={draft} write={write} remove={unset} />
                             <div className="ws-model-settings">
                                 <PictureRow
                                     value={
@@ -1984,14 +1965,9 @@ export function CustomModelDialog({
             {nameRow}
             {summary === undefined || held === null || busy ? null : (
                 <div className="ws-model-details-box">
-                    <Group gap={6} wrap="wrap" data-testid="model-details-line">
-                        <Text size="sm" id={`${uid}-details`}>
-                            {CUSTOM_MODEL.details}
-                        </Text>
-                        {detailChips.map((chip) => (
-                            <ModelChip key={chip.word} chip={chip} tone="warning" />
-                        ))}
-                    </Group>
+                    <Text size="sm" id={`${uid}-details`} data-testid="model-details-line">
+                        {CUSTOM_MODEL.details}
+                    </Text>
                     <ScrollList className="ws-model-details" testId="model-details" labelledBy={`${uid}-details`}>
                         {CUSTOM_MODEL.detailRows(summary, held.record.byteLength, ignored, picturesWaiting).map(
                             (row) => (
@@ -2064,6 +2040,7 @@ export function CustomModelDialog({
                             // A blocked Add stays focusable, with its reason as its tooltip.
                             aria-disabled={blocked !== null || undefined}
                             data-disabled={blocked !== null || undefined}
+                            loading={addQueued}
                             onClick={() => {
                                 void add();
                             }}

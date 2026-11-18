@@ -617,17 +617,13 @@
     grid-template-columns: 60px minmax(0, 1fr) 24px;
 }
 
-/* The Shape field's model chips (node-models design 13.4): a line under the field, in its column. */
-.ws-model-chips {
+/* The Shape field's model buttons (Add parts, Use as picture): a line under the field, in its column. */
+.ws-model-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     padding-inline-start: var(--ws-label, 80px);
     padding-bottom: 2px;
-}
-
-.ws-chip-button {
-    cursor: pointer;
 }
 
 /* The project's models or pictures in their pop-over: one per line. */
@@ -684,12 +680,16 @@
     overflow: hidden auto;
 }
 
-/* In a window too short for all of it, the column scrolls rather than cut anything off. */
+/* In a window too short for all of it, the column scrolls rather than cut anything off. Details
+   ends a pixel above the column's clip edge, so its bottom border is never shaved off at a
+   fractional zoom. The model's max-height reserves room for Name and a one-line Details heading:
+   anything that made that heading wrap (it once held chips) pushed Details' bottom out of view. */
 .ws-model-side {
     min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    padding-bottom: 1px;
     overflow: hidden auto;
 }
 
@@ -844,9 +844,10 @@
 }
 
 /* With a set's arrows under the model, Details gives up their height (about half a row) so the
-   column still fits a 720 px window with the model at 240 px. */
+   column still fits a 720 px window with the model at 240 px, its bottom border a pixel or two
+   inside the column's end. */
 .ws-model-side:has(.ws-model-steps) .ws-model-details-box {
-    min-height: 176px;
+    min-height: 174px;
 }
 
 /* Files, the loading column's last box, down to the footer: at least a few lines. */
@@ -867,6 +868,19 @@
     margin: 0;
     padding: 0;
     min-width: 0;
+}
+
+/* A picture's name too long for the pop-over ends in an ellipsis; the tooltip has all of it. */
+.ws-model-textures .mantine-Checkbox-body,
+.ws-model-textures .mantine-Checkbox-labelWrapper {
+    min-width: 0;
+}
+
+.ws-model-texture-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* A part's answers sit under its name, in the name's column. */

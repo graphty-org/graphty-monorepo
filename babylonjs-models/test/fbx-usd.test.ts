@@ -319,6 +319,71 @@ describe("the USD checks", () => {
         });
     });
 
+    it("count what a stage draws, per use: references, an instancer's instances, time samples, a package", async () => {
+        // OpenUSD's own counts of each stage, traversed as it draws them (instance proxies, instancers).
+        const drawn = async (main: string, ...names: string[]) => {
+            const checked = await checkModelFiles(set("usd-composed", main, ...names), { main }, DEFAULT_MODEL_LIMITS);
+            return [checked.summary.triangles, checked.summary.meshes];
+        };
+        for (const ext of ["usda", "usdc"]) {
+            // Five internal references to a 12-triangle cube, beside the cube itself.
+            assert.deepStrictEqual(await drawn(`internal.${ext}`), [72, 6], ext);
+            // Four references to a cube in another layer.
+            assert.deepStrictEqual(await drawn(`external.${ext}`, "geo.usdc"), [48, 4], ext);
+            // Ten instances of a prototype under its instancer, which is drawn only as them.
+            assert.deepStrictEqual(await drawn(`instancer.${ext}`), [120, 10], ext);
+            // Faces written only as time samples.
+            assert.deepStrictEqual(await drawn(`timesampled.${ext}`), [12, 1], ext);
+        }
+        // A cube in a package a layer references, beside it or inside an outer package.
+        assert.deepStrictEqual(await drawn("nested.usda", "inner.usdz"), [12, 1]);
+        assert.deepStrictEqual(await drawn("nested.usdz"), [12, 1]);
+        assert.deepInclude(await refusalOf(set("usd-composed", "nested.usda")), {
+            code: "E_MODEL_MISSING_FILE",
+            params: { name: "inner.usdz", referencedBy: "nested.usda", role: "geometry", optional: false },
+        });
+    });
+
+    it("hold a stage to the limits by what it draws, not what one layer writes", async () => {
+        const text = (body: string) => new TextEncoder().encode(`#usda 1.0\n${body}`);
+        const mesh = 'def Mesh "G"\n{\n int[] faceVertexCounts = [3, 3]\n}\n';
+        // 2 triangles drawn 1 + 1000 times by internal references.
+        let internal = mesh;
+        for (let i = 0; i < 1000; i++) {
+            internal += `def "C${String(i)}" ( references = </G> ) {}\n`;
+        }
+        // A point instancer of 1000 instances of the same mesh.
+        const instancer = `${mesh}def PointInstancer "P"\n{\n rel prototypes = [</G>]\n int[] protoIndices = [${Array(1000).fill(0).join(",")}]\n}\n`;
+        // 100 references to a layer that references that mesh's layer 100 times.
+        const many = (to: string) =>
+            Array.from({ length: 100 }, (_, i) => `def "C${String(i)}" ( references = @${to}@ ) {}\n`).join("");
+        const nested = new Map([
+            ["root.usda", text(many("./mid.usda"))],
+            ["mid.usda", text(many("./geo.usda"))],
+            ["geo.usda", text(mesh)],
+        ]);
+        // Faces written only as a time sample.
+        const sampled = text(
+            `def Mesh "M"\n{\n int[] faceVertexCounts.timeSamples = { 0: [${Array(1000).fill(3).join(",")}] }\n}\n`,
+        );
+        for (const [files, triangles] of [
+            [new Map([["a.usda", text(internal)]]), 2002],
+            [new Map([["a.usda", text(instancer)]]), 2002],
+            [nested, 20000],
+            [new Map([["a.usda", sampled]]), 1000],
+        ] as const) {
+            assert.deepInclude(await refusalOf(files, { maxTriangles: triangles - 1 }), {
+                code: "E_MODEL_TOO_LARGE",
+                params: { what: "triangles", found: triangles, limit: triangles - 1 },
+            });
+        }
+        // A reference cycle is not followed for ever.
+        const cycle = new Map([
+            ["a.usda", text('def "A" ( references = </B> ) {}\ndef "B" ( references = </A> ) {}\n')],
+        ]);
+        assert.strictEqual((await check(cycle)).summary.triangles, 0);
+    });
+
     it("refuse a damaged layer or package", async () => {
         const [crate] = set("usdc", "cube.usdc").values();
         for (const cut of [40, crate.length - 40]) {

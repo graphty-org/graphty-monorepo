@@ -205,4 +205,72 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
 
 
-main()
+
+def composed():
+    """Stages that draw a mesh more times than a layer writes it, in text and binary alike: five
+    internal references to one cube, four references to a cube in another layer, a point instancer
+    of ten cubes, a cube whose faces are written only as time samples, and a layer that references
+    a cube in a .usdz beside it (and a package that holds both)."""
+    d = folder("usd-composed")
+    for ext in ("usda", "usdc"):
+        stage = Usd.Stage.CreateNew(os.path.join(d, f"internal.{ext}"))
+        cube(stage)
+        for i in range(5):
+            copy = stage.DefinePrim(f"/Copies/C{i}", "Xform")
+            copy.GetReferences().AddInternalReference("/Cube")
+            UsdGeom.Xformable(copy).AddTranslateOp().Set(Gf.Vec3d(2 * (i + 1), 0, 0))
+        stage.Save()
+
+        stage = Usd.Stage.CreateNew(os.path.join(d, f"external.{ext}"))
+        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
+        root = stage.DefinePrim("/Root", "Xform")
+        stage.SetDefaultPrim(root)
+        for i in range(4):
+            copy = stage.DefinePrim(f"/Root/C{i}", "Xform")
+            copy.GetReferences().AddReference("./geo.usdc")
+            UsdGeom.Xformable(copy).AddTranslateOp().Set(Gf.Vec3d(2 * i, 0, 0))
+        stage.Save()
+
+        stage = Usd.Stage.CreateNew(os.path.join(d, f"instancer.{ext}"))
+        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
+        instancer = UsdGeom.PointInstancer.Define(stage, "/Inst")
+        stage.SetDefaultPrim(instancer.GetPrim())
+        cube(stage, "/Inst/Protos/Cube")
+        instancer.CreatePrototypesRel().SetTargets([Sdf.Path("/Inst/Protos/Cube")])
+        instancer.CreateProtoIndicesAttr([0] * 10)
+        instancer.CreatePositionsAttr([Gf.Vec3f(2 * i, 0, 0) for i in range(10)])
+        stage.Save()
+
+        stage = Usd.Stage.CreateNew(os.path.join(d, f"timesampled.{ext}"))
+        mesh = cube(stage)
+        counts = mesh.GetFaceVertexCountsAttr()
+        counts.Clear()
+        counts.Set([4] * 6, 0)
+        counts.Set([4] * 6, 1)
+        stage.Save()
+
+    geo = Usd.Stage.CreateNew(os.path.join(d, "geo.usdc"))
+    cube(geo)
+    geo.Save()
+
+    work = os.path.join(HERE, ".usdz-work")
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
+    inner = Usd.Stage.CreateNew(os.path.join(work, "inner.usdc"))
+    cube(inner)
+    inner.Save()
+    package(os.path.join(work, "inner.usdc"), os.path.join(d, "inner.usdz"))
+    stage = Usd.Stage.CreateNew(os.path.join(d, "nested.usda"))
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
+    root = stage.DefinePrim("/Root", "Xform")
+    root.GetReferences().AddReference("./inner.usdz")
+    stage.SetDefaultPrim(root)
+    stage.Save()
+    package(os.path.join(d, "nested.usda"), os.path.join(d, "nested.usdz"))
+    shutil.rmtree(work, ignore_errors=True)
+
+
+if sys.argv[1:] == ["composed"]:
+    composed()
+else:
+    main()

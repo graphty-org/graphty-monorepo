@@ -1,8 +1,9 @@
 /**
  * @file Reading a binary USD layer (a `.usdc` "crate" file) far enough for its checks and summary:
  * its tokens, its specs (each prim and property, by path) and the values of the few fields a
- * summary reads -- a prim's type, an attribute's ints, points and asset path, the layer's
- * metadata.
+ * summary reads -- a prim's type, an attribute's ints, points and asset path (as a value or in
+ * its time samples), a prim's references, payloads, inherits and specializes and a relationship's
+ * targets, the layer's metadata.
  *
  * A crate file is a table of contents of sections (TOKENS, STRINGS, FIELDS, FIELDSETS, PATHS,
  * SPECS), most of them LZ4-compressed integer runs. Every count, offset and decompressed size is
@@ -29,11 +30,21 @@ const TYPE = {
     token: 11,
     assetPath: 12,
     vec3f: 24,
+    pathListOp: 34,
+    referenceListOp: 35,
     timeSamples: 46,
+    payload: 47,
+    payloadListOp: 55,
 } as const;
 
-/** The SdfSpecType of a prim, an attribute and the layer's pseudo-root. */
-export const SPEC = { attribute: 1, prim: 6, pseudoRoot: 7 } as const;
+/** The SdfSpecType of a prim, an attribute, the layer's pseudo-root and a relationship. */
+export const SPEC = { attribute: 1, prim: 6, pseudoRoot: 7, relationship: 8 } as const;
+
+/** One item of a list of paths, references or payloads: the layer it names ("" for this one) and the prim. */
+export interface CrateArc {
+    readonly asset: string;
+    readonly path: string;
+}
 
 /** A 64-bit packed value: its type, flags and payload (an inline value or a file offset). */
 export interface ValueRep {
@@ -61,6 +72,13 @@ export interface Crate {
     number(rep: ValueRep | undefined): number | undefined;
     /** A field's value as a number array (int, float or vec3f, flattened). */
     numbers(rep: ValueRep | undefined): ArrayLike<number> | undefined;
+    /**
+     * The items a list of paths, references or payloads composes (explicit, added, prepended and
+     * appended; not deleted or reordered), or a single payload's.
+     */
+    arcs(rep: ValueRep | undefined): CrateArc[] | undefined;
+    /** The values of a field's time samples, in time order; none for any other field. */
+    samples(rep: ValueRep | undefined): ValueRep[];
 }
 
 /** A cursor over the file. */
@@ -90,6 +108,22 @@ class Reader {
         const v = this.view.getBigUint64(this.at, true);
         this.at += 8;
         return v > BigInt(Number.MAX_SAFE_INTEGER) ? fail() : Number(v);
+    }
+
+    /** A jump: a signed offset from where it is written to where the data it skips to begins. */
+    jump(): void {
+        const from = this.at;
+        this.need(8);
+        const v = Number(this.view.getBigInt64(this.at, true));
+        this.at = from + v;
+        if (v < 8 || this.at > this.bytes.length) {
+            fail();
+        }
+    }
+
+    rep(): ValueRep {
+        const lo = this.u32();
+        return valueRep(lo, this.u32());
     }
 
     take(n: number): Uint8Array {
@@ -252,15 +286,24 @@ function count(reader: Reader): number {
 }
 
 /**
- * Build the path of each path index from the compressed path tree.
+ * Build the path of each path index from the compressed path tree. A layer may hold more paths
+ * than its tree encodes (a stage of four references to one layer encodes 14 of its 15), so the
+ * table is as long as the layer says.
+ * @param total - How many paths the layer holds.
  * @param indices - Each entry's path index.
  * @param elements - Each entry's element token (negative for a property).
  * @param jumps - Each entry's jump: -2 a leaf, -1 a child only, 0 a sibling only, more both.
  * @param tokens - The tokens.
  * @returns The paths by index.
  */
-function buildPaths(indices: Int32Array, elements: Int32Array, jumps: Int32Array, tokens: readonly string[]): string[] {
-    const paths = Array.from<string>({ length: indices.length }).fill("");
+function buildPaths(
+    total: number,
+    indices: Int32Array,
+    elements: Int32Array,
+    jumps: Int32Array,
+    tokens: readonly string[],
+): string[] {
+    const paths = Array.from<string>({ length: total }).fill("");
     // An explicit stack instead of recursion: a hostile file cannot run the call stack out.
     const pending: (readonly [number, string])[] = [[0, ""]];
     let steps = 0;
@@ -417,6 +460,76 @@ class CrateReader implements Crate {
         return Float32Array.from({ length: n * width }, (_, i) => read(reader.view, reader.at + i * 4));
     }
 
+    arcs(rep: ValueRep | undefined): CrateArc[] | undefined {
+        if (rep === undefined || rep.array || rep.inline) {
+            return undefined;
+        }
+        const { reader } = this;
+        reader.at = rep.payload;
+        if (rep.type === TYPE.payload) {
+            return [this.arc(TYPE.payloadListOp)];
+        }
+        if (rep.type !== TYPE.pathListOp && rep.type !== TYPE.referenceListOp && rep.type !== TYPE.payloadListOp) {
+            return undefined;
+        }
+        reader.need(1);
+        const header = reader.bytes[reader.at++];
+        const out: CrateArc[] = [];
+        // The lists, in the order they are written: explicit, added, prepended, appended, deleted, ordered.
+        for (const bit of [2, 4, 32, 64, 8, 16]) {
+            if ((header & bit) !== 0) {
+                const n = count(reader);
+                for (let i = 0; i < n; i++) {
+                    const arc = this.arc(rep.type);
+                    if (bit !== 8 && bit !== 16) {
+                        out.push(arc);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    samples(rep: ValueRep | undefined): ValueRep[] {
+        if (rep?.type !== TYPE.timeSamples || rep.inline) {
+            return [];
+        }
+        const { reader } = this;
+        // A jump past the times to their value, which is skipped; a jump to the values' count and values.
+        reader.at = rep.payload;
+        reader.jump();
+        reader.at += 8;
+        reader.jump();
+        const n = count(reader);
+        reader.need(n * 8);
+        return Array.from({ length: n }, () => reader.rep());
+    }
+
+    /**
+     * One item of a list at the cursor.
+     * @param type - The list's type.
+     * @returns The item.
+     */
+    private arc(type: number): CrateArc {
+        const { reader } = this;
+        const path = (): string => this.paths[reader.u32()] ?? fail();
+        if (type === TYPE.pathListOp) {
+            return { asset: "", path: path() };
+        }
+        const asset = this.tokens[this.strings[reader.u32()]] ?? fail();
+        const at = path();
+        // A reference's layer offset (two doubles) and custom data (each entry a string and a
+        // jump to its value); a payload's layer offset, from version 0.8.
+        if (type === TYPE.referenceListOp) {
+            reader.take(16);
+            const entries = count(reader);
+            reader.take(entries * 12);
+        } else if (this.minor >= 8) {
+            reader.take(16);
+        }
+        return { asset, path: at };
+    }
+
     private seek(name: string): boolean {
         const at = this.sections.get(name);
         if (at !== undefined) {
@@ -469,12 +582,16 @@ class CrateReader implements Crate {
 
     private readPaths(): void {
         if (this.seek("PATHS")) {
-            count(this.reader);
+            const total = count(this.reader);
             const n = count(this.reader);
+            // A path is a pointer's worth of the budget: a hostile count cannot size a huge table.
+            if (total < n || total * 8 > this.left.left) {
+                fail();
+            }
             const indices = readInts(this.reader, n, this.left);
             const elements = readInts(this.reader, n, this.left);
             const jumps = readInts(this.reader, n, this.left);
-            this.paths = buildPaths(indices, elements, jumps, this.tokens);
+            this.paths = buildPaths(total, indices, elements, jumps, this.tokens);
         }
     }
 

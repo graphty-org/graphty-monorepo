@@ -144,9 +144,12 @@ zlib's are in `licenses/openusd/`.
 FBX and USD summaries count meshes, triangles, materials, pictures, clips, skins and blend shapes
 from the files without drawing them, give the bounds of the vertices as written, and say
 `metersPerUnit` (FBX: its `UnitScaleFactor` / 100; USD: the stage's `metersPerUnit`). Their
-`upAxis` is `"y"`: Babylon's loaders turn a Z-up file upright. A USD stage's counts add up each
-layer it references once, not once per use, and its one clip is `USD Animation 1`, as Babylon's
-loader names it. An FBX file's curves (NURBS curves, lines) are drawn as thin tubes. A BVH file's
+`upAxis` is `"y"`: Babylon's loaders turn a Z-up file upright. A USD stage's meshes and triangles
+are counted per use, as OpenUSD draws them: a prim or layer brought in again by a reference,
+payload, inherit or specialize counts each time, a point instancer's prototype once per instance,
+a mesh whose faces are only time samples by its largest sample, and a `.usdz` a layer references
+(beside it, or inside a package) with the rest; its materials, skeletons and blend shapes are
+counted per layer. Its one clip is `USD Animation 1`, as Babylon's loader names it. An FBX file's curves (NURBS curves, lines) are drawn as thin tubes. A BVH file's
 summary describes the figure it is drawn as: one box (12 triangles) per bone, skinned.
 
 ## License

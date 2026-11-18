@@ -243,6 +243,10 @@ export interface GraphtyElementJSXProps {
      */
     reducedMotion?: Graphty["reducedMotion"];
     /**
+     * Sets which background colour the canvas draws.
+     */
+    colorScheme?: Graphty["colorScheme"];
+    /**
      * Sets the starting camera distance.
      */
     startingCameraDistance?: Graphty["startingCameraDistance"];
@@ -471,6 +475,10 @@ export interface GraphtyElementJSXProps {
      * Sets whether the graph reduces motion.
      */
     "reduced-motion"?: string;
+    /**
+     * Sets which background colour the canvas draws.
+     */
+    "color-scheme"?: string;
     /**
      * Sets the starting camera distance.
      */

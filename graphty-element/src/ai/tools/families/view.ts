@@ -152,12 +152,27 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         {
             name: "save",
             summary: "",
-            fields: { name },
+            fields: {
+                name,
+                follows: z
+                    .string()
+                    .min(1)
+                    .max(MAX_STRING)
+                    .optional()
+                    .describe(
+                        "A camera view id the saved view follows, recomputed each time; absent saves the camera now.",
+                    ),
+                key: z.string().min(1).max(MAX_STRING).optional().describe("A key chord the application binds to it."),
+            },
             effect: "write",
             reaches: [{ op: "view.save" }, { door: "SessionViews.save" }, { door: "Graph.getCameraState" }],
             run: async (context, args) => {
-                const camera = renderer(context).getCameraState();
-                await coded(() => context.tx.views.save([{ name: text(args.name), camera }]));
+                const key = typeof args.key === "string" ? { key: args.key } : {};
+                const saved =
+                    typeof args.follows === "string"
+                        ? { name: text(args.name), follows: args.follows, ...key }
+                        : { name: text(args.name), camera: renderer(context).getCameraState(), ...key };
+                await coded(() => context.tx.views.save([saved]));
                 return ok(undefined, { name: text(args.name) });
             },
         },
@@ -218,7 +233,22 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             fields: {},
             effect: "read",
             reaches: [],
-            run: ({ tx }) => Promise.resolve(ok({ saved: [...tx.views.keys()], cameras })),
+            run: ({ tx }) =>
+                Promise.resolve(
+                    ok({
+                        saved: [...tx.views.keys()],
+                        // The camera view each following view follows, and each view's key chord.
+                        following: Object.fromEntries(
+                            [...tx.views].flatMap(([name, view]) =>
+                                view.follows === undefined ? [] : [[name, view.follows]],
+                            ),
+                        ),
+                        keys: Object.fromEntries(
+                            [...tx.views].flatMap(([name, view]) => (view.key === undefined ? [] : [[name, view.key]])),
+                        ),
+                        cameras,
+                    }),
+                ),
         },
     ];
     return {

@@ -97,7 +97,10 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
     views: {
         change: (session) =>
             session.views.save([
-                { name: "Overview", camera: { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } } },
+                {
+                    name: "Overview",
+                    camera: { mode: "3d", position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                },
             ]),
         read: (session) => [...session.views],
     },

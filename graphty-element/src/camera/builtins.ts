@@ -380,6 +380,22 @@ function topView(input: CameraViewInput): CameraState {
 }
 
 /**
+ * Look straight up at the graph from below: the mirror of `topView`, in 3D only.
+ * @param input - The box to frame.
+ * @returns The state that looks up the y axis.
+ */
+function bottomView(input: CameraViewInput): CameraState {
+    const { center } = input.bounds;
+    const distance = input.bounds.maxDimension * STRAIGHT_ON_DISTANCE;
+
+    return {
+        type: "arcRotate",
+        position: { x: center.x, y: center.y - distance, z: center.z },
+        target: center,
+    };
+}
+
+/**
  * Look along the x axis, which shows how deep an arrangement is. On a map or a globe in 3D, a low
  * view from the south.
  * @param input - The box to frame.
@@ -452,6 +468,7 @@ const BUILT_IN_CAMERA_VIEWS: Readonly<Record<string, (input: CameraViewInput) =>
     sideView,
     frontView,
     isometric,
+    bottomView,
 });
 
 /**

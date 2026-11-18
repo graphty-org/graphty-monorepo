@@ -48,7 +48,7 @@ describe("saved views in project order", () => {
 
         await session.views.rename("b", "hub");
         assert.deepStrictEqual([...session.views.keys()], ["a", "hub", "c"]);
-        assert.deepStrictEqual(session.views.get("hub"), { mode: "2d", zoom: 2, pan: { x: 0, y: 0 } });
+        assert.deepStrictEqual(session.views.get("hub"), { camera: { mode: "2d", zoom: 2, pan: { x: 0, y: 0 } } });
         assert.strictEqual(session.history.steps.at(session.history.position - 1)?.fact.code, "view.rename");
 
         await session.undo();
@@ -102,7 +102,7 @@ describe("saved views in project order", () => {
         await session.undo();
         assert.deepStrictEqual([...session.views.keys()], ["a", "b", "c"]);
         assert.deepStrictEqual(
-            [...session.views.values()].map((camera) => camera.zoom),
+            [...session.views.values()].map((view) => view.camera?.zoom),
             [undefined, 2, 3],
         );
         session.dispose();
@@ -116,13 +116,13 @@ describe("saved views in project order", () => {
         const target = createGraphSession();
         await target.project.open(text);
         assert.deepStrictEqual([...target.views.keys()], ["b", "c", "a"]);
-        assert.strictEqual(target.views.get("a")?.mode, "3d");
-        assert.strictEqual(target.views.get("b")?.mode, "2d");
+        assert.strictEqual(target.views.get("a")?.camera?.mode, "3d");
+        assert.strictEqual(target.views.get("b")?.camera?.mode, "2d");
         source.dispose();
         target.dispose();
     });
 
-    it("loads views with no mode, as an older file holds them, in file order", async () => {
+    it("loads views with no mode, as an older file holds them, in file order, with the mode filled in", async () => {
         const source = createGraphSession();
         await source.views.save([
             { name: "z", camera: { zoom: 1 } },
@@ -134,8 +134,8 @@ describe("saved views in project order", () => {
         assert.deepStrictEqual(
             [...target.views.entries()],
             [
-                ["z", { zoom: 1 }],
-                ["m", { zoom: 2 }],
+                ["z", { camera: { zoom: 1, mode: "2d" } }],
+                ["m", { camera: { zoom: 2, mode: "2d" } }],
             ],
         );
         source.dispose();
@@ -158,12 +158,12 @@ describe("a view saved with no camera", () => {
         dispatcherOf(session).services.camera = { move: () => Promise.resolve(), current: () => camera };
 
         await session.views.save([{ name: "here" }]);
-        assert.deepStrictEqual(session.views.get("here"), { mode: "2d", zoom: 4 });
+        assert.deepStrictEqual(session.views.get("here"), { camera: { mode: "2d", zoom: 4 } });
 
         await session.undo();
         camera = { mode: "2d", zoom: 9 };
         await session.redo();
-        assert.deepStrictEqual(session.views.get("here"), { mode: "2d", zoom: 4 });
+        assert.deepStrictEqual(session.views.get("here"), { camera: { mode: "2d", zoom: 4 } });
         session.dispose();
     });
 

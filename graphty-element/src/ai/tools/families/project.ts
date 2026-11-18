@@ -43,6 +43,7 @@ export const SETTING_GROUPS = Object.freeze({
     pinnedStyle: "How pinned nodes are drawn.",
     runPlacement: "Where a run's style layers go in the stack.",
     startingRows: "The style rows a new project starts with.",
+    startingCamerasWritten: "Whether the starting cameras were written into this project.",
     viewRotation: "How the view turns.",
 } as const);
 

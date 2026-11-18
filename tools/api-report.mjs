@@ -147,6 +147,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // only by the consumer, never words graphty-element shows
     "mode",
     "key",
+    // the camera view id a saved view follows (SavedView.follows)
+    "follows",
     "nodeId",
     "edgeId",
     "runId",

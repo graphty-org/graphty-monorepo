@@ -576,7 +576,7 @@ export const BLUE_ORANGE_COLORS: readonly ["#2166ac", "#4393c3", "#92c5de", "#d1
 export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"];
 
 // @public
-export const BUILTIN_PRESETS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
+export const BUILTIN_PRESETS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"];
 
 // @public
 export interface CalibrationRecord {
@@ -8182,6 +8182,13 @@ export interface SavedProject {
 }
 
 // @public
+export interface SavedView {
+    readonly camera?: CameraState;
+    readonly follows?: string;
+    readonly key?: string;
+}
+
+// @public
 export interface ScreenshotLegendOptions {
     position?: ScreenshotLegendPosition;
     sections?: readonly ScreenshotLegendSection[];
@@ -8642,6 +8649,13 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 };
 
 export { SourceValidators }
+
+// @public
+export interface StartingCamera {
+    readonly follows: string;
+    readonly key?: string;
+    readonly name: string;
+}
 
 // @public
 export class StatsManager implements Manager {

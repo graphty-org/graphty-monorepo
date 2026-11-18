@@ -102,7 +102,11 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
         return session.groups;
     },
     ProjectApi: (session) => session.project,
-    SessionViews: (session) => session.views,
+    // After a change, so `setStartingCameras` dispatches its step instead of writing the baseline.
+    SessionViews: async (session) => {
+        await session.views.save([{ name: "door seed", camera: { zoom: 1 } }]);
+        return session.views;
+    },
     SessionTours: (session) => session.tours,
     SessionAnnotations: (session) => session.annotations,
     SessionLayout: (session) => session.layout,

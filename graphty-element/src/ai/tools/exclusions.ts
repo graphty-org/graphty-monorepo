@@ -190,7 +190,11 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { op: "layout.transport", reason: "in-flight", kind: BY_DESIGN },
     // Where a saved view sits in the list is how a panel arranges them; nothing a reader asks for.
     { op: "view.move", reason: "panel-state", kind: BY_DESIGN },
-    { root: "SessionViews", members: ["move"], reason: "panel-state", kind: BY_DESIGN },
+    // A saved view's key chord is what the application binds; save sets one with the view.
+    { op: "view.key", reason: "panel-state", kind: BY_DESIGN },
+    // The starting cameras are the application's option, written once per project by the element.
+    { op: "view.starting", reason: "mechanism", kind: BY_DESIGN },
+    { root: "SessionViews", members: ["move", "setKey", "setStartingCameras"], reason: "panel-state", kind: BY_DESIGN },
     // Where a saved tour sits in the list, and what it is called or whether it is kept, is how the
     // tour editor arranges them; the assistant lists, plays and writes tours, it does not manage the list.
     { op: "tour.move", reason: "panel-state", kind: BY_DESIGN },

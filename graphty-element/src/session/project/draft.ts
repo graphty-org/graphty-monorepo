@@ -19,7 +19,6 @@
  * patch beside them (`./arrangement.ts`); the history, not the draft, restores them.
  */
 
-import type { CameraState } from "../../camera/types";
 import type { MeasurementDeclaration, RunId, SetId } from "../../catalog/types";
 import { isPlainObject } from "../../utils/isPlainObject";
 import { retentionOf } from "../results/RunResult";
@@ -27,6 +26,7 @@ import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import { ownRows } from "../styles/tree";
+import type { SavedView } from "../types";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
 import type { Counted } from "./History";
@@ -342,7 +342,7 @@ export interface Draft {
     readonly config: KeyedWriter<string, unknown>;
     readonly runs: KeyedWriter<RunId, RunEntry>;
     readonly sets: KeyedWriter<SetId, ElementSet>;
-    readonly views: KeyedWriter<string, CameraState>;
+    readonly views: KeyedWriter<string, SavedView>;
     readonly notes: KeyedWriter<string, NoteEntry>;
     readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
     readonly valueLabels: KeyedWriter<string, string>;

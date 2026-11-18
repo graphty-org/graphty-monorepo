@@ -689,10 +689,12 @@ export interface CommandOutcomeMap {
     "view.camera": Promise<void>;
     "view.dimension": Promise<void>;
     "view.immersive": Promise<void>;
+    "view.key": Promise<void>;
     "view.move": Promise<void>;
     "view.remove": Promise<void>;
     "view.rename": Promise<void>;
     "view.save": Promise<void>;
+    "view.starting": Promise<void>;
     // @beta
     "visibility.conditions": Promise<void>;
     "visibility.context": Promise<void>;
@@ -3017,7 +3019,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -4612,6 +4614,7 @@ export interface ProjectConfig {
     readonly runAlgorithmsOnLoad: boolean;
     readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
+    readonly startingCamerasWritten: boolean;
     readonly startingRows: boolean;
     readonly timelineHiddenAdded: boolean;
     readonly timelineHiddenLook: "hidden" | "ghost";
@@ -4642,6 +4645,7 @@ export interface ProjectConfigPatch {
     readonly runPlacement?: RunPlacement;
     // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
+    readonly startingCamerasWritten?: boolean;
     readonly startingRows?: boolean;
     readonly timelineHiddenAdded?: boolean;
     readonly timelineHiddenLook?: "hidden" | "ghost";
@@ -5747,6 +5751,13 @@ export interface SavedScope {
 }
 
 // @public
+export interface SavedView {
+    readonly camera?: CameraState;
+    readonly follows?: string;
+    readonly key?: string;
+}
+
+// @public
 export type Scope = "visible" | "graph" | "selection" | "largest-component" | {
     set: ScopeId;
 } | {
@@ -6450,6 +6461,9 @@ export interface SessionEventMap {
     };
     // @beta
     "time:step": TimeStepEvent;
+    "views:seeded": {
+        readonly names: readonly string[];
+    };
     "visibility:changed": VisibilityChange;
     // @beta
     "visibility:not-drawn-changed": {
@@ -6608,14 +6622,18 @@ export interface SessionTours extends ReadonlyMap<string, Tour> {
 }
 
 // @public
-export interface SessionViews extends ReadonlyMap<string, CameraState> {
+export interface SessionViews extends ReadonlyMap<string, SavedView> {
     move(name: string, index: number): Promise<void>;
     remove(names: readonly string[]): Promise<void>;
     rename(from: string, to: string): Promise<void>;
     save(views: readonly {
         readonly name: string;
         readonly camera?: CameraState;
+        readonly follows?: string;
+        readonly key?: string | null;
     }[]): Promise<void>;
+    setKey(name: string, key: string | null): Promise<void>;
+    setStartingCameras(list: readonly StartingCamera[] | null): Promise<void>;
 }
 
 // @public
@@ -7145,6 +7163,13 @@ export interface StaleNote {
 
 // @public
 export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
+
+// @public
+export interface StartingCamera {
+    readonly follows: string;
+    readonly key?: string;
+    readonly name: string;
+}
 
 // @public
 export interface StartOptions extends RunOptions {

@@ -182,8 +182,31 @@ describe("views and the drawing mode", () => {
         await graph.setCameraState(DEEP);
         await graph.getSession().views.save([{ name: "here" }]);
         const saved = graph.getSession().views.get("here");
-        assert.strictEqual(saved?.mode, "3d");
-        assert.closeTo(saved?.position?.x ?? Number.NaN, 30, 0.5);
+        assert.strictEqual(saved?.camera?.mode, "3d");
+        assert.closeTo(saved?.camera?.position?.x ?? Number.NaN, 30, 0.5);
+    });
+
+    test("a following saved view is recomputed when applied, so it frames nodes added after it was saved", async () => {
+        await graph.getSession().views.save([{ name: "Above", follows: "topView" }]);
+        await graph.addNodes([{ id: "far", position: { x: 500, y: 0, z: 500 } }]);
+        await operationQueueOf(graph).waitForCompletion();
+
+        const now = graph.resolveCameraPreset("topView");
+        assert.deepStrictEqual(graph.resolveCameraPreset("Above"), now);
+        await graph.applyCameraView("Above");
+        const state = graph.getCameraState();
+        assert.closeTo(state.target?.x ?? Number.NaN, now.target?.x ?? Number.NaN, 0.5);
+        assert.closeTo(state.target?.z ?? Number.NaN, now.target?.z ?? Number.NaN, 0.5);
+    });
+
+    test("viewProblem judges a following saved view by the camera view it follows", async () => {
+        await graph.getSession().views.save([{ name: "Side on", follows: "sideView" }]);
+        assert.isNull(graph.viewProblem("Side on", { saved: true }));
+        await graph.setViewMode("2d");
+        assert.deepStrictEqual(graph.viewProblem("Side on", { saved: true }), {
+            code: "E_UNSUPPORTED",
+            params: { reason: "mode", name: "Side on", modes: ["3d"], mode: "2d" },
+        });
     });
 
     test("getCanvasSize reports the drawing surface in device pixels", () => {

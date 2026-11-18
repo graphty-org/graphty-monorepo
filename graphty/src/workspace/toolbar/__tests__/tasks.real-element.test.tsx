@@ -466,7 +466,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             for (const axis of ["x", "y", "z"] as const) {
                 assert.closeTo(
                     now.position?.[axis] ?? Number.NaN,
-                    saved?.position?.[axis] ?? 0,
+                    saved?.camera?.position?.[axis] ?? 0,
                     1e-3,
                     `position.${axis}`,
                 );

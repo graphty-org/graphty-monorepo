@@ -131,6 +131,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "view.dimension": "view",
     "view.immersive": "view",
     "view.move": "view",
+    "view.key": "view",
+    "view.starting": "view",
     "view.remove": "view",
     "view.rename": "view",
     "view.save": "view",

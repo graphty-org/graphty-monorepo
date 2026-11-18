@@ -73,6 +73,13 @@ const SHIPPED_CAMERAS = Object.freeze([
         modes: ["3d"],
         options: [],
     },
+    {
+        id: "bottomView",
+        plainName: "From below",
+        description: "Looks straight up at the graph from underneath: the mirror of the view from above.",
+        modes: ["3d"],
+        options: [],
+    },
 ] satisfies readonly CameraDescriptor[]);
 
 /** Every camera view the element ships. */

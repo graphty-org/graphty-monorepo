@@ -12,7 +12,6 @@
  */
 
 import type { Tour } from "../../camera/tour";
-import type { CameraState } from "../../camera/types";
 import type {
     EdgeId,
     FilterCondition,
@@ -30,6 +29,7 @@ import type { RunPainting, RunRecord } from "../runs/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
+import type { SavedView } from "../types";
 import type { RuleTree, TimePlayback, TimeWindow } from "../visibility/filter";
 import { edgeRecordMap, nodeRecordMap } from "./recordMap";
 
@@ -186,7 +186,7 @@ export interface ProjectState {
     /** The kept sets, by id: deep-frozen records. */
     readonly sets: ReadonlyMap<SetId, ElementSet>;
     /** Saved camera views, by name. */
-    readonly views: ReadonlyMap<string, CameraState>;
+    readonly views: ReadonlyMap<string, SavedView>;
     /**
      * The saved views' names in project order: one whole value, so undoing a removal puts the view
      * back where it was rather than at the end. Reported as the `views` slice.

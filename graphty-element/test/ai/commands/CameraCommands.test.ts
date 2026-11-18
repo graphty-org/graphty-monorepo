@@ -72,6 +72,12 @@ describe("CameraCommands", () => {
             assert.strictEqual(result.success, true);
         });
 
+        it("applies camera preset 'bottomView'", async () => {
+            const result = await setCameraPosition.execute(graph, { preset: "bottomView" }, context);
+
+            assert.strictEqual(result.success, true);
+        });
+
         it("applies camera preset 'isometric'", async () => {
             const result = await setCameraPosition.execute(
                 graph,

@@ -102,12 +102,12 @@ describe("the Camera menu's saved views", () => {
 
         await userEvent.keyboard("]");
         await waitFor(() => {
-            assertAt(element, session.views.get("View 1"));
+            assertAt(element, session.views.get("View 1")?.camera);
         });
         // Where "]" needs AltGr, it arrives with Ctrl and Alt held.
         await userEvent.keyboard("{Control>}{Alt>}]{/Alt}{/Control}");
         await waitFor(() => {
-            assertAt(element, session.views.get("View 2"));
+            assertAt(element, session.views.get("View 2")?.camera);
         });
 
         const next = within(await openCamera()).getByRole("menuitem", { name: /^Next view/ });

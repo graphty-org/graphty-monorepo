@@ -69,6 +69,7 @@ import { readProjectConfig } from "./commands/config";
 import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
+import { holdStartingCameras, writeStartingViews } from "./commands/view";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
@@ -234,6 +235,7 @@ import type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    SavedView,
     SessionAnnotations,
     SessionCapabilities,
     SessionCatalogApi,
@@ -252,6 +254,7 @@ import type {
     SessionTours,
     SessionViews,
     SettingEffect,
+    StartingCamera,
     TransactionOptions,
     TransactionScope,
 } from "./types";
@@ -778,7 +781,9 @@ class Session implements ElementSession {
         LANES.set(this, this.store);
         registerSessionRuns(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
-        this.views = viewsOf(this.dispatcher);
+        this.views = viewsOf(this.dispatcher, (names) => {
+            publish(this.watchers, "views:seeded", { names });
+        });
         this.tours = toursOf(this.dispatcher);
         this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
@@ -1797,12 +1802,6 @@ interface LayoutDrive {
 }
 
 /**
- * The saved camera views: the dispatcher's `views` slice, read as a map, with the two verbs that
- * write it.
- * @param dispatcher - The dispatcher.
- * @returns The views.
- */
-/**
  * The `layout` slice with its verbs.
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
@@ -1940,17 +1939,24 @@ function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
     });
 }
 
-function viewsOf(dispatcher: Dispatcher): SessionViews {
+/**
+ * The saved camera views: the dispatcher's `views` slice, read as a map in project order, with the
+ * verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @param seeded - Told the names the starting cameras wrote into the baseline.
+ * @returns The views.
+ */
+function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void): SessionViews {
     const { state } = dispatcher;
     const held = state.views;
     /**
      * The views as entries, in project order.
      * @returns The entries.
      */
-    const ordered = (): [string, CameraState][] =>
+    const ordered = (): [string, SavedView][] =>
         state.viewOrder.flatMap((name) => {
-            const camera = held.get(name);
-            return camera === undefined ? [] : [[name, camera] as [string, CameraState]];
+            const view = held.get(name);
+            return view === undefined ? [] : [[name, view] as [string, SavedView]];
         });
     const views: SessionViews = Object.freeze({
         get size() {
@@ -1959,11 +1965,11 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
         get: (name: string) => held.get(name),
         has: (name: string) => held.has(name),
         forEach: (
-            visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void,
+            visit: (view: SavedView, name: string, map: ReadonlyMap<string, SavedView>) => void,
             self?: unknown,
         ) => {
-            for (const [name, camera] of ordered()) {
-                visit.call(self, camera, name, views);
+            for (const [name, view] of ordered()) {
+                visit.call(self, view, name, views);
             }
         },
         entries: () => ordered()[Symbol.iterator](),
@@ -1973,12 +1979,23 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
                 .values(),
         values: () =>
             ordered()
-                .map(([, camera]) => camera)
+                .map(([, view]) => view)
                 .values(),
         [Symbol.iterator]: () => ordered()[Symbol.iterator](),
-        save: async (saved: readonly { readonly name: string; readonly camera?: CameraState }[]) => {
+        save: async (
+            saved: readonly {
+                readonly name: string;
+                readonly camera?: CameraState;
+                readonly follows?: string;
+                readonly key?: string | null;
+            }[],
+        ) => {
             // The camera is read once, here, so redo and replay never read the live camera again.
-            const resolved = saved.map(({ name, camera }) => ({ name, camera: camera ?? currentCamera(dispatcher) }));
+            const resolved = saved.map((view) =>
+                view.camera === undefined && view.follows === undefined
+                    ? { ...view, camera: currentCamera(dispatcher) }
+                    : view,
+            );
             await dispatcher.dispatch({ op: "view.save", views: resolved });
         },
         remove: async (names: readonly string[]) => {
@@ -1989,6 +2006,26 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
         },
         move: async (name: string, index: number) => {
             await dispatcher.dispatch({ op: "view.move", name, index });
+        },
+        setKey: async (name: string, key: string | null) => {
+            await dispatcher.dispatch({ op: "view.key", name, key });
+        },
+        setStartingCameras: async (list: readonly StartingCamera[] | null) => {
+            const starting = holdStartingCameras(dispatcher, list);
+            if (starting === null || state.config.get("startingCamerasWritten") === true) {
+                return;
+            }
+            // A project nobody has changed yet gets them as its starting state, never a step;
+            // after a change they are one step, so undo takes them out with their record.
+            if (dispatcher.seedable) {
+                let names: readonly string[] = [];
+                dispatcher.seed((draft) => {
+                    names = writeStartingViews(state, starting, draft);
+                });
+                seeded(names);
+                return;
+            }
+            await dispatcher.dispatch({ op: "view.starting", views: starting });
         },
     });
 
@@ -2131,6 +2168,9 @@ function configOf(
         },
         get timelineHiddenAdded() {
             return read().timelineHiddenAdded;
+        },
+        get startingCamerasWritten() {
+            return read().startingCamerasWritten;
         },
         get runPlacement() {
             return read().runPlacement;

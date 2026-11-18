@@ -1292,12 +1292,20 @@ export class Dispatcher {
     }
 
     /**
+     * Whether `seed` can write the baseline now: nothing is recorded and nothing is pending.
+     * @returns True when it can.
+     */
+    get seedable(): boolean {
+        return this.history.length === 0 && this.open.size === 0;
+    }
+
+    /**
      * Write the baseline: what `write` sets is the state history starts from, recorded as no step
      * and published as no change. Only before anything has been recorded or is pending.
      * @param write - Writes through a draft of its own.
      */
     seed(write: (draft: Draft) => void): void {
-        if (this.history.length > 0 || this.open.size > 0) {
+        if (!this.seedable) {
             throw new GraphtyError({
                 code: "E_INTERNAL",
                 message: "The baseline can only be written before anything is recorded or pending.",

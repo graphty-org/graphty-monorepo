@@ -48,6 +48,21 @@ function stateModes(state: CameraState): readonly DrawingMode[] {
     return [...(flat ? (["2d"] as const) : []), ...(deep ? (["3d"] as const) : [])];
 }
 
+/**
+ * A state with its `mode` filled in from the members it holds, as an older state read from a file
+ * gets it: only 3D members give `"3d"`, only 2D members `"2d"`; neither or both leave it out.
+ * @param state - The state.
+ * @returns The state, with `mode` when one mode fits it alone.
+ */
+export function withStateMode(state: CameraState): CameraState {
+    if (state.mode !== undefined) {
+        return state;
+    }
+
+    const modes = stateModes(state);
+    return modes.length === 1 ? { ...state, mode: modes[0] } : state;
+}
+
 /** The element's drawing mode as `getViewMode()` reports it. */
 export type ViewModeName = DrawingMode | "ar" | "vr";
 

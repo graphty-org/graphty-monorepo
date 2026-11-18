@@ -280,6 +280,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         editableBase: read("editableBase") as boolean,
         timelineHiddenLook: read("timelineHiddenLook") as TimelineHiddenLook,
         timelineHiddenAdded: read("timelineHiddenAdded") as boolean,
+        startingCamerasWritten: read("startingCamerasWritten") as boolean,
         runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,

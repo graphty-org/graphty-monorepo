@@ -80,6 +80,8 @@ export const COMMANDS = Object.freeze({
     "view.remove": { undo: "undoable" },
     "view.rename": { undo: "undoable" },
     "view.move": { undo: "undoable" },
+    "view.key": { undo: "undoable" },
+    "view.starting": { undo: "undoable" },
     "tour.save": { undo: "undoable" },
     "tour.remove": { undo: "undoable" },
     "tour.rename": { undo: "undoable" },

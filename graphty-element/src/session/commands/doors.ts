@@ -3858,6 +3858,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.rename", from: "door view", to: "door renamed" }],
             ),
             move: calls(["door view", 0], [{ op: "view.move", name: "door view", index: 0 }]),
+            setKey: calls(["door view", "7"], [{ op: "view.key", name: "door view", key: "7" }]),
+            // On a project nobody has changed it writes the baseline instead (no step); the door
+            // harness reaches the views after a change, so it dispatches.
+            setStartingCameras: calls(
+                [[{ name: "door start", follows: "topView" }]],
+                [{ op: "view.starting", views: [{ name: "door start", follows: "topView" }] }],
+            ),
         },
     },
     {
@@ -3954,6 +3961,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             editableBase: READ,
             timelineHiddenLook: READ,
             timelineHiddenAdded: READ,
+            startingCamerasWritten: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,

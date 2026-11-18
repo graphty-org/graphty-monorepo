@@ -892,6 +892,23 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SessionViews.setKey",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([
+                { name: "Saved", camera: VIEW, key: "1" },
+                { name: "Second", camera: VIEW },
+            ]);
+            return () => session.views.setKey("Second", "1");
+        },
+    },
+    {
+        method: "SessionViews.setStartingCameras",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => session.views.setStartingCameras([{ name: "Top", follows: "topView", key: "1" }])),
+    },
+    {
         method: "SessionTours.save",
         growth: "constant",
         prepare: (session) =>

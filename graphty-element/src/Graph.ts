@@ -288,6 +288,7 @@ import {
 } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
+import { unknownFollowed } from "./session/commands/view";
 import {
     addSetsUsers,
     dispatcherOf,
@@ -323,7 +324,7 @@ import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
-import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { HistoryCause, ProjectConfig, ProjectConfigPatch, SavedView, TransactionScope } from "./session/types";
 import type { WorkingGraph } from "./session/working/view";
 import {
     attachTransitions,
@@ -1538,6 +1539,13 @@ export class Graph implements GraphContext {
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
+            pose: (follows) => {
+                try {
+                    return this.#savedPose({ follows });
+                } catch {
+                    return undefined;
+                }
+            },
             current: () => {
                 const immersive = this.#immersiveProblem();
                 if (immersive !== null) {
@@ -2001,6 +2009,9 @@ export class Graph implements GraphContext {
             if (slices.includes("views") || slices.includes("tours")) {
                 this.eventManager.emit("views-changed", {});
             }
+        });
+        this.session.on("views:seeded", () => {
+            this.eventManager.emit("views-changed", {});
         });
         const unwatchCameraViews = onCameraViewRegistered(() => {
             this.eventManager.emit("views-changed", {});
@@ -10076,9 +10087,9 @@ export class Graph implements GraphContext {
         }
 
         if (!isCameraViewName(preset)) {
-            const snapshot = this.session.views.get(preset);
-            if (snapshot) {
-                return snapshot;
+            const saved = this.session.views.get(preset);
+            if (saved) {
+                return this.#savedPose(saved);
             }
             // The same details viewProblem gives: every name that would have answered.
             const available = [...cameraViewIds(), ...this.session.views.keys()];
@@ -10093,6 +10104,39 @@ export class Graph implements GraphContext {
         const context = this.cameraViewContext(this.boundsToFrame(options?.nodes, options?.extent), options?.params);
 
         return resolveCameraView(preset, context);
+    }
+
+    /**
+     * The pose a saved view gives now: its fixed camera, or the camera view it follows computed
+     * with its default scope for whatever is drawn.
+     * @param saved - The saved view.
+     * @returns The camera state.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` `{ name }` when the followed camera view is
+     *     no longer registered, or as `resolveCameraView` refuses.
+     */
+    #savedPose(saved: SavedView): import("./screenshot/types.js").CameraState {
+        if (saved.follows === undefined) {
+            return saved.camera ?? {};
+        }
+        if (!isCameraViewName(saved.follows)) {
+            throw unknownFollowed(saved.follows);
+        }
+        return resolveCameraView(saved.follows, this.cameraViewContext(this.boundsToFrame()));
+    }
+
+    /**
+     * The saved views as fixed poses, for the older preset readers: a following view as the pose
+     * it gives now, left out when it cannot give one.
+     * @returns Each name with its pose, in project order.
+     */
+    #savedPoses(): [string, import("./screenshot/types.js").CameraState][] {
+        return [...this.session.views].flatMap(([name, saved]) => {
+            try {
+                return [[name, this.#savedPose(saved)] as [string, import("./screenshot/types.js").CameraState]];
+            } catch {
+                return [];
+            }
+        });
     }
 
     /**
@@ -10144,8 +10188,7 @@ export class Graph implements GraphContext {
             };
         }
 
-        const problem = stateProblem(saved, mode, { name });
-        return problem === null ? null : { code: "E_UNSUPPORTED", params: problem };
+        return savedViewProblem(name, saved, mode);
     }
 
     /**
@@ -10298,7 +10341,7 @@ export class Graph implements GraphContext {
      *     the saved ones.
      */
     getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
-        return presetsOf(this.session.views);
+        return presetsOf(this.#savedPoses());
     }
 
     /**
@@ -10307,7 +10350,7 @@ export class Graph implements GraphContext {
      * @deprecated Read `session.views`, a map in project order.
      */
     exportCameraPresets(): Record<string, import("./screenshot/types.js").CameraState> {
-        return Object.fromEntries(this.session.views);
+        return Object.fromEntries(this.#savedPoses());
     }
 
     /**
@@ -11556,6 +11599,29 @@ interface FlownTour {
     readonly states: readonly import("./screenshot/types.js").CameraState[];
     /** The saved view each stop flies to, or undefined for a stop given as a camera state. */
     readonly views: readonly (string | undefined)[];
+}
+
+/**
+ * Why a saved view cannot be applied in a drawing mode: a following view works where the camera
+ * view it follows works, a fixed one where its camera state fits.
+ * @param name - The saved view's name.
+ * @param saved - The saved view.
+ * @param mode - The drawing mode.
+ * @returns Null when it can be applied; else the coded fact.
+ */
+function savedViewProblem(name: string, saved: SavedView, mode: "2d" | "3d"): CodedFact | null {
+    if (saved.follows !== undefined) {
+        const followed = cameraViewModes(saved.follows);
+        if (followed === undefined) {
+            return { code: "E_UNKNOWN_CAMERA", params: { name: saved.follows } };
+        }
+        return followed.includes(mode)
+            ? null
+            : { code: "E_UNSUPPORTED", params: { reason: "mode", name, modes: [...followed], mode } };
+    }
+
+    const problem = stateProblem(saved.camera ?? {}, mode, { name });
+    return problem === null ? null : { code: "E_UNSUPPORTED", params: problem };
 }
 
 /**

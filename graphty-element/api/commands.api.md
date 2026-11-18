@@ -155,6 +155,12 @@ export const COMMANDS: Readonly<{
     readonly "view.move": {
         readonly undo: "undoable";
     };
+    readonly "view.key": {
+        readonly undo: "undoable";
+    };
+    readonly "view.starting": {
+        readonly undo: "undoable";
+    };
     readonly "tour.save": {
         readonly undo: "undoable";
     };

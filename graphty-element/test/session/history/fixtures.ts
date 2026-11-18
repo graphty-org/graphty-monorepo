@@ -869,6 +869,36 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },
     },
     {
+        name: "view.save following a camera view with a key, taking the key",
+        variant: "following",
+        tags: ["session"],
+        before: (session) => session.views.save([{ name: "Keyed view", camera: { zoom: 2 }, key: "7" }]),
+        command: { op: "view.save", views: [{ name: "Fixture view", follows: "topView", key: "7" }] },
+    },
+    {
+        name: "view.key",
+        tags: ["session"],
+        before: (session) =>
+            session.views.save([
+                { name: "Fixture view", camera: { zoom: 2 } },
+                { name: "Keyed view", camera: { zoom: 3 }, key: "7" },
+            ]),
+        command: { op: "view.key", name: "Fixture view", key: "7" },
+    },
+    {
+        name: "view.starting",
+        tags: ["session"],
+        before: (session) => session.views.save([{ name: "Top", camera: { zoom: 2 }, key: "1" }]),
+        command: {
+            op: "view.starting",
+            views: [
+                { name: "Top", follows: "topView", key: "1" },
+                { name: "Below", follows: "bottomView", key: "1" },
+                { name: "Iso", follows: "isometric", key: "2" },
+            ],
+        },
+    },
+    {
         name: "view.remove",
         tags: ["session"],
         before: (session) => session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]),
@@ -990,6 +1020,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "startingRows",
         tags: BOTH,
         command: { op: "config.set", values: { startingRows: true } },
+    },
+    {
+        name: "config.set startingCamerasWritten",
+        variant: "startingCamerasWritten",
+        tags: BOTH,
+        command: { op: "config.set", values: { startingCamerasWritten: true } },
     },
     {
         name: "config.set runPlacement",

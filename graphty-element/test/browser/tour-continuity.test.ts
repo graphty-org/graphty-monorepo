@@ -419,7 +419,7 @@ describe("a tour flies the camera continuously", () => {
         assert.isBelow(turned, (5 * Math.PI) / 180, "a 5 px drag turns the view less than 5 degrees");
     });
 
-    test("Side, Top, and a second view from straight above: the poles agree", async () => {
+    test("Side, Top, Bottom, and a second view from straight above: pole to pole, and the poles agree", async () => {
         const top = await cutPose(graph, "topView");
         const target = top.state.target ?? { x: 0, y: 0, z: 0 };
         const height = (top.state.cameraDistance ?? 10) * 1.5;
@@ -436,7 +436,8 @@ describe("a tour flies the camera continuously", () => {
         await playAndCheck(graph, "2", [
             { view: "sideView" },
             { view: "topView", duration: 1000 },
-            { view: "overhead", duration: 600 },
+            { view: "bottomView", duration: 1000 },
+            { view: "overhead", duration: 1000 },
         ]);
         // Top reached by a flight holds the pose a cut gives.
         const flown = pivotQuaternion(graph);

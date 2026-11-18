@@ -290,6 +290,8 @@ export const MUTATING: readonly string[] = [
     "SessionViews.remove",
     "SessionViews.rename",
     "SessionViews.save",
+    "SessionViews.setKey",
+    "SessionViews.setStartingCameras",
     "SetsApi.addMembers",
     "SetsApi.combine",
     "SetsApi.create",

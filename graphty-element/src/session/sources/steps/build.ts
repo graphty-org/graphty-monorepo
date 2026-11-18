@@ -757,6 +757,7 @@ class Builder {
         });
         for (const n of this.nodes.values()) {
             settle(n);
+            this.settleTime(n);
         }
         for (const { src, table, n, read } of this.reads.values()) {
             for (let i = 0; i < n; i++) {
@@ -767,6 +768,29 @@ class Builder {
         }
         const { nodes, edges, aliases, edgeAliases, stats, issues, fates } = this;
         return { nodes, edges, aliases, edgeAliases, stats, issues, fates };
+    }
+
+    // 3.9: when every supplying source reads time from one column, the time comes from the source whose
+    // value that column shows (its rule's pick); a computed value (mean) keeps step order
+    private settleTime(n: BuiltNode): void {
+        const timed = n.loads.filter((id) => this.input.sources[id]?.mapping.nodes?.time !== undefined);
+        const cols = new Set(timed.map((id) => this.input.sources[id].mapping.nodes?.time));
+        const [col] = cols;
+        if (cols.size !== 1 || col === undefined) {
+            return;
+        }
+        const from = n.origin[col] as string | undefined;
+        if (from === undefined || !timed.includes(from)) {
+            return;
+        }
+        const v = n.own[from]?.[col]?.v;
+        const t = Array.isArray(v)
+            ? null
+            : parseTime(v as CellValue | undefined, this.input.sources[from].mapping.nodes?.timeParseZone);
+        if (t !== null) {
+            n.time = t;
+            n.timeFrom = from;
+        }
     }
 
     // ---- join.add (3.4)

@@ -3,10 +3,8 @@
 // last or list, on join.node-values, join.merge and join.edges.
 import { assert, describe, it } from "vitest";
 
-import type { Step } from "../../../src/session/sources/steps/types";
+import type { Aggregate, Step } from "../../../src/session/sources/steps/types";
 import { csv, edgesOf, Fixture, nodeIn, phase1 } from "./helpers";
-
-type Aggregate = NonNullable<Extract<Step, { op: "join.node-values" }>["aggregate"]>;
 
 describe("aggregate on join.node-values", () => {
     const valuesOf = (aggregate: Aggregate): Record<string, unknown> | undefined => {

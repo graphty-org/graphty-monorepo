@@ -14,7 +14,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { generateGraph, generateRandom3DPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
-    cleanup3DScene,
+    cleanup3DSceneOnUnmount,
     create3DControls,
     create3DInfoPanel,
     create3DScene,
@@ -114,26 +114,7 @@ function createSpring3DStory(args: Spring3DArgs): HTMLElement {
     const controls = create3DControls(apply, reset);
     container.appendChild(controls);
 
-    // Cleanup on story unmount
-    const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            const removedNodes = Array.from(mutation.removedNodes);
-            for (const removedNode of removedNodes) {
-                if (removedNode === container || (removedNode as Element).contains?.(container)) {
-                    cleanup3DScene(scene3D);
-                    observer.disconnect();
-                    return;
-                }
-            }
-        }
-    });
-
-    // Start observing parent changes after a tick to allow DOM insertion
-    setTimeout(() => {
-        if (container.parentElement) {
-            observer.observe(container.parentElement, { childList: true, subtree: true });
-        }
-    }, 0);
+    cleanup3DSceneOnUnmount(container, scene3D);
 
     return container;
 }

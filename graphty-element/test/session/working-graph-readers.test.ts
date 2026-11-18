@@ -247,11 +247,11 @@ describe("the selection under a filter", () => {
         session.dispose();
     });
 
-    it("keeps selecting a node the time window alone hides", async () => {
+    it("keeps selecting a node outside the time window", async () => {
         const harness = harnessOf();
         const { session } = harness;
         await session.visibility.setWindow(EARLY);
-        assert.isFalse(session.visibility.isVisible("c"));
+        assert.isTrue(session.visibility.isVisible("c"), "a window only changes how c is drawn");
         await session.selection.apply({ nodes: ["c"] }, "replace");
         assert.sameMembers([...session.selection.nodes], ["c"]);
         session.dispose();

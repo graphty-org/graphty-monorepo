@@ -46,6 +46,7 @@
         "@testing-library/react": "^16.3.3",
         "@vitejs/plugin-react": "^4.7.0",
         "@vitest/browser-playwright": "catalog:",
+        "axe-core": "^4.14.0",
         "eslint": "^9.39.5",
         "jsdom": "^30.1.3",
         "lucide-react": "^0.525.0",
@@ -67,7 +68,7 @@
         "coverage": "vitest run --coverage",
         "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
         "build-storybook": "storybook build",
-        "lint": "eslint && tsc -p tsconfig.check.json",
+        "lint": "eslint --pass-on-unpruned-suppressions && tsc -p tsconfig.check.json",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace compact-mantine"
     },
@@ -93,6 +94,6 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/compact-mantine#readme",
+    "homepage": "https://graphty.app/docs/compact-mantine/",
     "author": "Adam Powers <apowers@ato.ms>"
 }

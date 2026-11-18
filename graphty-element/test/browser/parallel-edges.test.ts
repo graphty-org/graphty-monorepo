@@ -296,9 +296,9 @@ describe("an algorithm run over a multigraph", () => {
         const run = graph.getSession().runs.start("degree");
         await run;
 
-        const notes = run.caveats.notes.join(" ");
-        assert.include(notes, "parallel", "the merge is named on the result rather than only in a design document");
-        assert.include(notes, "1 parallel edge was merged", "and the count is the graph's repeat count");
+        const merged = run.caveats.facts.find((fact) => fact.code === "parallel-edges.merged");
+        assert.isDefined(merged, "the merge is named on the result rather than only in a design document");
+        assert.strictEqual(merged?.params.count, 1, "and the count is the graph's repeat count");
         graph.dispose();
     });
 
@@ -323,7 +323,7 @@ describe("an algorithm run over a multigraph", () => {
         const result = await run;
 
         assert.deepInclude(result.node("c"), { distance: 3 }, "1 then 2, not the group's sum of 5 then 2");
-        assert.include(run.caveats.notes.join(" "), "1 parallel edge was merged, keeping the lowest weight");
+        assert.deepInclude(run.caveats.facts, { code: "parallel-edges.merged", params: { count: 1, policy: "min" } });
         graph.dispose();
     });
 

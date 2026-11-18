@@ -215,8 +215,6 @@ the `file-styles` experiment is off, and otherwise `{ declared, summary }`:
 
 - `declared`: true when reading the file's styles found rules to draw;
 - `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;
-- `summary.tool`: the program that wrote the file, whose defaults fill in what the file leaves
-  unset (`"cytoscape"`, `"gephi"`, `"graphviz"`, `"yed"`, ...), or null when it is not known.
 
 So a reader can be asked before the load:
 

@@ -35,6 +35,7 @@ import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { SE_BASE_OPTIONS } from "../helpers/se-parity.js";
 import { storyGraph } from "../helpers/story-graph.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
 const MODELS: readonly LawModel[] = ["fr", "se"];
@@ -195,7 +196,7 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
     }
 
     it("writes the spring-electrical members of grid-law.rms / grid-law.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // the unscaled exact tier costs minutes on lavapipe; test/noise-floor.test.ts checks the committed fixtures
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
         }

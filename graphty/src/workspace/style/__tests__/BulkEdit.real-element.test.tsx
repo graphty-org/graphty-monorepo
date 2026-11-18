@@ -17,6 +17,7 @@ import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { receiptSays } from "./tooltip";
 
 /** What a scene holds: the session, the Louvain folder, and the rows set up in it. */
 interface Scene {
@@ -103,15 +104,13 @@ async function oneValueForAll(row: HTMLElement): Promise<void> {
 }
 
 describe("bulk editing a folder", () => {
-    it("says what an edit reaches; a typed Fill goes to the layers that set a color, one Undo restores them", async () => {
+    it("a typed Fill goes to the layers that set a color, one Undo restores them", async () => {
         const { session, folder, groups, sized } = await openScene();
         const before = new Map(groups.map((id) => [id, colorOf(session, id)]));
         await clickRow("Louvain");
 
-        const total = groups.length + 1;
-        await screen.findByText(
-            `${String(total)} layers in Louvain: 2 in Fantine's, 1 hidden, 1 locked and skipped. Layers added later are not changed.`,
-        );
+        // The sidebar draws no line saying what an edit reaches (#8739).
+        assert.isNull(screen.queryByText(/layers in Louvain/));
         const tab = await screen.findByTestId("style-tab");
         const fill = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
@@ -119,7 +118,7 @@ describe("bulk editing a folder", () => {
             return found;
         });
         assert.match(
-            fill.querySelector("[data-breakdown]")?.textContent ?? "",
+            fill.querySelector("[data-notes]")?.getAttribute("data-notes") ?? "",
             /(^N|; n)ot set: Big ones; locked, left alone: /,
         );
 
@@ -144,7 +143,7 @@ describe("bulk editing a folder", () => {
             return found;
         });
         assert.match(
-            receipt.textContent ?? "",
+            await receiptSays(fill),
             new RegExp(`${String(groups.length - 1)} changed, 1 left unset, 1 locked skipped`),
         );
 
@@ -175,7 +174,7 @@ describe("bulk editing a folder", () => {
         await userEvent.keyboard("{ArrowRight}");
         await clickRow("Fantine's");
 
-        await screen.findByText("2 layers in Fantine's.", { exact: false });
+        await screen.findByRole("heading", { level: 2, name: "Fantine's" });
         const tab = await screen.findByTestId("style-tab");
         const size = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');

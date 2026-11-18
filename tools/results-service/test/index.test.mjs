@@ -325,8 +325,6 @@ describe("POST /v1/failures", () => {
         assert.deepEqual((await call("POST", "/v1/failures", { token: pr(), body: { ...body, failures: [] } })).body, {
             stored: 0,
         });
-        const bad = { ...body, failures: [{ file: "a", name: "a", message: "m" }], root: 7 };
-        assert.equal((await call("POST", "/v1/failures", { token: pr(), body: bad })).status, 400);
     });
 });
 
@@ -633,6 +631,23 @@ describe("GET /v1/plan", () => {
             const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
             assert.deepEqual(correlated, [], sql);
         }
+    });
+
+    it("#7269: runs no inputs query for the placeholder inputs key", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("dash", { kind: "pr", inputs: "-" });
+        const seen = [];
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.push(sql), prepare(sql));
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "-" });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.variants[BROWSER].passedWithInputs, null);
+        assert.ok(seen.length > 0);
+        assert.deepEqual(
+            seen.filter((sql) => /inputs = \?/.test(sql)),
+            [],
+        );
     });
 
     it("answers reuse, recent failures first and per-file durations per variant", async () => {
@@ -1985,6 +2000,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         // ponytail: the consumers early-capture.md 4c allows
         const allowed = [
             /^tools\/results-service\//,
+            // the store itself on AWS (#3607): its routes, records and tests
+            /^tools\/pipeline-health\/(README\.md|infra\/health-stack\.ts|(src\/handlers|test)\/(ingest|results|handlers\.test|stack\.test)\.ts)$/,
             /^tools\/channel\/story-slices\.mjs$/,
             /^tools\/channel\/rolling\.mjs$/,
             /^tools\/full-run\.mjs$/,

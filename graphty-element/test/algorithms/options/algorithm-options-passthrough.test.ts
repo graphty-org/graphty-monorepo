@@ -25,6 +25,7 @@ import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
 import type { Graph } from "../../../src/Graph";
+import type { CodedFact } from "../../../src/session/shared";
 import {
     createMockGraph,
     getGraphResult,
@@ -145,9 +146,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const rank1 = getNodeResult(pr1, firstNodeId, "graphty", "pagerank", "rank");
                 const rank2 = getNodeResult(pr2, firstNodeId, "graphty", "pagerank", "rank");
 
-                // The damping factor a run used is in its caveats' notes.
-                assert.ok(pr1.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
-                assert.ok(pr2.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
+                // The damping factor a run used is in its caveats' facts.
+                assert.deepInclude(pr1.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.85 },
+                });
+                assert.deepInclude(pr2.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.5 },
+                });
 
                 // Results should be different
                 assert.notStrictEqual(rank1, rank2, "Different damping factors should produce different results");
@@ -746,9 +753,14 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
             // The damping factor is part of what qualifies the numbers, so it is in the caveats'
             // notes rather than published as a graph result of its own.
-            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            const { result } = algo as unknown as {
+                result?: { summary: () => { caveats: { facts: readonly CodedFact[] } } };
+            };
             assert.ok(result);
-            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.5")));
+            assert.deepInclude(result.summary().caveats.facts ?? [], {
+                code: "pagerank.damping",
+                params: { dampingFactor: 0.5 },
+            });
         });
 
         it("uses defaults when no options passed to factory", async () => {
@@ -761,9 +773,14 @@ describe("Algorithm Options Pass-Through Tests", () => {
             // Type assertion needed due to abstract signature mismatch
             await (algo as unknown as { run(): Promise<void> }).run();
 
-            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            const { result } = algo as unknown as {
+                result?: { summary: () => { caveats: { facts: readonly CodedFact[] } } };
+            };
             assert.ok(result);
-            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.85")));
+            assert.deepInclude(result.summary().caveats.facts ?? [], {
+                code: "pagerank.damping",
+                params: { dampingFactor: 0.85 },
+            });
         });
     });
 });

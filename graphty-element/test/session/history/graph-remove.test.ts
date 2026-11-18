@@ -74,8 +74,8 @@ describe("removing rows as steps", () => {
         await session.data.removeNodes(["v2"]);
         assert.deepEqual(nodeOrder(session), ["v0", "v1", "v3", "v4", "v5"]);
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ["Removed a node"],
+            session.history.steps.map((step) => step.fact),
+            [{ code: "data.remove-nodes", params: { count: 1 } }],
         );
 
         await session.undo();
@@ -261,8 +261,8 @@ describe("clearing as a step", () => {
         await session.data.clear();
         assert.strictEqual(session.snapshot().nodeCount, 0);
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ["Cleared the graph"],
+            session.history.steps.map((step) => step.fact),
+            [{ code: "data.clear", params: {} }],
         );
 
         await session.undo();

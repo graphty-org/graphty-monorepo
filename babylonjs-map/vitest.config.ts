@@ -3,8 +3,7 @@ import { defineConfig } from "vitest/config";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
-// Standalone rather than vitest.shared.config.ts, like graph-samples: the shared factory runs
-// happy-dom, and these tests are plain math with no DOM.
+// Node environment: these tests are plain math with no DOM.
 // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
 export default withTestGuards(
     defineConfig({

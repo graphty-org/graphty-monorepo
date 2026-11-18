@@ -17,7 +17,7 @@
  *   { dist, prev, wallMs, routes: [{ id, task, feature, result, reason, shot, ui, prevShot, aria, change, diffFrac, diffImage }] }
  * task is the study task the route walks ("T42A"); change is "same", "changed", "new" (no earlier
  * screen) or "unstable". Exit 0 when every route passed, 1 when one failed, 2 on a usage error.
- * See README.md beside this file, "The scripted dry run".
+ * See REFERENCE.md beside this file, "The scripted dry run".
  */
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";

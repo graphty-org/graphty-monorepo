@@ -59,8 +59,8 @@ describe("adding nodes and edges as steps", () => {
         await session.data.addNodes([{ id: "n4", name: "four" }]);
 
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ["Added a node"],
+            session.history.steps.map((step) => step.fact),
+            [{ code: "data.add-nodes", params: { count: 1 } }],
         );
         assert.strictEqual(session.data.node("n4")?.name, "four");
 

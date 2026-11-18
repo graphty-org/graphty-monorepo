@@ -14,7 +14,7 @@ export default defineConfig(({ command }) => {
     if (!label) throw new Error("set BENCH_LABEL");
     if (command === "build" && !S) throw new Error("set BENCH_SOURCE to the checkout to measure");
     const git = (...a) => {
-        const out = execFileSync("git", ["-C", S, ...a]); // NOSONAR(S4036): the developer's own git
+        const out = execFileSync("git", ["-C", S, ...a]); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own git
         return out.toString().trim();
     };
     const build = S

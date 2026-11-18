@@ -11,7 +11,8 @@
 //   GRAPHTY_RESULTS_TOKEN   a local token (kind `local`); in GitHub Actions the job's OIDC token is used instead
 //                           (audience `graphty-results`, ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN)
 //   HEALTH_API_URL          the pipeline health API (issue #3602); with the store configured, in GitHub Actions every
-//                           POST is also sent there with its own OIDC token (audience `graphty-health`), fire and forget:
+//                           write (POST, PUT, DELETE) is also sent there with its own OIDC token (audience
+//                           `graphty-health`), fire and forget:
 //                           2 s at most, never awaited by the caller; flushHealth() settles them
 //                           (so it may hold a body the store refused, and miss one the store never got)
 //
@@ -23,7 +24,7 @@ import { cpus } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseEnvFile } from "../sonar/api.mjs";
+import { parseEnvFile } from "./env-file.mjs";
 
 export const SCHEMA = 1;
 export const RECORD_MS = 5000;
@@ -103,19 +104,20 @@ function until(p, signal) {
 const healthPending = new Set();
 
 /**
- * Sends one POST to the health API as well, fire and forget: its own OIDC token (audience graphty-health), 2 s in
+ * Sends one write to the health API as well, fire and forget: its own OIDC token (audience graphty-health), 2 s in
  * all, never awaited by call(), never throws. A CLI that ends with process.exit() awaits
  * flushHealth() first; one that ends on its own waits at most the 2 s.
  * @param cfg config() with `health`
  * @param path the route
  * @param body the JSON body
+ * @param [method] POST, PUT or DELETE
  */
-export function sendHealth(cfg, path, body) {
+export function sendHealth(cfg, path, body, method = "POST") {
     const signal = AbortSignal.timeout(HEALTH_MS);
     const p = bearer({ oidc: cfg.oidc }, signal, HEALTH_AUDIENCE, true)
         .then((auth) =>
             fetch(cfg.health + path, {
-                method: "POST",
+                method,
                 headers: {
                     authorization: `Bearer ${auth}`,
                     "content-type": "application/json",
@@ -215,7 +217,7 @@ export const RETRY_MS = [1000, 3000];
 /**
  * One request to the store, sent again when no answer or a 5xx came (RETRY_MS). Never throws.
  * @param cfg config()
- * @param method GET, POST or PUT
+ * @param method GET, POST, PUT or DELETE
  * @param path e.g. `/v1/invocations`
  * @param [body] JSON body
  * @param [ms] the timeout for each attempt
@@ -223,7 +225,7 @@ export const RETRY_MS = [1000, 3000];
  */
 export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) {
     if (!cfg) return { ok: false, why: "results store not configured" };
-    if (cfg.health && method === "POST") sendHealth(cfg, path, body);
+    if (cfg.health && method !== "GET") sendHealth(cfg, path, body, method);
     const waits = cfg.retryMs ?? RETRY_MS;
     for (let i = 0; ; i++) {
         const r = await attempt(cfg, method, path, body, ms);

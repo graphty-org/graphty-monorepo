@@ -12,6 +12,7 @@ tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/browser-crash-log.test.mjs
 tools/build-bundle.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/approval-update.test.mjs
@@ -50,16 +51,20 @@ tools/claude-owner-credential-guard.test.mjs
 tools/dataset-overlay.test.mjs
 tools/dependency-refresh.test.mjs
 tools/design-studio-workflow.test.mjs
+tools/duplicates-check.test.mjs
 tools/features-on.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
 tools/health-owner-sweep.test.mjs
 tools/idle-servers.test.mjs
+tools/issue-groups.test.mjs
 tools/issue-queue.test.mjs
+tools/issue-round-idle-hook.test.mjs
 tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs
 tools/live.test.mjs
 tools/llm-spend.test.mjs
+tools/master-guard.test.mjs
 tools/merge-coverage.test.mjs
 tools/nightly-scenarios.test.mjs
 tools/nx-cache-proxy.test.mjs
@@ -87,9 +92,6 @@ tools/scan-secrets.test.mjs
 tools/scratch-ruleset-cases.test.mjs
 tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs
-tools/sonar/sonar-baseline.test.mjs
-tools/sonar/sonar-gate.test.mjs
-tools/sonarqube-mcp/lib.test.mjs
 tools/step-log.test.mjs
 tools/storybook-brand-theme.test.mjs
 tools/test-changed.test.mjs
@@ -106,3 +108,4 @@ tools/vitest-deps-reload.test.mjs
 tools/vitest-file-guard.test.mjs
 tools/vitest-time-budget.test.mjs
 tools/worktree-cleanup.test.mjs
+tools/refresh-inherited-prs.test.mjs

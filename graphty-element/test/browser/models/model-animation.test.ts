@@ -1,7 +1,7 @@
 /**
  * Model nodes playing their file's clips: a playing model draws a new picture as time passes, a
  * held pose is drawn where the clip puts it and stays put, two nodes play two clips of one file, a
- * skinned and a rigid model both animate, an unknown clip and a morph target's clip are reported,
+ * skinned, a rigid and a morph-target model all animate, an unknown clip is reported,
  * and a model keeps the frame loop going only while it plays.
  */
 
@@ -191,7 +191,7 @@ describe("model animation", () => {
         assert.strictEqual(start, again, "the same moment gives the same picture");
     });
 
-    it("names an unknown clip and says a morph target's clip holds its rest pose", async () => {
+    it("names an unknown clip", async () => {
         const element = await mount();
         const { layer, asset } = await drawModel(element, "gltf-animated", [{ id: "a", x: 0 }], {
             "node.modelAnimation": "spin",
@@ -203,12 +203,24 @@ describe("model animation", () => {
         await element.session.styles.update(layer, { set: playing(asset, "fly", 0, 0) });
         const fact = (await unknown).problems.find((f) => f.code === "W_MODEL_ANIMATION_UNKNOWN");
         assert.deepEqual(fact?.params, { name: "fly", available: ["spin"] });
+    });
 
-        const morph = await mount();
-        const { problems } = await drawModel(morph, "gltf-morph-animated", [{ id: "m", x: 0 }], {
+    it("plays a clip that moves only a morph target's weight, as Parrot.glb's does", async () => {
+        const element = await mount();
+        // The clip "grow" takes the cube's one morph target from weight 0 to 1: its faces push out.
+        const { layer, asset, problems } = await drawModel(element, "gltf-morph-animated", [{ id: "m", x: 0 }], {
             "node.modelAnimation": "grow",
             "node.modelAnimationSpeed": 0,
+            "node.modelAnimationOffset": 0,
         });
-        assert.deepInclude(problems, { code: "W_MODEL_ANIMATION_PARTIAL", params: { reason: "morph" } });
+        assert.notDeepInclude(problems, { code: "W_MODEL_ANIMATION_PARTIAL", params: { reason: "morph" } });
+        const start = await readFrame(element);
+        const grown = await hold(element, layer, playing(asset, "grow", 0, 1));
+        assert.isAbove(pixelsChanged(start, grown), 100, "at the clip's end the morph target has moved the faces");
+        assert.strictEqual(pixelsChanged(start, await hold(element, layer, playing(asset, "grow", 0, 0))), 0);
+
+        const moving = await hold(element, layer, playing(asset, "grow", 1, 0));
+        assert.isAbove(everyFrameAnimationsOn(element.graph.scene), 0, "a playing morph clip draws every frame");
+        assert.isAbove(await framesUntilMoved(element, moving), 0, "the picture moves while it plays");
     });
 });

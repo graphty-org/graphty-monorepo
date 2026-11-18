@@ -482,8 +482,9 @@ await element.session.styles.add({
 
 Every node plays the clip on the GPU from one texture the element bakes when the model loads, so
 a thousand walking nodes cost about what one does. A pose is a clip held still:
-`"node.modelAnimationSpeed": 0` with the moment in `node.modelAnimationOffset`. A skinned model's
-shape keys (morph targets) are not played (`W_MODEL_ANIMATION_PARTIAL`), and a clip name the file
+`"node.modelAnimationSpeed": 0` with the moment in `node.modelAnimationOffset`. A clip that moves
+shape keys (morph targets) plays too, as a parrot's flapping wings do; only a skinned part's shape
+keys hold still (`W_MODEL_ANIMATION_PARTIAL`). A clip name the file
 does not have holds the first frame (`W_MODEL_ANIMATION_UNKNOWN`). While any node plays, the
 element draws every frame; once all are still or gone, it rests.
 

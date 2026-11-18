@@ -152,7 +152,7 @@
         "id": "gltf-morph-animated",
         "format": "glb",
         "color": "blue",
-        "what": "GLB whose one clip moves a morph target's weight (held at rest when played)",
+        "what": "GLB whose one clip, 'grow', moves a morph target's weight from 0 to 1",
         "files": ["cube.glb"]
     },
     {

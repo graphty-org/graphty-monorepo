@@ -1019,7 +1019,7 @@ async function main(): Promise<void> {
         "gltf-morph-animated",
         { morph: true, animatedWeights: true },
         "blue",
-        "GLB whose one clip moves a morph target's weight (held at rest when played)",
+        "GLB whose one clip, 'grow', moves a morph target's weight from 0 to 1",
         ["W_MODEL_HAS_ANIMATIONS"],
     );
     gltfOne(

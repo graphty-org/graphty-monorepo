@@ -57,7 +57,7 @@ export const nodeId = (space: string, key: string): string => `${space}\u0001${k
  * @param key - Its key within that source.
  * @returns An id unique in one build.
  */
-export const edgeId = (load: string, key: string): string => `${load}\u0001${key}`;
+const edgeId = (load: string, key: string): string => `${load}\u0001${key}`;
 
 /**
  * A source's own id space, where its keys live when its mapping names none.

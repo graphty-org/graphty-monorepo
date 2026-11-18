@@ -255,7 +255,7 @@ export interface NodeRef {
 }
 
 /** An edge named by the source that made it and its key within that source. */
-export interface EdgeRef {
+interface EdgeRef {
     readonly load: string;
     readonly key: string;
 }
@@ -268,10 +268,10 @@ type ReaderTarget =
     { readonly node: NodeRef; readonly edge?: never } | { readonly edge: EdgeRef; readonly node?: never };
 
 /** A reader operation that removes one node (with its edges) or one edge. */
-export type ReaderRemove = { readonly id: string; readonly op: "remove" } & ReaderTarget;
+type ReaderRemove = { readonly id: string; readonly op: "remove" } & ReaderTarget;
 
 /** A reader operation that adds one node; it always lands in {@link READER_SPACE}, whatever space it names. */
-export interface ReaderAdd {
+interface ReaderAdd {
     readonly id: string;
     readonly op: "add";
     readonly node: NodeRef;

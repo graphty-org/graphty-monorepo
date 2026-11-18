@@ -65,17 +65,6 @@ export const READABLE_PATHS = [
     "graphty.weight",
 ] as const;
 
-/** One of {@link READABLE_PATHS}. */
-export type ReadablePath = (typeof READABLE_PATHS)[number];
-
-/**
- * Whether a path is one every element answers, so a filter on it judges every element.
- * @param path - A path or column name.
- * @returns True for one of {@link READABLE_PATHS}.
- */
-export const isReadablePath = (path: string): path is ReadablePath =>
-    (READABLE_PATHS as readonly string[]).includes(path);
-
 /**
  * One value of a built element: a readable path, else its shown value for a column.
  * @param el - A built node or edge.
@@ -156,7 +145,7 @@ export function lineage(result: BuildResult, ref: ElementRef): Lineage | null {
 }
 
 /** One source's value for a cell. */
-export interface SourceValue {
+interface SourceValue {
     readonly source: string;
     readonly value: Value;
     readonly step?: number;
@@ -400,7 +389,7 @@ const PICKABLE = new Set<string>([
  * @param picked - True for a pick or Use, which may write a time or location column.
  * @returns The working column names.
  */
-export function readColumns(input: BuildInput, source: string, picked = false): Set<string> {
+function readColumns(input: BuildInput, source: string, picked = false): Set<string> {
     const keys = ROLE_KEYS.filter((k) => !picked || !PICKABLE.has(k));
     const out = new Set<string>();
     const strings = (rec: Readonly<Record<string, unknown>> | undefined): void => {

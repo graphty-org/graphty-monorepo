@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@graphty/graph-io.svg)](https://www.npmjs.com/package/@graphty/graph-io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Read and write 13 graph file formats, from GraphML and GEXF to CSV, JSON and Cytoscape sessions, as
+Read and write 14 graph file formats, from GraphML and GEXF to CSV, JSON and Cytoscape sessions, as
 [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format) snapshots. graph-io
 streams large files, runs in browsers and in Node, and tells you what it could not read or could
 not save instead of dropping it.
@@ -65,8 +65,9 @@ Cytoscape.js, graphology, vis.js, OBO Graphs),
 [XGMML](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/xgmml.md),
 [CX2](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cx2.md),
 [CX](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cx.md),
-[OBO](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/obo.md) and
-[Cytoscape sessions](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cys.md). Each one is read and
+[OBO](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/obo.md),
+[Cytoscape sessions](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cys.md) and
+[SIF](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/sif.md). Each one is read and
 written.
 
 ## License

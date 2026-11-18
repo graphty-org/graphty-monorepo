@@ -1009,6 +1009,12 @@ export interface DeriveOptions {
     readonly kind?: "node" | "edge";
 }
 
+// @beta
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+
+// @beta
+export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
     // @beta
@@ -1253,7 +1259,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
 
 // @public
 export interface FieldBand {
@@ -4614,18 +4620,36 @@ export function projectFileName(name: string | null | undefined): string;
 
 // @public
 export interface ProjectOpenOptions {
+    // @beta
+    readonly bindOtherData?: boolean;
+    // @beta
+    readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
     readonly draft?: {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     };
+    // @beta
+    readonly fetchSources?: boolean;
     readonly fileName?: string;
+    // @beta
+    readonly files?: Readonly<Record<string, Blob>>;
     readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
     };
+    // @beta
+    readonly location?: string;
+    // @beta
+    readonly migrate?: boolean;
     readonly ownWork?: boolean;
+    // @beta
+    readonly rerun?: boolean;
+    // @beta
+    readonly sections?: readonly DocumentSection[];
+    // @beta
+    readonly signal?: AbortSignal;
 }
 
 // @public
@@ -4639,14 +4663,26 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
+    // @beta
+    readonly embed?: Readonly<Record<string, SourceStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
+    // @beta
+    readonly form?: "full" | "section";
+    // @beta
+    readonly format?: 1 | 2;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
+    // @beta
+    readonly paths?: Readonly<Record<string, string>>;
+    // @beta
+    readonly results?: boolean;
+    // @beta
+    readonly sections?: readonly DocumentSection[];
 }
 
 // @public
@@ -7074,6 +7110,9 @@ export const SOURCES_MEMBER_VERSION = 2;
 export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
     readonly limits?: SourceLimitOptions;
 };
+
+// @beta
+export type SourceStorage = "embedded" | "referenced";
 
 export { SourceValidators }
 

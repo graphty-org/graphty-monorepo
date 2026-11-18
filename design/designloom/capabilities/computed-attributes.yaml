@@ -10,8 +10,11 @@ used_by_workflows:
     - W08
     - W10
     - W12
+    - W23
+    - W24
 implemented_by_components:
     - computed-attributes-panel
+    - ranked-node-table
 requirements:
     - "Support arithmetic operators: + (add), - (subtract), * (multiply), / (divide), % (modulo), ^ (power)"
     - "Support comparison operators: > (greater), < (less), >= (gte), <= (lte), == (equal), != (not equal)"

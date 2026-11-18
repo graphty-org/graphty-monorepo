@@ -48,7 +48,7 @@ export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection 
 export { Edge, type EdgeCapEnd } from "./src/Edge";
 // what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
 export type { GraphOverview, OverviewOptions, OverviewRect } from "./src/camera/overview";
-export type { NodeScreenPosition } from "./src/Graph";
+export type { NodeScreenPosition, StableFrameOptions } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,

@@ -141,6 +141,7 @@ describe("resolveColumnMeta", () => {
             origin: null,
             dynamic: false,
             extra: {},
+            coordinates: null,
         });
         expect(Object.isFrozen(meta)).toBe(true);
     });

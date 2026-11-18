@@ -49,7 +49,9 @@
  *   `testTimeout` / `hookTimeout` / `teardownTimeout` anywhere (a per-project value in a vitest
  *   config), and a deadline loop or check (`while (Date.now() < deadline)`, `if (performance.now() -
  *   start > budget) throw`). There is one hang guard, set in one place; nothing else may end a test
- *   on the clock. Only the guard's own constants (`WAIT_GUARD_MS`, `TEST_GUARD_MS`) may be passed:
+ *   on the clock. Playwright's `setDefaultTimeout(n)` and `setDefaultNavigationTimeout(n)` are
+ *   reported too, unless `n` is 0 (no deadline). Only the guard's own constants (`WAIT_GUARD_MS`,
+ *   `TEST_GUARD_MS`) may be passed:
  *   a synchronous child process (`spawnSync`) blocks the event loop, so no test timeout can end it.
  *   A timeout option of the code under test (a notifier's `timeoutMs`, graphviz's) is what the test
  *   checks, not a deadline on the test, and is not reported.
@@ -143,7 +145,11 @@ const LOCATOR_ACTIONS = new Set([
     "innerText",
     "inputValue",
     "getAttribute",
+    "ariaSnapshot",
 ]);
+// Playwright's page- or context-wide wait deadline: `page.setDefaultTimeout(20_000)` gives every wait
+// a deadline of its own. Zero (no deadline) and the guard's own constants are allowed.
+const DEFAULT_TIMEOUT_SETTERS = new Set(["setDefaultTimeout", "setDefaultNavigationTimeout"]);
 // Matchers whose argument is the expected value, not options: `expect(x).toEqual({ timeout: 5000 })`.
 const VALUE_MATCHER =
     /^to(Be|Equal|StrictEqual|MatchObject|ContainEqual|Contain|HaveProperty|HaveBeen.*|HaveReturned.*|HaveLastReturned.*|HaveNthReturned.*|Throw.*|Match.*Snapshot|Satisfy|HaveLength)$/;
@@ -979,6 +985,13 @@ const rule = {
                 }
                 if (isTimeoutCall(node, name)) {
                     context.report({ node, messageId: "timeout" });
+                } else if (
+                    DEFAULT_TIMEOUT_SETTERS.has(name) &&
+                    callee.type === "MemberExpression" &&
+                    !isZero(node.arguments[0]) &&
+                    !isGuard(node.arguments[0])
+                ) {
+                    context.report({ node, messageId: "deadline" });
                 } else {
                     checkTimeoutArgs(node);
                 }

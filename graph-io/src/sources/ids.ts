@@ -78,6 +78,14 @@ export const S3_SOURCE_ID = "s3";
 export const ZENODO_SOURCE_ID = "zenodo";
 
 /**
+ * The Figshare source, a file host: one file of a public Figshare item, read through Figshare's API.
+ * Not among the built-in sources: pass `figshareSource` (`@graphty/graph-io/sources/figshare`) or
+ * register it. Experimental.
+ * @category Network sources
+ */
+export const FIGSHARE_SOURCE_ID = "figshare";
+
+/**
  * The prefix of the reserved attribute namespace sources and graphty-element write facts under.
  * @category Network sources
  */

@@ -34,7 +34,7 @@ Its `format` param names the format when the address does not show it (`"graphml
 importer when the file is CSV; `directed` (`"yes"`/`"no"`) says whether edges are directed when
 the file does not. A `credential` goes only to the address's origin. All of
 them are experimental. Graph files kept on a file host load through a source too: see
-[GitHub](./sources/github.md), [Amazon S3](./sources/s3.md) and [Zenodo](./sources/zenodo.md), each of which lists the host's files and loads one by its format. `listSources()` lists them with their descriptors and examples. To read from your own service, see
+[GitHub](./sources/github.md), [Amazon S3](./sources/s3.md), [Zenodo](./sources/zenodo.md) and [Figshare](./sources/figshare.md), each of which lists the host's files and loads one by its format. `listSources()` lists them with their descriptors and examples. To read from your own service, see
 [Writing a source](./writing-a-source.md).
 
 ## Options

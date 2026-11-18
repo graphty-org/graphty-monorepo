@@ -1,0 +1,15 @@
+id: cluster-table
+name: Cluster Table
+category: display
+description: "Table with one row per detected cluster: size, density and member list, linked to the canvas selection."
+status: planned
+implements_capabilities:
+    - community-profiling
+used_in_workflows:
+    - W21
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T00:00:00.000Z
+updated_at: 2026-11-18T00:00:00.000Z

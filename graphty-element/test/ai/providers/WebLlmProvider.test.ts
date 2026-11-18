@@ -275,6 +275,13 @@ describe("WebLlmProvider", () => {
     });
 
     describe("tool call arguments", () => {
+        /** The calls without their ids, after checking each id is one the provider minted, not WebLLM's. */
+        const withoutIds = (calls: unknown): unknown[] =>
+            (calls as { id: string }[]).map(({ id, ...rest }) => {
+                assert.match(id, /^call_/);
+                return rest;
+            });
+
         for (const [label, text] of [
             ["malformed JSON", '{"nodeIds":'],
             ["a JSON string", '"a"'],
@@ -295,8 +302,8 @@ describe("WebLlmProvider", () => {
                 const ready = await readyProvider();
                 const response = await ready.generate([{ role: "user", content: "zoom" }], []);
 
-                assert.deepStrictEqual(response.toolCalls, [
-                    { id: "c1", name: "zoom", arguments: {}, invalidArguments: true },
+                assert.deepStrictEqual(withoutIds(response.toolCalls), [
+                    { name: "zoom", arguments: {}, invalidArguments: true },
                 ]);
             });
         }
@@ -321,8 +328,8 @@ describe("WebLlmProvider", () => {
                 }
             }
 
-            assert.deepStrictEqual(calls, [
-                { type: "tool-call", id: "c1", name: "zoom", arguments: {}, invalidArguments: true },
+            assert.deepStrictEqual(withoutIds(calls), [
+                { type: "tool-call", name: "zoom", arguments: {}, invalidArguments: true },
             ]);
         });
 
@@ -357,9 +364,9 @@ describe("WebLlmProvider", () => {
             );
 
             assert.deepStrictEqual(started, ["fit"]);
-            assert.deepStrictEqual(completed, [
-                { id: "c1", name: "zoom", arguments: {}, invalidArguments: true },
-                { id: "c2", name: "fit", arguments: { all: true } },
+            assert.deepStrictEqual(withoutIds(completed), [
+                { name: "zoom", arguments: {}, invalidArguments: true },
+                { name: "fit", arguments: { all: true } },
             ]);
         });
     });

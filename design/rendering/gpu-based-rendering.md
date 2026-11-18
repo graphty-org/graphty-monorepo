@@ -1,7 +1,13 @@
 # GPU-Based Arrow and Edge Rendering
 
+Status: historical record (2025-11). This WebGPU compute proposal was never built and is superseded by
+design/rendering/row-renderer.md, the current rendering plan, which moves edge trim into the shader (issue #3251;
+the arrow-cap shaders already take `EDGE_TRIM_GLSL` from `graphty-element/src/meshes/edgeTrim.ts`). Every timing
+for the GPU path below is an estimate that was never measured, and every speedup was taken against a CPU baseline
+that was mostly an API misuse (see the correction under "Current CPU Bottlenecks"). The WebGPU device shares it
+once quoted had no source and are removed.
+
 **Date**: 2025-11-11
-**Status**: Design Proposal
 **Goal**: Move edge/arrow position calculations from CPU to GPU for massive performance gains at scale
 
 ---
@@ -10,28 +16,28 @@
 
 This document proposes moving edge and arrow rendering computations from CPU to GPU using **WebGPU compute shaders** to calculate ray-sphere intersections, arrow positions, and transformations entirely on the GPU.
 
-**CRITICAL UPDATE (2025-11-11)**: iOS Safari 26 shipped with WebGPU support, making WebGPU available on 98%+ of devices. This fundamentally changes the recommendation from "WebGL 2.0 vertex shader" to "WebGPU compute shader" as the primary implementation.
+**CRITICAL UPDATE (2025-11-11)**: iOS Safari 26 shipped with WebGPU support, This fundamentally changes the recommendation from "WebGL 2.0 vertex shader" to "WebGPU compute shader" as the primary implementation.
 
 **Key Benefits**:
 
-- **182-6,035x faster** than current thin instance approach (depending on scale)
+- **Speedup never measured**: the 182-6,035x figures once here were taken against the misused baseline (see "Current CPU Bottlenecks"); corrected, about 630 ms of CPU ray intersections is left at 252 edges, so the 25 ms estimate below would be about 25x
 - **Scales with node count**, not edge count (50,000 edges with 10,000 nodes = minimal overhead)
 - **GPU parallel execution**: All arrows computed simultaneously in compute shader
 - **85-98% less memory traffic**: Upload node positions (3 floats) instead of per-arrow matrices (19 floats)
 - **Simpler than WebGL 2.0**: No 64KB uniform limit, no texture buffer workarounds
 
-**Expected Performance (WebGPU Compute Pipeline)**:
+**Estimated GPU totals (WebGPU Compute Pipeline, never measured)**:
 
-- 252 edges: 25ms total for 129 frames (vs 4,563ms current = **182x faster**)
-- 5,000 edges: 40ms total for 129 frames (vs 90,536ms current = **2,263x faster**)
-- 10,000 edges: 55ms total for 129 frames (vs 181,072ms current = **3,292x faster**)
-- 50,000 edges: 150ms total for 129 frames (vs 905,360ms current = **6,035x faster**)
+- 252 edges: 25ms total for 129 frames
+- 5,000 edges: 40ms total for 129 frames
+- 10,000 edges: 55ms total for 129 frames
+- 50,000 edges: 150ms total for 129 frames
 
 **Implementation Effort**: 1-2 weeks for production-ready WebGPU implementation
 
 **Trade-offs**:
 
-- Requires WebGPU (98%+ browser support including iOS Safari 26)
+- Requires WebGPU (including iOS Safari 26)
 - Compute shader development (new paradigm for web developers)
 - More complex shader code (harder to debug than CPU)
 - Triangle data storage for custom meshes (~20MB for 10,000 nodes)
@@ -44,7 +50,7 @@ This document proposes moving edge and arrow rendering computations from CPU to 
 - BVH acceleration for very complex meshes (10,000+ triangles)
 - **No approximation required** - pixel-perfect arrow positioning!
 
-**Recommendation**: Implement WebGPU compute pipeline as primary renderer, skip WebGL 2.0 entirely, fallback to current CPU approach for ancient devices (< 2% of users).
+**Recommendation**: Implement WebGPU compute pipeline as primary renderer, skip WebGL 2.0 entirely, fallback to current CPU approach for devices without WebGPU.
 
 ---
 
@@ -82,7 +88,7 @@ CPU operations per arrow:
 2. Ray-sphere intersection (dst): 0.019ms
 3. Arrow position calculation: 0.010ms
 4. Matrix creation: 0.020ms
-5. Buffer write (setMatrixAt): 0.100ms
+5. Buffer write (setMatrixAt): 0.100ms  [the API misuse in the correction above]
 6. Attribute write (lineDirection): 0.002ms
 Total: 0.170ms per arrow
 
@@ -94,7 +100,7 @@ Over 129 frames: 42.8ms × 129 = 5,521ms
 
 **Thin Instances** (current):
 
-- ❌ CPU overhead: 0.12ms per arrow per frame
+- ❌ CPU overhead: about 0.038ms per arrow per frame of ray intersections (the 0.12ms buffer write once counted here was the API misuse above)
 - ❌ Scales linearly with edges × frames
 - ❌ Mobile CPUs struggle with Float32Array writes
 - ✅ Minimal draw calls (3-10 total)
@@ -127,7 +133,7 @@ Current Flow (CPU-Heavy):
 │ 1. Ray-sphere intersection (0.038ms)            │
 │ 2. Calculate arrow position (0.010ms)           │
 │ 3. Create transformation matrix (0.020ms)       │
-│ 4. Write to GPU buffer (0.100ms)                │
+│ 4. Write to GPU buffer (0.100ms, API misuse)    │
 │ Total: 0.168ms × 252 arrows = 42.3ms per frame  │
 └─────────────────────────────────────────────────┘
                     ↓
@@ -154,7 +160,7 @@ Proposed Flow (GPU-Heavy):
 │ Cost: ~0.1ms per frame (parallel execution!)    │
 └─────────────────────────────────────────────────┘
 
-Speedup: 42.3ms → 0.6ms = 70x faster!
+Estimate, never measured: 42.3ms -> 0.6ms assumed the misused 0.100ms buffer write
 ```
 
 ---
@@ -461,7 +467,7 @@ void main() {
 ## WebGPU Considerations
 
 **Date Updated**: 2025-11-11
-**Context**: iOS Safari 26 shipped with WebGPU support, bringing WebGPU to 98%+ of devices
+**Context**: iOS Safari 26 shipped with WebGPU support
 
 ### Why WebGPU Changes Everything
 
@@ -607,7 +613,7 @@ fn vertexMain(
 
 With WebGPU now widely available, we can implement a three-tier strategy:
 
-**Tier 1: WebGPU Compute Pipeline** (98%+ devices, best performance)
+**Tier 1: WebGPU Compute Pipeline** (devices with WebGPU, best performance)
 
 ```typescript
 if (engine.getCaps().supportWebGPU) {
@@ -726,16 +732,15 @@ renderPass.drawIndirect(indirectBuffer, 0);
 
 ### Updated Performance Targets
 
-With WebGPU compute pipeline:
+With WebGPU compute pipeline (estimates, never measured; the CPU totals and speedups this table once gave were
+extrapolated from the misused baseline and are removed):
 
-| Graph Size | Edges  | Nodes  | Frames | Current (CPU) | WebGPU Compute | Speedup    |
-| ---------- | ------ | ------ | ------ | ------------- | -------------- | ---------- |
-| Small      | 252    | 252    | 129    | 4,563ms       | **25ms**       | **182x**   |
-| Medium     | 5,000  | 1,000  | 129    | 90,536ms      | **40ms**       | **2,263x** |
-| Large      | 10,000 | 2,000  | 129    | 181,072ms     | **55ms**       | **3,292x** |
-| Huge       | 50,000 | 10,000 | 129    | 905,360ms     | **150ms**      | **6,035x** |
-
-**Even better than original WebGL 2.0 estimates!**
+| Graph Size | Edges  | Nodes  | Frames | WebGPU Compute (estimate) |
+| ---------- | ------ | ------ | ------ | ------------------------- |
+| Small      | 252    | 252    | 129    | 25ms                      |
+| Medium     | 5,000  | 1,000  | 129    | 40ms                      |
+| Large      | 10,000 | 2,000  | 129    | 55ms                      |
+| Huge       | 50,000 | 10,000 | 129    | 150ms                     |
 
 ### Migration Strategy
 
@@ -743,10 +748,10 @@ With WebGPU compute pipeline:
 
 1. **Immediate benefits**: Better performance, simpler code, no 64KB limit
 2. **Future-proof**: WebGPU is the future of web graphics
-3. **Wide support**: 98%+ devices with iOS Safari 26
-4. **Fallback**: Keep current CPU approach for old devices (< 2%)
+3. **Wide support**: including iOS Safari 26
+4. **Fallback**: Keep current CPU approach for devices without WebGPU
 
-**Skip WebGL 2.0 vertex shader entirely** - not worth the complexity for 2% of users who will fall back to current CPU approach.
+**Skip WebGL 2.0 vertex shader entirely** - devices without WebGPU fall back to the current CPU approach.
 
 ### BabylonJS WebGPU Integration
 
@@ -1148,8 +1153,8 @@ class Graph {
 
 **Fallback chain**:
 
-1. **WebGPU compute** (98% of devices, best performance)
-2. **WebGL thin instances** (2% old devices, current performance)
+1. **WebGPU compute** (devices with WebGPU, best performance)
+2. **WebGL thin instances** (devices without WebGPU, current performance)
 3. **WebGL individual meshes** (ancient devices, if needed)
 
 ---
@@ -2034,7 +2039,7 @@ test('arrow compute shader', async () => {
 - ✅ **Faster** than any WebGL 2.0 approach (compute shaders)
 - ✅ **More scalable** (no 64KB limit, can handle 50,000+ edges)
 - ✅ **Future-proof** (modern API, better browser support going forward)
-- ✅ **Wider support** than expected (iOS Safari 26 = 98%+ devices)
+- ✅ **Wider support** than expected (iOS Safari 26)
 
 **New recommendation**: Implement WebGPU compute pipeline as primary approach, keep current CPU method as fallback for ancient devices.
 
@@ -2080,7 +2085,7 @@ Reduction: 2.4 MB → 390 KB = 85% less memory traffic!
 Ray-sphere intersection (×2): 0.038ms
 Arrow position calculation: 0.010ms
 Matrix creation: 0.020ms
-Buffer write (setMatrixAt): 0.100ms
+Buffer write (setMatrixAt): 0.100ms  [the API misuse in the correction above]
 Attribute write (lineDirection): 0.002ms
 Total: 0.170ms per arrow
 
@@ -2099,7 +2104,7 @@ Total: 0.5ms per frame
 
 Total: 129 × 0.5ms = 64.5ms
 
-Speedup: 5,521ms → 64.5ms = 85x faster!
+Estimate, never measured: 5,521ms -> 64.5ms counted the misused buffer write
 ```
 
 ### GPU Time Comparison
@@ -2517,7 +2522,7 @@ CPU approach (sequential):
 GPU approach (parallel):
   - Same 328,800 ops
   - Executed across 256 GPU threads (parallel)
-  - **~0.13ms total** (253x faster!)
+  - **~0.13ms total** (estimate, never measured)
 ```
 
 **Key Insight**: Even the most complex current mesh (torus knot with 8,192 triangles) performs excellently on GPU due to:
@@ -2531,7 +2536,7 @@ GPU approach (parallel):
 - 252 edges × 2 = 504 ray tests
 - 504 × 12,000 ops = 6,048,000 ops
 - GPU parallel: ~0.24ms per frame
-- **Still 50x faster than current CPU approach!**
+- An estimate, never measured
 
 #### BVH Acceleration (Optional Future Enhancement)
 
@@ -3052,7 +3057,6 @@ class WebGPUArrowRenderer {
 | Frustum culling           | CPU                | CPU              | Shader           | **GPU+Indirect**   |
 | Code complexity           | Simple             | Medium           | Complex          | **Most Complex**   |
 | Debug difficulty          | Easy               | Medium           | Hard             | **Hardest**        |
-| Browser support           | 100%               | 100%             | 95%              | **98%**            |
 | Implementation effort     | 1-2 days           | Done             | 2-3 weeks        | **1-2 weeks**      |
 
 ### When To Use Each
@@ -3084,14 +3088,14 @@ class WebGPUArrowRenderer {
 
 **WebGPU Compute Shader** (Recommended):
 
-- ✅ **Best performance at ALL scales** (6,000x faster at 50K edges)
+- ✅ **Best performance at ALL scales** (estimated)
 - ✅ **Best scalability** (50,000+ edges easily)
 - ✅ **Lowest memory bandwidth** (same as WebGL)
 - ✅ **Zero cost after layout settles** (persistent caching)
 - ✅ **No node limit** (storage buffers up to 2GB)
 - ✅ **Simpler than WebGL 2.0** (no uniform/texture buffer workarounds)
 - ✅ **Future-proof** (modern API, better support going forward)
-- ✅ **98% browser support** (including iOS Safari 26)
+- ✅ **Browser support** including iOS Safari 26
 - ⚠️ Complex implementation (compute shaders)
 - ⚠️ Harder to debug than CPU
 
@@ -3646,6 +3650,9 @@ class Graph {
 
 ### Performance Targets
 
+The Current column counts the API misuse in "Current CPU Bottlenecks"; corrected, 252 edges over 129 frames cost
+about 630 ms of ray intersections, so the improvements below are overstated.
+
 | Metric                           | Current   | Target  | Improvement   |
 | -------------------------------- | --------- | ------- | ------------- |
 | 252 edges, 129 frames            | 5,521ms   | < 100ms | 55x faster    |
@@ -3743,16 +3750,15 @@ class Graph {
 
 ## Conclusion
 
-GPU-side rendering represents a **fundamental architectural improvement** that solves both current performance issues and future scalability concerns. **With iOS Safari 26's WebGPU support, this architecture is now practical and accessible to 98%+ of users.**
+GPU-side rendering represents a **fundamental architectural improvement** that solves both current performance issues and future scalability concerns. **With iOS Safari 26's WebGPU support, this architecture is now practical.**
 
 ### Key Advantages (WebGPU Compute Pipeline)
 
 **Performance**:
 
-- ✅ **182-6,035x faster** than current thin instance approach
-- ✅ **Scales to 50,000+ edges** at 60fps on iPad
-- ✅ **25ms for 252 edges** (vs 4,563ms current = 182x speedup)
-- ✅ **150ms for 50,000 edges** (vs 905,360ms current = 6,035x speedup)
+- ✅ **Scales to 50,000+ edges** at 60fps on iPad (estimate)
+- ✅ **25ms for 252 edges** and **150ms for 50,000 edges** over 129 frames (estimates, never measured)
+- The 182-6,035x speedups once claimed here were taken against the misused baseline; corrected, about 25x at 252 edges
 
 **Architecture**:
 
@@ -3764,9 +3770,9 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 
 **Compatibility**:
 
-- ✅ **98% browser support** (Chrome, Edge, Safari desktop and mobile)
+- ✅ **Browser support** (Chrome, Edge, Safari desktop and mobile)
 - ✅ **iOS Safari 26** includes WebGPU (all iOS devices)
-- ✅ **Simple fallback** to current CPU approach for ancient devices (< 2%)
+- ✅ **Simple fallback** to current CPU approach for devices without WebGPU
 
 ### Trade-offs
 
@@ -3779,7 +3785,7 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 **Limitations**:
 
 - ⚠️ **Custom node shapes** require bounding sphere approximation
-- ⚠️ **WebGPU fallback** to CPU for very old browsers (< 2%)
+- ⚠️ **WebGPU fallback** to CPU for browsers without WebGPU
 - ⚠️ **Architectural shift** (one-time investment)
 
 ### Final Recommendation
@@ -3790,7 +3796,7 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 
 1. **Simpler implementation** than WebGL 2.0 (no uniform limit workarounds)
 2. **Better performance** than any WebGL approach (compute shaders)
-3. **Wider support** than expected (iOS Safari 26 = 98%+ devices)
+3. **Wider support** than expected (iOS Safari 26)
 4. **Future-proof** (the future of web graphics)
 
 **Implementation Strategy**:
@@ -3800,9 +3806,9 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 3. **Medium-term**: Production WebGPU implementation (1 week)
 4. **Long-term**: Advanced optimizations (persistent caching, async compute)
 
-**Skip WebGL 2.0 entirely** - with 98% WebGPU support, the 2% fallback can use the current CPU approach. Not worth implementing a third rendering path for 2% of users.
+**Skip WebGL 2.0 entirely** - devices without WebGPU can use the current CPU approach rather than a third rendering path.
 
-The performance numbers are compelling: **6,000x faster at 50,000 edges**. This architecture unlocks massive graphs (50,000+ edges) that are completely impractical with the current CPU approach.
+This architecture unlocks massive graphs (50,000+ edges) that are completely impractical with the current CPU approach.
 
 **This is not just an optimization - it's an architectural leap that fundamentally changes what's possible with graphty-element.**
 
@@ -3857,7 +3863,7 @@ The performance numbers are compelling: **6,000x faster at 50,000 edges**. This 
 - **2025-11-11 (WebGPU Update)**: Added comprehensive WebGPU considerations after iOS Safari 26 release
     - Updated executive summary with WebGPU compute pipeline approach
     - Added WebGPU section with compute shader examples
-    - Updated performance targets (182-6,035x speedup)
+    - Updated performance targets (182-6,035x speedup, withdrawn: measured against the misused baseline)
     - Updated implementation plan (WebGPU-first, skip WebGL 2.0)
     - Updated recommendations (implement WebGPU compute as primary)
     - Updated conclusion (WebGPU changes architecture from "nice optimization" to "essential")

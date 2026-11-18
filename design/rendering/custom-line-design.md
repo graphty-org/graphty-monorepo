@@ -670,6 +670,8 @@ class EdgeMesh {
 
 ## Performance Analysis
 
+Every figure in this section is an estimate; none was measured.
+
 ### Current Approach (GreasedLine + Mixed Arrow Tech)
 
 **Per Edge**:
@@ -700,17 +702,17 @@ class EdgeMesh {
 **With Instancing** (edges with same style):
 
 - 1000 edges, 10 styles: **10 draw calls total**
-- Frame time: **~0.5ms** (10x faster!)
+- Frame time: **~0.5ms** (estimated)
 
 ### Large Graph Performance (10,000 edges)
 
-| Metric          | Current | CustomLineRenderer | Improvement     |
-| --------------- | ------- | ------------------ | --------------- |
-| Memory          | 10 MB   | 7 MB               | 30% less        |
-| Draw calls      | 20,000  | 10,000             | 50% less        |
-| With instancing | N/A     | ~50                | **400x less!**  |
-| Frame time      | 50ms    | 5ms                | **10x faster**  |
-| FPS             | 20 FPS  | 60 FPS             | **3x smoother** |
+| Metric          | Current | CustomLineRenderer | Improvement    |
+| --------------- | ------- | ------------------ | -------------- |
+| Memory          | 10 MB   | 7 MB               | 30% less       |
+| Draw calls      | 20,000  | 10,000             | 50% less       |
+| With instancing | N/A     | ~50                | **400x less!** |
+| Frame time      | 50ms    | 5ms                | 10x (estimate) |
+| FPS             | 20 FPS  | 60 FPS             | 3x (estimate)  |
 
 ---
 

@@ -51,6 +51,7 @@ tools/claude-owner-credential-guard.test.mjs
 tools/dataset-overlay.test.mjs
 tools/dependency-refresh.test.mjs
 tools/design-studio-workflow.test.mjs
+tools/designloom-links.test.mjs
 tools/duplicates-check.test.mjs
 tools/features-on.test.mjs
 tools/full-run.test.mjs

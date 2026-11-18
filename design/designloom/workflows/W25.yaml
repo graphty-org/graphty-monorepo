@@ -20,9 +20,10 @@ suggested_components:
     - session-save-dialog
     - network-list-panel
     - analysis-history-panel
-    - report-builder
-    - legend
-    - export-dialog
+    - report-generator-dialog
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
     - share-dialog
 starting_state:
     data_type: analyzed network with styles, clusters, subnetworks, results and annotations

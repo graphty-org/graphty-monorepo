@@ -343,6 +343,14 @@ const GRAPH_ROOT_NAME = "graph-root";
 
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;
+/**
+ * How many WebGL frames may be unfinished on the GPU before the loop skips a tick; see
+ * `RenderManager.gpuBehind`. Two, not one: a frame's commands reach the GPU only when its long
+ * update-and-draw task ends, so the next tick comes before the GPU can have finished them, and
+ * with one frame allowed in flight that tick was always skipped. At 10,000 nodes that cost one to
+ * two 16.7 ms ticks per frame on an otherwise idle RTX 4070 SUPER (issue #7945).
+ */
+const WEBGL_FRAMES_IN_FLIGHT = 2;
 
 /**
  * Lets a disposed scene be collected. Every `Scene.render` points Babylon's module-wide
@@ -797,10 +805,17 @@ export class RenderManager implements Manager {
     private contextLost = false;
     /** What ends each {@link frameDrawn} still waiting. */
     private readonly frameWaits = new Set<() => void>();
-    /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
-    private lastFrameFence: WebGLSync | null = null;
     /**
-     * The WebGPU twin of {@link lastFrameFence}: a number for the last frame drawn while its
+     * A fence after each frame drawn that the GPU has not finished yet, oldest first, at most
+     * {@link WEBGL_FRAMES_IN_FLIGHT}; see {@link gpuBehind}.
+     */
+    private readonly frameFences: { sync: WebGLSync; frame: number }[] = [];
+    /** How many WebGL frames have been fenced, so a fence's number in {@link frameFences}. */
+    private framesFenced = 0;
+    /** The number of the newest fenced frame the GPU is known to have finished. */
+    private framesFinished = 0;
+    /**
+     * The WebGPU twin of {@link frameFences} (one frame in flight): a number for the last frame drawn while its
      * `onSubmittedWorkDone` is unresolved, null once the GPU has finished it.
      */
     private webGpuFrameInFlight: number | null = null;
@@ -936,7 +951,7 @@ export class RenderManager implements Manager {
                   this.inView = inView;
               });
     /**
-     * Forgets the last frame's fence when the GL context is lost or given back. A fence made by
+     * Forgets the frames' fences when the GL context is lost or given back. A fence made by
      * the lost context never signals in the restored one, so kept, it held every tick in
      * {@link gpuBehind} and the graph was never drawn again (iPad Safari takes the context from a
      * tab in the background). A restore also has the edge and arrow batches upload every slot
@@ -944,7 +959,8 @@ export class RenderManager implements Manager {
      * @param event - The canvas's `webglcontextlost` or `webglcontextrestored` event.
      */
     private readonly dropFence = (event: Event): void => {
-        this.lastFrameFence = null;
+        this.frameFences.length = 0;
+        this.framesFinished = this.framesFenced;
         this.drawOwed = true;
         this.smoothShown = false;
         this.shaderGuard.ignore();
@@ -1541,36 +1557,69 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Whether the GPU is still drawing the last frame, so drawing another now would only queue it.
+     * Whether the GPU is so far behind that drawing another frame now would only queue it.
      *
      * Nothing else stops the loop from issuing frames faster than the GPU finishes them, and the
      * browser lets about twenty pile up. On a software GPU (SwiftShader, as every CI runner has)
      * a frame of 331 nodes and 362 edges costs 40 ms, so a still graph kept the GPU some 850 ms
      * behind, and everything that waits for the GPU -- a screenshot, a readback, the page's own
      * compositor -- waited behind those frames too. Under load that was more than 30 seconds.
-     * Skipping a tick while the last frame is unfinished keeps the queue at one frame.
-     * On WebGPU the same holds through `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames`
-     * asks for it.
-     * @returns True while the last frame's fence is unsignalled.
+     * Skipping a tick while {@link WEBGL_FRAMES_IN_FLIGHT} frames are unfinished keeps the queue
+     * at that many frames. On WebGPU the same holds, at one frame, through
+     * `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames` asks for it.
+     * @returns True while the fences of {@link WEBGL_FRAMES_IN_FLIGHT} frames are unsignalled.
      */
     private gpuBehind(): boolean {
         if (this.webGpuFrameInFlight !== null) {
             return true;
         }
 
-        if (this.lastFrameFence === null || !(this.engine instanceof Engine)) {
-            return false;
+        this.forgetFinishedFences();
+        return this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT;
+    }
+
+    /**
+     * Drop the fences of the frames the GPU has finished. Fences signal in order, so the oldest
+     * unsignalled one means every newer one is too. A lost context answers null rather than a
+     * status; the fence is dropped as finished.
+     */
+    private forgetFinishedFences(): void {
+        if (this.frameFences.length === 0 || !(this.engine instanceof Engine)) {
+            return;
         }
 
         const gl = this.engine._gl;
-        // A lost context answers null rather than a status; drop the fence and draw.
-        if (gl.getSyncParameter(this.lastFrameFence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
-            return true;
+        let oldest = this.frameFences.at(0);
+        while (oldest !== undefined && gl.getSyncParameter(oldest.sync, gl.SYNC_STATUS) !== gl.UNSIGNALED) {
+            gl.deleteSync(oldest.sync);
+            this.framesFinished = oldest.frame;
+            this.frameFences.shift();
+            oldest = this.frameFences.at(0);
         }
+    }
 
-        gl.deleteSync(this.lastFrameFence);
-        this.lastFrameFence = null;
-        return false;
+    /**
+     * How many WebGL frames have been fenced so far: the number the next fence follows. Taken
+     * before a frame is drawn, the frame's own fence, when it gets one, is this plus one.
+     * @returns The count; it stays 0 on WebGPU and Babylon's NullEngine, which fence nothing.
+     * @internal
+     */
+    fencedFrames(): number {
+        return this.framesFenced;
+    }
+
+    /**
+     * Whether the GPU has finished the fenced WebGL frame of this number and every one before it.
+     * With {@link WEBGL_FRAMES_IN_FLIGHT} frames allowed in flight, a frame can be drawn, and the
+     * picture called final, while an older frame is still on the GPU; a wait for the final picture
+     * asks this so it ends only once that frame is done (issues #8344, #8346).
+     * @param frame - The frame's number, from {@link fencedFrames}.
+     * @returns True once its fence, or a newer one, has signalled, or the context that made it is gone.
+     * @internal
+     */
+    gpuFinishedFrame(frame: number): boolean {
+        this.forgetFinishedFences();
+        return this.framesFinished >= frame;
     }
 
     /**
@@ -1589,13 +1638,18 @@ export class RenderManager implements Manager {
             return;
         }
 
-        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignalled; the
-        // newer one signals after it, so the older is no longer needed.
-        if (this.lastFrameFence !== null) {
-            gl.deleteSync(this.lastFrameFence);
+        // A frame drawn by drawNow while the GPU was behind pushes out the oldest fence still
+        // unsignalled; the newer ones signal after it, so it is no longer needed.
+        if (this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT) {
+            gl.deleteSync(this.frameFences.shift()?.sync ?? null);
         }
 
-        this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (fence !== null) {
+            this.framesFenced++;
+            this.frameFences.push({ sync: fence, frame: this.framesFenced });
+        }
+
         if (this.flushesFrameFence()) {
             gl.flush();
         }

@@ -24,6 +24,10 @@ export default tseslint.config(
             "**/dist/**",
             "**/node_modules/**",
             "**/coverage/**",
+            // Coverage reports a sharded run writes per shard (graphty-element's coverage:shard:* scripts; gitignored).
+            "**/.coverage-parts/**",
+            // `cdk synth` output, bundled Lambda code (tools/pipeline-health; gitignored).
+            "**/cdk.out/**",
             "**/storybook-static/**",
             "**/gh-pages/**",
             "**/tmp/**",

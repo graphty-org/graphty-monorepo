@@ -6,11 +6,25 @@
  * Labels; and Shaders as today. Every line is a control, empty while the graph does not set it.
  */
 
-import { ComboInput, CompactColorInput, ControlGroup, ControlSection, PanelField } from "@graphty/compact-mantine";
-import { STYLE_FAMILIES } from "@graphty/graphty-element/catalog";
-import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
+import {
+    ComboInput,
+    CompactColorInput,
+    ControlGroup,
+    ControlSection,
+    PanelField,
+    Popout,
+} from "@graphty/compact-mantine";
+import { styleFamily } from "@graphty/graphty-element/catalog";
+import {
+    DEFAULT_BACKGROUND_COLOR,
+    DEFAULT_FRAMING_EXTENT,
+    FRAMING_EXTENT_VALUES,
+    type FramingExtent,
+    type GraphBackgroundConfig,
+    LIGHTING_VALUES,
+} from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Checkbox, Group } from "@mantine/core";
+import { Checkbox } from "@mantine/core";
 import React, { useEffect, useReducer, useRef, useState } from "react";
 
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
@@ -24,16 +38,19 @@ import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
 import { BackgroundImage } from "./GraphSettings";
 
 /** The graph's background family, from graphty-element. */
-const BACKGROUND = STYLE_FAMILIES.find((family) => family.id === "graph.background");
+const BACKGROUND = styleFamily("graph.background");
 
-/** Framing's extent, by the element's value. */
-const EXTENT_OPTIONS = [
-    { value: "drawn", name: "Drawn" },
-    { value: "centers", name: "Centers" },
-] as const;
+/** Framing's extent words, by the element's value. */
+const EXTENT_WORDS: Readonly<Record<FramingExtent, string>> = { drawn: "Drawn", centers: "Centers" };
+
+/** Framing's extents, in the element's order. */
+const EXTENT_OPTIONS = FRAMING_EXTENT_VALUES.map((value) => ({ value, name: EXTENT_WORDS[value] }));
 
 /** What an unnamed line's minus removes. */
-const REMOVE_WORDS: Readonly<Record<string, string>> = { "framing.extent": "Framing", minMarkSize: "Smallest mark" };
+const REMOVE_WORDS: Readonly<Record<string, string>> = {
+    "framing.extent": "Framing",
+    highlightColor: "Highlight color",
+};
 
 /**
  * A painted color as text, or "" when it is none.
@@ -59,7 +76,6 @@ function useProjectVersion(session: GraphSession | null): void {
  * @param props.label - its name
  * @param props.value - the value, if set
  * @param props.min - its least value
- * @param props.glyph - the letter in its glyph slot, in a pair
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -67,13 +83,11 @@ function NumberField({
     label,
     value,
     min,
-    glyph,
     onWrite,
 }: Readonly<{
     label: string;
     value: number | undefined;
     min?: number;
-    glyph?: string;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     return (
@@ -82,7 +96,6 @@ function NumberField({
             width="100%"
             numeric
             options={[]}
-            glyph={glyph}
             value={value ?? ""}
             min={min}
             onChange={(next) => {
@@ -120,7 +133,9 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
         ...(background.color === undefined ? {} : { color: background.color }),
         ...(background.shader === undefined ? {} : { shader: background.shader }),
     };
-    const member = sky || waiting ? "sky" : "color";
+    // The strip shows what the element draws: Sky only once a picture is picked for it.
+    const member = sky ? "sky" : "color";
+    const anchor = useRef<HTMLDivElement>(null);
     const switchTo = (to: string): void => {
         if (to === member) {
             return;
@@ -160,16 +175,45 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                 )
             }
         >
-            <LineFrame
-                line="background.backgroundType"
-                name={null}
-                set={false}
-                rule="R8"
-                control={<SegmentsLine label="Switch to" options={options} value={member} onPick={switchTo} />}
-                modifier={null}
-                removeName={undefined}
-                onRemove={() => undefined}
-            />
+            <div ref={anchor}>
+                <LineFrame
+                    line="background.backgroundType"
+                    name={null}
+                    set={false}
+                    rule="R8"
+                    control={<SegmentsLine label="Switch to" options={options} value={member} onPick={switchTo} />}
+                    modifier={null}
+                    removeName={undefined}
+                    onRemove={() => undefined}
+                />
+            </div>
+            <Popout
+                opened={waiting}
+                onOpenChange={(next) => {
+                    if (!next) {
+                        setWaiting(false);
+                    }
+                }}
+            >
+                <Popout.Panel
+                    width={240}
+                    placement="left"
+                    alignment="start"
+                    anchorY={anchor}
+                    header={{ variant: "title", title: "Sky" }}
+                    closeLabel="Close Sky"
+                >
+                    <Popout.Content>
+                        <BackgroundImage
+                            address=""
+                            onCommit={(data) => {
+                                setWaiting(false);
+                                write({ backgroundType: "skybox", data, ...rest });
+                            }}
+                        />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
             {member === "color" ? (
                 <LineFrame
                     line="background.color"
@@ -182,6 +226,7 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                             color={background.color}
                             defaultColor={DEFAULT_BACKGROUND_COLOR}
                             showOpacity={false}
+                            showReset={false}
                             onChangeEnd={(next) => {
                                 write({ backgroundType: "color", ...rest, color: next ?? undefined });
                             }}
@@ -258,8 +303,9 @@ export function GraphSettingsV2(): React.JSX.Element | null {
     const sizeBound = useSizeBound(session);
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
     const hidden = useNotInEffect(session);
-    // The highlight color is a view setting the element holds without an event: kept here once written.
-    const [highlight, setHighlight] = useState<string | undefined>(undefined);
+    // The highlight color is read from the element on every render. graphty-element sends no event
+    // when it changes, so a write from elsewhere shows at the panel's next render (tracked in #8880).
+    const [, redraw] = useReducer((n: number) => n + 1, 0);
     if (session === null) {
         return null;
     }
@@ -267,7 +313,17 @@ export function GraphSettingsV2(): React.JSX.Element | null {
         store.set({ notice: { message: failureWords(what, "changed", error), error: true } });
     };
     const { framing, minMarkSize, viewRotation } = session.config;
-    const highlightNow = highlight ?? colorText(session.styles.highlightStyle("node")["node.color"]);
+    const highlightNow = colorText(session.styles.highlightStyle("node")["node.color"]);
+    // Set when it is not the app's own highlight color, which "-" goes back to.
+    const highlightSet = highlightNow !== "" && highlightNow.toLowerCase() !== APP_HIGHLIGHT_COLOR.toLowerCase();
+    const writeHighlight = (next: string | undefined): void => {
+        try {
+            session.styles.setHighlightColor(next);
+            redraw();
+        } catch (error) {
+            fail("Highlight color")(error);
+        }
+    };
     const line = (
         key: string,
         name: string | null,
@@ -277,6 +333,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
         onRemove?: () => void,
     ): React.JSX.Element => (
         <LineFrame
+            key={key}
             line={key}
             name={name}
             set={set}
@@ -289,8 +346,8 @@ export function GraphSettingsV2(): React.JSX.Element | null {
             onRemove={onRemove ?? (() => undefined)}
         />
     );
-    const setFraming = (next: { extent?: "drawn" | "centers"; padding?: number }): void => {
-        const extent = next.extent ?? framing?.extent ?? "drawn";
+    const setFraming = (next: { extent?: FramingExtent; padding?: number }): void => {
+        const extent = next.extent ?? framing?.extent ?? DEFAULT_FRAMING_EXTENT;
         const padding = "padding" in next ? next.padding : framing?.padding;
         session.config
             .set({ framing: { extent, ...(padding === undefined ? {} : { padding }) } })
@@ -351,16 +408,15 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                             color={highlightNow === "" ? undefined : highlightNow}
                             defaultColor={APP_HIGHLIGHT_COLOR}
                             showOpacity={false}
+                            showReset={false}
                             onChangeEnd={(next) => {
-                                try {
-                                    session.styles.setHighlightColor(next ?? undefined);
-                                    setHighlight(next ?? undefined);
-                                } catch (error) {
-                                    fail("Highlight color")(error);
-                                }
+                                writeHighlight(next ?? APP_HIGHLIGHT_COLOR);
                             }}
                         />,
-                        false,
+                        highlightSet,
+                        () => {
+                            writeHighlight(APP_HIGHLIGHT_COLOR);
+                        },
                     )}
                 </ControlGroup>
                 <ControlGroup label="Framing">
@@ -370,10 +426,13 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                         "R8",
                         <SegmentsLine
                             label="Framing extent"
-                            options={[...EXTENT_OPTIONS]}
+                            options={EXTENT_OPTIONS}
                             value={framing?.extent ?? ""}
-                            onPick={(extent) => {
-                                setFraming({ extent: extent === "centers" ? "centers" : "drawn" });
+                            onPick={(picked) => {
+                                const extent = FRAMING_EXTENT_VALUES.find((value) => value === picked);
+                                if (extent !== undefined) {
+                                    setFraming({ extent });
+                                }
                             }}
                         />,
                         framing !== undefined,
@@ -415,34 +474,24 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                             />,
                             false,
                         )}
-                    {line(
-                        "minMarkSize",
-                        null,
-                        "R5",
-                        <Group grow gap={4} wrap="nowrap">
+                    {(["node", "edge"] as const).map((which) =>
+                        line(
+                            `minMarkSize.${which}`,
+                            which === "node" ? "Smallest node" : "Smallest edge",
+                            "R5",
                             <NumberField
-                                label="Smallest node"
-                                glyph="N"
+                                label={which === "node" ? "Smallest node" : "Smallest edge"}
                                 min={0}
-                                value={minMarkSize?.node}
+                                value={minMarkSize?.[which]}
                                 onWrite={(value) => {
-                                    setMinMark("node", value);
+                                    setMinMark(which, value);
                                 }}
-                            />
-                            <NumberField
-                                label="Smallest edge"
-                                glyph="E"
-                                min={0}
-                                value={minMarkSize?.edge}
-                                onWrite={(value) => {
-                                    setMinMark("edge", value);
-                                }}
-                            />
-                        </Group>,
-                        minMarkSize !== undefined,
-                        () => {
-                            session.config.set({ minMarkSize: undefined }).catch(fail("Smallest mark"));
-                        },
+                            />,
+                            minMarkSize?.[which] !== undefined,
+                            () => {
+                                setMinMark(which, undefined);
+                            },
+                        ),
                     )}
                 </ControlGroup>
             </ControlSection>

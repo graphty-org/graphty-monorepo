@@ -7,15 +7,17 @@
  * that channel's field in the line's place, so it shows once, where it belongs.
  */
 
-import { PanelField, ToggleIconButton } from "@graphty/compact-mantine";
+import { AlignmentMatrix, type AlignmentMatrixValue, PanelField, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
+    LABEL_LOCATION_PLACES,
     LABEL_LOOKS,
     type LabelLocation,
+    type LabelLocationPlace,
 } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Checkbox, Group, TextInput } from "@mantine/core";
+import { Checkbox, Group, Stack, TextInput } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../../glyphs";
@@ -216,6 +218,91 @@ function selectControl({ label, field, descriptor, name }: LineControlArgs): Rea
     );
 }
 
+/** A location's grid: beyond the node's outline, within it, or the element's own pick. */
+type LocationGrid = "outside" | "inside" | "auto";
+
+/** The grids' words, in the line's order. */
+const GRID_WORDS: Readonly<Record<LocationGrid, string>> = { outside: "Outside", inside: "Inside", auto: "Auto" };
+
+/**
+ * The grid a location sits in; the middle, which both hold, reads as Outside.
+ * @param place - the location.
+ * @returns its grid.
+ */
+function gridOf(place: LabelLocationPlace): LocationGrid {
+    if (place.places.length === 0) {
+        return "auto";
+    }
+    return place.places.includes("outside") ? "outside" : "inside";
+}
+
+/**
+ * The location at a cell of a grid.
+ * @param grid - the grid.
+ * @param cell - the cell, "top-center" and so on.
+ * @returns the location, or undefined.
+ */
+function placeAt(grid: "outside" | "inside", cell: string): LabelLocation | undefined {
+    return LABEL_LOCATION_PLACES.find(
+        (place) => place.places.includes(grid) && `${String(place.row)}-${String(place.column)}` === cell,
+    )?.id;
+}
+
+/**
+ * A location (R2): Outside / Inside / Auto, then the grid's cells once written; Auto disables
+ * them. The cells are graphty-element's (`LABEL_LOCATION_PLACES`). An edge's label has no inside.
+ * @param args - the line.
+ * @param args.label - the line's label
+ * @param args.field - the line's field
+ * @param args.name - the line's name
+ * @returns The control
+ */
+function locationControl({ label, field, name }: LineControlArgs): React.ReactNode {
+    const value = valueOf(label.style, field);
+    const place = LABEL_LOCATION_PLACES.find((each) => each.id === value);
+    const grid = place === undefined ? undefined : gridOf(place);
+    const cell = place?.row === undefined ? "top-center" : `${place.row}-${String(place.column)}`;
+    const grids: readonly LocationGrid[] =
+        label.ctx.side === "edge" ? ["outside", "auto"] : ["outside", "inside", "auto"];
+    const inGrid = grid === "inside" ? "inside" : "outside";
+    const cellLabels = Object.fromEntries(
+        LABEL_LOCATION_PLACES.filter((each) => each.places.includes(inGrid)).map((each) => [
+            `${String(each.row)}-${String(each.column)}`,
+            optionWord(field, each.id),
+        ]),
+    );
+    return (
+        <Stack gap={4}>
+            <SegmentsLine
+                label={name}
+                options={grids.map((each) => ({ value: each, name: GRID_WORDS[each] }))}
+                value={grid ?? ""}
+                onPick={(picked) => {
+                    const next =
+                        picked === "auto" ? "automatic" : placeAt(picked === "inside" ? "inside" : "outside", cell);
+                    if (next !== undefined) {
+                        label.write({ [field]: next });
+                    }
+                }}
+            />
+            {place === undefined ? null : (
+                <AlignmentMatrix
+                    label={`${name} cell`}
+                    value={cell as AlignmentMatrixValue}
+                    cellLabels={cellLabels}
+                    disabled={grid === "auto"}
+                    onChange={(picked) => {
+                        const next = placeAt(inGrid, picked);
+                        if (next !== undefined) {
+                            label.write({ [field]: next });
+                        }
+                    }}
+                />
+            )}
+        </Stack>
+    );
+}
+
 /**
  * The control a line's rule picks.
  * @param args - the line.
@@ -270,6 +357,8 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
                 />
             );
         }
+        case "R2":
+            return locationControl(args);
         case "R9":
             return selectControl(args);
         case "R13":

@@ -783,3 +783,17 @@
     font-style: italic;
     color: var(--cm-text-secondary);
 }
+
+/* Style panel v2: a name longer than its column ends in an ellipsis on one line, its whole name in
+   its tooltip, so every row keeps one height (design 2.2). */
+[data-style-panel-v2] .ws-field-name,
+[data-thing-popover] .ws-field-name {
+    overflow-wrap: normal;
+    white-space: nowrap;
+}
+
+/* Style panel v2's shader rows (Shaders, group outlines): the empty place column gives its width to
+   the name, which the panel's 240 px would otherwise squeeze to nothing. */
+[data-style-panel-v2] .ws-shader-row .ws-field[data-shader-use] {
+    grid-template-columns: 22px minmax(0, 1fr) 0 24px 24px;
+}

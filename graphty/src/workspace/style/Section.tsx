@@ -15,7 +15,7 @@ import { carriedOpacity, lineIn, partlySet, removeLine, writeIn } from "./row";
 import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
-import { addShader, moveShader, pickedShader, shaderEntries, writeWireframe } from "./shaderSlots";
+import { addShader, moveShader, pickedShader, placeOf, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
 import {
     channelWord,
@@ -547,7 +547,10 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const [code, setCode] = useState<PasteInit | null>(null);
     const sectionBox = useRef<HTMLDivElement>(null);
     const tab = ctx.side;
-    const entries = shaderEntries(ctx);
+    const all = shaderEntries(ctx);
+    const entries = all.filter(
+        (entry) => (spec.shapeOwnsReplace !== true || placeOf(entry) !== "replace") && (spec.listed?.(entry) ?? true),
+    );
     const options: OptionTile[] = OPTION_CHANNELS[tab].map((channel) => ({
         key: channel,
         label: channelWord(channel),
@@ -632,6 +635,8 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                             tab={tab}
                             options={options}
                             marked={entries.map((entry) => entry.use.shader)}
+                            exclude={spec.shapeOwnsReplace === true ? "replace" : undefined}
+                            bare={spec.shapeOwnsReplace === true}
                             onPick={(id) => {
                                 setGallery(false);
                                 pick(id).catch(fail("added"));
@@ -720,6 +725,17 @@ export interface AddOption {
 }
 
 /**
+ * A "+" button's name: "Add to node shape", or "Add to background" where the title is the kind.
+ * @param kind - nodes, edges or the background.
+ * @param title - what it adds to.
+ * @returns the name.
+ */
+function addName(kind: string, title: string): string {
+    const what = title.toLowerCase();
+    return what === kind ? `Add to ${kind}` : `Add to ${kind} ${what}`;
+}
+
+/**
  * A section's "+", named for the kind and the section ("Add to node shape"), so a layer on nodes
  * and edges never has two controls with one name: a menu of what it can still add, or, with one
  * thing left, a button that adds it. An option with choices opens a submenu of them. With nothing
@@ -741,6 +757,7 @@ export interface AddOption {
  *   "+" an empty section carries (Style panel v2)
  * @param props.words - draws the "+" with these words beside it, always as a menu ("Add section",
  *   Style panel v2)
+ * @param props.alwaysMenu - opens its menu even for one item (Style panel v2)
  * @returns The button and its menu
  */
 export function AddButton({
@@ -756,6 +773,7 @@ export function AddButton({
     onOpenChange,
     anchorOnly = false,
     words,
+    alwaysMenu = false,
 }: Readonly<{
     kind: "node" | "edge" | "background";
     title: string;
@@ -770,6 +788,8 @@ export function AddButton({
     onOpenChange?: (opened: boolean) => void;
     anchorOnly?: boolean;
     words?: string;
+    /** Opens its menu even for one item, so the reader sees what it adds (Style panel v2). */
+    alwaysMenu?: boolean;
 }>): React.JSX.Element | null {
     const shown = menuGroups(groups, flat);
     if (anchorOnly) {
@@ -791,7 +811,7 @@ export function AddButton({
         );
     }
     const options = shown.flat();
-    const name = `Add to ${kind} ${title.toLowerCase()}`;
+    const name = addName(kind, title);
     const full = options.every((option) => option.disabled === true) || disabledReason !== undefined;
     const reason = disabledReason ?? `Everything in ${kind} ${title.toLowerCase()} is set`;
     const button = (
@@ -813,7 +833,7 @@ export function AddButton({
         return <Tooltip label={reason}>{button}</Tooltip>;
     }
     const [only] = options;
-    if (options.length === 1 && only.choices === undefined) {
+    if (options.length === 1 && only.choices === undefined && !alwaysMenu) {
         // A menu of one item is one more click for nothing: the "+" adds it. Its tooltip is its
         // name, so a reader who hovers it and one who hears it meet one name. One that opens a
         // gallery says it opens one, and whether it is open.

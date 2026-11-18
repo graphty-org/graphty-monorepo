@@ -95,6 +95,8 @@ export interface RowContext {
     readonly pickers?: "listbox";
     /** A long value list's sections, so its picker shows one at a time (Style panel v2 only). */
     readonly listSections?: (channel: Channel) => readonly ValueSection[] | undefined;
+    /** Style panel v2: a value bound to data is its column's name alone, its range only in its tooltip (#8739). */
+    readonly namesOnly?: boolean;
 }
 
 /** Several rows edited as one: each write reaches every row, one undo step. */
@@ -432,6 +434,11 @@ interface FieldProps {
         readonly removeLabel: string;
         readonly onRemove: () => void;
     };
+    /**
+     * Drawn as an unset line of Style panel v2: the layer does not set it, so it has no minus and
+     * no vary glyph, and is not marked set; its first value sets it.
+     */
+    readonly unsetLine?: boolean;
 }
 
 /** The workspace store. */
@@ -759,8 +766,7 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
                 waiting={fresh}
                 swatches={ctx.documentColors}
                 extraChoices={extraChoices}
-                listbox={ctx.pickers === "listbox" ? ctx.session : undefined}
-                sections={ctx.listSections?.(descriptor.channel)}
+                {...listOf(ctx, descriptor)}
                 onChange={pick}
             />
         );
@@ -843,8 +849,7 @@ function OneValue({
                 value={value}
                 shown={value}
                 extraChoices={extraChoices}
-                listbox={ctx.pickers === "listbox" ? ctx.session : undefined}
-                sections={ctx.listSections?.(descriptor.channel)}
+                {...listOf(ctx, descriptor)}
                 onChange={pick}
             />
         );
@@ -1199,6 +1204,24 @@ function removeNameOf(ctx: RowContext, name: string): string {
 }
 
 /**
+ * How a choice field's list is drawn: a named, searchable list (with its sections, and without
+ * counts in Style panel v2), or today's select.
+ * @param ctx - the row.
+ * @param descriptor - the property.
+ * @returns the list's props for ValueField.
+ */
+function listOf(
+    ctx: RowContext,
+    descriptor: ChannelDescriptor,
+): Pick<React.ComponentProps<typeof ValueField>, "listbox" | "sections" | "counts"> {
+    return {
+        listbox: ctx.pickers === "listbox" ? ctx.session : undefined,
+        sections: ctx.listSections?.(descriptor.channel),
+        counts: ctx.namesOnly !== true,
+    };
+}
+
+/**
  * A property row's one line: its name in the label column (none, the control spanning it, for a
  * Style panel v2 thing its section names), then the control and the trailing columns.
  * @param props - Component props
@@ -1229,6 +1252,57 @@ export function FieldLine({
 }
 
 /**
+ * A field's vary glyph, minus and set mark, or none of them for an unset Style panel v2 line.
+ * @param unset - whether the line is unset.
+ * @param vary - its vary glyph.
+ * @param minus - its minus.
+ * @returns what it draws.
+ */
+function unsetSlots(
+    unset: boolean,
+    vary: React.ReactNode,
+    minus: React.ReactNode,
+): { readonly vary: React.ReactNode; readonly minus: React.ReactNode; readonly set: "" | undefined } {
+    return unset ? { vary: null, minus: null, set: undefined } : { vary, minus, set: "" };
+}
+
+/**
+ * A field's minus. The field's notes are its tooltip, never a caption under it (#8739): the control
+ * keeps its own tooltip, and a pop-over it opens is never inside another.
+ * @param props - Component props
+ * @param props.name - its name ("Remove node size")
+ * @param props.notes - the field's notes
+ * @param props.onRemove - what it removes
+ * @returns The minus
+ */
+function FieldMinus({
+    name,
+    notes,
+    onRemove,
+}: Readonly<{ name: string; notes: readonly string[]; onRemove: () => void }>): React.JSX.Element {
+    return (
+        <Tooltip
+            label={
+                notes.length === 0 ? (
+                    name
+                ) : (
+                    <>
+                        {name}
+                        {notes.map((note) => (
+                            <div key={note}>{note}</div>
+                        ))}
+                    </>
+                )
+            }
+        >
+            <ActionIcon variant="subtle" size="sm" aria-label={name} onClick={onRemove}>
+                <GLYPHS.remove size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
+/**
  * One property this layer sets (the owner's style panel design, 2026-10-13): its name, its value,
  * the vary glyph, and a minus that removes it so the layers beneath show through. A property the
  * layer does not set has no row at all, so nothing here ever shows a value from beneath. Several
@@ -1244,6 +1318,7 @@ export function FieldLine({
  * @param props.settings - a style's own "+" beside its name, adding its settings
  * @param props.setting - drawn as a setting under its style's row
  * @param props.thing - drawn as a Style panel v2 thing row: its name, settings slot and whole-thing minus
+ * @param props.unsetLine - drawn as an unset Style panel v2 line: no minus, no vary glyph
  * @returns The row, or nothing when the layer does not set the property
  */
 export function Field({
@@ -1255,6 +1330,7 @@ export function Field({
     settings,
     setting = false,
     thing,
+    unsetLine = false,
 }: Readonly<FieldProps>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
@@ -1381,12 +1457,18 @@ export function Field({
         breakdown: fieldBreakdown(ctx, channel, label, lines, pending),
     });
     const removeName = thing?.removeLabel ?? removeNameOf(ctx, name);
+    // An unset Style panel v2 line has no vary glyph and no minus, and is not marked set.
+    const {
+        vary: shownVary,
+        minus,
+        set,
+    } = unsetSlots(unsetLine, varySlot, <FieldMinus name={removeName} notes={notes} onRemove={remove} />);
     return (
         <div
             ref={box}
             className="ws-row"
             data-line={channel}
-            data-set=""
+            data-set={set}
             data-setting={setting ? "" : undefined}
             data-accepts={descriptor.accepts}
             data-bound={own?.binding === undefined ? undefined : ""}
@@ -1400,29 +1482,8 @@ export function Field({
                 <div className="ws-field-control" data-notes={notes.length === 0 ? undefined : notes.join(" ")}>
                     {control}
                 </div>
-                <span className="ws-slot ws-vary">{thing?.slot ?? varySlot}</span>
-                <span className="ws-slot">
-                    {/* The field's notes are its row's minus tooltip, never a caption under it (#8739): the
-                        control keeps its own tooltip, and a pop-over it opens is never inside another. */}
-                    <Tooltip
-                        label={
-                            notes.length === 0 ? (
-                                removeName
-                            ) : (
-                                <>
-                                    {removeName}
-                                    {notes.map((note) => (
-                                        <div key={note}>{note}</div>
-                                    ))}
-                                </>
-                            )
-                        }
-                    >
-                        <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>
-                            <GLYPHS.remove size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </span>
+                <span className="ws-slot ws-vary">{thing?.slot ?? shownVary}</span>
+                <span className="ws-slot">{minus}</span>
             </FieldLine>
             {asset?.extras}
             {pendingVary === null ? null : (
@@ -1687,7 +1748,7 @@ function BoundValue({
                 name={view.name}
                 // The pill names the column ("donations"); its range ("From 1 to 3") and notes are in
                 // the tooltip, never a line under it (#8739).
-                value={isColor || view.list === undefined ? view.detail : undefined}
+                value={ctx.namesOnly !== true && (isColor || view.list === undefined) ? view.detail : undefined}
                 tooltip={[...new Set([view.plain ?? view.name, view.detail, described])]
                     .filter((w) => w !== undefined && w !== "")
                     .join("\n")}

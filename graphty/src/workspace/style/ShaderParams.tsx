@@ -43,6 +43,8 @@ interface ShaderParamsProps {
     readonly onChange: (name: string, value: Value | undefined) => void;
     /** Stops a parameter varying by data. */
     readonly onUnbind?: (name: string) => void;
+    /** Whether its Uses and Cost lines are drawn under the parameters (not in Style panel v2, #8739). */
+    readonly facts?: boolean;
 }
 
 /** How far a whole bounded range is scrubbed across, in CSS pixels. */
@@ -512,6 +514,7 @@ function FactRow({
  * @param props.bindings - the parameters bound to data
  * @param props.onChange - sets or clears one parameter
  * @param props.onUnbind - stops one varying
+ * @param props.facts - whether its Uses and Cost lines are drawn
  * @returns The rows
  */
 export function ShaderParams({
@@ -522,6 +525,7 @@ export function ShaderParams({
     bindings = {},
     onChange,
     onUnbind,
+    facts = true,
 }: Readonly<ShaderParamsProps>): React.JSX.Element {
     const box = useRef<HTMLDivElement>(null);
     // The pop-out puts focus on the field marked to take it: the first parameter's.
@@ -543,12 +547,16 @@ export function ShaderParams({
                     onUnbind={onUnbind}
                 />
             ))}
-            <FactRow label="Uses" testId="shader-uses">
-                {usesWords(descriptor.reads)}
-            </FactRow>
-            <FactRow label="Cost" testId="shader-cost">
-                {SHADER_FACT_WORDS.cost(descriptor.cost)}
-            </FactRow>
+            {facts && (
+                <>
+                    <FactRow label="Uses" testId="shader-uses">
+                        {usesWords(descriptor.reads)}
+                    </FactRow>
+                    <FactRow label="Cost" testId="shader-cost">
+                        {SHADER_FACT_WORDS.cost(descriptor.cost)}
+                    </FactRow>
+                </>
+            )}
         </div>
     );
 }

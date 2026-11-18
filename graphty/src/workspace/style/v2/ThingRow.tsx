@@ -4,22 +4,25 @@
  * the whole thing off the layer in one undo step.
  */
 
-import type { Channel } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import { TextInput } from "@mantine/core";
-import React from "react";
+import React, { useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { SettingsPopout } from "../../options/SettingsPopout";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
+import { GradientButton } from "../parts/GradientRow";
 import { Field, type RowContext } from "../PropertyRow";
 import { layerWord, removeLine } from "../row";
-import { failureWords } from "../words";
+import { ShaderParams } from "../ShaderParams";
+import { bindingsOf, paramsOf, placeOf, shaderEntries, shadersChannel, unbindParam, writeParam } from "../shaderSlots";
+import { failureWords, takesBinding } from "../words";
 import { dropReplace, familyOf, replaceUse } from "./families";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
-import { rubricChannels, rubricOf, SHAPE_REPLACE_RUBRIC } from "./rubric";
-import { LineFrame, RubricLine } from "./RubricLine";
+import { type LineSpec, rubricChannels, rubricOf, SHAPE_REPLACE_RUBRIC, type ThingRubric } from "./rubric";
+import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
 
@@ -65,6 +68,131 @@ async function removeThing(
 }
 
 /**
+ * Whether a thing's pop-over would hold nothing (Visibility: no settings, no By data), so its row
+ * draws no settings button at all.
+ * @param rubric - the thing's rubric.
+ * @param others - how many set lines its rubric has no line for.
+ * @param family - whether it is a family, with a Switch to.
+ * @param main - its main value.
+ * @returns true when it would be empty.
+ */
+function emptyPopover(
+    rubric: ThingRubric | undefined,
+    others: number,
+    family: boolean,
+    main: ChannelDescriptor,
+): boolean {
+    if (rubric === undefined || others > 0 || family || takesBinding(main) || main.accepts === "number") {
+        return false;
+    }
+    return rubric.main.length === 0 && (rubric.groups ?? []).length === 0;
+}
+
+/**
+ * The parameters of the shader drawn in the shapes' place, in the Shape pop-over's Main (design 7.1).
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @returns The parameters, or nothing for a shader the catalog does not know
+ */
+function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const entry = shaderEntries(ctx).find((each) => placeOf(each) === "replace");
+    if (entry?.descriptor === undefined) {
+        return null;
+    }
+    const fail = (error: unknown): void => {
+        store.set({
+            notice: { message: failureWords(entry.descriptor?.plainName ?? "Shader", "changed", error), error: true },
+        });
+    };
+    return (
+        <ShaderParams
+            ctx={ctx}
+            descriptor={entry.descriptor}
+            channel={shadersChannel(ctx.side)}
+            values={paramsOf(entry)}
+            bindings={bindingsOf(ctx, entry)}
+            facts={false}
+            onChange={(param, value) => {
+                writeParam(ctx, entry, param, value).catch(fail);
+            }}
+            onUnbind={(param) => {
+                unbindParam(ctx, entry, param).catch(fail);
+            }}
+        />
+    );
+}
+
+/**
+ * A thing row's main line: a shader drawn in the shapes' place, a gradient Fill's bar (today's
+ * gradient editor, design 7.1), the rubric's own line for the row, else today's field.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.thing - the thing
+ * @param props.main - its main value
+ * @param props.row - its rubric's line for the row, if any
+ * @param props.replacing - the shader drawn in the shapes' place, if any
+ * @param props.title - the thing's name with its kind
+ * @param props.pending - added with "+" and waiting for its first value
+ * @param props.onCancel - takes a waiting thing away again
+ * @param props.slots - its settings button and whole-thing minus
+ * @returns The line
+ */
+function MainLine({
+    ctx,
+    thing,
+    main,
+    row,
+    replacing,
+    title,
+    pending,
+    onCancel,
+    slots,
+}: Readonly<{
+    ctx: RowContext;
+    thing: ThingSpec;
+    main: ChannelDescriptor;
+    row: LineSpec | undefined;
+    replacing: string | undefined;
+    title: string;
+    pending: boolean;
+    onCancel: () => void;
+    slots: RowSlots;
+}>): React.JSX.Element {
+    const frame = (line: string, rule: string, control: React.ReactNode): React.JSX.Element => (
+        <LineFrame
+            line={line}
+            name={null}
+            set
+            rule={rule}
+            control={control}
+            modifier={slots.slot}
+            removeName={slots.removeLabel}
+            onRemove={slots.onRemove}
+        />
+    );
+    if (replacing !== undefined) {
+        const name = ctx.session.shaders.describe(replacing)?.plainName ?? replacing;
+        return frame("node.shaders:replace", "R10", <TextInput size="xs" readOnly aria-label={title} value={name} />);
+    }
+    if (main.channel === "node.gradientColors" && setOn(ctx, main.channel)) {
+        return frame(main.channel, "R16", <GradientButton ctx={ctx} />);
+    }
+    if (row !== undefined) {
+        return <RubricLine ctx={ctx} line={row} row={slots} />;
+    }
+    return (
+        <Field
+            ctx={ctx}
+            descriptor={main}
+            pending={pending || !setOn(ctx, main.channel)}
+            onCancel={onCancel}
+            thing={{ name: thing.unnamed === true ? null : thing.name, ...slots }}
+        />
+    );
+}
+
+/**
  * One thing's row: see the file header.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -88,6 +216,8 @@ export function ThingRow({
     onCancel: () => void;
 }>): React.JSX.Element | null {
     const { store } = useWorkspace();
+    // Held here, so the pop-over stays open while a switch redraws the row's main control.
+    const [open, setOpen] = useState(false);
     const main = mainOf(ctx, thing, channels);
     if (main === undefined) {
         return null;
@@ -114,11 +244,13 @@ export function ThingRow({
     const changed =
         others.length > 0 ||
         [...covered].some((channel) => channel !== main.channel && !commonChannels.has(channel) && setOn(ctx, channel));
-    const settings = (
+    const settings = emptyPopover(rubric, others.length, family !== undefined, main) ? null : (
         <SettingsPopout
             label={`${title} settings`}
             title={title}
             changed={changed}
+            opened={open}
+            onOpenChange={setOpen}
             icon={<GLYPHS.sliders size={14} aria-hidden />}
         >
             {rubric === undefined ? (
@@ -130,6 +262,7 @@ export function ThingRow({
                     rubric={rubric}
                     others={others}
                     first={<FirstLines ctx={ctx} main={main} family={family} />}
+                    extra={replacing === undefined ? undefined : <ReplaceParams ctx={ctx} />}
                 />
             )}
         </SettingsPopout>
@@ -162,50 +295,20 @@ export function ThingRow({
             </div>
         );
     }
-    if (replacing !== undefined) {
-        return (
-            <div data-thing={thing.id}>
-                <LineFrame
-                    line="node.shaders:replace"
-                    name={null}
-                    set
-                    rule="R10"
-                    control={
-                        <TextInput
-                            size="xs"
-                            readOnly
-                            aria-label={title}
-                            value={ctx.session.shaders.describe(replacing.shader)?.plainName ?? replacing.shader}
-                        />
-                    }
-                    modifier={settings}
-                    removeName={removeLabel}
-                    onRemove={remove}
-                />
-                {common.map((line) => (
-                    <RubricLine key={line.channel} ctx={ctx} line={line} />
-                ))}
-            </div>
-        );
-    }
+    const slots: RowSlots = { slot: settings, removeLabel, onRemove: remove };
     return (
         <div data-thing={thing.id}>
-            {rubric?.row === undefined ? (
-                <Field
-                    ctx={ctx}
-                    descriptor={main}
-                    pending={pending || !setOn(ctx, main.channel)}
-                    onCancel={onCancel}
-                    thing={{
-                        name: thing.unnamed === true ? null : thing.name,
-                        slot: settings,
-                        removeLabel,
-                        onRemove: remove,
-                    }}
-                />
-            ) : (
-                <RubricLine ctx={ctx} line={rubric.row} row={{ slot: settings, removeLabel, onRemove: remove }} />
-            )}
+            <MainLine
+                ctx={ctx}
+                thing={thing}
+                main={main}
+                row={rubric?.row}
+                replacing={replacing?.shader}
+                title={title}
+                pending={pending}
+                onCancel={onCancel}
+                slots={slots}
+            />
             {common.map((line) => (
                 <RubricLine key={line.channel} ctx={ctx} line={line} />
             ))}

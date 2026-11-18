@@ -39,6 +39,7 @@ import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
+import type { ShaderEntry } from "./shaderSlots";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -60,6 +61,13 @@ export interface SectionSpec {
     readonly channels: readonly Channel[];
     /** The section is the tab's Shaders list: its rows are the layer's shader uses, its "+" opens the gallery. */
     readonly shaders?: boolean;
+    /**
+     * Style panel v2's Shaders list: a shader in the shapes' place is the Shape row's, so it is
+     * neither listed nor offered here, and the gallery's tiles show a picture and a name only.
+     */
+    readonly shapeOwnsReplace?: boolean;
+    /** Which of the layer's shader uses the Shaders list draws; absent, every one. */
+    readonly listed?: (entry: ShaderEntry) => boolean;
     /**
      * Properties the section sets from inside one of its lines (the Shape field's Model... and Model
      * settings), never a "+" item of their own.

@@ -73,6 +73,24 @@ const COLORS = "Gradient colors";
  * @returns The row
  */
 export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+    return (
+        <div className="ws-row" data-line="node.gradientColors" data-set="">
+            <span className="ws-field-label">
+                <span className="ws-field-name">Colors</span>
+            </span>
+            <GradientButton ctx={ctx} />
+        </div>
+    );
+}
+
+/**
+ * The gradient drawn as a button that opens the gradient editor: the row's control, and Style
+ * panel v2's Fill row's control while it draws a gradient.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @returns The button and its pop-out
+ */
+export function GradientButton({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const { store } = useWorkspace();
     const moving = useRef(false);
     const [opened, setOpened] = useState(false);
@@ -95,48 +113,43 @@ export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.E
         );
     };
     return (
-        <div className="ws-row" data-line="node.gradientColors" data-set="">
-            <span className="ws-field-label">
-                <span className="ws-field-name">Colors</span>
-            </span>
-            <Popout opened={opened} onOpenChange={setOpened}>
-                <Popout.Trigger>
-                    <Button
-                        variant="default"
-                        size="compact-xs"
-                        fullWidth
-                        aria-label={`Edit node ${COLORS.toLowerCase()}`}
-                        className="ws-gradient-button"
-                        style={{ background: `linear-gradient(to right, ${bar})` }}
-                    />
-                </Popout.Trigger>
-                <Popout.Panel
-                    width={240}
-                    placement="left"
-                    alignment="start"
-                    header={{ variant: "title", title: COLORS }}
-                    closeLabel={`Close ${COLORS.toLowerCase()}`}
-                >
-                    <GradientEditor
-                        stops={stops}
-                        showDirection={false}
-                        maxStops={Number.POSITIVE_INFINITY}
-                        onChange={(changed) => {
-                            // A drag reports every step; it is written once, when it settles.
-                            if (!moving.current) {
-                                write(changed);
-                            }
-                        }}
-                        onChangeStart={() => {
-                            moving.current = true;
-                        }}
-                        onChangeEnd={(changed) => {
-                            moving.current = false;
+        <Popout opened={opened} onOpenChange={setOpened}>
+            <Popout.Trigger>
+                <Button
+                    variant="default"
+                    size="compact-xs"
+                    fullWidth
+                    aria-label={`Edit node ${COLORS.toLowerCase()}`}
+                    className="ws-gradient-button"
+                    style={{ background: `linear-gradient(to right, ${bar})` }}
+                />
+            </Popout.Trigger>
+            <Popout.Panel
+                width={240}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title: COLORS }}
+                closeLabel={`Close ${COLORS.toLowerCase()}`}
+            >
+                <GradientEditor
+                    stops={stops}
+                    showDirection={false}
+                    maxStops={Number.POSITIVE_INFINITY}
+                    onChange={(changed) => {
+                        // A drag reports every step; it is written once, when it settles.
+                        if (!moving.current) {
                             write(changed);
-                        }}
-                    />
-                </Popout.Panel>
-            </Popout>
-        </div>
+                        }
+                    }}
+                    onChangeStart={() => {
+                        moving.current = true;
+                    }}
+                    onChangeEnd={(changed) => {
+                        moving.current = false;
+                        write(changed);
+                    }}
+                />
+            </Popout.Panel>
+        </Popout>
     );
 }

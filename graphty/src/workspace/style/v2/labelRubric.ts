@@ -124,12 +124,12 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "color", name: null },
     ],
     main: [
-        { field: "look", name: "Look", rule: "R9" },
+        { field: "look", name: "Switch to", rule: "R9" },
         { field: "font", name: "Font", rule: "R13" },
         { field: "weight", name: "Weight", rule: "R5b", toggle: "italic", toggleGlyph: "italic" },
         { field: "textAlign", name: "Align", rule: "R8" },
         { field: "size", name: null, rule: "R8f", unit: SIZE_UNIT },
-        { field: "location", name: "Location", rule: "R9" },
+        { field: "location", name: "Location", rule: "R2" },
     ],
     groups: [
         {

@@ -336,6 +336,7 @@ function listControl(args: ControlArgs): React.ReactNode {
             value={value}
             shown={undefined}
             sections={sectionsOf(descriptor.channel)}
+            counts={false}
             onPick={(picked) => {
                 write(descriptor.channel, picked);
             }}
@@ -416,6 +417,8 @@ function fontControl(args: ControlArgs): React.ReactNode {
 /** Each rule's control. */
 const CONTROLS: Readonly<Record<Exclude<Rule, "field">, (args: ControlArgs) => React.ReactNode>> = {
     R1: valueControl,
+    // A location (R2) is a label style field's only: never a channel's line.
+    R2: valueControl,
     R5: numberControl,
     R5b: presetControl,
     R7: checkboxControl,
@@ -492,6 +495,7 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
                 ctx={ctx}
                 descriptor={descriptor}
                 pending={!set}
+                unsetLine={!set && row === undefined}
                 thing={row === undefined ? undefined : { name: line.name ?? null, ...row }}
             />
         );

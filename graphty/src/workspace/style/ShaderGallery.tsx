@@ -206,6 +206,10 @@ interface ShaderGalleryProps {
     readonly onNew?: () => void;
     /** Deletes a project shader from the project; absent: no Delete from project. */
     readonly onDelete?: (id: string) => void;
+    /** A place it leaves out (Style panel v2: a shader in the shapes' place is Shape's Switch to). */
+    readonly exclude?: ShaderPlace;
+    /** Tiles of a picture and a name only, every other fact in their tooltip and description (#8739). */
+    readonly bare?: boolean;
 }
 
 /**
@@ -226,6 +230,8 @@ interface ShaderGalleryProps {
  * @param props.onOption - picks a style option
  * @param props.onNew - opens the code dialog
  * @param props.onDelete - deletes a project shader, from its tile's context menu
+ * @param props.exclude - a place it leaves out
+ * @param props.bare - tiles of a picture and a name only
  * @returns The gallery
  */
 export function ShaderGallery({
@@ -237,6 +243,8 @@ export function ShaderGallery({
     onOption,
     onNew,
     onDelete,
+    exclude,
+    bare = false,
 }: Readonly<ShaderGalleryProps>): React.JSX.Element {
     const [query, setQuery] = useState("");
     const [origin, setOrigin] = useState("all");
@@ -246,7 +254,11 @@ export function ShaderGallery({
     const shaders = session.catalog
         .shaders()
         .filter(
-            (descriptor) => onTab(descriptor, tab) && inOrigin(descriptor, origin) && shaderMatches(descriptor, query),
+            (descriptor) =>
+                onTab(descriptor, tab) &&
+                (exclude === undefined || descriptor.place !== exclude) &&
+                inOrigin(descriptor, origin) &&
+                shaderMatches(descriptor, query),
         );
     const found = query.trim() === "" ? [] : options.filter((option) => matchesWordStart(option.label, query));
     const reasons = new Map(
@@ -307,15 +319,16 @@ export function ShaderGallery({
                 name={descriptor.plainName}
                 picture={descriptor.thumbnail}
                 badge={
-                    tab === "background" ? undefined : (
+                    tab === "background" || bare ? undefined : (
                         <span className="ws-place-badge">
                             <PlaceDiagram place={descriptor.place} tab={tab} />
                             <span>{placeWords(descriptor.place, tab)}</span>
                         </span>
                     )
                 }
-                facts={<ShaderFacts descriptor={descriptor} />}
+                facts={bare ? undefined : <ShaderFacts descriptor={descriptor} />}
                 second={reason ?? originWords(descriptor)}
+                quiet={bare}
                 description={description}
                 disabled={reason !== undefined}
                 marked={used}
@@ -409,7 +422,7 @@ export function ShaderGallery({
                         key={option.key}
                         id={`option:${option.key}`}
                         name={option.label}
-                        second={tab === "background" ? undefined : OPTION_TILE_WORDS[tab]}
+                        second={tab === "background" || bare ? undefined : OPTION_TILE_WORDS[tab]}
                         description={tab === "background" ? undefined : OPTION_TILE_WORDS[tab]}
                         marked={false}
                         stop={tabStop === `option:${option.key}`}
@@ -444,6 +457,7 @@ export function ShaderGallery({
  * @param props.marked - whether it is already in the list
  * @param props.stop - whether it is the gallery's one Tab stop
  * @param props.onPick - picks it
+ * @param props.quiet - its second line only in its tooltip
  * @returns The tile
  */
 function GalleryTile({
@@ -458,6 +472,7 @@ function GalleryTile({
     marked,
     stop,
     onPick,
+    quiet = false,
     ...handlers
 }: Readonly<
     // A context menu's handlers, on the tile.
@@ -473,6 +488,8 @@ function GalleryTile({
         marked: boolean;
         stop: boolean;
         onPick: (id: string) => void;
+        /** Its second line only in its tooltip, never under its name (#8739). */
+        quiet?: boolean;
     }
 >): React.JSX.Element {
     const describedBy = useId();
@@ -515,7 +532,7 @@ function GalleryTile({
             </Text>
             {badge}
             {facts}
-            {second !== undefined && (
+            {second !== undefined && !quiet && (
                 <Text size="xs" c="dimmed" truncate>
                     {second}
                 </Text>

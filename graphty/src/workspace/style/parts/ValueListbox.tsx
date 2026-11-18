@@ -38,12 +38,14 @@ function Glyph({ svg }: Readonly<{ svg: string }>): React.JSX.Element {
  * @param session - the element's session.
  * @param descriptor - the property.
  * @param extraChoices - choices listed after the property's own (Shape's shaders).
+ * @param counts - whether a row in use says how many things draw it.
  * @returns the rows.
  */
 function valueRows(
     session: GraphSession,
     descriptor: ChannelDescriptor,
     extraChoices: readonly ExtraChoice[],
+    counts: boolean,
 ): QuickAction[] {
     const values = session.catalog.channelValues(descriptor.channel);
     const drawn = session.styles.drawnValues(descriptor.channel);
@@ -55,7 +57,9 @@ function valueRows(
             ? { section: "All" }
             : {
                   section: "In this graph",
-                  description: descriptor.target === "node" ? countName(count, 0) : countName(0, count),
+                  ...(counts
+                      ? { description: descriptor.target === "node" ? countName(count, 0) : countName(0, count) }
+                      : {}),
               }),
     });
     const used = drawn.flatMap((each) => {
@@ -109,6 +113,7 @@ function sectionRows(
  * @param props.extraChoices - choices listed after the property's own
  * @param props.onPick - writes the value picked
  * @param props.sections - shows one section of a long list at a time, with a section select (Style panel v2)
+ * @param props.counts - whether a row in use says how many things draw it (not in Style panel v2, #8739)
  * @returns The picker
  */
 export function ValueListbox({
@@ -121,6 +126,7 @@ export function ValueListbox({
     extraChoices = [],
     onPick,
     sections,
+    counts = true,
 }: Readonly<{
     session: GraphSession;
     descriptor: ChannelDescriptor;
@@ -131,6 +137,7 @@ export function ValueListbox({
     extraChoices?: readonly ExtraChoice[];
     onPick: (value: string) => void;
     sections?: readonly ValueSection[];
+    counts?: boolean;
 }>): React.JSX.Element {
     const [opened, setOpened] = useState(false);
     const [query, setQuery] = useState("");
@@ -141,7 +148,7 @@ export function ValueListbox({
         sections?.[0]?.name ??
         "";
     const [section, setSection] = useState(startSection);
-    const rows = opened ? valueRows(session, descriptor, extraChoices) : [];
+    const rows = opened ? valueRows(session, descriptor, extraChoices, counts) : [];
     const listed = sections === undefined ? rows : sectionRows(rows, sections, section, query.trim() !== "");
     const things = `${channelWord(descriptor.channel).toLowerCase()}s`;
     // As the shared choice field reads it: "mixed", or the default in force when nothing is set.

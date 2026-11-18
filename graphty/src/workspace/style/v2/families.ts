@@ -5,6 +5,13 @@
  * (`STYLE_FAMILIES`); the app adds only which thing shows which family, the members' order on the
  * strip, and the values a reader left behind, held while the same row stays selected so switching
  * back brings them back (section 5, point 2).
+ *
+ * Temporary workaround, tracked in #8880: graphty-element has no API that says which member a
+ * layer draws now, or that switches a layer from one member to another in one undo step. Until it
+ * has (for example `session.styles.familyMember(layer, family)` and
+ * `session.styles.switchFamily(layer, family, member)`), `currentMember`, `switchMember` and their
+ * helpers do that work here from `STYLE_FAMILIES`, and every other consumer would have to repeat
+ * it. They move into the element, and this file shrinks to calling it.
  */
 
 import {
@@ -16,12 +23,13 @@ import {
     type StyleFamilyId,
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
-import type { Layer } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { lineIn, startFor, writeIn } from "../row";
+import type { ShaderEntry } from "../shaderSlots";
 import { experimentChannelsOff } from "../words";
 import { setOn } from "./things";
 
@@ -163,10 +171,11 @@ interface Held {
 }
 
 /**
- * The values left members held, while one row stays selected (design 5, point 2): keyed by layer,
- * family and member. A switch on another row starts it again.
+ * The values left members held, while one row stays selected (design 5, point 2): per session, so
+ * another project never gets them, keyed by layer, family and member. A switch on another row
+ * starts it again.
  */
-let held: { row: string; values: Map<string, Held> } = { row: "", values: new Map() };
+const held = new WeakMap<GraphSession, { row: string; values: Map<string, Held> }>();
 
 /**
  * The held values of the row a switch is on, starting them again for another row.
@@ -175,17 +184,13 @@ let held: { row: string; values: Map<string, Held> } = { row: "", values: new Ma
  */
 function heldFor(ctx: RowContext): Map<string, Held> {
     const row = `${ctx.side}:${ctx.row.join(",")}`;
-    if (held.row !== row) {
-        held = { row, values: new Map() };
+    const now = held.get(ctx.session);
+    if (now?.row === row) {
+        return now.values;
     }
-    return held.values;
-}
-
-/**
- * Forgets every held value, as a newly selected row does. For tests.
- */
-export function forgetHeld(): void {
-    held = { row: "", values: new Map() };
+    const values = new Map<string, Held>();
+    held.set(ctx.session, { row, values });
+    return values;
 }
 
 /**
@@ -360,4 +365,23 @@ export function dropReplace(ctx: RowContext, set: Record<string, unknown>): void
     } else {
         Reflect.deleteProperty(set, "node.shaders");
     }
+}
+
+/**
+ * The shaders graphty-element's Group outline family draws (Bubble, Hull), in its order.
+ * @returns their catalog ids.
+ */
+export function groupOutlineShaders(): readonly string[] {
+    const family = STYLE_FAMILIES.find((each) => each.id === "node.groupOutline");
+    return (family?.members ?? []).flatMap((member) => (member.shader === undefined ? [] : [member.shader]));
+}
+
+/**
+ * Whether a shader use is a group outline (design 4.1): it sits in Order and groups, not Shaders.
+ * @param ctx - the row.
+ * @param entry - the use.
+ * @returns true for one of the Group outline family's shaders.
+ */
+export function isGroupOutline(ctx: RowContext, entry: ShaderEntry): boolean {
+    return groupOutlineShaders().includes(ctx.session.shaders.describe(entry.use.shader)?.copyOf ?? entry.use.shader);
 }

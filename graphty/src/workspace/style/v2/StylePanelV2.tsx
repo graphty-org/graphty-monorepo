@@ -17,17 +17,27 @@ import { ChannelLine } from "../parts/PartPage";
 import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
 import { useFindKey } from "../parts/useFindKey";
 import type { RowContext } from "../PropertyRow";
-import { startFor, writeIn } from "../row";
+import { startFor, writeIn, writeLine } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
-import { shadersChannel } from "../shaderSlots";
+import { ShaderRow } from "../ShaderRow";
+import { addShader, moveShader, pickedShader, placeOf, shaderEntries, type ShaderEntry } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
-import { replaceUse } from "./families";
+import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
 import { FIT_TO_LABEL, lineFor } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ThingRow } from "./ThingRow";
 import { mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
 import { sectionsOf } from "./valueSections";
+
+/** Words Find a setting finds a setting by in this panel only: the names its things give them. */
+const FIND_WORDS: Partial<Readonly<Record<Channel, readonly string[]>>> = {
+    "edge.arrowHead": ["target end"],
+    "node.visible": ["visibility"],
+    "edge.visible": ["visibility"],
+    "node.label": ["name", "label"],
+    "edge.label": ["name", "label"],
+};
 
 /** The words of the button that shows a section while empty sections are not shown (design 11). */
 const ADD_SECTION = "Add section";
@@ -84,6 +94,21 @@ function thingsOf(
     return { things, shown };
 }
 
+/** The Group outline item's key in Order and groups' "+" menu. */
+const GROUP_OUTLINE = "groupOutline";
+
+/**
+ * The group outlines a section lists: Order and groups' on the node tab (design 4.1), else none.
+ * @param ctx - the row.
+ * @param part - the section's part.
+ * @returns the outlines' uses.
+ */
+function outlinesOf(ctx: RowContext, part: PartSpec): readonly ShaderEntry[] {
+    return part.id === "order" && ctx.side === "node"
+        ? shaderEntries(ctx).filter((entry) => isGroupOutline(ctx, entry))
+        : [];
+}
+
 /**
  * Whether the row sets anything a section holds.
  * @param ctx - the row.
@@ -92,9 +117,10 @@ function thingsOf(
  * @returns true when it does.
  */
 function sectionUsed(ctx: RowContext, part: PartSpec, section: SectionThings): boolean {
+    // A shader in the shapes' place is the Shape row's, never the Shaders section's (design 4.1).
     return part.id === "shaders"
-        ? setOn(ctx, shadersChannel(ctx.side))
-        : thingsOf(ctx, part, section, []).shown.length > 0;
+        ? shaderEntries(ctx).some((entry) => placeOf(entry) !== "replace" && !isGroupOutline(ctx, entry))
+        : thingsOf(ctx, part, section, []).shown.length > 0 || outlinesOf(ctx, part).length > 0;
 }
 
 /**
@@ -134,17 +160,37 @@ function ThingSection({
     const { things, shown } = thingsOf(ctx, part, section, waiting);
     // A one-only thing leaves the menu once set; Label stays, disabled, until a node can hold several
     // labels (design 7.4: list-valued labels are not in graphty-element yet).
-    const groups: AddOption[][] = things.map((group) =>
-        group.flatMap(({ thing }) => {
-            if (!shown.some((each) => each.thing === thing)) {
-                return [{ key: thing.id, label: thing.name }];
-            }
-            return thing.id === "label" ? [{ key: thing.id, label: thing.name, disabled: true }] : [];
-        }),
-    );
+    const outlines = outlinesOf(ctx, part);
+    const takesOutlines = part.id === "order" && ctx.side === "node";
+    const groups: AddOption[][] = [
+        ...things.map((group) =>
+            group.flatMap(({ thing }) => {
+                if (!shown.some((each) => each.thing === thing)) {
+                    return [{ key: thing.id, label: thing.name }];
+                }
+                return thing.id === "label" ? [{ key: thing.id, label: thing.name, disabled: true }] : [];
+            }),
+        ),
+        // A group outline is a shader use, and a layer may draw several (design 4.1).
+        ...(takesOutlines ? [[{ key: GROUP_OUTLINE, label: "Group outline" }]] : []),
+    ];
     const options = groups.flat().filter((option) => option.disabled !== true);
     const add = (id: string): void => {
         setMenu(false);
+        if (id === GROUP_OUTLINE) {
+            const [first] = groupOutlineShaders();
+            if (first !== undefined) {
+                pickedShader(ctx.session, first)
+                    .then((shader) => addShader(ctx, shader))
+                    .then(() => {
+                        store.set({ announcement: "Group outline added" });
+                    })
+                    .catch((error: unknown) => {
+                        store.set({ notice: { message: failureWords("Group outline", "added", error), error: true } });
+                    });
+            }
+            return;
+        }
         const found = things.flat().find((each) => each.thing.id === id);
         const thing = found?.thing;
         const main = found === undefined ? undefined : mainOf(ctx, found.thing, found.channels);
@@ -163,7 +209,16 @@ function ThingSection({
             setWaiting((now) => (now.includes(id) ? now : [...now, id]));
             return;
         }
-        writeIn(ctx, main.channel, { value: start })
+        // What "+" adds draws at once (design 5.1): an end with no arrowhead starts with one.
+        const value = thing.drawn !== undefined && (start === "none" || start === 0) ? thing.drawn : start;
+        // Its own undo step, never merged with the first edit after it (design 12.13).
+        const written =
+            ctx.many === undefined
+                ? ctx.session.transaction(`adding ${thing.name.toLowerCase()}`, (tx) =>
+                      writeLine(tx, ctx.row, ctx.side, main.channel, { value }, ctx.fresh, thing.starts),
+                  )
+                : writeIn(ctx, main.channel, { value }, thing.starts);
+        written
             .then(() => {
                 store.set({ announcement: `${thing.name} added` });
             })
@@ -171,8 +226,11 @@ function ThingSection({
                 store.set({ notice: { message: failureWords(thing.name, "added", error), error: true } });
             });
     };
-    const empty = shown.length === 0;
+    const empty = shown.length === 0 && outlines.length === 0;
     const [only] = options;
+    // Only a section of one thing adds it straight from "+" (design 2.3); any other shows its menu,
+    // so the reader sees what "+" adds, and a "+" with nothing left to add is not drawn.
+    const single = section.groups.flat().length + (takesOutlines ? 1 : 0) === 1;
     return (
         <div data-section={`${ctx.side}-${part.id}`} className="ws-section">
             <ControlSection
@@ -184,7 +242,7 @@ function ThingSection({
                 onAdd={
                     empty
                         ? () => {
-                              if (options.length === 1) {
+                              if (single && options.length === 1) {
                                   add(only.key);
                               } else {
                                   setMenu(true);
@@ -193,12 +251,13 @@ function ThingSection({
                         : undefined
                 }
                 actions={
-                    empty && options.length === 1 ? undefined : (
+                    options.length === 0 || (empty && single) ? undefined : (
                         <AddButton
                             kind={ctx.side}
                             title={part.title}
                             groups={groups}
                             onAdd={add}
+                            alwaysMenu
                             anchorOnly={empty}
                             opened={empty ? menu : undefined}
                             onOpenChange={empty ? setMenu : undefined}
@@ -218,6 +277,22 @@ function ThingSection({
                         }}
                     />
                 ))}
+                {outlines.map((entry) => (
+                    <div key={entry.key} data-thing={GROUP_OUTLINE}>
+                        <ShaderRow
+                            ctx={ctx}
+                            entry={entry}
+                            count={outlines.length}
+                            onMove={(from, to) => {
+                                moveShader(ctx, from, to).catch((error: unknown) => {
+                                    store.set({
+                                        notice: { message: failureWords("Group outline", "moved", error), error: true },
+                                    });
+                                });
+                            }}
+                        />
+                    </div>
+                ))}
             </ControlSection>
         </div>
     );
@@ -236,7 +311,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     const [revealed, setRevealed] = useState<readonly string[]>([]);
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
-    const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf };
+    const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf, namesOnly: true };
     const parts = partsFor(
         ctx.side,
         experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),
@@ -270,7 +345,14 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                     <Section
                         key={part.id}
                         ctx={ctx}
-                        spec={{ id: part.id, title: part.title, channels: itemChannels(part.items[0]), shaders: true }}
+                        spec={{
+                            id: part.id,
+                            title: part.title,
+                            channels: itemChannels(part.items[0]),
+                            shaders: true,
+                            shapeOwnsReplace: true,
+                            listed: (entry) => !isGroupOutline(ctx, entry),
+                        }}
                     />
                 ) : (
                     <ThingSection
@@ -290,7 +372,9 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                 line={(channel) => foundLine(ctx, channel)}
                 words={(channel) => {
                     const found = lineFor(ctx.side, channel);
-                    return [found?.line.name ?? "", found?.group ?? ""].filter((word) => word !== "");
+                    return [found?.line.name ?? "", found?.group ?? "", ...(FIND_WORDS[channel] ?? [])].filter(
+                        (word) => word !== "",
+                    );
                 }}
             />
         );

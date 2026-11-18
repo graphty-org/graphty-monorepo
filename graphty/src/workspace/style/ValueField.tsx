@@ -95,6 +95,8 @@ interface ValueFieldProps {
     readonly listbox?: GraphSession;
     /** A long list's sections, for {@link ValueListbox}. */
     readonly sections?: readonly ValueSection[];
+    /** Whether {@link ValueListbox}'s rows in use say how many things draw them (not in Style panel v2). */
+    readonly counts?: boolean;
 }
 
 /**
@@ -129,6 +131,7 @@ function ModelGlyph({ thumbnail }: Readonly<{ thumbnail?: string }>): React.JSX.
  * @param props.model - the model a Shape field holds
  * @param props.listbox - given, a choice property picks from a searchable list read from this session
  * @param props.sections - a long list's sections, shown one at a time
+ * @param props.counts - whether the list's rows in use say how many things draw them
  * @returns The field, or a dash for a property no field draws
  */
 export function ValueField({
@@ -145,6 +148,7 @@ export function ValueField({
     model,
     listbox,
     sections,
+    counts,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
     const props = {
@@ -161,6 +165,7 @@ export function ValueField({
         model,
         listbox,
         sections,
+        counts,
     };
     if (kind === "color") {
         return <ColorValueField {...props} />;
@@ -292,7 +297,19 @@ function choiceName(
  * @returns The field
  */
 function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
-    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange, model, listbox, sections } = props;
+    const {
+        descriptor,
+        label,
+        value,
+        shown,
+        mixed,
+        extraChoices = [],
+        onChange,
+        model,
+        listbox,
+        sections,
+        counts,
+    } = props;
     if (listbox !== undefined && descriptor.accepts === "enum" && model === undefined) {
         return (
             <ValueListbox
@@ -304,6 +321,7 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
                 mixed={mixed}
                 extraChoices={extraChoices}
                 sections={sections}
+                counts={counts}
                 onPick={onChange}
             />
         );

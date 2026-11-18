@@ -47,6 +47,8 @@ interface PopoverShellProps<G extends { readonly name: string }> {
     readonly linesOf: (group: G) => React.ReactNode;
     /** Lines above Main (design 2.6): Switch to, By data, Combine. */
     readonly first?: React.ReactNode;
+    /** More lines at the end of Main (a replace shader's parameters). */
+    readonly extra?: React.ReactNode;
 }
 
 /**
@@ -62,6 +64,7 @@ interface PopoverShellProps<G extends { readonly name: string }> {
  * @param props.others - see PopoverShellProps
  * @param props.linesOf - see PopoverShellProps
  * @param props.first - see PopoverShellProps
+ * @param props.extra - see PopoverShellProps
  * @returns The contents
  */
 export function PopoverShell<G extends { readonly name: string }>({
@@ -75,6 +78,7 @@ export function PopoverShell<G extends { readonly name: string }>({
     others,
     linesOf,
     first,
+    extra,
 }: PopoverShellProps<G>): React.JSX.Element {
     const [added, setAdded] = useState<readonly string[]>([]);
     const box = useRef<HTMLDivElement>(null);
@@ -89,6 +93,7 @@ export function PopoverShell<G extends { readonly name: string }>({
                 kind={ctx.side}
                 title={`${title.replace(/^(Node|Edge) /, "")} settings`}
                 groups={[addable.map((group) => ({ key: group.name, label: group.name }))]}
+                alwaysMenu
                 onAdd={(name) => {
                     setAdded((now) => [...now, name]);
                     const group = groups.find((each) => each.name === name);
@@ -106,6 +111,7 @@ export function PopoverShell<G extends { readonly name: string }>({
                 {others.map((descriptor) => (
                     <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
                 ))}
+                {extra}
             </ControlGroup>
             {shown.map((group) => (
                 <ControlGroup
@@ -136,6 +142,7 @@ export function PopoverShell<G extends { readonly name: string }>({
  * @param props.rubric - the thing's rubric
  * @param props.others - set lines of the thing its rubric has no line for, drawn as today's fields
  * @param props.first - lines above Main: Switch to, By data, Combine
+ * @param props.extra - more lines at the end of Main
  * @returns The contents
  */
 export function ThingPopover({
@@ -144,12 +151,14 @@ export function ThingPopover({
     rubric,
     others,
     first,
+    extra,
 }: Readonly<{
     ctx: RowContext;
     title: string;
     rubric: ThingRubric;
     others: readonly ChannelDescriptor[];
     first?: React.ReactNode;
+    extra?: React.ReactNode;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     return (
@@ -157,6 +166,7 @@ export function ThingPopover({
             ctx={ctx}
             title={title}
             first={first}
+            extra={extra}
             groups={rubric.groups ?? []}
             isSet={(group) => groupSet(ctx, group)}
             onUnset={(group) => {

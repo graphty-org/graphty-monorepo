@@ -51,6 +51,7 @@ export function SwitchTo({
     };
     const choose = (toKey: string): void => {
         const to = members.find((member) => member.key === toKey);
+        setPicking(null);
         if (to === undefined || to.key === now || to.disabled) {
             return;
         }
@@ -86,7 +87,16 @@ export function SwitchTo({
         setPicking(null);
     };
     return (
-        <div ref={box} data-switch-to={family.id}>
+        // A segment's click reaches the settings pop-over after the change it made, and a click on
+        // a pop-over closes what was opened from it: kept here, so the picker it opened stays open.
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only stops a click bubbling; the strip's own radios take the keys
+        <div
+            ref={box}
+            data-switch-to={family.id}
+            onClick={(event) => {
+                event.stopPropagation();
+            }}
+        >
             <LineFrame
                 line={`switch:${family.id}`}
                 name={fits ? null : SWITCH_TO}

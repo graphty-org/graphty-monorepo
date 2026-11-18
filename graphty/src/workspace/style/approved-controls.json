@@ -92,6 +92,11 @@
             "dom": ".mantine-TextInput-root"
         },
         {
+            "name": "AlignmentMatrix",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-align"
+        },
+        {
             "name": "SegmentedControl",
             "from": "@graphty/compact-mantine",
             "dom": ".mantine-SegmentedControl-root"

@@ -17,7 +17,7 @@ import type { GLYPHS } from "../../glyphs";
  * theirs from the channel (R1, R5, R7); an enum line names its rule; `field` draws today's field
  * (a list, an asset, a text source, a value bound to data).
  */
-export type Rule = "R1" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "R13" | "R14" | "field";
+export type Rule = "R1" | "R2" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "R13" | "R14" | "field";
 
 /** One line of the panel or a pop-over. */
 export interface LineSpec {
@@ -399,8 +399,8 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     raised: {
         main: [
-            { channel: "node.raisedBorderLightColor", name: null },
-            { channel: "node.raisedBorderDarkColor", name: null },
+            { channel: "node.raisedBorderLightColor", name: "Light" },
+            { channel: "node.raisedBorderDarkColor", name: "Dark" },
         ],
     },
     outline: { common: [{ channel: "node.outlineWidth", name: "Width", glyph: "weight" }], main: [] },

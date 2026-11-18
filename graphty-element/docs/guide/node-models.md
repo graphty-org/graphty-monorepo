@@ -744,11 +744,11 @@ refuses only what a browser tab cannot hold or draw; `Infinity` means no limit.
 | `maxTextureBytes`     | 1 GB                    | Decoded picture bytes per model (a KTX2 picture counts a quarter of a PNG or JPEG) |
 | `maxDecodedBytes`     | 1 GB                    | What every glTF accessor decodes to, together                                      |
 | `maxFiles`            | 10,000                  | Files beside a model fetched by URL                                                |
-| `maxNodes`            | 10,000                  | glTF nodes                                                                         |
+| `maxNodes`            | `Infinity`              | glTF nodes                                                                         |
 | `maxMeshes`           | `Infinity`              | glTF meshes                                                                        |
-| `maxMaterials`        | 10,000                  | glTF materials                                                                     |
-| `maxTextures`         | 10,000                  | glTF textures                                                                      |
-| `maxAnimations`       | 10,000                  | glTF animations                                                                    |
+| `maxMaterials`        | `Infinity`              | glTF materials                                                                     |
+| `maxTextures`         | `Infinity`              | glTF textures                                                                      |
+| `maxAnimations`       | `Infinity`              | glTF animations                                                                    |
 | `maxMorphTargets`     | `Infinity`              | Morph targets on one glTF primitive                                                |
 | `maxJoints`           | `Infinity`              | Joints in one glTF skin                                                            |
 | `maxTextureSize`      | 2048                    | Pixels per picture side; a larger picture is drawn smaller, never refused          |

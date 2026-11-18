@@ -183,15 +183,15 @@ export interface ModelLimits {
     readonly maxDecodedBytes: number;
     /** Files a model fetched by URL may load beside its main file. Default 10,000. */
     readonly maxFiles: number;
-    /** glTF nodes. Default 10,000. */
+    /** glTF nodes. Default `Infinity`: no limit. */
     readonly maxNodes: number;
     /** glTF meshes. Default `Infinity`: no limit. */
     readonly maxMeshes: number;
-    /** glTF materials. Default 10,000. */
+    /** glTF materials. Default `Infinity`: no limit. */
     readonly maxMaterials: number;
-    /** glTF textures. Default 10,000. */
+    /** glTF textures. Default `Infinity`: no limit. */
     readonly maxTextures: number;
-    /** glTF animations. Default 10,000. */
+    /** glTF animations. Default `Infinity`: no limit. */
     readonly maxAnimations: number;
     /** Morph targets on one glTF primitive. Default `Infinity`: no limit. */
     readonly maxMorphTargets: number;

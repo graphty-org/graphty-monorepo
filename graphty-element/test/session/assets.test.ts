@@ -374,7 +374,7 @@ describe("session.assets: hostile files, each refused with its code", () => {
 
     it("counts the triangles of a mesh per use, refusing one mesh used by 100,000 nodes", async () => {
         const strict = createAssetsApi();
-        strict.setLimits({ maxTriangles: 1_000_000, maxNodes: 100_000 });
+        strict.setLimits({ maxTriangles: 1_000_000 });
         assertRejected(await strict.add({ files: meshUsedBy(100_000) }), "E_MODEL_TOO_LARGE", {
             what: "triangles",
             limit: 1_000_000,

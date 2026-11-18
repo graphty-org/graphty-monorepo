@@ -207,6 +207,21 @@ describe("the glTF checks", () => {
             item: "meshes",
             found: 1001,
         });
+        const nodes = cubeWith((json) => {
+            json.nodes = Array.from({ length: 10_001 }, () => ({ mesh: 0 }));
+            (json.scenes as Json[])[0].nodes = Array.from({ length: 10_001 }, (_, i) => i);
+        });
+        const one = (
+            await checkModelFiles(
+                cubeWith(() => undefined),
+                {},
+                DEFAULT_MODEL_LIMITS,
+            )
+        ).summary.triangles;
+        assert.strictEqual((await checkModelFiles(nodes, {}, DEFAULT_MODEL_LIMITS)).summary.triangles, one * 10_001);
+        for (const item of ["maxNodes", "maxMaterials", "maxTextures", "maxAnimations"] as const) {
+            assert.strictEqual(DEFAULT_MODEL_LIMITS[item], Number.POSITIVE_INFINITY, item);
+        }
         assert.strictEqual(DEFAULT_MODEL_LIMITS.maxMorphTargets, Number.POSITIVE_INFINITY);
         assert.strictEqual(DEFAULT_MODEL_LIMITS.maxJoints, Number.POSITIVE_INFINITY);
         // A Beautiful Game from the glTF samples draws 1,500,224 triangles.

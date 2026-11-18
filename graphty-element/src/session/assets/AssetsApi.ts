@@ -291,15 +291,15 @@ export interface ModelLimits {
     readonly maxDecodedBytes: number;
     /** Files a model fetched by URL may load beside its main file. Default 10,000. */
     readonly maxFiles: number;
-    /** glTF nodes. Default 10,000. */
+    /** glTF nodes. Default `Infinity`: no limit. */
     readonly maxNodes: number;
     /** glTF meshes. Default `Infinity`: no limit. */
     readonly maxMeshes: number;
-    /** glTF materials. Default 10,000. */
+    /** glTF materials. Default `Infinity`: no limit. */
     readonly maxMaterials: number;
-    /** glTF textures. Default 10,000. */
+    /** glTF textures. Default `Infinity`: no limit. */
     readonly maxTextures: number;
-    /** glTF animations. Default 10,000. */
+    /** glTF animations. Default `Infinity`: no limit. */
     readonly maxAnimations: number;
     /** Morph targets on one glTF primitive. Default `Infinity`: no limit. */
     readonly maxMorphTargets: number;
@@ -334,11 +334,11 @@ export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
     maxTextureBytes: 1024 * MB,
     maxDecodedBytes: 1024 * MB,
     maxFiles: 10_000,
-    maxNodes: 10_000,
+    maxNodes: Number.POSITIVE_INFINITY,
     maxMeshes: Number.POSITIVE_INFINITY,
-    maxMaterials: 10_000,
-    maxTextures: 10_000,
-    maxAnimations: 10_000,
+    maxMaterials: Number.POSITIVE_INFINITY,
+    maxTextures: Number.POSITIVE_INFINITY,
+    maxAnimations: Number.POSITIVE_INFINITY,
     maxMorphTargets: Number.POSITIVE_INFINITY,
     maxJoints: Number.POSITIVE_INFINITY,
     maxTextureSize: 2048,

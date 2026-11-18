@@ -3589,7 +3589,10 @@ export interface ProjectConfig {
      * time a project with {@link ProjectConfig.startingRows} on has a time field, when the row is
      * written and this turns true in the same step. Saved with the project, so the row is written
      * once: turning the timeline off and on, or deleting the row, never adds it again. Setting it
-     * true before the timeline turns on means the row is never written.
+     * true before the timeline turns on means the row is never written. Setting it false asks for
+     * the row again: it is written the next time a project with the starting rows has a time field
+     * (at once when it already has one), beside any copy already there, since a row is the reader's
+     * and is never looked for by name.
      * @since 3.57.0
      */
     readonly timelineHiddenAdded: boolean;

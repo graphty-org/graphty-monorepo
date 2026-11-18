@@ -190,6 +190,40 @@ describe("the Timeline Hidden row", () => {
         }
     });
 
+    it("opens an older file with no style tree as a project that never had the row, whatever came before", async () => {
+        const plain = await untimed();
+        const text = stripped((await plain.project.save({ leaveOut: ["graphty-style"] })).text);
+        plain.dispose();
+
+        // The session held a project that had its row: the file opened decides, not that project.
+        const opened = await timed();
+        assert.isTrue(opened.config.timelineHiddenAdded);
+        await opened.project.open(text, { discard: true });
+        assert.isFalse(opened.config.timelineHiddenAdded);
+        assert.lengthOf(named(opened, "Timeline Hidden"), 0);
+        await opened.time.setField({ nodes: { start: "t" } });
+        assert.lengthOf(named(opened, "Timeline Hidden"), 2, "the timeline brings the row");
+        opened.dispose();
+    });
+
+    it("gives a timed file saved without the starting rows its row when opened with them, once", async () => {
+        const session = createGraphSession();
+        const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}`, t: i }));
+        await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
+        await session.time.setField({ nodes: { start: "t" } });
+        const { text } = await session.project.save();
+        session.dispose();
+
+        const opened = createGraphSession();
+        await opened.config.set({ startingRows: true });
+        await opened.project.open(text, { discard: true });
+        assert.lengthOf(named(opened, "Timeline Hidden"), 2, "the record says the row is there, so it is");
+        assert.isTrue(opened.config.timelineHiddenAdded);
+        await opened.config.set({ editableBase: true });
+        assert.lengthOf(named(opened, "Timeline Hidden"), 2, "never a second row");
+        opened.dispose();
+    });
+
     it("opens a project saved with the row's older name, Ghost, with that row intact", async () => {
         const session = await timed({ look: "ghost" });
         const text = (await session.project.save()).text

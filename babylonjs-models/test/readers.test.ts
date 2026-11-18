@@ -220,6 +220,100 @@ describe("glTF 1.0", () => {
         assert.notProperty(upgraded, "techniques");
         assert.notProperty(upgraded, "shaders");
     });
+
+    it("keeps skins, merges animations into one clip, folds the bind shape matrix in, and keeps only a COLOR the technique reads", () => {
+        // Two joints' inverse bind matrices: identity, and a translation by (1, 2, 3).
+        const ibm = new Float32Array([
+            1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1,
+        ]);
+        const accessor = (bufferView: string, type: string): Record<string, unknown> => ({
+            bufferView,
+            componentType: 5126,
+            count: 2,
+            type,
+        });
+        const json = {
+            asset: { version: "1.0" },
+            buffers: { b: { byteLength: 128, uri: "b.bin" } },
+            bufferViews: { v: { buffer: "b", byteOffset: 0, byteLength: 128 } },
+            accessors: {
+                pos: accessor("v", "VEC3"),
+                color: accessor("v", "VEC4"),
+                ibm: accessor("v", "MAT4"),
+                time: accessor("v", "SCALAR"),
+                rot: accessor("v", "VEC4"),
+            },
+            techniques: {
+                plain: { attributes: { aPosition: "position" }, parameters: { position: { semantic: "POSITION" } } },
+            },
+            materials: { m: { technique: "plain" } },
+            meshes: {
+                mesh: {
+                    primitives: [
+                        {
+                            attributes: { POSITION: "pos", COLOR: "color", JOINT: "pos", WEIGHT: "color" },
+                            material: "m",
+                        },
+                    ],
+                },
+            },
+            skins: {
+                s: {
+                    bindShapeMatrix: [2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1],
+                    inverseBindMatrices: "ibm",
+                    jointNames: ["hip", "knee"],
+                },
+            },
+            nodes: {
+                body: { meshes: ["mesh"], skin: "s", skeletons: ["root"] },
+                root: { jointName: "hip", children: ["leg"] },
+                leg: { jointName: "knee" },
+            },
+            animations: {
+                walk: {
+                    channels: [{ sampler: "spin", target: { id: "leg", path: "rotation" } }],
+                    parameters: { TIME: "time", rotation: "rot" },
+                    samplers: { spin: { input: "TIME", output: "rotation", interpolation: "LINEAR" } },
+                },
+            },
+            scenes: { main: { nodes: ["body", "root"] } },
+            scene: "main",
+        };
+        const upgraded = upgradeGltf1(json, undefined, () => new Uint8Array(ibm.buffer));
+        const { attributes } = (upgraded.meshes as { primitives: { attributes: Record<string, number> }[] }[])[0]
+            .primitives[0];
+        assert.deepStrictEqual(Object.keys(attributes).sort(), ["JOINTS_0", "POSITION", "WEIGHTS_0"]);
+        const skin = (upgraded.skins as Record<string, unknown>[])[0];
+        assert.deepStrictEqual(skin.joints, [1, 2]);
+        assert.strictEqual(skin.skeleton, 1);
+        assert.strictEqual((upgraded.nodes as Record<string, unknown>[])[0].skin, 0);
+        assert.deepStrictEqual(upgraded.animations, [
+            {
+                samplers: [{ input: 3, output: 4, interpolation: "LINEAR" }],
+                channels: [{ sampler: 0, target: { node: 2, path: "rotation" } }],
+            },
+        ]);
+        // The clip's length is read from its input's range, which glTF 1.0 left out.
+        assert.deepStrictEqual((upgraded.accessors as Record<string, unknown>[])[3].max, [1]);
+        // The folded matrices (IBM * BSM) are in a buffer of their own.
+        const folded = (upgraded.accessors as Record<string, unknown>[])[skin.inverseBindMatrices as number];
+        const { buffer } = (upgraded.bufferViews as Record<string, number>[])[folded.bufferView as number];
+        const { uri } = (upgraded.buffers as { uri: string }[])[buffer];
+        const bytes = Uint8Array.from(atob(uri.slice(uri.indexOf(",") + 1)), (c) => c.codePointAt(0) ?? 0);
+        assert.deepStrictEqual(
+            [...new Float32Array(bytes.buffer)],
+            [2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 1, 2, 3, 1],
+        );
+
+        // A technique that reads COLOR keeps it.
+        json.techniques.plain.attributes = { aPosition: "position", aColor: "color" } as never;
+        (json.techniques.plain.parameters as Record<string, unknown>).color = { semantic: "COLOR" };
+        const colored = upgradeGltf1(json);
+        assert.property(
+            (colored.meshes as { primitives: { attributes: object }[] }[])[0].primitives[0].attributes,
+            "COLOR_0",
+        );
+    });
 });
 
 describe("the .babylon reader", () => {

@@ -17,7 +17,7 @@ import { allowed } from "../decoders/config.js";
 import { type BuiltInModelFormat, type ModelFormat, splatKind } from "../files/detect.js";
 import { asciiFbxPictures, CURVE_TUBE } from "../files/fbxChecks.js";
 import { IGNORED_EXTENSIONS, readGlb, withoutGltfPictures } from "../files/gltfChecks.js";
-import { checkModelFiles, fetchModelSet, readModelFiles } from "../files/intake.js";
+import { checkModelFiles, fetchModelSet, gltf1Bytes, readModelFiles } from "../files/intake.js";
 import { DEFAULT_MODEL_LIMITS } from "../files/limits.js";
 import { isBinaryFbx } from "../files/readers/fbx.js";
 import { ModelReadError } from "../files/readers/geometry.js";
@@ -158,7 +158,10 @@ function prepareGltf(
     const slash = main.lastIndexOf("/");
     const bodyName = `${main.slice(slash + 1)}.body.bin`;
     const upgraded = new Map(files);
-    upgraded.set(main, new TextEncoder().encode(JSON.stringify(upgradeGltf1(json, bodyName))));
+    upgraded.set(
+        main,
+        new TextEncoder().encode(JSON.stringify(upgradeGltf1(json, bodyName, gltf1Bytes(main, files, body)))),
+    );
     if (body !== undefined) {
         upgraded.set(main.slice(0, slash + 1) + bodyName, body);
     }

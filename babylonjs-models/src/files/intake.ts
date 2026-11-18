@@ -29,6 +29,7 @@ import {
     normalizePath,
     refuse,
     refuseAll,
+    resolveReference,
     roleOfName,
 } from "./references.js";
 import {
@@ -1308,13 +1309,45 @@ interface GltfJson {
 }
 
 /**
+ * A glTF 1.0 buffer's bytes, for its upgrade: a GLB version 1's body, a file in the set or a
+ * `data:` URL; undefined for one that cannot be found (the checks report it).
+ * @param path - The main file's path.
+ * @param files - The set.
+ * @param body - A GLB's body.
+ * @returns The reader {@link upgradeGltf1} takes.
+ */
+export function gltf1Bytes(
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    body: Uint8Array | undefined,
+): (id: string, buffer: Record<string, unknown>) => Uint8Array | undefined {
+    return (id, buffer) => {
+        if (id === "binary_glTF") {
+            return body;
+        }
+        try {
+            return typeof buffer.uri === "string" ? resolveReference(buffer.uri, path, files).bytes : undefined;
+        } catch {
+            return undefined;
+        }
+    };
+}
+
+/**
  * Read a glTF or GLB's JSON with the strict rules, upgrading glTF 1.0 (and a GLB version 1) to
  * glTF 2.0 JSON, so one checker reads both.
  * @param bytes - The main file.
  * @param format - `glb` or `gltf`.
+ * @param path - The main file's path.
+ * @param files - The set, for a glTF 1.0's buffers.
  * @returns The JSON and the binary chunk.
  */
-function gltfJsonOf(bytes: Uint8Array, format: "glb" | "gltf"): GltfJson {
+function gltfJsonOf(
+    bytes: Uint8Array,
+    format: "glb" | "gltf",
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+): GltfJson {
     if (
         format === "glb" &&
         bytes.length >= 8 &&
@@ -1327,13 +1360,21 @@ function gltfJsonOf(bytes: Uint8Array, format: "glb" | "gltf"): GltfJson {
             return refuse("E_MODEL_STRUCTURE", { rule: "json" });
         }
 
-        return { json: upgradeGltf1(parseGltfJson(glb1.text)), bin: glb1.body, upgraded: true };
+        return {
+            json: upgradeGltf1(parseGltfJson(glb1.text), undefined, gltf1Bytes(path, files, glb1.body)),
+            bin: glb1.body,
+            upgraded: true,
+        };
     }
 
     const { text, bin } = format === "glb" ? readGlb(bytes) : { text: gltfText(bytes), bin: undefined };
     const json = parseGltfJson(text);
     return isGltf1(json)
-        ? { json: upgradeGltf1(json), ...(bin === undefined ? {} : { bin }), upgraded: true }
+        ? {
+              json: upgradeGltf1(json, undefined, gltf1Bytes(path, files, bin)),
+              ...(bin === undefined ? {} : { bin }),
+              upgraded: true,
+          }
         : { json, ...(bin === undefined ? {} : { bin }), upgraded: false };
 }
 
@@ -1356,7 +1397,7 @@ function checkByFormat(
     switch (main.format) {
         case "glb":
         case "gltf": {
-            const { json, bin, upgraded } = gltfJsonOf(bytes, main.format);
+            const { json, bin, upgraded } = gltfJsonOf(bytes, main.format, main.path, files);
             findGltfParts(json, main.path, files, findings);
             refuseMissing(findings);
             return checkGltf({
@@ -1470,7 +1511,7 @@ function findPartsByFormat(
     switch (main.format) {
         case "glb":
         case "gltf":
-            findGltfParts(gltfJsonOf(bytes, main.format).json, main.path, files, findings);
+            findGltfParts(gltfJsonOf(bytes, main.format, main.path, files).json, main.path, files, findings);
             break;
         case "obj":
             findObjParts(main.path, files, limits, findings);

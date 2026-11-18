@@ -815,6 +815,9 @@ export class LayoutManager implements Manager {
     /** The motion last told to `onMotion`. */
     #toldMotion: LayoutMotion = "settled";
 
+    /** When the layout last started running, for the time a settle took in the log. */
+    #runningSince = 0;
+
     /**
      * Whether undo, redo or a restore is on its way to the position array. While it is, a new
      * snapshot or accelerator reloads the engine without starting it, so nothing moves the
@@ -3413,6 +3416,13 @@ export class LayoutManager implements Manager {
         const { motion } = this;
         if (motion !== this.#toldMotion) {
             this.#toldMotion = motion;
+            if (motion === "running") {
+                this.#runningSince = performance.now();
+            }
+            this.logger.info(`layout ${motion}`, {
+                layoutType: this.layoutType ?? null,
+                ...(motion === "running" ? {} : { ms: Math.round(performance.now() - this.#runningSince) }),
+            });
             this.onMotion?.(motion);
         }
     }

@@ -88,9 +88,7 @@ describe("what the assistant reaches", () => {
             "op:tour.move",
             "op:tour.remove",
             "op:tour.rename",
-            "op:tour.save",
             "op:view.move",
-            "op:view.rename",
         ]);
     });
 

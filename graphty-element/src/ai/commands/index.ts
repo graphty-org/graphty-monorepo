@@ -25,7 +25,7 @@ export { setCameraPosition, zoomToNodes } from "./CameraCommands";
 export { listAlgorithms, runAlgorithm } from "./AlgorithmCommands";
 
 // Capture Commands
-export { captureScreenshot, captureVideo } from "./CaptureCommands";
+export { captureScreenshot } from "./CaptureCommands";
 
 // Schema Commands
 export { describeProperty, sampleData } from "./SchemaCommands";

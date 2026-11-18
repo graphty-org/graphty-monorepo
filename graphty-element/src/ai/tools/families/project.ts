@@ -361,15 +361,25 @@ export const captureTool: ToolDefinition = {
         },
         {
             name: "animation",
-            summary: "Record a short video while the camera and layout move.",
+            summary: "Record a short video while the camera and layout move, or record a saved tour.",
             fields: {
-                seconds: z.number().min(1).max(30).describe("How long, 1 to 30 seconds."),
+                seconds: z
+                    .number()
+                    .min(1)
+                    .max(30)
+                    .optional()
+                    .describe("How long, 1 to 30 seconds; a tour sets its own."),
+                tour: z.string().min(1).max(MAX_STRING).optional().describe("A saved tour's name, to record it."),
                 width: side,
                 height: side,
             },
             effect: "read",
             reaches: [{ door: "Graph.captureAnimation" }],
             run: (context, args) => {
+                if (args.seconds === undefined && args.tour === undefined) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "seconds", expected: "seconds or tour" });
+                }
+
                 const graph = capturer(context, "captureAnimation");
                 // A recording takes seconds: it settles after the batch commits, when it is the
                 // batch's last call, and a cancelled message stops it.
@@ -381,11 +391,14 @@ export const captureTool: ToolDefinition = {
                         signal.addEventListener("abort", stop, { once: true });
                         let result: Awaited<ReturnType<Capturer["captureAnimation"]>>;
                         try {
-                            result = await graph.captureAnimation({
-                                duration: Number(args.seconds) * 1000,
-                                ...(args.width === undefined ? {} : { width: args.width }),
-                                ...(args.height === undefined ? {} : { height: args.height }),
-                            });
+                            result = await coded(() =>
+                                graph.captureAnimation({
+                                    ...(args.seconds === undefined ? {} : { duration: Number(args.seconds) * 1000 }),
+                                    ...(args.tour === undefined ? {} : { tour: text(args.tour) }),
+                                    ...(args.width === undefined ? {} : { width: args.width }),
+                                    ...(args.height === undefined ? {} : { height: args.height }),
+                                }),
+                            );
                         } finally {
                             signal.removeEventListener("abort", stop);
                         }

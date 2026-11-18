@@ -5,6 +5,7 @@
 
 import { z } from "zod";
 
+import { EASING_NAMES, type EasingName, type Tour, type TourStop } from "../../../camera/tour";
 import type { CameraState } from "../../../camera/types";
 import { viewEffects } from "../effects";
 import { idsOf, MAX_ITEMS, MAX_STRING, requireTarget, scopeOf, settleTarget, targetFields, text } from "../fields";
@@ -122,7 +123,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "zoom_to",
-            summary: "frame the target",
+            summary: "",
             fields: targetFields,
             effect: "exempt",
             reaches: [{ door: "Graph.applyCameraView" }],
@@ -150,7 +151,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "save",
-            summary: "the camera, by name",
+            summary: "",
             fields: { name },
             effect: "write",
             reaches: [{ op: "view.save" }, { door: "SessionViews.save" }, { door: "Graph.getCameraState" }],
@@ -162,7 +163,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "restore",
-            summary: "go to a saved view",
+            summary: "",
             fields: { name },
             effect: "exempt",
             reaches: [{ op: "view.camera" }],
@@ -201,6 +202,17 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             },
         },
         {
+            name: "rename",
+            summary: "",
+            fields: { name, to: z.string().min(1).max(MAX_STRING).describe("New name.") },
+            effect: "write",
+            reaches: [{ op: "view.rename" }, { door: "SessionViews.rename" }],
+            run: async ({ tx }, args) => {
+                await coded(() => tx.views.rename(text(args.name), text(args.to)));
+                return ok(undefined, { name: text(args.to) });
+            },
+        },
+        {
             name: "list_saved",
             summary: "",
             fields: {},
@@ -213,11 +225,92 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         name: "view",
         plainName: "View",
         core: true,
-        description: "The camera (not undoable), 2D or 3D, saved views.",
-        example: { action: "zoom_to", where: "data.type == 'server'" },
+        description: "Camera (not undoable), 2D/3D, saved views.",
+        example: { action: "zoom_to", ids: ["a"] },
         actions,
     };
 }
+
+/** What only the renderer does for a tour. */
+interface TourPlayer {
+    playTour(tour: string, options?: { signal?: AbortSignal }): Promise<{ reason: string }>;
+}
+
+const ms = z.number().min(0).max(600_000).optional();
+
+/** The `tour` tool: saved camera tours, written and played. */
+export const tourTool: ToolDefinition = {
+    name: "tour",
+    plainName: "Camera tours",
+    core: false,
+    description:
+        "Saved camera tours: named stops in order, each a view (a camera view id or a saved view name) with a flight and a hold in ms. Writing is undoable; playing moves only the camera.",
+    example: { action: "play", name: "intro" },
+    actions: [
+        {
+            name: "list",
+            summary: "the saved tours and their stops",
+            fields: {},
+            effect: "read",
+            reaches: [],
+            run: ({ tx }) =>
+                Promise.resolve(ok({ tours: [...tx.tours].map(([each, tour]) => ({ name: each, ...tour })) })),
+        },
+        {
+            name: "save",
+            summary: "write a tour, replacing one of that name",
+            fields: {
+                name: z.string().min(1).max(MAX_STRING).describe("The tour's name."),
+                stops: z
+                    .array(
+                        z.object({
+                            view: z.string().min(1).max(MAX_STRING).describe("Camera view id or saved view name."),
+                            duration: ms.describe("Flight to the stop, ms; default 0 jumps."),
+                            hold: ms.describe("Hold at the stop, ms."),
+                        }),
+                    )
+                    .max(MAX_ITEMS)
+                    .describe("The stops, in order."),
+                easing: z
+                    .enum(EASING_NAMES as [EasingName, ...EasingName[]])
+                    .optional()
+                    .describe("How each flight eases; default easeInOut."),
+            },
+            effect: "write",
+            reaches: [{ op: "tour.save" }, { door: "SessionTours.save" }],
+            run: async ({ tx }, args) => {
+                const tour: Tour = {
+                    stops: args.stops as TourStop[],
+                    ...(args.easing === undefined ? {} : { easing: args.easing as EasingName }),
+                };
+                await coded(() => tx.tours.save([{ name: text(args.name), tour }]));
+                return ok(undefined, { name: text(args.name), stops: tour.stops.length });
+            },
+        },
+        {
+            name: "play",
+            summary: "fly a saved tour on the canvas",
+            fields: { name: z.string().min(1).max(MAX_STRING).describe("The tour's name.") },
+            effect: "exempt",
+            reaches: [{ door: "Graph.playTour" }],
+            run: (context, args) => {
+                const graph = context.graph as unknown as Partial<TourPlayer>;
+                if (typeof graph.playTour !== "function") {
+                    throw new ToolRefusal("AI_NOT_AVAILABLE", { name: "playTour", requirement: "renderer" });
+                }
+
+                const player = graph as TourPlayer;
+                // A tour takes seconds: it settles after the batch commits, and a cancelled message stops it.
+                return Promise.resolve({
+                    settle: async ({ signal }) => {
+                        const { reason } = await coded(() => player.playTour(text(args.name), { signal }));
+                        return ok(undefined, { name: text(args.name), reason });
+                    },
+                });
+            },
+        },
+    ],
+};
 
 /** The `hidden` tool: nodes taken off the canvas while the data, results and counts keep them. */
 export const hiddenTool: ToolDefinition = {

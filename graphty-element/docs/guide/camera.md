@@ -4,7 +4,7 @@ Guide to camera control and animation.
 
 ## Overview
 
-The camera determines what part of the 3D scene is visible. Control it programmatically for automated tours, saved views, or responsive layouts.
+The camera determines what part of the 3D scene is visible. Control it programmatically, save views of it by name, and fly it through tours.
 
 ## Camera State
 
@@ -185,89 +185,166 @@ const newState = {
 graph.setCameraState(newState, {
     animate: true,
     duration: 1000, // milliseconds
-    easing: "easeInOutQuad", // easing function
+    easing: "easeInOut", // "linear", "easeIn", "easeOut" or "easeInOut"
 });
 ```
 
-Available easing functions:
+## Saved views and tours
 
-- `linear`
-- `easeInQuad`, `easeOutQuad`, `easeInOutQuad`
-- `easeInCubic`, `easeOutCubic`, `easeInOutCubic`
-- `easeInExpo`, `easeOutExpo`, `easeInOutExpo`
+A **saved view** is a camera position kept under a name in the project. A **tour** is a named list
+of stops, each naming a view, that the camera flies through and holds at. Both are saved in the
+project file and every change to them is one undo step; jumping to a view or playing a tour is
+not a change.
 
-## Camera Presets
-
-Save and restore camera positions:
-
-```typescript
-// Save current view
-graph.saveCameraPreset("overview");
-
-// Navigate to different part of graph
-graph.setCameraPosition({ x: 200, y: 0, z: 50 });
-
-// Restore saved view
-graph.loadCameraPreset("overview");
-
-// Restore with animation
-graph.loadCameraPreset("overview", {
-    animate: true,
-    duration: 1000,
-});
+```ts
+import "@graphty/graphty-element";
+const g = document.querySelector("graphty-element")!;
+await g.waitForSettled();
+await g.session.views.save([{ name: "overview" }]); // the current camera
+await g.applyCameraView("topView"); // a built-in camera view id
+await g.session.views.save([{ name: "hub" }]);
+await g.session.tours.save([
+    {
+        name: "intro",
+        tour: {
+            stops: [
+                { view: "overview", hold: 2000 }, // no duration: jumps there
+                { view: "hub", duration: 1500, hold: 3000 }, // a stop's duration is its flight
+            ],
+        },
+    },
+]);
+await g.playTour("intro", { restoreCamera: true }); // preview
+await g.captureAnimation({ tour: "intro", destination: { download: true } }); // 6.5 s, from the tour
+await g.captureScreenshot({ camera: { view: "hub" }, destination: { download: true } });
 ```
 
-### Multiple Presets
+In a stop, `duration` is the flight to that stop and `hold` the time spent there, both in
+milliseconds; an unset one is 0. In `captureAnimation`'s options `duration` means something else:
+the whole video's length. A tour recording needs none, since its length is the tour's.
+
+`playTour` and `captureAnimation` check the whole tour before anything moves and reject with a
+coded problem when it cannot be played, so this path needs no checks of its own.
+
+### Saved views
+
+`session.views` reads as a map from name to camera state, in project order.
+
+| Call                                           | What it does                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `views.save([{ name, camera? }])`              | Keeps a view, at the end of the order; no `camera` keeps the current one  |
+| `views.rename(from, to)`                       | Renames a view in its place, and every tour stop naming it follows        |
+| `views.move(name, index)`                      | Puts a view at a 0-based place in the order                               |
+| `views.remove([name])`                         | Forgets views; tour stops naming them stay, and `planTour` reports them   |
+| `applyCameraView(name, { animate, duration })` | Jumps or flies to a camera view or a saved view                           |
+| `viewProblem(name)`                            | `null` when the view can be applied now, else a coded fact saying why not |
+
+**One name, one view.** A name is a **camera view** first -- one the element ships (`fitToGraph`,
+`topView`, `sideView`, `frontView`, `isometric`, listed by `session.catalog.cameras()`) or one an
+extension registered -- and a saved view only when no camera view has it. Saving a view under a
+camera view's name is refused with `E_PROTECTED`. If a camera view registered later takes a saved
+view's name, the saved view can no longer be reached by that name until it is renamed;
+`viewProblem(name, { saved: true })` judges the saved view itself and answers `E_PROTECTED`.
+
+**The drawing mode.** A camera view lists the drawing modes it works in. A saved state fits the
+mode it was saved in (`getCameraState()` writes `mode`); a state with no `mode` fits a mode when it
+holds at least one member that mode reads:
+
+| Mode | Members it reads                                                                          |
+| ---- | ----------------------------------------------------------------------------------------- |
+| 2D   | `zoom`, `pan`, `rotation`                                                                 |
+| 3D   | `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance`, `fov` |
+
+A view or state that does not fit is refused with `E_UNSUPPORTED` `{ reason: "mode", name, modes,
+mode }` by `setCameraState`, `applyCameraView`, a screenshot's or recording's `camera`, and tours.
+While immersive (VR or AR) they refuse with `{ reason: "xr", mode }`, since the headset owns the
+camera. To disable a menu row before the reader picks it, ask `viewProblem`:
 
 ```typescript
-// Save multiple presets
-graph.saveCameraPreset("top");
-graph.setCameraPosition({ x: 0, y: 100, z: 0 });
-graph.setCameraTarget({ x: 0, y: 0, z: 0 });
+const problem = element.viewProblem("Port nodes");
+row.disabled = problem !== null; // problem.code and problem.params, worded by your application
+```
 
-graph.saveCameraPreset("side");
-graph.setCameraPosition({ x: 100, y: 0, z: 0 });
-graph.setCameraTarget({ x: 0, y: 0, z: 0 });
+### Tours
 
-// Create a tour
-const presets = ["overview", "top", "side"];
-let current = 0;
+`session.tours` reads as a map from name to tour, in project order, with `save`, `rename`, `move`
+and `remove` like the views. A tour is `{ stops, easing? }`; `easing` is `"linear"`, `"easeIn"`,
+`"easeOut"` or `"easeInOut"` (the default). An empty tour, and a stop naming a view nothing is
+saved under, can be saved, so a draft can exist and a rename never fails.
 
-function nextView() {
-    current = (current + 1) % presets.length;
-    graph.loadCameraPreset(presets[current], { animate: true });
+`playTour(tour, options)` takes a saved tour's name, a tour, or stops given inline. It resolves,
+however the tour ended, with `{ reason }`:
+
+| `reason`         | What ended the tour                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------- |
+| `"finished"`     | The last hold ended                                                                                   |
+| `"cancelled"`    | `options.signal` aborted, or `cancelCameraAnimation()`                                                |
+| `"interrupted"`  | The reader dragged, pinched, scrolled, pressed a camera key or clicked the canvas                     |
+| `"replaced"`     | Another tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera` option |
+| `"mode-changed"` | The drawing mode switched between 2D, 3D and immersive                                                |
+
+`restoreCamera: true` puts the camera back where it was, only when the tour finishes. After an
+interruption the camera stays where the reader left it. Auto-rotate and following the selection
+wait while a tour plays. `tour-progress` (`{ tour, stop, stops, phase }`) fires on each stop and
+phase, and `tour-ended` (`{ tour, reason }`) once at the end.
+
+**The advanced path.** An editor that shows a tour's length and its broken stops before playing
+asks `planTour`, which checks and times a tour without moving anything, and plans again on
+`views-changed`, which fires whenever anything a plan reads may have changed (views, their order,
+tours, the 2D/3D switch, an XR session, a registered camera view):
+
+```typescript
+const show = (): void => {
+    const plan = element.planTour("intro");
+    length.textContent = `${plan.totalMs / 1000} s`; // 6.5 s for the example above
+    play.disabled = !plan.playable;
+    plan.stops.forEach((stop, index) => markBroken(index, stop.problem)); // null, or a coded fact
+};
+element.addEventListener("views-changed", show);
+```
+
+**Reduced motion.** When motion is reduced (`reducedMotion`, see
+[Reduced Motion](./reduced-motion.md)), each flight becomes a cut at its start, held for the
+flight's time, so a tour lasts as long for every reader. `isMotionReduced()` answers whether it is
+reduced now, and `reduced-motion-changed` fires when that changes.
+
+### How each call ends
+
+| Call                                | When cancelled                                    | The camera afterwards                                                                                |
+| ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELLED` | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
+| `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
+
+### When a name is not found
+
+| What is missing | Code               | `details`                                       |
+| --------------- | ------------------ | ----------------------------------------------- |
+| A view          | `E_UNKNOWN_CAMERA` | `name`, `available`, and `stop` (a tour's stop) |
+| A tour          | `E_BAD_COMMAND`    | `missing`, `available`                          |
+
+```typescript
+import { isGraphtyError } from "@graphty/graphty-element";
+
+try {
+    await element.playTour("intro");
+} catch (error) {
+    if (isGraphtyError(error) && error.code === "E_UNKNOWN_CAMERA") {
+        console.log("stop", error.details.stop, "names a view that is gone:", error.details.name);
+    } else if (isGraphtyError(error) && error.code === "E_BAD_COMMAND" && "missing" in error.details) {
+        console.log("no tour is saved as", error.details.missing);
+    } else {
+        throw error;
+    }
 }
 ```
 
-### Tours that stop and hold
+### Older calls
 
-`playTour` flies through a list of stops and stays at each one, in 2D and in 3D. A stop names a
-view -- one you saved, or a camera view such as `"fitToGraph"` -- or gives a camera state.
-`duration` is the flight to the stop and `hold` the time spent there, both in milliseconds.
-
-```typescript
-const el = document.querySelector("graphty-element");
-
-// Save the views the tour visits
-await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
-
-const tour = [
-    { view: "fitToGraph", hold: 2000 },
-    { view: "cluster-a", duration: 1500, hold: 3000 },
-    { view: "fitToGraph", duration: 1500 },
-];
-
-await el.playTour(tour); // settles after the last stop
-el.cancelCameraAnimation(); // ends a tour that is still playing
-
-// Record the same tour: its length is the sum of its durations and holds
-const video = await el.captureAnimation({ cameraMode: "animated", cameraPath: tour, duration: 8000 });
-```
-
-Every stop is checked before the camera moves: a view name nothing answers to is refused with
-`E_UNKNOWN_CAMERA`, and a stop with nothing the current mode can use (a 2D view in 3D) with
-`E_UNSUPPORTED`. When `cameraTransitionDuration` is set -- for example to 0 for a reader who prefers
-reduced motion -- it replaces each flight's duration, so the tour jumps between stops and still holds.
+`saveCameraPreset`, `loadCameraPreset`, `removeCameraPreset`, `getCameraPresets`,
+`exportCameraPresets` and `importCameraPresets` still work and are deprecated: use
+`session.views` and `applyCameraView`. In option objects, `camera: { preset }` is the older
+spelling of `camera: { view }`.
 
 ## 2D vs 3D Camera
 

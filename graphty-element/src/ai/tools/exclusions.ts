@@ -168,30 +168,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     // Where a saved view sits in the list is how a panel arranges them; nothing a reader asks for.
     { op: "view.move", reason: "panel-state", kind: BY_DESIGN },
     { root: "SessionViews", members: ["move"], reason: "panel-state", kind: BY_DESIGN },
-    // Renaming a saved view: its view.rename action is owed (design/ui/camera-views-tours-and-capture.md
-    // section 4.8), and the always-loaded tools have no room for it until that step makes some.
-    ...[{ op: "view.rename" }, { root: "SessionViews", members: ["rename"] }].map((row): Exclusion => ({
-        ...row,
-        reason: "panel-state",
-        kind: "defect",
-        owner: "WAIVER_OWNER_UNASSIGNED",
-        expires: "2027-01-11",
-    })),
     // Where a saved tour sits in the list, and what it is called or whether it is kept, is how the
-    // tour editor arranges them; the assistant plays and writes tours, it does not manage the list.
+    // tour editor arranges them; the assistant lists, plays and writes tours, it does not manage the list.
     { op: "tour.move", reason: "panel-state", kind: BY_DESIGN },
     { op: "tour.remove", reason: "panel-state", kind: BY_DESIGN },
     { op: "tour.rename", reason: "panel-state", kind: BY_DESIGN },
     { root: "SessionTours", members: ["move", "remove", "rename"], reason: "panel-state", kind: BY_DESIGN },
-    // Writing a tour: its tour.save action is owed with tour.list and tour.play
-    // (design/ui/camera-views-tours-and-capture.md section 4.8), in the step that makes room for them.
-    ...[{ op: "tour.save" }, { root: "SessionTours", members: ["save"] }].map((row): Exclusion => ({
-        ...row,
-        reason: "panel-state",
-        kind: "defect",
-        owner: "WAIVER_OWNER_UNASSIGNED",
-        expires: "2027-01-11",
-    })),
 
     // What the door list already calls render bookkeeping: a decision made once, in `doors.ts`.
     ...DOOR_ROOTS.flatMap((root): Exclusion[] =>
@@ -252,8 +234,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["nodeThumbnail", "modelThumbnail", "modelPreview"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
-        // A tour is a run of camera moves; the assistant makes each with view.camera.
-        { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
     // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
     { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },

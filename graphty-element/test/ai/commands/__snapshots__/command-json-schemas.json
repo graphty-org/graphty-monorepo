@@ -34,37 +34,6 @@
         },
         "type": "object"
     },
-    "captureVideo": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-            "action": {
-                "description": "Action to perform: start or stop recording",
-                "enum": [
-                    "start",
-                    "stop"
-                ],
-                "type": "string"
-            },
-            "duration": {
-                "description": "Auto-stop after this many seconds (only for start action)",
-                "exclusiveMinimum": 0,
-                "type": "number"
-            },
-            "format": {
-                "description": "Video format (default: webm, note: mp4 may not be supported in all browsers)",
-                "enum": [
-                    "webm",
-                    "mp4"
-                ],
-                "type": "string"
-            }
-        },
-        "required": [
-            "action"
-        ],
-        "type": "object"
-    },
     "clearStyles": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,

@@ -4500,9 +4500,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 6: Capability Check API
      * Check if screenshot can be captured with given options.
-     * Available from Phase 6 onwards.
      * @param options - Screenshot options to validate
      * @returns Promise<CapabilityCheck> - Result indicating whether screenshot is supported
      * @example
@@ -4556,9 +4554,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 7: Cancel Animation Capture
-     * Cancel an ongoing animation capture
-     * Available from Phase 7 onwards.
+     * Cancel an ongoing animation capture.
      * @returns true if a capture was cancelled, false if no capture was in progress
      * @example
      * ```typescript
@@ -4671,8 +4667,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 7: Check if animation capture is in progress
-     * Available from Phase 7 onwards.
+     * Check if animation capture is in progress.
      * @returns true if a capture is currently running
      */
     isAnimationCapturing(): boolean {
@@ -4785,10 +4780,6 @@ export class Graphty extends LitElement {
     async isARSupported(): Promise<boolean> {
         return this.#graph.isARSupported();
     }
-
-    /**
-     * Phase 4: Camera State API
-     */
 
     /**
      * Get current camera state (supports both 2D and 3D)
@@ -4971,7 +4962,6 @@ export class Graphty extends LitElement {
 
     /**
      * Load a camera preset (built-in or user-defined).
-     * Available from Phase 5 onwards.
      * @param name - Name of the preset to load
      * @param options - Animation options
      * @returns Promise that resolves when preset is loaded
@@ -4986,7 +4976,6 @@ export class Graphty extends LitElement {
 
     /**
      * Get all camera presets (built-in + user-defined).
-     * Available from Phase 5 onwards.
      * @returns Record of preset names to their state (built-in presets are marked)
      * @deprecated Read `session.catalog.cameras()` for the camera views and `session.views` for
      *     the saved ones.
@@ -4997,7 +4986,6 @@ export class Graphty extends LitElement {
 
     /**
      * Export user-defined presets as JSON
-     * Available from Phase 5 onwards
      * @returns Record of user-defined preset names to their state
      * @deprecated Read `session.views`, a map in project order.
      */
@@ -5090,7 +5078,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Data Management
+    // Data Management
     // ============================================================================
 
     /**
@@ -5626,7 +5614,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Selection
+    // Selection
     // ============================================================================
 
     /**
@@ -5706,7 +5694,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Algorithm
+    // Algorithm
     // ============================================================================
 
     /**
@@ -5783,7 +5771,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Layout
+    // Layout
     // ============================================================================
 
     /**
@@ -5814,7 +5802,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Utility
+    // Utility
     // ============================================================================
 
     /**
@@ -5996,7 +5984,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Events
+    // Events
     // ============================================================================
 
     /**
@@ -6039,7 +6027,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - View
+    // View
     // ============================================================================
 
     /**
@@ -6058,7 +6046,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - XR
+    // XR
     // ============================================================================
 
     /**
@@ -6100,7 +6088,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Camera
+    // Camera
     // ============================================================================
 
     /**
@@ -6166,7 +6154,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Input
+    // Input
     // ============================================================================
 
     /**
@@ -6183,7 +6171,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Lifecycle
+    // Lifecycle
     // ============================================================================
 
     /**
@@ -6240,7 +6228,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Coordinate Transform
+    // Coordinate Transform
     // ============================================================================
 
     /**

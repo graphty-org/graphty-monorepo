@@ -44,6 +44,7 @@ const RENDERER = {
             metadata: { width: 10, height: 10, format: "webm", duration: 1000 },
         }),
     cancelAnimationCapture: () => false,
+    playTour: () => Promise.resolve({ reason: "finished" }),
     isVRSupported: () => Promise.resolve(false),
     isARSupported: () => Promise.resolve(false),
     exportGraph: () => Promise.resolve({ text: () => Promise.resolve("<graphml/>"), losses: [] }),
@@ -366,6 +367,21 @@ const ROWS: Record<string, Row> = {
         setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
     },
     "view.list_saved": { args: { action: "list_saved" } },
+    "view.rename": {
+        args: { action: "rename", name: "kept", to: "hub" },
+        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
+    },
+    "tour.list": {
+        args: { action: "list" },
+        setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+    },
+    "tour.save": {
+        args: { action: "save", name: "intro", stops: [{ view: "fitToGraph", hold: 500 }], easing: "linear" },
+    },
+    "tour.play": {
+        args: { action: "play", name: "intro" },
+        setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+    },
     "edit_data.add_nodes": { args: { action: "add_nodes", records: [{ id: "f", type: "client" }] } },
     "edit_data.add_edges": { args: { action: "add_edges", records: [{ source: "Alpha", target: "e" }] } },
     "edit_data.update_nodes": {
@@ -961,6 +977,12 @@ const MORE: Record<string, Row[]> = {
         },
     ],
     "view.camera": [{ args: { action: "camera", preset: "topView", options: {} } }],
+    "capture.animation": [
+        {
+            args: { action: "animation", tour: "intro" },
+            setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+        },
+    ],
     "results.summary": [
         {
             args: { action: "summary", run: "degree" },

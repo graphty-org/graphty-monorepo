@@ -133,7 +133,14 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "View",
         core: true,
         profiles: STANDARD,
-        actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "list_saved"],
+        actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "rename", "list_saved"],
+    },
+    {
+        name: "tour",
+        plainName: "Camera tours",
+        core: false,
+        profiles: STANDARD,
+        actions: ["list", "save", "play"],
     },
     {
         name: "hidden",

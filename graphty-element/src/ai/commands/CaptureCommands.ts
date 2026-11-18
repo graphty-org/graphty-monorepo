@@ -1,5 +1,5 @@
 /**
- * Capture Commands Module - Commands for capturing screenshots and video.
+ * Capture Commands Module - the command for capturing a screenshot.
  * @module ai/commands/CaptureCommands
  */
 
@@ -115,62 +115,3 @@ function triggerDownload(dataUrl: string, filename: string): void {
     link.click();
     link.remove();
 }
-
-/**
- * Command to capture a video recording of the graph.
- * Note: Video recording requires browser MediaRecorder API support.
- */
-export const captureVideo: GraphCommand = {
-    name: "captureVideo",
-    description:
-        "Start or stop video recording of the graph visualization. Returns a video blob URL when stopped. Note: This is a browser-only feature that requires MediaRecorder API support.",
-    parameters: z.object({
-        action: z.enum(["start", "stop"]).describe("Action to perform: start or stop recording"),
-        duration: z
-            .number()
-            .positive()
-            .optional()
-            .describe("Auto-stop after this many seconds (only for start action)"),
-        format: z
-            .enum(["webm", "mp4"])
-            .optional()
-            .describe("Video format (default: webm, note: mp4 may not be supported in all browsers)"),
-    }),
-    examples: [
-        { input: "Start recording", params: { action: "start" } },
-        { input: "Stop recording", params: { action: "stop" } },
-        { input: "Record for 5 seconds", params: { action: "start", duration: 5 } },
-    ],
-
-    execute(_graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
-        const { action, duration } = params as {
-            action: "start" | "stop";
-            duration?: number;
-            format?: "webm" | "mp4";
-        };
-
-        // Video recording is a more complex feature that requires MediaRecorder
-        // For Phase 7, we provide a basic structure but note this needs canvas-level implementation
-        if (action === "start") {
-            const autoStop = duration ? ` (will auto-stop in ${duration}s)` : "";
-            return Promise.resolve({
-                success: true,
-                message: `Video recording started${autoStop}.`,
-                data: {
-                    action: "started",
-                    duration,
-                    note: "Video recording functionality requires additional canvas-level implementation.",
-                },
-            });
-        }
-
-        return Promise.resolve({
-            success: true,
-            message: "Video recording stopped.",
-            data: {
-                action: "stopped",
-                note: "Video blob URL would be returned here when fully implemented.",
-            },
-        });
-    },
-};

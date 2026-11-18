@@ -25,6 +25,7 @@ const SESSION_PARTS: Readonly<Record<string, string>> = {
     visibility: "VisibilityApi",
     styles: "StylesApi",
     views: "SessionViews",
+    tours: "SessionTours",
     layout: "SessionLayout",
     positions: "SessionPositions",
     hidden: "SessionHidden",

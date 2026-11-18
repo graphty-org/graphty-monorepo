@@ -291,7 +291,7 @@ describe("the room Graphviz gives each cluster read back", () => {
         });
         const reply = await layout(dot, "dot");
         assert.isTrue(reply.ok, JSON.stringify(reply));
-        const margins = reply.ok ? clusterMargins(reply.json) : new Map();
+        const margins = reply.ok ? clusterMargins(reply.json) : new Map<number, never>();
 
         assert.deepEqual([...margins.keys()].sort(), [3, 4]);
         // the inner cluster: Graphviz's 8-point margin on every side, no label

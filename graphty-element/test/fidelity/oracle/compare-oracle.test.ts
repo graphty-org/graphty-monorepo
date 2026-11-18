@@ -1544,6 +1544,19 @@ describe("an outline a program drew as a filled path", () => {
         return clockwise ? pts.reverse() : pts;
     };
 
+    it("reads a box frame with one wide side as a line as wide as its narrowest side (yEd's DemoGroup)", () => {
+        // a 1 px frame whose top is a 20 px band, as yEd draws a DemoGroup with its header
+        const hole: Pt[] = [
+            [71, 90],
+            [71, 129],
+            [129, 129],
+            [129, 90],
+        ];
+        const frame = outlinePaintedAsFill([square(100, 100, 30), hole]);
+        assert.strictEqual(frame?.dashClass, "solid");
+        assert.closeTo(frame?.width ?? 0, 1, 1e-9);
+    });
+
     it("reads a ring as a solid line of the ring's width, dots as a dotted line, and bars across it as slashes", () => {
         const ring = outlinePaintedAsFill([square(100, 100, 21), square(100, 100, 19, true)]);
         assert.strictEqual(ring?.dashClass, "solid");

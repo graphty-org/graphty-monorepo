@@ -107,19 +107,16 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
         );
     }
 
-    if (!Array.isArray(descriptor.colors) || descriptor.colors.length === 0) {
+    const given: readonly string[] = Array.isArray(descriptor.colors) ? descriptor.colors : [];
+    if (given.length === 0) {
         refuse(descriptor.id, "colors", `the palette "${String(descriptor.id)}" was registered with no colours`);
     }
 
     const colors: string[] = [];
-    for (const color of descriptor.colors) {
+    for (const color of given) {
         const hex = normalizeHexAnchor(color);
         if (hex === null) {
-            refuse(
-                descriptor.id,
-                "colors",
-                `"${String(color)}" in the palette "${String(descriptor.id)}" is not a colour`,
-            );
+            refuse(descriptor.id, "colors", `"${color}" in the palette "${String(descriptor.id)}" is not a colour`);
         }
 
         colors.push(hex);

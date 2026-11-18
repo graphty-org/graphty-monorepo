@@ -144,7 +144,7 @@ describe("styles.toFile", () => {
         assert.notInclude(JSON.stringify(file), "n0");
 
         const other = chain();
-        await other.session.styles.applyTemplate(JSON.parse(JSON.stringify(file)));
+        await other.session.styles.applyTemplate(JSON.parse(JSON.stringify(file)) as typeof file);
         assert.include(
             other.session.styles.list().map((layer) => layer.name),
             "Big",

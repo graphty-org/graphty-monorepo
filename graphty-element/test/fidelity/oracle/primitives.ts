@@ -768,6 +768,26 @@ const holds = (outer: PBox, inner: PBox): boolean =>
     inner.x0 > outer.x0 && inner.y0 > outer.y0 && inner.x1 < outer.x1 && inner.y1 < outer.y1;
 const median = (xs: readonly number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
 
+/**
+ * The line width of a ring drawn as two square boxes, one inside the other, where its sides are not all as wide: the
+ * narrowest side is the line, and a wider side is a band painted with it (yEd's DemoGroup, a 1 px frame whose top is
+ * its 22 px header, yed-graphml-specimen-groups). Null for any other ring, or one as wide all round.
+ * @param outer - the outer outline
+ * @param inner - the inner outline
+ * @returns the narrowest side's width, or null
+ */
+function boxFrameWidth(outer: readonly Pt[], inner: readonly Pt[]): number | null {
+    const square = (q: readonly Pt[]): boolean => Math.abs(signedArea(q)) >= 0.98 * areaOf(boxOfPoints(q));
+    if (!square(outer) || !square(inner)) {
+        return null;
+    }
+    const o = boxOfPoints(outer);
+    const i = boxOfPoints(inner);
+    const sides = [i.x0 - o.x0, i.y0 - o.y0, o.x1 - i.x1, o.y1 - i.y1];
+    const narrowest = Math.min(...sides);
+    return narrowest > 0 && Math.max(...sides) >= 3 * narrowest ? narrowest : null;
+}
+
 /** The sectors a painted outline is read in, around its box's center. */
 const SECTORS = 36;
 
@@ -1220,9 +1240,10 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonze
         // lengthen its outlines but not its band: its width is how far its two outlines most often are apart, where
         // the line runs straight.
         const waved = dashClass === "zigzag" || dashClass === "sinewave";
+        const inner = subpaths[1 - boxes.indexOf(outerBox)];
         return patternResult(
             dashClass,
-            waved ? outlinesApart(outer, subpaths[1 - boxes.indexOf(outerBox)]) : width,
+            waved ? outlinesApart(outer, inner) : (boxFrameWidth(outer, inner) ?? width),
             box,
         );
     }

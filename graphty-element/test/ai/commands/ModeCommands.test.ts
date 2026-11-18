@@ -8,14 +8,14 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { setImmersiveMode } from "../../../src/ai/commands/ModeCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 
 describe("ModeCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph();
+        graph = createMockTestGraph();
         context = createMockContext(graph);
     });
 

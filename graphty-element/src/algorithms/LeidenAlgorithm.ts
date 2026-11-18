@@ -156,7 +156,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
         const { value: result, precision } = await run((dispatch, s) =>
             dispatch.leiden(s, {
                 resolution,
-                randomSeed,
+                seed: randomSeed,
                 maxIterations,
                 threshold,
             }),

@@ -1,6 +1,8 @@
 # Notes in graphty-element
 
-Status: design, not built. Written 2026-10-01 for two readers: a third party who uses
+Status: implemented in graphty-element 3.4.0 (`session.notes`, code in
+`graphty-element/src/session/notes/`, commands `note.add`, `note.update`, `note.remove`, event
+`graphty-note-change`). Written 2026-10-01 for two readers: a third party who uses
 `<graphty-element>` and has never seen this repository (sections 1 to 6), and the implementer who
 builds it (sections 7 and 8). Schema: [notes.schema.json](../documents/notes.schema.json), normative for the
 file form. The owner's decisions behind this page (all taken on 2026-10-01) and what it replaces

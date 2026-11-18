@@ -20,6 +20,14 @@ import { loadRecordedSeed } from "../../../stories/fixtures/expand/source";
 import { assistantSession, digest, ScriptedAssistant } from "../../helpers/assistant";
 import { ReachRecorder } from "./reach-recorder";
 
+// A generated background is decoded and scaled by the browser, which this project has not got:
+// here it passes through unchanged (test/browser/ai/generate-background.test.ts decodes it).
+vi.mock("../../../src/session/backgroundImage", async (original) => ({
+    ...(await original<typeof import("../../../src/session/backgroundImage")>()),
+    prepareBackgroundImage: () =>
+        Promise.resolve({ ok: true, data: "data:image/png;base64,iVBORw0KGgo=", width: 1, height: 1, scaled: false }),
+}));
+
 // Every action runs, so the experiments that gate some of them are on: network sources
 // (network-data) and a file's own styles (file-styles).
 setDefaultFeatures(["network-data", "file-styles"]);
@@ -36,6 +44,7 @@ const RENDERER = {
             metadata: { width: 10, height: 10, format: "webm", duration: 1000 },
         }),
     cancelAnimationCapture: () => false,
+    stopAnimationCapture: () => false,
     isVRSupported: () => Promise.resolve(false),
     isARSupported: () => Promise.resolve(false),
     exportGraph: () => Promise.resolve({ text: () => Promise.resolve("<graphml/>"), losses: [] }),
@@ -62,6 +71,8 @@ interface Row {
     readonly gate?: false;
     /** State the call acts on, made before the message. */
     readonly setup?: (session: GraphSession) => unknown;
+    /** The provider makes pictures: its image model answers with a picture. */
+    readonly image?: true;
     /** Calls the assistant makes in a message of its own first: a step of its own to undo. */
     readonly prior?: readonly { readonly tool: string; readonly args: Record<string, unknown> }[];
 }
@@ -144,8 +155,8 @@ const withTime = async (session: GraphSession): Promise<void> => {
     await session.time.ready;
     await session.time.window({ step: "year" });
 };
-/** A session with the timeline experiment on, which session.time needs. */
-const timeSession = (): Promise<GraphSession> => assistantSession(undefined, ["timeline"]);
+/** A session for the time actions. */
+const timeSession = (): Promise<GraphSession> => assistantSession();
 /** A condition to change. */
 const withCondition = (session: GraphSession): Promise<unknown> =>
     Promise.resolve(
@@ -340,7 +351,7 @@ const ROWS: Record<string, Row> = {
     "layout.unpin": { args: { action: "unpin", ids: ["a"] }, setup: (s) => s.positions.pin(["a"]) },
     "layout.set_positions": { args: { action: "set_positions", positions: [{ id: "a", x: 1, y: 2 }] } },
     "view.dimension": { args: { action: "dimension", dimension: "2d" } },
-    "view.camera": { args: { action: "camera", preset: "topView" }, code: "E_UNSUPPORTED" },
+    "view.camera": { args: { action: "camera", preset: "topView" }, code: "AI_NOT_AVAILABLE" },
     "view.zoom_to": { args: { action: "zoom_to", where: "data.type == 'server'" } },
     "view.fit": { args: { action: "fit" } },
     "hidden.hide": { args: { action: "hide", ids: ["a"] } },
@@ -349,7 +360,7 @@ const ROWS: Record<string, Row> = {
     "view.restore": {
         args: { action: "restore", name: "kept" },
         setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
-        code: "E_UNSUPPORTED",
+        code: "AI_NOT_AVAILABLE",
     },
     "view.remove_saved": {
         args: { action: "remove_saved", name: "kept" },
@@ -417,7 +428,11 @@ const ROWS: Record<string, Row> = {
     "import_data.import": { args: { action: "import", format: "csv", text: "source,target\nx,y" } },
     "time.status": { session: timeSession, args: { action: "status" }, setup: withTime },
     "time.set_field": { session: timeSession, args: { action: "set_field", column: "load" } },
-    "time.settings": { session: timeSession, args: { action: "settings", mode: "cumulative" }, setup: withTime },
+    "time.settings": {
+        session: timeSession,
+        args: { action: "settings", mode: "cumulative", outside: "ghost" },
+        setup: withTime,
+    },
     "time.window": {
         session: timeSession,
         args: { action: "window", from: "2001-01-01", to: "2003-01-01" },
@@ -459,6 +474,7 @@ const ROWS: Record<string, Row> = {
     "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },
     "columns.set_role": { args: { action: "set_role", column: "team", role: "label" } },
     "columns.compute": { args: { action: "compute", column: "heavy", expression: "data.load > `0.5`" } },
+    "columns.score": { args: { action: "score", column: "weighted", terms: [{ path: "data.load", weight: 2 }] } },
     "columns.hide": { args: { action: "hide", columns: ["team"] } },
     "columns.label_value": { args: { action: "label_value", column: "team", value: "red", label: "Reds" } },
     "sources.list": { args: { action: "list" }, setup: withLoad },
@@ -507,6 +523,11 @@ const ROWS: Record<string, Row> = {
     "import_data.last_import": { args: { action: "last_import" } },
     "export_graph.export": { args: { format: "graphml" } },
     "project.settings": { args: { action: "settings", runAlgorithmsOnLoad: true } },
+    "project.generate_background": {
+        args: { action: "generate_background", prompt: "a starry night" },
+        image: true,
+        gate: false,
+    },
     "project.rename": { args: { action: "rename", name: "Network" } },
     "project.rename_run": { args: { action: "rename_run", run: "degree", runName: "Hubs" }, setup: withRun },
     "project.declare": { args: { action: "declare", column: "load", measurement: "quantitative" } },
@@ -514,8 +535,9 @@ const ROWS: Record<string, Row> = {
     "capture.screenshot": { args: { action: "screenshot", width: 100, height: 100 } },
     "capture.animation": { args: { action: "animation", seconds: 1 } },
     "capture.cancel": { args: { action: "cancel" } },
-    "immersive.enter": { args: { action: "enter", mode: "vr" }, code: "E_UNSUPPORTED" },
-    "immersive.exit": { args: { action: "exit" }, code: "E_UNSUPPORTED" },
+    "capture.stop": { args: { action: "stop" } },
+    "immersive.enter": { args: { action: "enter", mode: "vr" }, code: "AI_NOT_AVAILABLE" },
+    "immersive.exit": { args: { action: "exit" }, code: "AI_NOT_AVAILABLE" },
     "immersive.support": { args: { action: "support" } },
 };
 
@@ -573,6 +595,10 @@ describe("every generated action", () => {
                 ...(row.gate === false ? { gate: false } : {}),
                 ...(row.graph === undefined ? {} : { graph: row.graph }),
             });
+            if (row.image === true) {
+                assistant.engine.scriptImage(new Blob(["png"], { type: "image/png" }));
+            }
+
             const before = await digest(session);
             const steps = session.history.position;
             const { result } = await assistant.say(`do ${key}`, [{ tool, args }]);
@@ -909,6 +935,17 @@ const MORE: Record<string, Row[]> = {
                 text: 'graph [ node [ id 1 graphics [ fill "#ff0000" ] ] node [ id 2 ] edge [ source 1 target 2 ] ]',
             },
         },
+        // A replacing load of a file with an annotation (a DOT diagram's title) writes the annotations.
+        {
+            args: {
+                action: "import",
+                format: "dot",
+                mode: "replace",
+                styles: "file",
+                text: 'digraph { graph [bb="0,0,300,100", label="The title"]; a [pos="50,50"]; b [pos="250,50"]; a -> b; }',
+            },
+            gate: false,
+        },
     ],
     "results.cancel": [{ args: { action: "cancel", run: "degree" }, setup: withRun, gate: false }],
     "edit_data.delete_all": [{ args: { action: "delete_all" }, gate: false }],
@@ -967,7 +1004,7 @@ const MORE: Record<string, Row[]> = {
     "hidden.show": [{ args: { action: "show", where: "all" }, setup: (s) => s.hidden.add(["a"]) }],
     // The layout the session already has, so it is run again; a session with no renderer has no
     // layout to run.
-    "layout.set": [{ args: { action: "set", name: "force" }, code: "E_UNSUPPORTED" }],
+    "layout.set": [{ args: { action: "set", name: "force" }, code: "AI_NOT_AVAILABLE" }],
     "run_algorithm.run": [
         {
             // A class registered with no descriptor runs by its address, through the legacy op.
@@ -985,7 +1022,7 @@ const MORE: Record<string, Row[]> = {
                 return assistantSession();
             },
             // A session with no renderer has nothing to run a legacy class on.
-            code: "E_UNSUPPORTED",
+            code: "AI_NOT_AVAILABLE",
         },
     ],
 };

@@ -19,7 +19,8 @@ export const registration = defineRegistration({
                     return "The graph is still loading";
                 }
                 // A loaded source, or nodes added without one (through the element's API).
-                const empty = session.data.sources().length === 0 && session.data.statistics().nodeCount === 0;
+                const empty =
+                    session.data.sources().length === 0 && session.data.statistics({ scope: "all" }).nodeCount === 0;
                 return empty ? "No data yet" : null;
             },
             run: ({ workspace }) => {

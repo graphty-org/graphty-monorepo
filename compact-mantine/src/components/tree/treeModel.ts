@@ -9,11 +9,12 @@ import type React from "react";
 export interface TreeNodeData {
     /** Stable, unique across the whole tree. */
     id: string;
-    /** The visible name; also the item's type-ahead key, and its accessible name unless `label` is given. */
+    /** The visible name; also the item's type-ahead key, and its accessible name (with the count) unless `label` is given. */
     name: string;
     /**
      * The accessible name, when the visible name alone is not enough: "value, edge attribute"
-     * where two rows read "value". Start it with the visible name. Defaults to `name`.
+     * where two rows read "value". Start it with the visible name, and include the count. Defaults
+     * to `name` followed by `count`.
      */
     label?: string;
     /** The 16 x 16 type glyph drawn before the name. */
@@ -47,7 +48,8 @@ export interface TreeNodeData {
     swatch?: React.ReactNode;
     /**
      * A count drawn before the toggles in the secondary ink, always visible (the toggles hide
-     * until hover). It joins the row's accessible description, so it is heard as well as seen.
+     * until hover). It follows the name in the row's accessible name, so it is heard as well as
+     * seen (WCAG 2.5.3); with a `label`, it is the row's accessible description instead.
      * Pass a row's quiet text here (a count, a fill, a filter's outcome): it stays whole until
      * it would take more than half the row, and while the name or the count is cut short, the
      * name's tooltip shows both.
@@ -62,7 +64,7 @@ export interface TreeNodeData {
     /**
      * The row's state in words -- "Running", "Failed: the graph has no edges" -- read by a
      * screen reader after the name (the row's `aria-describedby`) and never drawn. A row's
-     * accessible name is only its `name` (or `label`), so anything a glyph or a tooltip says belongs here
+     * accessible name is only its `name` and count (or `label`), so anything a glyph or a tooltip says belongs here
      * too.
      */
     description?: string;

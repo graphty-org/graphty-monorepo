@@ -63,8 +63,6 @@ let ctx: MeshTestScene;
 
 function arrow(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): ArrowCap {
     const cap = EdgeMesh.createArrowHead(
-        ctx.cache,
-        `arrow-${type}`,
         { type, width: 1, color: extra.color ?? "#FF0000", size: extra.size, opacity: extra.opacity },
         ctx.scene,
     );
@@ -125,35 +123,27 @@ describe("Arrowhead Golden Masters", () => {
             for (const type of SCHEMA_TYPES) {
                 assert.isTrue(EdgeStyle.safeParse({ arrowHead: { type } }).success);
                 assert.doesNotThrow(() => {
-                    EdgeMesh.createArrowHead(ctx.cache, "vocab", { type, width: 1, color: "#FFFFFF" }, ctx.scene);
+                    EdgeMesh.createArrowHead({ type, width: 1, color: "#FFFFFF" }, ctx.scene);
                 }, `the schema accepts "${type}" but createArrowHead cannot build it`);
             }
         });
 
         test("a cap outside the vocabulary is refused rather than quietly drawn as a triangle", () => {
             assert.throws(
-                () =>
-                    EdgeMesh.createArrowHead(
-                        ctx.cache,
-                        "bad",
-                        { type: "not-an-arrow", width: 1, color: "#FFFFFF" },
-                        ctx.scene,
-                    ),
+                () => EdgeMesh.createArrowHead({ type: "not-an-arrow", width: 1, color: "#FFFFFF" }, ctx.scene),
                 "Unsupported arrow type: not-an-arrow",
             );
         });
 
         test("'none' produces no mesh at all", () => {
-            assert.isNull(
-                EdgeMesh.createArrowHead(ctx.cache, "none", { type: "none", width: 1, color: "#FFF" }, ctx.scene),
-            );
+            assert.isNull(EdgeMesh.createArrowHead({ type: "none", width: 1, color: "#FFF" }, ctx.scene));
         });
 
         test("a missing type produces no mesh -- it does not default to normal", () => {
             // The retired mock defaulted an absent type to "normal". The product returns null, so
             // an edge whose style omits arrowHead.type draws no cap. That is the correct reading of
             // "the caller asked for nothing".
-            assert.isNull(EdgeMesh.createArrowHead(ctx.cache, "missing", { width: 1, color: "#FFF" }, ctx.scene));
+            assert.isNull(EdgeMesh.createArrowHead({ width: 1, color: "#FFF" }, ctx.scene));
         });
     });
 

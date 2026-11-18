@@ -216,7 +216,7 @@ rejected build, so it gates.
 ## Before the first session
 
 The round may not start until all of these hold on the frozen build. `real.mjs --gate` refuses
-items 1 to 7 and 9 (each check is listed in `tool/README.md`, "Before a round's first session: the
+items 1 to 7 and 9 (each check is listed in `tool/REFERENCE.md`, "Before a round's first session: the
 gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's core tasks,
 `bars.mjs --tier 5` is item 5's scripted walk, `endstate.mjs` checks each style layer, and
 `score.mjs` scores bars 1 to 3 and bar 9's named elements from each grade's line

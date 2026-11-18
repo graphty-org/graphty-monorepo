@@ -3,11 +3,13 @@
  * the request it was given. New assistant features are tested on it, never on a real provider.
  */
 
+import type { AiImageModelDescriptor } from "../../catalog/ai";
 import { providerFailure } from "./LlmProviderEngine";
 import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
+    type GeneratedImage,
     type LiveConnection,
     type LiveEvent,
     type LiveOpened,
@@ -145,6 +147,13 @@ export class FakeLiveConnection implements LiveConnection {
     }
 }
 
+/** The image model `scriptImage` stands in for when a test names none. */
+const FAKE_IMAGE_MODEL: AiImageModelDescriptor = Object.freeze({
+    id: "fake-image",
+    plainName: "Fake image",
+    costUsd: 0.01,
+});
+
 /**
  * An engine that plays a script. Like a provider that cannot, it has no `transcribe`, `speak` or
  * `openLive` until a test scripts them (`scriptVoice`, `scriptLive`).
@@ -166,6 +175,10 @@ export class FakeEngine implements AiEngine {
     declare transcribe?: FakeTranscribe;
     declare speak?: FakeSpeak;
     declare openLive?: (options: LiveOptions, signal: AbortSignal) => Promise<LiveOpened>;
+    declare generateImage?: (prompt: string, signal: AbortSignal) => Promise<GeneratedImage>;
+    declare imageModel?: AiImageModelDescriptor;
+    /** Every prompt `generateImage` was given, in order. */
+    readonly imagePrompts: string[] = [];
     /** Every live connection `openLive` opened, in order. */
     readonly liveConnections: FakeLiveConnection[] = [];
     /** Every clip `transcribe` was given and every text `speak` was given, in order. */
@@ -214,6 +227,23 @@ export class FakeEngine implements AiEngine {
                     : speak(text, options, signal);
             };
         }
+    }
+
+    /**
+     * Give the fake a provider's image model: `generateImage` answers every prompt with `image`
+     * (a picture, or a coded failure), as `model` would. Each prompt is recorded in `imagePrompts`.
+     * @param image - The picture produced, or what every call fails with.
+     * @param model - The model and its cost.
+     */
+    scriptImage(
+        image: Blob | Exclude<GeneratedImage, { code: "AI_COMPLETED" }>,
+        model: AiImageModelDescriptor = FAKE_IMAGE_MODEL,
+    ): void {
+        this.imageModel = model;
+        this.generateImage = (prompt) => {
+            this.imagePrompts.push(prompt);
+            return Promise.resolve(image instanceof Blob ? { code: "AI_COMPLETED", params: {}, image } : image);
+        };
     }
 
     /**

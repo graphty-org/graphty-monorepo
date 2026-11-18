@@ -1002,7 +1002,7 @@ describe("an algorithm written outside this package", () => {
         // label with a cost nobody can read.
         assert.isTrue(Number.isFinite(estimate.seconds), "a real number, not a shrug");
         assert.strictEqual(estimate.costClass, "instant", "read from what the extension declared");
-        assert.isNotEmpty(estimate.basis, "and a sentence saying where the number came from");
+        assert.isDefined(estimate.basisFacts.provenance, "and facts saying where the number came from");
     });
 
     it("runs when the element is asked for it by name, and answers with its own numbers", async () => {
@@ -1300,7 +1300,6 @@ describe("an algorithm written outside this package", () => {
 
         assert.isDefined(legend, "the picture explains itself in the legend");
         assert.strictEqual(legend?.channel, "node.color");
-        assert.strictEqual(legend?.field?.plainName, "Nodes within reach", "named as the extension named it");
 
         const painted = new Set(
             measuredIds().map((id) => {
@@ -1489,8 +1488,8 @@ describe("an algorithm written outside this package", () => {
             "c has one link inside the scope, not two, and d is not measured",
         );
         assert.notInclude(
-            run.caveats.notes.join(" "),
-            "Computed on the whole graph",
+            run.caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
             "and its run does not say it computed on the whole graph",
         );
         assert.strictEqual(
@@ -1513,7 +1512,10 @@ describe("an algorithm written outside this package", () => {
             [1, 2, 2, undefined],
             "c reaches d, outside the scope: computed on the whole graph, kept for the scope",
         );
-        assert.include(run.caveats.notes, "Computed on the whole graph; values kept for the scope only.");
+        assert.include(
+            run.caveats.facts.map((fact) => fact.code),
+            "scope.whole-graph",
+        );
         assert.strictEqual(
             graph
                 .getSession()

@@ -889,7 +889,7 @@ class ArrowInstanceManager {
 }
 ```
 
-**Performance Math**:
+**Performance Math** (estimates, never measured):
 
 ```
 1000 edges, 5 line styles, 3 arrow types:
@@ -902,7 +902,7 @@ Without batching:
 With batching + instancing:
   5 line batches × 1 draw call = 5 draw calls
   3 arrow instances × 1 draw call = 3 draw calls
-  Total: 8 draw calls (250x improvement!)
+  Total: 8 draw calls (estimated)
 ```
 
 ### Performance Benefits

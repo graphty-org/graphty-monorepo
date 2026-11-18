@@ -704,7 +704,7 @@ class SourceFetcher {
      * @returns milliseconds
      */
     private backoff(attempt: number): number {
-        const jitter = Math.random(); // NOSONAR(S2245): retry jitter, not a security value
+        const jitter = Math.random(); // eslint-disable-line sonarjs/pseudo-random -- retry jitter, not a security value
         return jitter * Math.min(this.retry.maxDelayMs, this.retry.baseDelayMs * 2 ** attempt);
     }
 

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import setup, { watchLogger } from "./vitest-deps-reload.mjs";
+import setup, { depsOptimized, waitForBrowserDeps, watchLogger } from "./vitest-deps-reload.mjs";
 
 const fakeLogger = () => {
     const lines = [];
@@ -59,7 +59,12 @@ describe("vitest-deps-reload", () => {
 
     it("as the globalSetup, sets the exit code and reports an unhandled error", () => {
         const caught = [];
-        const vitest = { logger: fakeLogger(), config: {}, state: { catchError: (e, type) => caught.push([e, type]) } };
+        const vitest = {
+            logger: fakeLogger(),
+            config: {},
+            reporters: [],
+            state: { catchError: (e, type) => caught.push([e, type]) },
+        };
         const before = process.exitCode;
         try {
             setup({ vitest });
@@ -73,10 +78,43 @@ describe("vitest-deps-reload", () => {
     });
 
     it("leaves watch mode alone", () => {
-        const vitest = { logger: fakeLogger(), config: { watch: true } };
+        const vitest = { logger: fakeLogger(), config: { watch: true }, reporters: [] };
         setup({ vitest });
         const before = process.exitCode;
         vitest.logger.log(RELOAD);
         assert.equal(process.exitCode, before);
+    });
+    it("adds the browser-deps hook once, in watch mode too, and fails loudly without a reporter list", () => {
+        const vitest = { logger: fakeLogger(), config: { watch: true }, reporters: [] };
+        setup({ vitest });
+        setup({ vitest });
+        assert.deepEqual(vitest.reporters, [waitForBrowserDeps]);
+        assert.throws(() => setup({ vitest: { logger: fakeLogger(), config: {} } }), /vitest\.reporters is gone/);
+    });
+
+    it("holds a browser page until the scan and the bundle it started have both settled", async () => {
+        const order = [];
+        let finishScan;
+        let finishBundle;
+        const optimizer = {
+            init: async () => order.push("init"),
+            scanProcessing: new Promise((resolve) => (finishScan = resolve)).then(() => order.push("scan")),
+            metadata: { discovered: {} },
+        };
+        optimizer.scanProcessing.then(() => {
+            optimizer.metadata.discovered.lit = {
+                processing: new Promise((resolve) => (finishBundle = resolve)).then(() => order.push("bundle")),
+            };
+        });
+        const project = { browser: { vite: { environments: { client: { depsOptimizer: optimizer } } } } };
+        const held = waitForBrowserDeps.onBrowserInit(project).then(() => order.push("page"));
+        finishScan();
+        await optimizer.scanProcessing;
+        await Promise.resolve();
+        finishBundle();
+        await held;
+        assert.deepEqual(order, ["init", "scan", "bundle", "page"]);
+        await depsOptimized(undefined);
+        await waitForBrowserDeps.onBrowserInit({ browser: { vite: { environments: {} } } });
     });
 });

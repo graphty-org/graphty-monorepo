@@ -22,6 +22,7 @@ type Ring = GpuLayoutSimulation<never, LayoutStatsBase> &
         >
     > & {
         readonly landedDrawn: GPUBuffer | null;
+        readonly landedDrawnRows: F32 | null;
     };
 
 /**
@@ -141,6 +142,27 @@ describe("the drawn ring", () => {
         }
         assert.strictEqual(simulation.landedDrawn, null, "the batch in flight across the load never lands");
         simulation.dispose();
+    });
+
+    it("reads the landed slot back in the batch's readback only when asked", async (t) => {
+        requireGpu(t);
+        const rowsOf = async (readBack: boolean): Promise<{ host: F32 | null; card: F32 }> => {
+            const simulation = ringed(ctx, 3);
+            simulation.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
+            simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * n).fill(1), readBack });
+            simulation.setDrawnTransform(TRANSFORM);
+            await simulation.step(2);
+            await simulation.flush();
+            const landed = simulation.landedDrawn;
+            assert.ok(landed !== null);
+            const result = { host: simulation.landedDrawnRows, card: await readF32(ctx, landed, 4 * n) };
+            simulation.dispose();
+            return result;
+        };
+        assert.strictEqual((await rowsOf(false)).host, null, "no readback unless asked");
+        const { host, card } = await rowsOf(true);
+        assert.ok(host !== null);
+        expectBitwiseEqual(host, card, "the host rows are the landed slot");
     });
 
     it("without a ring nothing is drawn and the positions are those of a run with one", async (t) => {

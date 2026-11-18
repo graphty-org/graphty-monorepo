@@ -19,6 +19,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editGexfNodeColor, replaceGexfBlock } from "../../styles/formats/gexf.js";
 
@@ -52,7 +53,10 @@ function writers(ex: ExtractedStyles, target: "node" | "edge", property: string)
     );
 }
 
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 
 describe("GEXF styles: reading", () => {
     it("draws a self-loop as Gephi's circle up and to the right of its node", async () => {

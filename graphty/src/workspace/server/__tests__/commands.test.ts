@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { formReady, freshForm, serverKinds, serverRequest } from "../commands";
+import { formReady, freshForm, serverKinds, serverLoad, serverRequest } from "../commands";
 
 /**
  * A source of the catalog, by id.
@@ -23,7 +23,7 @@ function kind(id: string): ReturnType<typeof serverKinds>[number] {
 describe("the server form's request", () => {
     it("lists the browser's servers, without Neptune or graph-samples", () => {
         const ids = serverKinds().map((each) => each.id);
-        assert.includeMembers(ids, ["neo4j", "ndex", "openalex", "sparql", "rest"]);
+        assert.includeMembers(ids, ["neo4j", "ndex", "openalex", "sparql", "rest", "url"]);
         assert.notInclude(ids, "neptune");
         assert.notInclude(ids, "graph-samples");
     });
@@ -81,5 +81,28 @@ describe("the server form's request", () => {
         const ndex = kind("ndex");
         assert.isFalse(formReady(ndex, freshForm(ndex)), "NDEx needs its network UUID");
         assert.isTrue(formReady(ndex, { ...freshForm(ndex), params: { uuid: "x" } }));
+    });
+
+    it("loads a file by address whole, named after the file, its credential bound to the address", () => {
+        const url = kind("url");
+        const fresh = freshForm(url);
+        assert.strictEqual(fresh.limit, 0, "a file loads whole");
+        assert.strictEqual(freshForm(kind("ndex")).limit, 500);
+        assert.isFalse(formReady(url, fresh), "no address");
+        const address = "https://dev.ato.ms:9565/data/buildings.csv?v=2";
+        const form = { ...fresh, params: { url: address }, secret: "token" };
+        assert.isTrue(formReady(url, form), "the address is enough, with no endpoint");
+        const { input, options } = serverRequest(url, form);
+        assert.strictEqual(input.name, "buildings.csv");
+        assert.deepEqual(input.config, { url: address });
+        assert.isUndefined(options.endpoint);
+        assert.isUndefined(options.limits);
+        const load = serverLoad(url, form);
+        assert.strictEqual(load.endpoint, address);
+        assert.strictEqual(load.credential?.kind, "bearer");
+        assert.strictEqual(
+            serverRequest(url, { ...form, params: { url: "https://dev.ato.ms:9565/" } }).input.name,
+            "Load from URL dev.ato.ms:9565",
+        );
     });
 });

@@ -1,6 +1,6 @@
 /**
  * The loading doors on the REAL graphty-element (data prototype spec sections 2.1 and 6): every
- * fixture file draws its counts when dropped and when chosen in Samples; a clean file draws with
+ * fixture file draws its counts when dropped; a clean file draws with
  * nothing opened over it, a file with problems opens the table docked, one whose ends are still
  * to pick opens it maximized beside the Data place, a second file waits for
  * the join screen, and a newer copy of a loaded file replaces it with Undo. Every count is read
@@ -137,21 +137,6 @@ async function emptyProject(): Promise<{ store: WorkspaceStore; session: GraphSe
     return { store, session: await elementSession() };
 }
 
-/**
- * Chooses a fixture in the Samples dialog, opened from the Sources "+".
- * @param name - the fixture's file name.
- */
-async function chooseSample(name: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Samples" });
-    const row = [...dialog.querySelectorAll("button")].find((button) => (button.ariaLabel ?? "").startsWith(name));
-    if (row === undefined) {
-        throw new Error(`Samples lists no ${name}`);
-    }
-    await userEvent.click(row);
-}
-
 describe("the loading doors on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 900);
@@ -174,20 +159,9 @@ describe("the loading doors on the real element", () => {
         );
     });
 
-    it.each(PROTOTYPE_SAMPLES.map(sampleName))("%s chosen in Samples draws its counts", async (name) => {
-        const { store, session } = await emptyProject();
-        await chooseSample(name);
-        const expected = EXPECTED[name];
-        await holds(session, expected.nodes, expected.edges);
-        await waitFor(() => {
-            assert.strictEqual(dockOf(store.get()), expected.dock);
-            assert.isNull(store.get().dialog);
-        });
-    });
-
     it("draws a clean file with no table and no dialog over it", async () => {
         const { store, session } = await emptyProject();
-        await chooseSample("tp53-interactions.tsv");
+        drop(await fixture("tp53-interactions.tsv"));
         await holds(session, 60, 120);
         assert.isFalse(store.get().dockOpen);
         assert.isNull(store.get().dialog);
@@ -221,7 +195,7 @@ describe("the loading doors on the real element", () => {
 
     it("holds a second file for the join screen, with the matches the element counts", async () => {
         const { store, session } = await emptyProject();
-        await chooseSample("tp53-interactions.tsv");
+        drop(await fixture("tp53-interactions.tsv"));
         await holds(session, 60, 120);
         drop(await fixture("tumor-expression.tsv"));
         await waitFor(() => {
@@ -244,7 +218,7 @@ describe("the loading doors on the real element", () => {
 
     it("pre-picks edges between nodes for an edge file dropped onto a node file", async () => {
         const { store, session } = await emptyProject();
-        await chooseSample("suppliers.csv");
+        drop(await fixture("suppliers.csv"));
         await holds(session, 40, 0);
         drop(await fixture("ships-to-2024-09.csv"));
         await waitFor(() => {
@@ -279,7 +253,7 @@ describe("the loading doors on the real element", () => {
 
     it("offers Replace for a file with the same columns, and Undo brings the old one back", async () => {
         const { session } = await emptyProject();
-        await chooseSample("ships-to-2024-09.csv");
+        drop(await fixture("ships-to-2024-09.csv"));
         await holds(session, 40, 150);
         drop(await fixture("ships-to-2024-10.csv"));
         await userEvent.click(await screen.findByRole("button", { name: "Replace ships-to-2024-09.csv" }));

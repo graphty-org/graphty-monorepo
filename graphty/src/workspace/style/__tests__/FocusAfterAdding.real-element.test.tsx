@@ -1,8 +1,8 @@
 /**
  * After adding a style line or a condition card, on the REAL graphty-element and driven by real
  * clicks and keys, focus is where the next keystroke belongs: a new Color line's text box (not its
- * swatch), so a typed color and Enter repaint at once; a Width line added on a layer made from a
- * selection in its box; a new Shape line on its select, its value not drawn selected, and a typed
+ * swatch), so a typed color and Enter repaint at once; a Width line added on a found selection's
+ * Style tab in its box, written to the layer last opened; a new Shape line on its select, its value not drawn selected, and a typed
  * shape name opening its list on that shape; a new text card in its text box (not its match menu), so typing straight
  * after picking the column narrows the rule.
  */
@@ -146,8 +146,11 @@ describe("focus after adding a line or a card", () => {
         });
     });
 
-    it("Width added on a layer made from a found selection focuses its box", async () => {
+    it("Width added on a found selection's Style tab focuses its box and writes the layer last opened", async () => {
         const session = await openScene();
+        // Both is the row last opened, so the selection's Style tab edits it.
+        await openStyle("Both");
+        const layers = session.styles.list().length;
         const find = await screen.findByRole("combobox", { name: "Find" });
         await userEvent.click(find);
         await userEvent.keyboard("=shared_chapters >= `5`{Enter}");
@@ -159,14 +162,22 @@ describe("focus after adding a line or a card", () => {
         if (style.getAttribute("aria-selected") !== "true") {
             await userEvent.click(style);
         }
+        // The tab edits the selected layer, which paints nodes and edges: show its Edge side.
+        await showKind("edge");
         const line = await addLine("edge", "line", "Width", "edge.width");
         const focused = document.activeElement as HTMLInputElement;
         assert.isTrue(line.querySelector(".ws-field-control")?.contains(focused), "focus is in the Width box");
         assert.strictEqual(focused.tagName, "INPUT");
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {
-            assert.include(written(session, "edge.width"), 4, "the typed width is written");
+            const both = session.styles.list().filter((layer) => layer.name === "Both");
+            assert.include(
+                both.map((layer) => layer.set?.["edge.width"]),
+                4,
+                "Both takes the typed width",
+            );
         });
+        assert.strictEqual(session.styles.list().length, layers, "no layer is made for the selection");
     });
 
     it("a new text card takes typing in its text box at once", async () => {

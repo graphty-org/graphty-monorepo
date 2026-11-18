@@ -17,7 +17,7 @@ const labelOf = (session: ReturnType<typeof createGraphSession>, node: string): 
     >;
 
 describe("a file's label shifts", () => {
-    it("shift the words of a Pajek label, and add no layer to do it", async () => {
+    it("shift the words of a Pajek label, said in an ordinary layer", async () => {
         const session = createGraphSession();
         const net = '*Vertices 2\n1 "alpha" 0.1 0.1 0.5\n2 "beta" 0.9 0.9 0.5\n*Edges\n1 2\n';
         await session.data.import({ type: "pajek", config: { data: net } }, { styles: "file" });
@@ -25,13 +25,11 @@ describe("a file's label shifts", () => {
         assert.strictEqual(style.shiftX, 0.5);
         assert.strictEqual(style.shiftOf, "words");
         const layers = session.styles.list();
-        const withShift = layers.filter((layer) => JSON.stringify(layer).includes("node.labelShiftX"));
-        assert.isAbove(withShift.length, 0);
-        // the words are said in the same layers that shift, never one of their own
-        for (const layer of layers) {
-            const text = JSON.stringify(layer);
-            assert.strictEqual(text.includes("node.labelShiftOf"), text.includes("node.labelShiftX"));
-        }
+        assert.isTrue(layers.some((layer) => JSON.stringify(layer).includes("node.labelShiftX")));
+        // the words are said by a layer like any other, which a reader can see and change
+        assert.isTrue(
+            layers.some((layer) => layer.source.by === "user" && JSON.stringify(layer).includes("node.labelShiftOf")),
+        );
     });
 
     it("shift a Graphviz xlabel's whole box, which Graphviz pins by its corner, padding and all", async () => {
@@ -45,7 +43,7 @@ describe("a file's label shifts", () => {
         assert.isUndefined(style.shiftOf);
     });
 
-    it("place a Cytoscape.js node label outside its node by its words, and add no layer to do it", async () => {
+    it("place a Cytoscape.js node label outside its node by its words, said in an ordinary layer", async () => {
         const session = createGraphSession();
         const doc = {
             elements: { nodes: [{ data: { id: "a", label: "a" } }], edges: [] },
@@ -53,10 +51,11 @@ describe("a file's label shifts", () => {
         };
         await session.data.import({ type: "json", config: { data: JSON.stringify(doc) } }, { styles: "file" });
         assert.strictEqual(labelOf(session, "a").gapOf, "words");
-        for (const layer of session.styles.list()) {
-            const text = JSON.stringify(layer);
-            assert.strictEqual(text.includes("node.labelGapOf"), text.includes("node.labelLocation"));
-        }
+        assert.isTrue(
+            session.styles
+                .list()
+                .some((layer) => layer.source.by === "user" && JSON.stringify(layer).includes("node.labelGapOf")),
+        );
     });
 
     it("leave a label no file shifts as the element places it", async () => {

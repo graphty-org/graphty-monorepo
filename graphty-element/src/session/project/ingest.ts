@@ -12,11 +12,11 @@
  */
 
 import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
-import type { FileLayout } from "@graphty/graph-io";
+import type { RequestedLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
-import { DataSource, type DataSourceChunk, type DeclaredDirection, TIMELINE_READERS } from "../../data/DataSource";
+import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSignal } from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
@@ -44,8 +44,8 @@ import {
     type DataImportCommand,
     type DataMutation,
     describeSource,
-    FILE_GRAPH_VALUE,
     type HeldRows,
+    REQUESTED_LAYOUT_VALUE,
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "../commands/data";
@@ -194,14 +194,14 @@ function recordsPath(reason: LoadPathReason): LoadPath {
  * @param record - The record.
  * @param edges - The edge load's choices, for an edge record.
  * @param seen - The endpoint spelling and weight keys the load's records gave so far.
- * @param seen.spelling - The endpoint keys the first record named.
+ * @param seen.spelling - The endpoint keys the first record named, as bits.
  * @param seen.weights - The weight keys records gave.
  * @returns The reason, or null.
  */
 function recordReason(
     record: unknown,
     edges: ColumnsLoad["edges"],
-    seen: { spelling?: string; weights: Set<string> },
+    seen: { spelling?: number; weights: Set<string> },
 ): LoadPathReason | null {
     const proto: unknown = typeof record === "object" && record !== null ? Object.getPrototypeOf(record) : undefined;
     if (proto !== Object.prototype && proto !== null) {
@@ -213,16 +213,25 @@ function recordReason(
     }
 
     const row = record as object;
-    const spelling = ENDPOINT_KEYS.filter((key) => key in row).join("/");
+    // Which endpoint keys the record names, as bits: no array or string per record (stage 127).
+    let spelling = 0;
+    for (let at = 0; at < ENDPOINT_KEYS.length; at++) {
+        if (ENDPOINT_KEYS[at] in row) {
+            spelling |= 1 << at;
+        }
+    }
+
     seen.spelling ??= spelling;
     if (seen.spelling !== spelling) {
         return "endpoints";
     }
 
-    for (const key of [edges.weight, "value"]) {
-        if (key !== null && key in row) {
-            seen.weights.add(key);
-        }
+    if (edges.weight !== null && edges.weight in row) {
+        seen.weights.add(edges.weight);
+    }
+
+    if ("value" in row) {
+        seen.weights.add("value");
     }
 
     return seen.weights.size > 1 ? "weights" : null;
@@ -451,8 +460,6 @@ export interface IngestHost<K extends KnownEdge> {
     loadFailed(format: string, error: Error, progress: LoadProgress): void;
     /** Where the session's `progress:changed` is fed from: every chunk, and once at the end. */
     progress?(change: ProgressChange): void;
-    /** Whether the timeline experiment is on, so a reader keeps the time data it reads; absent reads off. */
-    timeline?(): boolean;
     /**
      * The ceilings a load is refused above, as plain numbers the element worked out for its render
      * path; absent, or undefined, reads `DEFAULT_LIMITS`.
@@ -840,20 +847,28 @@ export class Ingest<K extends KnownEdge> {
                 this.addEdges(mutation.records, addEdgesOptions(mutation), writer, mutation.ids);
                 return;
             case "set-attributes":
-                for (const id of mutation.ids) {
-                    writer.setAttributes(mutation.target, resolve(mutation.target, id), mutation.values);
+                try {
+                    for (const id of mutation.ids) {
+                        writer.setAttributes(mutation.target, resolve(mutation.target, id), mutation.values);
+                    }
+                } finally {
+                    writer.announce();
                 }
 
                 return;
             case "update-rows":
-                // Values of its own for each row.
-                for (const row of mutation.rows) {
-                    writer.setAttributes(
-                        mutation.target,
-                        resolve(mutation.target, row.id),
-                        row.values,
-                        mutation.replace,
-                    );
+                try {
+                    // Values of its own for each row.
+                    for (const row of mutation.rows) {
+                        writer.setAttributes(
+                            mutation.target,
+                            resolve(mutation.target, row.id),
+                            row.values,
+                            mutation.replace,
+                        );
+                    }
+                } finally {
+                    writer.announce();
                 }
 
                 return;
@@ -1288,6 +1303,8 @@ export class Ingest<K extends KnownEdge> {
             this.host.nodeStored(nodeId, record, index);
         }
 
+        // The records this batch merged into nodes already held, after every one is written.
+        writer.announce();
         if (nodes.length > 0) {
             this.host.nodesArrived(nodes.length);
         }
@@ -2275,7 +2292,13 @@ export class Ingest<K extends KnownEdge> {
         held?: HeldRows,
         name?: string,
     ): Promise<ImportOutcome> {
-        this.logger.info("Loading data source", { type, options: opts });
+        // The option names only: an inline `data` option holds the whole file.
+        this.logger.info("Loading data source", {
+            type,
+            name: name ?? null,
+            url: "url" in opts && typeof opts.url === "string" ? opts.url : null,
+            options: Object.keys(opts),
+        });
 
         const startTime = Date.now();
         // Get file size for progress tracking (if available)
@@ -2315,8 +2338,8 @@ export class Ingest<K extends KnownEdge> {
         store.openLoad();
         try {
             const source = held === undefined ? DataSource.get(type, opts) : null;
-            if (source !== null && this.host.timeline?.() === true) {
-                TIMELINE_READERS.add(source);
+            if (source !== null && signal !== undefined) {
+                setReaderSignal(source, signal);
             }
             const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {
@@ -2334,7 +2357,7 @@ export class Ingest<K extends KnownEdge> {
                     progress,
                 );
 
-                keepFileGraph(reader, type, writer);
+                keepRequestedLayout(reader, writer);
 
                 this.drawMadeEndpoints(writer);
                 const errors = reader.getErrorAggregator();
@@ -2358,7 +2381,7 @@ export class Ingest<K extends KnownEdge> {
                     type,
                     tally,
                     writer,
-                    held === undefined ? undefined : HELD_KINDS.get(held), // NOSONAR(S4158): data.ts and draft.ts fill HELD_KINDS; the rule reads one file
+                    held === undefined ? undefined : HELD_KINDS.get(held), // eslint-disable-line sonarjs/no-empty-collection -- data.ts and draft.ts fill HELD_KINDS; the rule reads one file
                 );
                 this.sealedTally = tally;
                 await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);
@@ -2666,10 +2689,9 @@ function refuseEmptyOrPartial(
 function heldReader(held: HeldRows): ChunkReader {
     return {
         declaredDirection: held.declaredDirection,
-        // What the file said about the whole graph, from the source that read the rows, so a
-        // draft's load keeps it as `data.import` of the same file does.
-        declaredGraphValues: HELD_READERS.get(held)?.declaredGraphValues ?? null,
-        declaredFileLayout: HELD_READERS.get(held)?.declaredFileLayout ?? null,
+        // The layout the rows ask for, from the source that read them, so a draft's load keeps it
+        // as `data.import` of the same file does.
+        requestedLayout: HELD_READERS.get(held)?.requestedLayout ?? null,
         getErrorAggregator: () => {
             const errors = new ErrorAggregator(held.errorLimit);
             for (const error of held.errors) {
@@ -2683,23 +2705,14 @@ function heldReader(held: HeldRows): ChunkReader {
 }
 
 /**
- * Keep what the file said about the whole graph with the graph, where a layout chosen for the
- * file reads it.
+ * Keep the layout the reader requested with the graph, where a recommended layout reads it.
  * @param reader - The source, once its last chunk is read.
- * @param format - The format it read.
  * @param writer - The command's writer.
  */
-function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
-    const attributes = reader.declaredGraphValues;
-    const layout = reader.declaredFileLayout;
-    if (attributes !== null && attributes !== undefined) {
-        writer.setGraphValues({
-            [FILE_GRAPH_VALUE]: Object.freeze({
-                format,
-                attributes,
-                ...(layout === null || layout === undefined ? {} : { layout }),
-            }),
-        });
+function keepRequestedLayout(reader: ChunkReader, writer: GraphWriter): void {
+    const layout = reader.requestedLayout;
+    if (layout !== null && layout !== undefined) {
+        writer.setGraphValues({ [REQUESTED_LAYOUT_VALUE]: layout });
     }
 }
 
@@ -2708,10 +2721,8 @@ interface ChunkReader {
     readonly declaredDirection: DeclaredDirection | null;
     /** Bytes of the file the source has read so far; absent for held rows. */
     readonly bytesRead?: number;
-    /** The file's graph-level attributes, once its last chunk is read; absent for held rows. */
-    readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
-    /** The layout the file asks for, once its last chunk is read; absent for held rows. */
-    readonly declaredFileLayout?: FileLayout | null;
+    /** The layout the data asks for, once its last chunk is read. */
+    readonly requestedLayout?: RequestedLayout | null;
     getErrorAggregator(): ErrorAggregator;
     getData(): AsyncIterable<DataSourceChunk> | Iterable<DataSourceChunk>;
 }

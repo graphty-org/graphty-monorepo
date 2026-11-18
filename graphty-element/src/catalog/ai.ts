@@ -281,6 +281,30 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor {
     return found;
 }
 
+/** The image model a provider makes pictures with (`AI_IMAGE_MODELS`). */
+export interface AiImageModelDescriptor {
+    /** The model id sent to the provider. */
+    readonly id: string;
+    /** The model's own name. */
+    readonly plainName: string;
+    /**
+     * What one picture is expected to cost, in US dollars, at the provider's list price when this
+     * table was written. A host's own price, a discount or a later price change is not known here.
+     */
+    readonly costUsd: number;
+}
+
+/**
+ * The image model each provider that can make pictures uses, by provider id: the assistant's
+ * `project` tool `generate_background` action calls it with the reader's own key. A provider
+ * absent here makes no pictures (the action refuses with `AI_NOT_AVAILABLE`). Entries may be
+ * added in a minor release.
+ */
+export const AI_IMAGE_MODELS: Readonly<Partial<Record<AiProviderId, AiImageModelDescriptor>>> = Object.freeze({
+    // $30 per million output tokens, 1,290 tokens a picture (checked 2026-11-15).
+    google: { id: "gemini-2.5-flash-image", plainName: "Gemini 2.5 Flash Image", costUsd: 0.039 },
+});
+
 /**
  * Every tool the assistant can use beyond its own commands (`AiToolOptions`): a web search and
  * reading a given web page, both run by the provider, and running a program the model writes in a
@@ -312,7 +336,7 @@ export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilitySta
 /** What the assistant can use with a provider and model (`getAiCapabilities()`). */
 export interface AiCapabilities {
     /** The provider: one of `AI_PROVIDER_IDS`, or the `name` of a provider instance of your own. */
-    readonly provider: AiProviderId | (string & {}); // NOSONAR(S4335): the open-union idiom
+    readonly provider: AiProviderId | (string & {}); // the open-union idiom
     /** The model id; empty when a provider instance of your own does not say. */
     readonly model: string;
     /** Each tool, and whether it can be used. */

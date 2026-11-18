@@ -67,7 +67,10 @@ export interface AutosaveCommitOptions {
 export interface AutosaveStore {
     /** Every entry of `key`, oldest `seq` first. */
     list(key: string): Promise<readonly AutosaveEntryMeta[]>;
-    /** One entry with all its parts, or `undefined` when there is none. */
+    /**
+     * One entry with all its parts, or `undefined` when there is none. The result is a copy: a
+     * caller that changes the returned meta or parts does not change the store.
+     */
     read(id: string): Promise<{ meta: AutosaveEntryMeta; parts: AutosaveParts } | undefined>;
     /**
      * Atomic: every write commits, or none does. Rejects with {@link AutosaveConflict} when any
@@ -137,7 +140,7 @@ export function autosaveAbortError(): DOMException {
  * | `E_AUTOSAVE_UNAVAILABLE` | `{ api }` | IndexedDB is missing or throws on open |
  * | `E_AUTOSAVE_KEY_AMBIGUOUS` | `{ elements }` | a bare `autosave` on several elements without an `id` |
  * | `E_AUTOSAVE_QUOTA` | `{ usage, quota }` | the storage quota is full, even after old clean entries were removed |
- * | `E_AUTOSAVE_STALLED` | `{ afterMs, step }` | the listing or a write did not finish in time |
+ * | `E_AUTOSAVE_STALLED` | `{ afterMs, step }` | the listing, a read, a restore's write or a write did not finish in time; `step` is `list`, `read`, `restore` or `write` |
  * | `E_AUTOSAVE_CONNECTION_LOST` | `{}` | the database connection is gone and reopening it failed |
  * | `E_AUTOSAVE_TOO_LARGE` | `{ part }` | a part of the project could not be built (string length limit) |
  * | `E_AUTOSAVE_FAILED` | `{ name }` | any other write failure; `name` is the error's name |
@@ -319,7 +322,9 @@ export interface AutosaveApi {
      * @param options - How to open it.
      * @param options.discard - Open it over changes never saved to a file.
      * @throws A `GraphtyError` (as a rejection): `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
-     *     `E_AUTOSAVE_ENTRY_TAKEN`, or `E_BAD_DOCUMENT` for an entry that cannot be read.
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_BAD_DOCUMENT` for an entry that cannot be read, or
+     *     `E_AUTOSAVE_STALLED` (`details: { afterMs, step }`, `step` `"list"`, `"read"` or `"restore"`)
+     *     when the browser's database did not answer in time; the entry is left as it was.
      */
     restore(id: string, options?: { readonly discard?: boolean }): Promise<ProjectOpenReport>;
     /**

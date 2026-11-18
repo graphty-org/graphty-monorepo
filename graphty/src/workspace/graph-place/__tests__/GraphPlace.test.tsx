@@ -152,8 +152,6 @@ describe("the Graph place", () => {
             [
                 "Hovered, node layer, 0 nodes",
                 "Selected, node and edge layer, 0 nodes, 0 edges",
-                // The timeline experiment on, the starting rows bring a Ghost row too.
-                ...(session.features.has("timeline") ? ["Ghost, node and edge layer, 0 nodes, 0 edges"] : []),
                 "Annotations, folder, 0 layers",
                 "Everything, node and edge layer, 3 nodes, 2 edges",
             ],

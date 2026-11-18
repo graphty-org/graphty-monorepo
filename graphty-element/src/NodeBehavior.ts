@@ -10,6 +10,7 @@ import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.j
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
+import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -27,6 +28,7 @@ import {
 } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
 import type { HoverDrawn } from "./session/types";
+import { inXR } from "./xr/inXR";
 
 /**
  * When a pointer event HAPPENED, on the `performance.now()` clock.
@@ -156,16 +158,6 @@ function tappedNode(scene: Scene, roster: NodePointerRoster, pointerInfo: Pointe
 
 /** The roster of each scene; see {@link nodePointerRosterOf}. */
 const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
-
-/**
- * Whether the scene is in an XR session, whose input XRInputHandler handles instead.
- * @param scene - The scene.
- * @returns True in XR.
- */
-function inXR(scene: Scene): boolean {
-    const xrHelper = scene.metadata?.xrHelper;
-    return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
-}
 
 /**
  * Deliver one pointer event to the nodes it concerns.
@@ -586,7 +578,7 @@ export class NodeDragHandler {
 
             // Disable camera input handler during node drag
             // This prevents OrbitInputController from rotating camera while dragging nodes
-            const cameraManager = this.scene.metadata?.cameraManager;
+            const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
             if (cameraManager) {
                 // Debug: console.log("📷 Disabling camera input during node drag");
                 cameraManager.temporarilyDisableInput();
@@ -902,7 +894,7 @@ export class NodeDragHandler {
 
     /** Give the camera its input back after a drag. */
     private releaseCamera(): void {
-        const cameraManager = this.scene.metadata?.cameraManager;
+        const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
         if (cameraManager) {
             cameraManager.temporarilyEnableInput();
         }

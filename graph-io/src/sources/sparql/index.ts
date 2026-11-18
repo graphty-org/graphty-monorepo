@@ -24,7 +24,7 @@ import { endpointOrigin } from "../credentials.js";
 import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { SPARQL_SOURCE_ID } from "../ids.js";
-import { sha256Hex } from "../sigv4.js";
+import { sha256Hex } from "../sha256.js";
 import {
     type ExpandRequest,
     type GraphSource,

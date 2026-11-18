@@ -4,7 +4,9 @@
  */
 
 import { jsonText } from "../common/text.js";
+import type { LossNote } from "../types.js";
 import type { StyleNote, StyleNoteCode, StyleTarget } from "./types.js";
+import { isStyleProperty } from "./vocabulary.js";
 
 /** At most this many samples per note. */
 const MAX_SAMPLES = 8;
@@ -45,6 +47,7 @@ const PHRASES: ReadonlyMap<StyleNoteCode, string> = new Map<StyleNoteCode, strin
     ["W_STYLE_RAMP_ROUNDED", "continuous mappings match within the tool's rounding"],
     ["W_STYLE_LAYER_CAP", "rules were folded into per-element copies"],
     ["W_STYLE_BUDGET", "the work budget ran out; values were copied per element"],
+    ["W_STYLE_DRAWN_NEAREST", "drawn as the nearest graphty value"],
     ["W_STYLE_BLOCK_IGNORED", "the graphty.styles block was ignored"],
     ["W_STYLE_NOT_WRITTEN", "the format cannot hold this style"],
     ["W_STYLE_APPROXIMATED", "written as the nearest value the format allows"],
@@ -164,4 +167,25 @@ function sampleText(value: unknown): string {
         }
     }
     return text.slice(0, MAX_SAMPLE_LENGTH);
+}
+
+/**
+ * A style note as a loss note.
+ * @param n - the note
+ * @returns the loss note
+ */
+export function lossOf(n: StyleNote): LossNote {
+    return Object.freeze({
+        code: n.code,
+        message: n.message,
+        column: null,
+        count: n.params.count,
+        style:
+            n.params.target === null ||
+            n.params.property === null ||
+            n.params.target === "graph" ||
+            !isStyleProperty(n.params.target, n.params.property)
+                ? undefined
+                : Object.freeze({ target: n.params.target, property: n.params.property }),
+    });
 }

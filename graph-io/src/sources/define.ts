@@ -99,7 +99,7 @@ export function checkLazySource(source: LazySource): void {
  * const people = defineSource({
  *     id: "people",
  *     async records(params: { team: string }, ctx) {
- *         const rows = await ctx.fetchJson<{ id: string; name: string }[]>(`/api/people?team=${params.team}`);
+ *         const rows = await ctx.fetchJson<{ id: string; name: string }[]>(`/api/people?team=${encodeURIComponent(params.team)}`);
  *         return { nodes: rows };
  *     },
  * });

@@ -138,4 +138,125 @@ describe("ComboInput", () => {
         await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
         expect(screen.queryByRole("listbox", { hidden: true })).toBeNull();
     });
+
+    it("Home and End jump through the open list, and ArrowUp moves back", async () => {
+        const onChange = vi.fn();
+        renderCombo(<ComboInput label="Font size" defaultValue="10" options={SIZES} onChange={onChange} />);
+        await userEvent.click(screen.getByRole("combobox"));
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}{End}{Enter}");
+        expect(onChange).toHaveBeenLastCalledWith("24", undefined);
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}{Home}{Enter}");
+        expect(onChange).toHaveBeenLastCalledWith("10", undefined);
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}{End}{ArrowUp}{Enter}");
+        expect(onChange).toHaveBeenLastCalledWith("12", undefined);
+        expect(onChange).toHaveBeenCalledTimes(3);
+    });
+
+    it("picking the value it already holds reports nothing", async () => {
+        const onChange = vi.fn();
+        renderCombo(<ComboInput label="Font size" defaultValue="12" options={SIZES} onChange={onChange} />);
+        await userEvent.click(screen.getByRole("button", { name: "Open list" }));
+        await userEvent.click(screen.getByRole("option", { name: "12", hidden: true }));
+        expect(onChange).not.toHaveBeenCalled();
+        expect(screen.getByRole("combobox")).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("a text field takes back its typing on Escape and commits it on blur", async () => {
+        const onChange = vi.fn();
+        renderCombo(<ComboInput label="Mode" defaultValue="Hug" options={[{ value: "Hug" }]} onChange={onChange} />);
+        const box = screen.getByRole("combobox");
+        await userEvent.clear(box);
+        await userEvent.type(box, "Fill");
+        await userEvent.keyboard("{Escape}");
+        expect(box).toHaveValue("Hug");
+        expect(onChange).not.toHaveBeenCalled();
+        await userEvent.clear(box);
+        await userEvent.type(box, "Fixed");
+        await userEvent.tab();
+        expect(onChange).toHaveBeenCalledTimes(1);
+        expect(onChange.mock.calls[0][0]).toBe("Fixed");
+    });
+
+    it("a numeric field ignores a choice that is not a number", async () => {
+        const onChange = vi.fn();
+        renderCombo(
+            <ComboInput
+                label="Width"
+                numeric
+                defaultValue={12}
+                options={[{ value: "Auto" }, { value: "24" }]}
+                onChange={onChange}
+            />,
+        );
+        await userEvent.click(screen.getByRole("button", { name: "Open list" }));
+        await userEvent.click(screen.getByRole("option", { name: "Auto", hidden: true }));
+        expect(onChange).not.toHaveBeenCalled();
+        expect(screen.getByRole("combobox")).toHaveValue("12");
+        await userEvent.click(screen.getByRole("button", { name: "Open list" }));
+        await userEvent.click(screen.getByRole("option", { name: "24", hidden: true }));
+        expect(onChange).toHaveBeenCalledWith(24, undefined);
+    });
+
+    it("a mixed field reads Mixed until a value is typed", async () => {
+        const onChange = vi.fn();
+        renderCombo(
+            <ComboInput label="Gap" mixed divided suffix="px" defaultValue="" options={SIZES} onChange={onChange} />,
+        );
+        const box = screen.getByRole("combobox");
+        expect(box).toHaveAttribute("placeholder", "Mixed");
+        expect(box).toHaveAttribute("data-is-default", "true");
+        await userEvent.type(box, "10{Enter}");
+        expect(onChange.mock.calls[0][0]).toBe("10");
+        expect(box).not.toHaveAttribute("data-is-default");
+    });
+
+    it("an empty number box that drops its typing says it stays at the placeholder", async () => {
+        renderCombo(<ComboInput label="Width" numeric placeholder="Auto" defaultValue="" options={[]} />);
+        const box = screen.getByLabelText("Width");
+        await userEvent.click(box);
+        await userEvent.keyboard("24{Escape}");
+        expect(screen.getByRole("status")).toHaveTextContent("Edit discarded; this stays Auto.");
+    });
+
+    it("a number box steps from what is typed", async () => {
+        const onChange = vi.fn();
+        renderCombo(<ComboInput label="Size" numeric defaultValue={4} options={[]} onChange={onChange} />);
+        await userEvent.click(screen.getByRole("spinbutton"));
+        await userEvent.keyboard("30{ArrowUp}");
+        expect(onChange).toHaveBeenLastCalledWith(31, expect.anything());
+    });
+
+    it("an empty number box steps up from its minimum, and stops at its maximum", async () => {
+        const onChange = vi.fn();
+        renderCombo(
+            <ComboInput label="Size" numeric defaultValue="" min={5} max={6} options={[]} onChange={onChange} />,
+        );
+        await userEvent.click(screen.getByLabelText("Size"));
+        await userEvent.keyboard("{ArrowUp}");
+        expect(onChange).toHaveBeenLastCalledWith(6, expect.anything());
+        await userEvent.keyboard("{ArrowUp}");
+        expect(onChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("Enter in a number box inside a form commits, then submits the form", async () => {
+        const onSubmit = vi.fn();
+        renderCombo(
+            <form
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    onSubmit();
+                }}
+            >
+                <ComboInput label="Size" numeric defaultValue={4} options={[]} />
+                <button type="submit">Save</button>
+            </form>,
+        );
+        const box = screen.getByRole("spinbutton");
+        await userEvent.click(box);
+        await userEvent.keyboard("9{Enter}");
+        expect(box).toHaveValue("9");
+        await vi.waitFor(() => {
+            expect(onSubmit).toHaveBeenCalledTimes(1);
+        });
+    });
 });

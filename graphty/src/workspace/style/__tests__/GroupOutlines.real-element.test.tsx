@@ -296,7 +296,12 @@ describe("group outlines, Around the group in the gallery", () => {
             assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [{ shader: "metaball-hull" }]);
         });
         const row = section("shaders").querySelector<HTMLElement>("[data-shader-row]");
-        assert.include(row?.textContent, "Around the group", "one allowed place: a static label");
+        assert.isNotNull(row);
+        // Its place is said in its settings button's tooltip, never as a line in the sidebar (#8739).
+        assert.notInclude(row?.textContent, "Around the group");
+        await userEvent.hover(within(row).getByRole("button", { name: "Hull settings" }));
+        assert.include((await screen.findByRole("tooltip", {})).textContent, "Around the group");
+        await userEvent.unhover(within(row).getByRole("button", { name: "Hull settings" }));
 
         await userEvent.click(within(section("shaders")).getByRole("button", { name: "Group by None" }));
         const picker = await findValuePicker();

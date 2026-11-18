@@ -82,7 +82,7 @@ This document defines a comprehensive framework for **StyleHelpers** - reusable 
 
 **Algorithms**:
 
-- Shortest Paths: Dijkstra, Bellman-Ford (`inPath`)
+- Shortest Paths: Dijkstra, Bellman-Ford (`isInPath`)
 - MST: Kruskal, Prim (`inMST`)
 - Matching: Maximum Matching (`inMatching`)
 
@@ -90,11 +90,11 @@ This document defines a comprehensive framework for **StyleHelpers** - reusable 
 
 - Boolean true/false
 - Highlights subset of edges
-- Rest of graph shown dimmed/muted
+- Suggested layers are scoped to the flagged edges (`` isInPath == `true` ``); dimming the rest of the graph is the reader's choice, never part of `suggestedStyles`
 
 **Visualization Needs**:
 
-- Binary color (highlight vs muted)
+- Binary color (highlight vs muted; the muted color is for a reader's own dimming layer)
 - Width differentiation
 - Glow effects for emphasis
 - Animation (pulse, flow)
@@ -353,6 +353,8 @@ expr: `{ return StyleHelpers.color.categorical.standard8(arguments[0]) }`;
 /**
  * Maps boolean flags to highlight/muted colors
  * Use for: Path highlighting, MST edges, matching
+ * A suggested layer is scoped to the flagged elements, so it only ever passes `true`;
+ * the muted color serves a reader who chooses to dim the rest
  */
 export const BinaryColors = {
     /**
@@ -834,6 +836,7 @@ export class DegreeAlgorithm extends Algorithm {
         layers: [
             {
                 node: {
+                    selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this result
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.degree.degreePct"],
                         output: "style.texture.color",
@@ -848,6 +851,7 @@ export class DegreeAlgorithm extends Algorithm {
             },
             {
                 node: {
+                    selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this result
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.degree.degreePct"],
                         output: "style.shape.size",
@@ -1083,6 +1087,7 @@ For each algorithm type, show:
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
     node: {
+      selector: "algorithmResults.graphty.degree.degreePct != `null`", // Only the nodes carrying this result
       calculatedStyle: {
         inputs: ["algorithmResults.graphty.degree.degreePct"],
         output: "style.texture.color",

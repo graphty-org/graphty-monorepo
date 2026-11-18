@@ -63,7 +63,6 @@ const DEGREE = metricResult("degree");
 const REGISTRY = registryOf([
     {
         id: "degree",
-        label: "Connections",
         distinguishedBy: null,
         siblingsDifferBy: null,
         shape: "node-metric",
@@ -71,7 +70,6 @@ const REGISTRY = registryOf([
     },
     {
         id: "louvain",
-        label: "Communities (resolution 1.5)",
         distinguishedBy: { option: "resolution", value: 1.5 },
         siblingsDifferBy: null,
         shape: "community",
@@ -79,13 +77,12 @@ const REGISTRY = registryOf([
     },
     {
         id: "facts",
-        label: "Facts",
         distinguishedBy: null,
         siblingsDifferBy: null,
         shape: "fact",
         result: metricResult("facts"),
     },
-    { id: "running", label: "Bridges", distinguishedBy: null, siblingsDifferBy: null, shape: "node-metric" },
+    { id: "running", distinguishedBy: null, siblingsDifferBy: null, shape: "node-metric" },
 ]);
 
 describe("addressing a result", () => {
@@ -159,7 +156,6 @@ describe("what an expression editor completes from", () => {
             roots.map((root) => root.runId),
             ["degree", "louvain", "facts"],
         );
-        assert.strictEqual(roots[0].label, "Connections");
         assert.isNull(roots[0].distinguishedBy);
         assert.deepStrictEqual(roots[1].distinguishedBy, { option: "resolution", value: 1.5 });
         assert.isNull(roots[1].siblingsDifferBy);
@@ -197,7 +193,7 @@ describe("did you mean", () => {
 
     it("suggests the run itself when a run published no fields", () => {
         const roots: readonly ResultRoot[] = [
-            { runId: "facts", label: "Facts", distinguishedBy: null, siblingsDifferBy: null, fields: [] },
+            { runId: "facts", distinguishedBy: null, siblingsDifferBy: null, fields: [] },
         ];
 
         assert.deepStrictEqual(suggestResultPaths("results.fact", roots, 1), ["results.facts"]);

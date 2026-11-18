@@ -13,9 +13,11 @@ graphty documents that carry those things, and the one JSON file they travel in:
 
 Status: specification of version 1, partly implemented in graphty-element: it reads and writes
 styles (`session.styles`), notes (`session.notes`) and the project file, and writes a recipe from the
-session's current state (`session.recipe()`) but does not yet replay one (recipe.md, "Status"). No
-major version gates it: changes land in minor releases (CLAUDE.md, "Public API and breaking
-changes"). The owner's decisions are in
+session's current state (`session.recipe()`) but does not yet replay one (recipe.md, "Status").
+Version 2 ([version-2.md](version-2.md), designed 2026-11-14) regroups these documents into seven
+sections that save and load separately, and wins where the two disagree. No major version gates
+either: changes land in minor releases (CLAUDE.md, "Public API and breaking changes"). The owner's
+decisions are in
 [../decisions/2026-09-28-document-formats-first-version.md](../decisions/2026-09-28-document-formats-first-version.md).
 
 ## Your first style

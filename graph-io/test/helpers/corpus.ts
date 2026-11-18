@@ -30,6 +30,7 @@ export const CORPUS_FORMATS = [
     "neo4j",
     "obo",
     "pajek",
+    "sif",
     "xgmml",
 ] as const;
 

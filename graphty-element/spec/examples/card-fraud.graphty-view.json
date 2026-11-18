@@ -1,0 +1,272 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
+    "kind": "graphty-view",
+    "version": 1,
+    "modified": "2026-11-14T17:59:40.000Z",
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "d1a7c0de-0001-4000-8000-000000000001"
+    },
+    "camera": {
+        "dimension": 3,
+        "controller": "orbit",
+        "position": {
+            "x": 0,
+            "y": 4,
+            "z": 18
+        },
+        "target": {
+            "x": 0.8,
+            "y": 1.2,
+            "z": 0
+        },
+        "pivotRotation": {
+            "x": 0.22,
+            "y": 0,
+            "z": 0
+        },
+        "cameraDistance": 17.6
+    },
+    "views": [
+        {
+            "name": "Device cluster",
+            "camera": {
+                "dimension": 3,
+                "controller": "orbit",
+                "position": {
+                    "x": 3,
+                    "y": 3,
+                    "z": 6
+                },
+                "target": {
+                    "x": 3,
+                    "y": 2.4,
+                    "z": 0
+                },
+                "pivotRotation": {
+                    "x": 0.1,
+                    "y": 0,
+                    "z": 0
+                },
+                "cameraDistance": 6
+            }
+        }
+    ],
+    "selection": {
+        "nodes": [
+            {
+                "space": "account",
+                "key": "acct-1002"
+            },
+            {
+                "space": "account",
+                "key": "acct-1003"
+            }
+        ],
+        "edges": [
+            {
+                "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3"
+            }
+        ]
+    },
+    "pinned": [
+        {
+            "node": {
+                "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                "key": "merch-77"
+            },
+            "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+            }
+        }
+    ],
+    "sets": [
+        {
+            "id": "set_card_testing.01JCBPX7K2M4Q8R1T5V9W3Y6ZA",
+            "name": "High-risk accounts",
+            "definition": {
+                "kind": "rule",
+                "where": {
+                    "kind": "all",
+                    "of": [
+                        {
+                            "kind": "source",
+                            "sources": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                            "side": "nodes"
+                        },
+                        {
+                            "kind": "expression",
+                            "where": "results.pagerank.value > `0.2`"
+                        }
+                    ]
+                },
+                "reading": "induced"
+            }
+        },
+        {
+            "id": "set_01JCBR2D6F8H0K3M5P7S9V1X4Z",
+            "name": "Escalate to case team",
+            "definition": {
+                "kind": "fixed",
+                "nodes": [
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    {
+                        "space": "source:src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+                        "key": "dev-9f3"
+                    }
+                ],
+                "reading": "induced"
+            }
+        }
+    ],
+    "visibility": {
+        "filter": {
+            "on": "edges",
+            "where": "data.time >= '2026-11-09'"
+        },
+        "window": {
+            "attribute": "data.time",
+            "from": "2026-11-09T00:00:00.000Z",
+            "to": "2026-11-11T00:00:00.000Z"
+        },
+        "showContext": true,
+        "conditions": [],
+        "hidden": []
+    },
+    "timeline": {
+        "at": "2026-11-10T09:15:00.000Z"
+    },
+    "viewRotation": 0,
+    "framing": {
+        "extent": "drawn",
+        "padding": 0.1
+    },
+    "hiddenColumns": [
+        {
+            "kind": "node",
+            "name": "opened"
+        }
+    ],
+    "order": ["base", "merchants", "big-payments", "device-rings", "risk-score", "suspects", "route", "selected"],
+    "layers": [
+        {
+            "id": "suspects",
+            "name": "Suspects",
+            "target": "node",
+            "selector": {
+                "match": "ids",
+                "nodes": [
+                    {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    {
+                        "space": "account",
+                        "key": "acct-1003"
+                    }
+                ]
+            },
+            "set": {
+                "node.outline": "#c62828"
+            }
+        },
+        {
+            "id": "route",
+            "name": "Route from Ben Ode to Cy Lam",
+            "target": "node",
+            "selector": {
+                "match": "has",
+                "path": "results.route.distance"
+            },
+            "set": {
+                "node.glow": "#f9a825"
+            },
+            "source": {
+                "by": "run",
+                "runId": "route",
+                "algorithm": "dijkstra",
+                "params": {
+                    "source": {
+                        "space": "account",
+                        "key": "acct-1002"
+                    },
+                    "target": {
+                        "space": "account",
+                        "key": "acct-1003"
+                    },
+                    "direction": "all"
+                }
+            }
+        }
+    ],
+    "runs": [
+        {
+            "id": "card_testing__pagerank",
+            "namespace": "card_testing",
+            "as": "pagerank",
+            "algorithm": "pagerank",
+            "params": {
+                "dampingFactor": 0.85
+            },
+            "scope": "graph",
+            "replayable": false
+        },
+        {
+            "id": "card_testing__communities",
+            "namespace": "card_testing",
+            "as": "communities",
+            "algorithm": "louvain",
+            "params": {
+                "resolution": 1
+            },
+            "seed": 1873,
+            "scope": {
+                "types": ["account", "device"]
+            },
+            "replayable": false
+        },
+        {
+            "id": "route",
+            "name": "Ben Ode to Cy Lam",
+            "algorithm": "dijkstra",
+            "params": {
+                "source": {
+                    "space": "account",
+                    "key": "acct-1002"
+                },
+                "target": {
+                    "space": "account",
+                    "key": "acct-1003"
+                },
+                "direction": "all"
+            },
+            "scope": "graph"
+        }
+    ],
+    "layout": {
+        "id": "force",
+        "algorithm": "ngraph",
+        "options": {
+            "seed": 52211
+        },
+        "dimension": 3,
+        "engine": {
+            "element": "3.40.0",
+            "algorithms": "2.1.2",
+            "layout": "1.10.5"
+        }
+    }
+}

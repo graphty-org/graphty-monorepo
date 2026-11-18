@@ -39,6 +39,7 @@ import {
     type DrawnOutput,
     type DrawnTransform,
     type GpuLayoutSimulation,
+    type LandedEnvelope,
     type LayoutStatsBase,
     type ResolvedLayoutTuning,
     type RunOptions,
@@ -52,7 +53,7 @@ import {
 } from "../types/options.js";
 import { ClusterStage } from "./clusters.js";
 import { CollisionStage, type CollisionUpdate } from "./collision.js";
-import { type DrawnRecord, DrawnStage } from "./drawn.js";
+import { type DrawnRecord, DrawnStage, ENVELOPE_BYTES } from "./drawn.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
@@ -551,11 +552,29 @@ interface PendingBatch {
     stateOffset: number;
     /** Where the drawn slot's rows sit in the readback, or -1 when the batch reads none back. */
     drawnOffset: number;
+    /** Where the batch's envelope sits in the readback, or -1 without a drawn ring. */
+    envelopeOffset: number;
     profile: ReadbackRequest | null;
     /** Whether this batch carried the collision's settling sweeps. */
     sweptCollision: boolean;
     /** The drawn ring slot this batch wrote and the transform it drew with, or null. */
     drawn: DrawnRecord | null;
+}
+
+/**
+ * The envelope a batch's `envelope` dispatches wrote, decoded from its readback.
+ * @param bytes - the batch's readback
+ * @param offset - where the envelope sits in it
+ * @returns the envelope
+ */
+function envelopeOf(bytes: ArrayBuffer, offset: number): LandedEnvelope {
+    const f = new Float32Array(bytes, offset, ENVELOPE_BYTES / 4);
+    return {
+        placed: f[3],
+        sum: [f[0], f[1], f[2]],
+        box: [f[4], f[5], f[6], f[8], f[9], f[10]],
+        furthestSquared: f[12],
+    };
 }
 
 /**
@@ -587,6 +606,7 @@ function createPending(k: number, generation: number): PendingBatch {
         startedAt: 0,
         sceneOffset: 0,
         drawnOffset: -1,
+        envelopeOffset: -1,
         stateOffset: 0,
         profile: null,
         sweptCollision: false,
@@ -779,6 +799,7 @@ export class ForceSimulation<
     private landedDrawnValue: GPUBuffer | null = null;
     private landedDrawnTransformValue: DrawnTransform | null = null;
     private landedDrawnRowsValue: Float32Array<ArrayBuffer> | null = null;
+    private landedEnvelopeValue: LandedEnvelope | null = null;
     private collisionDirty = false;
     private collisionRadiiDirty = false;
     /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
@@ -1068,6 +1089,7 @@ export class ForceSimulation<
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
         this.landedDrawnRowsValue = null;
+        this.landedEnvelopeValue = null;
         this.discardPending();
         const resized = this.buffers === null || n !== this.n || snapshot.serial !== this.serial;
         this.snapshot = snapshot;
@@ -1453,6 +1475,7 @@ export class ForceSimulation<
         ]);
         this.ctx.device.queue.writeBuffer(buffers.positions, 16 * index, layout);
         this.overrideList.set(index, this.lastSubmittedBatchIdValue);
+        this.landedEnvelopeValue = null;
         this.reheat();
     }
 
@@ -1560,6 +1583,16 @@ export class ForceSimulation<
      */
     get landedDrawnRows(): Float32Array<ArrayBuffer> | null {
         return this.landedDrawnRowsValue;
+    }
+
+    /**
+     * The scene rows of the last batch that landed, measured on the device (count, sums, box and the furthest squared
+     * distance from their mean), when a drawn ring is set ({@link setDrawn}) and no {@link setPosition} overrode a row of
+     * that landing or came after it; else null. Holds while the owner's array holds that landing.
+     * @returns the envelope, or null
+     */
+    get landedEnvelope(): LandedEnvelope | null {
+        return this.landedEnvelopeValue;
     }
 
     /**
@@ -1735,6 +1768,8 @@ export class ForceSimulation<
             record.drawn !== null && this.drawnRows?.readBack === true
                 ? batch.readback(record.drawn.buffer, 0, 16 * this.n).offset
                 : -1;
+        record.envelopeOffset =
+            record.drawn === null ? -1 : batch.readback(record.drawn.envelope, 0, ENVELOPE_BYTES).offset;
         const { profiler } = this.ctx;
         const profile = profiler === null ? null : profiler.resolveInto(batch);
         const submitted = batch.submit();
@@ -1779,7 +1814,10 @@ export class ForceSimulation<
                 record.resolve();
                 return;
             }
+            // The device measured the scene rows, which are the owner's only when no write overrode one of them.
+            const measured = record.envelopeOffset >= 0 && !this.overridden(record);
             this.copyScene(owner, bytes, record);
+            this.landedEnvelopeValue = measured ? envelopeOf(bytes, record.envelopeOffset) : null;
             this.landedDrawnValue = record.drawn?.buffer ?? null;
             this.landedDrawnTransformValue = record.drawn?.transform ?? null;
             this.landedDrawnRowsValue =
@@ -1834,6 +1872,20 @@ export class ForceSimulation<
      * @param bytes - the readback
      * @param record - the batch
      */
+    /**
+     * Whether a write overrides a row of this batch's landing, so the owner keeps a row the batch did not compute.
+     * @param record - the batch
+     * @returns true when one does
+     */
+    private overridden(record: PendingBatch): boolean {
+        for (const after of this.overrideList.values()) {
+            if (after >= record.id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private copyScene(owner: F32, bytes: ArrayBuffer, record: PendingBatch): void {
         const { n } = this;
         const scene = new Float32Array(bytes, record.sceneOffset, 3 * n);
@@ -2602,6 +2654,7 @@ export class ForceSimulation<
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
         this.landedDrawnRowsValue = null;
+        this.landedEnvelopeValue = null;
         if (stage !== null) {
             this.drawnStage = null;
             this.afterInFlight(() => {

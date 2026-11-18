@@ -156,6 +156,7 @@ export type {
     GpuCalibration,
     GpuLayoutSimulation,
     GpuLayoutTuning,
+    LandedEnvelope,
     LayoutStatsBase,
     RunOptions,
     SpringElectricalStats,

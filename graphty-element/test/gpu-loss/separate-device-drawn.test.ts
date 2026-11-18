@@ -38,9 +38,12 @@ describe("the layout filling the row table from a separate device", () => {
         const written = lane.changes;
         const { generation } = lane;
         const walked = engine.rowsWalked;
+        const measured = engine.envelopeRowsWalked;
         await landed(graph);
         await landed(graph);
         await landed(graph);
+        // the fit-to-view envelope came from the device: no row walked for it either (issue #8801)
+        assert.strictEqual(engine.envelopeRowsWalked - measured, 0);
 
         // each landing went up as read back, and no row was written, repacked or walked on the CPU for it
         assert.isAtLeast(table.landedUploads - landedUploads, 2);
@@ -104,6 +107,26 @@ describe("the layout filling the row table from a separate device", () => {
             });
         });
     }
+
+    it("fits a running layout from the device's envelope as a CPU walk would (issue #8801)", async () => {
+        const graph = await running("batched", undefined, "webgl");
+        const engine = layoutOf(graph);
+        await uploadedLanding(graph);
+        await landed(graph);
+        const both = engine.envelopeAgreement();
+        assert.isNotNull(both);
+        const { device, walked } = both;
+        assert.isNotNull(device, "the landing the array holds was measured on the device");
+        assert.strictEqual(device.placed, walked.placed);
+        assert.deepStrictEqual(device.box, walked.box, "the box is exact");
+        const { box } = walked;
+        const span = Math.max(box[3] - box[0], box[4] - box[1], box[5] - box[2]);
+        assert.isAbove(span, 0);
+        device.centre.forEach((value, axis) => {
+            assert.approximately(value, walked.centre[axis], span * 1e-5, `centre ${String(axis)}`);
+        });
+        assert.approximately(device.scale / walked.scale, 1, 1e-5, "the scale");
+    });
 
     it("publishes every landing on the CPU under renderPath objects", async () => {
         const graph = await running("objects", undefined, "webgl");

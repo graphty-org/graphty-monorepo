@@ -272,10 +272,10 @@ jobs:
             # and the benchmarks run every time: each is one unit covering a whole consumer, and the benchmarks are a
             # trend and a 3x gate that a quarter of the runs would leave three releases in four unguarded (the
             # dashboard's sustained-regression rule compares the newest 3 results with the 10 before them).
-            # A bisect point runs only its files and neither reads nor writes the record.
+            # A bisect point runs only its files (every file when it names none) and neither reads nor writes the record.
             - name: Find the last T4 rotation record
               id: t4-state
-              if: ${{ !inputs.files }}
+              if: ${{ !inputs.files && !inputs.bisect_point }}
               working-directory: .
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -296,7 +296,8 @@ jobs:
               working-directory: .
               env:
                   SLICES: ${{ vars.T4_SLICES || '4' }}
-                  FULL: ${{ inputs.full || github.event.inputs.mode == 'shadow' || github.event.inputs.mode == 'legacy' }}
+                  # a bisect point with no file list runs every file, as before the rotation
+                  FULL: ${{ inputs.full || inputs.bisect_point != '' || github.event.inputs.mode == 'shadow' || github.event.inputs.mode == 'legacy' }}
                   RUN_NUMBER: ${{ github.run_number }}
               run: node tools/test-rotation.mjs t4 plan --state tmp/t4-state/state.json --out tmp/t4-selection.json
             # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.

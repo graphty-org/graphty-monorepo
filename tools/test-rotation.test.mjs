@@ -381,10 +381,11 @@ describe("gpu.yml's T4 job", () => {
         assert.ok(modes.includes("shadow") && modes.includes("legacy"));
         assert.match(
             step("Pick this run's T4 test files").env.FULL,
-            /inputs\.full \|\| github\.event\.inputs\.mode == 'shadow' \|\| github\.event\.inputs\.mode == 'legacy'/,
+            /inputs\.full \|\| inputs\.bisect_point != '' \|\| github\.event\.inputs\.mode == 'shadow' \|\| github\.event\.inputs\.mode == 'legacy'/,
         );
         const record = step("t4-record");
         assert.match(record.if, /!inputs\.bisect_point/, "a bisect point keeps no record");
+        assert.match(step("t4-state").if, /!inputs\.bisect_point/, "a bisect point reads no record");
         assert.match(record.if, /!contains\(github\.workflow_ref, '\/gpu\.yml@'\)/, "a run by hand keeps no record");
         assert.match(record.if, /steps\.t4-node\.outcome == 'success' \|\| steps\.t4-node\.outcome == 'failure'/);
         assert.equal(record.env.COMPLETE, "${{ job.status == 'success' }}");

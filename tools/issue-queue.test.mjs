@@ -827,6 +827,13 @@ describe("held", () => {
         assert.equal(e.misheld, false);
     });
 
+    it("lists a blocked issue that something else also skips without throwing (claims --fix lifts it)", () => {
+        const both = heldEntry(held(8, ["bug", "blocked", "hold"], [c("blocked on #8124")]), GUARD);
+        assert.deepEqual(both.held, []);
+        assert.deepEqual(both.cites, [8124]);
+        assert.equal(both.misheld, false);
+    });
+
     it("prints the held listing as JSON from one paged query", () => {
         const pages = [
             [

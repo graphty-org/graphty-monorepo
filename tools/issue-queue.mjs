@@ -670,7 +670,8 @@ export function heldBy(issue) {
  * @returns `{ number, title, held, author, ownerComment, reasonComment, cites, misheld }`
  */
 export function heldEntry(issue, guard) {
-    const held = heldBy(issue);
+    // liftBlocked passes every blocked issue, also one an alarm title or another label still skips (heldBy null)
+    const held = heldBy(issue) ?? [];
     const comments = (issue.comments?.nodes ?? []).filter((c) => trustedText(c));
     const last = (pred) => comments.findLast((c) => pred(c)) ?? null;
     const brief = (c) => (c ? { createdAt: c.createdAt, body: ascii((c.body ?? "").split("\n")[0]) } : null);

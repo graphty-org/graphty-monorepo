@@ -1,6 +1,8 @@
 # Sets in graphty-element: design
 
-Status: design, ready for planning. Baseline: master at graphty-element 2.4.1 (published on
+Status: implemented in graphty-element (sets first shipped in 2.6.0; `session.sets`, code in
+`graphty-element/src/session/sets/`). Not built: live combinations, `combine(op, of, { live: true })`
+(section 24, row 11), and the rows section 24 marks "Later". Written against the baseline: master at graphty-element 2.4.1 (published on
 npm) and graph-format 1.0.0. Packages touched: graphty-element, plus five bitmap helpers in
 graph-format. The graphty app needs no change.
 

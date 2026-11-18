@@ -2,13 +2,18 @@ id: data-export-dialog
 name: Data Export Dialog
 category: dialog
 description: Modal dialog for exporting graph data. Allows format selection, attribute filtering, and export scope (all/selection).
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/export/ExportDialog.tsx and DataOutput.tsx."
 implements_capabilities:
     - data-export
 used_in_workflows:
     - W15
     - W13
     - W16
+    - W20
+    - W21
+    - W24
+    - W25
 dependencies:
     - select
     - checkbox

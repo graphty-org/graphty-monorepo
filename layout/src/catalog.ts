@@ -49,6 +49,7 @@ export interface LayoutEntry {
     readonly simulation: SimulationType | null;
     /** The graphs it accepts: every layout here takes directed and undirected snapshots alike. */
     readonly direction: "any" | "directed" | "undirected";
+    /** Whether it reads the snapshot's edge weights. */
     readonly weights: LayoutWeightUse;
     /** Options it throws without, or that name a column the snapshot must hold under their default. */
     readonly requiredOptions: readonly string[];

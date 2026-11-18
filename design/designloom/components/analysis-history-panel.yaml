@@ -7,6 +7,7 @@ implements_capabilities:
     - analysis-history
 used_in_workflows:
     - W03
+    - W25
 dependencies:
     - button
     - icon

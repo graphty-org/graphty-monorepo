@@ -2824,28 +2824,6 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.98
         },
-        "cx-specimen-mappings-bypass-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "stray.present": 0,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
         "cx-specimen-mappings-bypass-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -2886,6 +2864,28 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
+        "cx-specimen-mappings-bypass-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -10293,28 +10293,6 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.98
         },
-        "cys-specimen-mappings-bypass-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "stray.present": 0,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
         "cys-specimen-mappings-bypass-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -10355,6 +10333,28 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
+        "cys-specimen-mappings-bypass-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -22258,27 +22258,6 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97
         },
-        "gexf-specimen-labels-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
         "gexf-specimen-labels-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -22648,6 +22627,27 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
+        "gexf-specimen-labels-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -38032,28 +38032,6 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.98
         },
-        "xgmml-specimen-mappings-bypass-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "stray.present": 0,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
         "xgmml-specimen-mappings-bypass-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -38094,6 +38072,28 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
+        "xgmml-specimen-mappings-bypass-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -56345,188 +56345,6 @@
                 "date": "2026-11-16"
             }
         },
-        "gml-synthetic-coverage": {
-            "label.offLine": {
-                "floor": 0.429,
-                "to": 0.375,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
-            "edge.arrowLength": {
-                "floor": 0.99,
-                "to": 0.98,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
-            },
-            "edge.arrowWidth": {
-                "floor": 0.98,
-                "to": 0.97,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-synthetic-coverage@matched": {
-            "label.offLine": {
-                "floor": 0.429,
-                "to": 0.375,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
-            "edge.arrowLength": {
-                "floor": 0.99,
-                "to": 0.98,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
-            },
-            "edge.arrowWidth": {
-                "floor": 0.98,
-                "to": 0.97,
-                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
-                "date": "2026-11-17"
-            }
-        },
-        "graphml-yfiles-html-ss13-tree": {
-            "label.rotation": {
-                "floor": 1,
-                "to": 0.994,
-                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
-                "date": "2026-11-07"
-            },
-            "stray.present": {
-                "floor": 0.625,
-                "to": 0.6,
-                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
-                "date": "2026-11-07"
-            }
-        },
-        "graphml-yfiles-html-ss13-tree@matched": {
-            "label.rotation": {
-                "floor": 1,
-                "to": 0.994,
-                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
-                "date": "2026-11-07"
-            },
-            "stray.present": {
-                "floor": 0.625,
-                "to": 0.6,
-                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
-                "date": "2026-11-07"
-            }
-        },
-        "json-graphology-synth": {
-            "stray.extra": {
-                "floor": 0.667,
-                "to": 0.286,
-                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
-                "date": "2026-11-01"
-            }
-        },
-        "json-graphology-synth@matched": {
-            "stray.extra": {
-                "floor": 0.667,
-                "to": 0.286,
-                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
-                "date": "2026-11-01"
-            }
-        },
-        "json-vis-siblings@matched": {
-            "edge.route": {
-                "floor": 0.972,
-                "to": 0.961,
-                "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.curve": {
-                "floor": 0.989,
-                "to": 0.979,
-                "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowShape": {
-                "floor": 1,
-                "to": 0.996,
-                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
-                "date": "2026-11-16"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.996,
-                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
-                "date": "2026-11-16"
-            }
-        },
-        "xgmml-syn-mappings": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-syn-mappings@matched": {
-            "label.alongLine": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
-        "yed-graphml-specimen-images-charts": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            }
-        },
-        "yed-graphml-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            }
-        },
-        "yed-live-graphml-specimen-labels-p5": {
-            "node.extra": {
-                "floor": 1,
-                "to": 0.952,
-                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
-                "date": "2026-11-07"
-            },
-            "stray.present": {
-                "floor": 0.714,
-                "to": 0,
-                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
-                "date": "2026-11-07"
-            },
-            "label.weight": {
-                "floor": 1,
-                "to": 0.941,
-                "reason": "yEd Live cuts a markup label at its bold run, \"A long\" + an ellipsis drawn unbold, so the label's weight reads mixed; graphty draws the ellipsis bold (#8190)",
-                "date": "2026-11-17"
-            }
-        },
-        "yed-live-graphml-specimen-labels-p5@matched": {
-            "node.extra": {
-                "floor": 1,
-                "to": 0.952,
-                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
-                "date": "2026-11-07"
-            },
-            "stray.present": {
-                "floor": 0.714,
-                "to": 0,
-                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
-                "date": "2026-11-07"
-            },
-            "label.weight": {
-                "floor": 1,
-                "to": 0.941,
-                "reason": "yEd Live cuts a markup label at its bold run, \"A long\" + an ellipsis drawn unbold, so the label's weight reads mixed; graphty draws the ellipsis bold (#8190)",
-                "date": "2026-11-17"
-            }
-        },
         "gexf-specimen-labels-p11": {
             "label.backgroundBox": {
                 "floor": 1,
@@ -56703,6 +56521,90 @@
                 "date": "2026-11-17"
             }
         },
+        "gml-synthetic-coverage": {
+            "label.offLine": {
+                "floor": 0.429,
+                "to": 0.375,
+                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
+                "date": "2026-11-05"
+            },
+            "edge.arrowLength": {
+                "floor": 0.99,
+                "to": 0.98,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
+            },
+            "edge.arrowWidth": {
+                "floor": 0.98,
+                "to": 0.97,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
+            }
+        },
+        "gml-synthetic-coverage@matched": {
+            "label.offLine": {
+                "floor": 0.429,
+                "to": 0.375,
+                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
+                "date": "2026-11-05"
+            },
+            "edge.arrowLength": {
+                "floor": 0.99,
+                "to": 0.98,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
+            },
+            "edge.arrowWidth": {
+                "floor": 0.98,
+                "to": 0.97,
+                "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
+                "date": "2026-11-17"
+            }
+        },
+        "graphml-yfiles-html-ss13-tree": {
+            "label.rotation": {
+                "floor": 1,
+                "to": 0.994,
+                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
+                "date": "2026-11-07"
+            },
+            "stray.present": {
+                "floor": 0.625,
+                "to": 0.6,
+                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
+                "date": "2026-11-07"
+            }
+        },
+        "graphml-yfiles-html-ss13-tree@matched": {
+            "label.rotation": {
+                "floor": 1,
+                "to": 0.994,
+                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
+                "date": "2026-11-07"
+            },
+            "stray.present": {
+                "floor": 0.625,
+                "to": 0.6,
+                "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
+                "date": "2026-11-07"
+            }
+        },
+        "json-graphology-synth": {
+            "stray.extra": {
+                "floor": 0.667,
+                "to": 0.286,
+                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
+                "date": "2026-11-01"
+            }
+        },
+        "json-graphology-synth@matched": {
+            "stray.extra": {
+                "floor": 0.667,
+                "to": 0.286,
+                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
+                "date": "2026-11-01"
+            }
+        },
         "json-vis-siblings": {
             "edge.arrowShape": {
                 "floor": 1,
@@ -56715,6 +56617,104 @@
                 "to": 0.996,
                 "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
                 "date": "2026-11-16"
+            }
+        },
+        "json-vis-siblings@matched": {
+            "edge.route": {
+                "floor": 0.972,
+                "to": 0.961,
+                "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
+                "date": "2026-11-01"
+            },
+            "edge.curve": {
+                "floor": 0.989,
+                "to": 0.979,
+                "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowShape": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
+                "date": "2026-11-16"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "2026-11-16: drawing (vis-network quirk): between the overlapping Deanna Jagow and Sarah Maltese vis-network stands the curve's head where it first enters Sarah's ellipse, beside Deanna, pointing along the curve's start; graphty stands it at the curve's end at Sarah, so its place and the line's end differ (#8197)",
+                "date": "2026-11-16"
+            }
+        },
+        "xgmml-syn-mappings": {
+            "label.alongLine": {
+                "floor": 1,
+                "to": 0.971,
+                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
+                "date": "2026-11-01"
+            }
+        },
+        "xgmml-syn-mappings@matched": {
+            "label.alongLine": {
+                "floor": 1,
+                "to": 0.971,
+                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
+                "date": "2026-11-01"
+            }
+        },
+        "yed-graphml-specimen-images-charts": {
+            "stray.present": {
+                "floor": 1,
+                "to": 0.158,
+                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
+                "date": "2026-11-07"
+            }
+        },
+        "yed-graphml-specimen-images-charts@matched": {
+            "stray.present": {
+                "floor": 1,
+                "to": 0.158,
+                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
+                "date": "2026-11-07"
+            }
+        },
+        "yed-live-graphml-specimen-labels-p5": {
+            "node.extra": {
+                "floor": 1,
+                "to": 0.952,
+                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
+                "date": "2026-11-07"
+            },
+            "stray.present": {
+                "floor": 0.714,
+                "to": 0,
+                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
+                "date": "2026-11-07"
+            },
+            "label.weight": {
+                "floor": 1,
+                "to": 0.941,
+                "reason": "yEd Live cuts a markup label at its bold run, \"A long\" + an ellipsis drawn unbold, so the label's weight reads mixed; graphty draws the ellipsis bold (#8190)",
+                "date": "2026-11-17"
+            }
+        },
+        "yed-live-graphml-specimen-labels-p5@matched": {
+            "node.extra": {
+                "floor": 1,
+                "to": 0.952,
+                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
+                "date": "2026-11-07"
+            },
+            "stray.present": {
+                "floor": 0.714,
+                "to": 0,
+                "reason": "Markup labels now match yEd Live's text, so the geometric association seeds its frame from 7 label pairs instead of the extent, and that frame misses the 6x6 corner body rect@30,890 for anchor-sw (comparator association, graphty draws the node as before); stray.present 5/7 -> 0/2 is texts becoming paired labels",
+                "date": "2026-11-07"
+            },
+            "label.weight": {
+                "floor": 1,
+                "to": 0.941,
+                "reason": "yEd Live cuts a markup label at its bold run, \"A long\" + an ellipsis drawn unbold, so the label's weight reads mixed; graphty draws the ellipsis bold (#8190)",
+                "date": "2026-11-17"
             }
         }
     }

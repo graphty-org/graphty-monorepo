@@ -34,6 +34,18 @@ describe("a label drawn in runs", () => {
         );
     });
 
+    it("drops a run that holds no words, and reads anything but a JSON list of runs as no label", () => {
+        assert.strictEqual(
+            labelRunsMarkup(JSON.stringify([{ text: "a" }, null, 3, { weight: "bold" }, { text: 4 }, { text: "b" }])),
+            "ab",
+        );
+        assert.isNull(labelRunsMarkup(JSON.stringify({ text: "a" })));
+        assert.isNull(labelRunsMarkup([{ text: "a" }]));
+        // no label size to take a share of: a run's own size and shift are not drawn
+        assert.strictEqual(labelRunsMarkup(JSON.stringify([{ text: "a", size: 15, shift: 2 }])), "a");
+        assert.strictEqual(labelRunsMarkup(JSON.stringify([{ text: "a", size: 15, shift: 2 }]), 0), "a");
+    });
+
     it("draws a shifted run that far below the line, a share of the label's own size", () => {
         const parser = new RichTextParser({ size: 20, weight: "normal", style: "normal" } as unknown as RichTextStyle);
         const [line] = parser.parse("a<shift='30%'>B<shift='4'>C</shift></shift>");

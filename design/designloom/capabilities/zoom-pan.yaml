@@ -3,7 +3,8 @@ name: Zoom and Pan Navigation
 category: interaction
 description: Navigate the graph visualization through zooming (changing magnification) and panning (shifting viewport).
     The most fundamental interaction for exploring graphs of any size.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/cameras/ and the zoom commands in graphty/src/workspace/toolbar/commands.ts."
 algorithms: []
 used_by_workflows:
     - W02

@@ -1870,8 +1870,12 @@ export const STORY_MS = {
     // each changed picture is shot twice (capture.mjs needsSecondShot: the reference, master's story-test capture,
     // never matches the built-Storybook capture byte for byte), and PR run 41005977433 (#4559, Stories
     // (graph-io-fidelity-1), both attempts) captured cx2 and cys Specimens at 6.1 to 6.5 s a story, graphology
-    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639)
-    "graph-io-fidelity": 6_500,
+    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639).
+    // PR runs 44227750388, 44233191243 and 44246676418 (2026-11-18) captured its 39 bins at 0.24 to 0.60 of their
+    // plan (0.43 in all, Samples, Specimens and the slow Specimens files alike; 0.93 at most on a change that
+    // differs from every baseline, #5404), so it and its STORY_FILE_MS rates are 0.6 of what they were: a bin
+    // captures in at most its plan, and in about 1.55 times it when every picture is shot twice
+    "graph-io-fidelity": 3_900,
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
@@ -1902,27 +1906,27 @@ export const STORY_FILE_MS = {
     // graph-io-fidelity's Samples files draw real datasets, about twice its Specimens stories (fit above, at
     // STORY_MS), and are shot twice while they differ from their baselines: 12.4 s, gexf's measured rate in PR run
     // 41005977433 (#4639); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
-    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
+    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 7_200,
     // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
     // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
     // both planned at about 175 s and the pull request's last job; less the Samples at 6.2 s, 6.8 s and 7.7 s a story
-    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 6_800,
+    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 4_100,
     // gexf's Specimens, measured in the same runs at 4.1 s a story
-    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
-    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
-    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 12_400,
-    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 2_500,
+    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 4_600,
+    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 7_400,
+    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 7_400,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;

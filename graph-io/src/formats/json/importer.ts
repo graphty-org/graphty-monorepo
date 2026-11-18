@@ -74,6 +74,7 @@ import {
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { checkExpansion, ExpansionRefused } from "../../common/expansion.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { readText, throwIfAborted } from "../../common/input.js";
 import {
@@ -4101,32 +4102,6 @@ function expandHyperedge(
             ctx.skip(err, "edge", element);
         }
     }
-}
-
-/** A hyperedge whose expansion would pass MAX_HYPEREDGE_EXPANSION: that hyperedge alone is skipped. */
-class ExpansionRefused extends GraphFormatError {}
-
-/** The most edges the hyperedges of one import expand into; a 20k-member clique would be 200M edges. */
-// ponytail: a fixed cap; make it an option if a real file needs more
-const MAX_HYPEREDGE_EXPANSION = 1_000_000;
-
-/**
- * Refuse an expansion that would take the import beyond MAX_HYPEREDGE_EXPANSION expanded edges,
- * before any of it is pushed; otherwise count it against the budget.
- * @param count - the number of edges the expansion makes
- * @param budget - the edges the import's hyperedges expanded into so far
- * @param budget.used - that count, updated
- * @param element - the hyperedge's name
- */
-function checkExpansion(count: number, budget: { used: number }, element: string): void {
-    if (budget.used + count > MAX_HYPEREDGE_EXPANSION) {
-        throw new ExpansionRefused(
-            "E_TOO_LARGE",
-            `${element}: the expansion makes ${count} edges, which with the ${budget.used} already expanded is more than ${MAX_HYPEREDGE_EXPANSION}; the hyperedge is skipped`,
-            { count, used: budget.used, limit: MAX_HYPEREDGE_EXPANSION },
-        );
-    }
-    budget.used += count;
 }
 
 /**

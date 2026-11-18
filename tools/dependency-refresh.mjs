@@ -9,8 +9,10 @@
  *      the refresh;
  *   2. GitHub Actions: every `uses: owner/repo@vX.Y[.Z]` in .github/workflows, .github/actions and
  *      visual-review/templates moves to the newest tag of the same major (a major tag such as `@v4`
- *      already floats, and a commit pin is left alone); then visual-seed.yml, which `visual-review init`
- *      generates from its template, is regenerated, never edited.
+ *      already floats), and so does every commit pin `owner/repo@<sha> # vX.Y.Z`: its SHA becomes that
+ *      tag's commit and its comment the tag (a pin with no version comment is left alone); then
+ *      visual-seed.yml, which `visual-review init` generates from its template, is regenerated, never
+ *      edited.
  *
  * Nothing to update opens nothing. The two parts are separate commits: a token without the Workflows
  * permission cannot push a change under .github/workflows/, and then the npm commit is pushed alone.
@@ -28,6 +30,8 @@ import { fileURLToPath } from "node:url";
 import semver from "semver";
 
 const USES = /(uses:\s*["']?)([\w.-]+\/[\w.-]+)((?:\/[\w./-]+)?)@v(\d+)((?:\.\d+){1,2})\b/g;
+// A commit pin with its version comment, as pipeline-health-pages.yml writes it: `owner/repo@<sha> # vX.Y.Z`.
+const PINNED = /(uses:\s*["']?)([\w.-]+\/[\w.-]+)((?:\/[\w./-]+)?)@[0-9a-f]{40}(["']?\s+#\s*)v(\d+)((?:\.\d+){1,2})\b/g;
 const GENERATED = ".github/workflows/visual-seed.yml";
 const DEP_FIELDS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 
@@ -35,14 +39,18 @@ const defaultRun = (cmd, args, opts = {}) =>
     execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "inherit"], ...opts });
 
 /**
- * The `vX.Y.Z` tags of a GitHub repository.
+ * The `vX.Y.Z` tags of a GitHub repository and the commit each names (an annotated tag dereferenced).
  * @param repo owner/name
  * @param run the command runner
- * @returns the tag names
+ * @returns tag name to commit SHA
  */
 export function remoteTags(repo, run = defaultRun) {
-    const out = run("git", ["ls-remote", "--tags", "--refs", `https://github.com/${repo}`]);
-    return [...out.matchAll(/refs\/tags\/(v\d+(?:\.\d+){1,2})$/gm)].map((m) => m[1]);
+    const out = run("git", ["ls-remote", "--tags", `https://github.com/${repo}`]);
+    const shas = new Map();
+    // `refs/tags/vX^{}` (the peeled commit) follows `refs/tags/vX` (the tag object) and overwrites it.
+    for (const m of out.matchAll(/^([0-9a-f]{40})\trefs\/tags\/(v\d+(?:\.\d+){1,2})(?:\^\{\})?$/gm))
+        shas.set(m[2], m[1]);
+    return shas;
 }
 
 const parts = (tag) => tag.slice(1).split(".").map(Number);
@@ -50,23 +58,35 @@ const newer = (a, b) => {
     for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
     return false;
 };
+// The newest tag of `current`'s major with the same precision, newer than `current`, or null.
+const newest = (tags, current) => {
+    let best = null;
+    for (const tag of tags) {
+        const p = parts(tag);
+        if (p[0] === current[0] && p.length === current.length && newer(p, best ?? current)) best = p;
+    }
+    return best && `v${best.join(".")}`;
+};
 
 /**
- * `text` with every minor/patch-pinned action moved to the newest tag of its major.
+ * `text` with every minor/patch-pinned action, and every commit pin with a version comment, moved to the
+ * newest tag of its major.
  * @param text a workflow or template
  * @param tagsOf the tags of a repository
+ * @param shaOf the commit a repository's tag names (needed only for commit pins)
  * @returns the text with the bumped refs
  */
-export function bumpActionRefs(text, tagsOf) {
-    return text.replaceAll(USES, (all, pre, repo, sub, major, rest) => {
-        const current = parts(`v${major}${rest}`);
-        let best = null;
-        for (const tag of tagsOf(repo)) {
-            const p = parts(tag);
-            if (p[0] === current[0] && p.length === current.length && newer(p, best ?? current)) best = p;
-        }
-        return best ? `${pre}${repo}${sub}@v${best.join(".")}` : all;
-    });
+export function bumpActionRefs(text, tagsOf, shaOf) {
+    return text
+        .replaceAll(USES, (all, pre, repo, sub, major, rest) => {
+            const best = newest(tagsOf(repo), parts(`v${major}${rest}`));
+            return best ? `${pre}${repo}${sub}@${best}` : all;
+        })
+        .replaceAll(PINNED, (all, pre, repo, sub, gap, major, rest) => {
+            const best = newest(tagsOf(repo), parts(`v${major}${rest}`));
+            const sha = best && shaOf(repo, best);
+            return sha ? `${pre}${repo}${sub}@${sha}${gap}${best}` : all;
+        });
 }
 
 const listYaml = (dir) => {
@@ -112,13 +132,14 @@ const changedFiles = (cwd, run) =>
  * @param o.cwd the checkout
  * @param o.run the command runner
  * @param o.tagsOf the tags of a repository (default: git ls-remote)
+ * @param o.shaOf the commit a repository's tag names (default: git ls-remote)
  * @returns the changed files of each part
  */
-export function update({ cwd, run = defaultRun, tagsOf }) {
-    tagsOf ??= (() => {
-        const cache = new Map();
-        return (repo) => cache.get(repo) ?? cache.set(repo, remoteTags(repo, run)).get(repo);
-    })();
+export function update({ cwd, run = defaultRun, tagsOf, shaOf }) {
+    const cache = new Map();
+    const remote = (repo) => cache.get(repo) ?? cache.set(repo, remoteTags(repo, run)).get(repo);
+    tagsOf ??= (repo) => [...remote(repo).keys()];
+    shaOf ??= (repo, tag) => remote(repo).get(tag);
     const before = specifiers(cwd, run);
     run("pnpm", ["update", "--recursive"], { cwd, stdio: "inherit" });
     const after = specifiers(cwd, run);
@@ -134,7 +155,7 @@ export function update({ cwd, run = defaultRun, tagsOf }) {
     ].filter((f) => !f.endsWith(GENERATED));
     for (const f of files) {
         const text = readFileSync(f, "utf8");
-        const bumped = bumpActionRefs(text, tagsOf);
+        const bumped = bumpActionRefs(text, tagsOf, shaOf);
         if (bumped !== text) writeFileSync(f, bumped);
     }
     // Regenerated from the template every time, never hand-edited (CLAUDE.md, "Visual review").

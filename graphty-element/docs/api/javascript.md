@@ -28,7 +28,7 @@ For usage patterns and examples, see the [JavaScript API Guide](../guide/javascr
 | `updateNodes(updates)`      | `NodeUpdate[]`                                | `Promise<void>`     | Update node properties                |
 | `getNode(id)`               | `string`                                      | `Node \| undefined` | Get node by ID                        |
 | `getNodes()`                | -                                             | `Node[]`            | Get all nodes                         |
-| `clear()`                   | -                                             | `Promise<void>`     | Remove all data                       |
+| `clearData()`               | -                                             | `void`              | Remove all data                       |
 
 Every node and edge record at once is `session.data.nodes()` and `session.data.edges()`; one
 window of them, with the total and a revision, is `session.data.nodePage({ offset, limit, sort,
@@ -47,7 +47,7 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 
 | Method              | Parameters | Returns        | Description       |
 | ------------------- | ---------- | -------------- | ----------------- |
-| `selectNode(id)`    | `string`   | `void`         | Select a node     |
+| `selectNode(id)`    | `string`   | `boolean`      | Select a node     |
 | `deselectNode()`    | -          | `void`         | Clear selection   |
 | `getSelectedNode()` | -          | `Node \| null` | Get selected node |
 
@@ -58,18 +58,20 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 
 | Method                      | Parameters         | Returns         | Description                              |
 | --------------------------- | ------------------ | --------------- | ---------------------------------------- |
-| `setLayout(type, options?)` | `string`, `object` | `void`          | Set layout algorithm                     |
+| `setLayout(type, options?)` | `string`, `object` | `Promise<void>` | Set layout algorithm                     |
 | `waitForSettled()`          | -                  | `Promise<void>` | Wait for queued operations to finish     |
 | `waitForStableFrame(opts?)` | `{ timeoutMs? }`   | `Promise<void>` | Wait for the picture to stop changing    |
 | `isFrameStable`             | -                  | `boolean`       | Whether the drawn frame is the final one |
-| `isSettled()`               | -                  | `boolean`       | Check if layout is stable                |
 
 ### Algorithms
 
-| Method                          | Parameters         | Returns                    | Description                   |
-| ------------------------------- | ------------------ | -------------------------- | ----------------------------- |
-| `runAlgorithm(namespace, type)` | `string`, `string` | `Promise<AlgorithmResult>` | Run an algorithm              |
-| `applySuggestedStyles(id)`      | `string`           | `void`                     | Apply algorithm visualization |
+| Method                          | Parameters           | Returns         | Description                   |
+| ------------------------------- | -------------------- | --------------- | ----------------------------- |
+| `runAlgorithm(namespace, type)` | `string`, `string`   | `Promise<void>` | Run an algorithm              |
+| `applySuggestedStyles(key)`     | `string \| string[]` | `boolean`       | Apply algorithm visualization |
+
+`runAlgorithm` stores its result on the nodes and edges; `applySuggestedStyles` answers whether
+the algorithm had suggested styles to apply.
 
 ### Camera Control
 
@@ -130,10 +132,14 @@ See the [notes guide](../guide/notes) and the generated
 
 ### Events
 
-| Method                | Parameters           | Returns | Description             |
-| --------------------- | -------------------- | ------- | ----------------------- |
-| `on(event, handler)`  | `string`, `Function` | `void`  | Subscribe to events     |
-| `off(event, handler)` | `string`, `Function` | `void`  | Unsubscribe from events |
+| Method               | Parameters           | Returns      | Description                                          |
+| -------------------- | -------------------- | ------------ | ---------------------------------------------------- |
+| `on(event, handler)` | `string`, `Function` | `() => void` | Subscribe; call the returned function to unsubscribe |
+
+```typescript
+const unsubscribe = graph.on("graph-settled", () => console.log("settled"));
+unsubscribe();
+```
 
 ### Batch Operations
 
@@ -141,38 +147,34 @@ See the [notes guide](../guide/notes) and the generated
 | --------------------- | -------------------- | --------------- | ---------------------------------------------------------- |
 | `batchOperations(fn)` | `async (tx) => void` | `Promise<void>` | Make the changes `fn` makes through `tx` one undoable step |
 
-## Manager Classes
+## Managers
 
-The Graph class exposes manager instances for advanced control:
-
-### DataManager
-
-```typescript
-await graph.dataManager.loadFromUrl(url);
-await graph.dataManager.addNodes(nodes);
-await graph.dataManager.clear();
-```
-
-### LayoutManager
+Most work goes through the `Graph` methods above. Two managers are public for reading what they
+hold:
 
 ```typescript
-graph.layoutManager.setLayout("ngraph", options);
+const dataManager = graph.getDataManager();
+const edges = dataManager.getEdgesBetween("a", "b");
+
+const layoutManager = graph.getLayoutManager();
 ```
 
-Waiting belongs to the graph rather than to the layout manager: `graph.waitForSettled()` waits for
-the operation queue, and `graph.waitForStableFrame()` waits for the picture -- the layout
-converged, the camera framed, and a frame drawn in that state.
+Loading, layout and algorithms go through the graph itself, not a manager:
+
+```typescript
+await graph.loadFromUrl(url);
+await graph.setLayout("ngraph", options);
+await graph.runAlgorithm("graphty", "degree");
+graph.applySuggestedStyles("graphty:degree");
+```
+
+Waiting belongs to the graph too: `graph.waitForSettled()` waits for the operation queue, and
+`graph.waitForStableFrame()` waits for the picture -- the layout converged, the camera framed, and
+a frame drawn in that state.
 
 ```typescript
 await graph.waitForStableFrame();
 const shot = await graph.captureScreenshot();
-```
-
-### AlgorithmManager
-
-```typescript
-await graph.algorithmManager.run("graphty", "degree");
-graph.algorithmManager.applySuggestedStyles("graphty:degree");
 ```
 
 ## Data Types

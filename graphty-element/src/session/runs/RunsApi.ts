@@ -645,7 +645,8 @@ function engineVersionsFor(key: AlgorithmKey, base: EngineVersions): EngineVersi
  * @param algorithm - Which algorithm the option belongs to, for the error's details.
  * @param option - The option descriptor.
  * @param value - What the caller passed.
- * @throws A `GraphtyError` with code `E_OPTION_RANGE` when the value is outside what is allowed.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE` when the value is outside what is allowed,
+ *     or not a whole number for an integer option.
  */
 function checkOptionValue(algorithm: AlgorithmKey, option: OptionDescriptor, value: unknown): void {
     if (option.values !== undefined && option.values.length > 0 && typeof value === "string") {
@@ -663,6 +664,15 @@ function checkOptionValue(algorithm: AlgorithmKey, option: OptionDescriptor, val
 
     if (typeof value !== "number") {
         return;
+    }
+
+    if (option.type === "integer" && !Number.isInteger(value)) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `The "${option.name}" option is ${value}, which is not a whole number.`,
+            source: "run",
+            details: { algorithm, option: option.name, value },
+        });
     }
 
     if (typeof option.min === "number" && value < option.min) {

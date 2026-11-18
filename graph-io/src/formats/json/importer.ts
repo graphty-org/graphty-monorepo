@@ -74,6 +74,7 @@ import {
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { checkExpansion, ExpansionRefused } from "../../common/expansion.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { readText, throwIfAborted } from "../../common/input.js";
 import {
@@ -107,6 +108,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { looksLikeApocJson } from "../neo4j/header.js";
 import {
     CLASSES_COLUMN,
     CYTOSCAPE_ELEMENT_KEYS,
@@ -1813,6 +1815,9 @@ function syntaxLine(text: string, message: string): number {
  * @returns the message
  */
 function syntaxMessage(text: string, message: string): string {
+    if (looksLikeApocJson(text.slice(0, SNIFF_BYTES))) {
+        return `invalid JSON: the input is an APOC export (apoc.export.json), which the neo4j format reads; import it with format "neo4j" (${message})`;
+    }
     if (looksLikeJsonLines(text)) {
         return `invalid JSON: the input is JSON Lines (one JSON value per line), which is not a graph format graph-io reads; convert it to one JSON document (${message})`;
     }
@@ -4099,32 +4104,6 @@ function expandHyperedge(
     }
 }
 
-/** A hyperedge whose expansion would pass MAX_HYPEREDGE_EXPANSION: that hyperedge alone is skipped. */
-class ExpansionRefused extends GraphFormatError {}
-
-/** The most edges the hyperedges of one import expand into; a 20k-member clique would be 200M edges. */
-// ponytail: a fixed cap; make it an option if a real file needs more
-const MAX_HYPEREDGE_EXPANSION = 1_000_000;
-
-/**
- * Refuse an expansion that would take the import beyond MAX_HYPEREDGE_EXPANSION expanded edges,
- * before any of it is pushed; otherwise count it against the budget.
- * @param count - the number of edges the expansion makes
- * @param budget - the edges the import's hyperedges expanded into so far
- * @param budget.used - that count, updated
- * @param element - the hyperedge's name
- */
-function checkExpansion(count: number, budget: { used: number }, element: string): void {
-    if (budget.used + count > MAX_HYPEREDGE_EXPANSION) {
-        throw new ExpansionRefused(
-            "E_TOO_LARGE",
-            `${element}: the expansion makes ${count} edges, which with the ${budget.used} already expanded is more than ${MAX_HYPEREDGE_EXPANSION}; the hyperedge is skipped`,
-            { count, used: budget.used, limit: MAX_HYPEREDGE_EXPANSION },
-        );
-    }
-    budget.used += count;
-}
-
 /**
  * The members of an undirected hyperedge with repeats removed (a repeat would expand into a
  * self-loop and parallel edges), each repeat reported as E_HYPEREDGE_SHAPE.
@@ -4746,7 +4725,8 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         // headBytes transcodes a UTF-16 head with a BOM, which import() decodes too
         const text = new TextDecoder("utf-8").decode(headBytes(head).subarray(0, SNIFF_BYTES));
         const trimmed = (text.startsWith(BOM) ? text.slice(1) : text).trimStart();
-        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+        // an apoc.export.json file is Neo4j's: its "nodes" key would otherwise rank it here
+        if ((!trimmed.startsWith("{") && !trimmed.startsWith("[")) || looksLikeApocJson(trimmed)) {
             return 0;
         }
         const score = SNIFF_KEYS.some((key) => trimmed.includes(key)) ? 0.9 : 0.5;

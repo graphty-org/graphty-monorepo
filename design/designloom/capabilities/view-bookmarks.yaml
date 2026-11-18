@@ -9,6 +9,7 @@ used_by_workflows:
     - W02
     - W03
     - W07
+    - W25
 implemented_by_components:
     - bookmark-panel
 requirements:

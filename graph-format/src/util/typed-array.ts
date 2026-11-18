@@ -61,6 +61,14 @@ export const STAGING_BYTE_GRANULE = 64;
 export const STAGING_RESERVE_BYTES = 1024 * 1024;
 
 /**
+ * The smallest staging buffer made resizable: 64 KiB. A smaller one is a plain fixed-length buffer, copied when it
+ * grows (cheap at this size, and amortised by doubling). Every resizable buffer is its own reservation, which the
+ * engine maps on its own: V8 maps each one separately, so a graph with 100k one-row columns took 200k memory
+ * mappings, past Linux's vm.max_map_count on many hosts, and resize threw "RangeError: Out of memory".
+ */
+export const STAGING_RESIZABLE_MIN_BYTES = 64 * 1024;
+
+/**
  * How much larger a resizable staging buffer's next reservation is than its last, until it reaches
  * STAGING_RESERVE_FAST_LIMIT: 16, so a column grows from 1 MiB to 256 MiB with two copies.
  */
@@ -316,7 +324,8 @@ export function stagingByteLength(capacity: number, bytesPerElement: number): nu
 }
 
 /**
- * Allocate a staging buffer of `byteLength` bytes. With `resizable` true the buffer is created with a
+ * Allocate a staging buffer of `byteLength` bytes. With `resizable` true and at least STAGING_RESIZABLE_MIN_BYTES
+ * bytes (a smaller buffer is always plain) the buffer is created with a
  * `maxByteLength` of at least `reserveBytes` (and at least `byteLength`) so it can later grow in place;
  * should the engine refuse that reservation with a RangeError (an address-space limit, not a missing
  * capability) the buffer is created resizable with `maxByteLength === byteLength`, which simply means
@@ -331,7 +340,7 @@ export function allocateStagingBuffer(
     resizable: boolean = HAS_RESIZABLE_ARRAY_BUFFER,
     reserveBytes: number = STAGING_RESERVE_BYTES,
 ): ArrayBuffer {
-    if (!resizable) {
+    if (!resizable || byteLength < STAGING_RESIZABLE_MIN_BYTES) {
         return new ArrayBuffer(byteLength);
     }
     const maxByteLength = Math.max(byteLength, reserveBytes);

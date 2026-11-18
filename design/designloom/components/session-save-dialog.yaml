@@ -1,0 +1,15 @@
+id: session-save-dialog
+name: Session Save Dialog
+category: dialog
+description: "Dialog for saving every network, style, result and annotation of the session to one file."
+status: planned
+implements_capabilities:
+    - analysis-history
+used_in_workflows:
+    - W25
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T00:00:00.000Z
+updated_at: 2026-11-18T00:00:00.000Z

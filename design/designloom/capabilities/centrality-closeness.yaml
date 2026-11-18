@@ -10,6 +10,7 @@ algorithms:
 used_by_workflows:
     - W03
     - W08
+    - W23
 implemented_by_components:
     - algorithm-card
     - algorithm-panel

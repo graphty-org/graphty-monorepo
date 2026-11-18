@@ -9,10 +9,11 @@ import { siteConfig } from "../../siteConfig";
 import { useElementDefined } from "../../useElementDefined";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { cosmographOn } from "../features";
-import { LAYOUT_SEED } from "../layout/methods";
+import { LAYOUT_SEED, MAP_LAYOUT } from "../layout/methods";
 import { ACCELERATION, readPreference } from "../settings/preferences";
 import { bindShaderSettings } from "../settings/shaderPreferences";
 import { useWorkspaceState } from "../state/WorkspaceContext";
+import { useLayoutId } from "./useLayoutId";
 import { useSizeBound } from "./useSizeBound";
 
 /**
@@ -29,9 +30,6 @@ const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
  */
 const XR_CONFIG = { enabled: true, ui: { enabled: false } } as const;
 
-/** The room between the canvas toolbar and the map's credits under it, in pixels. */
-const TOOLBAR_GAP = 12;
-
 /**
  * The element's limits under the Cosmograph-inspired rendering experiment (#6389): a million nodes
  * and a million edges may load, and each may draw as an object of its own, on the batched path.
@@ -42,6 +40,13 @@ const COSMOGRAPH_LIMITS = {
     objectRows: 1_000_000,
     objectEdges: 1_000_000,
 } as const;
+
+/**
+ * Above this many edges the element smooths only the frame the view rests on (antialias "at-rest"):
+ * frames drawn while the view moves are not multisampled, which at a million edges costs a third
+ * of a smoothed frame (owner, 2026-11-15).
+ */
+export const AT_REST_ABOVE_EDGES = 100_000;
 
 /** How fast Camera > Auto-rotate turns the 3D view, in radians per second: the start page's turn. */
 const AUTO_ROTATE_SPEED = 0.15;
@@ -57,6 +62,8 @@ interface ElementHostProps {
     autosave?: boolean;
     /** Loads graphty-element's code; the app's loader unless a test hands in one that fails. */
     loadElement?: () => Promise<void>;
+    /** See {@link AT_REST_ABOVE_EDGES}; a test hands in a smaller one. */
+    atRestAboveEdges?: number;
 }
 
 /**
@@ -66,9 +73,15 @@ interface ElementHostProps {
  * @param props.onReady - Called with the element and its session, and with nulls on unmount
  * @param props.autosave - Whether the element autosaves
  * @param props.loadElement - Loads graphty-element's code (the app's loader by default)
+ * @param props.atRestAboveEdges - The edge count above which the element smooths only at rest
  * @returns The element, filling its region
  */
-export function ElementHost({ onReady, autosave = false, loadElement }: Readonly<ElementHostProps>): React.JSX.Element {
+export function ElementHost({
+    onReady,
+    autosave = false,
+    loadElement,
+    atRestAboveEdges = AT_REST_ABOVE_EDGES,
+}: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
     // Every label a style asks for is drawn, overlapping or not, unless the reader turns on Graph
     // settings' "Hide overlapping labels" (owner 2026-11-11), and a still graph is not drawn again on every animation
@@ -86,26 +99,34 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
     // any depth follows the size binding until the reader sets it.
     const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
+    // Settings' "Map layout automatically enables depth-independent size": while the map is drawn,
+    // every node keeps one size on screen, so zooming to a region pulls apart the nodes a world
+    // view draws on top of one another. A layer that sets `node.sizeSpace` still wins for its nodes.
+    const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
+    const onMap = useLayoutId(hosted) === MAP_LAYOUT;
+    const pivot = sameSize ? "pivot" : undefined;
+    const sizeSpace = mapAuto && onMap ? "screen" : pivot;
     const lighting = useWorkspaceState((state) => state.lighting);
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const layoutShownOnly = useWorkspaceState((state) => state.layoutShownOnly);
+    const followSelection = useWorkspaceState((state) => state.followSelection);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
-            node: { depthIndependentSize: sameSize },
+            node: { sizeSpace },
             rendering: { onDemand: true },
             layout: { visibleOnly: layoutShownOnly },
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
             // opens beside the canvas and narrows it, before or after the first framing is final;
-            // framing again on a resize draws the same picture either way (#5097).
-            camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
+            // framing again on a resize draws the same picture either way (#5097). Camera > Follow
+            // selection turns the gliding off.
+            camera: { pivotOnSelection: followSelection, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
-        [allLabelsShown, labelsAvoid, sameSize, layoutShownOnly],
+        [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly, followSelection],
     );
-    // The map's credits sit above the canvas toolbar, measured from its dock; and a reader who
-    // prefers less motion gets camera moves without the glide; and the globe is drawn as the earth
-    // from space (constants/globe.ts). View settings, written on the
-    // element; they record no step.
+    // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
+    // as the earth from space (constants/globe.ts). View settings, written on the element; they
+    // record no step.
     const still = useReducedMotion();
     useEffect(() => {
         const element = ref.current;
@@ -115,27 +136,23 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
 
         element.cameraTransitionDuration = still ? 0 : undefined;
         element.globeLook = APP_GLOBE_LOOK;
-        const canvas = element.closest<HTMLElement>(".ws-canvas");
-        const dock = canvas?.querySelector<HTMLElement>(".ws-toolbar-dock");
-        if (canvas === null || canvas === undefined || dock === null || dock === undefined) {
-            element.attributionOffset = 0;
+        return undefined;
+    }, [hosted, still]);
+
+    // A large graph is smoothed only once the view is still: the app reads the element's edge count
+    // and chooses the threshold, the element does the switching. A view setting: it records no step.
+    useEffect(() => {
+        const element = ref.current;
+        if (element === null || hosted === null) {
             return undefined;
         }
 
-        const place = (): void => {
-            // A hidden toolbar (under the selection workspace) leaves the attribution at the edge.
-            element.attributionOffset = dock.hidden
-                ? 0
-                : Math.max(0, canvas.clientHeight - dock.offsetTop + TOOLBAR_GAP);
+        const apply = (): void => {
+            element.antialias = hosted.status.counts.edges > atRestAboveEdges ? "at-rest" : true;
         };
-        place();
-        const observer = new ResizeObserver(place);
-        observer.observe(canvas);
-        observer.observe(dock);
-        return () => {
-            observer.disconnect();
-        };
-    }, [hosted, still]);
+        apply();
+        return hosted.on("data:changed", apply);
+    }, [hosted, atRestAboveEdges]);
 
     // React 19 writes a prop onto a custom element as a property only when the tag is defined at
     // commit time; before that it writes `String(value)` as an attribute, or drops a `false`, and
@@ -209,6 +226,9 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
             // The app's own Undo and Redo take these keys everywhere, the drawing included, so
             // every step taken back is named in a notice.
             historyKeys={false}
+            // Every reader -- layouts, counts, algorithms -- reads what the filter and the time
+            // window leave shown (design/working-graph/design.md).
+            workingGraph
             zoomToPointer
             xr={XR_CONFIG}
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}

@@ -66,13 +66,9 @@ test("fires animation-progress events", async () => {
 
     const progressEvents: number[] = [];
 
-    // Use eventManager to listen for events
-    const { eventManager } = graph as {
-        eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
-    };
-    eventManager.addListener("animation-progress", (data) => {
-        const progressData = data as { progress: number };
-        progressEvents.push(progressData.progress);
+    graph.on("animation-progress", (event) => {
+        assert.isNumber(event.progress);
+        progressEvents.push(Number(event.progress));
     });
 
     await graph.captureAnimation({
@@ -264,6 +260,27 @@ test("supports cancellation", async () => {
         assert.equal(error.name, "AnimationCancelledError", "Error should be AnimationCancelledError");
         assert.ok(error.message.includes("cancel"), "Error message should mention cancellation");
     }
+
+    graph.dispose();
+});
+
+test("stopAnimationCapture ends a recording early and keeps it", async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const graph = new Graph(canvas);
+
+    assert.equal(graph.stopAnimationCapture(), false, "nothing to stop before a capture");
+    const recording = graph.eventManager.waitFor("animation-progress");
+    const capturePromise = graph.captureAnimation({ duration: 300_000, fps: 30, cameraMode: "stationary" });
+    await recording;
+
+    assert.ok(graph.stopAnimationCapture(), "stopAnimationCapture should return true while recording");
+    const result = await capturePromise;
+    assert.ok(result.blob instanceof Blob);
+    assert.isBelow(result.metadata.duration, 300_000, "the duration is how long it ran");
+    assert.equal(graph.isAnimationCapturing(), false);
+    assert.equal(graph.stopAnimationCapture(), false, "nothing to stop after it ended");
 
     graph.dispose();
 });

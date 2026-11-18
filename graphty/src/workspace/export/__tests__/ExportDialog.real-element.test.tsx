@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -303,5 +303,53 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.isNotNull(
             within(within(dialog).getByRole("grid", { name: "Recent exports" })).getByText(video?.name ?? ""),
         );
+    });
+});
+
+describe("the Camera menu's Export image and Record video", () => {
+    it("saves the canvas as an image, and records it until Stop recording, each from its row and its key", async () => {
+        // The design's frame: at the runner's default width the toolbar is clipped.
+        await page.viewport(1366, 768);
+        const saved = catchDownloads();
+        await openScoredGraph();
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await waitFor(() => {
+                assert.isFalse(camera.hasAttribute("aria-disabled"));
+            });
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        // Each row shows its key.
+        let menu = await open();
+        const image = within(menu).getByRole("menuitem", { name: /^Export image/ });
+        assert.equal(image.getAttribute("aria-keyshortcuts"), "Shift+I");
+        assert.equal(
+            within(menu)
+                .getByRole("menuitem", { name: /^Record video/ })
+                .getAttribute("aria-keyshortcuts"),
+            "Shift+R",
+        );
+        await userEvent.click(image);
+        await screen.findByText("Exported untitled_current-view.png", TOAST);
+        assert.match(saved.find(({ name }) => name === "untitled_current-view.png")?.blob.type ?? "", /^image\/png/);
+
+        // Shift+R starts a recording; the row then reads Stop recording, and stopping saves it.
+        await userEvent.keyboard("{Shift>}R{/Shift}");
+        menu = await open();
+        const stop = await within(menu).findByRole("menuitem", { name: /^Stop recording/ });
+        await waitFor(() => {
+            assert.isTrue(document.querySelector("graphty-element")?.isAnimationCapturing());
+        });
+        await userEvent.click(stop);
+        const notice = await screen.findByText(/^Exported untitled_view\.(webm|mp4)/, TOAST);
+        const video = saved.find(({ name }) => notice.textContent?.includes(name) ?? false);
+        assert.isDefined(video, "the video was saved");
+        assert.match(video?.blob.type ?? "", /^video\//);
+        menu = await open();
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Record video/ }));
     });
 });

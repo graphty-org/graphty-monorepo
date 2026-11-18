@@ -596,7 +596,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "pull-requests.automerge_green_stuck": {
         name: "Green but not merging",
         short: "green but not merging",
-        def: "PRs that are green with auto-merge on and still unmerged 2 h later.",
+        def: "PRs that are green with auto-merge on, not in conflict with master, and still unmerged 2 h later.",
         red: "2 or more: merging itself is broken (branch rules or GitHub). The PRs are named in this row; an agent checks why they do not merge.",
     },
     "pull-requests.automerge_armed_long": {
@@ -1196,6 +1196,7 @@ const S: Record<string, (p: P) => string> = {
             .join(" "),
     "note.queued_run": (p) => [`run ${runLink(num(p, "run"))}`, ...(p.workflow ? [str(p, "workflow")] : [])].join(", "),
     "note.hung_jobs": (p) => and(arr(p, "jobs").map(esc)),
+    "note.flaky_no_issue": (p) => and(arr(p, "tests").map((t) => esc(t))),
     "ci.longest_queued.note": () => "a master build run, no job yet",
     "flaky.flake_rate.note": (p) => `results since ${at(p, "since")}`,
     "flaky.net_new.note": (p) => `${fmtN(num(p, "added"))} new, ${fmtN(num(p, "resolved"))} resolved`,

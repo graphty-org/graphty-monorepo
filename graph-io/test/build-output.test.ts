@@ -1,12 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
 import { describe, expect, it } from "vitest";
 
 /** The per-format subpaths of design section 8.2, one per directory under src/formats. */
 const FORMAT_DIRS = readdirSync(resolve("./src/formats")).sort();
 
 /** The network source subpaths, `./sources/<name>`, built as dist/sources-<name>.js. */
-const SOURCE_DIRS = ["cypher", "github", "gremlin", "ndex", "rest", "s3", "sparql", "zenodo"];
+const SOURCE_DIRS = ["cypher", "figshare", "github", "gremlin", "ndex", "rest", "s3", "sparql", "zenodo"];
 
 interface PackageJsonShape {
     name: string;
@@ -134,8 +134,10 @@ describe("Build Output Tests", () => {
             "xgmml",
         ]);
         const subpaths = Object.keys(packageJson.exports).filter((key) => key !== "." && !key.startsWith("./sources/"));
-        // one per format, plus the format-independent styles module and ./positions
-        expect(subpaths.sort()).toEqual([...FORMAT_DIRS.map((dir) => `./${dir}`), "./styles", "./positions"].sort());
+        // one per format, plus the format-independent styles module, ./positions and the ./sources list
+        expect(subpaths.sort()).toEqual(
+            [...FORMAT_DIRS.map((dir) => `./${dir}`), "./styles", "./positions", "./sources"].sort(),
+        );
         expect(packageJson.exports["./styles"]).toEqual({
             types: "./dist/styles.d.ts",
             import: "./dist/styles.js",
@@ -153,8 +155,10 @@ describe("Build Output Tests", () => {
         const entries = readFileSync(resolve("./scripts/entries.js"), "utf-8");
         const typedoc = readJson("./typedoc.json") as { entryPoints: string[] };
         expect(typedoc.entryPoints).toContain("./src/index.ts");
-        // every format, every network source, the root barrel, ./styles and ./positions
-        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + SOURCE_DIRS.length + 3);
+        // every format, every network source, the root barrel, ./styles, ./positions and ./sources
+        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + SOURCE_DIRS.length + 4);
+        expect(typedoc.entryPoints).toContain("./src/sources/index.ts");
+        expect(entries).toContain('sources: "src/sources/index.ts"');
         expect(typedoc.entryPoints).toContain("./src/styles/index.ts");
         expect(typedoc.entryPoints).toContain("./src/positions/index.ts");
         expect(entries).toContain('positions: "src/positions/index.ts"');
@@ -223,8 +227,37 @@ describe("Build Output Tests", () => {
     it.skipIf(!bundleExists)("lets a bundler drop the default registry when only FormatRegistry is imported", () => {
         // without the annotation every format stays in a bundle that registers one format of its own
         expect(readFileSync(resolve("./dist/graph-io.js"), "utf-8")).toMatch(
-            /(?:const|var) registry = \/\* @__PURE__ \*\/ createRegistry\(\);/,
+            /(?:const|var) registry = \/\* @__PURE__ \*\/ createDefaultRegistry\(\);/,
         );
+    });
+
+    it.skipIf(!bundleExists)("lists the sources without loading any importer", () => {
+        // A page that only offers the sources (graphty's start page) loads @graphty/graph-io/sources and what it
+        // imports, statically; no format's importer may be among them.
+        const loaded = new Set<string>();
+        const queue = [resolve("./dist/sources.js")];
+        while (queue.length > 0) {
+            const file = queue.pop() as string;
+            if (loaded.has(file)) {
+                continue;
+            }
+            loaded.add(file);
+            for (const [, target] of readFileSync(file, "utf-8").matchAll(
+                /^(?:import|export) [^;]*? from "(\.{1,2}\/[^"]+)";/gm,
+            )) {
+                queue.push(resolve(dirname(file), target));
+            }
+        }
+        // the entry and the shared chunk that holds the list
+        expect(loaded.size).toBeGreaterThan(1);
+        // the code, without the doc comments (which may name an importer in an example)
+        const text = [...loaded]
+            .map((file) => readFileSync(file, "utf-8").replaceAll(/\/\*[\s\S]*?\*\//g, ""))
+            .join("\n");
+        for (const format of FORMAT_DIRS) {
+            expect(text, format).not.toMatch(new RegExp(`\\b${format}Importer\\b`));
+        }
+        expect(text).not.toMatch(/\bcreateDefaultRegistry\b/);
     });
 
     it.skipIf(!bundleExists)("subpath bundles share one module instance with the root bundle", async () => {

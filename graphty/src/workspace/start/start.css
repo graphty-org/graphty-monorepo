@@ -1154,6 +1154,11 @@ html.ws-land-page #root {
     text-align: left;
 }
 
+/* An odd last card (Load from URL after four kinds) spans both columns. */
+.ws-land-net .ws-land-net-source:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+}
+
 .ws-land .ws-land-net-source:hover,
 .ws-land-net .ws-land-net-source:hover {
     border-color: var(--ws-land-tint-edge);

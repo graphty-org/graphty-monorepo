@@ -6,6 +6,7 @@ import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { JSON_ISSUE, jsonImporter, type JsonImportOptions } from "../../../src/formats/json/index.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../../src/types.js";
 import { corpusFiles, inputShapes, readCorpusBytes, readCorpusText } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 
 type Options = JsonImportOptions & CommonImportOptions;
 
@@ -41,19 +42,9 @@ function edge(s: GraphSnapshot, e: number): string {
     return `${String(s.ids.idOf(list.src[e]))}->${String(s.ids.idOf(list.dst[e]))}`;
 }
 
-async function expectImportError(text: string, options?: Options): Promise<ImportError> {
+async function importError(text: string, options?: Options): Promise<ImportError> {
     const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
-    let caught: unknown;
-    try {
-        await jsonImporter.import(text, b, options);
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(ImportError);
-    const error = caught as ImportError;
-    expect(error.code).toBe("E_IMPORT");
-    expect(error.report.format).toBe("json");
-    return error;
+    return expectImportError(() => jsonImporter.import(text, b, options), { format: "json" });
 }
 
 // ============================================================ the plugin shape
@@ -673,7 +664,7 @@ describe("graphology", () => {
     });
 
     it("applies onMixedDirection error, directed and undirected", async () => {
-        const error = await expectImportError(json(mixed), { onMixedDirection: "error" });
+        const error = await importError(json(mixed), { onMixedDirection: "error" });
         expect(error.report.issues.at(-1)?.code).toBe("E_MIXED_DIRECTION");
         const forced = await load(json(mixed), { onMixedDirection: "undirected" });
         expect(forced.s.directed).toBe(false);
@@ -804,11 +795,11 @@ describe("jgf", () => {
         const second = await load(json(multi), { graphIndex: 1 });
         expect(second.s.ids.toArray()).toEqual(["B", "C"]);
         expect(second.s.edgeCount).toBe(1);
-        const beyond = await expectImportError(json(multi), { graphIndex: 5 });
+        const beyond = await importError(json(multi), { graphIndex: 5 });
         expect(beyond.report.issues.at(-1)?.code).toBe(JSON_ISSUE.GRAPH_NOT_FOUND);
-        await expectImportError('{"graphs":[]}');
-        await expectImportError('{"graphs":[3]}');
-        await expectImportError('{"graph":{"nodes":"x"}}');
+        await importError('{"graphs":[]}');
+        await importError('{"graphs":[3]}');
+        await importError('{"graph":{"nodes":"x"}}');
     });
 
     it("reports non-string labels, relations and non-object metadata without dropping the element", async () => {
@@ -864,7 +855,7 @@ describe("jgf", () => {
         });
 
         it("refuses them under hyperedges error", async () => {
-            const error = await expectImportError(json(hyper), { hyperedges: "error" });
+            const error = await importError(json(hyper), { hyperedges: "error" });
             expect(error.report.issues.at(-1)?.code).toBe(JSON_ISSUE.HYPEREDGE);
             expect(error.report.issues.at(-1)?.category).toBe("unsupported");
         });
@@ -1051,11 +1042,11 @@ describe("cytoscape", () => {
         const { s, report } = await load('{"data":{"n":1}}', { dialect: "cytoscape" });
         expect(s.nodeCount).toBe(0);
         expect(codes(report)).toEqual([JSON_ISSUE.MISSING_SECTION]);
-        const shape = await expectImportError('{"elements": 5}');
+        const shape = await importError('{"elements": 5}');
         expect(shape.report.issues.at(-1)?.code).toBe(JSON_ISSUE.SHAPE);
-        await expectImportError('{"elements": {"nodes": {}}}');
-        await expectImportError("[1, 2]");
-        await expectImportError('"text"', { dialect: "cytoscape" });
+        await importError('{"elements": {"nodes": {}}}');
+        await importError("[1, 2]");
+        await importError('"text"', { dialect: "cytoscape" });
     });
 
     it("skips an edge that repeats an id and records it, so the sink still freezes", async () => {
@@ -1192,7 +1183,7 @@ describe("input handling", () => {
 
     it("stops at the error limit with a truncated report", async () => {
         const doc = { nodes: [{ x: 1 }, { x: 2 }, { x: 3 }, { id: "ok" }], links: [] };
-        const error = await expectImportError(json(doc), { errorLimit: 1 });
+        const error = await importError(json(doc), { errorLimit: 1 });
         expect(error.report.truncated).toBe(true);
         expect(error.report.errorCount).toBe(2);
         expect(error.report.counts.skippedNodes).toBe(1);
@@ -1202,16 +1193,16 @@ describe("input handling", () => {
     });
 
     it("fails fast on an empty, invalid or unrecognised document", async () => {
-        const empty = await expectImportError("  \n");
+        const empty = await importError("  \n");
         expect(empty.report.issues[0]?.code).toBe(JSON_ISSUE.EMPTY_INPUT);
-        const syntax = await expectImportError("{nodes: []}");
+        const syntax = await importError("{nodes: []}");
         expect(syntax.report.issues[0]?.code).toBe(JSON_ISSUE.SYNTAX);
         expect(syntax.report.issues[0]?.category).toBe("parse-error");
-        const scalar = await expectImportError("42");
+        const scalar = await importError("42");
         expect(scalar.report.issues[0]?.code).toBe(JSON_ISSUE.DIALECT);
-        const unknown = await expectImportError('{"vertices": []}');
+        const unknown = await importError('{"vertices": []}');
         expect(unknown.report.issues[0]?.code).toBe(JSON_ISSUE.DIALECT);
-        const forcedScalar = await expectImportError("[]", { dialect: "node-link" });
+        const forcedScalar = await importError("[]", { dialect: "node-link" });
         expect(forcedScalar.report.issues[0]?.code).toBe(JSON_ISSUE.SHAPE);
     });
 
@@ -1376,7 +1367,7 @@ describe("nodesPath and edgesPath", () => {
     });
 
     it("still refuses a path that names something other than an array", async () => {
-        const error = await expectImportError(json({ data: { nodes: {} } }), { nodesPath: "data.nodes" });
+        const error = await importError(json({ data: { nodes: {} } }), { nodesPath: "data.nodes" });
         expect(error.report.issues[0].code).toBe(JSON_ISSUE.SHAPE);
     });
 

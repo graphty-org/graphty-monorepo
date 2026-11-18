@@ -30,9 +30,10 @@ suggested_components:
     - data-table-panel
     - visual-encoding-panel
     - gradient-editor
-    - legend
+    - legend-panel
     - graph-canvas
-    - export-dialog
+    - data-export-dialog
+    - image-export-dialog
 starting_state:
     data_type: gene list (50-600 symbols) plus a wide per-gene data table
     node_count: 100-600

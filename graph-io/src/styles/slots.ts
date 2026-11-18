@@ -10,7 +10,8 @@ const BYPASS_NAMESPACES: ReadonlySet<string> = new Set(["cx.bypass", "cx2.bypass
 
 /**
  * Whether an imported column holds the file's own style slots rather than data: the bypasses of a CX or CX2 file,
- * and the `<graphics>` block of an XGMML element (or a Cytoscape session's). An application that draws the file's
+ * the `<graphics>` block of an XGMML element (or a Cytoscape session's), and any column a reader flagged
+ * `meta.extra.presentation` (the look-only yFiles columns of a GraphML file). An application that draws the file's
  * styles from `extractStyles()` leaves these columns off its records, since the styles carry them.
  * @param meta - the column's metadata
  * @returns true for a style slot
@@ -19,6 +20,7 @@ const BYPASS_NAMESPACES: ReadonlySet<string> = new Set(["cx.bypass", "cx2.bypass
 export function isStyleSlotColumn(meta: ColumnMeta): boolean {
     const { origin } = meta;
     return (
+        meta.extra.presentation === true ||
         (typeof origin?.namespace === "string" && BYPASS_NAMESPACES.has(origin.namespace)) ||
         (meta.dtype === "json" && origin?.type === "graphics" && origin.namespace === "xgmml")
     );

@@ -1,4 +1,5 @@
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
@@ -283,7 +284,9 @@ const dropFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async (
 
 /**
  * Click the first element `selector` names with the real mouse and answer the file picker it opens
- * with `files`, as a reader choosing them in the browser's dialog.
+ * with `files`, as a reader choosing them in the browser's dialog. Files named by a path
+ * ("kit/car.obj") are written to a fresh folder on disk and that folder ("kit") is chosen, as the
+ * folder picker gives them.
  * @param ctx - the browser command context
  * @param selector - CSS selector of the control that opens the picker, inside the test frame
  * @param files - the files to choose
@@ -294,9 +297,48 @@ const chooseFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async
         ctx.page.waitForEvent("filechooser"),
         frame.locator(selector).first().click(),
     ]);
+    if (files.some((file) => file.name.includes("/"))) {
+        const root = mkdtempSync(join(tmpdir(), "cm-folder-"));
+        for (const file of files) {
+            mkdirSync(dirname(join(root, file.name)), { recursive: true });
+            writeFileSync(join(root, file.name), file.text);
+        }
+        await chooser.setFiles(join(root, files[0].name.split("/")[0]));
+        return;
+    }
     await chooser.setFiles(
         files.map((file) => ({ name: file.name, mimeType: file.type, buffer: Buffer.from(file.text) })),
     );
+};
+
+/**
+ * Click the first element `selector` names with the real mouse and leave the file picker it opens
+ * open, as a reader still looking through the browser's dialog. Playwright's handle on the picker's
+ * input is let go at once, so nothing outside the page keeps that input alive.
+ * @param ctx - the browser command context
+ * @param selector - CSS selector of the control that opens the picker, inside the test frame
+ */
+const openFileChooser: BrowserCommand<[selector: string]> = async (ctx, selector) => {
+    const frame = await ctx.frame();
+    const [chooser] = await Promise.all([
+        ctx.page.waitForEvent("filechooser"),
+        frame.locator(selector).first().click(),
+    ]);
+    await chooser.element().dispose();
+};
+
+/**
+ * Runs a full garbage collection in the page, as the browser would on its own at some later time:
+ * what nothing on the page holds is freed now.
+ * @param ctx - the browser command context
+ */
+const collectGarbage: BrowserCommand<[]> = async (ctx) => {
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    try {
+        await cdp.send("HeapProfiler.collectGarbage");
+    } finally {
+        await cdp.detach();
+    }
 };
 
 /**
@@ -318,6 +360,8 @@ const browserCommands = {
     accessibilityTree,
     dropFiles,
     chooseFiles,
+    collectGarbage,
+    openFileChooser,
 };
 
 // Bundled before a browser run starts, whatever Vite's deps cache holds. A cache an earlier run left
@@ -338,6 +382,8 @@ const config = defineConfig({
         projects: [
             // Default project - runs in JSDOM
             {
+                // the documentation examples (docs/examples/) import the package by its published name, as a reader does
+                resolve: { alias: { "@graphty/compact-mantine": resolve(__dirname, "src/index.ts") } },
                 test: {
                     name: "default",
                     globals: true,
@@ -378,8 +424,6 @@ const config = defineConfig({
                         headless: true,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent race conditions
-                        fileParallelism: false,
                         commands: browserCommands,
                     },
                 },
@@ -460,10 +504,10 @@ const config = defineConfig({
             include: ["src/**/*.ts", "src/**/*.tsx"],
             exclude: ["**/*.stories.tsx", "**/*.stories.ts", "**/*.test.ts", "**/*.test.tsx"],
             thresholds: {
-                lines: 80,
-                functions: 80,
-                statements: 80,
-                branches: 75,
+                lines: 90,
+                functions: 90,
+                statements: 90,
+                branches: 90,
             },
         },
     },

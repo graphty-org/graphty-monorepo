@@ -81,6 +81,10 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
     // The base look's home goes with the starting rows: one round-trip fixture covers both.
     ["editableBase", { group: "startingRows", schema: z.boolean().default(false) }],
+    // How the Timeline Hidden starting row starts, read only when the row is added.
+    ["timelineHiddenLook", { group: "startingRows", schema: z.enum(["hidden", "ghost"]).default("hidden") }],
+    // Whether the timeline has written its Timeline Hidden row: set with the row, so it is written once.
+    ["timelineHiddenAdded", { group: "startingRows", schema: z.boolean().default(false) }],
     ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
     ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
         `layoutBehavior.${name}`,

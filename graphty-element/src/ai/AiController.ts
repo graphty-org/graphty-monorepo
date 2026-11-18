@@ -97,22 +97,11 @@ import {
     type MessageState,
     type ToolHost,
 } from "./tools/types";
+import { uniqueId } from "./uniqueId";
 
 export type { AiApprovalVerdict, AiToolCallFacts } from "./tools/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
-
-/**
- * An id no other message, conversation or page load gives: a prefix and 128 random bits. A
- * message's id is stamped on its steps' provenance, so it must stay unique across reloads.
- * @param prefix - What kind of id it is.
- * @returns The id.
- */
-function uniqueId(prefix: string): string {
-    // getRandomValues, unlike randomUUID, is there on a page served over plain http too.
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    return prefix + Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 /**
  * A conversation with its undone marks brought up to date with the history.
@@ -659,7 +648,7 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
-    /** Where `load_dataset` downloads datasets from; absent, it fails with `E_OPTION_RANGE`. */
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `AI_ARG_OUT_OF_RANGE`. */
     datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
@@ -896,7 +885,7 @@ export class AiController {
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
             STORE_OVERRIDE
         ];
-        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // NOSONAR(S7059): the store opens at construction on purpose; openHistory never rejects and ready() awaits it
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // eslint-disable-line sonarjs/no-async-constructor -- the store opens at construction on purpose; openHistory never rejects and ready() awaits it
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
         liveFactsOf.set(this, {

@@ -1,0 +1,257 @@
+{
+    "about": "The only components the Style sidebar may draw (owner, 2026-11-17; #8739): controls -- color pickers, menus, selects, buttons and the compact-mantine field controls they sit in. No pill, chip, badge, caption, sentence or warning. A component is approved only by adding it here. The lint rule graphty/eslint-rules/style-sidebar-controls.js refuses any other component from @mantine/* or @graphty/compact-mantine in the Style sidebar's files, and src/workspace/style/__tests__/SidebarControls.real-element.test.tsx walks the rendered sidebar and refuses any other element or any words outside them. A control's `dom` is its root as drawn (ControlLabel's also matches the plain `.ws-field-name` span the rows name their field with): everything inside it is the control's. A container holds controls; its own words may sit only inside `words`, and the rest of it is checked like the sidebar. `elsewhere` lists the components whose contents are not in the sidebar but beside it (a pop-over, a dialog, a menu's list), and `elsewhereProps` those whose props are (a tooltip's label): information may go there.",
+    "controls": [
+        {
+            "name": "ActionIcon",
+            "from": "@mantine/core",
+            "dom": ".mantine-ActionIcon-root"
+        },
+        {
+            "name": "Button",
+            "from": "@mantine/core",
+            "dom": ".mantine-Button-root"
+        },
+        {
+            "name": "UnstyledButton",
+            "from": "@mantine/core",
+            "dom": ".mantine-UnstyledButton-root"
+        },
+        {
+            "name": "Checkbox",
+            "from": "@mantine/core",
+            "dom": ".mantine-Checkbox-root"
+        },
+        {
+            "name": "Menu",
+            "from": "@mantine/core",
+            "dom": ".mantine-Menu-dropdown"
+        },
+        {
+            "name": "TextInput",
+            "from": "@mantine/core",
+            "dom": ".mantine-TextInput-root"
+        },
+        {
+            "name": "Textarea",
+            "from": "@mantine/core",
+            "dom": ".mantine-Textarea-root"
+        },
+        {
+            "name": "Tooltip",
+            "from": "@mantine/core",
+            "dom": ".mantine-Tooltip-tooltip"
+        },
+        {
+            "name": "Kbd",
+            "from": "@mantine/core",
+            "dom": ".mantine-Kbd-root"
+        },
+        {
+            "name": "ComboInput",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-InputWrapper-root"
+        },
+        {
+            "name": "CompactColorInput",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-paint"
+        },
+        {
+            "name": "ContextMenu",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-Menu-dropdown"
+        },
+        {
+            "name": "GradientEditor",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-gradient"
+        },
+        {
+            "name": "MenuCheckItem",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-Menu-item"
+        },
+        {
+            "name": "Popout",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-popout"
+        },
+        {
+            "name": "PopoutButton",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-UnstyledButton-root"
+        },
+        {
+            "name": "QuickActions",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-quick-actions"
+        },
+        {
+            "name": "SearchInput",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-TextInput-root"
+        },
+        {
+            "name": "SegmentedControl",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-SegmentedControl-root"
+        },
+        {
+            "name": "Slider",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-Slider-root"
+        },
+        {
+            "name": "TargetTooltip",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-Tooltip-tooltip"
+        },
+        {
+            "name": "VariablePill",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-var-fill, .cm-var-field"
+        },
+        {
+            "name": "ControlLabel",
+            "from": "./ControlLabel",
+            "dom": "[data-control-label], .ws-field-name"
+        },
+        {
+            "name": "Select",
+            "from": "@mantine/core",
+            "dom": ".mantine-Select-root"
+        },
+        {
+            "name": "Autocomplete",
+            "from": "@mantine/core",
+            "dom": ".mantine-Autocomplete-root"
+        },
+        {
+            "name": "Combobox",
+            "from": "@mantine/core",
+            "dom": ".mantine-Combobox-dropdown"
+        },
+        {
+            "name": "CloseButton",
+            "from": "@mantine/core",
+            "dom": ".mantine-CloseButton-root"
+        },
+        {
+            "name": "RangeSlider",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-RangeSlider-root"
+        },
+        {
+            "name": "HistogramRow",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-histogram"
+        },
+        {
+            "name": "DataTable",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-dt"
+        },
+        {
+            "name": "ToggleRow",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-toggle-row"
+        },
+        {
+            "name": "ToggleIconButton",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-ActionIcon-root"
+        },
+        {
+            "name": "ResetButton",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-ActionIcon-root"
+        },
+        {
+            "name": "FileSource",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-file-source"
+        },
+        {
+            "name": "MenuShortcut",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-menu-shortcut"
+        }
+    ],
+    "containers": [
+        {
+            "name": "Box",
+            "from": "@mantine/core",
+            "dom": ".mantine-Box-root"
+        },
+        {
+            "name": "Group",
+            "from": "@mantine/core",
+            "dom": ".mantine-Group-root"
+        },
+        {
+            "name": "Stack",
+            "from": "@mantine/core",
+            "dom": ".mantine-Stack-root"
+        },
+        {
+            "name": "SimpleGrid",
+            "from": "@mantine/core",
+            "dom": ".mantine-SimpleGrid-root"
+        },
+        {
+            "name": "VisuallyHidden",
+            "from": "@mantine/core",
+            "dom": ".mantine-VisuallyHidden-root"
+        },
+        {
+            "name": "Tabs",
+            "from": "@mantine/core",
+            "dom": ".mantine-Tabs-root",
+            "words": ".mantine-Tabs-tab"
+        },
+        {
+            "name": "ControlSection",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-section",
+            "words": ".cm-section-header"
+        },
+        {
+            "name": "FieldRow",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-field-row"
+        },
+        {
+            "name": "PanelField",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-panel-field",
+            "words": ".cm-field-label"
+        },
+        {
+            "name": "PanelLabelsProvider",
+            "from": "@graphty/compact-mantine",
+            "dom": ""
+        },
+        {
+            "name": "PopoutManager",
+            "from": "@graphty/compact-mantine",
+            "dom": ""
+        },
+        {
+            "name": "UiGlyph",
+            "from": "@graphty/compact-mantine",
+            "dom": "svg"
+        },
+        {
+            "name": "ScrollArea",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-ScrollArea-root"
+        },
+        {
+            "name": "LabelsProvider",
+            "from": "@graphty/compact-mantine",
+            "dom": ""
+        }
+    ],
+    "elsewhere": ["Popout.Panel", "Popout.Content", "Menu.Dropdown", "Modal", "ContextMenu"],
+    "elsewhereProps": ["Tooltip", "TargetTooltip"]
+}

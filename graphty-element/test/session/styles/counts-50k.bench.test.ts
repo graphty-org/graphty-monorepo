@@ -17,7 +17,6 @@
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { countCounters } from "../../../src/session/styles/explain";
 
 // Timings are taken with strict state off, as a published build runs.
@@ -31,7 +30,6 @@ describe("styles.counts on 50,000 nodes under the starting rows", () => {
     let session: GraphSession;
 
     beforeAll(async () => {
-        setDefaultFeatures(["timeline"]);
         session = createGraphSession();
         await session.config.set({ startingRows: true, editableBase: true });
         let seed = 7;

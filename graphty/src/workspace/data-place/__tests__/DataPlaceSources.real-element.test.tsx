@@ -21,8 +21,8 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { sourceName } from "../words";
 
-// The Sources tab belongs to the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * College football, then Les Miserables added to it, in the workspace on the Data place.
@@ -123,7 +123,7 @@ describe("the Sources tab with two loads", () => {
         );
     });
 
-    it("gives each load its own section with its node and edge rows, its own columns and its own Filter + row", async () => {
+    it("gives each load its own section with its node and edge rows, its own columns and its own Filters", async () => {
         const { football: cf, miserables: lm } = await openTwo();
         for (const load of [cf, lm]) {
             const section = await sectionOf(load);
@@ -131,9 +131,8 @@ describe("the Sources tab with two loads", () => {
             await waitFor(() => {
                 within(section).getByText("Nodes", { exact: true });
                 within(section).getByText("Edges", { exact: true });
-                // With no filter yet, its Filters are one "Filter +" row, with no empty header.
-                assert.strictEqual(within(section).getByRole("button", { name: "Add filter" }).textContent, "Filter");
-                assert.isNull(within(section).queryByRole("group", { name: "Filters" }));
+                within(section).getByRole("group", { name: "Filters" });
+                within(section).getByRole("button", { name: "Add filter" });
             });
             const edges = section.querySelector('[data-kind="edge"] .cm-entity-text');
             assert.strictEqual(edges?.textContent, String(load.counts.edges), "the load's own edge count");
@@ -141,7 +140,13 @@ describe("the Sources tab with two loads", () => {
         // Les Miserables' Label offers its own columns, never College football's.
         const section = await sectionOf(lm);
         await userEvent.click(within(section).getByRole("button", { name: "Add to node attributes" }));
+        // Its "name" column is the obvious label: Label is added with it.
         await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
+        const label = await within(section).findByRole("combobox", { name: "Node label" });
+        await waitFor(() => {
+            assert.strictEqual((label as HTMLInputElement).value, "name");
+        });
+        await userEvent.click(label);
         const options = (await screen.findAllByRole("option")).map((each) => each.textContent ?? "");
         assert.isTrue(
             options.some((text) => text.startsWith("name")),

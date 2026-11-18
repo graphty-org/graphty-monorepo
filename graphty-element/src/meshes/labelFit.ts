@@ -117,6 +117,27 @@ export function labelFitExtent(
 }
 
 /**
+ * The width and height of a node that takes its picture's proportions (`shape.imageAspect`): its box grown the longer
+ * way until the picture, at its own proportions, covers its own width and height (else its `size`), as vis-network
+ * sizes an image node to its picture (`CircleImageBase._resizeImage`).
+ * @param shape - The node's shape block.
+ * @param picture - Its picture's own width and height in pixels, when it has one and it is known.
+ * @returns The width and height, or null when the node keeps its own box.
+ */
+export function imageAspectExtent(
+    shape: NodeStyleConfig["shape"],
+    picture: LabelBox | null,
+): { width: number; height: number } | null {
+    if (shape?.imageAspect !== true || picture === null || picture.width <= 0 || picture.height <= 0) {
+        return null;
+    }
+    const size = shape.size ?? 0;
+    const [width, height] = [shape.width ?? size, shape.height ?? size];
+    const f = Math.max(width / picture.width, height / picture.height);
+    return { width: picture.width * f, height: picture.height * f };
+}
+
+/**
  * The padded box a node holds: its label's, or its picture's where that is larger.
  * @param shape - The node's shape block.
  * @param box - Its label's box.

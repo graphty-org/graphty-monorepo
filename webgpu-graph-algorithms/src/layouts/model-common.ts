@@ -1,8 +1,7 @@
 /**
- * The option and value helpers every force model's resolver and stats decoder share (P5 PD-7): moved verbatim
- * from src/layouts/forceatlas2.ts (P3-T2) so the Fruchterman-Reingold and spring-electrical models of P5 neither
- * copy them nor import a sibling model; and, since P4-T6, the K2 tier binding and dispatch the three models share
- * (`compileAttraction` / `bindAttraction` / `recordAttraction`, P4 PD-7), so every model's bind() / recordIteration()
+ * The option and value helpers every force model's resolver and stats decoder share, so the ForceAtlas2,
+ * Fruchterman-Reingold and spring-electrical models neither copy them nor import a sibling model; and the K2 tier
+ * binding and dispatch the three models share (`compileAttraction` / `bindAttraction` / `recordAttraction`), so every model's bind() / recordIteration()
  * calls one function instead of holding its own copy. Layout zone.
  */
 
@@ -37,7 +36,7 @@ export interface AttractionBindings {
 }
 
 /**
- * Compiles (through the cache) the `fa2-attraction` pipelines a load needs and plans their dispatches (P4 PD-7),
+ * Compiles (through the cache) the `fa2-attraction` pipelines a load needs and plans their dispatches,
  * creating no bind group: a model binds them with bindAttraction only after its superseded-bind check, so a bind
  * that a newer load() superseded leaves nothing in the kernel's bind-group cache. TIER 0 always; TIER 1 when a row
  * of degree 32..1023 exists (`[hiEnd, midEnd)` is non-empty); TIER 2 when a row of degree >= 1024 exists
@@ -155,7 +154,7 @@ function describeValue(value: unknown): string {
 }
 
 /**
- * The E_INVALID_ARGUMENT error of an option check (contract 3.1: { argument, value, expected }).
+ * The E_INVALID_ARGUMENT error of an option check (details { argument, value, expected }).
  * @param argument - the option name
  * @param value - the value given
  * @param expected - what was expected
@@ -403,8 +402,7 @@ export function vector(values: UniformValues, name: string): readonly number[] {
 }
 
 /**
- * The override record a kernel gets: its defaults overlaid with the values present in the merged set (contract 3.9:
- * a name a spec does not declare is rejected at compose time, so nothing else is passed through).
+ * The override record a kernel gets: its defaults overlaid with the values present in the merged set (a name a spec does not declare is rejected at compose time, so nothing else is passed through).
  * @param merged - the merged override set of the model (plus USE_PERM / HAS_WEIGHTS from the simulation)
  * @param defaults - the kernel's accepted names with their defaults
  * @returns the kernel's override record, every accepted name explicit

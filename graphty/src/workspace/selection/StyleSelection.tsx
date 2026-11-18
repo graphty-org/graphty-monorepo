@@ -10,11 +10,9 @@
 import type { GraphSession, Layer, UnionLeaf } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import type { Side } from "../style/cards";
 import { useStepWriter } from "../style/useStepWriter";
 import { SelectionEditor } from "./SelectionEditor";
-import { SelectionEditorInline } from "./SelectionEditorInline";
 import { layerSelection } from "./values";
 
 /**
@@ -64,10 +62,8 @@ export function StyleSelection({
     if (held === null) {
         return null;
     }
-    // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
-    const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
     return (
-        <Editor
+        <SelectionEditor
             session={session}
             rule={local ?? held}
             host="selector"

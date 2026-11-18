@@ -8,7 +8,7 @@ indexed by the snapshot's node index (`0 .. nodeCount - 1`), never by node id, a
 <<< ../examples/algorithms.ts
 
 Each one is also a method of the object `createAccelerator(ctx)` returns (`acc.pageRank(snapshot, options)`),
-which is how [`@graphty/algorithms`](../../algorithms/) runs them when you pass it a GPU accelerator.
+which is how [`@graphty/algorithms`](https://graphty.app/docs/algorithms/) runs them when you pass it a GPU accelerator.
 
 ## Options every algorithm takes
 

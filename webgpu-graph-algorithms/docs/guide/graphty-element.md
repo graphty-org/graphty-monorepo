@@ -1,6 +1,6 @@
 # With graphty-element
 
-[graphty-element](../../graphty-element/) uses this package as an optional accelerator. You do not call it yourself:
+[graphty-element](https://graphty.app/docs/graphty-element/) uses this package as an optional accelerator. You do not call it yourself:
 install it, add one import, and the element runs its layouts and algorithms on the GPU when the machine has one.
 
 ```bash
@@ -16,7 +16,7 @@ The element finds the device, checks it, attaches it, and recovers when the devi
 attribute (`auto`, `off` or `required`) says whether to use it, and
 `element.session.capabilities.acceleration` says where the work ran and why.
 
-See graphty-element's [Acceleration guide](../../graphty-element/guide/acceleration.md) for the policies, what is
+See graphty-element's [Acceleration guide](https://graphty.app/docs/graphty-element/guide/acceleration) for the policies, what is
 accelerated today, and how to read where the work ran.
 
 ## With @graphty/algorithms and @graphty/layout

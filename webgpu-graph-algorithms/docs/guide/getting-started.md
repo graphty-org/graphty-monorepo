@@ -7,7 +7,7 @@ Dawn (the `webgpu` npm package), and in browsers that ship WebGPU. It works on t
 ## When to use it
 
 Use it when a graph is large enough that the CPU is the bottleneck: tens of thousands of nodes and up. On small
-graphs a CPU implementation such as [`@graphty/algorithms`](../../algorithms/) or [`@graphty/layout`](../../layout/)
+graphs a CPU implementation such as [`@graphty/algorithms`](https://graphty.app/docs/algorithms/) or [`@graphty/layout`](https://graphty.app/docs/layout/)
 is as fast or faster, because a GPU call pays a fixed cost to upload the graph and read the result back.
 
 The package never falls back to the CPU. When there is no usable GPU it throws a

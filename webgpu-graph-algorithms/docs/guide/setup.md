@@ -90,7 +90,7 @@ uploads a snapshot the first time an algorithm needs it and keeps it until `ctx.
 
 `createAccelerator(ctx)` wraps a context in an object with one method per algorithm and layout
 (`acc.pageRank(snapshot)`, `acc.forceAtlas2(options)`). That object is what
-[`@graphty/algorithms`](../../algorithms/) and [`@graphty/layout`](../../layout/) accept as an accelerator, so the
+[`@graphty/algorithms`](https://graphty.app/docs/algorithms/) and [`@graphty/layout`](https://graphty.app/docs/layout/) accept as an accelerator, so the
 same call runs on the GPU when you pass one and on the CPU when you do not.
 
 ## The device self-check

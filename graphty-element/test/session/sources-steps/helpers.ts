@@ -5,18 +5,32 @@
  */
 
 import { build, isStaged, mintPart, nodeSpace, ownSpace, stepSources } from "../../../src/session/sources/steps/build";
-import type {
-    BuildInput,
-    BuildResult,
-    BuiltEdge,
-    BuiltNode,
-    CopyTables,
-    Mapping,
-    Row,
-    Source,
-    SourceSettings,
-    Step,
-    TypeRule,
+import {
+    checkClashRule,
+    checkEdit,
+    isOutcome,
+    pickEdit,
+    readerEdit,
+    renameColumn,
+    type StepsOutcome,
+    withClash,
+} from "../../../src/session/sources/steps/provenance";
+import {
+    type BuildInput,
+    type BuildResult,
+    type BuiltEdge,
+    type BuiltNode,
+    type CopyTables,
+    type ElementRef,
+    type Mapping,
+    READER_SPACE,
+    type ReaderOp,
+    type Row,
+    type Source,
+    type SourceSettings,
+    type Step,
+    type TypeEntry,
+    type TypeRule,
 } from "../../../src/session/sources/steps/types";
 
 /** Rows of a comma-separated text, every cell a string, as a CSV reads. */
@@ -35,7 +49,8 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 export class Fixture {
     sources: Record<string, Mutable<Source>> = {};
     steps: Step[] = [];
-    readonly types: { name: string; kind: "node" | "edge"; rules: TypeRule[] }[] = [];
+    readonly types: (TypeEntry & { rules: TypeRule[] })[] = [];
+    reader: ReaderOp[] = [];
     readonly copies = new Map<string, CopyTables>();
     repeatedEdges: BuildInput["repeatedEdges"];
     /** The highest part minted per source this session. */
@@ -47,6 +62,7 @@ export class Fixture {
             sources: this.sources,
             steps: this.steps,
             types: this.types,
+            reader: this.reader,
             ...(this.repeatedEdges ? { repeatedEdges: this.repeatedEdges } : {}),
         };
     }
@@ -61,6 +77,7 @@ export class Fixture {
         Object.assign(g.sources, structuredClone(this.sources));
         g.steps = structuredClone(this.steps);
         g.types.push(...structuredClone(this.types));
+        g.reader = structuredClone(this.reader);
         for (const [c, t] of this.copies) {
             g.copies.set(c, t);
         }
@@ -135,6 +152,76 @@ export class Fixture {
         }
     }
 
+    /** Declare a type, or add rules to one (3.7). */
+    declareType(entry: { name: string; kind: "node" | "edge"; rules: TypeRule[] }): void {
+        for (const r of entry.rules) {
+            this.rule(entry.kind, entry.name, r);
+        }
+    }
+
+    /** The index of the first step reading a source. */
+    stepOf(id: string): number {
+        return this.steps.findIndex((s) => s.source === id);
+    }
+
+    /** Set one column's clash rule on a step, unless the check refuses it. */
+    setClash(i: number, column: string, rule: Parameters<typeof withClash>[2]): StepsOutcome | null {
+        const refused = checkClashRule(this.built(), i, column, rule);
+        if (!refused) {
+            this.steps[i] = withClash(this.steps[i], column, rule);
+        }
+        return refused;
+    }
+
+    private nextOp(): string {
+        this.seq++;
+        return `op_${this.seq}`;
+    }
+
+    /** A typed reader edit, unless the column is guarded. */
+    edit(ref: ElementRef, column: string, value: string): StepsOutcome | string {
+        const r = this.built();
+        const refused = checkEdit(this.input, r, ref, column);
+        if (refused) {
+            return refused;
+        }
+        const op = readerEdit(this.input, r, { id: this.nextOp(), ref, column, value });
+        this.reader.push(op);
+        return op.id;
+    }
+
+    /** A pick or Use of one source's value. */
+    use(ref: ElementRef, column: string, source: string): StepsOutcome | string {
+        const op = pickEdit(this.input, this.built(), { id: this.nextOp(), ref, column, source });
+        if (op === null) {
+            throw new Error("no value to pick");
+        }
+        if (isOutcome(op)) {
+            return op;
+        }
+        this.reader.push(op);
+        return op.id;
+    }
+
+    /** A node the reader adds; it lives in source:reader (3.1). */
+    addNode(key: string, columns: Record<string, string> = {}): string {
+        const id = this.nextOp();
+        this.reader.push({ id, op: "add", node: { space: READER_SPACE, key }, columns });
+        return id;
+    }
+
+    /** Rename one value column of one source (4.4). */
+    renameColumn(source: string, table: "nodes" | "edges", from: string, to: string): StepsOutcome | null {
+        const next = renameColumn(this.input, this.copies, { source, table, from, to });
+        if (isOutcome(next)) {
+            return next;
+        }
+        this.sources = next.sources;
+        this.steps = [...next.steps];
+        this.reader = [...(next.reader ?? [])];
+        return null;
+    }
+
     /** What reopening a saved project loses: the session's record of minted parts. */
     forgetMinted(): void {
         this.high.clear();
@@ -157,7 +244,7 @@ export class Fixture {
     }
 
     /** Extract one column of an edge source as nodes of `type`, each row an edge from its `from` end. */
-    extract(id: string, o: { column: string; type: string; columns?: string[] }): number {
+    extract(id: string, o: { column: string; type: string; columns?: string[]; edgeType?: string }): number {
         const m = this.sources[id].mapping.edges;
         if (!m) {
             throw new Error("not an edge source");
@@ -179,6 +266,9 @@ export class Fixture {
             repeated: "first",
         });
         this.rule("node", o.type, { source: id, part, end: "target" });
+        if (o.edgeType !== undefined) {
+            this.rule("edge", o.edgeType, { source: id, part });
+        }
         if (o.columns) {
             this.steps.push({
                 op: "join.node-values",

@@ -229,12 +229,71 @@ export interface TypeRule {
     readonly part?: number;
 }
 
-/** One entry of the type registry. */
+/** One entry of the type registry (3.7): a type is declared, never guessed. */
 export interface TypeEntry {
+    /** The type's id, read as `graphty.type`. */
     readonly name: string;
     readonly kind: "node" | "edge";
+    /** The type's default name for a reader; absent means `name`. An application may show it or replace it. */
+    readonly plainName?: string;
+    /** Which rows or ends of which source carry the type. */
     readonly rules: readonly TypeRule[];
+    /** What the type's elements are expected to carry, by column; kept and saved, not checked by the build. */
+    readonly schema?: Readonly<Record<string, unknown>>;
 }
+
+/** The id of the reader source: the reader's own edits, built after every step (3.2). */
+export const READER_SOURCE = "reader";
+
+/** The frozen id space a node the reader adds lives in (3.1). */
+export const READER_SPACE = "source:reader";
+
+/** A node named by its id space and key. */
+export interface NodeRef {
+    readonly space: string;
+    readonly key: string;
+}
+
+/** An edge named by the source that made it and its key within that source. */
+export interface EdgeRef {
+    readonly load: string;
+    readonly key: string;
+}
+
+/** A node or edge reference; binds through live keys and aliases on every build (3.2). */
+export type ElementRef = NodeRef | EdgeRef;
+
+/** The element a reader operation names: a node or an edge. */
+type ReaderTarget =
+    { readonly node: NodeRef; readonly edge?: never } | { readonly edge: EdgeRef; readonly node?: never };
+
+/** A reader operation that removes one node (with its edges) or one edge. */
+export type ReaderRemove = { readonly id: string; readonly op: "remove" } & ReaderTarget;
+
+/** A reader operation that adds one node; it always lands in {@link READER_SPACE}, whatever space it names. */
+export interface ReaderAdd {
+    readonly id: string;
+    readonly op: "add";
+    readonly node: NodeRef;
+    /** The node's type; absent means the default type. */
+    readonly type?: string | null;
+    readonly columns?: Readonly<Record<string, CellValue>>;
+}
+
+/** A reader operation that sets one cell; it wins over every step (3.8). */
+export type ReaderEdit = {
+    readonly id: string;
+    readonly op: "edit";
+    readonly column: string;
+    readonly value: CellValue;
+    /** The value shown under the cell when the edit was made (7.12). */
+    readonly was?: Value | null;
+    /** The source whose value a pick or Use took; a typed value has none (3.10). */
+    readonly picked?: string;
+} & ReaderTarget;
+
+/** One operation of the reader source, applied in the order made, after the steps (3.2). */
+export type ReaderOp = ReaderRemove | ReaderAdd | ReaderEdit;
 
 /** Everything the build reads besides the copies. */
 export interface BuildInput {
@@ -243,6 +302,8 @@ export interface BuildInput {
     readonly types?: readonly TypeEntry[];
     /** Parallel edges a step does not reduce itself; default `"keep"`. */
     readonly repeatedEdges?: DuplicatePolicy;
+    /** The reader source's operations, in the order made. */
+    readonly reader?: readonly ReaderOp[];
 }
 
 /** One source's value for one cell. */
@@ -285,6 +346,10 @@ export interface BuiltElement {
     touch: Touch[];
     /** The clash rule that settled each column another source also filled. */
     rule?: Record<string, ClashRule>;
+    /** The step whose rule settled each such column. */
+    ruleStep?: Record<string, number>;
+    /** The reader edit that sets each edited column. */
+    edited?: Record<string, ReaderEdit>;
     clashColumns?: Record<string, ClashColumn>;
     time: number | null;
     timeFrom: string | null;
@@ -359,7 +424,14 @@ export interface StepStats {
 export type BuildIssue =
     | { readonly code: "W_KEY_EMPTY"; readonly params: { source: string; column: string; rows: number } }
     | { readonly code: "W_VALUE_HUB"; readonly params: { source: string; column: string; value: string; rows: number } }
-    | { readonly code: "E_EDGE_KEY_COLLISION"; readonly params: { load: string; key: string; steps: number[] } };
+    | { readonly code: "E_EDGE_KEY_COLLISION"; readonly params: { load: string; key: string; steps: number[] } }
+    | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { ref: ElementRef; edit: string } };
+
+/** Whether one reader operation found its element. */
+export interface ReaderResult {
+    readonly id: string;
+    readonly applied: boolean;
+}
 
 /** The working graph the steps build, and what the build counted. */
 export interface BuildResult {
@@ -373,4 +445,6 @@ export interface BuildResult {
     readonly issues: BuildIssue[];
     /** Per source, per `<table>#<row>`. */
     readonly fates: Map<string, Map<string, RowFate>>;
+    /** Each reader operation, in order, and whether it applied. */
+    readonly readerResults: ReaderResult[];
 }

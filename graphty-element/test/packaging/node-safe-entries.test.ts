@@ -43,6 +43,7 @@ const NODE_SAFE_ENTRIES = [
     // The pure build of sources and steps (the `source-steps` experiment): a draft runs it on a
     // copy, in Node as in a browser.
     "src/session/sources/steps/build.ts",
+    "src/session/sources/steps/provenance.ts",
 ];
 
 /**

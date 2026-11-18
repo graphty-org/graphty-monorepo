@@ -11,32 +11,36 @@
 
 import { reduce } from "../../join";
 import type { JoinReduce } from "../../types";
-import type {
-    AddStep,
-    BuildInput,
-    BuildIssue,
-    BuildResult,
-    BuiltEdge,
-    BuiltElement,
-    BuiltNode,
-    CellValue,
-    ClashRule,
-    CopyTables,
-    EdgesStep,
-    EdgeValuesStep,
-    MergeStep,
-    NodeValuesStep,
-    OwnValue,
-    Row,
-    RowFate,
-    RowFateKind,
-    RowFilter,
-    Source,
-    Step,
-    StepStats,
-    TableName,
-    TypeEntry,
-    Value,
+import {
+    type AddStep,
+    type BuildInput,
+    type BuildIssue,
+    type BuildResult,
+    type BuiltEdge,
+    type BuiltElement,
+    type BuiltNode,
+    type CellValue,
+    type ClashRule,
+    type CopyTables,
+    type EdgesStep,
+    type EdgeValuesStep,
+    type MergeStep,
+    type NodeValuesStep,
+    type OwnValue,
+    READER_SOURCE,
+    READER_SPACE,
+    type ReaderOp,
+    type ReaderResult,
+    type Row,
+    type RowFate,
+    type RowFateKind,
+    type RowFilter,
+    type Source,
+    type Step,
+    type StepStats,
+    type TableName,
+    type TypeEntry,
+    type Value,
 } from "./types";
 
 /**
@@ -53,7 +57,7 @@ export const nodeId = (space: string, key: string): string => `${space}\u0001${k
  * @param key - Its key within that source.
  * @returns An id unique in one build.
  */
-const edgeId = (load: string, key: string): string => `${load}\u0001${key}`;
+export const edgeId = (load: string, key: string): string => `${load}\u0001${key}`;
 
 /**
  * A source's own id space, where its keys live when its mapping names none.
@@ -70,7 +74,7 @@ export const ownSpace = (sourceId: string): string => `source:${sourceId}`;
 export const nodeSpace = (src: Source): string => src.mapping.nodes?.space ?? ownSpace(src.id);
 
 const escapeKey = (k: string): string => k.replaceAll(/[\\|]/g, String.raw`\$&`);
-const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
+export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
 interface MatchOptions {
@@ -269,10 +273,29 @@ function aggregateFor(step: Step, column: string): JoinReduce | undefined {
 }
 
 type Held = [origin: string, value: Value];
+const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
+const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
+/**
+ * Whether a numeric clash rule fits these values (3.10): `mean` needs numbers, `min` and `max`
+ * numbers or dates.
+ * @param rule - The rule.
+ * @param values - Every source's value for one cell.
+ * @returns False when the rule cannot order them.
+ */
+export function ruleFits(rule: ClashRule, values: readonly Value[]): boolean {
+    if (rule !== "min" && rule !== "max" && rule !== "mean") {
+        return true;
+    }
+    return values.every((v) => isNumber(v)) || (rule !== "mean" && values.every((v) => isDate(v)));
+}
 const numbers = (all: Held[]): [string, number][] | undefined =>
-    all.every(([, v]) => !isEmpty(v) && !Number.isNaN(Number(v))) ? all.map(([s, v]) => [s, Number(v)]) : undefined;
+    all.every(([, v]) => isNumber(v)) ? all.map(([s, v]) => [s, Number(v)]) : undefined;
+// min and max order numbers, else dates
+const ordered = (all: Held[]): [string, number][] | undefined =>
+    numbers(all) ??
+    (all.every(([, v]) => isDate(v)) ? all.map(([s, v]) => [s, parseTime(v as string) ?? 0]) : undefined);
 const pickBy = (all: Held[], better: (a: number, b: number) => boolean): Held | undefined => {
-    const n = numbers(all);
+    const n = ordered(all);
     if (!n) {
         return undefined;
     }
@@ -459,6 +482,7 @@ class Builder {
     readonly stats: StepStats[] = [];
     readonly issues: BuildIssue[] = [];
     readonly fates = new Map<string, Map<string, RowFate>>();
+    readonly readerResults: ReaderResult[] = [];
     // `<source>#<table>` -> the rows a filtered step read, for the no-step fate
     private readonly reads = new Map<string, { src: string; table: TableName; n: number; read: Set<number> }>();
     private readonly types: readonly TypeEntry[];
@@ -554,14 +578,29 @@ class Builder {
         how: "add" | "leave-out" = "add",
     ): BuiltNode | null {
         const id = this.resolve(space, key);
-        if (id !== undefined) {
-            return this.nodes.get(id) ?? null;
+        const met = id === undefined ? undefined : this.nodes.get(id);
+        if (met) {
+            this.meetType(met, typeOf(this.types, "node", ctx, row), st);
+            return met;
         }
         if (how === "leave-out") {
             return null;
         }
         st.newNodes++;
         return this.mkNode(space, key, typeOf(this.types, "node", ctx, row));
+    }
+
+    // 3.7: the first step to give a node a type sets it; a different type a later step gives stays in its lineage.
+    private meetType(n: BuiltNode, type: string | null, st: StepStats): void {
+        if (type === null || type === n.type) {
+            return;
+        }
+        if (n.type === null) {
+            n.type = type;
+        } else if (!n.otherTypes.includes(type)) {
+            n.otherTypes.push(type);
+            st.typeDiffers++;
+        }
     }
 
     // Writes one cell from one source by the step's clash rule (3.3, 3.10).
@@ -619,6 +658,8 @@ class Builder {
         const clash = ruleFor(step, col);
         el.rule ??= {};
         el.rule[col] = clash;
+        el.ruleStep ??= {};
+        el.ruleStep[col] = at.si;
         if (clash === "overwrite" && differ) {
             el.values[col] = v;
             el.origin[col] = src;
@@ -757,6 +798,11 @@ class Builder {
         });
         for (const n of this.nodes.values()) {
             settle(n);
+        }
+        for (const op of this.input.reader ?? []) {
+            this.readerResults.push({ id: op.id, applied: this.applyReader(op) });
+        }
+        for (const n of this.nodes.values()) {
             this.settleTime(n);
         }
         for (const { src, table, n, read } of this.reads.values()) {
@@ -766,12 +812,58 @@ class Builder {
                 }
             }
         }
-        const { nodes, edges, aliases, edgeAliases, stats, issues, fates } = this;
-        return { nodes, edges, aliases, edgeAliases, stats, issues, fates };
+        const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults } = this;
+        return { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults };
+    }
+
+    private bind(op: ReaderOp): BuiltNode | BuiltEdge | null {
+        if (op.node) {
+            const id = this.resolve(op.node.space, op.node.key);
+            return id === undefined ? null : (this.nodes.get(id) ?? null);
+        }
+        const id = edgeId(op.edge.load, op.edge.key);
+        return this.edges.get(id) ?? this.edges.get(this.edgeAliases.get(id) ?? "") ?? null;
+    }
+
+    // 3.2: the reader source's operations, in the order made, after every step; false when unbound.
+    private applyReader(op: ReaderOp): boolean {
+        if (op.op === "add") {
+            if (this.nodes.has(nodeId(READER_SPACE, op.node.key))) {
+                return false;
+            }
+            const n = this.mkNode(READER_SPACE, op.node.key, op.type ?? null);
+            n.loads.push(READER_SOURCE);
+            for (const [c, v] of Object.entries(op.columns ?? {})) {
+                n.values[c] = v;
+                n.origin[c] = READER_SOURCE;
+            }
+            return true;
+        }
+        const el = this.bind(op);
+        if (!el) {
+            if (op.op === "edit") {
+                const ref = op.node ?? op.edge;
+                this.issues.push({ code: "W_REFERENCE_UNBOUND", params: { ref, edit: op.id } });
+            }
+            return false;
+        }
+        if (op.op === "remove") {
+            if ("space" in el) {
+                this.dropNode(el);
+            } else {
+                this.edges.delete(el.id);
+            }
+            return true;
+        }
+        el.values[op.column] = op.value;
+        el.origin[op.column] = READER_SOURCE;
+        el.edited ??= {};
+        el.edited[op.column] = op;
+        return true;
     }
 
     // 3.9: when every supplying source reads time from one column, the time comes from the source whose
-    // value that column shows (its rule's pick); a computed value (mean) keeps step order
+    // value that column shows (its rule's pick or the reader's pick); a computed value (mean) keeps step order
     private settleTime(n: BuiltNode): void {
         const timed = n.loads.filter((id) => this.input.sources[id]?.mapping.nodes?.time !== undefined);
         const cols = new Set(timed.map((id) => this.input.sources[id].mapping.nodes?.time));
@@ -779,7 +871,8 @@ class Builder {
         if (cols.size !== 1 || col === undefined) {
             return;
         }
-        const from = n.origin[col] as string | undefined;
+        const shown = n.origin[col] as string | undefined;
+        const from = shown === READER_SOURCE ? n.edited?.[col]?.picked : shown;
         if (from === undefined || !timed.includes(from)) {
             return;
         }

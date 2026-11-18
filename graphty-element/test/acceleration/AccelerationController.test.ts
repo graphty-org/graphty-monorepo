@@ -1016,11 +1016,11 @@ describe("AccelerationController: device loss", () => {
         await controller.start();
 
         lost.resolve({ reason: "the GPU process crashed" });
-        await until(() => (controller.status.reason ?? "").includes("reattaching failed"), "the failed first try");
+        await vi.waitUntil(() => (controller.status.reason ?? "").includes("reattaching failed"));
         assert.strictEqual(calls(), 2);
 
         assert.isFalse(controller.plan(LAYOUT).accelerated);
-        await until(() => controller.state === "idle", "the second try to attach");
+        await vi.waitUntil(() => controller.state === "idle");
         assert.strictEqual(controller.accelerator?.name, "second");
         assert.strictEqual(calls(), 3);
         controller.dispose();
@@ -1034,10 +1034,10 @@ describe("AccelerationController: device loss", () => {
         await controller.start();
 
         lost.resolve({ reason: "device removed" });
-        await until(() => (controller.status.reason ?? "").includes("reattaching failed"), "the failed first try");
+        await vi.waitUntil(() => (controller.status.reason ?? "").includes("reattaching failed"));
 
         registry.register({ name: "late", factory: () => Promise.resolve(null) });
-        await until(() => controller.state === "idle", "the try the registration started");
+        await vi.waitUntil(() => controller.state === "idle");
         assert.strictEqual(controller.accelerator?.name, "second");
         assert.strictEqual(calls(), 3);
         controller.dispose();
@@ -1051,7 +1051,7 @@ describe("AccelerationController: device loss", () => {
         await controller.start();
 
         lost.resolve({ reason: "device removed" });
-        await until(() => (controller.status.reason ?? "").includes("reattaching failed"), "the failed try");
+        await vi.waitUntil(() => (controller.status.reason ?? "").includes("reattaching failed"));
 
         controller.plan(LAYOUT);
         controller.plan(LAYOUT);
@@ -1078,10 +1078,7 @@ describe("AccelerationController: device loss", () => {
 
         lost.resolve({ reason: "device removed" });
         for (let tries = 1; tries <= 3; tries += 1) {
-            await until(
-                () => (controller.status.reason ?? "").includes(`try ${String(tries)}`),
-                `try ${String(tries)}`,
-            );
+            await vi.waitUntil(() => (controller.status.reason ?? "").includes(`try ${String(tries)}`));
             controller.plan(LAYOUT);
         }
 
@@ -1102,10 +1099,10 @@ describe("AccelerationController: device loss", () => {
         await controller.start();
 
         firstLost.resolve({ reason: "device removed" });
-        await until(() => controller.accelerator?.name === "second", "the reattach");
+        await vi.waitUntil(() => controller.accelerator?.name === "second");
 
         secondLost.resolve({ reason: "device removed again" });
-        await until(() => controller.state === "error", "the second loss");
+        await vi.waitUntil(() => controller.state === "error");
         controller.plan(LAYOUT);
         await Promise.resolve();
         assert.strictEqual(calls(), 2);
@@ -1123,12 +1120,12 @@ describe("AccelerationController: device loss", () => {
         await controller.start();
 
         firstLost.resolve({ reason: "device removed" });
-        await until(() => controller.accelerator?.name === "second", "the reattach");
+        await vi.waitUntil(() => controller.accelerator?.name === "second");
         const outcome = await controller.run(LAYOUT, () => "gpu");
         assert.isTrue(outcome.accelerated);
 
         secondLost.resolve({ reason: "device removed again" });
-        await until(() => controller.accelerator?.name === "third", "the second reattach");
+        await vi.waitUntil(() => controller.accelerator?.name === "third");
         assert.strictEqual(calls(), 3);
         controller.dispose();
     });

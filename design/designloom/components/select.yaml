@@ -3,7 +3,8 @@ name: Select
 category: control
 description: Dropdown select component for choosing from a list of options. Supports single and multi-select, search
     filtering, and grouped options.
-status: planned
+status: implemented
+notes: "Ships: Mantine Select, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

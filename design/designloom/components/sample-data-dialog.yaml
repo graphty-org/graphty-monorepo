@@ -2,7 +2,8 @@ id: sample-data-dialog
 name: Sample Data Dialog
 category: dialog
 description: Dialog for loading sample datasets. Shows available samples with descriptions, size info, and preview.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/start/SamplesDialog.tsx."
 implements_capabilities:
     - sample-datasets
 used_in_workflows:

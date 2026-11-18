@@ -3,7 +3,8 @@ name: Temporal Navigation
 category: interaction
 description: Navigate through time-varying graph data using interactive controls, enabling exploration of how the
     network structure evolves over time.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/time/TimeDock.tsx and the session's time window (setWindow, play, seek)."
 algorithms: []
 used_by_workflows:
     - W06

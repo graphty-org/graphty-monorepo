@@ -2,7 +2,8 @@ id: divider
 name: Divider
 category: layout
 description: Visual separator between content sections. Can be horizontal or vertical with optional label.
-status: planned
+status: implemented
+notes: "Ships: Mantine Divider, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

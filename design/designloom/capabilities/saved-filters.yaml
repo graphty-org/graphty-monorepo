@@ -3,7 +3,8 @@ name: Saved Filters
 category: interaction
 description: Save, name, and reuse filter and search configurations, enabling efficient repeated analysis and
     pattern-based workflows.
-status: planned
+status: implemented
+notes: "Ships: saved filters in graphty/src/workspace/data-place/Filters.tsx."
 algorithms: []
 used_by_workflows:
     - W07

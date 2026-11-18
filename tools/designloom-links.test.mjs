@@ -3,12 +3,15 @@
 //
 //   node --test tools/designloom-links.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { parse as parseYaml } from "yaml";
 
-const DIR = new URL("../design/designloom/", import.meta.url);
+const ROOT = new URL("../", import.meta.url);
+const DIR = new URL("design/designloom/", ROOT);
+// Designloom's status enum for capabilities and components
+const STATUSES = ["planned", "in-progress", "implemented", "deprecated"];
 
 /**
  * Every record of one kind, by id.
@@ -73,6 +76,20 @@ describe("Designloom links", () => {
     for (const [from, field, to] of REFS) {
         it(`${from}.${field} names existing ${to}`, () => {
             assert.deepEqual(broken(from, field, to), []);
+        });
+    }
+    for (const kind of ["capabilities", "components"]) {
+        it(`${kind} have a known status, and a shipped one names its code`, () => {
+            const out = [];
+            for (const [id, record] of kinds[kind]) {
+                const status = record.status ?? "planned";
+                if (!STATUSES.includes(status)) out.push(`${kind}/${id}: unknown status ${status}`);
+                if (status !== "implemented" && status !== "in-progress") continue;
+                const paths = String(record.notes ?? "").match(/[\w-]+\/[\w./-]*[\w/]/g) ?? [];
+                if (paths.length === 0) out.push(`${kind}/${id}: ${status} but notes name no code`);
+                for (const path of paths) if (!existsSync(new URL(path, ROOT))) out.push(`${kind}/${id}: no ${path}`);
+            }
+            assert.deepEqual(out, []);
         });
     }
 });

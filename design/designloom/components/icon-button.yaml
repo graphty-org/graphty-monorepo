@@ -2,7 +2,8 @@ id: icon-button
 name: Icon Button
 category: control
 description: Compact button displaying only an icon. Used in toolbars and dense UI areas where space is limited.
-status: planned
+status: implemented
+notes: "Ships: Mantine ActionIcon, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies:

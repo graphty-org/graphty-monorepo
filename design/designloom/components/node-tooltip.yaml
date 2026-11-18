@@ -2,7 +2,8 @@ id: node-tooltip
 name: Node Tooltip
 category: utility
 description: Tooltip displaying node information on hover. Shows label, type, and key attributes.
-status: planned
+status: implemented
+notes: "Ships: the element's tooltip style option (graphty-element/api/schema.api.md)."
 implements_capabilities:
     - tooltip-display
     - hover-highlight

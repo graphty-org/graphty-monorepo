@@ -2,7 +2,8 @@ id: text-input
 name: Text Input
 category: control
 description: Single-line text input field with label, placeholder, validation states, and optional prefix/suffix slots.
-status: planned
+status: implemented
+notes: "Ships: Mantine TextInput, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

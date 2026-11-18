@@ -2,7 +2,8 @@ id: toolbar
 name: Toolbar
 category: navigation
 description: Main application toolbar with action buttons, tool selection, and quick access to common operations.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/toolbar/WorkspaceToolbar.tsx."
 implements_capabilities: []
 used_in_workflows:
     - W14

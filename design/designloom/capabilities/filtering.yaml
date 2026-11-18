@@ -3,7 +3,8 @@ name: Graph Filtering
 category: interaction
 description: Show or hide nodes and edges based on attribute values or structural properties. Reduce visual complexity
     by focusing on relevant subsets. Essential for managing large or complex graphs.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/data-place/Filters.tsx."
 algorithms: []
 used_by_workflows:
     - W02

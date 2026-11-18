@@ -3,7 +3,8 @@ name: Closeness Centrality
 category: analysis
 description: Calculate closeness centrality - how quickly a node can reach all others in the network. High-closeness
     nodes can disseminate information efficiently and are structurally central.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/ClosenessCentralityAlgorithm.ts."
 algorithms:
     - Closeness centrality
     - BFS-based shortest paths

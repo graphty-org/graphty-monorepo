@@ -3,7 +3,8 @@ name: Eigenvector Centrality
 category: analysis
 description: Calculate eigenvector centrality - a node's importance is proportional to the importance of its neighbors.
     Connections to well-connected nodes matter more. Captures prestige and influence in undirected networks.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/EigenvectorCentralityAlgorithm.ts."
 algorithms:
     - Eigenvector centrality
     - Power iteration for dominant eigenvector

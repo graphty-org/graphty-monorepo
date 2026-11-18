@@ -2,7 +2,8 @@ id: gradient-editor
 name: Gradient Editor
 category: control
 description: "Editor for a continuous color mapping: stops, a midpoint for diverging scales and a color for missing values."
-status: planned
+status: implemented
+notes: "Ships: compact-mantine/src/components/GradientEditor.tsx."
 implements_capabilities:
     - visual-encoding-nodes
 used_in_workflows:
@@ -11,5 +12,5 @@ dependencies: []
 props: {}
 sources: []
 version: 1.0.0
-created_at: 2026-11-18T00:00:00.000Z
-updated_at: 2026-11-18T00:00:00.000Z
+created_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-18T07:06:16.000Z

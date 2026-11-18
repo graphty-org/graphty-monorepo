@@ -4,7 +4,8 @@ category: analysis
 description: Identify densely connected groups (communities) within the network. Assign each node to a community and
     calculate modularity to measure the quality of the partition. Communities often correspond to functional groups,
     teams, or topical clusters.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/LouvainAlgorithm.ts, LeidenAlgorithm.ts and LabelPropagationAlgorithm.ts."
 algorithms:
     - Louvain algorithm
     - Modularity optimization

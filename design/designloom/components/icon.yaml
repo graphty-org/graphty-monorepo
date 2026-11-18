@@ -3,7 +3,8 @@ name: Icon
 category: control
 description: Displays an icon from the icon library. Supports sizing, coloring, and accessibility labels. Used
     throughout the UI for visual cues and button labels.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/glyphs.ts."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

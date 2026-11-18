@@ -4,7 +4,8 @@ category: data
 description: Validate imported graph data for quality issues before proceeding with analysis. Identify missing values,
     orphan nodes, duplicate edges, type mismatches, and structural anomalies. Generate a quality report with actionable
     recommendations.
-status: planned
+status: implemented
+notes: "Ships: the session's data issues (issues, ignoreIssue in graphty-element/api/session.api.md) listed by graphty/src/workspace/table/IssuesList.tsx."
 algorithms: []
 used_by_workflows:
     - W01

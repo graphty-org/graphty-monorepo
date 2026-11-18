@@ -3,7 +3,8 @@ name: File Drop Zone
 category: control
 description: Drag-and-drop area for file uploads. Supports click-to-browse, file type validation, and visual feedback
     during drag operations.
-status: planned
+status: implemented
+notes: "Ships: FileSource and useFileDrop, compact-mantine/src/components/inputs/."
 implements_capabilities:
     - data-import
 used_in_workflows:

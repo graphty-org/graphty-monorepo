@@ -2,7 +2,8 @@ id: status-bar
 name: Status Bar
 category: display
 description: Application status bar showing graph summary, selection info, and performance indicators.
-status: planned
+status: implemented
+notes: "Ships: StatusBar in graphty/src/workspace/frame/Frame.tsx."
 implements_capabilities: []
 used_in_workflows:
     - W02

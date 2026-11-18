@@ -2,7 +2,8 @@ id: algorithm-panel
 name: Algorithm Panel
 category: display
 description: Panel for selecting and running graph algorithms. Organizes algorithms by category with parameter configuration.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/analyze/AnalyzePopover.tsx."
 implements_capabilities:
     - centrality-degree
     - centrality-betweenness

@@ -3,7 +3,8 @@ name: View Bookmarks
 category: interaction
 description: Save the current view state (zoom, pan, filters, selection) as a named bookmark. Return to saved views
     during exploration. Essential for iterative analysis and findings communication.
-status: planned
+status: implemented
+notes: "Ships: saved views in the Camera menu, graphty/src/workspace/toolbar/WorkspaceToolbar.tsx."
 algorithms: []
 used_by_workflows:
     - W02

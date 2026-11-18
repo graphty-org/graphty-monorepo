@@ -2,7 +2,8 @@ id: attribute-row
 name: Attribute Row
 category: display
 description: Key-value display row for showing entity attributes. Supports various value types with appropriate formatting.
-status: planned
+status: implemented
+notes: "Ships: compact-mantine/src/components/rows/ used by graphty/src/workspace/inspector/NodeValues.tsx."
 implements_capabilities:
     - details-on-demand
 used_in_workflows:

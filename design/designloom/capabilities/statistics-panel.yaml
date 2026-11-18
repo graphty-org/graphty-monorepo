@@ -3,7 +3,8 @@ name: Statistics Panel
 category: export
 description: Display a comprehensive panel showing all computed graph statistics and analysis results. Provide
     exportable summary for reports and quick reference during analysis.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/inspector/GraphValues.tsx."
 algorithms: []
 used_by_workflows:
     - W01

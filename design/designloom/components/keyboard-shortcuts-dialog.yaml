@@ -2,7 +2,8 @@ id: keyboard-shortcuts-dialog
 name: Keyboard Shortcuts Dialog
 category: dialog
 description: Reference dialog listing all available keyboard shortcuts organized by category.
-status: planned
+status: implemented
+notes: "Ships: ShortcutsDialog in graphty/src/workspace/frame/HelpDialogs.tsx."
 implements_capabilities:
     - keyboard-shortcuts
 used_in_workflows:

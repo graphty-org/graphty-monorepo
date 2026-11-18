@@ -4,7 +4,8 @@ category: data
 description: Load graph data from various sources including local files, URLs, clipboard paste, and database
     connections. Supports multiple formats (CSV edge lists, JSON, GraphML, GEXF, GML) with automatic format detection and
     field mapping.
-status: planned
+status: implemented
+notes: "Ships: graph-io importers and graphty/src/workspace/data-page/DataPage.tsx."
 algorithms: []
 used_by_workflows:
     - W01

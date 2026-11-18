@@ -3,7 +3,8 @@ name: Edge Visual Encoding
 category: visualization
 description: Map edge attributes to visual properties (color, width, style, arrows) to encode relationship information.
     Support weight encoding through thickness and direction encoding through arrowheads or tapered lines.
-status: planned
+status: implemented
+notes: "Ships: style layers on session.styles, edited in graphty/src/workspace/style/BindingPopover.tsx."
 algorithms: []
 used_by_workflows:
     - W02

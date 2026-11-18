@@ -3,7 +3,8 @@ name: Legend Display
 category: visualization
 description: Display legends explaining the visual encodings currently in use. Show what colors, sizes, and shapes
     represent so users can interpret the visualization accurately.
-status: planned
+status: implemented
+notes: "Ships: the element's legend attribute and graphty/src/workspace/canvas/LegendCard.tsx."
 algorithms: []
 used_by_workflows:
     - W04

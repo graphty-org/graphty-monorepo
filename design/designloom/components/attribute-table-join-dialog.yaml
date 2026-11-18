@@ -2,7 +2,8 @@ id: attribute-table-join-dialog
 name: Attribute Table Join Dialog
 category: dialog
 description: "Dialog for joining a table of values (a spreadsheet or CSV) onto existing nodes by a key column. Shows matched and unmatched keys before the join."
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/join/JoinScreen.tsx."
 implements_capabilities:
     - data-import
     - data-validation
@@ -12,5 +13,5 @@ dependencies: []
 props: {}
 sources: []
 version: 1.0.0
-created_at: 2026-11-18T00:00:00.000Z
-updated_at: 2026-11-18T00:00:00.000Z
+created_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-18T07:06:16.000Z

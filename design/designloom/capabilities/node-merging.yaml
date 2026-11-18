@@ -3,7 +3,8 @@ name: Node Merging
 category: data
 description: Combine multiple selected nodes into a single node, consolidating their edges and attributes, for data
     cleaning or abstraction purposes.
-status: planned
+status: implemented
+notes: "Ships: SessionDataApi.mergeNodes (graphty-element/src/session/commands/data.ts)."
 algorithms: []
 used_by_workflows:
     - W09

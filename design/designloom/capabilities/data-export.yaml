@@ -3,7 +3,8 @@ name: Data Export
 category: data
 description: Export graph data to various formats for use in other tools or for sharing. Support common formats and
     include computed attributes (centrality scores, community assignments) in the export.
-status: planned
+status: implemented
+notes: "Ships: graph-io exporters and graphty/src/workspace/export/DataOutput.tsx."
 algorithms: []
 used_by_workflows:
     - W08

@@ -3,7 +3,8 @@ name: Large Graph Rendering
 category: performance
 description: Handle visualization of large graphs (10,000+ nodes) through optimization techniques including
     level-of-detail, culling, and efficient GPU rendering. Maintain interactive performance even with complex datasets.
-status: planned
+status: implemented
+notes: "Ships: graphty-element instanced meshes (graphty-element/src/meshes/) and its largeGraphThreshold option."
 algorithms:
     - GPU instancing
     - Viewport culling

@@ -4,7 +4,8 @@ category: analysis
 description: Calculate degree centrality - the simplest measure of node importance based on the number of connections.
     High-degree nodes are well-connected and may have influence through direct reach. Used in >90% of graph analysis
     projects.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/DegreeAlgorithm.ts."
 algorithms:
     - Degree centrality
 used_by_workflows:

@@ -3,7 +3,8 @@ name: Hierarchical Layout
 category: visualization
 description: Position nodes in layers to show hierarchical or directed flow relationships. Edges flow in a consistent
     direction (top-to-bottom or left-to-right), revealing dependency structures and directed acyclic graph topology.
-status: planned
+status: implemented
+notes: "Ships: the Graphviz dot engine, graphty-element/src/layout/GraphvizLayoutEngine.ts."
 algorithms:
     - Sugiyama framework
     - Coffman-Graham layering

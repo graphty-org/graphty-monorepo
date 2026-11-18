@@ -3,7 +3,8 @@ name: Data Preview Table
 category: display
 description: Tabular preview of imported data showing first N rows with column headers. Supports column type indicators
     and data validation status.
-status: planned
+status: implemented
+notes: "Ships: the table preview in graphty/src/workspace/data-page/DataPage.tsx."
 implements_capabilities:
     - data-preview
     - data-validation

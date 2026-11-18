@@ -4,7 +4,8 @@ category: analysis
 description: Analyze the degree distribution of a graph to understand connectivity patterns. Calculate degree for each
     node, visualize the distribution, and identify if it follows expected patterns (normal, power-law, bimodal). Essential
     for identifying hubs and assessing data quality.
-status: planned
+status: in-progress
+notes: "Partly ships: degree and its histogram ship (graphty-element/src/algorithms/DegreeAlgorithm.ts, graphty/src/workspace/inspector/GraphValues.tsx); power-law fitting does not."
 algorithms:
     - Degree calculation
     - Power-law fitting

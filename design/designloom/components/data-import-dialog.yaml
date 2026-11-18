@@ -3,7 +3,8 @@ name: Data Import Dialog
 category: dialog
 description: Modal dialog for importing graph data. Provides file selection, format detection, column mapping, preview,
     and validation before import.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/data-page/DataPage.tsx."
 implements_capabilities:
     - data-import
     - data-preview

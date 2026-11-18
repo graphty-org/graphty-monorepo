@@ -3,7 +3,8 @@ name: Connected Component Analysis
 category: analysis
 description: Identify connected components - maximal subgraphs where every pair of nodes is reachable. Find the giant
     component (largest) and understand graph fragmentation. Essential for data quality assessment and scoping analysis.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/ConnectedComponentsAlgorithm.ts and StronglyConnectedComponentsAlgorithm.ts."
 algorithms:
     - BFS/DFS for undirected
     - Tarjan's algorithm for strongly connected

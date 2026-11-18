@@ -2,7 +2,8 @@ id: temporal-controls
 name: Temporal Controls
 category: control
 description: Timeline controls for temporal graph data. Includes play/pause, time range selection, and playback speed.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/time/TimeDock.tsx."
 implements_capabilities:
     - temporal-navigation
     - temporal-analysis

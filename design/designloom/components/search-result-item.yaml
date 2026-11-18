@@ -2,7 +2,8 @@ id: search-result-item
 name: Search Result Item
 category: display
 description: Single search result showing matched node with highlighted match text and node type indicator.
-status: planned
+status: implemented
+notes: "Ships: the hit list of graphty/src/workspace/graph-place/FindBox.tsx."
 implements_capabilities:
     - search
 used_in_workflows:

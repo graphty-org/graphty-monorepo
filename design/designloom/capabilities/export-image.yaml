@@ -3,7 +3,8 @@ name: Image Export
 category: export
 description: Export the current visualization as a static image for use in presentations, reports, or documentation.
     Support common image formats with configurable resolution and transparency.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/screenshot/ and graphty/src/workspace/export/ImageOutput.tsx."
 algorithms: []
 used_by_workflows:
     - W09

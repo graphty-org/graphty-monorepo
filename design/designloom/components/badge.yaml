@@ -2,7 +2,8 @@ id: badge
 name: Badge
 category: display
 description: Small label for status, counts, or categories. Can be used standalone or attached to other elements.
-status: planned
+status: implemented
+notes: "Ships: Mantine Badge, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

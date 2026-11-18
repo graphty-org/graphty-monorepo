@@ -4,7 +4,8 @@ category: analysis
 description: Calculate the clustering coefficient - the tendency of a node's neighbors to be connected to each other.
     High clustering indicates tightly-knit neighborhoods, common in social networks where friends of friends tend to be
     friends.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/ClusteringCoefficientAlgorithm.ts."
 algorithms:
     - Local clustering coefficient
     - Transitivity calculation

@@ -2,7 +2,8 @@ id: zoom-controls
 name: Zoom Controls
 category: control
 description: Button group for controlling graph zoom level. Includes zoom in, zoom out, fit-to-view, and reset buttons.
-status: planned
+status: implemented
+notes: "Ships: the zoom and Fit commands in graphty/src/workspace/toolbar/commands.ts."
 implements_capabilities:
     - zoom-pan
 used_in_workflows:

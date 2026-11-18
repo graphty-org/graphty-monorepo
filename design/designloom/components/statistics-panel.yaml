@@ -3,7 +3,8 @@ name: Statistics Panel
 category: display
 description: Panel displaying graph statistics including node/edge counts, density, diameter, clustering coefficient,
     and component count.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/inspector/GraphValues.tsx."
 implements_capabilities:
     - basic-statistics
     - statistics-panel

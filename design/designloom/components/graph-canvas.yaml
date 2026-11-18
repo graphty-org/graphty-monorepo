@@ -3,7 +3,8 @@ name: Graph Canvas
 category: display
 description: Main graph visualization canvas using WebGL/Babylon.js for GPU-accelerated rendering. Handles node/edge
     rendering, camera controls, and interaction events.
-status: planned
+status: implemented
+notes: "Ships: graphty-element (graphty-element/src/graphty-element.ts)."
 implements_capabilities:
     - graph-rendering
     - large-graph-rendering

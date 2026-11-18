@@ -2,7 +2,8 @@ id: context-menu
 name: Context Menu
 category: utility
 description: Right-click context menu with contextual actions based on clicked element (node, edge, or canvas).
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/canvas/CanvasMenu.tsx."
 implements_capabilities:
     - node-selection
     - neighborhood-expansion

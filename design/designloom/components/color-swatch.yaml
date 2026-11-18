@@ -2,7 +2,8 @@ id: color-swatch
 name: Color Swatch
 category: display
 description: Small color indicator used in legends and color pickers. Shows a single color with optional border.
-status: planned
+status: implemented
+notes: "Ships: Mantine ColorSwatch, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

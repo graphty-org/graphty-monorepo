@@ -2,7 +2,8 @@ id: range-slider
 name: Range Slider
 category: control
 description: Dual-handle slider for selecting a numeric range. Shows min/max values with optional histogram background.
-status: planned
+status: implemented
+notes: "Ships: RangeSlider, compact-mantine/src/components/Slider.tsx."
 implements_capabilities:
     - filtering
 used_in_workflows: []

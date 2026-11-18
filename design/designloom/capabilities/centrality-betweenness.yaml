@@ -4,7 +4,8 @@ category: analysis
 description: Calculate betweenness centrality - how often a node lies on shortest paths between other nodes.
     High-betweenness nodes act as bridges or brokers controlling information flow. Critical for identifying gatekeepers
     and vulnerabilities.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/BetweennessCentralityAlgorithm.ts."
 algorithms:
     - Brandes algorithm O(nm)
     - Approximate betweenness sampling

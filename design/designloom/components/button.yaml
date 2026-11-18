@@ -3,7 +3,8 @@ name: Button
 category: control
 description: Interactive button for triggering actions. Supports multiple variants (primary, secondary, ghost), sizes,
     icon placement, and loading states.
-status: planned
+status: implemented
+notes: "Ships: Mantine Button, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies:

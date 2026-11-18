@@ -1,12 +1,12 @@
 import { DataRow, FileSource, PanelField, Popout, useFileDrop } from "@graphty/compact-mantine";
 import { type CodedFact, type GraphSession, GraphtyError, type PartAnswer } from "@graphty/graphty-element/session";
-import { Button, Group, Input, Loader, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Button, Group, Input, Loader, Stack, Text, Tooltip } from "@mantine/core";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { modelName, useModelStates } from "../canvas/models";
+import { modelName } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { chipLine, countChip, middleCut, modelChip, PART_CODES, roleWord } from "./modelWords";
+import { chipLine, middleCut, modelChip, roleWord } from "./modelWords";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
 /** The pop-over's width: room for a part's name and its address. */
@@ -359,10 +359,10 @@ export function PartRow({ part, first, supply, onDiscard, unused = [] }: Readonl
 }
 
 /**
- * The Parts pop-over (node-models design 13.9), opened by the Shape field's "N missing" chip: one
+ * The Parts pop-over (node-models design 13.9), opened by the Shape field's Parts button: one
  * row per part the model waits for, in graphty-element's order. Files dropped anywhere outside a
  * row go to the element with no name, which matches each by its path, then its base name. A row
- * leaves when its part is in; the chip closes the pop-over when the last one has.
+ * leaves when its part is in; the pop-over closes when the last one has.
  * @param props - Component props
  * @param props.opened - whether it is open
  * @param props.anchor - the row it opens beside
@@ -371,7 +371,7 @@ export function PartRow({ part, first, supply, onDiscard, unused = [] }: Readonl
  * @param props.onClose - closed by the reader
  * @returns The pop-over
  */
-function PartsPopover({
+export function PartsPopover({
     opened,
     anchor,
     modelRef,
@@ -474,154 +474,5 @@ function PartsPopover({
                 </Popout.Content>
             </Popout.Panel>
         </Popout>
-    );
-}
-
-/**
- * The parts chip's accessible name (design 13.9): "police: 1 file missing", or the models a zip
- * holds, "set: 3 models".
- * @param model - the model's name.
- * @param parts - what it waits for.
- * @returns the name.
- */
-function partsName(model: string, parts: readonly CodedFact[]): string {
-    const chip = countChip(parts);
-    if (parts.length === 1 && parts[0].code === "E_MODEL_AMBIGUOUS") {
-        return `${model}: ${chip?.word ?? ""}`;
-    }
-    return `${model}: ${String(parts.length)} ${parts.length === 1 ? "file" : "files"} missing`;
-}
-
-/** Props for ModelProblems. */
-interface ModelProblemsProps {
-    /** What the layer's `node.model` names. */
-    readonly modelRef: string;
-    /** The row the Parts pop-over opens beside. */
-    readonly anchor: React.RefObject<HTMLElement | null>;
-    /** Called once the Parts pop-over closed, to put focus back on the Shape field. */
-    readonly onDone: () => void;
-    /** Moves a picture the layer names as its model to `node.texture` (design 13.5). */
-    readonly onUseAsPicture?: () => void;
-    /** The reader just picked this model while it waits for parts: the Parts pop-over opens. */
-    readonly openParts?: boolean;
-    /** Called once the Parts pop-over opened for `openParts`, or the model needs none. */
-    readonly onPartsOpened?: () => void;
-}
-
-/**
- * What the Shape field offers for the model it names (design 13.9, 13.6), read from
- * graphty-element's model states: a spinner while the model is not drawn yet, and buttons; never a
- * chip or a description (the Style panel is
- * for controls; what is wrong is said in Model settings and the Parts pop-over). Add parts while the
- * model waits for parts, opening the Parts pop-over, and Use as picture when the model named is a
- * picture.
- * @param props - Component props
- * @param props.modelRef - what the layer names
- * @param props.anchor - the row the pop-over opens beside
- * @param props.onDone - focus back on the Shape field
- * @param props.onUseAsPicture - moves a picture named as the model to `node.texture`
- * @param props.openParts - opens the Parts pop-over once the model waits
- * @param props.onPartsOpened - called once that is done
- * @returns The chips, or nothing
- */
-export function ModelProblems({
-    modelRef,
-    anchor,
-    onDone,
-    onUseAsPicture,
-    openParts = false,
-    onPartsOpened,
-}: Readonly<ModelProblemsProps>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
-    const states = useModelStates(session);
-    const [open, setOpen] = useState(false);
-    const chipRef = useRef<HTMLButtonElement>(null);
-    const detail = useId();
-    const change = states.find((s) => s.ref === modelRef);
-    const problems = change?.problems ?? [];
-    const parts = change?.state === "rejected" ? problems.filter((p) => PART_CODES.has(p.code)) : [];
-    const name = session === null ? "Model" : modelName(session, modelRef);
-    const waiting = parts.length > 0;
-    const settled = change !== undefined && change.state !== "pending";
-    useEffect(() => {
-        // Picked while it waits: the Parts pop-over takes the Models pop-over's place.
-        if (openParts && settled) {
-            if (waiting) {
-                setOpen(true);
-            }
-            onPartsOpened?.();
-        }
-    }, [openParts, settled, waiting, onPartsOpened]);
-    useEffect(() => {
-        // The last part arrived: the pop-over goes, and focus goes back to the field.
-        if (open && !waiting) {
-            setOpen(false);
-            store.set({ announcement: `${name} drawn` });
-            onDone();
-        }
-    }, [open, waiting, name, store, onDone]);
-    if (session === null || change === undefined) {
-        return null;
-    }
-    const partsChip = countChip(parts);
-    const refusal = waiting ? undefined : problems.find((p) => p.code.startsWith("E_"));
-    const asPicture = refusal?.params.assetKind === "image" && onUseAsPicture !== undefined;
-    // Picked but not drawn yet (a large model can take a while): the nodes keep their shape meanwhile.
-    const drawing = change.state === "pending" || change.state === "accepted";
-    if (partsChip === undefined && !asPicture && !drawing) {
-        return null;
-    }
-    return (
-        <Group gap={4} className="ws-model-actions">
-            {drawing ? (
-                <output aria-label={CUSTOM_MODEL.drawing(name)}>
-                    <Loader size="xs" />
-                </output>
-            ) : null}
-            {partsChip === undefined ? null : (
-                <Tooltip label={partsChip.tip}>
-                    <Button
-                        ref={chipRef}
-                        size="compact-xs"
-                        variant="default"
-                        aria-label={`${CUSTOM_MODEL.addParts}: ${partsName(name, parts)}`}
-                        aria-describedby={detail}
-                        aria-haspopup="dialog"
-                        aria-expanded={open}
-                        onClick={() => {
-                            setOpen(true);
-                        }}
-                    >
-                        {CUSTOM_MODEL.addParts}
-                    </Button>
-                </Tooltip>
-            )}
-            {/* What is missing, for a screen reader as for the tooltip; never shown in the panel. */}
-            {partsChip === undefined ? null : <VisuallyHidden id={detail}>{partsChip.tip}</VisuallyHidden>}
-            {asPicture ? (
-                <Tooltip label={`Use ${name} as picture`}>
-                    <Button
-                        size="compact-xs"
-                        variant="default"
-                        aria-label={`Use ${name} as picture`}
-                        onClick={onUseAsPicture}
-                    >
-                        Use as picture
-                    </Button>
-                </Tooltip>
-            ) : null}
-            {waiting ? (
-                <PartsPopover
-                    opened={open}
-                    anchor={anchor}
-                    modelRef={modelRef}
-                    parts={parts}
-                    onClose={() => {
-                        setOpen(false);
-                        chipRef.current?.focus();
-                    }}
-                />
-            ) : null}
-        </Group>
     );
 }

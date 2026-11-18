@@ -167,6 +167,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.minMarkSize": "not the graph",
     // A computed column: defining one writes, and the list is the definitions, not their values.
     "data.derive()": "writes",
+    "data.deriveScore()": "writes",
     "data.derivedColumns()": "not the graph",
     // A collapse or an expand edits the original graph, hidden members included, so nothing is lost.
     "groups.collapse()": "writes",

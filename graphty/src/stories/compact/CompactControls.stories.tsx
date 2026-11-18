@@ -1,4 +1,5 @@
-import { Box, Checkbox, Group, Radio, SegmentedControl, Slider, Stack, Switch, Text } from "@mantine/core";
+import { SegmentedControl, Slider } from "@graphty/compact-mantine";
+import { Box, Checkbox, Group, Radio, Stack, Switch, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 /**

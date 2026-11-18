@@ -236,6 +236,7 @@ export const MUTATING: readonly string[] = [
     "SessionDataApi.collapse",
     "SessionDataApi.declare",
     "SessionDataApi.derive",
+    "SessionDataApi.deriveScore",
     "SessionDataApi.editJoin",
     "SessionDataApi.expand",
     "SessionDataApi.fix",

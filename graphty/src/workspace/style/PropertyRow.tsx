@@ -2,7 +2,7 @@ import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } fro
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Button, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
@@ -242,14 +242,6 @@ function Receipt({
     }, [receipt, spoken, store]);
     return (
         <div className="ws-bulk-receipt" data-receipt={channel}>
-            <Text className="ws-bulk-words">
-                {name}: {words}
-            </Text>
-            {covers === null ? null : (
-                <Text className="ws-bulk-words" data-covers-everything>
-                    {covers}
-                </Text>
-            )}
             {receipt.unset.length > 0 && (
                 <Button
                     size="compact-xs"
@@ -262,19 +254,22 @@ function Receipt({
                     {`Also set those ${String(receipt.unset.length)}`}
                 </Button>
             )}
-            <Button
-                size="compact-xs"
-                variant="subtle"
-                // Named for its edit, so it is not a second plain "Undo" beside the top bar's.
-                aria-label={`Undo the ${name.toLowerCase()} change`}
-                onClick={() => {
-                    ctx.many?.dismiss?.();
-                    store.set({ announcement: `Undid changing ${name.toLowerCase()}` });
-                    void ctx.session.undo();
-                }}
-            >
-                Undo
-            </Button>
+            {/* What the write did is in Undo's tooltip, never a line in the sidebar (#8739). */}
+            <Tooltip label={spoken}>
+                <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    // Named for its edit, so it is not a second plain "Undo" beside the top bar's.
+                    aria-label={`Undo the ${name.toLowerCase()} change`}
+                    onClick={() => {
+                        ctx.many?.dismiss?.();
+                        store.set({ announcement: `Undid changing ${name.toLowerCase()}` });
+                        void ctx.session.undo();
+                    }}
+                >
+                    Undo
+                </Button>
+            </Tooltip>
         </div>
     );
 }
@@ -958,7 +953,7 @@ function NumberValue({
             options={[]}
             value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
             suffix={percent ? "%" : undefined}
-            glyph={prefix === undefined ? undefined : <Text size="xs">{prefix}</Text>}
+            glyph={prefix === undefined ? undefined : <span>{prefix}</span>}
             min={min === undefined ? undefined : min * scale}
             max={max === undefined ? undefined : max * scale}
             step={!percent && max !== undefined && max <= 1 ? 0.1 : 1}
@@ -1139,8 +1134,8 @@ function fieldBreakdown(ctx: RowContext, channel: Channel, word: string, lines: 
     return breakdownWords(word, many.breakdown(channel), spread !== undefined);
 }
 
-/** Props for FieldCaptions. */
-interface FieldCaptionsProps {
+/** What fieldNotes reads. */
+interface FieldNotesProps {
     ctx: RowContext;
     channel: Channel;
     own: FieldLines["own"];
@@ -1151,9 +1146,10 @@ interface FieldCaptionsProps {
 }
 
 /**
- * The captions under a property row: the shader that hides it, a value the element draws nothing for, the
- * first value of a selection with no layer yet, and how several rows set it.
- * @param props - Component props
+ * What a reader may need to know about a property row, said in the row's minus button's tooltip, never as a line in
+ * the sidebar (#8739): the shader that hides it, a value the element draws nothing for, the first value
+ * of a selection with no layer yet, and how several rows set it.
+ * @param props - what to read
  * @param props.ctx - the row
  * @param props.channel - the property
  * @param props.own - the row's own line
@@ -1161,17 +1157,9 @@ interface FieldCaptionsProps {
  * @param props.hiddenBy - the row's own shader drawn instead of the node, hiding it
  * @param props.label - the name drawn in the label column
  * @param props.breakdown - how several rows set it, or empty
- * @returns the captions
+ * @returns the notes, none for most rows
  */
-function FieldCaptions({
-    ctx,
-    channel,
-    own,
-    pending,
-    hiddenBy,
-    label,
-    breakdown,
-}: Readonly<FieldCaptionsProps>): React.JSX.Element {
+function fieldNotes({ ctx, channel, own, pending, hiddenBy, label, breakdown }: Readonly<FieldNotesProps>): string[] {
     const { session } = ctx;
     // Just added on a selection with no layer yet: the value drawn is not set, and the first one
     // picked makes the layer.
@@ -1179,32 +1167,14 @@ function FieldCaptions({
         pending && own === undefined && ctx.many === undefined && ctx.layers.length === 0 && ctx.fresh !== undefined;
     // A value the element draws nothing for here (a lift outside a flat layout in 3D).
     const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
-    return (
-        <>
-            {hiddenBy === undefined ? null : (
-                // The row's own shader draws instead of the node: the value is kept, and comes back
-                // when the shader moves to another place.
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-hidden-by>
-                    {hiddenByWords(hiddenBy)}
-                </Text>
-            )}
-            {undrawn === undefined ? null : (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
-                    {UNDRAWN_WORDS[undrawn]}
-                </Text>
-            )}
-            {firstValue ? (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
-                    {firstValueWords(label)}
-                </Text>
-            ) : null}
-            {breakdown === "" ? null : (
-                <Text className="ws-field-covered ws-bulk-words" data-breakdown>
-                    {breakdown}
-                </Text>
-            )}
-        </>
-    );
+    return [
+        // The row's own shader draws instead of the node: the value is kept, and comes back when the
+        // shader moves to another place.
+        hiddenBy === undefined ? "" : hiddenByWords(hiddenBy),
+        undrawn === undefined ? "" : UNDRAWN_WORDS[undrawn],
+        firstValue ? firstValueWords(label) : "",
+        breakdown,
+    ].filter((note) => note !== "");
 }
 
 /**
@@ -1347,7 +1317,15 @@ export function Field({
                   open: varyOpen,
                   onOpenChange: setVaryOpen,
               });
-    const breakdown = fieldBreakdown(ctx, channel, label, lines, pending);
+    const notes = fieldNotes({
+        ctx,
+        channel,
+        own,
+        pending,
+        hiddenBy,
+        label,
+        breakdown: fieldBreakdown(ctx, channel, label, lines, pending),
+    });
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
     return (
@@ -1367,30 +1345,38 @@ export function Field({
                 so the field keeps its width (Figma's property row). */}
             <div className="ws-field ws-varies" data-named="">
                 <span className="ws-field-label">
-                    <span className="ws-field-name" title={label} aria-hidden>
+                    <span className="ws-field-name" title={label} aria-hidden data-control-label="">
                         {label}
                     </span>
                     {settings}
                 </span>
-                <div className="ws-field-control">{control}</div>
+                <div className="ws-field-control" data-notes={notes.length === 0 ? undefined : notes.join(" ")}>
+                    {control}
+                </div>
                 <span className="ws-slot ws-vary">{varySlot}</span>
                 <span className="ws-slot">
-                    <Tooltip label={removeName}>
+                    {/* The field's notes are its row's minus tooltip, never a caption under it (#8739): the
+                        control keeps its own tooltip, and a pop-over it opens is never inside another. */}
+                    <Tooltip
+                        label={
+                            notes.length === 0 ? (
+                                removeName
+                            ) : (
+                                <>
+                                    {removeName}
+                                    {notes.map((note) => (
+                                        <div key={note}>{note}</div>
+                                    ))}
+                                </>
+                            )
+                        }
+                    >
                         <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>
                             <GLYPHS.remove size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>
                 </span>
             </div>
-            <FieldCaptions
-                ctx={ctx}
-                channel={channel}
-                own={own}
-                pending={pending}
-                hiddenBy={hiddenBy}
-                label={label}
-                breakdown={breakdown}
-            />
             {asset?.extras}
             {pendingVary === null ? null : (
                 <BulkBinding
@@ -1643,10 +1629,12 @@ function BoundValue({
         <>
             <VariablePill
                 name={view.name}
-                // The pill names the column ("donations") where the line under it says the range
-                // ("From 1 to 3"); both are in the tooltip.
+                // The pill names the column ("donations"); its range ("From 1 to 3") and notes are in
+                // the tooltip, never a line under it (#8739).
                 value={isColor || view.list === undefined ? view.detail : undefined}
-                tooltip={[view.plain ?? view.name, view.detail].filter((w) => w !== undefined).join("\n")}
+                tooltip={[...new Set([view.plain ?? view.name, view.detail, described])]
+                    .filter((w) => w !== undefined && w !== "")
+                    .join("\n")}
                 tone={view.tone}
                 swatch={isColor ? stripOf(view.list, view.fallback) : undefined}
                 swatchWidth={isColor ? SWATCH_STRIP : undefined}
@@ -1655,7 +1643,6 @@ function BoundValue({
                 aria-describedby={described === "" ? undefined : describedId}
                 onClick={onClick}
             />
-            <VariedLine list={view.list} />
             {described === "" ? null : <VisuallyHidden id={describedId}>{described}</VisuallyHidden>}
         </>
     );
@@ -2055,104 +2042,12 @@ function endsWords(list: LineList): string {
     return list.ends === undefined ? "" : `From ${list.ends[0]} to ${list.ends[1]}`;
 }
 
-/**
- * A varied field's second line (tier3 design, section 2.2; studio decision 2026-10-16): one row of
- * group chits -- all up to 6, else the first 5 and "+N", the lumped Other's gray chit last -- or
- * the first 3 values in words and "+N", a ramp's domain ends, or a number's From / To; then a note
- * for each non-neutral setting ("Log scale") and the legend's facts. Hidden from a screen reader:
- * the pill's description says the same.
- * @param props - Component props
- * @param props.list - what to draw, if the element has painted the field
- * @returns The line, or nothing before the element has painted the field
- */
-function VariedLine({ list }: Readonly<{ list: LineList | undefined }>): React.JSX.Element | null {
-    if (list === undefined) {
-        return null;
-    }
-    const summary = summaryOf(list);
-    if (summary === null && list.notes.length === 0) {
-        return null;
-    }
-    return (
-        <div className="ws-varied-line" data-varied-line aria-hidden>
-            {summary === null ? null : (
-                <Text size="xs" c="var(--cm-text-secondary)" component="div">
-                    {summary}
-                </Text>
-            )}
-            {list.notes.map((note) => (
-                <Text key={note} size="xs" c="var(--cm-text-secondary)" data-varied-note>
-                    {note}
-                </Text>
-            ))}
-        </div>
-    );
-}
-
-/**
- * A varied field's summary: the groups as chits or words, a number's From / To, or a ramp's ends.
- * @param list - what to draw.
- * @returns the summary, or null when there is none.
- */
-function summaryOf(list: LineList): React.ReactNode {
-    if (list.kind === "categorical") {
-        return groupSummary(list);
-    }
-    if (list.range !== undefined) {
-        return `From ${String(list.range[0])} to ${String(list.range[1])}`;
-    }
-    if (list.ends === undefined) {
-        return null;
-    }
-    return (
-        <span className="ws-varied-ends">
-            <span>{list.ends[0]}</span>
-            <span>{list.ends[1]}</span>
-        </span>
-    );
-}
-
-/**
- * A list of groups as one row of chits -- all up to 6, else the first 5 and "+N", the lumped
- * Other's gray chit last -- or, with no colors, the first values in words and "+N".
- * @param list - the groups.
- * @returns the summary.
- */
-function groupSummary(list: LineList): React.ReactNode {
-    const { shown, more } = shownOf(list);
-    const plus = more > 0 ? `+${String(more)}` : null;
-    if (!list.entries.some((e) => e.color !== undefined)) {
-        const words = shown.map((e) => e.words).join(", ");
-        return plus === null ? words : `${words} ${plus}`;
-    }
-    return (
-        <span className="ws-varied-chits">
-            {[...shown, ...(list.other === undefined ? [] : [list.other])].map((entry, at) => (
-                // Two layers may share a name: the place in the list keeps each its own.
-                <Tooltip key={`${String(at)}:${entry.name}`} label={entry.name}>
-                    <span
-                        className="ws-varied-chit"
-                        data-name={entry.name}
-                        data-other={entry === list.other ? "" : undefined}
-                        style={{ background: entry.color ?? "var(--mantine-color-gray-5)" }}
-                    />
-                </Tooltip>
-            ))}
-            {plus === null ? null : (
-                <Text span size="xs" c="var(--cm-text-secondary)" data-more>
-                    {plus}
-                </Text>
-            )}
-        </span>
-    );
-}
-
 /** How wide a bound color's strip is at rest: a ramp, or up to four group colors side by side. */
 const SWATCH_STRIP = 24;
 
 /**
  * A bound color's strip: groups as hard stops, the first 4 in list order; a ramp as a gradient.
- * The strip never carries a count: the line under it does.
+ * The strip never carries a count.
  * @param list - the line's list.
  * @param fallback - the palette's colors, when the list has none.
  * @returns the strip's background.

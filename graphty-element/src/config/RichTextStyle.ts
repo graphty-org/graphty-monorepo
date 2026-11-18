@@ -119,6 +119,8 @@ export const RichTextStyle = z.strictObject({
     wrapSpaceCount: z.number().min(0).optional(),
     // The most lines drawn; the last one kept ends in an ellipsis when more were cut. Unset, every line.
     maxLines: z.number().int().min(1).optional(),
+    // Whether the last line maxLines keeps runs on, cut with an ellipsis; false, the rest is dropped. Unset, true.
+    maxLinesEllipsis: z.boolean().optional(),
     // Whether a blank line before or between lines of words is one line tall; unset, it takes no height.
     keepBlankLines: z.boolean().optional(),
     // Where runs of different sizes in one line meet: their alphabetic baselines, hanging baselines or middles.

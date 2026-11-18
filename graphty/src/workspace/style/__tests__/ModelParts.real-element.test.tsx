@@ -2,7 +2,7 @@
  * A model missing parts with the node models experiment on (issue #3396), on the real
  * graphty-element, by real input: the Kenney car kit's police.glb names its picture as the separate
  * file Textures/colormap.png. By a folder or a .zip in the Load custom model dialog it draws at
- * once; a layer naming it alone shows the "1 missing" chip, whose Parts pop-over takes the picture
+ * once; a layer naming it alone shows the Parts button, whose Parts pop-over takes the picture
  * dropped on its row's file loader, dropped anywhere in the pop-over, chosen, or by address -- or draws without it. Every assertion reads what the
  * element reports: its layers and its model states.
  */
@@ -19,6 +19,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import { addModel, choose, dropOn, openCustom, openShapes, previewOf, shapeField, written } from "./modelHarness";
+import { tooltipOf } from "./tooltip";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
@@ -31,7 +32,7 @@ const PART = "Textures/colormap.png";
 /** The part as the reader reads and hears it: its file name (design 13.9). */
 const PART_NAME = "colormap.png";
 
-const CHIP = "Add parts: police: 1 file missing";
+const CHIP = "police: 1 file missing";
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -145,7 +146,7 @@ async function drawn(session: GraphSession): Promise<void> {
 
 /**
  * A layer naming police.glb, added alone, as a saved project whose picture moved names it: the
- * Shape field shows police with its Add parts button, and no chip.
+ * Shape field shows police with the Parts button.
  * @returns the session, the Style tab and the chip.
  */
 async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement; chip: HTMLElement }> {
@@ -154,10 +155,7 @@ async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement;
         "node.model": (await each.assets.add(police)).id,
     }));
     const chip = await within(tab).findByRole("button", { name: CHIP });
-    assert.equal(chip.textContent, "Add parts");
-    // The Style panel holds controls only: no chip, pill or description from the model under Shape.
-    assert.isNull(tab.querySelector(".ws-model-actions .mantine-Badge-root"), "no chip under the Shape field");
-    assert.isNull(within(tab).queryByText(/missing/), "no words about what is missing");
+    assert.equal(chip.textContent, "Parts");
     assert.isNotNull(within(tab).getByRole("combobox", { name: "Node shape, police" }));
     return { session, tab, chip };
 }
@@ -230,10 +228,10 @@ describe("a model missing parts, on the real element", () => {
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
     });
 
-    it("offers Add parts for police.glb alone, and takes colormap.png dropped on its row", async () => {
+    it("offers Parts for police.glb alone, and takes colormap.png dropped on its row", async () => {
         const { session, tab, chip } = await policeAlone();
-        // What is missing is the button's description, for a screen reader.
-        assert.include(document.getElementById(chip.getAttribute("aria-describedby") ?? "")?.textContent, PART);
+        // What is missing is the Parts button's tooltip.
+        assert.include(await tooltipOf(chip), PART);
         const parts = await openParts(chip);
         const row = within(parts).getByRole("group", { name: PART_NAME });
         assert.isNotNull(within(row).getByText("Texture"));
@@ -281,13 +279,13 @@ describe("a model missing parts, on the real element", () => {
         await finished(session, tab);
     });
 
-    it("draws without the picture on Load without it, with no 'Without N' chip in the Style panel", async () => {
+    it("draws without the picture on Load without it, saying 'Without 1' on Model settings' tooltip", async () => {
         const { session, tab, chip } = await policeAlone();
         const parts = await openParts(chip);
         await userEvent.click(within(parts).getByRole("button", { name: `Load without ${PART_NAME}` }));
         await finished(session, tab);
-        assert.isNull(within(tab).queryByText(/^Without \d/), "no chip says what the model is drawn without");
-        assert.isNull(tab.querySelector(".ws-model-actions"), "no chip line under the Shape field");
+        assert.isNull(within(tab).queryByText(/Without 1/), "no words in the sidebar");
+        assert.include(await tooltipOf(within(tab).getByRole("button", { name: "Model settings" })), "Without 1");
     });
 
     it("takes the picture's address on the same site, and asks first for another site", async () => {

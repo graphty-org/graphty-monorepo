@@ -186,9 +186,8 @@ export class RichTextParser {
         for (const lineSegments of parsedContent) {
             const line = measureLine(ctx, lineSegments, options);
             overs.push(line.over);
-            const lineWidth = line.width + (options.textOutline ? options.textOutlineWidth * 2 : 0);
-
-            maxWidth = Math.max(maxWidth, lineWidth);
+            // the outline is drawn round the glyphs, past the box, as vis-network, Cytoscape and yEd draw it (#8746)
+            maxWidth = Math.max(maxWidth, line.width);
             totalHeight += line.lineBox;
             // the room between the line's box and its font's box, above and below alike (see measureLine)
             leads.push((line.lineBox - (line.ascent + line.descent)) / 2);
@@ -207,9 +206,9 @@ export type RunAlign = "baseline" | "hanging" | "middle";
 export interface LineOptions {
     /** Line height multiplier. */
     lineHeight: number;
-    /** Whether the text is outlined. */
+    /** Whether the text is outlined; the outline is drawn past the line's box and never changes it. */
     textOutline: boolean;
-    /** How wide its outline is. */
+    /** How wide its outline is; it never changes the line's box. */
     textOutlineWidth: number;
     /** Where runs of different sizes meet (`runAlign`); unset, on their alphabetic baselines. */
     runAlign?: RunAlign;
@@ -257,7 +256,7 @@ function fontBox(ctx: CanvasRenderingContext2D, style: TextSegment["style"]): re
  * run's; then each run is moved down by its own `shift`, and drawn lower still by its `nudge`, which the line's box
  * ignores: how far a nudged run reaches past that box is `over`. The line's ink height is the tallest ascent plus the deepest
  * descent over its runs as they sit, each the larger of the font box (`fontBoundingBoxAscent` /
- * `fontBoundingBoxDescent`) and the actual glyph box, plus the outline on both sides. The line box is that height
+ * `fontBoundingBoxDescent`) and the actual glyph box; an outline is drawn round the glyphs, past it (#8746). The line box is that height
  * times `lineHeight`, and the extra leading is split evenly above and below, as CSS does. The label's panel height
  * and the renderer's line advance both come from here, so they cannot disagree.
  * @param ctx - Canvas rendering context for measurement
@@ -332,14 +331,13 @@ export function measureLine(
         ascent = maxSize;
     }
 
-    const outline = options.textOutline ? options.textOutlineWidth : 0;
-    const inkHeight = ascent + descent + outline * 2;
+    const inkHeight = ascent + descent;
     const lineBox = inkHeight * options.lineHeight;
 
     return {
         width,
         lineBox,
-        baseline: (lineBox - inkHeight) / 2 + outline + ascent,
+        baseline: (lineBox - inkHeight) / 2 + ascent,
         offsets: offsets.map((o, i) => o + runs[i].nudge),
         ascent,
         descent,
@@ -361,6 +359,11 @@ export interface WrapOptions {
     spaceCount?: number;
     /** The most lines kept; the last one kept ends in an ellipsis when more were cut (`maxLines`). Unset, all. */
     maxLines?: number;
+    /**
+     * Whether the last line `maxLines` keeps runs on with the rest of its line, cut to the width with an ellipsis
+     * (`maxLinesEllipsis`). Unset or true, it does; false, the lines past `maxLines` are dropped as they are.
+     */
+    maxLinesEllipsis?: boolean;
 }
 
 /** How wide a piece of text is in a style, in a canvas's pixels. */
@@ -385,17 +388,28 @@ export function wrapLines(
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return ctx.measureText(text).width;
     };
-    const wrapped =
-        options.ellipsis === true
-            ? lines.map((line) => ellipsize(line, width, measure))
-            : lines.flatMap((line) => wrapLine(line, width, measure, options));
-    const { maxLines } = options;
-    if (maxLines === undefined || maxLines < 1 || wrapped.length <= maxLines) {
-        return wrapped;
+    const cap = options.maxLines === undefined || options.maxLines < 1 ? Infinity : options.maxLines;
+    const marked = options.maxLinesEllipsis !== false;
+    const out: TextSegment[][] = [];
+    let cut = false;
+    for (const line of lines) {
+        const room = cap - out.length;
+        if (room <= 0) {
+            cut = true;
+            break;
+        }
+        const wrapped =
+            options.ellipsis === true
+                ? [ellipsize(line, width, measure)]
+                : wrapLine(line, width, measure, options, marked ? room : Infinity);
+        cut ||= wrapped.length > room;
+        out.push(...wrapped.slice(0, room));
     }
-    const kept = wrapped.slice(0, maxLines);
-    kept[maxLines - 1] = ellipsize(kept[maxLines - 1], width, measure, true);
-    return kept;
+    // the last line kept holds the rest of its line (`wrapLine`'s room): cut it to the width, and mark any cut
+    if (marked && out.length === cap) {
+        out[cap - 1] = ellipsize(out[cap - 1], width, measure, cut);
+    }
+    return out;
 }
 
 const ELLIPSIS = "\u2026";
@@ -509,9 +523,16 @@ function withoutTrailingSpaces(pieces: TextSegment[]): TextSegment[] {
  * @param width - The widest a line may be, in the canvas's pixels.
  * @param measure - How wide a piece of text is in a style.
  * @param options - How the line is fitted: trailing spaces, breaks anywhere, what a blank counts as.
+ * @param room - The most lines it may break into; the last holds the rest of the line, however wide.
  * @returns The line, wrapped into one or more lines.
  */
-function wrapLine(line: TextSegment[], width: number, measure: Measure, options: WrapOptions): TextSegment[][] {
+function wrapLine(
+    line: TextSegment[],
+    width: number,
+    measure: Measure,
+    options: WrapOptions,
+    room = Infinity,
+): TextSegment[][] {
     const anywhere = options.anywhere === true;
     // Measured with the space after each word, a line narrower than the width as a whole is still kept whole:
     // Cytoscape desktop (ding's LabelInfo) and Cytoscape.js both measure the whole line first and wrap only one
@@ -532,7 +553,7 @@ function wrapLine(line: TextSegment[], width: number, measure: Measure, options:
             options.trailingSpace === true && !space
                 ? spaceAfter(pieces, i, measure, anywhere, options.skipEndSpace === true)
                 : 0;
-        if (!space && used > 0 && used + span + after > width) {
+        if (!space && used > 0 && used + span + after > width && out.length + 1 < room) {
             out.push(withoutTrailingSpaces(current));
             current = [];
             used = 0;

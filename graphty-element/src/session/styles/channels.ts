@@ -374,6 +374,8 @@ export interface ChannelValues {
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
+    "node.labelMaxLines": number;
+    "node.labelMaxLinesEllipsis": boolean;
     "node.labelRunAlign": LabelRunAlignValue;
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
@@ -702,6 +704,8 @@ export interface ChannelValues {
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
+    "edge.labelMaxLines": number;
+    "edge.labelMaxLinesEllipsis": boolean;
     "edge.labelRunAlign": LabelRunAlignValue;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
@@ -879,6 +883,12 @@ export interface ChannelDescriptor {
     readonly exclusiveMin?: boolean;
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
+    /**
+     * Whether it takes whole numbers only, when `accepts` is "number": a line count. An encoding rounds
+     * what it computes for such a channel.
+     * @since 3.40.0
+     */
+    readonly integer?: boolean;
     /**
      * How many of this channel's numbers make one world unit, on a channel that is a length in the
      * scene rather than on screen: 48 for a label size, so a label of size 48 draws one line,
@@ -1547,7 +1557,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1563,6 +1573,8 @@ const LABEL_FIELD_OF_SUFFIX = {
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
+    MaxLines: "maxLines",
+    MaxLinesEllipsis: "maxLinesEllipsis",
     RunAlign: "runAlign",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
@@ -1756,6 +1768,18 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "How many blanks one blank between two words counts as against the wrap width; it is still " +
                 "drawn once. Unset, one.",
         }),
+        row("MaxLines", "Max Lines", {
+            accepts: "number",
+            min: 1,
+            integer: true,
+            caveat: "The most lines drawn; the lines past it are cut. Unset, every line.",
+        }),
+        row("MaxLinesEllipsis", "Max Lines Ellipsis", {
+            accepts: "boolean",
+            caveat:
+                "Whether the last line Max Lines keeps runs on with the rest of its line, cut with an ellipsis; " +
+                "off, the lines past it are dropped as they are. Unset, on.",
+        }),
         row("RunAlign", "Run Align", {
             accepts: "enum",
             values: LABEL_RUN_ALIGN_VALUES,
@@ -1891,41 +1915,16 @@ function labelFieldChannels<Target extends "node" | "edge">(
 
 /** Where each label field lands in a parsed style's label block, in the renderer's spelling. */
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
+    ...LABEL_FIELD_OF_SUFFIX,
     Color: "textColor",
     Size: "fontSize",
-    LetterSize: "letterSize",
-    Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
-    WrapWidth: "wrapWidth",
-    WrapTrailingSpace: "wrapTrailingSpace",
-    WrapSkipEndSpace: "wrapSkipEndSpace",
-    WrapEllipsis: "wrapEllipsis",
-    WrapAnywhere: "wrapAnywhere",
-    WrapSpaceCount: "wrapSpaceCount",
-    RunAlign: "runAlign",
-    MinScreenSize: "minScreenSize",
-    OnTop: "onTop",
-    Rotation: "rotation",
     Background: "backgroundColor",
     Outline: "textOutlineColor",
     OutlineWidth: "textOutlineWidth",
-    Border: "borderColor",
-    BorderWidth: "borderWidth",
     Opacity: "textOpacity",
-    BackgroundOpacity: "backgroundOpacity",
     OutlineOpacity: "textOutlineOpacity",
-    BorderOpacity: "borderOpacity",
-    Padding: "boxPadding",
-    CornerRadius: "cornerRadius",
-    LineHeight: "lineHeight",
-    OffsetX: "offsetX",
-    OffsetY: "offsetY",
-    ShiftX: "shiftX",
-    ShiftY: "shiftY",
-    ShiftOf: "shiftOf",
-    GapOf: "gapOf",
-    Box: "box",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1985,7 +1984,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 

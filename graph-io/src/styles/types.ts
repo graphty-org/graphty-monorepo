@@ -314,6 +314,17 @@ export interface NodeStyleValues {
      */
     readonly labelKeepBlankLines: boolean;
     /**
+     * The most lines the label draws, a whole number from 1: the lines past it, its own or the ones
+     * `labelWrapWidth` breaks it into, are cut. Unset, every line.
+     */
+    readonly labelMaxLines: number;
+    /**
+     * Whether the last line `labelMaxLines` keeps runs on with the rest of its line, cut to `labelWrapWidth` with an
+     * ellipsis after it, as yEd's `WORD_ELLIPSIS` wrapping draws "Wrap" / "this t...". False, the lines past it are
+     * dropped as they are (yEd's `WORD`). Unset, true.
+     */
+    readonly labelMaxLinesEllipsis: boolean;
+    /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
      */
@@ -1081,6 +1092,10 @@ export interface EdgeStyleValues {
     readonly labelWrapSpaceCount: number;
     /** Whether a blank line before or between lines of words is drawn one line tall; see the node's. */
     readonly labelKeepBlankLines: boolean;
+    /** The most lines the label draws; see the node's. */
+    readonly labelMaxLines: number;
+    /** Whether the last line `labelMaxLines` keeps runs on, cut with an ellipsis; see the node's. */
+    readonly labelMaxLinesEllipsis: boolean;
     /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).

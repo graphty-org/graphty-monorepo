@@ -12,14 +12,15 @@ import type { TransactionScope } from "@graphty/graphty-element/session";
 import { Tooltip } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
-import { modelName, pictureName } from "../canvas/models";
+import { modelName, pictureName, useModelStates } from "../canvas/models";
 import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CustomModelDialog, type ModelDraft } from "./CustomModelDialog";
+import { ModelProblems } from "./ModelProblems";
 import { ModelSettings } from "./ModelSettings";
 import { ModelsPopover } from "./ModelsPopover";
-import { ModelProblems } from "./PartsPopover";
+import { modelProblemLines } from "./modelWords";
 import { PictureField, PicturePopover } from "./PicturePopover";
 import type { RowContext } from "./PropertyRow";
 import { layerWord, lineIn, removeLine, without, writeIn, writeLine } from "./row";
@@ -124,6 +125,7 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     const { ref: model } = modelOf(ctx, channel, on);
     const [modelsOpen, setModelsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const states = useModelStates(session);
     // The Load custom model dialog, opened by the Models pop-over's Add custom model....
     const [customOpen, setCustomOpen] = useState(false);
     // Fill's Picture line, added with "+": its pop-over opens at once.
@@ -141,6 +143,7 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
             setModelsOpen,
             settingsOpen,
             setSettingsOpen,
+            problems: modelProblemLines(states.find((s) => s.ref === model)),
             customOpen,
             setCustomOpen,
             focusField,
@@ -159,6 +162,8 @@ interface ShapeState {
     readonly setModelsOpen: (open: boolean) => void;
     readonly settingsOpen: boolean;
     readonly setSettingsOpen: (open: boolean) => void;
+    /** What graphty-element reports on the model, one line each, said on the Model settings tooltip. */
+    readonly problems: readonly string[];
     readonly customOpen: boolean;
     readonly setCustomOpen: (open: boolean) => void;
     readonly focusField: () => void;
@@ -381,7 +386,16 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
         varySlot: (
             <Popout opened={state.settingsOpen} onOpenChange={state.setSettingsOpen}>
                 <Popout.Trigger>
-                    <Tooltip label="Model settings">
+                    <Tooltip
+                        label={
+                            <>
+                                Model settings
+                                {state.problems.map((line) => (
+                                    <div key={line}>{line}</div>
+                                ))}
+                            </>
+                        }
+                    >
                         <PopoutButton
                             icon={<GLYPHS.settings size={14} aria-hidden />}
                             aria-label="Model settings"

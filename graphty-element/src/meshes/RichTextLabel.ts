@@ -249,6 +249,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapAnywhere"
     | "wrapSpaceCount"
     | "maxLines"
+    | "maxLinesEllipsis"
     | "keepBlankLines"
     | "runAlign"
     | "minScreenSize"
@@ -468,12 +469,14 @@ function along(side: Side, min: number, max: number, gap: number): number {
  * class fills it in; no entry point exports it.
  */
 export const labelInternals = {} as {
-    /** The texture's size, the area inside its borders, the words' own extent, and its options. */
+    /** The texture's size, the area inside its borders, the words' own extent, its options and the room round its panel. */
     drawn(label: RichTextLabel): {
         actualDimensions: Readonly<RichTextLabel["actualDimensions"]>;
         contentArea: Readonly<RichTextLabel["contentArea"]>;
         textSize: Readonly<RichTextLabel["textSize"]>;
         options: RichTextLabel["options"];
+        /** The room round the panel on every side, for its shadow and the words' outline. */
+        shadowMargin: number;
     };
 };
 
@@ -487,6 +490,7 @@ export class RichTextLabel {
             contentArea: label.contentArea,
             textSize: label.textSize,
             options: label.options,
+            shadowMargin: label.shadowMargin,
         });
     }
 
@@ -517,7 +521,7 @@ export class RichTextLabel {
     private totalBorderWidth = 0;
     /** The width in canvas pixels a `box` of `"target-width"` holds the label's panel to, at the least. */
     private spanWidth = 0;
-    /** The room around the panel its drop shadow is drawn in, on every side; zero without one. */
+    /** The room around the panel, on every side, its drop shadow and the outline past its padding are drawn in. */
     private shadowMargin = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
@@ -1155,13 +1159,19 @@ export class RichTextLabel {
         return total;
     }
 
-    /** Grow the canvas evenly on every side to make room for the panel's shadow. */
+    /** Grow the canvas evenly on every side to make room for the panel's shadow and the words' outline. */
     private _addShadowRoom(): void {
         // ROOM FOR THE SHADOW, THE SAME ON EVERY SIDE, so the panel stays centered on the plane and
         // the shadow is not cut off at the canvas edge. The plane grows with it, in proportion, so
         // the letters keep their size.
         const { panelShadowBlur: blur, panelShadowOffsetX: dx, panelShadowOffsetY: dy } = this.options;
-        this.shadowMargin = this.options.panelShadow ? Math.max(0, blur) + Math.max(Math.abs(dx), Math.abs(dy)) : 0;
+        const shadow = this.options.panelShadow ? Math.max(0, blur) + Math.max(Math.abs(dx), Math.abs(dy)) : 0;
+        // The outline is drawn round the glyphs, past the words' box and the panel it sizes (#8746): room for
+        // whatever of it reaches past the margins, padding and borders, so the canvas edge does not cut it off.
+        const o = this.options;
+        const inset = Math.min(o.marginLeft, o.marginRight, o.marginTop, o.marginBottom) + o.backgroundPadding;
+        const outline = o.textOutline ? Math.max(0, o.textOutlineWidth - inset - this.totalBorderWidth) : 0;
+        this.shadowMargin = Math.max(shadow, outline);
         if (this.shadowMargin > 0) {
             const panelHeight = this.actualDimensions.height;
             this.actualDimensions.width += this.shadowMargin * 2;
@@ -1772,7 +1782,7 @@ export class RichTextLabel {
      * @param ctx - The label's canvas, already scaled to label units.
      */
     private _drawPanelShadow(ctx: CanvasRenderingContext2D): void {
-        if (this.shadowMargin === 0) {
+        if (!this.options.panelShadow || this.shadowMargin === 0) {
             return;
         }
 
@@ -2093,17 +2103,18 @@ export class RichTextLabel {
      * Break the label's lines where they run past its wrap width, at the spaces between words. The
      * width is in the scene, so it is turned into the canvas's pixels by one line's height in each.
      * A word longer than the width keeps a line of its own. With `maxLines`, the lines past it are
-     * cut and the last one kept ends in an ellipsis, with or without a wrap width.
+     * cut and the last one kept ends in an ellipsis (unless `maxLinesEllipsis` is false), with or
+     * without a wrap width.
      * @param ctx - A canvas to measure on.
      */
     private wrapToWidth(ctx: CanvasRenderingContext2D): void {
-        const { wrapWidth, maxLines } = this.options;
+        const { wrapWidth, maxLines, maxLinesEllipsis } = this.options;
         const first = this.parsedContent.find(hasWords);
         if ((wrapWidth === undefined && maxLines === undefined) || first === undefined) {
             return;
         }
         if (wrapWidth === undefined) {
-            this.parsedContent = wrapLines(ctx, this.parsedContent, Infinity, { maxLines });
+            this.parsedContent = wrapLines(ctx, this.parsedContent, Infinity, { maxLines, maxLinesEllipsis });
             return;
         }
 
@@ -2132,6 +2143,7 @@ export class RichTextLabel {
             anywhere: wrapAnywhere === true,
             spaceCount: wrapSpaceCount,
             maxLines,
+            maxLinesEllipsis,
         });
     }
 

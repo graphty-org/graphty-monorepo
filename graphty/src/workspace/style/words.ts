@@ -517,6 +517,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapEllipsis": "Label wrap ellipsis",
     "node.labelWrapAnywhere": "Label wrap anywhere",
     "node.labelWrapSpaceCount": "Label wrap space count",
+    "node.labelMaxLines": "Label max lines",
+    "node.labelMaxLinesEllipsis": "Label max lines ellipsis",
     "node.labelRunAlign": "Label run align",
     "node.labelOutline": "Label outline",
     "node.labelOutlineWidth": "Label outline width",
@@ -726,6 +728,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapEllipsis": "Label wrap ellipsis",
     "edge.labelWrapAnywhere": "Label wrap anywhere",
     "edge.labelWrapSpaceCount": "Label wrap space count",
+    "edge.labelMaxLines": "Label max lines",
+    "edge.labelMaxLinesEllipsis": "Label max lines ellipsis",
     "edge.labelRunAlign": "Label run align",
     "edge.labelOutline": "Label outline",
     "edge.labelOutlineWidth": "Label outline width",
@@ -2063,8 +2067,6 @@ export const CUSTOM_MODEL = {
     settings: "Model settings",
     /** The x that closes the Model settings pop-over, back to the dialog. */
     closeSettings: "Close model settings",
-    /** The Shape field's button that opens the Parts pop-over while a model waits for its files. */
-    addParts: "Add parts",
     textures: "Textures",
     allTextures: "All textures",
     /** Over the rows only a layer takes (Light, Wireframe, Picture), opened from a layer. */
@@ -2250,12 +2252,6 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     loading: (name: string): string => `Loading ${name}`,
-    /**
-     * A model a layer names, picked but not drawn on the graph yet.
-     * @param name - the model's name.
-     * @returns the spinner's name.
-     */
-    drawing: (name: string): string => `Drawing ${name}`,
     /**
      * Said once a model is in the dialog.
      * @param name - its name.

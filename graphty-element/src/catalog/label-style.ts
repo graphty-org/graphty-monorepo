@@ -183,6 +183,12 @@ export interface LabelStyle {
      */
     maxLines?: number;
     /**
+     * Whether the last line `maxLines` keeps runs on with the rest of its line, cut to `wrapWidth` with an ellipsis
+     * after it ("Wrap" / "this t..."). False, the lines past `maxLines` are dropped as they are, with no ellipsis.
+     * Unset, true.
+     */
+    maxLinesEllipsis?: boolean;
+    /**
      * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
      * layout sets it (yEd draws "\nCS" two lines tall). Unset or false, a blank line takes no height. A blank line
      * after the last words takes none either way.
@@ -457,6 +463,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
     maxLines: 0,
+    maxLinesEllipsis: 0,
     keepBlankLines: 0,
     runAlign: 0,
     rotation: 0,
@@ -553,6 +560,7 @@ export const RICH_TEXT_KEYS = {
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
     maxLines: "maxLines",
+    maxLinesEllipsis: "maxLinesEllipsis",
     keepBlankLines: "keepBlankLines",
     runAlign: "runAlign",
     rotation: "rotation",
@@ -717,6 +725,7 @@ const FIELD_ROWS = {
     wrapAnywhere: flag("Wrap Anywhere"),
     wrapSpaceCount: num("Wrap Space Count", { min: 0 }),
     maxLines: num("Max Lines", { min: 1, integer: true }),
+    maxLinesEllipsis: flag("Max Lines Ellipsis"),
     keepBlankLines: flag("Keep Blank Lines"),
     runAlign: choice("Run Align", ["baseline", "hanging", "middle"]),
     rotation: num("Rotation"),

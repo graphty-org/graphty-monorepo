@@ -48,6 +48,8 @@ const DECLARED = [
     "node.labelWrapEllipsis",
     "node.labelWrapAnywhere",
     "node.labelWrapSpaceCount",
+    "node.labelMaxLines",
+    "node.labelMaxLinesEllipsis",
     "node.labelRunAlign",
     "node.labelMinScreenSize",
     "node.labelOnTop",
@@ -374,6 +376,8 @@ const DECLARED = [
     "edge.labelWrapEllipsis",
     "edge.labelWrapAnywhere",
     "edge.labelWrapSpaceCount",
+    "edge.labelMaxLines",
+    "edge.labelMaxLinesEllipsis",
     "edge.labelRunAlign",
     "edge.labelMinScreenSize",
     "edge.labelOnTop",
@@ -437,9 +441,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twelve node channels and one hundred and seventy edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 212);
-        assert.strictEqual(channelsFor("edge").length, 170);
+    it("splits into two hundred and fourteen node channels and one hundred and seventy-two edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 214);
+        assert.strictEqual(channelsFor("edge").length, 172);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -846,6 +850,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelWrapEllipsis",
         "node.labelWrapAnywhere",
         "node.labelWrapSpaceCount",
+        "node.labelMaxLines",
+        "node.labelMaxLinesEllipsis",
         "node.labelRunAlign",
         "node.labelMinScreenSize",
         "node.labelOnTop",
@@ -880,6 +886,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelWrapEllipsis",
         "edge.labelWrapAnywhere",
         "edge.labelWrapSpaceCount",
+        "edge.labelMaxLines",
+        "edge.labelMaxLinesEllipsis",
         "edge.labelRunAlign",
         "edge.labelMinScreenSize",
         "edge.labelOnTop",

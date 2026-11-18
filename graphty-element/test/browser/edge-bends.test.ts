@@ -80,6 +80,17 @@ describe("edges drawn through bends", () => {
         assert.closeTo(cap?.position.x ?? Number.NaN, 8, 1e-6);
     });
 
+    it("keeps a corner under the arrow head, so the line meets the head along the last segment (#8840, #8844)", async () => {
+        // the second bend lies 0.35 below the target's outline: under the head, nearer its tip than its back
+        const route = (await drawn({ "edge.bends": "0,-0.1375 1,-0.1375" })) ?? [];
+        assert.lengthOf(route, 4, "start, both bends, end");
+        const [, , b2, end] = route;
+        assert.closeTo(b2[0], 8, 1e-6);
+        assert.closeTo(b2[1], -1.1, 1e-6);
+        // the line ends on the head's axis, straight below the target, not off to the side of it
+        assert.closeTo(end[0], 8, 1e-6);
+    });
+
     it("rounds the corners when the edge is also curved", async () => {
         const route = (await drawn({ "edge.bends": ROUTE, "edge.curvature": true })) ?? [];
         // each of the two corners becomes a run of points, none of which is the corner itself

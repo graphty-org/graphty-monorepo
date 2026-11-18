@@ -77,6 +77,12 @@ describe("assetFileExtensions", () => {
                 ".stl",
                 ".ply",
                 ".babylon",
+                ".fbx",
+                ".usd",
+                ".usda",
+                ".usdc",
+                ".usdz",
+                ".bvh",
                 ".bin",
                 ".mtl",
                 ".zip",
@@ -97,7 +103,21 @@ describe("assetFileExtensions", () => {
     it("offers a model's own files and a .zip only with parts: false", () => {
         assert.deepEqual(
             [...assetFileExtensions("model", { parts: false })],
-            [".glb", ".gltf", ".obj", ".stl", ".ply", ".babylon", ".zip"],
+            [
+                ".glb",
+                ".gltf",
+                ".obj",
+                ".stl",
+                ".ply",
+                ".babylon",
+                ".fbx",
+                ".usd",
+                ".usda",
+                ".usdc",
+                ".usdz",
+                ".bvh",
+                ".zip",
+            ],
         );
         assert.deepEqual(assetFileExtensions("image", { parts: false }), assetFileExtensions("image"));
     });

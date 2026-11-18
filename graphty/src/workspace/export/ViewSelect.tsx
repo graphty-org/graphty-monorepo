@@ -1,23 +1,23 @@
 /**
- * The Export dialog's View field, shared by Image and Video, drawn from `viewChoice`'s entries.
+ * The Export dialog's Camera field, shared by Image and Video, drawn from `viewChoice`'s entries.
  */
 
 import { Select, Stack, Text } from "@mantine/core";
 import React from "react";
 
-import { CURRENT, type ViewChoice } from "./viewChoice";
+import type { ViewChoice } from "./viewChoice";
 
 /** Props for ViewSelect. */
 interface ViewSelectProps {
     readonly views: ViewChoice;
-    /** Called with the picked view name, or null for the reader's camera. */
+    /** Called with the picked camera's name, or null for the reader's camera. */
     readonly onChange: (view: string | null) => void;
     /** Whether the list is disabled, such as while a recording runs. */
     readonly disabled?: boolean;
 }
 
 /**
- * The View list: an unusable view is disabled with its reason under its name, and the chosen one
+ * The Camera list: an unusable camera is disabled with its reason under its name, and the chosen one
  * shows its reason as the field's error.
  * @param props - Component props
  * @param props.views - the entries and the chosen one, from `viewChoice`
@@ -26,26 +26,15 @@ interface ViewSelectProps {
  * @returns the list
  */
 export function ViewSelect({ views, onChange, disabled = false }: ViewSelectProps): React.JSX.Element {
-    const entries = [views.current, ...views.cameras, ...views.saved];
+    const entries = [views.current, ...views.saved];
     return (
         <Select
-            label="View"
-            data={[
-                { value: CURRENT, label: views.current.label },
-                ...[
-                    { group: "Camera views", items: views.cameras },
-                    { group: "Saved views", items: views.saved },
-                ]
-                    .filter(({ items }) => items.length > 0)
-                    .map(({ group, items }) => ({
-                        group,
-                        items: items.map((entry) => ({
-                            value: entry.value,
-                            label: entry.label,
-                            disabled: entry.reason !== null,
-                        })),
-                    })),
-            ]}
+            label="Camera"
+            data={entries.map((entry) => ({
+                value: entry.value,
+                label: entry.label,
+                disabled: entry.reason !== null,
+            }))}
             value={views.chosen.value}
             error={views.chosen.reason ?? undefined}
             allowDeselect={false}

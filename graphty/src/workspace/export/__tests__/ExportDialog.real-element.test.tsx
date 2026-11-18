@@ -281,10 +281,12 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("radio", { name: "Tour" }).disabled);
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("radio", { name: "Still" }).checked);
         assert.isNotNull(within(dialog).getByText("No tours yet"));
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
-        // Front is both a camera view and, in every new project, a starting camera.
-        assert.isNotEmpty(await screen.findAllByRole("option", { name: "Front" }), "a camera view in the app's words");
-        assert.isNull(screen.queryByRole("option", { name: "frontView" }), "no camera id is shown");
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Camera" }));
+        // Current camera, then the project's saved cameras: in a new project, the five starting ones.
+        assert.deepEqual(
+            (await screen.findAllByRole("option")).map((option) => option.textContent),
+            ["Current camera", "Top", "Bottom", "Front", "Side", "Isometric"],
+        );
         await userEvent.keyboard("{Escape}");
         // Video tours... closes the dialog and opens the Views place on Video tours.
         await userEvent.click(within(dialog).getByRole("button", { name: "Video tours..." }));
@@ -306,7 +308,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Export image..." }));
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Image" }));
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Camera" }));
         await userEvent.click(await screen.findByRole("option", { name: "Overview" }));
         await within(dialog).findByRole("img", {});
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
@@ -320,7 +322,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await session.views.save([{ name: "Overview" }]);
 
         let dialog = await openExport();
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Camera" }));
         await userEvent.click(await screen.findByRole("option", { name: "Overview" }));
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
@@ -329,7 +331,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await session.views.remove(["Overview"]);
 
         dialog = await openExport();
-        const view = within(dialog).getByRole<HTMLInputElement>("combobox", { name: "View" });
+        const view = within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Camera" });
         assert.equal(view.value, "Overview", "the choice is not silently swapped for the current camera");
         assert.isNotNull(within(dialog).getByText("Camera not found"));
         assert.isTrue(within(dialog).getByRole<HTMLButtonElement>("button", { name: "Export" }).disabled);

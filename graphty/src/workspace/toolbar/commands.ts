@@ -4,7 +4,6 @@ import { type CommandContext, defineRegistration, type PaletteRow } from "../com
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
-import { panelsInView } from "../time/timeActions";
 import { noGraph, nothingDrawn } from "./disabledReasons";
 import { togglePopover } from "./popover";
 import { cameraViewName, isFixedCamera, tourProblemWords, viewProblemWords } from "./viewWords";
@@ -40,7 +39,7 @@ function filteredReach(session: GraphSession, center: NodeId): number {
 }
 
 /**
- * Why Frame selection cannot run: nothing is selected. The element frames a selected edge's ends.
+ * Why Fit selection cannot run: nothing is selected. The element frames a selected edge's ends.
  * @param session - the element's session, or null.
  * @returns the reason, or null when a node or an edge is selected.
  */
@@ -144,7 +143,7 @@ export function savedViewReason(ctx: CommandContext, name: string): string | nul
 }
 
 /**
- * Flies to a saved view and remembers it as where `[` and `]` step from.
+ * Flies to a saved camera and remembers it as the last one applied (the Views place marks its card).
  * @param ctx - the command context.
  * @param name - the saved view's name.
  */
@@ -155,65 +154,18 @@ export async function goToSavedView(ctx: CommandContext, name: string): Promise<
 }
 
 /**
- * The saved view `[` (back) or `]` (on) goes to: the next usable one in project order after the
- * last one applied, or the first (last, going back) when none was applied or it is gone. No wrap.
- * @param ctx - the command context.
- * @param back - true for Previous view.
- * @returns the view's name, or why there is none.
- */
-function stepView(ctx: CommandContext, back: boolean): { name: string } | { reason: string } {
-    const names = [...(ctx.session?.views.keys() ?? [])];
-    if (names.length === 0) {
-        return { reason: "No saved views" };
-    }
-    const at = names.indexOf(ctx.workspace.get().lastView ?? "");
-    const order = back ? names.slice(0, at === -1 ? names.length : at).reverse() : names.slice(at + 1);
-    const name = order.find((each) => savedViewReason(ctx, each) === null);
-    return name === undefined ? { reason: back ? "At the first view" : "At the last view" } : { name };
-}
-
-/**
- * The Previous view and Next view commands.
- * @param back - true for Previous view.
- * @returns the command.
- */
-function stepCommand(back: boolean): {
-    id: string;
-    label: string;
-    group: "View";
-    keys: string[];
-    disabled: (ctx: CommandContext) => string | null;
-    run: (ctx: CommandContext) => Promise<void>;
-} {
-    return {
-        id: back ? "view.previous" : "view.next",
-        label: back ? "Previous view" : "Next view",
-        group: "View",
-        keys: [back ? "[" : "]"],
-        disabled: (ctx) => {
-            const step = stepView(ctx, back);
-            return nothingDrawn(ctx.session) ?? ("reason" in step ? step.reason : null);
-        },
-        run: async (ctx) => {
-            const step = stepView(ctx, back);
-            if ("name" in step) {
-                await goToSavedView(ctx, step.name);
-            }
-        },
-    };
-}
-
-/**
- * The reader's saved views as rows, project order: each flies there, disabled with the element's
- * reason when it cannot be applied now. Quick actions lists them all; the Camera menu the first ten.
+ * The reader's saved cameras as rows, project order, each with its key: each flies there, disabled
+ * with the element's reason when it cannot be applied now. Quick actions lists them all; the Camera
+ * menu the first twelve.
  * @param ctx - the command context.
  * @returns the rows.
  */
 export function savedViewRows(ctx: CommandContext): PaletteRow[] {
-    return [...(ctx.session?.views.keys() ?? [])].map((name) => ({
+    return [...(ctx.session?.views ?? [])].map(([name, view]) => ({
         id: `view.saved:${name}`,
         label: name,
-        group: "Saved views",
+        group: "Cameras",
+        keys: view.key === undefined ? undefined : [view.key],
         keywords: ["view", "camera"],
         disabled: (each) => savedViewReason(each, name),
         run: (each) => goToSavedView(each, name),
@@ -229,8 +181,8 @@ export function savedViewRows(ctx: CommandContext): PaletteRow[] {
 export function tourRows(ctx: CommandContext): PaletteRow[] {
     return [...(ctx.session?.tours.keys() ?? [])].map((name) => ({
         id: `tour.play:${name}`,
-        label: name,
-        group: "Play tour",
+        label: `Play tour: ${name}`,
+        group: "Video tours",
         keywords: ["tour", "play"],
         disabled: ({ session, element }) =>
             nothingDrawn(session) ?? (element === null ? null : tourProblemWords(element.planTour(name), element)),
@@ -240,19 +192,11 @@ export function tourRows(ctx: CommandContext): PaletteRow[] {
     }));
 }
 
-/** The element's standard 3D views the Camera menu offers, with their keys (tier1-design.md 2.3). */
-const STANDARD_VIEWS = [
-    { id: "view.front", camera: "frontView", key: "1" },
-    { id: "view.side", camera: "sideView", key: "3" },
-    { id: "view.top", camera: "topView", key: "7" },
-    { id: "view.isometric", camera: "isometric" },
-] as const;
-
 /**
  * The Toolbar package's commands (tier1-design.md 2.3): the Camera and Mode menus and what they
  * hold, the legend switch, Quick actions, and Neighborhood for the selection.
  *
- * The camera moves (Fit, Frame selection, the standard views, zoom) are view state, so they go
+ * The camera moves (Fit, Fit selection, zoom) are view state, so they go
  * through the element's camera methods and record no step, as Auto-rotate (a view preference)
  * does; Switch to 2D or 3D is a project change
  * and goes through the session.
@@ -303,8 +247,6 @@ export const registration = defineRegistration({
                 workspace.set((state) => ({ followSelection: !state.followSelection }));
             },
         },
-        stepCommand(true),
-        stepCommand(false),
         {
             // Escape while a tour plays, taken from Clear selection, after inner controls had their
             // turn (the key dispatcher gives it to a menu, a list, a dialog or a field first).
@@ -315,24 +257,6 @@ export const registration = defineRegistration({
             shown: ({ workspace }) => workspace.get().tourProgress !== null,
             run: ({ element }) => {
                 element?.cancelCameraAnimation();
-            },
-        },
-        {
-            // Opens the Views place, where cameras are renamed, ordered and deleted and tours are
-            // made; focus goes to its Cameras section.
-            id: "view.views-section",
-            label: "Views and tours...",
-            group: "View",
-            keywords: ["tour", "saved views", "rename view", "delete view"],
-            disabled: ({ session }) => (session === null ? "Nothing is open" : null),
-            run: ({ workspace }) => {
-                workspace.set({
-                    page: "panels",
-                    place: "views",
-                    viewsCamerasOpen: true,
-                    viewsFocus: "cameras",
-                    ...panelsInView(),
-                });
             },
         },
         {
@@ -362,7 +286,7 @@ export const registration = defineRegistration({
         },
         {
             id: "view.frame-selection",
-            label: "Frame selection",
+            label: "Fit selection",
             group: "View",
             keys: ["F"],
             disabled: ({ session }) => nothingSelected(session),
@@ -379,16 +303,6 @@ export const registration = defineRegistration({
                 }
             },
         },
-        ...STANDARD_VIEWS.map(({ id, camera, ...rest }) => ({
-            id,
-            label: cameraViewName(camera),
-            group: "View" as const,
-            keys: "key" in rest ? [rest.key] : undefined,
-            disabled: (ctx: CommandContext) => cameraViewReason(ctx, camera),
-            run: async ({ element }: CommandContext) => {
-                await element?.applyCameraView(camera, { animate: true });
-            },
-        })),
         {
             id: "view.zoom-in",
             label: "Zoom in",

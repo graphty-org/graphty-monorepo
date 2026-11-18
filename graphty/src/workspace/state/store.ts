@@ -321,8 +321,8 @@ export interface WorkspaceState {
      */
     readonly exportOn: "image" | "video" | "nodes" | "edges";
     /**
-     * The saved view a Camera menu row, Previous view or Next view last went to, by name: where
-     * `[` and `]` step from. Null until one has been applied.
+     * The saved camera last gone to (a Camera menu row, a Go button or a camera key), by name: the
+     * Views place marks its card. Null until one has been applied.
      */
     readonly lastView: string | null;
     /** The tour playing now, from graphty-element's `tour-progress`; null once `tour-ended` fires. */

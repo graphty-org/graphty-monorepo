@@ -1,18 +1,17 @@
 /**
- * The Export dialog's View list, shared by Image and Video: the current camera, then the camera
- * views, then the saved views (the order the element resolves a name), each judged by the
- * element's `viewProblem` and worded here.
+ * The Export dialog's Camera list, shared by Image and Video: the current camera, then the saved
+ * cameras in project order, each judged by the element's `viewProblem` and worded here.
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
-import { cameraViewName, viewProblemWords } from "../toolbar/viewWords";
+import { isFixedCamera, viewProblemWords } from "../toolbar/viewWords";
 
-/** The View list's entry for the reader's own camera. */
+/** The Camera list's entry for the reader's own camera. */
 export const CURRENT = "current";
 
-/** One entry of the View list: a value, its words, and why it cannot be used now. */
+/** One entry of the Camera list: a value, its words, and why it cannot be used now. */
 interface ViewEntry {
     readonly value: string;
     readonly label: string;
@@ -21,17 +20,16 @@ interface ViewEntry {
     readonly reason: string | null;
 }
 
-/** The View list's entries and the chosen one. */
+/** The Camera list's entries and the chosen one. */
 export interface ViewChoice {
     readonly chosen: ViewEntry;
     readonly current: ViewEntry;
-    readonly cameras: readonly ViewEntry[];
-    /** The saved views, and a chosen view that is gone at the end. */
+    /** The saved cameras, and a chosen camera that is gone at the end. */
     readonly saved: readonly ViewEntry[];
 }
 
 /**
- * The View list for a choice. A chosen view that is gone (removed, renamed, another project) stays
+ * The Camera list for a choice. A chosen camera that is gone (removed, renamed, another project) stays
  * chosen and shows the element's reason, so the field says why the capture would fail instead of
  * hiding the choice.
  * @param element - the element, or null.
@@ -45,24 +43,18 @@ export function viewChoice(
     view: string | null,
 ): ViewChoice {
     const current: ViewEntry = { value: CURRENT, label: "Current camera", view: null, reason: null };
-    const cameras = (session?.catalog.cameras() ?? []).map(({ id, plainName }) => ({
-        value: `camera:${id}`,
-        label: cameraViewName(id, plainName),
-        view: id,
-        reason: viewProblemWords(element?.viewProblem(id) ?? null),
-    }));
     const saved = [...(session?.views.keys() ?? [])].map((name) => ({
         value: `saved:${name}`,
         label: name,
         view: name,
-        reason: viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, true),
+        reason: viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, isFixedCamera(name, element)),
     }));
     if (view === null) {
-        return { chosen: current, current, cameras, saved };
+        return { chosen: current, current, saved };
     }
-    const found = cameras.find((entry) => entry.view === view) ?? saved.find((entry) => entry.view === view);
+    const found = saved.find((entry) => entry.view === view);
     if (found !== undefined) {
-        return { chosen: found, current, cameras, saved };
+        return { chosen: found, current, saved };
     }
     const missing: ViewEntry = {
         value: `missing:${view}`,
@@ -70,5 +62,5 @@ export function viewChoice(
         view,
         reason: viewProblemWords(element?.viewProblem(view, { saved: true }) ?? null, true),
     };
-    return { chosen: missing, current, cameras, saved: [...saved, missing] };
+    return { chosen: missing, current, saved: [...saved, missing] };
 }

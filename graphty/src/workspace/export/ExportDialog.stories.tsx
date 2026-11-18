@@ -77,7 +77,7 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
 /** Export > Image: the "To share" preset, the legend callout and the preview the element draws. */
 export const Image: Story = exportStory("image");
 
-/** Export > Image with a saved view chosen in View: the picture is taken from that view. */
+/** Export > Image with a saved camera chosen in Camera: the picture is taken from that camera. */
 export const ImageSavedView: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
     play: async (context) => {
@@ -92,9 +92,9 @@ export const ImageSavedView: Story = {
         const dialog = await body.findByRole("dialog", { name: "Export" });
         const preview = (): HTMLImageElement | null =>
             canvasElement.ownerDocument.querySelector<HTMLImageElement>(".ws-export-preview img");
-        // The first preview, from the current camera, then the one from the chosen view.
+        // The first preview, from the current camera, then the one from the chosen camera.
         const first = await waitFor(() => preview()?.src ?? Promise.reject(new Error("no preview yet")));
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Camera" }));
         await userEvent.click(await body.findByRole("option", { name: "Overview" }));
         const img = await waitFor(() => {
             const found = preview();
@@ -129,7 +129,7 @@ export const VideoTour: Story = {
                 tour: {
                     stops: [
                         { view: "Overview", hold: 2000 },
-                        { view: "topView", duration: 2000, hold: 3000 },
+                        { view: "Top", duration: 2000, hold: 3000 },
                     ],
                 },
             },
@@ -140,7 +140,7 @@ export const VideoTour: Story = {
     },
 };
 
-/** Export > Video with no tours: Camera on Still with its View list, and the way to the Views section. */
+/** Export > Video with no tours: Motion on Still with its Camera list, and Video tours... to the Views place. */
 export const VideoNoTours: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
     play: async (context) => {

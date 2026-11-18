@@ -1,11 +1,11 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { type RefObject, useEffect, useRef } from "react";
 
-import { defineRegistration } from "../commands/registry";
+import { type Command, defineRegistration } from "../commands/registry";
 import { undoOrRedo } from "../frame/historyWords";
 import { matchesKey } from "../keys/keys";
 import { panelsInView } from "../time/timeActions";
-import { immersiveMode, nextName } from "../toolbar/commands";
+import { goToSavedView, immersiveMode, nextName, savedViewReason } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
 
 /**
@@ -26,8 +26,50 @@ export async function saveCamera(session: GraphSession): Promise<string> {
 }
 
 /**
- * The Views place's commands (design/ui/camera-views-tours-and-capture.md, sections 3.1 and 6):
- * the place itself, and Save camera on V, which works with the place closed.
+ * The saved camera holding a key, if any.
+ * @param session - the element's session, or null.
+ * @param key - the key, such as "7".
+ * @returns the camera's name, or undefined when none holds it.
+ */
+function cameraOnKey(session: GraphSession | null, key: string): string | undefined {
+    return [...(session?.views ?? [])].find(([, view]) => view.key === key)?.[0];
+}
+
+/**
+ * One camera key's command (section 3.4): goes to the camera holding that digit, animated, like its
+ * Camera menu row. A digit no camera holds is disabled, so a press does nothing and says nothing;
+ * the key dispatcher already keeps it from a field, and it rests while immersive. Quick actions
+ * leaves it out, since it lists the cameras themselves with their keys.
+ * @param key - the digit.
+ * @returns the command.
+ */
+function cameraKeyCommand(key: (typeof CAMERA_KEYS)[number]): Command {
+    return {
+        id: `camera.key-${key}`,
+        label: `Go to the camera on ${key}`,
+        group: "View",
+        keys: [key],
+        inPalette: false,
+        disabled: (ctx) => {
+            const name = cameraOnKey(ctx.session, key);
+            const active = immersiveMode(ctx.session);
+            if (name === undefined) {
+                return "No camera on this key";
+            }
+            return active === null ? savedViewReason(ctx, name) : `Not in ${active.toUpperCase()}`;
+        },
+        run: async (ctx) => {
+            const name = cameraOnKey(ctx.session, key);
+            if (name !== undefined) {
+                await goToSavedView(ctx, name);
+            }
+        },
+    };
+}
+
+/**
+ * The Views place's commands (design/ui/camera-views-tours-and-capture.md, sections 3.1, 3.4 and
+ * 6): the place itself, Save camera on V, which works with the place closed, and the camera keys.
  */
 export const registration = defineRegistration({
     owner: "views-place",
@@ -77,6 +119,7 @@ export const registration = defineRegistration({
                 });
             },
         },
+        ...CAMERA_KEYS.map((key) => cameraKeyCommand(key)),
     ],
 });
 

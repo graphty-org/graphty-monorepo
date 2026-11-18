@@ -373,7 +373,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("moves the camera from the Camera tool, turns Auto-rotate on and off, and keeps 3D views for 3D", async () => {
+    it("moves the camera from the Camera tool, turns Auto-rotate on and off, and keeps 3D cameras for 3D", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
@@ -389,10 +389,10 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         };
 
         let menu = await open();
-        for (const name of [/^Fit/, /^Frame selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
+        for (const name of [/^Fit(?! selection)/, /^Fit selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
             assert.isNotNull(within(menu).getByRole("menuitem", { name }));
         }
-        // Each standard view shows its key on its row.
+        // Each starting camera shows its key on its row.
         assert.include(within(menu).getByRole("menuitem", { name: /^Front/ }).textContent, "1");
         assert.include(within(menu).getByRole("menuitem", { name: /^Top/ }).textContent, "7");
         // Zoom is a 2D move.
@@ -415,7 +415,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         await session.layout.setDimension("2d");
         menu = await open();
-        // In 2D the views graphty-element draws only in 3D and Auto-rotate stay, disabled with
+        // In 2D the cameras graphty-element draws only in 3D and Auto-rotate stay, disabled with
         // their reason; Top, which the element also draws flat, stays usable; zoom is offered.
         for (const name of [/^Front/, /^Side/, /^Isometric/]) {
             const row = within(menu).getByRole("menuitem", { name });
@@ -430,7 +430,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
-    it("saves the camera as a view, goes back to it, deletes it in the Views section, and turns Focus selected off", async () => {
+    it("saves the camera with V, goes back to it from the Camera menu, and turns Focus selected off", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
@@ -446,18 +446,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             return screen.findByRole("menu", { name: /^Camera/ });
         };
 
-        // Save view keeps the camera under the first free name, and Camera lists it.
-        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save camera/ }));
+        // Save camera (V) keeps the camera under the first free name, after the starting cameras.
+        await userEvent.keyboard("v");
         await waitFor(() => {
             assert.isTrue(session.views.has("Camera 1"));
         });
         const saved = session.views.get("Camera 1");
         await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Top/ }));
         await element.waitForStableFrame();
-        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save camera/ }));
-        await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["Camera 1", "Camera 2"]);
-        });
 
         // Its row moves the camera back.
         await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Camera 1$/ }));
@@ -473,21 +469,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             }
         });
 
-        // Views and tours... opens the Graph place's Views section on its first view; Delete forgets it.
-        await userEvent.click(within(await open()).getByRole("menuitem", { name: "Views and tours..." }));
-        await waitFor(() => {
-            assert.equal(
-                document.activeElement,
-                within(screen.getByRole("grid", { name: "Saved views" })).getByRole("gridcell", { name: "Camera 1" }),
-            );
-        });
-        await userEvent.keyboard("{Delete}");
-        await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["Camera 2"]);
-        });
-
         // Focus selected is on, and turning it off leaves the camera where it is on a pick.
-        await userEvent.keyboard("{Escape}");
         const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
         assert.equal(follow.getAttribute("aria-checked"), "true");
         await userEvent.click(follow);
@@ -503,14 +485,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(off.getAttribute("aria-checked"), "false");
     });
 
-    it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {
+    it("frames a selected edge's two ends with Fit selection, and disables it with nothing selected", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
         if (element === null) {
             return;
         }
-        // Frame selection frames the ends where they are when it is pressed, and the layout is
+        // Fit selection frames the ends where they are when it is pressed, and the layout is
         // still moving them after the queue empties: wait for the drawing to stop.
         await element.waitForStableFrame();
         const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
@@ -519,7 +501,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
             const menu = await screen.findByRole("menu", { name: /^Camera/ });
-            return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
+            return within(menu).getByRole("menuitem", { name: /^Fit selection/ });
         };
 
         assert.equal((await frameRow()).getAttribute("aria-disabled"), "true", "nothing selected");
@@ -619,7 +601,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(screen.queryByRole("radiogroup", { name: "Follow" }));
         // The neighborhood has one home: no Grow by one hop in its "...".
         await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
-        await screen.findByRole("menuitem", { name: /Frame selection/ });
+        await screen.findByRole("menuitem", { name: /Fit selection/ });
         assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
         await userEvent.keyboard("{Escape}");
 

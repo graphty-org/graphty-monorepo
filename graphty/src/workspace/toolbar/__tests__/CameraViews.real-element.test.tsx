@@ -1,8 +1,10 @@
 /**
- * The Camera menu's saved views and tours on the REAL graphty-element: V saves the camera, [ and ]
- * step through the saved views, a view the drawing mode cannot use is disabled with the element's
- * reason, and a tour played from the menu stops on Escape or on its Stop tour button. Every change
- * is real input; every assertion reads what is drawn or what the element reports.
+ * The Camera menu, the camera keys and the toolbar while a tour plays, on the REAL graphty-element
+ * (design/ui/camera-views-tours-and-capture.md, sections 3.2, 3.4 and 3.5): the menu lists the
+ * cameras with their keys, Fit, Fit selection, zoom in 2D and the two switches, and nothing else; a
+ * camera's digit flies there, never while typing; Camera and Mode stay one flex gap apart, and
+ * while a tour plays the Camera tool is Stop. Every change is real input; every assertion reads
+ * what is drawn or what the element reports.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -13,6 +15,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -52,11 +55,19 @@ async function openRing(): Promise<{ element: GraphElement; session: GraphSessio
 }
 
 /**
+ * The canvas toolbar.
+ * @returns the toolbar.
+ */
+function toolbar(): HTMLElement {
+    return screen.getByRole("toolbar", { name: "Canvas tools" });
+}
+
+/**
  * The toolbar's Camera tool.
  * @returns the tool.
  */
 function cameraTool(): HTMLElement {
-    return within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Camera" });
+    return within(toolbar()).getByRole("button", { name: "Camera" });
 }
 
 /**
@@ -69,147 +80,233 @@ async function openCamera(): Promise<HTMLElement> {
 }
 
 /**
- * Asserts the camera stands where a saved state put it.
- * @param element - the element.
- * @param saved - the saved state.
+ * Closes the open menu.
  */
-function assertAt(element: GraphElement, saved: CameraState | undefined): void {
+async function closeMenu(): Promise<void> {
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("menu"));
+    });
+}
+
+/** One menu row as a reader sees it. */
+interface Row {
+    readonly text: string;
+    readonly disabled: boolean;
+}
+
+/**
+ * The menu's rows, in order, with the words drawn on each: its name, then its reason, then its key.
+ * @param menu - the menu.
+ * @returns the rows.
+ */
+function rowsOf(menu: HTMLElement): Row[] {
+    return [...menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')].map((row) => ({
+        text: row.textContent?.replaceAll(/\s+/g, " ").trim() ?? "",
+        disabled: row.getAttribute("aria-disabled") === "true",
+    }));
+}
+
+/**
+ * Asserts the camera stands where a resolved or saved state puts it.
+ * @param element - the element.
+ * @param expected - the state.
+ */
+function assertAt(element: GraphElement, expected: CameraState | undefined): void {
     const now = element.getCameraState();
     for (const axis of ["x", "y", "z"] as const) {
-        assert.closeTo(now.position?.[axis] ?? Number.NaN, saved?.position?.[axis] ?? Number.NaN, 1e-3, axis);
+        assert.closeTo(now.position?.[axis] ?? Number.NaN, expected?.position?.[axis] ?? Number.NaN, 1e-3, axis);
     }
 }
 
-describe("the Camera menu's saved views", () => {
-    it("saves with V, steps with ] (AltGr too) to the last view, then says so", async () => {
-        const { element, session } = await openRing();
+/**
+ * The space between the Camera tool (or Stop, in its place) and the Mode tool, and the
+ * toolbar's own flex gap.
+ * @returns both, in pixels.
+ */
+function gapToMode(): { between: number; gap: number } {
+    const bar = toolbar();
+    const camera =
+        within(bar).queryByRole("button", { name: "Camera" }) ?? within(bar).getByRole("button", { name: "Stop tour" });
+    const mode = within(bar).getByRole("button", { name: /^Mode\b/ });
+    return {
+        between: mode.getBoundingClientRect().left - camera.getBoundingClientRect().right,
+        gap: Number.parseFloat(getComputedStyle(bar).columnGap),
+    };
+}
 
-        await userEvent.keyboard("v");
-        await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["Camera 1"]);
-        });
-        // Top (7) moves the camera, and V saves the second view there.
-        await userEvent.keyboard("7");
-        await element.waitForStableFrame();
-        await userEvent.keyboard("v");
-        await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["Camera 1", "Camera 2"]);
-        });
-        const menu = await openCamera();
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Camera 1$/ }));
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Camera 2$/ }));
-        await userEvent.keyboard("{Escape}");
+/**
+ * Opens the Views place from the rail.
+ * @returns the place.
+ */
+async function openViewsPlace(): Promise<HTMLElement> {
+    await userEvent.click(
+        within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+    );
+    return screen.findByRole("region", { name: "Views place" });
+}
 
-        await userEvent.keyboard("]");
-        await waitFor(() => {
-            assertAt(element, session.views.get("Camera 1")?.camera);
-        });
-        // Where "]" needs AltGr, it arrives with Ctrl and Alt held.
-        await userEvent.keyboard("{Control>}{Alt>}]{/Alt}{/Control}");
-        await waitFor(() => {
-            assertAt(element, session.views.get("Camera 2")?.camera);
-        });
-
-        const next = within(await openCamera()).getByRole("menuitem", { name: /^Next view/ });
-        assert.equal(next.getAttribute("aria-disabled"), "true");
-        assert.include(next.textContent, "At the last view");
-    });
-
-    it("disables in 2D the 3D camera views and a view saved in 3D, with the element's reason", async () => {
+describe("the Camera menu", () => {
+    it("holds exactly the cameras with their keys, Fit, Fit selection and the two switches; in 2D zoom too", async () => {
         const { session } = await openRing();
-        await userEvent.keyboard("v");
-        await waitFor(() => {
-            assert.isTrue(session.views.has("Camera 1"));
-        });
+        await session.views.save([{ name: "Hub cluster", key: "2" }]);
 
-        await userEvent.keyboard("5");
-        await waitFor(() => {
-            assert.equal(session.layout.dimension, "2d");
-        });
-        const menu = await openCamera();
-        const front = within(menu).getByRole("menuitem", { name: /^Front/ });
-        assert.equal(front.getAttribute("aria-disabled"), "true");
-        assert.include(front.textContent, "3D only");
-        const saved = within(menu).getByRole("menuitem", { name: /^Camera 1/ });
-        assert.equal(saved.getAttribute("aria-disabled"), "true");
-        assert.include(saved.textContent, "Saved in 3D");
-        const fit = within(menu).getByRole("menuitem", { name: /^Fit/ });
-        assert.notEqual(fit.getAttribute("aria-disabled"), "true", "Fit works in 2D");
-    });
-
-    it("words a tour's broken stop by what it names: Only in for a camera view, Saved in for a saved view", async () => {
-        const { session } = await openRing();
-        await userEvent.keyboard("v");
-        await waitFor(() => {
-            assert.isTrue(session.views.has("Camera 1"));
-        });
-        await session.tours.save([
-            { name: "Fronts", tour: { stops: [{ view: "frontView" }] } },
-            { name: "Saves", tour: { stops: [{ view: "Camera 1" }] } },
+        let menu = await openCamera();
+        assert.deepEqual(rowsOf(menu), [
+            { text: "Top7", disabled: false },
+            { text: "Bottom9", disabled: false },
+            { text: "Front1", disabled: false },
+            { text: "Side3", disabled: false },
+            { text: "Isometric", disabled: false },
+            { text: "Hub cluster2", disabled: false },
+            { text: "Fit0", disabled: false },
+            { text: "Fit selectionSelect something firstF", disabled: true },
+            { text: "Auto-rotate", disabled: false },
+            { text: "Focus selected", disabled: false },
         ]);
+        await closeMenu();
 
         await userEvent.keyboard("5");
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");
         });
+        menu = await openCamera();
+        assert.deepEqual(rowsOf(menu), [
+            { text: "Top7", disabled: false },
+            { text: "Bottom3D only9", disabled: true },
+            { text: "Front3D only1", disabled: true },
+            { text: "Side3D only3", disabled: true },
+            { text: "Isometric3D only", disabled: true },
+            { text: "Hub clusterSaved in 3D2", disabled: true },
+            { text: "Fit0", disabled: false },
+            { text: "Fit selectionSelect something firstF", disabled: true },
+            { text: "Zoom in", disabled: false },
+            { text: "Zoom out", disabled: false },
+            { text: "Auto-rotateOnly in 3D", disabled: true },
+            { text: "Focus selected", disabled: false },
+        ]);
+    });
+
+    it("lists the first twelve cameras and then All cameras..., which opens the Views place", async () => {
+        const { session } = await openRing();
+        // Five starting cameras and eight more.
+        await session.views.save(Array.from({ length: 8 }, (_, i) => ({ name: `Spot ${String(i + 1)}` })));
+
         const menu = await openCamera();
-        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Play tour/ }));
-        const tours = (await screen.findAllByRole("menu")).at(-1);
-        if (tours === undefined) {
-            throw new Error("the Play tour submenu never opened");
-        }
-        const fronts = within(tours).getByRole("menuitem", { name: /^Fronts/ });
-        assert.equal(fronts.getAttribute("aria-disabled"), "true");
-        assert.include(fronts.textContent, "Stop 1: 3D only");
-        const saves = within(tours).getByRole("menuitem", { name: /^Saves/ });
-        assert.equal(saves.getAttribute("aria-disabled"), "true");
-        assert.include(saves.textContent, "Stop 1: Saved in 3D");
+        const texts = rowsOf(menu).map(({ text }) => text);
+        assert.include(texts, "Spot 7");
+        assert.notInclude(texts, "Spot 8");
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "All cameras..." }));
+        assert.isNotNull(await screen.findByRole("region", { name: "Views place" }));
+    });
+
+    it("draws no camera rows and no divider when the project has no cameras", async () => {
+        const { session } = await openRing();
+        await session.views.remove([...session.views.keys()]);
+
+        const menu = await openCamera();
+        assert.equal(rowsOf(menu)[0]?.text, "Fit0");
+        // The one divider left is the one above the switches.
+        assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 1);
     });
 });
 
-describe("a tour played from the Camera menu", () => {
-    it("ends on Escape, and on the Stop tour button", async () => {
+describe("the camera keys", () => {
+    it("binds 1-4 and 6-9 only to the camera keys, and 0 and 5 only to Fit and the 2D/3D switch", () => {
+        const holders = new Map<string, string[]>();
+        for (const registration of REGISTRATIONS) {
+            for (const command of registration.commands) {
+                for (const key of command.keys ?? []) {
+                    if (/^\d$/.test(key)) {
+                        holders.set(key, [...(holders.get(key) ?? []), command.id]);
+                    }
+                }
+            }
+        }
+        for (const digit of ["1", "2", "3", "4", "6", "7", "8", "9"]) {
+            assert.deepEqual(holders.get(digit), [`camera.key-${digit}`], digit);
+        }
+        assert.deepEqual(holders.get("0"), ["view.fit"]);
+        assert.deepEqual(holders.get("5"), ["view.toggle-dimension"]);
+    });
+
+    it("flies to the camera on a digit, does nothing on a free digit or while typing, and shows each key", async () => {
         const { element, session } = await openRing();
-        await userEvent.keyboard("v");
+
+        await userEvent.keyboard("7");
         await waitFor(() => {
-            assert.isTrue(session.views.has("Camera 1"));
+            assertAt(element, element.resolveCameraPreset("Top"));
         });
+        await element.waitForStableFrame();
+
+        // No camera holds 2: the camera stays and nothing is said.
+        const before = element.getCameraState();
+        await userEvent.keyboard("2");
+        await element.waitForStableFrame();
+        assertAt(element, before);
+
+        // Digits typed into a camera's name stay in the name.
+        const place = await openViewsPlace();
+        await userEvent.click(within(place).getByRole("button", { name: "Rename Isometric" }));
+        const field = await within(place).findByRole("textbox", { name: "Rename Isometric" });
+        await userEvent.clear(field);
+        await userEvent.type(field, "Hub 139{Enter}");
+        await waitFor(() => {
+            assert.isTrue(session.views.has("Hub 139"));
+        });
+        await element.waitForStableFrame();
+        assertAt(element, before);
+
+        // The key is printed on the card's Go button tooltip, on the menu row and in Quick actions.
+        const menu = await openCamera();
+        assert.equal(within(menu).getByRole("menuitem", { name: /^Top/ }).getAttribute("aria-keyshortcuts"), "7");
+        await closeMenu();
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.type(await screen.findByPlaceholderText("Search commands"), "Side");
+        const row = await screen.findByRole("option", { name: /^Side\b/ });
+        assert.include(row.textContent, "3");
+        assert.isNull(screen.queryByRole("option", { name: /^Go to the camera on/ }));
+    });
+});
+
+describe("the toolbar while a tour plays", () => {
+    it("keeps Camera and Mode one flex gap apart, turns the Camera tool into Stop, and ends the tour on it or Escape", async () => {
+        const { element, session } = await openRing();
         // A hold far longer than the test, so only a stop ends it.
         await session.tours.save([
-            { name: "Walk", tour: { stops: [{ view: "Camera 1", hold: 600_000 }, { view: "topView" }] } },
+            { name: "Walk", tour: { stops: [{ view: "Top", hold: 600_000 }, { view: "Side" }] } },
         ]);
         const ended: string[] = [];
         element.addEventListener("tour-ended", (event) => {
             ended.push(event.detail.reason);
         });
-        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
 
-        const play = async (): Promise<void> => {
-            const menu = await openCamera();
-            await userEvent.click(within(menu).getByRole("menuitem", { name: /^Play tour/ }));
-            const tours = (await screen.findAllByRole("menu")).at(-1);
-            assert.isDefined(tours);
-            if (tours !== undefined) {
-                await userEvent.click(within(tours).getByRole("menuitem", { name: /^Walk$/ }));
-            }
-            await within(toolbar).findByRole("button", { name: "Stop tour" });
+        let { between, gap } = gapToMode();
+        assert.isAbove(gap, 0);
+        assert.closeTo(between, gap, 0.5, "no tour: one flex gap");
+
+        const place = await openViewsPlace();
+        const play = async (): Promise<HTMLElement> => {
+            await userEvent.click(within(place).getByRole("button", { name: "Play Walk" }));
+            return within(toolbar()).findByRole("button", { name: "Stop tour" });
         };
 
-        await play();
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("menu"));
-        });
-        await userEvent.keyboard("{Escape}");
+        const stop = await play();
+        assert.isNull(within(toolbar()).queryByRole("button", { name: "Camera" }), "Stop takes Camera's place");
+        assert.equal(stop.getAttribute("aria-keyshortcuts"), "Escape");
+        ({ between, gap } = gapToMode());
+        assert.closeTo(between, gap, 0.5, "a tour playing: still one flex gap");
+        await userEvent.click(stop);
         await waitFor(() => {
             assert.deepEqual(ended, ["cancelled"]);
-            assert.isNull(within(toolbar).queryByRole("button", { name: "Stop tour" }));
+            assert.isNotNull(within(toolbar()).queryByRole("button", { name: "Camera" }));
         });
 
         await play();
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Stop tour" }));
+        await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.deepEqual(ended, ["cancelled", "cancelled"]);
-            assert.isNull(within(toolbar).queryByRole("button", { name: "Stop tour" }));
+            assert.isNull(within(toolbar()).queryByRole("button", { name: "Stop tour" }));
         });
     });
 });

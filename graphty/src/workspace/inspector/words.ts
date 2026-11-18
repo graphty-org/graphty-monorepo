@@ -650,7 +650,7 @@ export function selectedNameWords(session: GraphSession): string {
 }
 
 /**
- * What Frame selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
+ * What Fit selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
  * @param session - the session.
  * @returns the words.
  */

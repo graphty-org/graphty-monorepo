@@ -227,9 +227,9 @@ interface CameraFieldsProps {
 }
 
 /**
- * The fields that follow Camera: a tour's Tour select and its read-only Length (a tour that is
- * gone stays chosen, in error), or a still's View list and its 3 / 5 / 10 s, and with no tours,
- * the row that leads to the Views section.
+ * The fields that follow Motion: a tour's Tour select and its read-only Length (a tour that is
+ * gone stays chosen, in error), or a still's Camera list and its 3 / 5 / 10 s, and with no tours,
+ * the row that leads to the Views place.
  * @param props - Component props
  * @param props.target - what would be recorded
  * @param props.choices - the video choices
@@ -294,7 +294,7 @@ function CameraFields({ target, choices, recording, set }: CameraFieldsProps): R
  * The Video output: a saved tour (its length the element's plan of it) or a still view held for
  * 3, 5 or 10 seconds, the frame rate, the element's frame estimate, and Record. Every recording is
  * graphty-element's `captureAnimation`; the bar follows `animation-progress` and the stop label
- * `tour-progress`. With no tours, Camera is on Still and "Video tours..." opens the Views place
+ * `tour-progress`. With no tours, Motion is on Still and "Video tours..." opens the Views place
  * on Video tours. Leaving the output while it records cancels the recording, so nothing records unseen.
  * @param props - Component props
  * @param props.choices - The video choices
@@ -374,7 +374,7 @@ export function VideoOutput({
                     </Text>
                 </div>
                 <div className="ws-export-fields">
-                    <Input.Wrapper size="xs" label="Camera">
+                    <Input.Wrapper size="xs" label="Motion">
                         <SegmentedControl
                             fullWidth
                             value={camera}

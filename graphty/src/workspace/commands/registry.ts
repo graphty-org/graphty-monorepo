@@ -69,6 +69,11 @@ export interface Command {
      * against other commands' keys.
      */
     readonly whileShownKeys?: readonly string[];
+    /**
+     * False leaves it out of Quick actions while its keys still work: the camera keys, whose
+     * cameras Quick actions lists itself. Absent means listed.
+     */
+    readonly inPalette?: boolean;
     /** Extra words Quick actions matches ("field", "column"). */
     readonly keywords?: readonly string[];
     /** A tooltip sentence, where the label alone is not enough. */
@@ -250,7 +255,18 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],
-    "views-place": ["place.views", "camera.save"],
+    "views-place": [
+        "place.views",
+        "camera.save",
+        "camera.key-1",
+        "camera.key-2",
+        "camera.key-3",
+        "camera.key-4",
+        "camera.key-6",
+        "camera.key-7",
+        "camera.key-8",
+        "camera.key-9",
+    ],
     "graph-place": [
         "find.focus",
         "row.rename",

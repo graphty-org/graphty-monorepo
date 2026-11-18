@@ -729,16 +729,23 @@ function uniqueNames(names: readonly string[], report: ImportReportBuilder, line
  * Whether a column holds a distinct, set value on every row (a row too short counts as unset).
  * @param rows - the data rows
  * @param column - the column index
+ * @param blankKept - whether a blank cell is kept under blankIdPrefix, and so does not disqualify it
  * @returns true when the column can key the rows
  */
-function isKey(rows: readonly PendingRow[], column: number): boolean {
+function isKey(rows: readonly PendingRow[], column: number, blankKept = false): boolean {
     const seen = new Set<string>();
     for (const { row, quoted } of rows) {
         if (column >= row.length) {
             return false;
         }
         const text = row[column];
-        if (isUnset(text, quoted[column]) || seen.has(text)) {
+        if (isUnset(text, quoted[column])) {
+            if (blankKept) {
+                continue;
+            }
+            return false;
+        }
+        if (seen.has(text)) {
             return false;
         }
         seen.add(text);
@@ -1697,7 +1704,7 @@ class TableReader {
         const chosen =
             rows === null || candidates.length === 0
                 ? findColumn(names, ID_NAMES)
-                : (candidates.find((column) => isKey(rows, column)) ?? null);
+                : (candidates.find((column) => isKey(rows, column, this.state.csv.blankIdPrefix !== null)) ?? null);
         if (chosen !== null) {
             if (chosen >= 0) {
                 this.state.report.resolve("idColumn", names[chosen]);

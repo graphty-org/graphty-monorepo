@@ -139,7 +139,6 @@ const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
     fbx: "FBX data damaged",
     usd: "USD data damaged",
     usdz: "USDZ package damaged",
-    bvh: "BVH data damaged",
 };
 
 /**

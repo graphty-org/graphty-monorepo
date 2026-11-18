@@ -272,14 +272,13 @@ const config = defineConfig({
         // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
         // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
         // must never fetch a missing path from the test server; stub fetch instead.
-        // The FBX, USD and BVH loaders babylonjs-models imports when such a model first loads, too.
+        // The FBX and USD loaders babylonjs-models imports when such a model first loads, too.
         include: [
             "@mantine/hooks",
             "react-dom/client",
             "eruda",
             "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
             "@babylonjs/loaders/USD/usdFileLoader.pure.js",
-            "@babylonjs/loaders/BVH/bvhFileLoader.pure.js",
             "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
         ],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached

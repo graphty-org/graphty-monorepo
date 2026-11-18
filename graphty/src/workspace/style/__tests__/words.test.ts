@@ -375,7 +375,6 @@ describe("model variant words", () => {
             ["fbx", "FBX data damaged"],
             ["usd", "USD data damaged"],
             ["usdz", "USDZ package damaged"],
-            ["bvh", "BVH data damaged"],
         ]) {
             assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule } }).tip, tip, rule);
         }

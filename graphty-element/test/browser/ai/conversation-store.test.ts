@@ -167,7 +167,9 @@ describe("the IndexedDB conversation store", () => {
     it("falls back to memory with AI_HISTORY_UNAVAILABLE when IndexedDB cannot open", async () => {
         vi.spyOn(indexedDB, "open").mockImplementation(() => {
             const request = {} as IDBOpenDBRequest;
-            queueMicrotask(() => request.onblocked?.call(request, new Event("blocked") as IDBVersionChangeEvent));
+            queueMicrotask(() => {
+                request.onblocked?.call(request, new Event("blocked") as IDBVersionChangeEvent);
+            });
             return request;
         });
 

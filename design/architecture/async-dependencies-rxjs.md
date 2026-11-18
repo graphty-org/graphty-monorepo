@@ -1,5 +1,8 @@
 # Event-Driven Architecture with RxJS: No Dependency Sorting Required
 
+Status: historical record (2025-08). This RxJS architecture was not adopted: rxjs is not a
+dependency of graphty-element.
+
 ## Date: August 5, 2025
 
 ## Key Insight

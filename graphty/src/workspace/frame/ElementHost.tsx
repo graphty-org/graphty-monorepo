@@ -109,6 +109,7 @@ export function ElementHost({
     const lighting = useWorkspaceState((state) => state.lighting);
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const layoutShownOnly = useWorkspaceState((state) => state.layoutShownOnly);
+    const followSelection = useWorkspaceState((state) => state.followSelection);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
@@ -117,10 +118,11 @@ export function ElementHost({
             layout: { visibleOnly: layoutShownOnly },
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
             // opens beside the canvas and narrows it, before or after the first framing is final;
-            // framing again on a resize draws the same picture either way (#5097).
-            camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
+            // framing again on a resize draws the same picture either way (#5097). Camera > Follow
+            // selection turns the gliding off.
+            camera: { pivotOnSelection: followSelection, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
-        [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly],
+        [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly, followSelection],
     );
     // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
     // as the earth from space (constants/globe.ts). View settings, written on the element; they

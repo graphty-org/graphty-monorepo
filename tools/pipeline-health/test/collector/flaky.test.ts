@@ -133,7 +133,9 @@ describe("flaky in CI with no open issue", () => {
         await day(store, TODAY - 10 * DAY, [["graphty", "c.test.ts", "older than the week"]]);
         const { gh, asked } = searchGitHub([filed("a.test.ts", "named in an issue")]);
         const m = await flakyMembers(store, gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(2);
+        expect(m.obs["flaky.no_issue"]).toBe(2);
+        // #8795: the dashboard row names the tests it counts
+        expect(m.untracked.sort()).toEqual(["a.test.ts > suite > nobody filed", "b.test.ts > also unfiled"]);
         // Two searches: the open flaky issues, and those closed as fixed since the week began.
         expect(asked).toEqual([
             `repo:${REPO} is:issue flaky is:open`,
@@ -153,13 +155,14 @@ describe("flaky in CI with no open issue", () => {
             filed("LocationMap.real-element.test.tsx", "chooses the map in the Map form"),
         ]);
         const m = await flakyMembers(store, gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
     });
 
     it("is 0 when nothing was flaky, without asking GitHub", async () => {
         const { gh, asked } = searchGitHub([]);
         const m = await flakyMembers(new MemoryStore(), gh, REPO, [], NOW);
-        expect(m).toEqual({
+        expect(m.untracked).toEqual([]);
+        expect(m.obs).toEqual({
             "flaky.no_issue": 0,
             "flaky.blocked_prs": 0,
             "flaky.blocked_oldest_ms": 0,
@@ -184,7 +187,7 @@ describe("a flaky test whose issue was closed as fixed", () => {
         const store = new MemoryStore();
         await day(store, TODAY - DAY, [["graphty-element-stories", file, "Node Gap"]]);
         const m = await flakyMembers(store, searchGitHub([], [issue5820]).gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
     });
 
     /** The story was flaky today at `seenAt`, and its issue closed an hour before NOW. */
@@ -197,14 +200,14 @@ describe("a flaky test whose issue was closed as fixed", () => {
 
     it("is filed when the close came later on the day of its last flaky event", async () => {
         const m = await flakyToday(NOW - 2 * 3_600_000);
-        expect(m["flaky.no_issue"]).toBe(0);
-        expect(m["flaky.net_change"]).toBe(0); // new this week, and fixed
+        expect(m.obs["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.net_change"]).toBe(0); // new this week, and fixed
     });
 
     it("counts again when it goes flaky after the close on the same day", async () => {
         const m = await flakyToday(NOW - 30 * MIN);
-        expect(m["flaky.no_issue"]).toBe(1);
-        expect(m["flaky.net_change"]).toBe(1); // new this week, and not fixed
+        expect(m.obs["flaky.no_issue"]).toBe(1);
+        expect(m.obs["flaky.net_change"]).toBe(1); // new this week, and not fixed
     });
 });
 
@@ -260,7 +263,7 @@ describe("the six flaky issues of 2026-10-26", () => {
         const closed = issues.filter((i) => i.state === "CLOSED");
         expect(open).toHaveLength(3);
         const m = await flakyMembers(store, searchGitHub(open, closed).gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
         // Seen again after the fix: the closed issues no longer count, so those three have no open issue.
         await day(
             store,
@@ -268,7 +271,7 @@ describe("the six flaky issues of 2026-10-26", () => {
             tests.map(([, file, name]) => ["graphty", file, name]),
         );
         const later = await flakyMembers(store, searchGitHub(open, closed).gh, REPO, [], NOW + DAY);
-        expect(later["flaky.no_issue"]).toBe(3);
+        expect(later.obs["flaky.no_issue"]).toBe(3);
     });
 });
 
@@ -306,7 +309,7 @@ describe("the quarantine issues of 2026-10-27", () => {
             tests.map(([, file, name]) => ["graphty", file, name]),
         );
         const m = await flakyMembers(store, searchGitHub(issues, []).gh, REPO, [], NOW);
-        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m.obs["flaky.no_issue"]).toBe(0);
     });
 });
 
@@ -397,9 +400,9 @@ describe("net new flaky", () => {
             [filed("a.test.ts", "fixed one", new Date(NOW - 3_600_000).toISOString())],
         );
         const m = await flakyMembers(store, gh, REPO, [], NOW);
-        expect(m["flaky.net_change"]).toBe(1); // two new, one fixed
-        expect([m["flaky.net_added"], m["flaky.net_resolved"]]).toEqual([2, 1]);
-        expect(m["flaky.no_issue"]).toBe(0); // one open issue, one closed as fixed after its last detection
+        expect(m.obs["flaky.net_change"]).toBe(1); // two new, one fixed
+        expect([m.obs["flaky.net_added"], m.obs["flaky.net_resolved"]]).toEqual([2, 1]);
+        expect(m.obs["flaky.no_issue"]).toBe(0); // one open issue, one closed as fixed after its last detection
     });
 });
 

@@ -60,7 +60,7 @@ describe("a run over what is shown is planned over the view", () => {
         const harness = await filtered(true);
         const estimate = harness.session.estimate({ op: "algo.run", algorithm: WHOLE });
 
-        assert.include(estimate.basis, "n=10 m=9");
+        assert.include(estimate.basisFacts, { nodes: 10, edges: 9 });
         harness.session.dispose();
     });
 
@@ -68,7 +68,7 @@ describe("a run over what is shown is planned over the view", () => {
         const harness = await filtered(false);
         const estimate = harness.session.estimate({ op: "algo.run", algorithm: WHOLE });
 
-        assert.include(estimate.basis, "n=100 m=99");
+        assert.include(estimate.basisFacts, { nodes: 100, edges: 99 });
         harness.session.dispose();
     });
 
@@ -80,7 +80,7 @@ describe("a run over what is shown is planned over the view", () => {
             scope: { nodes: IDS.slice(0, 5) },
         });
 
-        assert.include(estimate.basis, "n=100 m=99");
+        assert.include(estimate.basisFacts, { nodes: 100, edges: 99 });
         harness.session.dispose();
     });
 

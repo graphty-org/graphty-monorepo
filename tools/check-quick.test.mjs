@@ -46,7 +46,10 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
     writeFileSync(
         join(dir, "bin/pnpm"),
         `#!/bin/sh\necho "$*" >> ${out("pnpm")}\n` +
-            `case "$*" in "exec nx show projects"*) printf "%s\\n" ${affected}; exit \${STUB_RC_SHOW:-0} ;; "exec nx affected"*) exit \${STUB_RC_NX:-0} ;; "exec nx run graphty:build") exit \${STUB_RC_APP:-0} ;; esac\n`,
+            // nx 22 prints one JSON array unless asked for --json=false, even to a pipe.
+            `case "$*" in "exec nx show projects"*--json=false*) printf "%s\\n" ${affected}; exit \${STUB_RC_SHOW:-0} ;; ` +
+            `"exec nx show projects"*) echo '${JSON.stringify(affected.split(" "))}'; exit \${STUB_RC_SHOW:-0} ;; ` +
+            `"exec nx affected"*) exit \${STUB_RC_NX:-0} ;; "exec nx run graphty:build") exit \${STUB_RC_APP:-0} ;; esac\n`,
         { mode: 0o755 },
     );
     const git = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8", env: isolatedGitEnv() });

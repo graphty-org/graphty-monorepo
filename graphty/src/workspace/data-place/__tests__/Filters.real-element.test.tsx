@@ -15,7 +15,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -56,7 +56,7 @@ const filters = (): HTMLElement =>
  * @param name - its name.
  * @returns queries inside it.
  */
-async function card(name: RegExp): Promise<ReturnType<typeof within>> {
+async function card(name: RegExp): Promise<Within> {
     // The card itself, never a group inside it (an open card's step pane is a group too).
     const found = await waitFor(() => {
         const each = [...filters().querySelectorAll<HTMLElement>(":scope > li > [role=group]")].find((group) =>

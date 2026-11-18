@@ -1,8 +1,10 @@
 /**
- * SHA-256 in plain JavaScript (FIPS 180-4), for the one place Web Crypto is missing: a browser page
- * that is not a secure context (plain http on a host other than localhost) has no
- * `crypto.subtle`. Only the content hash uses it; signing still needs Web Crypto.
+ * SHA-256 (FIPS 180-4): in plain JavaScript for a synchronous answer and for a browser page that is
+ * not a secure context (plain http on a host other than localhost), which has no `crypto.subtle`;
+ * through Web Crypto otherwise. The one SHA-256 in graph-io, and the one graphty-element uses.
  */
+
+import { detectRuntime } from "./context.js";
 
 const K = new Uint32Array([
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98,
@@ -96,4 +98,68 @@ export function sha256Bytes(data: Uint8Array): ArrayBuffer {
         out.setUint32(i * 4, word);
     });
     return out.buffer;
+}
+
+/**
+ * Lowercase hex of bytes.
+ * @param bytes - the bytes
+ * @returns hex
+ */
+export function hex(bytes: ArrayBuffer): string {
+    return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Web Crypto: the global one, or Node 18's, which is not global without a flag. A browser page that
+ * is not a secure context (plain http on a host other than localhost) has none.
+ * @returns the subtle crypto, or null where there is none
+ */
+export async function subtle(): Promise<SubtleCrypto | null> {
+    const global = (globalThis as { crypto?: Crypto }).crypto;
+    if (global?.subtle !== undefined) {
+        return global.subtle;
+    }
+    if (detectRuntime() !== "node") {
+        return null;
+    }
+    // Built at run time so no bundler sees a literal: a consumer's browser build has no
+    // `node:crypto`, and esbuild failed on the literal the build had folded the name into.
+    const name = ["node", "crypto"].join(":");
+    return ((await import(/* @vite-ignore */ /* webpackIgnore: true */ name)) as { webcrypto: Crypto }).webcrypto
+        .subtle;
+}
+
+/**
+ * The bytes of a text (its UTF-8) or of bytes as given.
+ * @param data - the bytes or the text
+ * @returns the bytes
+ */
+function bytesOf(data: string | Uint8Array): Uint8Array {
+    return typeof data === "string" ? new TextEncoder().encode(data) : data;
+}
+
+/**
+ * SHA-256 as 64 lowercase hexadecimal digits: of bytes exactly as given, or of a text's UTF-8 bytes
+ * (the Cypher source's content hash, a project file's record of a file it loaded). Web Crypto where
+ * there is one, else plain JavaScript (a page that is not a secure context). Experimental.
+ * @param data - the bytes or the text
+ * @returns the digest
+ */
+export async function sha256Hex(data: string | Uint8Array): Promise<string> {
+    const bytes = bytesOf(data);
+    const s = await subtle();
+    if (s === null) {
+        return hex(sha256Bytes(bytes));
+    }
+    return hex(await s.digest("SHA-256", bytes as BufferSource));
+}
+
+/**
+ * {@link sha256Hex}, synchronously, in plain JavaScript: for an answer that cannot wait (a hash
+ * looked up while drawing). The same digest. Experimental.
+ * @param data - the bytes or the text
+ * @returns the digest
+ */
+export function sha256HexSync(data: string | Uint8Array): string {
+    return hex(sha256Bytes(bytesOf(data)));
 }

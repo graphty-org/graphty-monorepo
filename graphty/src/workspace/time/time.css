@@ -18,8 +18,23 @@
     min-height: 28px;
     min-width: 0;
     row-gap: 0;
-    /* Room for "Show all time", drawn at the bar's end but reached after the brush by Tab. */
-    padding-inline-end: 32px;
+}
+
+/* "Show all time" and the dock's settings, always together at the right end of the bar. */
+.tl-settings {
+    display: flex;
+    gap: 4px;
+    margin-inline-start: auto;
+}
+
+/* The selection's line over the bars, named: a swatch drawn as the line is. */
+.tl-legend {
+    flex-shrink: 0;
+}
+
+.tl-legend line {
+    stroke: var(--cm-border-strong);
+    stroke-width: 1.5;
 }
 
 /* The readout at body size: the dock's one line of text. Tabular figures keep it still while it
@@ -51,12 +66,6 @@
 .tl-speed {
     min-width: 32px;
     font-variant-numeric: tabular-nums;
-}
-
-.tl-all {
-    position: absolute;
-    top: 4px;
-    inset-inline-end: 8px;
 }
 
 .tl-chart {
@@ -142,10 +151,6 @@
     border-top: 0;
     overflow: clip;
     overflow-clip-margin: 8px;
-}
-
-.tl-sheet .tl-all {
-    position: static;
 }
 
 .tl-sheet .tl-counts {

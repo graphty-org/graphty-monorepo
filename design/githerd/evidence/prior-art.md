@@ -1,6 +1,6 @@
 # Prior art for githerd: what keeps an agent-driven pipeline moving
 
-> Historical record; the pipeline it describes (githerd and the Mergify merge queue) was replaced on 2026-10-18 by design/ci/golden-local.md. Its facts were true when gathered, and that design cites them.
+> Historical record; the pipeline it describes (githerd and the Mergify merge queue) was replaced on 2026-10-18 by golden-local landing (design/ci/golden-local.md, itself now history); today every change reaches master through its own pull request (CLAUDE.md, "Shipping a change"). Its facts were true when gathered, and that design cites them.
 
 githerd is a tool for one repository, graphty-org/graphty-monorepo, whose work is done almost
 entirely by Claude Code sessions and GitHub Actions. Its job is to keep that pipeline moving: notice

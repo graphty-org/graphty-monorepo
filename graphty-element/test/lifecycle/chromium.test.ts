@@ -10,41 +10,19 @@
  * invariant of design/work-protection/design.md section 8.
  */
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { type Chrome, launchChrome, type Tab } from "./cdp-harness";
 import { assertInvariant, browserProcesses, kill, profile } from "./engines";
-import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
+import { type LogEvent, type PageCheck, useLifecycleFixture } from "./fixture";
 
 /** 50,000 and 100,000 nodes run only on the release train. */
 const FULL = process.env.GRAPHTY_LIFECYCLE_FULL === "1";
 
-let fx: Fixture;
-const running: { chrome: Chrome; dir: string }[] = [];
-
-beforeAll(async () => {
-    fx = await startFixture();
-});
-
-afterAll(async () => {
-    await fx.close();
-});
-
-afterEach(async () => {
-    if (process.env.LIFECYCLE_DEBUG === "1") {
-        const t0 = (fx.log[0]?.at as number) ?? 0;
-        console.log(fx.log.map((e) => `${(e.at as number) - t0} ${JSON.stringify(e)}`).join("\n"));
-    }
-
-    for (const { chrome, dir } of running.splice(0)) {
-        await chrome.close().catch(() => undefined);
-        // Chrome's helpers may still be writing as the browser exits.
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    }
-});
+const { fx, track } = useLifecycleFixture();
 
 /**
  * Launch Chrome for Testing on a profile, closed after the test.
@@ -54,10 +32,7 @@ afterEach(async () => {
  */
 async function start(dir = profile("chrome"), args: string[] = []): Promise<Chrome> {
     const chrome = await launchChrome(dir, args);
-    running.push({ chrome, dir });
-    onTestFailed(() => {
-        console.log(`chrome ${chrome.mode}; last reports: ${JSON.stringify(fx.log.slice(-25))}`);
-    });
+    track(() => chrome.close(), dir, `chrome ${chrome.mode}; `);
     return chrome;
 }
 
@@ -84,7 +59,7 @@ function report(
     mark = 0,
     predicate: (e: LogEvent) => boolean = () => true,
 ): Promise<LogEvent> {
-    return fx.waitFor((e) => e.seq >= mark && e.tab === tab && e.type === type && predicate(e));
+    return fx.report(tab, type, mark, predicate);
 }
 
 /**
@@ -516,8 +491,14 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         const tab = labels(key);
         const chrome = await start();
         const a = await openFixture(chrome, { key, tab: tab("a") });
-        const revision = await next(a);
+        const first = await next(a);
+        await saved(tab("a"), first);
+        // The control: a change that is not data (a data edit waits for idle instead), made while the
+        // page is visible, is written by a debounce timer the counter sees.
+        await a.evaluate('fixture.el.session.config.set({ name: "visible" })');
+        const revision = first + 1;
         await saved(tab("a"), revision);
+        assert.isAbove(await a.evaluate<number>("__timers.fired"), 0, "the debounce timer fired while visible");
         const mark = fx.log.length;
         await openFixture(chrome, { key: `${key}-other`, tab: tab("b") });
         await report(tab("a"), "visibility", mark, (e) => e.state === "hidden");

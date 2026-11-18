@@ -4,7 +4,9 @@ registerSource(
     defineSource({
         id: "people",
         async records(params: { team: string }, ctx) {
-            const rows = await ctx.fetchJson<{ id: string; knows: string[] }[]>(`/api/people.json?team=${params.team}`);
+            const rows = await ctx.fetchJson<{ id: string; knows: string[] }[]>(
+                `/api/people.json?team=${encodeURIComponent(params.team)}`,
+            );
             return { edges: rows.flatMap((r) => r.knows.map((k) => ({ source: r.id, target: k }))) };
         },
     }),

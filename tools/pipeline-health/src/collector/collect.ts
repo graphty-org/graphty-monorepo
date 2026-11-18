@@ -1771,7 +1771,9 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     const open = c.openPrs;
     if (open) {
         await c.part("flaky", PARTS, async () => {
-            for (const [metric, value] of Object.entries(await flakyMembers(d.store, gh, d.repo, open, c.now))) {
+            const { obs, untracked } = await flakyMembers(d.store, gh, d.repo, open, c.now);
+            await c.setJson("flaky-no-issue", untracked);
+            for (const [metric, value] of Object.entries(obs)) {
                 c.o(metric, value);
             }
         });

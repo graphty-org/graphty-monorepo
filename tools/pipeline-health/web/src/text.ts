@@ -1196,6 +1196,7 @@ const S: Record<string, (p: P) => string> = {
             .join(" "),
     "note.queued_run": (p) => [`run ${runLink(num(p, "run"))}`, ...(p.workflow ? [str(p, "workflow")] : [])].join(", "),
     "note.hung_jobs": (p) => and(arr(p, "jobs").map(esc)),
+    "note.flaky_no_issue": (p) => and(arr(p, "tests").map((t) => esc(t))),
     "ci.longest_queued.note": () => "a master build run, no job yet",
     "flaky.flake_rate.note": (p) => `results since ${at(p, "since")}`,
     "flaky.net_new.note": (p) => `${fmtN(num(p, "added"))} new, ${fmtN(num(p, "resolved"))} resolved`,

@@ -1,5 +1,8 @@
 # Dual Build Options: Storybook vs Chromatic
 
+Status: historical record. Chromatic was removed on 2026-10-11; visual review now runs through
+`@graphty/visual-review` (`.github/workflows/README.md`, "Visual review").
+
 This document explores different approaches for maintaining separate builds - one for human documentation/visualization (Storybook) and one for visual regression testing (Chromatic).
 
 ## Current State Analysis

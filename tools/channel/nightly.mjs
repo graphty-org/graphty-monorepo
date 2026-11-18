@@ -363,6 +363,12 @@ function verdictCause(f) {
     const what = f.what || "see the run";
     if (f.state === "red") return { cause: `red lane on ${sha}: ${what}` + (f.issue ? ` (#${f.issue})` : "") };
     if (f.state === "owner-item") return { cause: `owner item on ${sha}: ${what}` };
+    // the store did not answer the hold read (#5597): the verdict could not hold, replace or promote anything
+    if (f.hold === "unknown")
+        return {
+            cause: `the store did not say what is held: the ${f.state} verdict on ${sha} decided nothing`,
+            detail: "Its Verdict job failed on the read; release-rerun.yml re-runs that job once.",
+        };
     if (f.state === "green-images") return imagesCause(f, sha);
     if (f.promote === "true") return { cause: `the promotion of ${sha} failed before it landed` };
     return { cause: `${sha} is green-clean but did not promote: ${f.why || "see the run"}` };

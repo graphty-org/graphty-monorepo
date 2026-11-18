@@ -332,7 +332,10 @@ stopped at its `ready` marker while master was red), and the issue still open. L
 excuse it: `fix attempt`, `inherited`, `reran`, `diagnosis`, `asked session`. A later `stranded branch <b> not
 opened`, `released`, `restarted` or newer `taken` marker does: skip the branch. A tip that moved past the `ready` sha
 is opened only when every commit after that sha is a merge of master, or when the session that owns the issue fails
-the "Alive" check; then cite both shas in the Proof. Any other later commit means a session is still working: skip. Open them oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
+the "Alive" check; then cite both shas in the Proof. Any other later commit means a session is still working: skip. First combine the families of such branches into one
+branch each (issue-round step 1, "Combine finished branches"; a family it claims is marked `taken` at once, so its old
+branches are no longer opened here), then open what is left (never a branch `node tools/issue-groups.mjs check` reports
+`over-cap`) oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
 before any other (the `pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red,
 checked again after each one). `CI_PR_RUN_CAP` already limits how many
 pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);
@@ -348,7 +351,11 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
 
 ### 10. Stale issues and stranded branches
 
-Every round, over `marked` in the state file and the branch list above (no extra GitHub calls):
+First `node tools/issue-groups.mjs check --fix` (issue-round runs it too; twice a round is harmless): it ends the
+waits of merged pull requests and makes their follow-up groups startable, dissolves groups whose pull request closed
+unmerged so their issues are routed again, and expires waits on a pull request red or conflicting with no new commit
+for 6 hours or held by the owner for over 24 (design/ci/issue-grouping.md section 4). Then, every round, over `marked`
+in the state file and the branch list above (no extra GitHub calls):
 
 - An `in-progress` issue that is stale (see "Stale" in the shared file) with no commits on its branch: write
   `released -- <reason>` and remove the label in the same step, so issue-round can pick it again.
@@ -356,9 +363,9 @@ Every round, over `marked` in the state file and the branch list above (no extra
   and still no activity, release it or treat its branch as stranded.
 - An issue whose label no longer matches its last marker (see "Label matches the last marker"): remove the label.
 - Every stranded branch (see "Stranded" in the shared file), every round, even when a step above acted or ended the
-  round: a branch from the list above with no `ready` marker, no pull request, no commit for a day, whose owner is
+  round: a branch from the list above with no `ready` marker newer than its issue's newest `taken` marker, no pull request, no commit for a day, whose owner is
   provably gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened,
-  and whose worktree has no process inside. Its issue still open and the work still wanted: mark the issue and start
+  and whose worktree has no process inside. Its issue still open and the work still wanted: mark every issue of the branch's group (`issue-queue.mjs taken` with all of them) and start
   one background fix subagent per branch to merge `origin/master`, finish, and open its pull request, oldest commit
   first, with no fixed number (only issue-round's limits on test slots, load, memory and disk, and its start rate,
   checked again before each start). Branches left when a limit stops the starts wait for the next round.

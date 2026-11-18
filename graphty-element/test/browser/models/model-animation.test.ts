@@ -223,4 +223,33 @@ describe("model animation", () => {
         assert.isAbove(everyFrameAnimationsOn(element.graph.scene), 0, "a playing morph clip draws every frame");
         assert.isAbove(await framesUntilMoved(element, moving), 0, "the picture moves while it plays");
     });
+
+    it.each([
+        ["fbx-animated", "spin"],
+        ["fbx-skinned-animated", "turn"],
+        ["fbx-morph-animated", "grow"],
+        ["usda-animated", "USD Animation 1"],
+        ["usdz-skinned-animated", "USD Animation 1"],
+        ["bvh", "BVH Animation"],
+    ])("plays %s's clip %s: a held moment is its own pose, and the picture moves while it plays", async (id, clip) => {
+        const element = await mount();
+        const record = await element.session.assets.add({ files: await filesOf(id) });
+        assert.deepEqual(
+            element.session.assets.inspect(record.id).animations.map((a) => a.name),
+            [clip],
+            "the clip is listed by the name that plays it",
+        );
+        const { layer, asset } = await drawModel(element, id, [{ id: "a", x: 0 }], {
+            "node.modelAnimation": clip,
+            "node.modelAnimationSpeed": 0,
+            "node.modelAnimationOffset": 0,
+        });
+        const start = await readFrame(element);
+        const later = await hold(element, layer, playing(asset, clip, 0, 0.9));
+        assert.isAbove(pixelsChanged(start, later), 100, "later in the clip the cube is posed differently");
+        assert.strictEqual(pixelsChanged(start, await hold(element, layer, playing(asset, clip, 0, 0))), 0);
+        const moving = await hold(element, layer, playing(asset, clip, 1, 0));
+        assert.isAbove(everyFrameAnimationsOn(element.graph.scene), 0, "a playing model draws every frame");
+        assert.isAbove(await framesUntilMoved(element, moving), 0, "the picture moves while it plays");
+    });
 });

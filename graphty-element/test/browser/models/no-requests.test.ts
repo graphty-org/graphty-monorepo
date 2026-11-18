@@ -1,6 +1,7 @@
 /**
- * @file The model chunk loads a GLB, an OBJ with its MTL and PNG, and a binary STL without asking
- * the network for anything: no Babylon.js CDN, no lazily split shader or loader file, nothing but
+ * @file The model chunk loads a GLB, an OBJ with its MTL and PNG, a binary STL and FBX files without
+ * asking the network for anything, and a USDZ asking for nothing but the OpenUSD importer files
+ * babylonjs-models ships: no Babylon.js CDN, no lazily split shader or loader file, nothing but
  * the files the caller handed it. And a page that draws no model never downloads the chunk.
  *
  * Runs in Chromium (project "browser") and WebKit (project "models-webkit"), because Safari is
@@ -29,6 +30,15 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { operationQueueOf } from "../../../src/Graph";
 import { useBundledStandardShaders } from "../../../src/meshes/bundledStandardShaders";
 import { loadChunk, loadModel } from "../../../src/models/loadModel";
+
+/** The FBX and USD fixtures, by path. */
+const FIXTURES = import.meta.glob<string>(
+    [
+        "../../../../babylonjs-models/test/fixtures/variants/fbx-*/**",
+        "../../../../babylonjs-models/test/fixtures/variants/usdz/*",
+    ],
+    { query: "?url", import: "default", eager: true },
+);
 
 const cleanups: (() => void)[] = [];
 
@@ -455,4 +465,66 @@ describe("the model chunk", () => {
         assert.isFalse(texture.loadingError, "the page texture was not refused");
         assert.include(requested, pageTexture, "the page texture was requested from its own URL");
     });
+
+    it("loads an FBX with its picture beside it, and one with its picture inside, with no request", async () => {
+        await modelModules();
+        for (const [variant, names] of [
+            ["fbx-textured", ["cube.fbx", "textures/cube.png"]],
+            ["fbx-ascii-embedded-texture", ["cube.fbx"]],
+        ] as const) {
+            const scene = makeScene();
+            const files = new Map<string, Uint8Array>();
+            for (const name of names) {
+                files.set(name, await fixtureBytes(variant, name));
+            }
+
+            const recording = recordRequests();
+            const container = await loadModel(scene, files, "cube.fbx", "fbx");
+            container.addAllToScene();
+            await vi.waitFor(() => {
+                assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its textures");
+            });
+            scene.render();
+            // The FBX loader's own module is imported the first time an FBX file loads, as a decoder is.
+            const urls = recording
+                .stop()
+                .filter((url) => !/babylonjs_loaders_FBX|@babylonjs\/loaders\/FBX\//.test(url));
+            assert.isAbove(container.textures.length, 0, `${variant} draws its picture`);
+            assertNoNetwork(urls);
+        }
+    });
+
+    it("loads a USDZ asking for nothing but the package's own OpenUSD importer files", async () => {
+        await modelModules();
+        const scene = makeScene();
+        const files = new Map([["cube.usdz", await fixtureBytes("usdz", "cube.usdz")]]);
+        const recording = recordRequests();
+        const container = await loadModel(scene, files, "cube.usdz", "usdz");
+        const urls = recording.stop();
+        assert.isAbove(container.meshes.length, 0, "the model has meshes");
+        const babylon = urls.filter((url) => /(^|\.)babylonjs\.com$/.test(new URL(url, location.href).hostname));
+        assert.deepEqual(babylon, [], "nothing is requested from Babylon's hosts");
+        const network = urls.filter((url) => !url.startsWith("blob:") && !url.startsWith("data:"));
+        for (const url of network) {
+            assert.strictEqual(new URL(url, location.href).origin, location.origin, url);
+            // The loader's and the importer's modules, imported on first use as each decoder's is, and
+            // the importer's files.
+            assert.match(
+                url,
+                /\/babylonjs-models\/dist\/(?:wasm\/babylon-usd-importer\.|decoders\/usd\.js)|babylonjs_loaders_USD|@babylonjs\/loaders\/USD\//,
+                url,
+            );
+        }
+    });
 });
+
+/**
+ * A variant fixture's bytes (babylonjs-models/test/fixtures/variants).
+ * @param variant - The variant.
+ * @param name - The file.
+ * @returns Its bytes.
+ */
+async function fixtureBytes(variant: string, name: string): Promise<Uint8Array> {
+    const url = FIXTURES[`../../../../babylonjs-models/test/fixtures/variants/${variant}/${name}`];
+    return new Uint8Array(await (await fetch(url)).arrayBuffer());
+}

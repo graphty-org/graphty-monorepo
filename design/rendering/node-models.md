@@ -54,37 +54,51 @@ compile per file.
 
 ### 1.2 The formats
 
-| Format                                     | Files               | Geometry              | Materials      | Textures                          | Hierarchy   | Skeleton | Morphs | Animation                 | Units / up axis in file                | Babylon 8.56 (our version) loads it                                         |
-| ------------------------------------------ | ------------------- | --------------------- | -------------- | --------------------------------- | ----------- | -------- | ------ | ------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
-| **GLB** (binary glTF 2.0)                  | 1                   | yes                   | PBR            | embedded                          | yes         | yes      | yes    | yes                       | yes: meters, +Y up (fixed by the spec) | yes, `@babylonjs/loaders`                                                   |
-| glTF 2.0 (`.gltf`)                         | 1 + `.bin` + images | yes                   | PBR            | separate files (or base64 inside) | yes         | yes      | yes    | yes                       | yes, as GLB                            | yes                                                                         |
-| OBJ + MTL                                  | 1 + `.mtl` + images | yes                   | simple (Phong) | separate files                    | groups only | no       | no     | no                        | no                                     | yes                                                                         |
-| STL                                        | 1                   | yes                   | no             | no                                | no          | no       | no     | no                        | no (usually millimeters, Z up)         | yes                                                                         |
-| PLY                                        | 1                   | yes, or points        | vertex colors  | no                                | no          | no       | no     | no                        | no                                     | yes                                                                         |
-| Gaussian splats (`.splat`, `.spz`, `.sog`) | 1                   | points, not triangles | n/a            | n/a                               | no          | no       | no     | no                        | no                                     | yes, but not loaded: refused (see below)                                    |
-| BVH                                        | 1                   | no                    | no             | no                                | skeleton    | yes      | no     | yes (motion capture only) | no                                     | yes                                                                         |
-| `.babylon`                                 | 1 (+ images)        | yes                   | yes            | separate                          | yes         | yes      | yes    | yes                       | Babylon's own                          | yes, in core                                                                |
-| FBX                                        | 1 (+ images)        | yes                   | yes            | embedded or separate              | yes         | yes      | yes    | yes                       | yes                                    | no: Babylon 9 only                                                          |
-| USD / USDZ                                 | 1 (USDZ zip)        | yes                   | PBR            | embedded (USDZ)                   | yes         | yes      | yes    | yes                       | yes                                    | no: Babylon 9 only, and it downloads a WebAssembly build from Babylon's CDN |
-| Collada (`.dae`)                           | 1 + images          | yes                   | yes            | separate                          | yes         | yes      | yes    | yes                       | yes                                    | no                                                                          |
-| 3MF                                        | 1 (zip)             | yes                   | colors         | embedded                          | yes         | no       | no     | no                        | yes                                    | no                                                                          |
-| `.blend` (Blender)                         | 1                   | everything            | Blender's own  | either                            | yes         | yes      | yes    | yes                       | yes                                    | no: export GLB from Blender                                                 |
-| PDB / mmCIF (molecules)                    | 1                   | no: atoms and bonds   | no             | no                                | no          | no       | no     | no                        | angstroms                              | no: convert to GLB (ChimeraX), or import as a graph                         |
+| Format                                     | Files               | Geometry              | Materials      | Textures                          | Hierarchy   | Skeleton | Morphs | Animation                 | Units / up axis in file                | Babylon 9.37 (our version) loads it                              |
+| ------------------------------------------ | ------------------- | --------------------- | -------------- | --------------------------------- | ----------- | -------- | ------ | ------------------------- | -------------------------------------- | ---------------------------------------------------------------- |
+| **GLB** (binary glTF 2.0)                  | 1                   | yes                   | PBR            | embedded                          | yes         | yes      | yes    | yes                       | yes: meters, +Y up (fixed by the spec) | yes, `@babylonjs/loaders`                                        |
+| glTF 2.0 (`.gltf`)                         | 1 + `.bin` + images | yes                   | PBR            | separate files (or base64 inside) | yes         | yes      | yes    | yes                       | yes, as GLB                            | yes                                                              |
+| OBJ + MTL                                  | 1 + `.mtl` + images | yes                   | simple (Phong) | separate files                    | groups only | no       | no     | no                        | no                                     | yes                                                              |
+| STL                                        | 1                   | yes                   | no             | no                                | no          | no       | no     | no                        | no (usually millimeters, Z up)         | yes                                                              |
+| PLY                                        | 1                   | yes, or points        | vertex colors  | no                                | no          | no       | no     | no                        | no                                     | yes                                                              |
+| Gaussian splats (`.splat`, `.spz`, `.sog`) | 1                   | points, not triangles | n/a            | n/a                               | no          | no       | no     | no                        | no                                     | yes, but not loaded: refused (see below)                         |
+| BVH                                        | 1                   | no                    | no             | no                                | skeleton    | yes      | no     | yes (motion capture only) | no                                     | yes; drawn as a figure of one box per bone                       |
+| `.babylon`                                 | 1 (+ images)        | yes                   | yes            | separate                          | yes         | yes      | yes    | yes                       | Babylon's own                          | yes, in core                                                     |
+| FBX                                        | 1 (+ images)        | yes                   | yes            | embedded or separate              | yes         | yes      | yes    | yes                       | yes                                    | yes, `@babylonjs/loaders` (9.13+)                                |
+| USD / USDZ                                 | 1 (USDZ zip)        | yes                   | PBR            | embedded (USDZ)                   | yes         | yes      | yes    | yes                       | yes                                    | yes (9.26+), OpenUSD in WebAssembly, shipped by babylonjs-models |
+| Collada (`.dae`)                           | 1 + images          | yes                   | yes            | separate                          | yes         | yes      | yes    | yes                       | yes                                    | no                                                               |
+| 3MF                                        | 1 (zip)             | yes                   | colors         | embedded                          | yes         | no       | no     | no                        | yes                                    | no                                                               |
+| `.blend` (Blender)                         | 1                   | everything            | Blender's own  | either                            | yes         | yes      | yes    | yes                       | yes                                    | no: export GLB from Blender                                      |
+| PDB / mmCIF (molecules)                    | 1                   | no: atoms and bonds   | no             | no                                | no          | no       | no     | no                        | angstroms                              | no: convert to GLB (ChimeraX), or import as a graph              |
 
-graphty-element reads every format Babylon 8.56 can decode: **GLB and glTF 2.0** (compressed with
+graphty-element reads every model format Babylon 9.37 can decode: **GLB and glTF 2.0** (compressed with
 Draco, meshopt, KTX2, WebP or AVIF, or not), **glTF 1.0** (upgraded to 2.0 JSON on reading, so one
 checker and one loader serve both; techniques and GLSL are dropped and a material draws its
 diffuse color or picture), **OBJ**, **STL**, **PLY** (meshes and point clouds), and **`.babylon`** (geometry and
 diffuse materials only, read by the element's own reader; Babylon's `.babylon` loader is never
 imported). STL and PLY have the element's own readers too: Babylon's STL loader draws nothing for
 an unnamed solid and drops face colors, and its PLY reading decodes only little-endian binary.
+Since the move to Babylon 9 (owner, 2026-11-17: "add support for FBX, USD, USDZ and any other file
+formats that come along with babylonjs") it also reads **FBX** (binary and ASCII, FBX 6 and 7: skins,
+blend shapes, clips; curves drawn as thin tubes) and **USD**: a `.usda`, `.usdc` or `.usd` layer with
+the layers and pictures it references, or a `.usdz` package (skins and the stage's clip). Both are
+checked before Babylon reads them by babylonjs-models' own readers (an FBX node reader with every
+offset and deflated size checked; a USD text scanner and a binary "crate" reader with every count,
+offset and LZ4 size checked; USDZ read in place, a compressed entry refused), which count and
+summarize them and find their parts. The USD loader runs OpenUSD compiled to WebAssembly in a worker;
+the worker, its glue and the 10 MB of WebAssembly and data (2.5 MB compressed, under OpenUSD's
+Tomorrow Open Source Technology License with oneTBB and zlib) ship in babylonjs-models' `dist/wasm/`
+and load only for a USD model, never from Babylon's CDN. Babylon 9's other loaders are BVH and
+SPLAT. **BVH** (motion capture) holds a skeleton and its motion and no shape: babylonjs-models draws
+it as a figure of one thin box per bone, skinned to the skeleton, and its motion as one clip
+(`BVH Animation`), so a node can show the motion. SPLAT (Gaussian splats) is refused below.
 
 A point cloud's points are drawn as small solids, an 8-triangle octahedron per point in its color,
 sized by the points' spacing; more than 50,000 points are thinned evenly
 (`W_MODEL_POINTS_APPROXIMATED { points, drawn }`).
 
-FBX, USD and USDZ, DAE, 3MF, `.blend` and BVH (animation only, no mesh) are recognized and answered
-with `E_MODEL_FORMAT_UNSUPPORTED`, which tells the reader to export GLB.
+DAE, 3MF and `.blend` are recognized and answered with `E_MODEL_FORMAT_UNSUPPORTED`, which tells the
+reader to export GLB.
 
 **Gaussian splats are not loaded** (owner, 2026-11-17: drawn as solids they did not look good, and
 true splat rendering is not worth the effort now). `.splat`, `.spz`, `.sog` (bundled or an unbundled
@@ -102,8 +116,9 @@ materials, embedded textures, hierarchy, skeletons, morph targets, animations, c
 plus free-form `extras` and license data (`asset.copyright`, or the `KHR_xmp_json_ld` extension).
 Every model library listed below offers GLB downloads, and every 3D tool exports it.
 
-USDZ is the other one-file package, Apple's choice for AR, but on the web it needs Babylon 9 and a
-WebAssembly download from Babylon's CDN.
+USDZ is the other one-file package, Apple's choice for AR; graphty-element reads it with OpenUSD
+in WebAssembly, a 2.5 MB compressed download (from babylonjs-models' own files) the first time a USD
+model loads.
 
 ### 1.4 Where to get models
 

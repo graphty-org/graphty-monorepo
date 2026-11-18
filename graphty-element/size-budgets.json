@@ -1,5 +1,5 @@
 {
-    "description": "Minified gzip budget in bytes for each JS entry point in package.json exports: the entry file plus every chunk it statically imports, each minified with esbuild before it is gzipped. Checked by tools/check-bundle-size.mjs; each budget is the measured size plus headroomPercent, and at least minimumHeadroomBytes. lazyChunks are the chunks loaded by a dynamic import(): each `source` built on its own, minified, its own dynamic imports inlined, and the packages in `external` left out because the main entry already carries them in full (the element imports the @babylonjs/core barrel).",
+    "description": "Minified gzip budget in bytes for each JS entry point in package.json exports: the entry file plus every chunk it statically imports, each minified with esbuild before it is gzipped. Checked by tools/check-bundle-size.mjs; each budget is the measured size plus headroomPercent, and at least minimumHeadroomBytes. lazyChunks are the chunks loaded by a dynamic import(): each `source` built on its own, minified, its own dynamic imports inlined, and the packages in `external` left out because the main entry already carries them in full (the element imports the @babylonjs/core barrel), or, like babylonjs-models' decoders and its FBX, USD and BVH loaders, they load only for a model that needs them.",
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
@@ -20,8 +20,16 @@
     "lazyChunks": {
         "models": {
             "source": "src/models/loadModel.ts",
-            "external": ["@babylonjs/core", "../decoders", "../files", "./files"],
-            "budget": 58456
+            "external": [
+                "@babylonjs/core",
+                "../decoders",
+                "../files",
+                "./files",
+                "@babylonjs/loaders/FBX",
+                "@babylonjs/loaders/USD",
+                "@babylonjs/loaders/BVH"
+            ],
+            "budget": 67472
         }
     }
 }

@@ -313,6 +313,50 @@ describe("model colors", () => {
         },
     );
 
+    // FBX and USD: a picture beside the file left out, or one embedded or packaged with it hidden,
+    // and the part that drew it takes the node's color.
+    const FBX_USD_PICTURES: readonly (readonly [string, string, "skipped" | "hidden"])[] = [
+        ["fbx-textured", "textures/cube.png", "skipped"],
+        ["fbx-textured", "textures/cube.png", "hidden"],
+        ["fbx-embedded-texture", "cube.png", "hidden"],
+        ["fbx-ascii-embedded-texture", "cube.png", "hidden"],
+        ["usd-layers", "textures/cube.png", "skipped"],
+        ["usd-layers", "textures/cube.png", "hidden"],
+        ["usdz", "0/cube.png", "hidden"],
+    ];
+    it.each(FBX_USD_PICTURES)(
+        "draws %s without its picture %s (%s) in the node's color",
+        async (variant, picture, how) => {
+            const element = await mount();
+            const files = await filesOf(variant);
+            if (how === "skipped") {
+                files.delete(picture);
+            }
+            const record = await element.session.assets.add({ files }, how === "skipped" ? { skipped: [picture] } : {});
+            assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+            assert.deepInclude(
+                element.session.assets.inspect(record.id).pictures.map((p) => p.name),
+                picture,
+                "the summary names the picture as drawing without it takes it",
+            );
+            if (how === "hidden") {
+                await element.session.assets.setDefaults(record.id, { hiddenTextures: [picture] });
+            }
+            // The same files again are the same model, with its defaults.
+            const { asset } = await drawModel(
+                element,
+                files,
+                [{ id: "a", x: 0 }],
+                { "node.color": "#ff0000" },
+                how === "skipped" ? [picture] : [],
+            );
+            assert.strictEqual(asset, record.id);
+            const frame = await readFrame(element);
+            assert.isAbove(count(frame, RED), 500, "the part that lost its picture is drawn red");
+            assert.strictEqual(count(frame, GREEN), 0, "nothing of the picture is left");
+        },
+    );
+
     it("keeps a picture under its own colors and 'untextured', darkens it on top, and paints over it under 'replace'", async () => {
         const element = await mount();
         const { layer, asset } = await drawModel(element, "gltf-textured", [{ id: "a", x: 0 }], {

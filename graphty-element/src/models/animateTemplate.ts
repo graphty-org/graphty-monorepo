@@ -166,12 +166,12 @@ function poseAt(group: AssetContainer["animationGroups"][number], frame: number)
 
         const value: unknown = animation.evaluate(frame);
         const key = path.at(-1) ?? "";
-        const current = owner[key] as { copyFrom?: (other: unknown) => void } | undefined;
-        if (current?.copyFrom !== undefined && typeof value === "object" && value !== null) {
-            current.copyFrom(value);
-        } else {
-            owner[key] = value;
-        }
+        // Each value goes through its owner's setter, as a copy (the animation reuses the object it
+        // returns). A bone's `position`, `rotationQuaternion` and `_matrix`, and the local matrix
+        // Babylon's USD loader animates, mark the bone or node changed only in their setters: copied
+        // into in place, a BVH, USD or skinned clip drew its rest pose.
+        const copy = (value as { clone?: () => unknown } | null)?.clone;
+        owner[key] = typeof copy === "function" ? copy.call(value) : value;
     }
 
     return morph;

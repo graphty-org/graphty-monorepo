@@ -43,18 +43,18 @@ function withoutProgram(): Plugin {
 }
 
 /**
- * Leaves the Draco decoder and the KTX2 transcoders out of `./bundle`: one file cannot carry their
- * WebAssembly beside it, and inlined they would add close to 1 MB to every page. babylonjs-models'
- * two decoder modules are replaced by ones that say `available = false`, so a model that needs one
- * reports `E_MODEL_DECODER_UNAVAILABLE` with `reason: "missing"` (a glTF that only uses KTX2 draws
- * its fallback images). meshopt's decoder carries its WebAssembly inside its JavaScript and stays.
+ * Leaves the Draco decoder, the KTX2 transcoders and the OpenUSD importer out of `./bundle`: one
+ * file cannot carry their WebAssembly beside it, and inlined they would add close to 1 MB (10 MB
+ * with OpenUSD) to every page. babylonjs-models' three decoder modules are replaced by ones that say
+ * `available = false`, so a model that needs one reports `E_MODEL_DECODER_UNAVAILABLE` with
+ * `reason: "missing"` (a glTF that only uses KTX2 draws its fallback images). meshopt's decoder carries its WebAssembly inside its JavaScript and stays.
  * @returns The plugin.
  */
 function withoutDecoders(): Plugin {
     return {
         name: "graphty-bundle-without-decoders",
         load(id): string | undefined {
-            return /\/babylonjs-models\/dist\/decoders\/(?:draco|ktx2)\.js$/.test(id)
+            return /\/babylonjs-models\/dist\/decoders\/(?:draco|ktx2|usd)\.js$/.test(id)
                 ? "export const available = false;"
                 : undefined;
         },

@@ -160,6 +160,45 @@ describe("a layer row's Values tab on the real element", () => {
         });
     });
 
+    it("Louvain's folder of group layers, as Run makes it, lists the run's groups largest first", async () => {
+        const { session, store } = await open();
+        const { runId } = await session.runs.start("louvain", {}, { style: { name: "Louvain", groups: "layers" } });
+        await session.styles.settled();
+        const folder = session.styles.tree().find((row) => row.kind === "folder" && row.name === "Louvain");
+        assert.isDefined(folder, "Run makes a Louvain folder");
+        store.set({ inspected: { kind: "folder-row", id: folder?.id ?? "" } });
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        const header = await within(inspector).findByText("Groups, largest first");
+        const section = header.closest<HTMLElement>("[role=group]");
+        if (section === null) {
+            throw new Error("the groups have no section");
+        }
+        const more = within(section).queryByRole("button", { name: /^\d+ more$/ });
+        if (more !== null) {
+            await userEvent.click(more);
+        }
+        const groups = session.runs.get(runId)?.result?.groups() ?? [];
+        const rows = await waitFor(() => {
+            const found = [...section.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")];
+            assert.lengthOf(found, groups.length);
+            return found;
+        });
+        const sizes = rows.map((row) => Number(row.querySelector("[data-testid=data-row-value]")?.textContent));
+        assert.deepEqual(
+            sizes,
+            groups.map((group) => group.size),
+        );
+        assert.equal(
+            sizes.reduce((sum, n) => sum + n, 0),
+            77,
+        );
+        await userEvent.click(rows[0]);
+        await waitFor(() => {
+            assert.lengthOf(session.selection.nodes, sizes[0], "the largest group's nodes are selected");
+        });
+    });
+
     it("Louvain: a category list with one Summary, no histogram of community numbers", async () => {
         const { session, store } = await open();
         const { layer } = await runLayer(session, "louvain");

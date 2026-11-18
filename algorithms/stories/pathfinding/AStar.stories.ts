@@ -13,6 +13,7 @@ import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { createPlayer } from "../utils/player.js";
 import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     createAnimationControls,
@@ -266,8 +267,6 @@ function createAStarStory(args: AStarArgs): HTMLElement {
 
     // Animation state
     let currentStep = 0;
-    let isPlaying = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const nodeScores = new Map<number, { g: number; f: number }>();
     const pathNodes = new Set<number>();
 
@@ -368,41 +367,7 @@ function createAStarStory(args: AStarArgs): HTMLElement {
         return currentStep < steps.length;
     }
 
-    /**
-     * Play animation continuously.
-     */
-    function play(): void {
-        if (isPlaying) {
-            return;
-        }
-        isPlaying = true;
-
-        function tick(): void {
-            if (!isPlaying) {
-                return;
-            }
-
-            const hasMore = executeStep();
-            if (hasMore) {
-                timeoutId = setTimeout(tick, animationSpeed);
-            } else {
-                isPlaying = false;
-            }
-        }
-
-        tick();
-    }
-
-    /**
-     * Pause animation.
-     */
-    function pause(): void {
-        isPlaying = false;
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-        }
-    }
+    const { play, pause } = createPlayer(container, executeStep, animationSpeed);
 
     /**
      * Reset animation.

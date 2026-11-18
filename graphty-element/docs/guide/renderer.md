@@ -222,9 +222,32 @@ harder edges and faster frames. Nothing else about the picture changes.
 <graphty-element render-path="batched" antialias="false"></graphty-element>
 ```
 
+`antialias="at-rest"` keeps both: every frame drawn while something moves -- the camera, a
+layout, a data or style change, an animation, a pointer held on the canvas -- is drawn as `false`
+draws it, and once the scene is still the element draws one frame smoothed, the same picture
+`true` draws, and keeps it on screen. It holds that frame by drawing nothing until something
+changes, as `layoutBehavior.rendering.onDemand` does. A screenshot is always the smoothed picture.
+
+```html
+<graphty-element render-path="batched" antialias="at-rest"></graphty-element>
+```
+
+`antialias="shader"` builds the canvas without multisampling, as `false` does, and smooths the
+edges of lines in the line shader instead, still or moving, at close to `false`'s cost. It
+smooths plain straight solid lines on `render-path="batched"`. Everything else is drawn as `false`
+draws it, with hard edges: nodes, curved lines, self-loops, lines through bends, arcs, animated,
+dashed and dotted lines, lines with arrows or other caps, and lines with `blending` off. On
+`render-path="objects"` it draws as `false` does.
+
+```html
+<graphty-element render-path="batched" antialias="shader"></graphty-element>
+```
+
 Set it as an attribute, in any position in the tag, or as a property before using any other
-property or method of the element. A later change takes effect only on a new element and raises
-the warning `W_ANTIALIAS_LATE`:
+property or method of the element. After that, an element built with `true` or `"at-rest"` can
+switch between the two at any time -- for example to `"at-rest"` once a large graph has loaded.
+Any other later change takes effect only on a new element and raises the warning
+`W_ANTIALIAS_LATE`:
 
 ```js
 element.addEventListener("graphty-warning", (e) => {

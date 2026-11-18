@@ -9,11 +9,11 @@ import { arf, kamadaKawai, type LayoutResult } from "../../src";
  * minimum). A float32 start did exactly that to the layout stories. The expected rows are, for ARF, NetworkX's
  * `arf_layout` iteration run in NumPy (float64) from the same seeded start (layout 1.x's `arfLayout` had the spring
  * and the repulsion swapped, which pulled every node into one spot), and for Kamada-Kawai layout 1.x's
- * `kamadaKawaiLayout`, on the stories' default graph (random, 10 nodes, seed 42); the snapshot layouts must reproduce
- * them to their float32 output.
+ * `kamadaKawaiLayout`, on a fixed random graph of 10 nodes (the layout stories' former default); the snapshot
+ * layouts must reproduce them to their float32 output.
  */
 
-/** The layout stories' default graph: generateGraph("random", 10, 42). */
+/** A fixed random graph of 10 nodes, the layout stories' former default. */
 const EDGES: [number, number][] = [
     [0, 2],
     [0, 3],

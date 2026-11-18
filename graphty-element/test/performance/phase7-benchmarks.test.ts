@@ -6,7 +6,7 @@
  * cache builds. Wall-clock budgets used to live here; they measured the runner rather than the
  * code, and the per-call helpers they timed (arrow geometry, arrow position, line endpoint,
  * transformMesh) are checked for correctness in test/EdgeMesh.test.ts. A hang is caught by the
- * test timeout.
+ * repository's one global hang guard, tools/test-wait-guard.mjs.
  */
 
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
@@ -159,8 +159,6 @@ describe("Phase 7 edge-mesh work counts", () => {
         test("arrow mesh creation returns a mesh for every filled arrow type", () => {
             for (const arrowType of ["normal", "inverted", "dot", "diamond", "box"]) {
                 const mesh = EdgeMesh.createArrowHead(
-                    meshCache,
-                    `arrow-perf-${arrowType}`,
                     { type: arrowType, width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
                     scene,
                 );

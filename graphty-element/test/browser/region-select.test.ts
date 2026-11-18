@@ -39,6 +39,8 @@ afterEach(() => {
  */
 async function grid(path: "batched" | "objects", region?: "rectangle" | "lasso", side = SIDE): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // Before it opens: a graph born on "batched" keeps its row table after a switch to "objects".
+    element.renderPath = path;
     element.style.display = "block";
     element.style.width = "500px";
     element.style.height = "400px";

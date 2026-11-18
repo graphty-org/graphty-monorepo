@@ -205,7 +205,6 @@ describe("the scope selector", () => {
 
         assert.deepStrictEqual(report.applied, []);
         assert.strictEqual(report.unbound.length, 1);
-        assert.match(report.unbound[0].reason, /detached/);
         assert.strictEqual(report.unbound[0].fact.code, "layer.detached");
         assert.deepStrictEqual(report.unbound[0].fact.params, {
             layerId: report.unbound[0].layerId,

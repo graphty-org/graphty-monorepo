@@ -49,6 +49,7 @@ import {
     withSeSim,
 } from "../helpers/se-parity.js";
 import { type SeOracleTraceRecord, SpringElectricalOracle } from "../oracle/spring-electrical.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const GRAPHS: readonly ParityGraph[] = ["path10", "karate", "grid10", "random1k"];
@@ -258,7 +259,7 @@ describe("spring-electrical trace: the kinetic energy, the free-running trajecto
     }
 
     it(`writes the ${TRAJ10_HORIZON}-iteration positions of ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
             // ones on every run (issue #455)
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

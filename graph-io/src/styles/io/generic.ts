@@ -8,6 +8,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { keptForStyles } from "../../common/report.js";
+import { extractPositions } from "../../positions/extract.js";
 import type { GraphImporter, ImportReport } from "../../types.js";
 import { readAnnotations, readImageAnnotations } from "../annotations.js";
 import { StyleBudget } from "../budget.js";
@@ -24,10 +25,12 @@ import {
 import type { CanonSite } from "../canon/site.js";
 import { canonText } from "../canon/text.js";
 import { STYLE_ISSUE } from "../codes.js";
+import { labelGridFrame, type StyleViewport } from "../labelGrid.js";
 import { StyleNotes } from "../notes.js";
 import { featuresOf, styleFingerprint } from "../plan/features.js";
 import { planStyles } from "../plan/plan.js";
 import { plainCell } from "../plan/resolve.js";
+import { settleFor } from "../settle.js";
 import type {
     ExtractedStyles,
     GraphStyle,
@@ -55,6 +58,12 @@ export interface StyleImportOptions {
      * Graphviz's, Gephi's ...), so the graph looks as it does there. Defaults to true.
      */
     readonly toolDefaults?: boolean;
+    /**
+     * The canvas the drawing is first framed in, in CSS px, for a program that draws a file by fitting its positions
+     * into its canvas (sigma.js): its label grid is then settled into each node's `labelMinNodeScreenSize`. Absent,
+     * such a grid is left out.
+     */
+    readonly viewport?: StyleViewport | null;
 }
 
 /**
@@ -116,6 +125,32 @@ interface StyleTruth {
  * @category Styles
  */
 export function extractStyles(
+    importer: GraphImporter,
+    snapshot: GraphSnapshot,
+    report: ImportReport,
+    options: ExtractStylesOptions = {},
+): ExtractedStyles | null {
+    const read = readFileStyles(importer, snapshot, report, options);
+    if (read === null) {
+        return null;
+    }
+    const viewport = options.viewport ?? null;
+    const frame = viewport === null ? null : labelGridFrame(extractPositions(importer, snapshot, report), viewport);
+    const program = BLOCK_PROGRAM.get(read) ?? read.styles.source.tool;
+    return settleFor(read, snapshot, { toolDefaults: options.toolDefaults, frame }, program);
+}
+
+/**
+ * A file's styles as its reader read and the planner planned them, before they are settled: what graph-io's own checks
+ * compare with the reader's values and what its writers write.
+ * @internal
+ * @param importer - the importer that read the file
+ * @param snapshot - the graph it built
+ * @param report - the report its `import()` returned
+ * @param options - tool defaults and a cancel signal
+ * @returns the styles, or null when the file has none
+ */
+export function readFileStyles(
     importer: GraphImporter,
     snapshot: GraphSnapshot,
     report: ImportReport,
@@ -213,10 +248,19 @@ function stylesFromBlock(
         return null;
     }
     const skipped = notes.list();
-    return skipped.length === 0
-        ? fromBlock
-        : { ...fromBlock, styles: { ...fromBlock.styles, notes: [...fromBlock.styles.notes, ...skipped] } };
+    const read =
+        skipped.length === 0
+            ? fromBlock
+            : { ...fromBlock, styles: { ...fromBlock.styles, notes: [...fromBlock.styles.notes, ...skipped] } };
+    BLOCK_PROGRAM.set(read, parsed.block.source.tool);
+    return read;
 }
+
+/**
+ * The program each block's styles were described for, as the block records it: a file graphty converted from another
+ * program is settled for that program's drawing, a file graphty drew for graphty's own.
+ */
+const BLOCK_PROGRAM = new WeakMap<ExtractedStyles, StyleTool | null>();
 
 /**
  * What a file's styles are before planning: each element's canonical value per property, as the importer's own

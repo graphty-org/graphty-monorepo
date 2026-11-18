@@ -3,7 +3,13 @@
  * `filterEdges`, `inducedSubgraph`, `contract`, `relabel` and `withColumns`, each returning the
  * `SnapshotParts` of a NEW snapshot plus the index maps back to the source (`DerivedParts`), and the
  * `renumberPartition` helper of design section 7.5. GraphSnapshot wraps the parts with
- * `createSnapshot()`; this module imports the class type only, so there is no runtime cycle.
+ * `createSnapshot()`; these modules import the class type only, so there is no runtime cycle.
+ *
+ * This module holds what every derivation shares (the result shape, the core builder, assembling
+ * parts, edge grouping) and `withColumns`; the families live beside it: derive-subsets.ts
+ * (filterEdges, withoutSelfLoops, inducedSubgraph, relabel), derive-direction.ts (toUndirected,
+ * transpose, simplified), derive-contract.ts (contract, renumberPartition) and derive-reduce.ts
+ * (the edge column reducers of simplified and contract).
  *
  * Every derived core is built by `buildCore()`, the two stable counting-sort passes of design section
  * 6.3 steps 3-6 over a per-logical-edge list (src, dst, weight) in declared orientation, into a fresh
@@ -20,41 +26,26 @@
  */
 
 import { sortIntoCore } from "../builder/counting-sort.js";
-import { bitmapClear, makeBitmap } from "../columns/bitmap.js";
-import { createColumn, emptyParts, resolveColumnMeta } from "../columns/column.js";
-import { gatherColumn, gatherTable, remapTable } from "../columns/remap.js";
-import { AttributeTable as AttributeTableClass, tableWithColumns } from "../columns/table.js";
+import { remapTable } from "../columns/remap.js";
+import { tableWithColumns } from "../columns/table.js";
 import { INVALID_INDEX } from "../constants.js";
 import { GraphFormatError } from "../errors.js";
-import { gatherNodeIdMap, identityNodeIdMap } from "../ids/node-id-map.js";
 import {
     type ArenaLayout,
     type AttributeTable,
-    type Column,
     type ColumnInput,
-    type ColumnReducer,
-    type ContractOptions,
     type EdgeListView,
-    type EdgeMask,
     type F32,
-    type F64,
     type GraphSnapshot,
     type NodeIdMap,
-    type NodeMask,
-    type ReverseView,
-    type SimplifyOptions,
     type SnapshotFlags,
-    type ToUndirectedOptions,
     type TypedArrayData,
     type U32,
     type WeightReducer,
 } from "../types/index.js";
 import { type SnapshotParts } from "../types/internal.js";
-import { checkMaskLength, maskTest, maskToIndices } from "../util/mask.js";
-import { assertOneOf, COLUMN_REDUCERS, WEIGHT_REDUCERS } from "../util/options.js";
-import { noteShared } from "../util/shared-buffers.js";
-import { arcRangeIn } from "./queries.js";
-import { computeFlags, isIdentity } from "./validate.js";
+import { assertOneOf, COLUMN_REDUCERS } from "../util/options.js";
+import { isIdentity } from "./validate.js";
 
 // ============================================================ result shape
 
@@ -87,7 +78,7 @@ export interface DerivedParts {
     readonly report: DerivedReport;
 }
 
-const NO_REPORT: DerivedReport = Object.freeze({ droppedEdges: 0, mergedEdges: 0 });
+export const NO_REPORT: DerivedReport = Object.freeze({ droppedEdges: 0, mergedEdges: 0 });
 
 /**
  * The DerivedParts of an identity operation: the caller returns the source snapshot itself.
@@ -198,7 +189,7 @@ interface DerivedSides {
  * @param sides - the side structures
  * @returns the parts
  */
-function assembleParts(source: GraphSnapshot, core: BuiltCore, sides: DerivedSides): SnapshotParts {
+export function assembleParts(source: GraphSnapshot, core: BuiltCore, sides: DerivedSides): SnapshotParts {
     return {
         label: source.label,
         serial: null,
@@ -232,7 +223,7 @@ function assembleParts(source: GraphSnapshot, core: BuiltCore, sides: DerivedSid
  * @param edgeRemap - the edge remap or null
  * @returns the extension map to use
  */
-function remapExtensions(
+export function remapExtensions(
     source: GraphSnapshot,
     nodeRemap: U32 | null,
     edgeRemap: U32 | null,
@@ -253,7 +244,7 @@ function remapExtensions(
  * A grouping of source edges into new edges: `remap` (source -> new or INVALID_INDEX), `origin` (new
  * -> survivor = lowest source index of the group) and the new count. Null maps mean "unchanged".
  */
-interface EdgeGrouping {
+export interface EdgeGrouping {
     readonly count: number;
     readonly remap: U32 | null;
     readonly origin: U32 | null;
@@ -285,7 +276,7 @@ function originOf(remap: U32, count: number): U32 {
  * @param survivorOf - source edge -> its survivor, or INVALID_INDEX
  * @returns the grouping; maps null when every edge survives on its own
  */
-function groupingFromSurvivors(survivorOf: U32): EdgeGrouping {
+export function groupingFromSurvivors(survivorOf: U32): EdgeGrouping {
     const edgeCount = survivorOf.length;
     const newIndex = new Uint32Array(edgeCount).fill(INVALID_INDEX);
     let count = 0;
@@ -317,7 +308,7 @@ function groupingFromSurvivors(survivorOf: U32): EdgeGrouping {
  * @param nodeCount - the source node count
  * @returns true when origin is 0..nodeCount-1
  */
-function isIdentitySelection(origin: U32, nodeCount: number): boolean {
+export function isIdentitySelection(origin: U32, nodeCount: number): boolean {
     return origin.length === nodeCount && isIdentity(origin);
 }
 
@@ -329,7 +320,11 @@ function isIdentitySelection(origin: U32, nodeCount: number): boolean {
  * @param nodeRemap - source node -> new node, or null
  * @returns the edge arrays without weights (weights are reduced separately)
  */
-function gatherEndpoints(list: EdgeListView, grouping: EdgeGrouping, nodeRemap: U32 | null): { src: U32; dst: U32 } {
+export function gatherEndpoints(
+    list: EdgeListView,
+    grouping: EdgeGrouping,
+    nodeRemap: U32 | null,
+): { src: U32; dst: U32 } {
     const { count, origin } = grouping;
     const src = new Uint32Array(count);
     const dst = new Uint32Array(count);
@@ -346,7 +341,7 @@ function gatherEndpoints(list: EdgeListView, grouping: EdgeGrouping, nodeRemap: 
  * @param field - the option name
  * @param reducers - the record, or undefined
  */
-function checkReducers(field: string, reducers: Readonly<Record<string, unknown>> | undefined): void {
+export function checkReducers(field: string, reducers: Readonly<Record<string, unknown>> | undefined): void {
     if (reducers === undefined) {
         return;
     }
@@ -364,7 +359,7 @@ function checkReducers(field: string, reducers: Readonly<Record<string, unknown>
  * @param reducer - the weight reducer
  * @returns the per-new-edge weights, or null
  */
-function reduceWeights(weights: F32 | null, grouping: EdgeGrouping, reducer: WeightReducer): F32 | null {
+export function reduceWeights(weights: F32 | null, grouping: EdgeGrouping, reducer: WeightReducer): F32 | null {
     const { count, remap, origin } = grouping;
     if (weights === null) {
         return reducer === "sum" ? groupMultiplicities(count, remap) : null;
@@ -450,1132 +445,12 @@ function foldWeight(out: F32, d: number, w: number, reducer: Exclude<WeightReduc
  * @param keep - whether edge e is kept
  * @returns the grouping
  */
-function groupingFromPredicate(edgeCount: number, keep: (e: number) => boolean): EdgeGrouping {
+export function groupingFromPredicate(edgeCount: number, keep: (e: number) => boolean): EdgeGrouping {
     const survivorOf = new Uint32Array(edgeCount);
     for (let e = 0; e < edgeCount; e++) {
         survivorOf[e] = keep(e) ? e : INVALID_INDEX;
     }
     return groupingFromSurvivors(survivorOf);
-}
-
-// ============================================================ column reduction
-
-/** The five flat numeric column shapes the group reducers accumulate. */
-type NumericColumn = Extract<Column, { dtype: "f32" | "f64" | "i32" | "u32" | "u8" }>;
-
-/**
- * Fold one source row of `width` components into its group's accumulator row.
- * @param acc - the accumulators
- * @param at - the group row's first accumulator
- * @param source - the source column data
- * @param from - the source row's first value
- * @param width - the components per row
- * @param reducer - the reducer, or null for the group's first member (its values are copied)
- */
-function foldNumericRow(
-    acc: F64,
-    at: number,
-    source: ArrayLike<number>,
-    from: number,
-    width: number,
-    reducer: "sum" | "min" | "max" | "mean" | null,
-): void {
-    for (let k = 0; k < width; k++) {
-        const value = source[from + k];
-        if (reducer === null) {
-            acc[at + k] = value;
-            continue;
-        }
-        switch (reducer) {
-            case "sum":
-            case "mean":
-                acc[at + k] += value;
-                break;
-            case "min":
-                if (value < acc[at + k]) {
-                    acc[at + k] = value;
-                }
-                break;
-            case "max":
-                if (value > acc[at + k]) {
-                    acc[at + k] = value;
-                }
-                break;
-            default: {
-                const unknown: never = reducer;
-                throw new GraphFormatError("E_UNSUPPORTED", `unknown reducer ${String(unknown)}`, {
-                    reducer: unknown,
-                });
-            }
-        }
-    }
-}
-
-/**
- * Turn the per-group sums into means (a group of one keeps its value as is).
- * @param acc - the accumulators, `width` per group
- * @param members - the set members per group
- * @param width - the components per row
- */
-function divideByMembers(acc: F64, members: U32, width: number): void {
-    for (let d = 0; d < members.length; d++) {
-        if (members[d] > 1) {
-            for (let k = 0; k < width; k++) {
-                acc[d * width + k] /= members[d];
-            }
-        }
-    }
-}
-
-/**
- * The accumulators as column data of the result dtype.
- * @param acc - the f64 accumulators
- * @param dtype - the result dtype
- * @returns the data (acc itself for f64; a 4-byte padded buffer for u8)
- */
-function narrowAccumulator(acc: F64, dtype: NumericColumn["dtype"]): TypedArrayData {
-    switch (dtype) {
-        case "f64":
-            return acc;
-        case "f32":
-            return new Float32Array(acc);
-        case "i32":
-            return new Int32Array(acc);
-        case "u32":
-            return new Uint32Array(acc);
-        case "u8": {
-            const data = new Uint8Array(new ArrayBuffer(Math.ceil(acc.length / 4) * 4), 0, acc.length);
-            data.set(acc);
-            return data;
-        }
-        default: {
-            const unknown: never = dtype;
-            throw new GraphFormatError("E_COLUMN_TYPE", `cannot reduce a ${String(unknown)} column`, {
-                dtype: unknown,
-            });
-        }
-    }
-}
-
-/**
- * A group reducer's numeric accumulation for one column into a new row space.
- * @param column - a numeric column
- * @param grouping - the grouping (remap non-null)
- * @param reducer - sum / min / max / mean
- * @returns the reduced column
- */
-function reduceNumericColumn(
-    column: NumericColumn,
-    grouping: EdgeGrouping,
-    reducer: "sum" | "min" | "max" | "mean",
-): Column {
-    const { count, remap } = grouping;
-    const { components } = column.meta;
-    const width = components;
-    const acc = new Float64Array(count * width);
-    const members = new Uint32Array(count);
-    const seen = new Uint8Array(count);
-    const source = column.data;
-    const rows = remap === null ? column.length : remap.length;
-    for (let r = 0; r < rows; r++) {
-        const d = remap === null ? r : remap[r];
-        if (d === INVALID_INDEX || !column.isSet(r)) {
-            continue;
-        }
-        members[d]++;
-        foldNumericRow(acc, d * width, source, r * width, width, seen[d] === 0 ? null : reducer);
-        seen[d] = 1;
-    }
-    if (reducer === "mean") {
-        divideByMembers(acc, members, width);
-    }
-    // "mean" is f64; a "sum" over an integer dtype widens to f64 too, so a total can never wrap
-    // silently in a typed array that every write path would have refused (design section 5.1)
-    const widen = reducer === "mean" || (reducer === "sum" && column.dtype !== "f32" && column.dtype !== "f64");
-    const dtype = widen ? "f64" : column.dtype;
-    const data = narrowAccumulator(acc, dtype);
-    let validity: U32 | null = null;
-    let nullCount = 0;
-    for (let d = 0; d < count; d++) {
-        if (seen[d] === 0) {
-            validity ??= makeBitmap(count, true);
-            bitmapClear(validity, d);
-            nullCount++;
-        }
-    }
-    const meta = resolveColumnMeta(column.meta.name, column.meta.domain, {
-        dtype,
-        components,
-        nullable: column.meta.nullable || nullCount > 0,
-        role: column.meta.role ?? undefined,
-        extra: column.meta.extra,
-    });
-    return createColumn({ ...emptyParts(meta, count, validity), data, nullCount });
-}
-
-/**
- * The u32 column of group sizes ("count").
- * @param column - the source column (name, domain, role and extra are kept)
- * @param grouping - the grouping
- * @returns the count column
- */
-function countColumn(column: Column, grouping: EdgeGrouping): Column {
-    const { count, remap } = grouping;
-    const sizes = new Uint32Array(count);
-    if (remap === null) {
-        sizes.fill(1);
-    } else {
-        for (let r = 0; r < remap.length; r++) {
-            if (remap[r] !== INVALID_INDEX) {
-                sizes[remap[r]]++;
-            }
-        }
-    }
-    const meta = resolveColumnMeta(column.meta.name, column.meta.domain, {
-        dtype: "u32",
-        nullable: false,
-        role: column.meta.role ?? undefined,
-        extra: column.meta.extra,
-    });
-    return createColumn({ ...emptyParts(meta, count, null), data: sizes });
-}
-
-/**
- * Reduce one column over a grouping with a ColumnReducer (design section 7.3): `"first"` / `"last"`
- * gather the lowest / highest member's row (any dtype), `"count"` yields the group sizes, `"sum"` /
- * `"min"` / `"max"` / `"mean"` combine the set members of a numeric column (`"mean"` as f64, and so
- * is a `"sum"` over an i32 / u32 / u8 column, which would otherwise wrap; `"min"` / `"max"` keep
- * the dtype since the result is a member), `"drop"` omits the column. Index-valued (refersTo)
- * columns are always dropped: their values would refer to the source space.
- * @param column - the source column
- * @param grouping - the grouping
- * @param reducer - the reducer
- * @returns the reduced column, or null to drop it; E_COLUMN_TYPE for a numeric reducer on a non-numeric column
- */
-function reduceColumn(column: Column, grouping: EdgeGrouping, reducer: ColumnReducer): Column | null {
-    if (reducer === "drop" || column.meta.refersTo !== null) {
-        return null;
-    }
-    const { count, remap, origin } = grouping;
-    switch (reducer) {
-        case "first":
-            return origin === null ? column : gatherColumn(column, origin);
-        case "last": {
-            if (remap === null) {
-                return column;
-            }
-            const last = new Uint32Array(count);
-            for (let r = 0; r < remap.length; r++) {
-                if (remap[r] !== INVALID_INDEX) {
-                    last[remap[r]] = r;
-                }
-            }
-            return gatherColumn(column, last);
-        }
-        case "count":
-            return countColumn(column, grouping);
-        case "sum":
-        case "min":
-        case "max":
-        case "mean": {
-            const { dtype } = column;
-            switch (dtype) {
-                case "f32":
-                case "f64":
-                case "i32":
-                case "u32":
-                case "u8":
-                    return reduceNumericColumn(column, grouping, reducer);
-                case "bool":
-                case "dict":
-                case "string":
-                case "list":
-                case "json":
-                    throw new GraphFormatError(
-                        "E_COLUMN_TYPE",
-                        `reducer "${reducer}" needs a numeric column; "${column.meta.name}" is ${dtype}`,
-                        { column: column.meta.name, dtype, reducer },
-                    );
-                default: {
-                    const unknown: never = dtype;
-                    throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${String(unknown)}`, { dtype: unknown });
-                }
-            }
-        }
-        default: {
-            const unknown: never = reducer;
-            throw new GraphFormatError("E_UNSUPPORTED", `unknown column reducer ${String(unknown)}`, {
-                reducer: unknown,
-            });
-        }
-    }
-}
-
-/**
- * The edge table of a merging derived graph: named columns reduced per `reducers`, every other column
- * gathered from the survivor's row (the default of design section 5.11), refersTo values rewritten.
- * @param source - the source snapshot
- * @param grouping - the edge grouping
- * @param reducers - per-column reducers, or undefined for survivor rows throughout
- * @param nodeRemap - the node remap for refersTo node columns, or null
- * @returns the new edge table (the source table when the edge space is unchanged and no reducer applies)
- */
-function reduceEdgeTable(
-    source: GraphSnapshot,
-    grouping: EdgeGrouping,
-    reducers: Readonly<Partial<Record<string, ColumnReducer>>> | undefined,
-    nodeRemap: U32 | null,
-): AttributeTable {
-    const refs = { node: nodeRemap, edge: grouping.remap };
-    if (reducers === undefined || Object.keys(reducers).length === 0) {
-        if (grouping.origin === null) {
-            return nodeRemap === null ? source.edges : remapTable(source.edges, null, source.edgeCount, refs);
-        }
-        return gatherTable(source.edges, grouping.origin, refs);
-    }
-    const columns: Column[] = [];
-    for (const column of source.edges) {
-        const reducer = reducers[column.meta.name];
-        if (reducer === undefined) {
-            const gathered = grouping.origin === null ? column : gatherColumn(column, grouping.origin);
-            columns.push(gathered);
-            continue;
-        }
-        const reduced = reduceColumn(column, grouping, reducer);
-        if (reduced !== null) {
-            columns.push(reduced);
-        }
-    }
-    const table = new AttributeTableClass({ domain: "edge", rowCount: grouping.count, columns });
-    return remapTable(table, null, grouping.count, refs);
-}
-
-// ============================================================ filterEdges, withoutSelfLoops
-
-/**
- * The derived graph keeping the edges a predicate accepts, in the same node space (design section
- * 7.3: `filterEdges`, `withoutSelfLoops`). Always a new snapshot; the maps are null when every edge
- * is kept.
- * @param source - the source snapshot
- * @param list - the source edge list
- * @param keep - whether edge e is kept
- * @returns the derived parts
- */
-function deriveKeptEdges(source: GraphSnapshot, list: EdgeListView, keep: (e: number) => boolean): DerivedParts {
-    const grouping = groupingFromPredicate(source.edgeCount, keep);
-    const { src, dst } = gatherEndpoints(list, grouping, null);
-    const weights = reduceWeights(list.weights, grouping, "first");
-    const core = buildCore({
-        directed: source.directed,
-        nodeCount: source.nodeCount,
-        edgeCount: grouping.count,
-        src,
-        dst,
-        weights,
-    });
-    const edges = reduceEdgeTable(source, grouping, undefined, null);
-    const parts = assembleParts(source, core, {
-        directed: source.directed,
-        nodeCount: source.nodeCount,
-        edgeCount: grouping.count,
-        ids: source.ids,
-        nodes: source.nodes,
-        edges,
-        extensions: remapExtensions(source, null, grouping.remap),
-    });
-    return {
-        parts,
-        nodeOrigin: null,
-        edgeOrigin: grouping.origin,
-        nodeRemap: null,
-        edgeRemap: grouping.remap,
-        blockSizes: null,
-        report: { droppedEdges: grouping.dropped, mergedEdges: 0 },
-    };
-}
-
-/**
- * `filterEdges(keep)`: the logical edges whose mask bit is set (design section 7.3).
- * @param source - the source snapshot
- * @param list - the source edge list
- * @param keep - packed bitmap over logical edges; E_MASK_LENGTH when short
- * @returns the derived parts
- */
-export function deriveFilterEdges(source: GraphSnapshot, list: EdgeListView, keep: EdgeMask): DerivedParts {
-    checkMaskLength(keep, source.edgeCount, "edges");
-    return deriveKeptEdges(source, list, (e) => maskTest(keep, e));
-}
-
-/**
- * `withoutSelfLoops()`: every edge with source !== target (design section 7.3).
- * @param source - the source snapshot
- * @param list - the source edge list
- * @returns the derived parts
- */
-export function deriveWithoutSelfLoops(source: GraphSnapshot, list: EdgeListView): DerivedParts {
-    return deriveKeptEdges(source, list, (e) => list.src[e] !== list.dst[e]);
-}
-
-// ============================================================ inducedSubgraph, relabel
-
-/**
- * The E_INDEX_RANGE error of a bad inducedSubgraph index list entry.
- * @param position - the position in the list
- * @param value - the offending value
- * @param nodeCount - the node count
- * @param reason - "out of range" or "repeated"
- * @returns the error
- */
-function selectionError(position: number, value: number, nodeCount: number, reason: string): GraphFormatError {
-    return new GraphFormatError(
-        "E_INDEX_RANGE",
-        `inducedSubgraph selection[${position}] = ${value} is ${reason} (nodeCount ${nodeCount})`,
-        { index: position, found: value, nodeCount, reason },
-    );
-}
-
-/**
- * Resolve an inducedSubgraph selection to the new -> source node list (design section 7.3): an
- * index list in the given order (E_INDEX_RANGE for an out-of-range or repeated index) or a packed
- * mask in ascending order (E_MASK_LENGTH when short).
- * @param source - the source snapshot
- * @param selection - the index list or mask
- * @returns the node origin list (a fresh array)
- */
-function resolveSelection(source: GraphSnapshot, selection: U32 | { readonly mask: NodeMask }): U32 {
-    const { nodeCount } = source;
-    if (selection instanceof Uint32Array) {
-        const seen = new Uint8Array(nodeCount);
-        const origin = new Uint32Array(selection.length);
-        for (let i = 0; i < selection.length; i++) {
-            const u = selection[i];
-            if (u >= nodeCount) {
-                throw selectionError(i, u, nodeCount, "out of range");
-            }
-            if (seen[u] === 1) {
-                throw selectionError(i, u, nodeCount, "repeated");
-            }
-            seen[u] = 1;
-            origin[i] = u;
-        }
-        return origin;
-    }
-    checkMaskLength(selection.mask, nodeCount, "nodes");
-    return maskToIndices(selection.mask, nodeCount);
-}
-
-/**
- * The inverse of a new -> source node list: source -> new or INVALID_INDEX.
- * @param origin - new -> source
- * @param nodeCount - the source node count
- * @returns the remap
- */
-function invertOrigin(origin: U32, nodeCount: number): U32 {
-    const remap = new Uint32Array(nodeCount).fill(INVALID_INDEX);
-    for (let i = 0; i < origin.length; i++) {
-        remap[origin[i]] = i;
-    }
-    return remap;
-}
-
-/**
- * Assemble a derived graph over a gathered node space (inducedSubgraph, relabel): the node table and
- * id map gathered through `nodeOrigin`, the edge table gathered through the edge grouping (or the
- * source table with refersTo node values rewritten when the edge space is unchanged).
- * @param source - the source snapshot
- * @param list - the source edge list
- * @param nodeOrigin - new -> source node, or null for the identity
- * @param grouping - the edge grouping
- * @returns the derived parts
- */
-function deriveOverNodeSpace(
-    source: GraphSnapshot,
-    list: EdgeListView,
-    nodeOrigin: U32 | null,
-    grouping: EdgeGrouping,
-): DerivedParts {
-    const nodeCount = nodeOrigin === null ? source.nodeCount : nodeOrigin.length;
-    const nodeRemap = nodeOrigin === null ? null : invertOrigin(nodeOrigin, source.nodeCount);
-    const { src, dst } = gatherEndpoints(list, grouping, nodeRemap);
-    const weights = reduceWeights(list.weights, grouping, "first");
-    const core = buildCore({ directed: source.directed, nodeCount, edgeCount: grouping.count, src, dst, weights });
-    const refs = { node: nodeRemap, edge: grouping.remap };
-    const nodes = nodeOrigin === null ? source.nodes : gatherTable(source.nodes, nodeOrigin, refs);
-    const ids = nodeOrigin === null ? source.ids : gatherNodeIdMap(source.ids, nodeOrigin);
-    const edges = reduceEdgeTable(source, grouping, undefined, nodeRemap);
-    const parts = assembleParts(source, core, {
-        directed: source.directed,
-        nodeCount,
-        edgeCount: grouping.count,
-        ids,
-        nodes,
-        edges,
-        extensions: remapExtensions(source, nodeRemap, grouping.remap),
-    });
-    return {
-        parts,
-        nodeOrigin,
-        edgeOrigin: grouping.origin,
-        nodeRemap,
-        edgeRemap: grouping.remap,
-        blockSizes: null,
-        report: { droppedEdges: grouping.dropped, mergedEdges: grouping.merged },
-    };
-}
-
-/**
- * `inducedSubgraph(selection)`: the subgraph on a node selection with every edge whose endpoints are
- * both kept (design section 7.3); a compact new node space unless the selection is the identity.
- * @param source - the source snapshot
- * @param list - the source edge list
- * @param selection - an index list (new index order) or a packed mask (ascending)
- * @returns the derived parts
- */
-export function deriveInducedSubgraph(
-    source: GraphSnapshot,
-    list: EdgeListView,
-    selection: U32 | { readonly mask: NodeMask },
-): DerivedParts {
-    const origin = resolveSelection(source, selection);
-    const identity = isIdentitySelection(origin, source.nodeCount);
-    const nodeOrigin = identity ? null : origin;
-    const nodeRemap = identity ? null : invertOrigin(origin, source.nodeCount);
-    const grouping =
-        nodeRemap === null
-            ? groupingFromPredicate(source.edgeCount, () => true)
-            : groupingFromPredicate(
-                  source.edgeCount,
-                  (e) => nodeRemap[list.src[e]] !== INVALID_INDEX && nodeRemap[list.dst[e]] !== INVALID_INDEX,
-              );
-    return deriveOverNodeSpace(source, list, nodeOrigin, grouping);
-}
-
-/**
- * `relabel(perm)`: the node space permuted with `perm[newIndex] = oldIndex`, edge order preserved
- * (design section 7.3); E_INVALID_PERMUTATION unless perm is a permutation of 0..n-1.
- * @param source - the source snapshot
- * @param list - the source edge list
- * @param perm - the permutation
- * @returns the derived parts
- */
-export function deriveRelabel(source: GraphSnapshot, list: EdgeListView, perm: U32): DerivedParts {
-    const { nodeCount } = source;
-    if (perm.length !== nodeCount) {
-        throw new GraphFormatError("E_INVALID_PERMUTATION", `perm has ${perm.length} entries, expected ${nodeCount}`, {
-            expected: nodeCount,
-            found: perm.length,
-        });
-    }
-    const seen = new Uint8Array(nodeCount);
-    for (let i = 0; i < nodeCount; i++) {
-        const u = perm[i];
-        if (u >= nodeCount || seen[u] === 1) {
-            throw new GraphFormatError(
-                "E_INVALID_PERMUTATION",
-                `perm[${i}] = ${u} is out of range or repeated (nodeCount ${nodeCount})`,
-                { index: i, found: u, nodeCount },
-            );
-        }
-        seen[u] = 1;
-    }
-    const nodeOrigin = isIdentity(perm) ? null : perm.slice();
-    const grouping = groupingFromPredicate(source.edgeCount, () => true);
-    return deriveOverNodeSpace(source, list, nodeOrigin, grouping);
-}
-
-// ============================================================ toUndirected, transpose
-
-/**
- * The end of the run of parallel arcs (same column) that starts at arc `a` of a row ending at `end`.
- * @param colIdx - the column indices
- * @param a - the first arc of the run
- * @param end - the end of the row
- * @returns the first arc past the run
- */
-function parallelRunEnd(colIdx: U32, a: number, end: number): number {
-    const v = colIdx[a];
-    let g = a + 1;
-    while (g < end && colIdx[g] === v) {
-        g++;
-    }
-    return g;
-}
-
-/**
- * Pair the i-th arc u -> v (from `a`) with the i-th arc v -> u (from `lo`) for `pairs` pairs: both
- * edges survive as the lower edge index.
- * @param survivorOf - the survivor of each edge (written)
- * @param arcToEdge - the arc -> edge permutation
- * @param a - the first arc u -> v
- * @param lo - the first arc v -> u
- * @param pairs - how many pairs
- */
-function pairReciprocalArcs(survivorOf: U32, arcToEdge: U32, a: number, lo: number, pairs: number): void {
-    for (let i = 0; i < pairs; i++) {
-        const e1 = arcToEdge[a + i];
-        const e2 = arcToEdge[lo + i];
-        const low = Math.min(e1, e2);
-        const high = Math.max(e1, e2);
-        survivorOf[low] = low;
-        survivorOf[high] = low;
-    }
-}
-
-/**
- * `toUndirected(options)` on a directed snapshot (design section 7.3): every edge becomes undirected;
- * reciprocal pairs u -> v / v -> u (paired k-th to k-th among parallels, in edge order) collapse to
- * one edge keeping the lower index's row and the reduced weight (default "first"); with
- * `reciprocal: true` only paired edges survive. Self-loops are kept.
- * @param source - a directed snapshot
- * @param list - the source edge list
- * @param options - reciprocal filtering and the weight reducer
- * @returns the derived parts
- */
-export function deriveToUndirected(
-    source: GraphSnapshot,
-    list: EdgeListView,
-    options: ToUndirectedOptions = {},
-): DerivedParts {
-    const reciprocal = options.reciprocal === true;
-    const reducer = assertOneOf("weights", options.weights, WEIGHT_REDUCERS) ?? "first";
-    const { nodeCount, edgeCount, rowPtr, colIdx, arcToEdge } = source;
-    const survivorOf = new Uint32Array(edgeCount);
-    for (let e = 0; e < edgeCount; e++) {
-        survivorOf[e] = reciprocal && list.src[e] !== list.dst[e] ? INVALID_INDEX : e;
-    }
-    for (let u = 0; u < nodeCount; u++) {
-        const end = rowPtr[u + 1];
-        let a = rowPtr[u];
-        while (a < end) {
-            const v = colIdx[a];
-            const g = parallelRunEnd(colIdx, a, end);
-            if (v > u) {
-                const [lo, hi] = arcRangeIn(rowPtr, colIdx, v, u);
-                pairReciprocalArcs(survivorOf, arcToEdge, a, lo, Math.min(g - a, hi - lo));
-            }
-            a = g;
-        }
-    }
-    const grouping = groupingFromSurvivors(survivorOf);
-    const { src, dst } = gatherEndpoints(list, grouping, null);
-    const weights = reduceWeights(list.weights, grouping, reducer);
-    const core = buildCore({ directed: false, nodeCount, edgeCount: grouping.count, src, dst, weights });
-    const edges = reduceEdgeTable(source, grouping, undefined, null);
-    const parts = assembleParts(source, core, {
-        directed: false,
-        nodeCount,
-        edgeCount: grouping.count,
-        ids: source.ids,
-        nodes: source.nodes,
-        edges,
-        extensions: remapExtensions(source, null, grouping.remap),
-    });
-    return {
-        parts,
-        nodeOrigin: null,
-        edgeOrigin: grouping.origin,
-        nodeRemap: null,
-        edgeRemap: grouping.remap,
-        blockSizes: null,
-        report: { droppedEdges: grouping.dropped, mergedEdges: grouping.merged },
-    };
-}
-
-/**
- * `transpose()` on a directed snapshot (design section 7.3): the orientation of every edge swapped by
- * adopting the reverse view's arrays as the core (zero copy, so `arena` is null); node and edge
- * spaces unchanged, tables shared.
- * @param source - a directed snapshot
- * @param reverse - its reverse view
- * @returns the derived parts
- */
-export function deriveTranspose(source: GraphSnapshot, reverse: ReverseView): DerivedParts {
-    const { nodeCount, edgeCount, arcCount, selfLoopCount } = source;
-    const revArcToEdge = reverse.arcToEdge;
-    const identity = isIdentity(revArcToEdge);
-    let arcToEdge: U32 | null = null;
-    let edgeToArc: U32 | null = null;
-    if (!identity) {
-        arcToEdge = revArcToEdge;
-        edgeToArc = new Uint32Array(edgeCount);
-        for (let k = 0; k < arcCount; k++) {
-            edgeToArc[revArcToEdge[k]] = k;
-        }
-    }
-    const flags = computeFlags({
-        directed: true,
-        nodeCount,
-        rowPtr: reverse.rowPtr,
-        colIdx: reverse.colIdx,
-        weights: reverse.weights,
-        arcToEdge,
-        selfLoopCount,
-    });
-    // the adopted arrays stay held by the source's cached reverse view (design section 9.1)
-    noteShared(reverse.rowPtr.buffer);
-    noteShared(reverse.colIdx.buffer);
-    if (reverse.weights !== null) {
-        noteShared(reverse.weights.buffer);
-    }
-    if (arcToEdge !== null) {
-        noteShared(arcToEdge.buffer);
-    }
-    const parts: SnapshotParts = {
-        label: source.label,
-        serial: null,
-        directed: true,
-        nodeCount,
-        edgeCount,
-        arcCount,
-        selfLoopCount,
-        rowPtr: reverse.rowPtr,
-        colIdx: reverse.colIdx,
-        weights: reverse.weights,
-        arcToEdge,
-        edgeToArc,
-        flags,
-        ids: source.ids,
-        nodes: source.nodes,
-        edges: source.edges,
-        graph: source.graph,
-        extensions: source.extensions,
-        meta: source.meta,
-        arena: null,
-        checksum: false,
-    };
-    return {
-        parts,
-        nodeOrigin: null,
-        edgeOrigin: null,
-        nodeRemap: null,
-        edgeRemap: null,
-        blockSizes: null,
-        report: NO_REPORT,
-    };
-}
-
-// ============================================================ simplified
-
-/**
- * `simplified(options)` (design section 7.3): one edge per (u, v) group (parallels are adjacent by
- * I4; undirected groups are unordered pairs), survivor = lowest index, weights per `weights`
- * (default "first"), self-loops kept or dropped, other edge columns per `edgeReducers` (default: the
- * survivor's row). `flags.multigraph` is false afterwards.
- * @param source - the source snapshot
- * @param list - the source edge list
- * @param options - reducers and self-loop policy
- * @returns the derived parts
- */
-export function deriveSimplified(
-    source: GraphSnapshot,
-    list: EdgeListView,
-    options: SimplifyOptions = {},
-): DerivedParts {
-    const reducer = assertOneOf("weights", options.weights, WEIGHT_REDUCERS) ?? "first";
-    const dropLoops = assertOneOf("selfLoops", options.selfLoops, ["keep", "drop"] as const) === "drop";
-    checkReducers("edgeReducers", options.edgeReducers);
-    const { nodeCount, edgeCount, rowPtr, colIdx, arcToEdge } = source;
-    const survivorOf = new Uint32Array(edgeCount).fill(INVALID_INDEX);
-    for (let u = 0; u < nodeCount; u++) {
-        const end = rowPtr[u + 1];
-        let a = rowPtr[u];
-        while (a < end) {
-            const v = colIdx[a];
-            const g = parallelRunEnd(colIdx, a, end);
-            if ((source.directed || v >= u) && !(v === u && dropLoops)) {
-                const survivor = arcToEdge[a];
-                for (let i = a; i < g; i++) {
-                    survivorOf[arcToEdge[i]] = survivor;
-                }
-            }
-            a = g;
-        }
-    }
-    const grouping = groupingFromSurvivors(survivorOf);
-    const { src, dst } = gatherEndpoints(list, grouping, null);
-    const weights = reduceWeights(list.weights, grouping, reducer);
-    const core = buildCore({ directed: source.directed, nodeCount, edgeCount: grouping.count, src, dst, weights });
-    const edges = reduceEdgeTable(source, grouping, options.edgeReducers, null);
-    const parts = assembleParts(source, core, {
-        directed: source.directed,
-        nodeCount,
-        edgeCount: grouping.count,
-        ids: source.ids,
-        nodes: source.nodes,
-        edges,
-        extensions: remapExtensions(source, null, grouping.remap),
-    });
-    return {
-        parts,
-        nodeOrigin: null,
-        edgeOrigin: grouping.origin,
-        nodeRemap: null,
-        edgeRemap: grouping.remap,
-        blockSizes: null,
-        report: { droppedEdges: grouping.dropped, mergedEdges: grouping.merged },
-    };
-}
-
-// ============================================================ contract
-
-/**
- * Renumber an arbitrary u32 labelling to dense 0..k-1 in first-seen order (design section 7.5; what
- * `contract()` does with non-dense labels). INVALID_INDEX is not a legal label (E_PARTITION).
- * @param labels - the labels
- * @param out - an optional destination of the same length (may be `labels` itself)
- * @returns the dense labels and the block count
- */
-export function renumberPartition(labels: U32, out?: U32): { readonly labels: U32; readonly count: number } {
-    const n = labels.length;
-    const result = out ?? new Uint32Array(n);
-    if (result.length !== n) {
-        throw new GraphFormatError("E_COLUMN_LENGTH", `out has ${result.length} entries, expected ${n}`, {
-            expected: n,
-            found: result.length,
-        });
-    }
-    let maxLabel = 0;
-    for (let i = 0; i < n; i++) {
-        const label = labels[i];
-        if (label === INVALID_INDEX) {
-            throw new GraphFormatError("E_PARTITION", `labels[${i}] is INVALID_INDEX`, { index: i });
-        }
-        if (label > maxLabel) {
-            maxLabel = label;
-        }
-    }
-    const count = maxLabel < 4 * n + 1024 ? renumberByTable(labels, result, maxLabel) : renumberByMap(labels, result);
-    return { labels: result, count };
-}
-
-/**
- * Write the first-seen dense label of each label to `result`, looking labels up in a table of
- * `maxLabel + 1` slots (labels small enough for one).
- * @param labels - the labels
- * @param result - the destination, same length (may be `labels` itself)
- * @param maxLabel - the largest label
- * @returns the block count
- */
-function renumberByTable(labels: U32, result: U32, maxLabel: number): number {
-    const lookup = new Uint32Array(maxLabel + 1).fill(INVALID_INDEX);
-    let count = 0;
-    for (let i = 0; i < labels.length; i++) {
-        const label = labels[i];
-        let dense = lookup[label];
-        if (dense === INVALID_INDEX) {
-            dense = count++;
-            lookup[label] = dense;
-        }
-        result[i] = dense;
-    }
-    return count;
-}
-
-/**
- * Write the first-seen dense label of each label to `result`, looking labels up in a Map (labels too
- * large for a table).
- * @param labels - the labels
- * @param result - the destination, same length (may be `labels` itself)
- * @returns the block count
- */
-function renumberByMap(labels: U32, result: U32): number {
-    const lookup = new Map<number, number>();
-    let count = 0;
-    for (let i = 0; i < labels.length; i++) {
-        const label = labels[i];
-        let dense = lookup.get(label);
-        if (dense === undefined) {
-            dense = count++;
-            lookup.set(label, dense);
-        }
-        result[i] = dense;
-    }
-    return count;
-}
-
-/**
- * The dense block labels of a contract partition (design section 7.3): labels already forming the
- * set 0..k-1 are kept, any other labelling is renumbered in first-seen order. E_PARTITION for a wrong
- * length or an INVALID_INDEX label.
- * @param partition - the caller's labels
- * @param nodeCount - the node count
- * @returns the dense labels (a fresh array) and the block count
- */
-function denseBlocks(partition: U32, nodeCount: number): { readonly labels: U32; readonly count: number } {
-    if (partition.length !== nodeCount) {
-        throw new GraphFormatError(
-            "E_PARTITION",
-            `partition has ${partition.length} entries, expected nodeCount ${nodeCount}`,
-            { expected: nodeCount, found: partition.length },
-        );
-    }
-    let maxLabel = -1;
-    for (let i = 0; i < nodeCount; i++) {
-        const label = partition[i];
-        if (label === INVALID_INDEX) {
-            throw new GraphFormatError("E_PARTITION", `partition[${i}] is INVALID_INDEX`, { index: i });
-        }
-        if (label > maxLabel) {
-            maxLabel = label;
-        }
-    }
-    if (maxLabel < nodeCount) {
-        const seen = new Uint8Array(maxLabel + 1);
-        let distinct = 0;
-        for (let i = 0; i < nodeCount; i++) {
-            if (seen[partition[i]] === 0) {
-                seen[partition[i]] = 1;
-                distinct++;
-            }
-        }
-        if (distinct === maxLabel + 1) {
-            return { labels: partition.slice(), count: maxLabel + 1 };
-        }
-    }
-    return renumberPartition(partition);
-}
-
-/**
- * Reduce the node columns of a contracted graph per `nodeReducers` over the blocks; columns not named
- * are dropped (design section 7.3).
- * @param source - the source snapshot
- * @param blocks - the block labels (source node -> block)
- * @param blockCount - the number of blocks
- * @param blockOrigin - block -> lowest source node
- * @param reducers - the named reducers
- * @returns the new node table
- */
-function contractNodeTable(
-    source: GraphSnapshot,
-    blocks: U32,
-    blockCount: number,
-    blockOrigin: U32,
-    reducers: Readonly<Partial<Record<string, ColumnReducer>>> | undefined,
-): AttributeTable {
-    const columns: Column[] = [];
-    if (reducers !== undefined) {
-        const grouping: EdgeGrouping = { count: blockCount, remap: blocks, origin: blockOrigin, dropped: 0, merged: 0 };
-        for (const column of source.nodes) {
-            const reducer = reducers[column.meta.name];
-            if (reducer === undefined) {
-                continue;
-            }
-            const reduced = reduceColumn(column, grouping, reducer);
-            if (reduced !== null) {
-                columns.push(reduced);
-            }
-        }
-    }
-    return new AttributeTableClass({ domain: "node", rowCount: blockCount, columns });
-}
-
-/**
- * Group the kept contracted edges by block pair with two stable counting-sort passes (by second key,
- * then by first key), so each run of equal pairs is one group and the first member of a run is the
- * lowest source edge index.
- * @param first - the first key of every source edge (INVALID_INDEX = dropped)
- * @param second - the second key of every source edge
- * @param blockCount - the key range
- * @returns source edge -> survivor (INVALID_INDEX when dropped)
- */
-function groupByBlockPair(first: U32, second: U32, blockCount: number): U32 {
-    const edgeCount = first.length;
-    const kept: number[] = [];
-    for (let e = 0; e < edgeCount; e++) {
-        if (first[e] !== INVALID_INDEX) {
-            kept.push(e);
-        }
-    }
-    const start = new Uint32Array(blockCount + 1);
-    for (const e of kept) {
-        start[second[e] + 1]++;
-    }
-    for (let b = 0; b < blockCount; b++) {
-        start[b + 1] += start[b];
-    }
-    const bySecond = new Uint32Array(kept.length);
-    for (const e of kept) {
-        bySecond[start[second[e]]++] = e;
-    }
-    start.fill(0);
-    for (const e of kept) {
-        start[first[e] + 1]++;
-    }
-    for (let b = 0; b < blockCount; b++) {
-        start[b + 1] += start[b];
-    }
-    const sorted = new Uint32Array(kept.length);
-    for (let k = 0; k < bySecond.length; k++) {
-        const e = bySecond[k];
-        sorted[start[first[e]]++] = e;
-    }
-    const survivorOf = new Uint32Array(edgeCount).fill(INVALID_INDEX);
-    let runStart = 0;
-    while (runStart < sorted.length) {
-        const leader = sorted[runStart];
-        let runEnd = runStart + 1;
-        while (
-            runEnd < sorted.length &&
-            first[sorted[runEnd]] === first[leader] &&
-            second[sorted[runEnd]] === second[leader]
-        ) {
-            runEnd++;
-        }
-        for (let k = runStart; k < runEnd; k++) {
-            survivorOf[sorted[k]] = leader;
-        }
-        runStart = runEnd;
-    }
-    return survivorOf;
-}
-
-/**
- * Write each edge's block pair, ordered low-high when undirected, or INVALID_INDEX for a dropped
- * intra-block edge.
- * @param list - the source edge list
- * @param blocks - node -> block
- * @param directed - whether the source is directed
- * @param dropLoops - whether intra-block edges are dropped
- * @param first - out: the first block per edge
- * @param second - out: the second block per edge
- */
-function blockPairs(
-    list: EdgeListView,
-    blocks: U32,
-    directed: boolean,
-    dropLoops: boolean,
-    first: U32,
-    second: U32,
-): void {
-    for (let e = 0; e < first.length; e++) {
-        const bu = blocks[list.src[e]];
-        const bv = blocks[list.dst[e]];
-        if (bu === bv && dropLoops) {
-            first[e] = INVALID_INDEX;
-            second[e] = INVALID_INDEX;
-        } else if (directed || bu <= bv) {
-            first[e] = bu;
-            second[e] = bv;
-        } else {
-            first[e] = bv;
-            second[e] = bu;
-        }
-    }
-}
-
-/**
- * The survivors when parallels are kept: every edge with a block pair survives on its own.
- * @param first - the first block per edge (INVALID_INDEX when dropped)
- * @returns edge -> survivor
- */
-function keptPairs(first: U32): U32 {
-    const survivorOf = new Uint32Array(first.length);
-    for (let e = 0; e < first.length; e++) {
-        survivorOf[e] = first[e] === INVALID_INDEX ? INVALID_INDEX : e;
-    }
-    return survivorOf;
-}
-
-/**
- * The edge columns a contraction keeps: those named in `edgeReducers`, reduced over the grouping.
- * @param source - the source snapshot
- * @param grouping - the edge grouping
- * @param reducers - the per-column reducers, or undefined to keep none
- * @returns the reduced columns, in source order
- */
-function contractEdgeColumns(
-    source: GraphSnapshot,
-    grouping: EdgeGrouping,
-    reducers: Readonly<Partial<Record<string, ColumnReducer>>> | undefined,
-): Column[] {
-    const edgeColumns: Column[] = [];
-    if (reducers === undefined) {
-        return edgeColumns;
-    }
-    for (const column of source.edges) {
-        const columnReducer = reducers[column.meta.name];
-        if (columnReducer === undefined) {
-            continue;
-        }
-        const reduced = reduceColumn(column, grouping, columnReducer);
-        if (reduced !== null) {
-            edgeColumns.push(reduced);
-        }
-    }
-    return edgeColumns;
-}
-
-/**
- * `contract(partition, options)` (design section 7.3): the nodes of each block become one node (block
- * indices as labels, ids 0..k-1), every source edge contributes once: an inter-block edge becomes an
- * edge block(u) -> block(v), an intra-block edge one self-loop with weight w, kept or dropped per
- * `selfLoops`; parallels merge per `parallel` with the `weights` reducer (default "sum"; on an
- * unweighted source "sum" materialises multiplicities). Node and edge columns are kept only through
- * `nodeReducers` / `edgeReducers`.
- * @param source - the source snapshot
- * @param list - the source edge list
- * @param partition - one label per node; E_PARTITION for a wrong length or an INVALID_INDEX label
- * @param options - the contraction options
- * @returns the derived parts with blockSizes
- */
-export function deriveContract(
-    source: GraphSnapshot,
-    list: EdgeListView,
-    partition: U32,
-    options: ContractOptions = {},
-): DerivedParts {
-    const reducer = assertOneOf("weights", options.weights, WEIGHT_REDUCERS) ?? "sum";
-    const dropLoops = assertOneOf("selfLoops", options.selfLoops, ["keep", "drop"] as const) === "drop";
-    const merge = (assertOneOf("parallel", options.parallel, ["merge", "keep"] as const) ?? "merge") === "merge";
-    checkReducers("nodeReducers", options.nodeReducers);
-    checkReducers("edgeReducers", options.edgeReducers);
-    const { nodeCount, edgeCount } = source;
-    const { labels: blocks, count: blockCount } = denseBlocks(partition, nodeCount);
-    const blockSizes = new Uint32Array(blockCount);
-    const blockOrigin = new Uint32Array(blockCount).fill(INVALID_INDEX);
-    for (let u = 0; u < nodeCount; u++) {
-        const b = blocks[u];
-        blockSizes[b]++;
-        if (blockOrigin[b] === INVALID_INDEX) {
-            blockOrigin[b] = u;
-        }
-    }
-    const first = new Uint32Array(edgeCount);
-    const second = new Uint32Array(edgeCount);
-    blockPairs(list, blocks, source.directed, dropLoops, first, second);
-    const survivorOf = merge ? groupByBlockPair(first, second, blockCount) : keptPairs(first);
-    const grouping = groupingFromSurvivors(survivorOf);
-    const { src, dst } = gatherEndpoints(list, grouping, blocks);
-    const weights = reduceWeights(list.weights, grouping, reducer);
-    const core = buildCore({
-        directed: source.directed,
-        nodeCount: blockCount,
-        edgeCount: grouping.count,
-        src,
-        dst,
-        weights,
-    });
-    const nodes = contractNodeTable(source, blocks, blockCount, blockOrigin, options.nodeReducers);
-    const edgeColumns = contractEdgeColumns(source, grouping, options.edgeReducers);
-    const edges = new AttributeTableClass({ domain: "edge", rowCount: grouping.count, columns: edgeColumns });
-    const parts = assembleParts(source, core, {
-        directed: source.directed,
-        nodeCount: blockCount,
-        edgeCount: grouping.count,
-        ids: identityNodeIdMap(blockCount),
-        nodes,
-        edges,
-        extensions: remapExtensions(source, blocks, grouping.remap),
-    });
-    return {
-        parts,
-        nodeOrigin: blockOrigin,
-        edgeOrigin: grouping.origin,
-        nodeRemap: blocks,
-        edgeRemap: grouping.remap,
-        blockSizes,
-        report: { droppedEdges: grouping.dropped, mergedEdges: grouping.merged },
-    };
 }
 
 // ============================================================ withColumns

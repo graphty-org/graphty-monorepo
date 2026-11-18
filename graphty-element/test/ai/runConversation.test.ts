@@ -366,7 +366,7 @@ describe("runConversation", () => {
         const steps = session.history.steps.slice(baseline, session.history.position);
         // b's step sits between a's two, so a's second batch is its own step, continuing a's first.
         assert.deepStrictEqual(
-            steps.map((step) => [step.provenance.message, step.label, step.ops.length]),
+            steps.map((step) => [step.provenance.message, step.fact.params.label, step.ops.length]),
             [
                 ["a", "first", 1],
                 ["b", "second", 1],

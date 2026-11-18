@@ -91,15 +91,15 @@ describe("History: record, undo, redo", () => {
         history.record({ label: "b", patch: store.write({ x: 2, y: 1 }) });
         assert.strictEqual(history.position, 2);
 
-        assert.strictEqual(history.undo()?.label, "b");
+        assert.strictEqual(history.undo()?.fact.params.label, "b");
         assert.deepEqual(store.snapshot(), { x: 1 });
-        assert.strictEqual(history.undo()?.label, "a");
+        assert.strictEqual(history.undo()?.fact.params.label, "a");
         assert.deepEqual(store.snapshot(), {});
         assert.isNull(history.undo());
         assert.strictEqual(history.position, 0);
 
-        assert.strictEqual(history.redo()?.label, "a");
-        assert.strictEqual(history.redo()?.label, "b");
+        assert.strictEqual(history.redo()?.fact.params.label, "a");
+        assert.strictEqual(history.redo()?.fact.params.label, "b");
         assert.isNull(history.redo());
         assert.deepEqual(store.snapshot(), { x: 2, y: 1 });
     });
@@ -112,7 +112,7 @@ describe("History: record, undo, redo", () => {
         history.record({ label: "c", patch: store.write({ y: 5 }) });
 
         assert.deepEqual(
-            history.steps.map((step) => step.label),
+            history.steps.map((step) => step.fact.params.label),
             ["a", "c"],
         );
         assert.isNull(history.redo());
@@ -126,12 +126,12 @@ describe("History: record, undo, redo", () => {
         const [a, , c] = history.steps;
 
         assert.deepEqual(
-            history.restoreTo(a.id).map((step) => step.label),
+            history.restoreTo(a.id).map((step) => step.fact.params.label),
             ["c", "b"],
         );
         assert.deepEqual(store.snapshot(), { x: 1 });
         assert.deepEqual(
-            history.restoreTo(c.id).map((step) => step.label),
+            history.restoreTo(c.id).map((step) => step.fact.params.label),
             ["b", "c"],
         );
         assert.deepEqual(store.snapshot(), { x: 3 });
@@ -207,7 +207,7 @@ describe("History: coalescing", () => {
         history.record({ label: "Cleared the filter", key: "k", patch: store.write({ c: 2 }) });
 
         assert.lengthOf(history.steps, 1);
-        assert.strictEqual(history.steps[0].label, "Cleared the filter");
+        assert.strictEqual(history.steps[0].fact.params.label, "Cleared the filter");
     });
 
     it("does not merge across an undo", () => {
@@ -247,7 +247,7 @@ describe("History: budget and eviction", () => {
 
         // Over 10 steps: evicted down to 9.
         assert.deepEqual(
-            history.steps.map((step) => step.label),
+            history.steps.map((step) => step.fact.params.label),
             ["s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"],
         );
         history.restoreTo(null);
@@ -292,7 +292,7 @@ describe("History: budget and eviction", () => {
         history.limitSteps = 2;
 
         assert.deepEqual(
-            history.steps.map((step) => step.label),
+            history.steps.map((step) => step.fact.params.label),
             ["s2", "s3"],
         );
         assert.strictEqual(history.position, 1);
@@ -308,7 +308,7 @@ describe("History: budget and eviction", () => {
         history.record({ label: "a", patch: store.write({ k: 1 }), bytes: { done: 5000, undone: 5000 } });
         history.record({ label: "b", patch: store.write({ k: 2 }), bytes: { done: 5000, undone: 5000 } });
         assert.deepEqual(
-            history.steps.map((step) => step.label),
+            history.steps.map((step) => step.fact.params.label),
             ["b"],
         );
         history.limitBytes = 1_000_000;
@@ -317,7 +317,7 @@ describe("History: budget and eviction", () => {
         // b is the latest done step and c the next redo step: both survive a lower limit.
         history.limitBytes = 900;
         assert.deepEqual(
-            history.steps.map((step) => step.label),
+            history.steps.map((step) => step.fact.params.label),
             ["b", "c"],
         );
         assert.strictEqual(history.position, 1);

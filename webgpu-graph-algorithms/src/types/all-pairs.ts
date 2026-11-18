@@ -1,6 +1,5 @@
 /**
- * The all-pairs shortest-path result and option records (design 3.3 lines 813 and 835, 8.7, 9.7). The result is the
- * design's shape verbatim; every sentinel is spelled on its field, because a consumer who reads a `0` off the diagonal
+ * The all-pairs shortest-path result and option records. Every sentinel is spelled on its field, because a consumer who reads a `0` off the diagonal
  * or an `Infinity` off the matrix and guesses what it means is the failure this file prevents. Types only: this file
  * imports nothing at runtime.
  */
@@ -8,7 +7,7 @@
 import type { F32 } from "@graphty/graph-format";
 
 /**
- * Design 3.3 line 835: what `allPairsShortestPath` returns. Satisfies the seam's `ApspResultLike` (`dist:
+ * What `allPairsShortestPath` returns. Satisfies the seam's `ApspResultLike` (`dist:
  * NumericVector` admits `F32`).
  * @public
  */

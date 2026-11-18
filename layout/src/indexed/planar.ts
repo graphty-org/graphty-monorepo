@@ -255,7 +255,7 @@ class LeftRight {
      * @returns what the walk does next
      */
     private orientEdge(v: number, w: number, vw: number): "skip" | "descend" | "back" {
-        const wv = this.key(w, v); // NOSONAR(S2234): the reversed edge, w to v
+        const wv = this.key(w, v); // eslint-disable-line sonarjs/arguments-order -- the reversed edge, w to v
         if (this.oriented.has(vw) || this.oriented.has(wv)) {
             return "skip";
         }
@@ -309,7 +309,7 @@ class LeftRight {
     }
 
     private top(): ConflictPair | null {
-        return this.stack.length === 0 ? null : this.stack[this.stack.length - 1]; // NOSONAR(S7755): the ES2020 lib has no Array.prototype.at
+        return this.stack.length === 0 ? null : this.stack[this.stack.length - 1]; // eslint-disable-line unicorn/prefer-at -- the ES2020 lib has no Array.prototype.at
     }
 
     /**
@@ -527,16 +527,16 @@ class LeftRight {
                 const w = list[index[v]++];
                 const ei = this.key(v, w);
                 if (ei === this.parentEdge[w]) {
-                    embedding.addFirst(w, v); // NOSONAR(S2234): the half-edge from w back to v
+                    embedding.addFirst(w, v); // eslint-disable-line sonarjs/arguments-order -- the half-edge from w back to v
                     this.leftRef.set(v, w);
                     this.rightRef.set(v, w);
                     stack.push(v, w);
                     break;
                 }
                 if ((this.side.get(ei) ?? 1) === 1) {
-                    embedding.addCw(w, v, this.rightRef.get(w) ?? -1); // NOSONAR(S2234): the half-edge from w back to v
+                    embedding.addCw(w, v, this.rightRef.get(w) ?? -1); // eslint-disable-line sonarjs/arguments-order -- the half-edge from w back to v
                 } else {
-                    embedding.addCcw(w, v, this.leftRef.get(w) ?? -1); // NOSONAR(S2234): the half-edge from w back to v
+                    embedding.addCcw(w, v, this.leftRef.get(w) ?? -1); // eslint-disable-line sonarjs/arguments-order -- the half-edge from w back to v
                     this.leftRef.set(w, v);
                 }
             }
@@ -895,8 +895,8 @@ function embeddingToRows(embedding: Embedding): F64 {
         const [vk, contour] = order[k];
         const wp = contour[0];
         const wp1 = contour[1];
-        const wq = contour[contour.length - 1]; // NOSONAR(S7755): the ES2020 lib has no Array.prototype.at
-        const wq1 = contour[contour.length - 2]; // NOSONAR(S7755): the ES2020 lib has no Array.prototype.at
+        const wq = contour[contour.length - 1]; // eslint-disable-line unicorn/prefer-at -- the ES2020 lib has no Array.prototype.at
+        const wq1 = contour[contour.length - 2]; // eslint-disable-line unicorn/prefer-at -- the ES2020 lib has no Array.prototype.at
         const several = contour.length > 2;
         dx[wp1] += 1;
         dx[wq] += 1;

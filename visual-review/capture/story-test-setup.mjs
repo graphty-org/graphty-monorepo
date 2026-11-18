@@ -324,7 +324,7 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
         }
         const mine = test;
         // Through JSON, as capture.mjs reads it, so no function crosses to Node.
-        const chromatic = JSON.parse(JSON.stringify(story.parameters?.chromatic ?? {})); // NOSONAR(S7784): structuredClone throws on the functions this drops
+        const chromatic = JSON.parse(JSON.stringify(story.parameters?.chromatic ?? {})); // eslint-disable-line unicorn/prefer-structured-clone -- structuredClone throws on the functions this drops
         const plan = await commands.visualPlan({ id: story.id, chromatic, test: testOf(context.task) });
         const fail = (modes, reason) =>
             commands.visualFail({ id: story.id, modes, reason, chromatic, console: lines.splice(0) });

@@ -1085,7 +1085,9 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
     };
     // a ring drawn round a loop's node (vis-network's loop, behind its node) shows only the arc outside the node: it is
     // read from inside the node, wherever the program started stroking it (json-vis-synth 55 -> 55)
-    const head = trimStart(start !== undefined && start === end ? fromInside(pts, start) : [...pts], start);
+    // the same node at both ends, however each end's copy of it was made (each end's outline is its own object)
+    const loop = start !== undefined && start.id === end?.id;
+    const head = trimStart(loop ? fromInside(pts, start) : [...pts], start);
     const out = trimStart([...head].reverse(), end).reverse();
     // what is left wholly under its nodes (two nodes drawn over one another, the line between their centers) shows no
     // part between them: a sliver cut from it would be judged as the route (pajek-synth-vertices 32->41)
@@ -1138,8 +1140,14 @@ export function routeShape(
     if (loop) {
         const unit = Math.max(length, 1e-9);
         const [sx, sy] = shift[0];
-        const onNode = g.map(([x, y]): Pt => [x - sx, y - sy]);
-        return { gap: frechet(resample(o, N), resample(onNode, N)) / unit, unit };
+        const onNode = resample(
+            g.map(([x, y]): Pt => [x - sx, y - sy]),
+            N,
+        );
+        // a loop's arc runs either way round its node, as a ring does: which way it runs is its arrowhead's to say
+        // (edge.arrow); vis-network strokes its loop clockwise and graphty counterclockwise (json-vis-synth 55 -> 55)
+        const O = resample(o, N);
+        return { gap: Math.min(frechet(O, onNode), frechet(O, [...onNode].reverse())) / unit, unit };
     }
     if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
         const unit = Math.max(length, 1e-9);
@@ -2367,11 +2375,12 @@ export function compareOracle(
         at: PNode | undefined,
         end: Pt | undefined,
     ): [PNode | undefined, PNode | undefined] => {
-        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text and icon
-        // nodes, whose lines it runs to their middle) is cut at that box, and graphty's line at its own node's box
-        if (on?.drawnBox === true && at !== undefined) {
+        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text nodes, whose
+        // lines it runs to their middle), or where it ends their lines (`PNode.endBox`: its icon nodes), is cut at that
+        // box, and graphty's line at its own node's box
+        if ((on?.drawnBox === true || on?.endBox !== undefined) && at !== undefined) {
             return [
-                { ...on, shape: "rect" },
+                { ...on, ...on.endBox, shape: "rect" },
                 { ...at, figure: undefined, ...(bodied(at) ? {} : { shape: "rect" }) },
             ];
         }
@@ -3747,8 +3756,11 @@ export function lineAngleAt(pts: readonly Pt[], q: Pt): number {
  * labelRenderedSizeThreshold, `node.labelMinNodeScreenSize`) shows while its node is drawn at least so many px
  * across, which depends on how large each side frames the graph, a camera choice judged apart (frame.zoom): it is
  * shown here where its node, at the oracle's scale, meets the rule (json-gephi-worldcup: 8 labels sigma shows on
- * nodes 12.22 px across, which graphty's framing draws 11.02 px across and hides). ponytail: only the node's own
- * label; a node with further texts under such a rule would lose them here, and no format draws one yet.
+ * nodes 12.22 px across, which graphty's framing draws 11.02 px across and hides). A label under a font-size rule
+ * (vis-network's drawThreshold, `node.labelMinScreenSize`) is judged the same way by its letters' height
+ * (json-vis-siblings: graphty's layout frames the labels 5.3 px tall, vis-network's 3.5 px, under its 4 px rule, #8196).
+ * ponytail: only the node's own label; a node with further texts under such a rule would lose them here, and no
+ * format draws one yet.
  * @param g - graphty's node
  * @param scale - oracle px per graphty px
  * @param oracle - the oracle's label, which decides a node on the rule's edge
@@ -3767,6 +3779,20 @@ function labelAtScale(g: PNode, scale: number, oracle: PText | null): PText | nu
         return oracle === null ? null : label;
     }
     return share > 0 ? label : null;
+}
+
+/**
+ * Whether a label is drawn level on a line that is not: its turn on screen within `tol` degrees of none, its line's
+ * more than `tol` degrees off level either way.
+ * @param rotation - the label's turn on screen, degrees
+ * @param line - its line's angle there, degrees
+ * @param tol - degrees
+ * @returns true for a label kept level against its line
+ */
+function levelOnSlope(rotation: number, line: number, tol: number): boolean {
+    const off = (deg: number, period: number): number =>
+        Math.abs((((deg % period) + period * 1.5) % period) - period / 2);
+    return off(rotation, 360) <= tol && off(line, 180) > tol;
 }
 
 /**
@@ -3820,13 +3846,19 @@ function judgeLabel(
     // own line there (a label drawn along its line on both sides, or level on both), in the oracle's line's frame.
     // A label kept upright on its line turns half round with the line's way, so there a half turn is no turn.
     const middle = (t: PText): Pt => [(t.box.x0 + t.box.x1) / 2, (t.box.y0 + t.box.y1) / 2];
+    // A label the program kept level on a line that is not (vis-network's default horizontal edge labels) is level
+    // whatever way the line runs: there the turn is the one on screen (json-vis-nodelegend, #8197). On a level line
+    // the two readings agree on the program's side, so it is judged along the line.
     const relative = place?.kind === "line" && place.relative && place.o.length >= 2 && place.g.length >= 2;
-    const turned = relative
-        ? g.rotation - lineAngleAt(place.g, place.gAt(g)) + lineAngleAt(place.o, middle(o))
-        : angleToOracle(g.rotation);
-    const turn = relative
-        ? ((((turned - o.rotation) % 180) + 270) % 180) - 90
-        : ((((turned - o.rotation) % 360) + 540) % 360) - 180;
+    const keptLevel = relative && levelOnSlope(o.rotation, lineAngleAt(place.o, middle(o)), T.rotationDeg);
+    const turned =
+        relative && !keptLevel
+            ? g.rotation - lineAngleAt(place.g, place.gAt(g)) + lineAngleAt(place.o, middle(o))
+            : angleToOracle(g.rotation);
+    const turn =
+        relative && !keptLevel
+            ? ((((turned - o.rotation) % 180) + 270) % 180) - 90
+            : ((((turned - o.rotation) % 360) + 540) % 360) - 180;
     j.add("label.rotation", kind, id, Math.max(0, Math.abs(turn) - T.rotationDeg), o.rotation, turned);
     const [on, gn] = [lineCount(o), lineCount(g)];
     j.add("label.lines", kind, id, Math.abs(on - gn), on, gn);
@@ -3985,7 +4017,10 @@ function judgeLabelDress(j: Judge, kind: string, id: string, o: PText, g: PText,
     if ((of !== null || os !== null) && (gf !== null || gs !== null) && ob !== null && gb !== null) {
         const shapeMiss = ob.shape !== null && gb.shape !== null && ob.shape !== gb.shape ? 1 : 0;
         const [ow, oh] = [ob.box.x1 - ob.box.x0, ob.box.y1 - ob.box.y0];
-        const [gw, gh] = [(gb.box.x1 - gb.box.x0) * scale, (gb.box.y1 - gb.box.y0) * scale];
+        // measured along its border's middle, as the oracle's box is the path its border is stroked along: graphty's
+        // box is the panel's outer edge, its border's whole width inside it
+        const mid = gs === null ? 0 : gs.width;
+        const [gw, gh] = [(gb.box.x1 - gb.box.x0 - mid) * scale, (gb.box.y1 - gb.box.y0 - mid) * scale];
         const miss =
             shapeMiss +
             Math.max(ratioMiss(gw / Math.max(ow, 1e-9), T.sizeRatio), ratioMiss(gh / Math.max(oh, 1e-9), T.sizeRatio));

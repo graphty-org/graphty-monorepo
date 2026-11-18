@@ -10,7 +10,7 @@ This directory contains design documents, implementation plans, research, and co
 | [`algorithms/`](algorithms/)           | Ports of individual algorithms onto the indexed graph-format snapshot (Floyd-Warshall, label propagation), anomaly detection                                                       |
 | [`algorithms-pkg/`](algorithms-pkg/)   | @graphty/algorithms package - graph algorithms, optimizations, benchmarks                                                                                                          |
 | [`apps/`](apps/)                       | Desktop and mobile apps - whether to ship native shells around the graphty app, and the web view probe                                                                             |
-| [`architecture/`](architecture/)       | Core architecture - state management, async patterns, RxJS, dependency batching                                                                                                    |
+| [`architecture/`](architecture/)       | Core architecture - state management, async patterns, dependency batching (the RxJS documents are historical: not adopted)                                                         |
 | [`ci/`](ci/)                           | CI/CD and landing: how changes land (`golden-local.md`) and the release train (`ci-cd-plan.md`, whose merge queue part is superseded)                                              |
 | [`code-reviews/`](code-reviews/)       | Code review findings and implementation plans (prefixed by package name)                                                                                                           |
 | [`compact-mantine/`](compact-mantine/) | @graphty/compact-mantine - the shared compact Mantine theme: design, refactor, code reviews                                                                                        |
@@ -82,6 +82,9 @@ This directory contains design documents, implementation plans, research, and co
 
 ## Document Types
 
+A document whose first lines say `Status: historical record` describes code, files or plans that no
+longer match the repository; read it for history, never as a description of current code.
+
 Documents generally follow these patterns:
 
 - **`*-design.md`** - Feature specifications and architecture decisions
@@ -110,8 +113,6 @@ Documents generally follow these patterns:
 
 - [`ai/ai-interface-design.md`](ai/ai-interface-design.md) - Natural language control interface
 - [`rendering/edge-styles-design.md`](rendering/edge-styles-design.md) - Edge styling system
-- [`xr/xr-camera.md`](xr/xr-camera.md) - VR/AR camera design
-- [`ui/properties-sidebar-design.md`](ui/properties-sidebar-design.md) - Properties panel design
 - [`ui/framework/`](ui/framework/README.md) - The graphty app design framework: objects, principles, interaction patterns, the element contract and the one-way doors every screen is designed against
 - [`ui/object-first-ux/`](ui/object-first-ux/README.md) - An object-first, Figma-style exploration of the app: analysis, proposal, critique rounds and HTML mocks with screenshots (`mocks/`)
 
@@ -119,4 +120,3 @@ Documents generally follow these patterns:
 
 - [`ai/ai-multi-turn.md`](ai/ai-multi-turn.md) - Multi-turn LLM conversations
 - [`rendering/loading-optimization-plan.md`](rendering/loading-optimization-plan.md) - Bundle size reduction
-- [`ui/run-algorithm-design.md`](ui/run-algorithm-design.md) - Algorithm execution UI

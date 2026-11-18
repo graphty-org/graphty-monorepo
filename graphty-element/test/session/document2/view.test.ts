@@ -373,7 +373,7 @@ describe("view codec: writing", () => {
             id: runs[0].id,
             algorithm: "bfs",
             // The node option is a reference; the others are the params as the element holds them.
-            params: { source: { space: SPACE, key: "a" }, targetNode: null },
+            params: { source: { space: SPACE, key: "a" }, targetNode: null, maxDepth: null },
             scope: "graph",
         });
         // The layout's name is `algorithm`; `engine` is EngineVersions, as in results.

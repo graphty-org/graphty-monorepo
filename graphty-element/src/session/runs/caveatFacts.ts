@@ -95,7 +95,8 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `components.strong` -- strong components: a directed path must run each way.
  * - `components.undirected-strong` -- the graph is undirected, so its strong components are its
  *   connected ones.
- * - `degree.as-declared` -- degree was counted as the records declared the edges.
+ * - `degree.as-declared` -- on a directed graph, degree was counted as the records declared the
+ *   edges: `{ direction }`, which edges the value counts, `"in"`, `"out"` or `"total"` (both).
  * - `eigenvector.converged` -- power iteration converged: `{ tolerance, maxIterations }`.
  * - `eigenvector.scored-by` -- which nodes score a node: `{ mode }`, `"in"` (the nodes pointing
  *   at it) or anything else (the nodes it points at).

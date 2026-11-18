@@ -324,6 +324,76 @@ describe("metric results", () => {
             assert.strictEqual(record.value, (record.inDegree as number) + (record.outDegree as number));
         });
     });
+
+    describe("degree's direction (issue #161)", () => {
+        // a -> b, a -> c, b -> c: a has out 2, b in 1 out 1, c in 2.
+        const nodes = [{ id: "a" }, { id: "b" }, { id: "c" }];
+        const edges = [
+            { srcId: "a", dstId: "b" },
+            { srcId: "a", dstId: "c" },
+            { srcId: "b", dstId: "c" },
+        ];
+
+        /**
+         * Run degree over the three-node fixture.
+         * @param directed - What the store is told about direction.
+         * @param options - The run's options.
+         * @returns The result.
+         */
+        async function runDegree(
+            directed: boolean,
+            options?: { direction: "total" | "in" | "out" },
+        ): Promise<RunResult> {
+            const algorithm = new DegreeAlgorithm(await createMockGraph({ nodes, edges, directed }), options);
+            await algorithm.run();
+            assert.isDefined(algorithm.result);
+            return algorithm.result;
+        }
+
+        const expected = {
+            total: { a: 2, b: 2, c: 2 },
+            in: { a: 0, b: 1, c: 2 },
+            out: { a: 2, b: 1, c: 0 },
+        } as const;
+
+        for (const direction of ["total", "in", "out"] as const) {
+            it(`publishes the ${direction} count as the value on a directed graph`, async () => {
+                const result = await runDegree(true, direction === "total" ? undefined : { direction });
+
+                for (const id of ["a", "b", "c"] as const) {
+                    const record = result.node(id);
+                    assert.isDefined(record);
+                    assert.strictEqual(record.value, expected[direction][id], `${direction} degree of ${id}`);
+                    assert.strictEqual(record.inDegree, expected.in[id]);
+                    assert.strictEqual(record.outDegree, expected.out[id]);
+                }
+
+                assert.deepStrictEqual(result.summary().caveats.facts, [
+                    { code: "degree.as-declared", params: { direction } },
+                ]);
+            });
+        }
+
+        it("publishes no in or out on an undirected graph, and counts the whole degree", async () => {
+            const result = await runDegree(false, { direction: "in" });
+
+            for (const id of ["a", "b", "c"] as const) {
+                const record = result.node(id);
+                assert.isDefined(record);
+                assert.strictEqual(record.value, 2);
+                assert.isUndefined(record.inDegree);
+                assert.isUndefined(record.outDegree);
+            }
+
+            assert.strictEqual(result.summary().caveats.direction, "undirected");
+            assert.deepStrictEqual(result.summary().caveats.facts, []);
+        });
+
+        it("refuses a direction it does not know", async () => {
+            const graph = await createMockGraph({ nodes, edges });
+            assert.throws(() => new DegreeAlgorithm(graph, { direction: "sideways" as "in" }));
+        });
+    });
 });
 
 /**

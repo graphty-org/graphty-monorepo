@@ -212,7 +212,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
                 }
             });
 
-            it("degree: identical in-, out- and total degree", async () => {
+            it("degree: identical in-, out- and total degree (only the total when undirected)", async () => {
                 const graph = await createMockGraph(fixture);
                 const run = new DegreeAlgorithm(graph);
                 await run.run();
@@ -229,11 +229,17 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
                 for (const [id, values] of published(graph, run)) {
                     const inDegree = inDegrees.get(id) ?? 0;
                     const outDegree = outDegrees.get(id) ?? 0;
+                    // An undirected graph has no in or out, only the whole degree (#161).
                     assert.deepInclude(
                         values,
-                        { inDegree, outDegree, value: inDegree + outDegree },
+                        s.directed
+                            ? { inDegree, outDegree, value: inDegree + outDegree }
+                            : { value: inDegree + outDegree },
                         `degree of ${String(id)}`,
                     );
+                    if (!s.directed) {
+                        assert.notProperty(values, "inDegree");
+                    }
                 }
             });
 

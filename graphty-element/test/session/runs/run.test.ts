@@ -173,7 +173,6 @@ describe("a run that finishes", () => {
         const { record } = run;
         assert.isTrue(Object.isFrozen(record));
         assert.strictEqual(record.id, "degree_test");
-        assert.strictEqual(record.label, "Connections");
         assert.strictEqual(record.status, "succeeded");
         assert.strictEqual(record.scope.nodes, graph.nodes.size);
         assert.strictEqual(record.scope.digest, run.scope.digest);
@@ -333,6 +332,24 @@ describe("cancelling", () => {
     });
 });
 
+describe("the caller's signal after a run settles", () => {
+    it("keeps no abort listener, so a long-lived signal does not hold finished runs", async () => {
+        const controller = new AbortController();
+        const added = vi.spyOn(controller.signal, "addEventListener");
+        const removed = vi.spyOn(controller.signal, "removeEventListener");
+        const { run, queue } = makeRun(finishAtOnce, { signal: controller.signal });
+
+        run.start();
+        await queue.runLatest();
+        await run;
+
+        const listeners = (spy: typeof added): unknown[] =>
+            spy.mock.calls.filter(([type]) => type === "abort").map(([, listener]) => listener);
+        assert.isAbove(listeners(added).length, 0);
+        assert.sameMembers(listeners(removed), listeners(added));
+    });
+});
+
 describe("the time box", () => {
     it("publishes what was computed instead of failing", async () => {
         const { run, queue } = makeRun(
@@ -351,37 +368,11 @@ describe("the time box", () => {
 
         assert.strictEqual(run.status, "succeeded", "a stopped-early result is data, not a failure");
         assert.strictEqual(run.partial, true);
-        assert.isDefined(run.caveats.partialReason);
-        assert.include(run.caveats.partialReason ?? "", "15 ms");
         assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.time-box", params: { ms: 15 } });
-        assert.strictEqual(
-            run.caveats.partialReason,
-            "Stopped after the 15 ms time box and published what was computed.",
-        );
         assert.strictEqual(run.record.partial, true);
     });
 
-    it("is partial whatever stopped it, when the caveats say why it stopped early (#933)", async () => {
-        const { run, queue } = makeRun(async (context) => {
-            await settle();
-
-            return {
-                result: stubResult(context.runId),
-                caveats: { exact: false, partialReason: "iteration cap reached" },
-            };
-        });
-
-        run.start();
-        await queue.runLatest();
-
-        assert.strictEqual(run.status, "succeeded");
-        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
-        assert.isUndefined(run.caveats.partialCause, "a reason given only in words has no code");
-        assert.strictEqual(run.partial, true, "the caveats and the flag never disagree");
-        assert.strictEqual(run.record.partial, true);
-    });
-
-    it("words the reason from a cause the work gives as a code (#866)", async () => {
+    it("is partial whatever stopped it, when the caveats give the cause as a code (#866, #933)", async () => {
         const { run, queue } = makeRun(async (context) => {
             await settle();
 
@@ -396,7 +387,7 @@ describe("the time box", () => {
 
         assert.strictEqual(run.partial, true);
         assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.iteration-cap", params: {} });
-        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.strictEqual(run.record.partial, true);
     });
 
     it("leaves the work's own signal alone, so stopping early is not an abort", async () => {

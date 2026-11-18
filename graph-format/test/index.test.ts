@@ -20,6 +20,8 @@ const VALUE_EXPORTS = [
     "detLog",
     "detPow",
     "detSin",
+    "directedness",
+    "edgeIsDirected",
     "equalsTopology",
     "expandEdges",
     "foldArcs",

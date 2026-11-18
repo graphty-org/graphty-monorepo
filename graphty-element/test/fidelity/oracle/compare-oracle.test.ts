@@ -1005,6 +1005,33 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("leaves out every line of a caption wrapped in three whose first two are another caption's words", () => {
+        // Cytoscape wraps "shape=PARALLELOGRAM 60x30" in three lines, the first two being the caption of the
+        // specimen beside it, "shape=PARALLELOGRAM" (cx-specimen-node-shapes): its third line is the caption's too
+        const g = {
+            ...graphtyScene(),
+            texts: [
+                text("shape=\nPARALLELOGRAM\n60x30", 50, 50, 12, { owner: "cap-shape-parallelogram-wide" }),
+                text("shape=PARALLELOGRAM", 150, 50, 12, { owner: "cap-shape-parallelogram" }),
+            ],
+        };
+        const o = {
+            ...graphtyScene(),
+            side: "oracle" as const,
+            texts: [
+                text("shape=", 50, 50),
+                text("PARALLELOGRAM", 50, 60),
+                text("60x30", 50, 70),
+                text("shape=PARALLELOGRAM", 150, 50),
+                text("note", 9, 9),
+            ],
+        };
+        assert.deepEqual(
+            withoutCaptions(o, g).texts.map((t) => t.content),
+            ["note"],
+        );
+    });
+
     it("leaves out a caption node a sheet ids by number once it is named by its cap-* attribute", () => {
         // a GML sheet ids its caption node 5 and keeps "cap-fill-red" in its comment; the program draws it as a node
         const o = { ...graphtyScene(), side: "oracle" as const };
@@ -1705,6 +1732,13 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.isBelow(drawn.properties["node.width"].passRate ?? 1, 1);
     });
 
+    it("reads no fill on a node under half a pixel across, on either drawing", () => {
+        // yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size (graphml-stm32-func)
+        const thin = (): PNode[] => [...grid(), node("thin", 300, 200, 40, { w: 0.34, h: 4, fill: fill("#ffffff") })];
+        const r = compareOracle("t", sceneOf("oracle", 600, 400, thin()), sceneOf("graphty", 600, 400, thin()));
+        assert.strictEqual(r.properties["node.fill"].passRate, 1);
+    });
+
     it("passes a drawing judged against itself, with a passing verdict and no failures", () => {
         const r = compareOracle("t", sceneOf("oracle", 600, 400, grid()), sceneOf("graphty", 600, 400, grid()));
         assert.deepEqual(failing(r), []);
@@ -2266,6 +2300,18 @@ describe("shape classes of a curved outline", () => {
         corner(10, 10, Math.PI);
         corner(90, 10, (3 * Math.PI) / 2);
         assert.strictEqual(shapeOf(prim({ points: [...rounded, rounded[0]] })), "roundrect");
+        // a short pill, 31 x 22 rounded by 11 (vis-network's borderRadius 12 clamped to half its height), fills
+        // less of its box than 0.86 and is still a rounded rectangle
+        const pill: Pt[] = [];
+        const end = (cx: number, from: number): void => {
+            for (let k = 0; k <= 12; k++) {
+                const t = from + (k * Math.PI) / 12;
+                pill.push([cx + 11 * Math.cos(t), 11 + 11 * Math.sin(t)]);
+            }
+        };
+        end(20, -Math.PI / 2);
+        end(11, Math.PI / 2);
+        assert.strictEqual(shapeOf(prim({ points: [...pill, pill[0]] })), "roundrect");
         // a teardrop: curved, and neither
         const drop = Array.from({ length: 24 }, (_, i): Pt => {
             const t = (i * Math.PI) / 12;

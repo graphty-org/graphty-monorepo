@@ -94,7 +94,7 @@ build step, import it from the bundle, as in
   out of the result, which is different from a score of 0. Only the elements you measured are
   ranked, summarised and coloured: the rest keep whatever the layers beneath painted.
 - **Missing values.** `strength` and `weight` leave out an edge with no number at the attribute,
-  and the run's record says how many there were (`run.caveats.notes`). You never write `?? 0`.
+  and the run's record says how many there were, in the words of `run.caveats.notes`. You never write `?? 0`.
 - **The rest.** The catalogue entry a picker offers (`session.catalog.algorithms()`, named "Acme
   confidence degree" from the id unless you give a `name`), a cost estimate before the click, the
   ranking, distribution and summary of every result, and saved documents that record the run by

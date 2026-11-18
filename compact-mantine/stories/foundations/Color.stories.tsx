@@ -1,7 +1,15 @@
-import { Box, SegmentedControl, Stack, Text } from "@mantine/core";
+import { Box, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { ControlGroup, ControlSection, PANEL_GRID, PANEL_INK, PanelField, ToggleRow } from "../../src";
+import {
+    ControlGroup,
+    ControlSection,
+    PANEL_GRID,
+    PANEL_INK,
+    PanelField,
+    SegmentedControl,
+    ToggleRow,
+} from "../../src";
 import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
 import { BOTH_SCHEMES } from "../helpers/schemes";
 

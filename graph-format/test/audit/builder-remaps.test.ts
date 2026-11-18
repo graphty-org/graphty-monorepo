@@ -11,21 +11,10 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
+import { GraphFormatError } from "../../src/errors.js";
 import { type GraphSnapshot, type U32 } from "../../src/types/index.js";
+import { thrownCode } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
 
 function details(fn: () => unknown): Readonly<Record<string, unknown>> {
     try {
@@ -195,7 +184,7 @@ describe("audit: remaps relative to the previous freeze (I16, P3)", () => {
         b.setEdgeValue("eid", 3, "x");
         b.removeNode("a"); // kills e0; the unique check then fails AFTER step 1 compacted
         const mutations = b.mutationCount;
-        expect(code(() => b.freeze())).toBe("E_DUPLICATE_EDGE_ID");
+        expect(thrownCode(() => b.freeze())).toBe("E_DUPLICATE_EDGE_ID");
         // untouched: the builder still holds the tombstone and its own index space
         expect(b.nodeBound).toBe(5);
         expect(b.edgeBound).toBe(4);
@@ -313,7 +302,7 @@ describe("audit: index-space path (addAnonymousNodes + addEdges)", () => {
         ];
         for (const [src, dst, bad] of cases) {
             const err = details(() => b.addEdges(new Uint32Array(src), new Uint32Array(dst)));
-            expect(code(() => b.addEdges(new Uint32Array(src), new Uint32Array(dst)))).toBe("E_UNKNOWN_NODE");
+            expect(thrownCode(() => b.addEdges(new Uint32Array(src), new Uint32Array(dst)))).toBe("E_UNKNOWN_NODE");
             expect(err.index).toBe(bad);
         }
         expect(b.edgeBound).toBe(0);
@@ -321,7 +310,9 @@ describe("audit: index-space path (addAnonymousNodes + addEdges)", () => {
         expect(b.mutationCount).toBe(mutations);
         // a weight problem is also found before anything is pushed
         expect(
-            code(() => b.addEdges(new Uint32Array([0, 2]), new Uint32Array([2, 0]), new Float32Array([1, Number.NaN]))),
+            thrownCode(() =>
+                b.addEdges(new Uint32Array([0, 2]), new Uint32Array([2, 0]), new Float32Array([1, Number.NaN])),
+            ),
         ).toBe("E_INVALID_WEIGHT");
         expect(b.edgeBound).toBe(0);
         // the valid call pushes in order and returns the first index
@@ -338,8 +329,8 @@ describe("audit: index-space path (addAnonymousNodes + addEdges)", () => {
         b.addAnonymousNodes(2);
         b.addEdges(new Uint32Array([0]), new Uint32Array([1]));
         b.removeNodeByIndex(1);
-        expect(code(() => b.addEdgeByIndex(0, 1))).toBe("E_UNKNOWN_NODE");
-        expect(code(() => b.addEdges(new Uint32Array([0]), new Uint32Array([1])))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.addEdgeByIndex(0, 1))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.addEdges(new Uint32Array([0]), new Uint32Array([1])))).toBe("E_UNKNOWN_NODE");
         // anonymous nodes have no id to revive through, so only a fresh node can be added
         expect(b.addAnonymousNodes(1)).toBe(2);
         b.addEdges(new Uint32Array([0]), new Uint32Array([2]));

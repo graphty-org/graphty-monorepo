@@ -11,21 +11,23 @@
 
 import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
-import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
+import {
+    type ColumnRef,
+    type GraphSession,
+    type Layer,
+    OVERFLOW_SHAPES,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
 
-import { findTreeRow, rowLayers as treeRowLayers } from "../graph-place/rows";
-import { DEFAULT_NAME_KEY } from "./cards";
+import { findTreeRow, rowLayers as treeRowLayers, rowName } from "../graph-place/rows";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { channelPhrase, hexOf, OPACITY_OF, readableName } from "./words";
+import { channelPhrase, hexOf, logUnexpected, OPACITY_OF, readableName } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
 
 /** A binding that reads a value from the data. */
 export type DataBinding = Extract<Binding, { by: string }>;
-
-/** The `userData` key that marks the reader's Everything layer. */
-export const EVERYTHING_KEY = "graphtyEverything";
 
 /** What the From data list hands back: a column of the file, or one field of a run's result. */
 export type DataChoice =
@@ -55,19 +57,15 @@ export interface LiteralWrite {
 }
 
 /**
- * The layers of the Everything row: the element's own base layers and the reader's Everything
- * layer, bottom first.
+ * The layers of the Everything row while no tree row selects every element: every layer that
+ * selects every element, bottom first.
  * @param session - the element's session.
  * @returns their ids.
  */
 export function everythingRow(session: GraphSession): LayerId[] {
     return session.styles
         .list()
-        .filter(
-            (layer) =>
-                (layer.source.by === "element" && layer.source.reason === "default") ||
-                layer.userData?.[EVERYTHING_KEY] === true,
-        )
+        .filter((layer) => layer.selector.match === "everything")
         .map((layer) => layer.id);
 }
 
@@ -78,7 +76,7 @@ export function everythingRow(session: GraphSession): LayerId[] {
  * @param target - nodes or edges.
  * @returns the layers.
  */
-export function rowLayers(session: GraphSession, ids: readonly LayerId[], target: Target): Layer[] {
+export function rowLayers(session: TransactionScope, ids: readonly LayerId[], target: Target): Layer[] {
     return session.styles.list().filter((layer) => layer.target === target && ids.includes(layer.id));
 }
 
@@ -204,23 +202,23 @@ export interface NewLayer {
     readonly above?: string;
 }
 
-/** The reader's Everything layer, which the Everything row's first edit adds. */
+/**
+ * The Everything row's first edit, while no tree row selects every element: a row like any other,
+ * painting nodes and edges, which from then on is the row that paints the whole graph.
+ */
 export const EVERYTHING_LAYER: NewLayer = {
     name: "Everything",
     selector: { match: "everything" },
-    userData: { [EVERYTHING_KEY]: true },
+    both: true,
 };
 
 /**
- * The top layer of the paint tree's topmost row: the highest layer that is not the element's
- * selection, hover or notes highlight, which stay on top.
+ * The top layer of the stack: the topmost row's top layer.
  * @param session - the element's session.
  * @returns the layer, or undefined for an empty stack.
  */
-export function topmostRow(session: GraphSession): Layer | undefined {
-    return [...session.styles.list()]
-        .reverse()
-        .find((layer) => layer.source.by !== "element" || layer.source.reason === "default");
+export function topmostRow(session: TransactionScope): Layer | undefined {
+    return session.styles.list().at(-1);
 }
 
 /**
@@ -259,57 +257,12 @@ export function selectionRow(session: GraphSession): LayerId[] {
 }
 
 /**
- * The layer the selection's first edit adds: the selection's own selector, named after it.
- * @param session - the element's session.
- * @param name - the selection's name (its rule, a node's label, "3 nodes").
- * @returns the layer to add.
- */
-export function selectionLayer(session: GraphSession, name: string): NewLayer {
-    // The name is a default: it follows the layer's cards until the reader renames it.
-    return { name, selector: session.selection.layerSelector, userData: { [DEFAULT_NAME_KEY]: name } };
-}
-
-/**
- * The sessions whose next selection layer is being made by a section's "+" with a starting value
- * rather than a value the reader chose, so Escape before any change may take it back.
- */
-export const startingAdds = new WeakSet<GraphSession>();
-
-/**
- * The selector a binding needs on a row that paints everything, when graphty-element refuses it
- * there: a binding to a run's result is refused on a layer that paints every element
- * (`E_UNSCOPED_RUN_ENCODING`), and the element's own remedy is a layer scoped to the elements
- * that carry the result.
- * @param session - the element's session.
- * @param target - nodes or edges.
- * @param channel - the bound channel.
- * @param binding - the binding.
- * @returns the scoped selector, or undefined when a layer that paints everything may hold it.
- */
-function scopeFor(
-    session: GraphSession,
-    target: Target,
-    channel: Channel,
-    binding: DataBinding,
-): Layer["selector"] | undefined {
-    const check = session.styles.validate({
-        name: "check",
-        target,
-        selector: { match: "everything" },
-        encode: { [channel]: binding },
-    });
-    return check.errors.some((error) => error.code === "E_UNSCOPED_RUN_ENCODING")
-        ? { match: "has", path: binding.by }
-        : undefined;
-}
-
-/**
  * The place directly above a row, in the folder that holds it (bottom-first index).
  * @param session - the element's session.
  * @param id - the row.
  * @returns the place, or undefined when the row is gone.
  */
-function placeAbove(session: GraphSession, id: string): { parent: string | null; index: number } | undefined {
+function placeAbove(session: TransactionScope, id: string): { parent: string | null; index: number } | undefined {
     const found = findTreeRow(session.styles.tree(), id);
     if (found === undefined) {
         return undefined;
@@ -346,20 +299,33 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
  *   undefined for a row that adds none (a run's row): the write then fails rather than land on a
  *   layer the row does not name.
  * @param also - values for other channels written in the same step where the layer has none.
+ * @param alsoReplaces - write `also` over the values the layer has (one edit of several channels).
  * @returns the id of the layer written to.
  */
 export async function writeLine(
-    session: GraphSession,
+    session: TransactionScope,
     ids: readonly LayerId[],
     target: Target,
     channel: Channel,
     write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    alsoReplaces = false,
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
     const everything = fresh?.selector.match === "everything";
-    const scope = everything && "binding" in write ? scopeFor(session, target, channel, write.binding) : undefined;
+    // A binding graphty-element refuses on a layer that paints everything goes on the layer it names instead.
+    const scope =
+        everything && "binding" in write
+            ? session.styles
+                  .validate({
+                      name: write.binding.by,
+                      target,
+                      selector: { match: "everything" },
+                      encode: { [channel]: write.binding },
+                  })
+                  .errors.find((error) => error.scope !== undefined)?.scope
+            : undefined;
     const home = scope ?? fresh?.selector;
     const own = [...layers]
         .reverse()
@@ -369,7 +335,7 @@ export async function writeLine(
     const literal = "value" in write && !combined ? { [channel]: write.value } : undefined;
     // Values written with it in the same step (a new label's size), where the layer has none.
     const extra = Object.fromEntries(
-        Object.entries(also ?? {}).filter(([c]) => own?.set?.[c as Channel] === undefined),
+        Object.entries(also ?? {}).filter(([c]) => alsoReplaces || own?.set?.[c as Channel] === undefined),
     );
     const set = literal === undefined && Object.keys(extra).length === 0 ? undefined : { ...extra, ...literal };
     const encode = encodeOf(write, channel, combined);
@@ -429,7 +395,7 @@ function othersWriting(layers: readonly Layer[], own: Layer | undefined, channel
 
 /** What writeLine writes, and where. */
 interface LinePlan {
-    readonly session: GraphSession;
+    readonly session: TransactionScope;
     readonly layers: readonly Layer[];
     readonly target: Target;
     readonly channel: Channel;
@@ -456,11 +422,8 @@ async function stripOthers(styles: GraphSession["styles"], plan: LinePlan): Prom
     const { others, channel } = plan;
     for (const layer of others) {
         const rest = { set: without(layer.set, channel), encode: without(layer.encode, channel) };
-        if (rest.set === undefined && rest.encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
-            await styles.remove(layer.id);
-        } else {
-            await styles.update(layer.id, rest);
-        }
+        // A layer left writing nothing stays, as every layer does.
+        await styles.update(layer.id, rest, { keepEmpty: true });
     }
 }
 
@@ -504,11 +467,18 @@ async function addLine(styles: GraphSession["styles"], plan: LinePlan, fresh: Ne
         ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
     };
     const at = base === undefined ? undefined : { above: base.id };
-    const added = fresh.both
-        ? await styles.addRow({ ...spec, target: "both" }, at)
-        : await styles.add({ ...spec, target }, at);
+    // A row of both kinds only for the fresh layer's own selector: a scope narrowed to one kind's
+    // result (`has`) is that kind's alone.
+    let added: { readonly id: LayerId; readonly row: string };
+    if (fresh.both === true && sameSelector(spec.selector, fresh.selector)) {
+        const parts = await styles.addRow({ ...spec, target: "both" }, at);
+        added = { id: parts[target] ?? parts.id, row: parts.id };
+    } else {
+        const layer = await styles.add({ ...spec, target }, at);
+        added = { id: layer.id, row: layer.row ?? layer.id };
+    }
     if (place !== undefined) {
-        await styles.moveRow("row" in added ? (added.row ?? added.id) : added.id, place);
+        await styles.moveRow(added.row, place);
     }
     await stripOthers(styles, plan);
     return added.id;
@@ -543,6 +513,7 @@ export function carriedOpacity(ctx: Pick<RowContext, "many" | "layers">, channel
  * @param channel - the channel.
  * @param write - the value or the binding.
  * @param also - values for other channels written with it where the row has none.
+ * @param alsoReplaces - write `also` over the values the row has.
  * @returns when it is written.
  */
 export function writeIn(
@@ -550,24 +521,25 @@ export function writeIn(
     channel: Channel,
     write: LiteralWrite | { readonly binding: DataBinding },
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    alsoReplaces = false,
 ): Promise<unknown> {
     const { many } = ctx;
     if (many === undefined) {
-        return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also);
+        return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also, alsoReplaces);
     }
     // ponytail: several rows take the extra values as separate writes, one undo step each.
     return many.write(channel, write).then(() =>
         Promise.all(
             Object.entries(also ?? {})
-                .filter(([c, value]) => value !== undefined && many.line(c as Channel) === undefined)
+                .filter(([c, value]) => value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined))
                 .map(([c, value]) => many.write(c as Channel, { value })),
         ),
     );
 }
 
 /**
- * Removes a line (or every part of a compound line) from the layer that sets it. The reader's
- * Everything layer is removed when nothing is left on it. One undoable step of the element's.
+ * Removes a line (or every part of a compound line) from the layer that sets it. The layer stays
+ * when nothing is left on it. One undoable step of the element's.
  * @param session - the element's session, or a transaction's scope.
  * @param layer - the layer that sets the line.
  * @param channels - the channel, or each part's channel.
@@ -579,10 +551,6 @@ export async function removeLine(
 ): Promise<void> {
     const set = without(layer.set, ...channels);
     const encode = without(layer.encode, ...channels);
-    if (set === undefined && encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
-        await session.styles.remove(layer.id);
-        return;
-    }
     // The layer stays when this was its last value: the panel removes properties one at a time.
     await session.styles.update(layer.id, { set, encode }, { keepEmpty: true });
 }
@@ -690,10 +658,11 @@ export function readsNothing(session: GraphSession, target: Target, channel: Cha
 
 /**
  * The name of what a binding reads, for its line: the column's name, or the run's value by the
- * name every other surface gives it ("Connections", not the method's "Degree").
+ * name every other surface gives it ("Connections", not the method's "Degree"), or a node's degree by
+ * the name graphty-element gives it ("In-degree").
  * @param session - the element's session.
  * @param binding - the binding.
- * @returns the name, or null when no column or run result of this session has the binding's path.
+ * @returns the name, or null when nothing of this session has the binding's path.
  */
 export function sourceName(session: GraphSession, binding: Pick<DataBinding, "by">): string | null {
     // The node id, and a column that only spells it, go by one name wherever they are listed.
@@ -708,25 +677,28 @@ export function sourceName(session: GraphSession, binding: Pick<DataBinding, "by
         return column.name;
     }
     const value = session.data.readableValues().find((each) => each.runId !== undefined && each.path === binding.by);
-    return value === undefined ? null : readableName(session, value).name;
+    if (value !== undefined) {
+        return readableName(session, value).name;
+    }
+    const structure = session.data.structureValues().find((each) => each.path === binding.by);
+    return structure?.plainName ?? null;
 }
 
 /**
- * A layer as the reader knows it: its tree row's name, or undefined for graphty-element's own base
- * layers, which the tree never shows and the panel calls "the default".
+ * A layer as the reader knows it: its tree row's name, or undefined for a layer with no row in the
+ * tree (the floor graphty-element paints beneath every row), which the panel calls "the default".
  * @param session - the element's session.
  * @param id - the layer.
- * @returns the name, or undefined for a base layer.
+ * @returns the name, or undefined for a layer with no row.
  */
 export function layerWord(session: GraphSession, id: LayerId): string | undefined {
     const layer = session.styles.get(id);
     if (layer === undefined) {
         return id;
     }
-    if (layer.source.by === "element" && layer.source.reason === "default") {
-        return undefined;
-    }
-    return findTreeRow(session.styles.tree(), layer.row ?? layer.id)?.row.name ?? layer.name;
+    // A row made from a file's styles goes by the words for its facts, as the tree names it.
+    const row = layer.row ?? layer.id;
+    return findTreeRow(session.styles.tree(), row) === undefined ? undefined : rowName(session, row);
 }
 
 /**
@@ -750,8 +722,10 @@ function agreementBeneath(
     }
     try {
         return session.styles.agreement("graph", channel, { below: row, over: row });
-    } catch {
-        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
+    } catch (error) {
+        // A row the element's tree does not hold (an element-owned layer, or one removed since) has no "beneath"
+        // to read: the stack as it is, as for a row not written yet.
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
         return session.styles.agreement("graph", channel);
     }
 }
@@ -780,87 +754,50 @@ export function beneathOf(
     };
 }
 
-/** A field a layer above paints over: who, and on how many of this row's elements. */
-export interface PaintedOver {
-    /** The rows that paint over it, the most elements first. */
-    readonly by: readonly string[];
-    /** A layer of each name in `by`, in the same order, which a link to it opens. */
-    readonly layers: readonly LayerId[];
-    /** On how many of the row's elements. */
-    readonly count: number;
-    /** How many elements of the field's kind the row matches. */
-    readonly of: number;
-    /**
-     * The shader the row's own layer draws instead of the node, when that is all that covers it:
-     * the field is hidden, not painted over, and comes back when the shader moves.
-     */
-    readonly hiddenBy?: string;
-}
-
 /**
- * Which of a row's fields a layer above paints over, read from graphty-element's answer over the
- * row's own elements with the whole stack (`styles.agreement` with `over`): an element whose
- * deciding layer is not one of the row's. A row that matches nothing is never painted over.
+ * Which of a row's fields its own shader hides: a shader one of the row's own layers draws in place
+ * of the channel (a sprite in place of the shape), while no layer above paints over it. Read from
+ * graphty-element's answer over the row's own elements with the whole stack (`styles.agreement`
+ * with `over`) and the row's counts (`styles.counts(...).covers`).
  * @param session - the element's session.
  * @param row - the tree row.
  * @param ids - the row's layers.
- * @returns a reader by channel: the facts, or undefined where nothing paints over it.
+ * @returns a reader by channel: the hiding shader's name, or undefined where none hides it.
  */
-export function paintedOverOf(
+export function hiddenByOf(
     session: GraphSession,
     row: string,
     ids: readonly LayerId[],
-): (channel: Channel) => PaintedOver | undefined {
+): (channel: Channel) => string | undefined {
     let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
     try {
         agreement = session.styles.agreement("graph", undefined, { over: row });
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
         return () => undefined;
     }
     if (agreement.readOver !== "row") {
         return () => undefined;
     }
-    const matchedOf = (kind: Target): number =>
-        rowLayers(session, ids, kind).reduce(
-            (most, layer) => Math.max(most, session.styles.counts(layer.id).matched),
-            0,
-        );
     return (channel) => {
         const entry = agreement.channels.find((c) => c.channel === channel);
-        if (entry === undefined) {
+        if (entry === undefined || (entry.covered ?? 0) === 0) {
             return undefined;
         }
-        const of = matchedOf(channel.startsWith("node.") ? "node" : "edge");
+        const read = agreement.elements ?? { nodes: 0, edges: 0 };
+        const of = channel.startsWith("node.") ? read.nodes : read.edges;
         const shares =
             entry.state === "agree"
                 ? [{ layerId: entry.layerId, count: of - entry.unpainted }]
                 : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
-        const painted = shares.filter((share) => !ids.includes(share.layerId) && share.count > 0);
-        // A shader drawn in place of the channel (a sprite in place of the shape, a mandala in
-        // place of the fill) covers it too: the element names who, per layer, in its counts.
-        const shaded = (entry.covered ?? 0) === 0 ? [] : shaderCovers(session, ids, channel);
-        const above = [...painted, ...shaded.filter((share) => !painted.some((p) => p.layerId === share.layerId))];
-        if (above.length === 0) {
+        if (shares.some((share) => !ids.includes(share.layerId) && share.count > 0)) {
             return undefined;
         }
-        const covering = above.map((share) => share.layerId);
-        // The row's own shader covers its own rows (a sprite over Shape): named by the shader.
-        const nameOf = (id: LayerId): string =>
-            (ids.includes(id) ? ownShaderName(session, id, channel) : undefined) ??
-            layerWord(session, id) ??
-            "the default";
-        const by = [...new Set(covering.map(nameOf))];
-        const own = covering.every((id) => ids.includes(id)) && painted.length === 0;
-        const hiddenBy = own
-            ? covering.map((id) => ownShaderName(session, id, channel)).find((n) => n !== undefined)
-            : undefined;
-        return {
-            by,
-            layers: by.map((name) => covering.find((id) => nameOf(id) === name) ?? covering[0]),
-            count: above.reduce((sum, share) => sum + share.count, 0),
-            of,
-            ...(hiddenBy === undefined ? {} : { hiddenBy }),
-        };
+        const shaded = shaderCovers(session, ids, channel);
+        if (shaded.length === 0 || !shaded.every((share) => ids.includes(share.layerId))) {
+            return undefined;
+        }
+        return shaded.map((share) => ownShaderName(session, share.layerId, channel)).find((n) => n !== undefined);
     };
 }
 
@@ -957,8 +894,7 @@ export function startFor(
 
 /**
  * The row a write lands on when the reader has chosen none: the lowest row of the tree that selects
- * every element, whatever it is called and whoever made it. A layer a first edit added beside the
- * element's own look ({@link EVERYTHING_LAYER}) stays in {@link everythingRow}.
+ * every element, whatever it is called and whoever made it.
  * @param session - the element's session.
  * @returns its id, or undefined when no row does.
  */
@@ -966,9 +902,22 @@ export function wholeGraphRow(session: GraphSession): string | undefined {
     const tree = session.styles.tree();
     return session.styles
         .list()
-        .filter((layer) => layer.selector.match === "everything" && layer.userData?.[EVERYTHING_KEY] !== true)
+        .filter((layer) => layer.selector.match === "everything")
         .map((layer) => layer.row ?? layer.id)
         .find((id) => findTreeRow(tree, id) !== undefined);
+}
+
+/**
+ * The layer the reader has selected: the style tree row last opened while the tree still holds it,
+ * else the row that paints every element (`wholeGraphRow`).
+ * @param session - the element's session.
+ * @param styleRow - the row last opened, if any.
+ * @returns its id, or undefined when neither exists.
+ */
+export function selectedLayerRow(session: GraphSession, styleRow: string | null): string | undefined {
+    return styleRow !== null && findTreeRow(session.styles.tree(), styleRow) !== undefined
+        ? styleRow
+        : wholeGraphRow(session);
 }
 
 /**
@@ -1050,7 +999,8 @@ export function layerValues(
                 }),
             ),
         ];
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.layerGroups", error);
         return null;
     }
 }

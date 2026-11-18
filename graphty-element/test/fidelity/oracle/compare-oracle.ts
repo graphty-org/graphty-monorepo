@@ -318,6 +318,11 @@ export interface OracleReport {
      * to compare it with) is not measurable there, which is never a failure.
      */
     judged: Partial<Record<OracleProperty, string[]>>;
+    /**
+     * The elements judged as the drawing as a whole (the frame, the background, the share of lines drawn bent): a
+     * property judging only these judges no element of the drawing one by one.
+     */
+    wholeDrawing: string[];
     association: unknown;
     transform: {
         scale: number;
@@ -736,11 +741,13 @@ const fromOwnEnd = (line: readonly Pt[], q: Pt, end: "source" | "target"): { px:
  * draws part-way (`partWay`), wherever the program draws its own, and one graphty draws part-way against a program's
  * head with no place of its own is not judged at all (it passed). Part-way is a quarter of the line or more from its
  * own end and over two of its own lengths: a head at the end of a short line between its nodes' outlines sits a third
- * along it (the specimen sheets' short lines).
+ * along it (the specimen sheets' short lines). On a short line the share allowed is at least a render pixel, which no
+ * reader sees (pajek-graphstream-b 28 -> 17: 0.58 oracle px apart on an 11 px line, a share of 0.052).
  * @param oLine - the oracle's line, between its nodes' outlines
  * @param oa - the oracle's arrowhead
  * @param gLine - graphty's line, between its nodes' outlines
  * @param ga - graphty's arrowhead, in the same frame
+ * @param pixel - a render pixel, in oracle pixels
  * @returns the miss and what each side measured, or null where nothing can be judged
  */
 function arrowPlaceMiss(
@@ -748,6 +755,7 @@ function arrowPlaceMiss(
     oa: PArrow,
     gLine: readonly Pt[],
     ga: PArrow,
+    pixel = 0,
 ): { miss: number; oracle: number | null; graphty: number } | null {
     if (oa.end === "middle") {
         return { miss: ga.misplaced ?? 0, oracle: null, graphty: ga.misplaced ?? 0 };
@@ -762,8 +770,10 @@ function arrowPlaceMiss(
     }
     const along = o.share;
     const mine = fromOwnEnd(gLine, ga.at, oa.end).share;
+    const length = o.share > 0 ? o.px / o.share : 0;
+    const allowed = Math.max(ARROW_ALONG_SHARE, length > 0 ? pixel / length : 0);
     return {
-        miss: Math.max(0, Math.abs(mine - along) - ARROW_ALONG_SHARE) / ARROW_ALONG_SHARE,
+        miss: Math.max(0, Math.abs(mine - along) - allowed) / allowed,
         oracle: R(along),
         graphty: R(mine),
     };
@@ -1075,7 +1085,9 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
     };
     // a ring drawn round a loop's node (vis-network's loop, behind its node) shows only the arc outside the node: it is
     // read from inside the node, wherever the program started stroking it (json-vis-synth 55 -> 55)
-    const head = trimStart(start !== undefined && start === end ? fromInside(pts, start) : [...pts], start);
+    // the same node at both ends, however each end's copy of it was made (each end's outline is its own object)
+    const loop = start !== undefined && start.id === end?.id;
+    const head = trimStart(loop ? fromInside(pts, start) : [...pts], start);
     const out = trimStart([...head].reverse(), end).reverse();
     // what is left wholly under its nodes (two nodes drawn over one another, the line between their centers) shows no
     // part between them: a sliver cut from it would be judged as the route (pajek-synth-vertices 32->41)
@@ -1128,8 +1140,14 @@ export function routeShape(
     if (loop) {
         const unit = Math.max(length, 1e-9);
         const [sx, sy] = shift[0];
-        const onNode = g.map(([x, y]): Pt => [x - sx, y - sy]);
-        return { gap: frechet(resample(o, N), resample(onNode, N)) / unit, unit };
+        const onNode = resample(
+            g.map(([x, y]): Pt => [x - sx, y - sy]),
+            N,
+        );
+        // a loop's arc runs either way round its node, as a ring does: which way it runs is its arrowhead's to say
+        // (edge.arrow); vis-network strokes its loop clockwise and graphty counterclockwise (json-vis-synth 55 -> 55)
+        const O = resample(o, N);
+        return { gap: Math.min(frechet(O, onNode), frechet(O, [...onNode].reverse())) / unit, unit };
     }
     if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
         const unit = Math.max(length, 1e-9);
@@ -1463,6 +1481,8 @@ export type OracleJudges = (property: OracleProperty, id: string, subject?: stri
 class Judge {
     readonly results = new Map<OracleProperty, OracleJudged[]>();
     readonly failed = new Map<string, Set<OracleProperty>>();
+    /** The ids judged as the drawing as a whole (kind "graph"). */
+    readonly wholeDrawing = new Set<string>();
 
     constructor(private readonly judges: OracleJudges = () => true) {}
 
@@ -1477,6 +1497,9 @@ class Judge {
     ): void {
         if (!this.judges(p, id, subject)) {
             return;
+        }
+        if (kind === "graph") {
+            this.wholeDrawing.add(id);
         }
         const pass = miss <= 0;
         const list = this.results.get(p) ?? [];
@@ -1670,15 +1693,17 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
             }
         }
         // a line that is a caption's words on its own may also be the first line of a longer caption wrapped under it
-        // ("font.strokeWidth=3" over "strokeColor")
+        // ("font.strokeWidth=3" over "strokeColor"); the longest such run is the caption, as its first lines may be
+        // another caption's whole words ("shape=" over "PARALLELOGRAM" over "60x30", cx-specimen-node-shapes)
         const run = [t];
+        let caption = 0;
         for (let next = below(t); next !== undefined && run.length < 4; next = below(next)) {
             run.push(next);
             if (words.has(squash(run.map((x) => x.content).join("")))) {
-                run.forEach((x) => dropped.add(x));
-                break;
+                caption = run.length;
             }
         }
+        run.slice(0, caption).forEach((x) => dropped.add(x));
     }
     // a caption's own body: a shape drawn tight around its words (a program that ignores the file's "no fill" on
     // a caption node still draws the box), part of the caption and left out with it
@@ -1940,6 +1965,11 @@ const fillOf = (b: PBox, width: number, height: number): number =>
  *     random placement, Cytoscape desktop's load layout, vis-network's physics against graphty's force layout): where
  *     those layouts are unrelated, where a node sits and how large the nodes are beside the spacing are each
  *     program's layout and not the file's, and are not judged
+ * @param options.labelsAvoidOverlap - the program hides a node's label where it would overlap another (Gephi's
+ *     Preview `node.label.avoidOverlap`, on by default): which labels it hides follows its own layout, so where each
+ *     side laid the file out itself (`ownLayouts`, unrelated layouts) a label the oracle does not show and graphty
+ *     does is not counted missing (gexf-hsk-chars, #8013: Gephi hides 38 to 50 of 868 labels on its own random
+ *     placement, different ones each run). A label the oracle shows and graphty does not still fails.
  * @param options.judges - which judgments to keep (default: all): a sheet judged per setting keeps, against each
  *     reference, only the properties of the settings that reference draws (`judges.ts`)
  * @returns the report, rounded
@@ -1949,7 +1979,13 @@ export function compareOracle(
     oracleScene: PScene,
     graphtyScene: PScene,
     association: unknown = null,
-    options: { mirror?: boolean; standIn?: boolean; ownLayouts?: boolean; judges?: OracleJudges } = {},
+    options: {
+        mirror?: boolean;
+        standIn?: boolean;
+        ownLayouts?: boolean;
+        labelsAvoidOverlap?: boolean;
+        judges?: OracleJudges;
+    } = {},
 ): OracleReport {
     const oracle = withoutCaptions(oracleScene, graphtyScene);
     const graphty = withoutCaptions(graphtyScene, oracleScene);
@@ -2085,6 +2121,8 @@ export function compareOracle(
     // Two layouts of a file that stores no positions, each its program's own and unrelated: neither where a node sits
     // nor its size beside the spacing is the file's
     const layoutJudged = !(options.ownLayouts === true && (transform?.unrelatedLayout ?? false));
+    // which node labels a program that avoids label overlap hides is its own layout's, not the file's
+    const oracleMayHideLabels = options.labelsAvoidOverlap === true && !layoutJudged;
     /** A size judged against each side's own spacing and extent, which the fitted scale cannot hide. */
     const layoutRelative = (p: "node.sizeToSpacing" | "node.sizeToExtent" | "edge.arrowToSpacing"): number | null => {
         // each program's own layout settles at its own spacing, so the extent and an arrowhead beside the spacing are
@@ -2140,8 +2178,9 @@ export function compareOracle(
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
         }
-        const oFill = shownFill(o);
-        // graphty's fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across
+        // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
+        // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)
+        const oFill = Math.min(o.w, o.h) < 0.5 ? null : shownFill(o);
         const gFill = Math.min(g.w, g.h) * lengthScale < 0.5 ? null : g.fill;
         const gGradAngle = gFill?.gradient?.angle ?? null;
         const runAngles = {
@@ -2242,6 +2281,8 @@ export function compareOracle(
                 ? null
                 : { kind: "box", o: outerBox(o, ow, oh), g: outerBox(g, gw0, gh0), vec: vecToOracle, pixel },
             oracle.labelGeometry !== false,
+            true,
+            oracleMayHideLabels,
         );
     }
 
@@ -2334,6 +2375,15 @@ export function compareOracle(
         at: PNode | undefined,
         end: Pt | undefined,
     ): [PNode | undefined, PNode | undefined] => {
+        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text nodes, whose
+        // lines it runs to their middle), or where it ends their lines (`PNode.endBox`: its icon nodes), is cut at that
+        // box, and graphty's line at its own node's box
+        if ((on?.drawnBox === true || on?.endBox !== undefined) && at !== undefined) {
+            return [
+                { ...on, ...on.endBox, shape: "rect" },
+                { ...at, figure: undefined, ...(bodied(at) ? {} : { shape: "rect" }) },
+            ];
+        }
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
         }
@@ -2773,9 +2823,13 @@ export function compareOracle(
         const swap = { source: "target", target: "source", middle: "middle" } as const;
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
         const ga = g.arrows.map(flip);
+        // a line wholly under its two nodes on both sides (two nodes drawn over one another) shows no head a reader
+        // sees either: graphty draws none there (#7759), and the program's, drawn before the nodes, lies under them
+        // (pajek-iliad 125 -> 123)
+        const unseen = shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel);
         for (const end of ["source", "target", "middle"] as const) {
-            const oa = o.arrows.find((a) => a.end === end);
             const gg = ga.find((a) => a.end === end);
+            const oa = unseen && gg === undefined ? undefined : o.arrows.find((a) => a.end === end);
             const at = `${id}@${end}`;
             j.add(
                 "edge.arrow",
@@ -2801,7 +2855,8 @@ export function compareOracle(
             );
             const framed = gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) };
             const place =
-                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ?? arrowPlaceMiss(vo, oa, vg, framed);
+                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ??
+                arrowPlaceMiss(vo, oa, vg, framed, pixel);
             const runOn = halfRunOnMiss(oa, gg);
             if (runOn !== null && runOn.miss > 0) {
                 j.add(
@@ -3313,6 +3368,7 @@ export function compareOracle(
         verdict: { pass: elements.length === 0, failing: elements.length },
         failures,
         judged,
+        wholeDrawing: [...j.wholeDrawing].sort(cmp),
         association,
         transform,
         counts: {
@@ -3700,8 +3756,11 @@ export function lineAngleAt(pts: readonly Pt[], q: Pt): number {
  * labelRenderedSizeThreshold, `node.labelMinNodeScreenSize`) shows while its node is drawn at least so many px
  * across, which depends on how large each side frames the graph, a camera choice judged apart (frame.zoom): it is
  * shown here where its node, at the oracle's scale, meets the rule (json-gephi-worldcup: 8 labels sigma shows on
- * nodes 12.22 px across, which graphty's framing draws 11.02 px across and hides). ponytail: only the node's own
- * label; a node with further texts under such a rule would lose them here, and no format draws one yet.
+ * nodes 12.22 px across, which graphty's framing draws 11.02 px across and hides). A label under a font-size rule
+ * (vis-network's drawThreshold, `node.labelMinScreenSize`) is judged the same way by its letters' height
+ * (json-vis-siblings: graphty's layout frames the labels 5.3 px tall, vis-network's 3.5 px, under its 4 px rule, #8196).
+ * ponytail: only the node's own label; a node with further texts under such a rule would lose them here, and no
+ * format draws one yet.
  * @param g - graphty's node
  * @param scale - oracle px per graphty px
  * @param oracle - the oracle's label, which decides a node on the rule's edge
@@ -3723,6 +3782,20 @@ function labelAtScale(g: PNode, scale: number, oracle: PText | null): PText | nu
 }
 
 /**
+ * Whether a label is drawn level on a line that is not: its turn on screen within `tol` degrees of none, its line's
+ * more than `tol` degrees off level either way.
+ * @param rotation - the label's turn on screen, degrees
+ * @param line - its line's angle there, degrees
+ * @param tol - degrees
+ * @returns true for a label kept level against its line
+ */
+function levelOnSlope(rotation: number, line: number, tol: number): boolean {
+    const off = (deg: number, period: number): number =>
+        Math.abs((((deg % period) + period * 1.5) % period) - period / 2);
+    return off(rotation, 360) <= tol && off(line, 180) > tol;
+}
+
+/**
  * Judges a label: its words (unless the element's own property does), size, weight, style, family, color, opacity,
  * rotation, lines and their alignment, outline, background, and its place -- against its node's or group's box, or
  * along its edge's line.
@@ -3738,6 +3811,7 @@ function judgeLabel(
     place: LabelPlace | null,
     geometry: boolean,
     words = true,
+    oracleMayHide = false,
 ): void {
     const T = ORACLE_TOLERANCES;
     // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's.
@@ -3747,6 +3821,10 @@ function judgeLabel(
     // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
     // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
     const g = graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) ? graphty : null;
+    // the oracle hid it by its own choice (overlap avoidance on an unrelated layout): nothing to judge
+    if (oracle === null && oracleMayHide) {
+        return;
+    }
     if (words) {
         j.add("label.present", kind, id, (o === null) === (g === null) ? 0 : 1, o?.content ?? null, g?.content ?? null);
     }
@@ -3768,13 +3846,19 @@ function judgeLabel(
     // own line there (a label drawn along its line on both sides, or level on both), in the oracle's line's frame.
     // A label kept upright on its line turns half round with the line's way, so there a half turn is no turn.
     const middle = (t: PText): Pt => [(t.box.x0 + t.box.x1) / 2, (t.box.y0 + t.box.y1) / 2];
+    // A label the program kept level on a line that is not (vis-network's default horizontal edge labels) is level
+    // whatever way the line runs: there the turn is the one on screen (json-vis-nodelegend, #8197). On a level line
+    // the two readings agree on the program's side, so it is judged along the line.
     const relative = place?.kind === "line" && place.relative && place.o.length >= 2 && place.g.length >= 2;
-    const turned = relative
-        ? g.rotation - lineAngleAt(place.g, place.gAt(g)) + lineAngleAt(place.o, middle(o))
-        : angleToOracle(g.rotation);
-    const turn = relative
-        ? ((((turned - o.rotation) % 180) + 270) % 180) - 90
-        : ((((turned - o.rotation) % 360) + 540) % 360) - 180;
+    const keptLevel = relative && levelOnSlope(o.rotation, lineAngleAt(place.o, middle(o)), T.rotationDeg);
+    const turned =
+        relative && !keptLevel
+            ? g.rotation - lineAngleAt(place.g, place.gAt(g)) + lineAngleAt(place.o, middle(o))
+            : angleToOracle(g.rotation);
+    const turn =
+        relative && !keptLevel
+            ? ((((turned - o.rotation) % 180) + 270) % 180) - 90
+            : ((((turned - o.rotation) % 360) + 540) % 360) - 180;
     j.add("label.rotation", kind, id, Math.max(0, Math.abs(turn) - T.rotationDeg), o.rotation, turned);
     const [on, gn] = [lineCount(o), lineCount(g)];
     j.add("label.lines", kind, id, Math.abs(on - gn), on, gn);
@@ -3933,7 +4017,10 @@ function judgeLabelDress(j: Judge, kind: string, id: string, o: PText, g: PText,
     if ((of !== null || os !== null) && (gf !== null || gs !== null) && ob !== null && gb !== null) {
         const shapeMiss = ob.shape !== null && gb.shape !== null && ob.shape !== gb.shape ? 1 : 0;
         const [ow, oh] = [ob.box.x1 - ob.box.x0, ob.box.y1 - ob.box.y0];
-        const [gw, gh] = [(gb.box.x1 - gb.box.x0) * scale, (gb.box.y1 - gb.box.y0) * scale];
+        // measured along its border's middle, as the oracle's box is the path its border is stroked along: graphty's
+        // box is the panel's outer edge, its border's whole width inside it
+        const mid = gs === null ? 0 : gs.width;
+        const [gw, gh] = [(gb.box.x1 - gb.box.x0 - mid) * scale, (gb.box.y1 - gb.box.y0 - mid) * scale];
         const miss =
             shapeMiss +
             Math.max(ratioMiss(gw / Math.max(ow, 1e-9), T.sizeRatio), ratioMiss(gh / Math.max(oh, 1e-9), T.sizeRatio));

@@ -57,7 +57,7 @@
  * COLOR AND OPACITY PER PIECE (`EDGE_SLOT_COLOR`, `edgeColor`). A plain batch -- not widened, not
  * pulled -- reads its color and opacity from one more instanced vec4 per piece instead of from the
  * `color` and `opacity` uniforms, so edges that differ only in color share one batch and a restyle
- * between two such looks (a time window's Ghost row) writes four floats in place rather than moving
+ * between two such looks (a time window's ghost look) writes four floats in place rather than moving
  * the edge to another batch (issue #6026). A widened batch has no varying row left for it and keeps
  * the uniforms.
  *
@@ -132,14 +132,41 @@ export const LEAN_TEMPLATE_OF: readonly number[] = [1, 2, 7, 6];
 export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
 
 /**
+ * A pulled piece's draw slot and the piece it draws (`PulledLineBatch`): the draw is unindexed, so
+ * `gl_VertexID / corners` is the slot. While pieces of two widths interleave, `edgeOrder` names the
+ * piece each slot draws, four slots to a texel, so they draw in the object path's order; otherwise
+ * (`edgeOrdered` 0) a slot draws the piece of its own number and the table is never read.
+ */
+export const PULLED_ORDER_GLSL = `
+uniform float edgeOrdered;
+uniform highp sampler2D edgeOrder;
+
+int pulledPiece(int slot) {
+    if (edgeOrdered < 0.5) {
+        return slot;
+    }
+    vec4 order = texelFetch(edgeOrder, ivec2((slot >> 2) & 1023, slot >> 12), 0);
+    return int(dot(order, vec4(equal(ivec4(0, 1, 2, 3), ivec4(slot & 3)))) + 0.5);
+}
+`;
+
+/**
+ * The join template vertex each of a lean piece's six corners draws: `LEAN_TEMPLATE_INDICES` read
+ * through `LEAN_TEMPLATE_OF`.
+ */
+const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
+
+/**
  * PULLED EDGES (`EDGE_PULLED`): a piece's six points are not attributes but read at the top of the
  * vertex stage. `edgeRows` holds two row numbers per piece (a texel holds two pieces), and
  * `rowPosition` (`render/RowTable.ts`) holds each row's place and its w; so moving a node uploads
- * its row and no edge byte. The draw is one indexed, non-instanced draw: index `piece * 14 + k`,
- * so `gl_VertexID` names both the piece and its template vertex. A straight piece between node
+ * its row and no edge byte. The draw is one unindexed, non-instanced draw of 30 corners a piece:
+ * `gl_VertexID / 30` is the draw slot (`pulledPiece` names its piece) and the rest names the corner,
+ * which `JOIN_TEMPLATE_INDICES` turns into its template vertex (#6389). A straight piece between node
  * centres is all this reads, written as `EdgeLineBatch.place` writes it: its neighbours are its
- * own ends and its run is zero. A free piece (rows below 0) and a piece with a row of w = 0
- * (hidden or not placed) get every point at the origin, as a hidden slot does, and draw nothing.
+ * own ends and its run is zero. A free piece (rows below 0), a piece flagged in `edgeHidden` (a byte a
+ * piece, four to a texel) and a piece with a row of w = 0 (hidden or not placed) get every point at
+ * the origin, as a hidden slot does, and draw nothing.
  * Every line after this is the plain line's, so the two draw the same pixels.
  *
  * A piece takes two texels: (source row, target row, width, opacity), then (red, green, blue). So
@@ -148,10 +175,13 @@ export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
  * would hold.
  *
  * The LEAN program (`EDGE_PULLED_LEAN`, straight pieces only) draws each piece from
- * `LEAN_TEMPLATE_OF`'s four vertices and six indices, `piece * 4 + k`, instead of the join template's
- * 14 and 30: the same rectangle and the same vertex shader after this, at fewer vertex
+ * `LEAN_TEMPLATE_OF`'s four vertices as six corners, instead of the join template's 30: the same rectangle and the same vertex shader after this, at fewer vertex
  * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
  * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
+ * With `EDGE_LINE_AA` (antialias "shader", on a canvas with no multisampling) the lean rectangle is
+ * half a pixel wider at each side, and the fragment stage multiplies the alpha by the share of the
+ * pixel the line covers, a smoothstep of its distance from the centre line: the smooth edge with no
+ * multisampling and no discard. Its ends stay square at the node centres, under the nodes.
  *
  * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
  * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
@@ -164,6 +194,7 @@ const PULLED_EDGE_GLSL = `
 #ifdef EDGE_PULLED
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D edgeRows;
+uniform highp sampler2D edgeHidden;
 float pieceWidth;
 flat varying vec4 vLook;
 const vec3 JOIN_TEMPLATE[${String(JOIN_TEMPLATE_VERTICES)}] = vec3[${String(JOIN_TEMPLATE_VERTICES)}](${Array.from(
@@ -178,11 +209,13 @@ vec4 pulledRow(int r) {
     return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
 }
 
+${PULLED_ORDER_GLSL}
 #ifdef EDGE_PULLED_LEAN
-const int PIECE_VERTICES = ${String(LEAN_TEMPLATE_OF.length)};
-const int LEAN_OF[PIECE_VERTICES] = int[PIECE_VERTICES](${LEAN_TEMPLATE_OF.join(", ")});
+const int PIECE_CORNERS = ${String(LEAN_CORNERS.length)};
+const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${LEAN_CORNERS.join(", ")});
 #else
-const int PIECE_VERTICES = ${String(JOIN_TEMPLATE_VERTICES)};
+const int PIECE_CORNERS = ${String(JOIN_TEMPLATE_INDICES.length)};
+const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${JOIN_TEMPLATE_INDICES.join(", ")});
 #endif
 
 #ifdef EDGE_PULLED_CURVE
@@ -194,16 +227,15 @@ const int PIECE_TEXELS = 2;
 #endif
 
 void pullEdge() {
-    int piece = gl_VertexID / PIECE_VERTICES;
-#ifdef EDGE_PULLED_LEAN
-    position = JOIN_TEMPLATE[LEAN_OF[gl_VertexID - piece * PIECE_VERTICES]];
-#else
-    position = JOIN_TEMPLATE[gl_VertexID - piece * PIECE_VERTICES];
-#endif
+    int slot = gl_VertexID / PIECE_CORNERS;
+    position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
+    int piece = pulledPiece(slot);
     int texel = piece * PIECE_TEXELS;
     vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
     vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);
-    vec2 rows = head.xy;
+    vec4 hiddenFlags = texelFetch(edgeHidden, ivec2((piece >> 2) & 1023, piece >> 12), 0);
+    // a hidden piece reads as a free one: its flag is the byte (piece & 3) of its texel
+    vec2 rows = dot(hiddenFlags, vec4(equal(ivec4(0, 1, 2, 3), ivec4(piece & 3)))) > 0.5 ? vec2(-1.0) : head.xy;
     pieceWidth = head.z;
     vLook = vec4(tint.rgb, head.w);
     pA = vec3(0.0);
@@ -255,6 +287,32 @@ void pullEdge() {
     run = vec2(0.0);
 }
 #endif
+`;
+
+/**
+ * A point behind the camera has a clip w of 0 or less, and dividing by it mirrors the point through
+ * the screen's centre (or gives Inf at 0), so a line with one end behind the camera would be drawn
+ * as a streak across the screen (issue #7126). `nearTrim` moves such an end along its segment, in
+ * clip space where the segment is still straight, to the plane z = -w: the near plane under WebGL's
+ * depth range, and just behind it under WebGPU's 0 to 1 range. Either way the moved end is in front
+ * of the camera (w > 0) on the segment's own line, so its screen point gives the true direction,
+ * and the rasterizer clips what lies past the near plane. Both ends behind (`nearBehind`): the
+ * segment draws nothing. The same arithmetic on the same two points gives the same result in every
+ * piece that reads them, so two pieces sharing a corner still agree on it.
+ */
+export const NEAR_TRIM_GLSL = `
+bool nearBehind(vec4 c) {
+    return c.z + c.w < 0.0;
+}
+
+vec4 nearTrim(vec4 c, vec4 toward) {
+    float dc = c.z + c.w;
+    float dt = toward.z + toward.w;
+    if (dc >= 0.0 || dt <= 0.0) {
+        return c;
+    }
+    return mix(c, toward, dc / (dc - dt));
+}
 `;
 
 /**
@@ -311,6 +369,11 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+// The pixel's signed distance from the centre line and the line's drawn half width there, both in
+// pixels and times w, then w: divided by the interpolated w they are linear on screen.
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 attribute float runTotal;
@@ -344,6 +407,7 @@ uniform vec3 edgeAgeWindow;
 
 const float EPS = 1e-4;
 ${PULLED_EDGE_GLSL}
+${NEAR_TRIM_GLSL}
 vec4 clipOf(vec3 p) {
     return viewProjection * (world * vec4(p, 1.0));
 }
@@ -379,10 +443,10 @@ float drawnHalfWidth(float hw) {
     return hw > 0.0 && hw < 0.5 ? 0.5 : hw;
 }
 
-// Half the line's drawn width at a point, along the whole edge (0 to 1) for a taper: the width the
-// piece ending there draws it at.
-float drawnHalfWidthAt(vec3 p, float along) {
-    float raw = halfWidthAt(clipOf(p));
+// Half the line's drawn width at a point's clip position, along the whole edge (0 to 1) for a
+// taper: the width the piece ending there draws it at.
+float drawnHalfWidthAt(vec4 c, float along) {
+    float raw = halfWidthAt(c);
 #ifdef EDGE_WIDENED
     raw *= mix(1.0, edgeMeta.w, clamp(along, 0.0, 1.0)) * edgeReach;
 #endif
@@ -465,12 +529,27 @@ void main() {
     bool joinVertex = position.z > 0.5;
     bool clipVertex = position.z > 1.5;
 
-    vec4 cA = clipOf(pA);
-    vec4 cB = clipOf(pB);
-    vec2 sPrev = toPx(clipOf(pPrev));
+    // Every point is trimmed toward its neighbour nearer this piece before it is projected, so a
+    // point behind the camera is never divided by its w (issue #7126); a corner behind the camera
+    // joins nothing, and its neighbour, reading the same points, agrees.
+    vec4 uA = clipOf(pA);
+    vec4 uB = clipOf(pB);
+    vec4 uPrev = clipOf(pPrev);
+    vec4 uNext = clipOf(pNext);
+    if (nearBehind(uA) && nearBehind(uB)) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+    vec4 cA = nearTrim(uA, uB);
+    vec4 cB = nearTrim(uB, uA);
+    vec4 cPrev = nearTrim(uPrev, uA);
+    vec4 cNext = nearTrim(uNext, uB);
+    vec4 cPrev2 = nearTrim(clipOf(pPrev2), uPrev);
+    vec4 cNext2 = nearTrim(clipOf(pNext2), uNext);
     vec2 sA = toPx(cA);
     vec2 sB = toPx(cB);
-    vec2 sNext = toPx(clipOf(pNext));
+    vec2 sPrev = nearBehind(uA) ? sA : toPx(cPrev);
+    vec2 sNext = nearBehind(uB) ? sB : toPx(cNext);
 
     vec2 own = sB - sA;
     float lenOwn = length(own);
@@ -513,10 +592,10 @@ void main() {
 #else
     float perTotal = 0.0;
 #endif
-    float hwPrevFar = drawnHalfWidthAt(pPrev, (run.x - length(pA - pPrev)) * perTotal);
-    float hwNextFar = drawnHalfWidthAt(pNext, (run.x + length(pB - pA) + length(pNext - pB)) * perTotal);
-    vec2 sPrev2 = toPx(clipOf(pPrev2));
-    vec2 sNext2 = toPx(clipOf(pNext2));
+    float hwPrevFar = drawnHalfWidthAt(cPrev, (run.x - length(pA - pPrev)) * perTotal);
+    float hwNextFar = drawnHalfWidthAt(cNext, (run.x + length(pB - pA) + length(pNext - pB)) * perTotal);
+    vec2 sPrev2 = nearBehind(uPrev) ? sPrev : toPx(cPrev2);
+    vec2 sNext2 = nearBehind(uNext) ? sNext : toPx(cNext2);
     vec4 linePrev2 = lineOf(sPrev2, sPrev);
     vec4 lineNext2 = lineOf(sNext, sNext2);
     float backPrev2 = run.x - length(pA - pPrev) - length(pPrev - pPrev2);
@@ -535,8 +614,8 @@ void main() {
     // Both corners in one float (cornerA + 3 cornerB), so the widened batch stays within the 15
     // varying rows WebGL2 guarantees.
     vFar = vec3(
-        drawnHalfWidthAt(pPrev2, backPrev2 * perTotal),
-        drawnHalfWidthAt(pNext2, aheadNext2 * perTotal),
+        drawnHalfWidthAt(cPrev2, backPrev2 * perTotal),
+        drawnHalfWidthAt(cNext2, aheadNext2 * perTotal),
         cornerA + 3.0 * cornerB
     );
 
@@ -546,7 +625,13 @@ void main() {
     float raw = atB ? rawB : rawA;
     bool joined = atB ? joinedB : joinedA;
 
+#ifdef EDGE_LINE_AA
+    // Half a pixel more on each side: the smoothed edge falls off from hw - 0.5 to hw + 0.5.
+    float across = side * (hw + 0.5);
+    vec2 off = n * across;
+#else
     vec2 off = side * n * hw;
+#endif
     bool onMiterLine = atB ? miterB : miterA;
     if (lenOwn <= EPS) {
         off = vec2(0.0);
@@ -562,19 +647,23 @@ void main() {
         vec3 q1 = atB ? pNext : pB;
         float lenQ = length(q - q0);
         float along = atB ? run.x + length(pB - pA) : run.x;
+        // A corner on a miter line is in front of the camera; its two other points are trimmed
+        // toward it, as both pieces trim them.
         vec4 cq = clipOf(q);
-        vec2 k0 = toPx(clipOf(q0));
+        vec4 cq0 = nearTrim(clipOf(q0), cq);
+        vec4 cq1 = nearTrim(clipOf(q1), cq);
+        vec2 k0 = toPx(cq0);
         vec2 k = toPx(cq);
-        vec2 k1 = toPx(clipOf(q1));
+        vec2 k1 = toPx(cq1);
         vec2 dIn; vec2 dOut; vec2 t; float lenIn; float lenOut;
         cornerAt(k0, k, k1, dIn, dOut, t, lenIn, lenOut);
-        float w = drawnHalfWidthAt(q, along * perTotal);
+        float w = drawnHalfWidthAt(cq, along * perTotal);
         vec2 tip;
         miterAt(dIn, dOut, lenIn, lenOut, w, tip);
         vec2 meet = sideMeet(
-            k0, drawnHalfWidthAt(q0, (along - lenQ) * perTotal),
+            k0, drawnHalfWidthAt(cq0, (along - lenQ) * perTotal),
             k, w,
-            k1, drawnHalfWidthAt(q1, (along + length(q1 - q)) * perTotal),
+            k1, drawnHalfWidthAt(cq1, (along + length(q1 - q)) * perTotal),
             dIn, dOut, side, tip
         );
         cP = cq;
@@ -620,6 +709,9 @@ void main() {
 
     vec2 here = sP + off;
     vScreen = vec4(here * cP.w, cP.w, hw);
+#ifdef EDGE_LINE_AA
+    vAcross = vec3(lenOwn > EPS ? across * cP.w : 0.0, hw * cP.w, cP.w);
+#endif
 
     float worldOwn = length(pB - pA);
     vOwn = vec4(sA, d);
@@ -651,7 +743,7 @@ void main() {
 
 /**
  * The fragment shader. `pattern` is (element length along the line, kind, half the line's width),
- * all in world units; kind 0 is solid, 1 dash, 2 dot.
+ * all in world units; kind 0 is solid, 1 dash or box, 2 dot, 3 diamond, 4 star.
  */
 export const EDGE_JOIN_FRAGMENT_SHADER = `
 precision highp float;
@@ -678,6 +770,9 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 varying vec4 vEdgeColorA;
@@ -750,7 +845,24 @@ bool patternOn(float dist, float across, float spacing) {
     if (pattern.y < 1.5) {
         return abs(off) <= r;
     }
-    return off * off + across * across <= r * r;
+    if (pattern.y < 2.5) {
+        return off * off + across * across <= r * r;
+    }
+    if (pattern.y < 3.5) {
+        // a diamond: its points r along the line and half the line's width across it
+        return abs(off) / r + abs(across) / max(pattern.z, 1e-6) <= 1.0;
+    }
+    // a five-pointed star, r to its points and 0.4 r to the corners between them, a point along the line
+    // (PatternedLineRenderer.createStarGeometry): fold the angle into half of one point and test the edge from the
+    // point to the corner beside it
+    float len = length(vec2(off, across));
+    float sector = 6.2831853 / 5.0;
+    float a = mod(atan(across, off), sector);
+    a = min(a, sector - a);
+    vec2 q = len * vec2(cos(a), sin(a));
+    vec2 tip = vec2(r, 0.0);
+    vec2 side = 0.4 * r * vec2(cos(sector * 0.5), sin(sector * 0.5)) - tip;
+    return side.x * (q.y - tip.y) - side.y * (q.x - tip.x) >= 0.0;
 }
 
 void main() {
@@ -888,6 +1000,22 @@ void main() {
 #else
 #ifdef EDGE_PULLED
     gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);
+#ifdef EDGE_LINE_AA
+    // The share of the pixel the line covers, from its distance to the centre line: a smoothstep
+    // across one pixel at each side (antialias "shader", no multisampling). A line under a pixel
+    // wide is drawn a pixel wide and fainter (vWidth.z), so its whole profile still sums to its width.
+    float hwAA = vAcross.y / vAcross.z;
+    float acrossAA = abs(vAcross.x / vAcross.z);
+    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, acrossAA);
+#ifdef EDGE_LINE_AA_CUT
+    // In 3D a fragment writes depth however faint it is, and a farther line drawn after it fails
+    // the depth test there: drop the outer half of the fringe (coverage under about 0.16) and any
+    // fragment fainter than four levels in 255, so a faint or thin line cuts no hole in a farther one.
+    if (acrossAA > hwAA + 0.25 || gl_FragColor.a < 4.0 / 255.0) {
+        discard;
+    }
+#endif
+#endif
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);
 #endif

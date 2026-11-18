@@ -41,7 +41,6 @@ import {
 import {
     bindResultPath,
     compareGroupKeys,
-    groupName,
     type Histogram,
     type HistogramOptions,
     type Normalization,
@@ -925,7 +924,7 @@ function summaryValueField(shape: ResultShape): string | null {
  * Read the `sizes` or `categories` table a result published as summary groups.
  * @param value - The published table.
  * @param limit - How many rows a summary may carry.
- * @param named - Whether each group gets its rank and display name, which a partition into
+ * @param named - Whether each group gets its rank, which a partition into
  *   groups does and a table of levels or of named categories does not.
  * @returns The groups, bounded, and how many the whole table holds, or undefined when the value is
  *   not a table this can read.
@@ -954,7 +953,7 @@ function toSummaryGroups(
             groupCount++;
             if (groups.length < limit) {
                 const rank = groupCount;
-                groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
+                groups.push(Object.freeze(named ? { group, size, rank } : { group, size }));
             }
         }
     }
@@ -980,6 +979,7 @@ class Result implements RunResult {
     readonly measured: { readonly nodes: number; readonly edges: number };
     readonly graph: Readonly<Record<string, unknown>>;
 
+    readonly #init: RunResultInit;
     readonly #nodes: ElementTable;
     readonly #edges: ElementTable;
     readonly #caveats: Caveats;
@@ -1004,6 +1004,7 @@ class Result implements RunResult {
         edges: ElementTable,
         graph: Readonly<Record<string, unknown>>,
     ) {
+        this.#init = init;
         this.runId = init.runId;
         this.shape = init.shape;
         // An algorithm declares its fields before any run exists, as "results.$.value"; the
@@ -1055,6 +1056,16 @@ class Result implements RunResult {
      */
     column(field: string): NumericColumnView {
         return this.#analyze(field).view;
+    }
+
+    /**
+     * The element at each position of {@link Result.column}'s view of one field.
+     * @param field - The field name.
+     * @returns The ids, in column order.
+     * @throws A GraphtyError coded E_UNKNOWN_ATTRIBUTE when the run published no such field.
+     */
+    ids(field: string): readonly NodeId[] {
+        return this.elementIds(this.#descriptorFor(field).kind === "edge" ? "edge" : "node");
     }
 
     /**
@@ -1228,6 +1239,16 @@ class Result implements RunResult {
 
     #groupRanks: ReadonlyMap<string, number> | undefined;
 
+    groups(): readonly SummaryGroup[] | undefined {
+        if (this.shape !== "community") {
+            return undefined;
+        }
+        this.#groups ??= toSummaryGroups(this.graph.sizes, Number.POSITIVE_INFINITY, true)?.groups;
+        return this.#groups;
+    }
+
+    #groups: readonly SummaryGroup[] | undefined;
+
     /**
      * What this result means, in one sentence of plain language.
      * @param options - The locale and how technical to be.
@@ -1270,6 +1291,72 @@ class Result implements RunResult {
                 (band.above === undefined || value > band.above) &&
                 (band.atLeast === undefined || value >= band.atLeast),
         );
+    }
+
+    /**
+     * The result as tab-separated text at full stored precision.
+     * @returns The text.
+     */
+    toTsv(): string {
+        const cell = (value: unknown): string => {
+            if (value === undefined || value === null) {
+                return "";
+            }
+            const text =
+                typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+                    ? String(value)
+                    : JSON.stringify(value);
+            return text.replaceAll(/[\t\r\n]/g, " ");
+        };
+        const perElement = (kind: "node" | "edge"): string[] =>
+            this.fields.filter((field) => field.kind === kind && field.type !== "table").map((field) => field.name);
+        const halves = (["node", "edge"] as const)
+            .map((kind) => ({ kind, names: perElement(kind) }))
+            .filter((half) => half.names.length > 0);
+        if (halves.length === 0) {
+            const names = this.fields
+                .filter((field) => field.kind === "graph" && field.type !== "table")
+                .map((field) => field.name);
+            return [names.join("\t"), names.map((name) => cell(this.graph[name])).join("\t")].join("\n");
+        }
+
+        const names = [...new Set(halves.flatMap((half) => half.names))];
+        const both = halves.length > 1;
+        const lines = [[...(both ? ["kind"] : []), "id", ...names].join("\t")];
+        for (const { kind } of halves) {
+            for (const id of this.elementIds(kind)) {
+                const record = recordOf(kind === "node" ? this.#nodes : this.#edges, id) ?? {};
+                lines.push([...(both ? [kind] : []), cell(id), ...names.map((name) => cell(record[name]))].join("\t"));
+            }
+        }
+
+        return lines.join("\n");
+    }
+
+    /**
+     * The ids of the elements the result picks out.
+     * @returns The ids.
+     */
+    memberIds(): readonly NodeId[] {
+        const flagged = (table: ElementTable, field: string): NodeId[] => {
+            const ids: NodeId[] = [];
+            for (let position = 0; position < table.length; position++) {
+                if (valueAt(table, field, position) === true) {
+                    ids.push(table.index.idOf(position));
+                }
+            }
+            return ids;
+        };
+        switch (this.shape) {
+            case "node-set":
+                return flagged(this.#nodes, "in");
+            case "edge-set":
+                return flagged(this.#edges, "in");
+            case "path":
+                return [...flagged(this.#nodes, "onPath"), ...flagged(this.#edges, "onPath")];
+            default:
+                return [...this.elementIds("node"), ...this.elementIds("edge")];
+        }
     }
 
     /**
@@ -1375,6 +1462,46 @@ class Result implements RunResult {
         }
 
         return bytes;
+    }
+
+    /**
+     * This result with some node fields' values renamed and other caveats: the same ids, the same
+     * other columns, and group size rows that follow the new names.
+     * @param renames - For each node field, each old value's new one; a value not listed stays.
+     * @param more - Facts the copy's caveats carry past this one's.
+     * @returns The copy.
+     */
+    renumbered(renames: ReadonlyMap<string, ReadonlyMap<unknown, unknown>>, more: AddedFacts): Result {
+        const from = this.#nodes;
+        const nodes: ElementTable = { ...from, columns: new Map(from.columns), orders: new Map() };
+        const rename = (map: ReadonlyMap<unknown, unknown>, value: unknown): unknown =>
+            map.has(value) ? map.get(value) : value;
+        for (const [field, map] of renames) {
+            const column = from.columns.get(field);
+            if (column !== undefined) {
+                nodes.columns.set(
+                    field,
+                    Array.from(column as ArrayLike<unknown>, (value) =>
+                        value === MISSING ? value : rename(map, value),
+                    ),
+                );
+                sealColumn(nodes, field);
+            }
+        }
+        const graph: Record<string, unknown> = { ...this.graph };
+        const groups = renames.get("group");
+        if (groups !== undefined && Array.isArray(graph.sizes)) {
+            const rows = (graph.sizes as readonly ResultSizeRow[]).map((row) =>
+                Object.freeze({ ...row, group: rename(groups, row.group) as ResultSizeRow["group"] }),
+            );
+            rows.sort((left, right) => right.size - left.size || compareGroupKeys(left.group, right.group));
+            graph.sizes = Object.freeze(rows);
+        }
+        const caveats: Caveats = Object.freeze({
+            ...this.#caveats,
+            facts: Object.freeze([...this.#caveats.facts, ...more.facts]),
+        });
+        return new Result({ ...this.#init, caveats }, nodes, this.#edges, Object.freeze(graph));
     }
 
     /**
@@ -1575,6 +1702,35 @@ export function retentionOf(result: RunResult): { readonly bytes: number; readon
  */
 export function elementIdsOf(result: RunResult, half: "node" | "edge"): readonly NodeId[] {
     return result instanceof Result ? result.elementIds(half) : [];
+}
+
+/** Caveat facts added to a result. */
+export interface AddedFacts {
+    readonly facts: Caveats["facts"];
+}
+
+/**
+ * Whether a value is a result this module built, so it can be renumbered and listed.
+ * @param value - Anything.
+ * @returns True for a built result.
+ */
+export function isBuiltResult(value: unknown): value is RunResult {
+    return value instanceof Result;
+}
+
+/**
+ * A result with some node fields' values renamed (a partition's group numbers) and other caveats.
+ * @param result - The result; one this module did not build is handed back unchanged.
+ * @param renames - For each node field, each old value's new one; a value not listed stays.
+ * @param more - Facts the copy's caveats carry past the result's.
+ * @returns The copy.
+ */
+export function renumberResult(
+    result: RunResult,
+    renames: ReadonlyMap<string, ReadonlyMap<unknown, unknown>>,
+    more: AddedFacts,
+): RunResult {
+    return result instanceof Result ? result.renumbered(renames, more) : result;
 }
 
 /**

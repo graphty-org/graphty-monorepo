@@ -30,6 +30,11 @@ export const THRESHOLDS = {
     groupJaccard: 1,
     /** Group box (and annotation box) intersection over union. */
     groupIoU: 0.8,
+    /**
+     * Each end of an arrow annotation's line, over the reference line's length: a tenth, the shift an ordinary
+     * annotation box's 0.8 overlap allows along one side.
+     */
+    arrowEnd: 0.1,
     /** Kendall tau of drawing order over the node pairs whose reference boxes overlap. */
     zOrderTau: 0.9,
 } as const;

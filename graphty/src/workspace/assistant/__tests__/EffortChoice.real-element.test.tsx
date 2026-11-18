@@ -83,8 +83,9 @@ describe("the Assistant's effort", () => {
 
         await waitFor(() => {
             assert.strictEqual(enabled.at(-1)?.reasoningEffort, "high");
+            // Kept once the assistant has taken it.
+            assert.strictEqual(readAssistantChoice()?.effort, "high");
         });
-        assert.strictEqual(readAssistantChoice()?.effort, "high");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"));
         });

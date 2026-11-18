@@ -151,7 +151,13 @@ export class FixedLayout extends SnapshotLayoutEngine {
      */
     private async route(input: SnapshotLayoutInput, positions: F32): Promise<F32> {
         const { layoutStructure, pinnedRoutes, routesOf } = await import("./GraphvizLayoutEngine");
-        const structure = layoutStructure(input, this._nodes, this._edges, this.followerGroups, true);
+        const structure = layoutStructure(
+            input,
+            { records: this.rowRecords(input.stored.nodeCount), ranks: this.rankSets() },
+            this._edges,
+            this.followerGroups,
+            true,
+        );
         try {
             const bends = await pinnedRoutes(
                 input,

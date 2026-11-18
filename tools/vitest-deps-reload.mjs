@@ -11,6 +11,17 @@
 //
 // Both messages reach the terminal through the one vitest logger (vitest's Vite logger writes to it),
 // so wrapping it once covers every project of the run, browser servers included.
+//
+// It also holds each browser project's first page until that project's Vite server has finished its
+// start-up dependency scan and bundle (#8352). Vitest opens the page as soon as the server listens and
+// gives Chromium `browser.connectTimeout` (60 s) to connect, but Vite holds the page's first request
+// until the scan ends, and with `optimizeDeps.force` the scan and bundle are a full re-optimization:
+// measured pinned to one core beside a typecheck, the scan alone took 5.6 to 16 s and the bundle 19 to
+// 31 s, all inside the connect window, so a slow run failed "Failed to connect to the browser session
+// ... within the timeout" with Chromium itself up in 2.5 s. Waiting in vitest's onBrowserInit, which it
+// awaits before launching the browser, leaves only the browser's own start-up in that window. A
+// reporter on the command line (--reporter, as the CI shards pass) replaces the config's reporters, so
+// the hook is added to the run's reporter list here rather than in `reporters`.
 
 import { stripVTControlCharacters } from "node:util";
 
@@ -70,13 +81,45 @@ export function watchLogger(logger, fail) {
 }
 
 /**
- * The globalSetup: watch the run's logger; a match fails the run (exit code 1, and an unhandled error
- * in the summary and the reports).
+ * Settles once a Vite environment's start-up dependency optimization is done: the scan, then the
+ * bundle of everything it found. Vite settles both on failure too, and a cached run (no `force`, cache
+ * still valid) has nothing to wait for.
+ * @param optimizer - the environment's `depsOptimizer`, if it has one
+ */
+export async function depsOptimized(optimizer) {
+    if (!optimizer) {
+        return;
+    }
+    await optimizer.init();
+    await optimizer.scanProcessing;
+    await Promise.all(Object.values(optimizer.metadata.discovered).map((dep) => dep.processing));
+}
+
+/** The reporter hook vitest awaits after creating a project's browser server and before opening its page. */
+export const waitForBrowserDeps = {
+    onBrowserInit: (project) => depsOptimized(project.browser?.vite.environments.client?.depsOptimizer),
+};
+
+/**
+ * The globalSetup: hold each browser page until its dependencies are bundled, and watch the run's
+ * logger; a match fails the run (exit code 1, and an unhandled error in the summary and the reports).
  * @param project - the vitest TestProject
  */
 export default function setup(project) {
     const vitest = project?.vitest;
-    if (!vitest?.logger || vitest.config?.watch) {
+    if (!vitest) {
+        return;
+    }
+    // vitest.reporters is not in vitest's types; fail loudly if an upgrade moves it.
+    if (!Array.isArray(vitest.reporters)) {
+        throw new TypeError(
+            "tools/vitest-deps-reload.mjs: vitest.reporters is gone; re-home the onBrowserInit hook (#8352)",
+        );
+    }
+    if (!vitest.reporters.includes(waitForBrowserDeps)) {
+        vitest.reporters.push(waitForBrowserDeps);
+    }
+    if (!vitest.logger || vitest.config?.watch) {
         return;
     }
     watchLogger(vitest.logger, (error) => {

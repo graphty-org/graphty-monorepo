@@ -8,14 +8,14 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { sampleData } from "../../../src/ai/commands/SchemaCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 
 describe("sampleData command", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph({ nodes: 25, edges: 40 });
+        graph = createMockTestGraph({ nodes: 25, edges: 40 });
         context = createMockContext(graph);
     });
 
@@ -121,13 +121,13 @@ describe("sampleData command", () => {
     describe("value truncation", () => {
         it("truncates long string values in output", async () => {
             // Create a graph with long string values
-            const graphWithLongStrings = createTestGraph({ nodes: 5, edges: 5 });
+            const graphWithLongStrings = createMockTestGraph({ nodes: 5, edges: 5 });
             const dataManager = graphWithLongStrings.getDataManager();
 
             // Add a node with a very long string value
             const nodes = Array.from(dataManager.nodes.values());
             if (nodes[0]) {
-                (nodes[0].data as any).longDescription = "x".repeat(500);
+                nodes[0].data.longDescription = "x".repeat(500);
             }
 
             const result = await sampleData.execute(graphWithLongStrings, { target: "nodes", count: 5 }, context);
@@ -165,7 +165,7 @@ describe("sampleData command", () => {
 
     describe("edge cases", () => {
         it("handles empty graph", async () => {
-            const emptyGraph = createTestGraph({ nodes: 0, edges: 0 });
+            const emptyGraph = createMockTestGraph({ nodes: 0, edges: 0 });
             const result = await sampleData.execute(emptyGraph, {}, context);
             assert.strictEqual(result.success, true);
             const data = result.data as { nodes: unknown[]; edges: unknown[] };

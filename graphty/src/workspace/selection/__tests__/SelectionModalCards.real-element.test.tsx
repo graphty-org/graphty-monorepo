@@ -28,8 +28,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The full-screen selection workspace is the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /** A graph to load: Les Miserables unless a test names another. */
 interface Sample {
@@ -97,7 +97,7 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns the modal.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
@@ -609,7 +609,7 @@ describe("long names in the selection modal (the owner, 2026-11-04)", () => {
 describe("the start button of an empty card", () => {
     it("takes All nodes before the first value, and the value then narrows All", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
         const modal = await screen.findByRole("dialog", { name: /Which nodes/ });
         await userEvent.click(within(modal).getByRole("button", { name: "No nodes" }));
         await within(modal).findByRole("button", { name: "All nodes" });
@@ -634,7 +634,7 @@ describe("Escape on the workspace, wherever focus was left", () => {
     it("cancels after a press on the drawing or on the title bar's empty space", async () => {
         await openLayer();
         for (const spot of [".sel-ws-preview", ".sel-ws-head"]) {
-            await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+            await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
             await screen.findByRole("dialog", { name: /Which nodes/ });
             const box = document.querySelector(spot);
             if (box === null) {
@@ -650,7 +650,7 @@ describe("Escape on the workspace, wherever focus was left", () => {
 });
 
 describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)", () => {
-    it("a new layer shows Edit on Which nodes and Which edges with no hover, and each opens the modal", async () => {
+    it("a new layer shows Style Nodes... and Style Edges... with no hover, and each opens the modal", async () => {
         await openLayer();
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
@@ -662,8 +662,8 @@ describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)"
             ["Edge", "edges"],
         ]) {
             await userEvent.click(within(tab).getByRole("tab", { name: new RegExp(`^${side}`) }));
-            const edit = await within(tab).findByRole("button", { name: `Edit Which ${word}` });
-            assert.strictEqual(getComputedStyle(edit).opacity, "1", `Edit on Which ${word} is drawn at rest`);
+            const edit = await within(tab).findByRole("button", { name: `Style ${side}s...` });
+            assert.strictEqual(getComputedStyle(edit).opacity, "1", `Style ${side}s... is drawn at rest`);
             assert.isAbove(edit.getBoundingClientRect().width, 0);
             await userEvent.click(edit);
             const modal = await screen.findByRole("dialog", { name: new RegExp(`Which ${word}`) });
@@ -671,6 +671,113 @@ describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)"
             await waitFor(() => {
                 assert.isNull(document.querySelector(".sel-ws"));
             });
+        }
+    });
+});
+
+describe("a card's More menu and the title's", () => {
+    /**
+     * Runs one item of a "..." menu.
+     * @param name - whose menu: a card's letter or the title.
+     * @param item - the item's label.
+     */
+    async function runItem(name: string, item: RegExp): Promise<void> {
+        await userEvent.click(screen.getByRole("button", { name: `More for ${name}` }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"), "the menu closed");
+        });
+    }
+
+    it("Turn off, Duplicate, Move up, Save as set and Delete act on their card", async () => {
+        const { session, layer } = await twoCards();
+        const branches = (): UnionLeaf["branches"] => unionOf(session, layer.id)?.branches ?? [];
+        const [a, b] = branches().map((each) => each.id ?? "");
+
+        await runItem("B", /^Turn off/);
+        await waitFor(() => {
+            assert.isFalse(branches()[1]?.on, "B is off");
+        });
+        await runItem("B", /^Turn on/);
+        await waitFor(() => {
+            assert.notStrictEqual(branches()[1]?.on, false, "B is on again");
+        });
+
+        await runItem("B", /^Move up/);
+        await waitFor(() => {
+            assert.deepEqual(
+                branches().map((each) => each.id),
+                [b, a],
+            );
+        });
+
+        await runItem("A", /^Duplicate/);
+        await waitFor(() => {
+            assert.lengthOf(branches(), 3);
+        });
+        const copy = branches().find((each) => each.id !== a && each.id !== b);
+        assert.deepEqual(copy?.steps[0]?.rule, branches().find((each) => each.id === a)?.steps[0]?.rule);
+
+        await runItem("A", /^Save as set/);
+        await waitFor(() => {
+            assert.isTrue(
+                session.sets.list().some((set) => set.name === "A"),
+                "a set named after the card",
+            );
+        });
+
+        await runItem("A", /^Delete/);
+        await waitFor(() => {
+            assert.isFalse(
+                branches().some((each) => each.id === a),
+                "A is gone",
+            );
+        });
+        assert.lengthOf(branches(), 2);
+    });
+
+    it("the title's Clear takes the selection back to one empty card", async () => {
+        const { session, layer, modal } = await twoCards();
+        const title = modal.querySelector<HTMLElement>("[aria-label^='More for ']")?.getAttribute("aria-label") ?? "";
+        await runItem(title.replace(/^More for /, ""), /^Clear/);
+        await waitFor(() => {
+            const branches = unionOf(session, layer.id)?.branches ?? [];
+            assert.isTrue(
+                branches.every((each) => each.steps.length === 0),
+                "no step is left",
+            );
+        });
+        await waitFor(() => {
+            assert.lengthOf(cards(), 1);
+        });
+    });
+    it("the title's Select N selects what the cards match", async () => {
+        const { session, layer, modal } = await twoCards();
+        const title = modal.querySelector<HTMLElement>("[aria-label^='More for ']")?.getAttribute("aria-label") ?? "";
+        const where = session.styles.get(layer.id)?.selector;
+        assert.strictEqual(where?.match, "rule");
+        const count =
+            where?.match === "rule"
+                ? (await session.scope.count({ define: { kind: "rule", where: where.where, reading: "clipped" } }))
+                      .nodes
+                : -1;
+        assert.isAbove(count, 0);
+        await runItem(title.replace(/^More for /, ""), new RegExp(`^Select ${String(count)}`));
+        await waitFor(() => {
+            assert.equal(session.selection.nodes.length, count);
+        });
+    });
+
+    it("Tab keeps focus inside the workspace, both ways", async () => {
+        const { modal } = await twoCards();
+        const stops = modal.querySelectorAll("button, input, [tabindex='0']").length + 2;
+        for (let i = 0; i < stops; i++) {
+            await userEvent.keyboard("{Tab}");
+            assert.isTrue(modal.contains(document.activeElement), `Tab ${String(i + 1)} stays in the workspace`);
+        }
+        for (let i = 0; i < stops; i++) {
+            await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+            assert.isTrue(modal.contains(document.activeElement), `Shift+Tab ${String(i + 1)} stays in the workspace`);
         }
     });
 });

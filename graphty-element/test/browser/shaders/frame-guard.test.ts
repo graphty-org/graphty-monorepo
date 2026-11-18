@@ -19,13 +19,13 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
-import type { RenderManager } from "../../../src/managers/RenderManager";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { type RenderQualityChange, shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
 import { defineShader } from "../../../src/simple/defineShader";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 
 const WIDTH = 400;
@@ -171,15 +171,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 }
 
 /**
- * The element's render manager.
- * @param element - The element.
- * @returns It.
- */
-function renderManagerOf(element: Graphty): RenderManager {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager;
-}
-
-/**
  * The element's shader host, its runtime loaded.
  * @param element - The element.
  * @returns The host.
@@ -280,7 +271,7 @@ describe("the frame guard", () => {
         cleanups.unshift(() => {
             scene.onBeforeRenderObservable.remove(timing);
         });
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         let sprites = 3;
         for (let round = 0; round < 12 && seen.length === 0; round++) {
             if (round > 0) {
@@ -326,7 +317,7 @@ describe("the frame guard", () => {
             scene.onBeforeRenderObservable.remove(busy);
         });
 
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         const from = ticks.drawn;
         await until(element, "40 slow frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);
@@ -380,7 +371,7 @@ describe("the frame guard", () => {
         await until(element, "the loop sprite holds its frame claim", () => everyFrameAnimationsOn(scene) > 0);
         const seen = qualityEvents(element);
         slowGpu(element, () => 80);
-        const { ticks } = renderManagerOf(element);
+        const { ticks } = renderManagerOf(element.graph);
         const from = ticks.drawn;
         await until(element, "40 GPU-bound frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);
@@ -434,26 +425,6 @@ describe("motion", () => {
     }
 });
 
-/**
- * Read one pixel of the canvas, at a point in CSS pixels.
- * @param element - The element.
- * @param x - x.
- * @param y - y.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, x: number, y: number): Promise<number[]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 1);
-    const scale = 1 / engine.getHardwareScalingLevel();
-    const read = (await engine.readPixels(
-        Math.round(x * scale),
-        Math.round(engine.getRenderHeight() - y * scale),
-        1,
-        1,
-    )) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
-}
-
 describe("the level's caps and detail", () => {
     it("crops an effect's square to 128 px at low quality and leaves it whole at high", async () => {
         const element = await mounted(
@@ -475,7 +446,7 @@ describe("the level's caps and detail", () => {
         const ringX = center.x + (edge.x - center.x) * 3;
 
         const isRed = async (): Promise<boolean> => {
-            const [r, g] = await pixelAt(element, ringX, center.y);
+            const [r, g] = await pixelAt(element, { x: ringX, y: center.y });
             return r > 200 && g < 60;
         };
         let red = false;

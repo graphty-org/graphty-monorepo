@@ -4,7 +4,8 @@
  * consumed as units and backslash-newline as a line continuation, an HTML string in balanced
  * angle brackets), the punctuation of the
  * grammar, the two edge operators, the `+` of quoted-string concatenation, and the three comment
- * forms (`//`, `/* ... *\/`, and a `#` line, which is C preprocessor output). Keywords are not
+ * forms (`//`, `/* ... *\/`, and `#` to the end of the line: C preprocessor output at column 0, a
+ * shell-style comment anywhere else). Keywords are not
  * distinguished here: the parser matches a bare id case-insensitively, since a quoted `"node"` is
  * an ordinary id. Line numbers are 1-based and attached to every token for the report.
  */
@@ -111,6 +112,12 @@ export class DotTokenizer {
     private readonly lookahead: DotToken[] = [];
 
     private readonly onAmbiguity: ((numeral: string, line: number) => void) | null;
+
+    /**
+     * The text of every HTML string lexed so far, outer brackets kept: which texts the document wrote as HTML, since
+     * a quoted `"<init>"` and an HTML `<init>` decode to the same text. The importer clears it per graph.
+     */
+    readonly htmlTexts = new Set<string>();
 
     /**
      * Create a lexer over a whole document.
@@ -225,7 +232,7 @@ export class DotTokenizer {
         }
         this.pos = end;
         const numeral = text.slice(start, end);
-        const after = text.charCodeAt(end); // NOSONAR(S7758): reads UTF-16 code units on purpose
+        const after = text.charCodeAt(end); // eslint-disable-line unicorn/prefer-code-point -- reads UTF-16 code units on purpose
         // a letter (`1e3`) or a second dot (`1.2.3`) right after the numeral: Graphviz splits there
         if (end < text.length && (isIdentifierStart(after) || after === 0x2e) && this.onAmbiguity !== null) {
             // Graphviz: "syntax ambiguity - badly delimited number '1e' ... splits into two tokens"
@@ -337,7 +344,9 @@ export class DotTokenizer {
                 depth--;
                 if (depth === 0) {
                     this.pos = i + 1;
-                    return { kind: "id", text: text.slice(start, i + 1), quoted: false, html: true, line };
+                    const html = text.slice(start, i + 1);
+                    this.htmlTexts.add(html);
+                    return { kind: "id", text: html, quoted: false, html: true, line };
                 }
             } else if (c === 0x0a || (c === 0x0d && text.charCodeAt(i + 1) !== 0x0a)) {
                 this.line++;
@@ -362,7 +371,7 @@ export class DotTokenizer {
     }
 
     /**
-     * Skip one line break, comment or leading `#` line at the current position.
+     * Skip one line break or comment (`//`, block or `#`) at the current position.
      * @param c - the code unit at the current position
      * @returns false when the current position starts a token
      */
@@ -374,7 +383,9 @@ export class DotTokenizer {
         if (c === 0x2f) {
             return this.skipComment();
         }
-        if (c === 0x23 && this.pos === 0) {
+        if (c === 0x23) {
+            // a `#` line at column 0 is C preprocessor output, and a `#` anywhere else between
+            // tokens starts a shell-style comment: Graphviz ignores both to the end of the line
             this.skipToLineEnd();
             return true;
         }
@@ -382,13 +393,12 @@ export class DotTokenizer {
     }
 
     /**
-     * Consume the line break at the current position (CR LF as one) and a `#` line after it.
+     * Consume the line break at the current position (CR LF as one).
      * @param c - the code unit at the current position, LF or CR
      */
     private skipLineBreak(c: number): void {
         this.line++;
         this.pos += c === 0x0d && this.text.codePointAt(this.pos + 1) === 0x0a ? 2 : 1;
-        this.skipPreprocessorLine();
     }
 
     /**
@@ -406,15 +416,6 @@ export class DotTokenizer {
             return true;
         }
         return false;
-    }
-
-    /**
-     * Discard a `#` line when one starts at the current position (the start of a line).
-     */
-    private skipPreprocessorLine(): void {
-        if (this.text.charCodeAt(this.pos) === 0x23) {
-            this.skipToLineEnd();
-        }
     }
 
     /**

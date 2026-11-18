@@ -45,6 +45,7 @@ import {
 } from "../helpers/reduce-input.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { reduceIdentity, reduceOracle } from "../oracle/reduce.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const OPS: readonly ReduceOp[] = ["sum", "min", "max"];
@@ -236,7 +237,7 @@ describe("reduce (spec 6 row 1): equals the f64 oracle, twins agree, twice bitwi
             if (!suppressedTwin) {
                 recordNoiseRow(twinRow);
                 writeNoiseFixture("reduce", "random1k", cls, sums, "f32");
-                if (process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1") {
+                if (noiseFloorWriting()) {
                     expect(existsSync(noiseFixturePath("reduce", "random1k", cls))).toBe(true);
                 }
             }

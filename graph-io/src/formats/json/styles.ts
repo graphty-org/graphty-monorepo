@@ -21,6 +21,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { itemAt } from "../../common/text.js";
+import { flipY } from "../../positions/convert.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
@@ -40,7 +41,7 @@ import { StyleApproximations } from "../../styles/io/approximations.js";
 import { parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
-import { StyleNotes } from "../../styles/notes.js";
+import { lossOf, StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -50,7 +51,6 @@ import type {
     NodeStyleProperty,
     Predicate,
     StyleColumn,
-    StyleNote,
     StyleReadContext,
     StyleRule,
     StyleTarget,
@@ -288,6 +288,28 @@ function directedArrows(snapshot: GraphSnapshot): {
 function cells(snapshot: GraphSnapshot, target: StyleTarget, name: string): ((i: number) => unknown) | null {
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     return table.has(name) ? (i: number) => plainCell(table.value(name, i)) : null;
+}
+
+/**
+ * vis.js: each node's `x` and `y` as the file wrote them: the role-`position` column the importer made of numeric ones
+ * (its y flipped back to down), else the plain `x` / `y` cells (text vis-network parses as a number).
+ * @param snapshot - the graph
+ * @returns the x and y readers
+ */
+function visPlaces(
+    snapshot: GraphSnapshot,
+): readonly [((i: number) => unknown) | null, ((i: number) => unknown) | null] {
+    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const position = snapshot.nodes.byRole("position");
+    if (position === null) {
+        return [xs, ys];
+    }
+    const down = (k: 0 | 1, v: number): number => (k === 1 ? flipY(v) : v);
+    const at =
+        (k: 0 | 1, plain: ((i: number) => unknown) | null) =>
+        (i: number): unknown =>
+            position.isSet(i) ? down(k, (position.value(i) as ArrayLike<number>)[k]) : plain?.(i);
+    return [at(0, xs), at(1, ys)];
 }
 
 /**
@@ -951,6 +973,12 @@ function visImage(layer: VisLayer, shape: string, box: { width: number; height: 
         row.imageOpacity = opacity;
     }
     visImagePlace(row, layer, box);
+    // an image node's box is its picture's, the shorter side across 2 * size (CircleImageBase._resizeImage); a
+    // circularImage is cut to its square
+    // ponytail: not with imagePadding, whose picture size visImagePlace takes from the square; both when a file needs
+    if (!circular && layer.useImageSize !== true && row.imageFit === "cover") {
+        row.imageAspect = true;
+    }
     return row;
 }
 
@@ -1025,6 +1053,21 @@ function visIcon(layer: VisLayer, site: CanonSite): Row {
         glyphColor: color?.color ?? "#2b7ce9",
         glyphWeight: bold ? "bold" : "normal",
     };
+}
+
+/**
+ * How far below an icon node's center vis-network centers its label (vis-network 9.1.9 Icon.draw): half its height,
+ * `icon.size` (50) plus its top and bottom margins (5 unless given), then 5 more (`iconTextSpacing`), the label's
+ * lines centered there on a "middle" baseline (Label.calculateLabelSize).
+ * @param layer - the node's merged layer
+ * @returns the distance down
+ */
+function visIconLabelDrop(layer: VisLayer): number {
+    const size = typeof layer.iconSize === "number" && layer.iconSize >= 0 ? layer.iconSize : 50;
+    const m = layer.margin;
+    const side = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : VIS_MARGIN);
+    const [top, bottom] = isJsonObject(m) ? [side(m.top), side(m.bottom)] : [side(m), side(m)];
+    return (size + top + bottom) / 2 + 5;
 }
 
 /**
@@ -1493,7 +1536,8 @@ function visRunAlign(layer: VisLayer, target: StyleTarget): "baseline" | "hangin
         );
     }
     const shape = typeof layer.shape === "string" ? layer.shape : "ellipse";
-    return VIS_SIZED.has(shape) ? "hanging" : "middle";
+    // an icon's label is drawn on a "middle" baseline (Icon.draw passes none to Label.draw)
+    return VIS_SIZED.has(shape) && shape !== "icon" ? "hanging" : "middle";
 }
 
 /**
@@ -1655,9 +1699,10 @@ type PutRow = (p: string, v: StyleValue | null) => void;
 function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.shape !== undefined) {
         put("shape", canonEnum("shape", layer.shape, "vis", site("shape")));
-        // vis-network draws a label inside the shapes sized by their label and below the shapes sized by `size`
+        // vis-network draws a label inside the shapes sized by their label and below the shapes sized by `size`; an
+        // icon's label is centered a fixed distance below its center (visIconLabelDrop), so it is placed from there
         if (typeof layer.shape === "string") {
-            put("labelPosition", VIS_SIZED.has(layer.shape) ? "bottom" : "center");
+            put("labelPosition", VIS_SIZED.has(layer.shape) && layer.shape !== "icon" ? "bottom" : "center");
         }
     }
     if (sized && layer.size !== undefined) {
@@ -1701,7 +1746,10 @@ function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: 
  */
 function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.edgeOpacity !== undefined) {
-        put("opacity", canonOpacity(layer.edgeOpacity, "vis", site("opacity")));
+        // as on a node, only a hex or rgb() color takes it: a named color is drawn opaque (EdgeBase.getColor,
+        // overrideOpacity; json-vis-synth 42->52, "blue" at opacity 0.4)
+        const opacity = canonOpacity(layer.edgeOpacity, "vis", site("opacity"));
+        put("opacity", visTakesOpacity(layer.edgeColor) ? opacity : null);
     }
     if (layer.width !== undefined) {
         put("width", canonNumber(layer.width, site("width")));
@@ -1958,7 +2006,7 @@ function visNodeRow(
     const shaped = sized
         ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
         : visFitShape(merged, shape);
-    if (sized && merged.label !== undefined) {
+    if (sized && shape !== "icon" && merged.label !== undefined) {
         const size =
             visLabelScaled(merged, range) ?? (typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE);
         // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
@@ -2039,12 +2087,21 @@ function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (p
     Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
     if (shape === "icon") {
         // an icon node is its glyph alone: vis-network draws no body, no fill and no border for it (Icon.draw)
-        Object.assign(row, { shape: "none" }, visIcon(merged, site("glyphColor")));
+        Object.assign(
+            row,
+            { shape: "none", labelOffsetY: visIconLabelDrop(merged) },
+            visIcon(merged, site("glyphColor")),
+        );
     }
-    // vis-network's triangleDown: its triangle turned over, a corner down
-    if (shape === "triangleDown") {
+    // vis-network's triangle is equilateral, not filling its 2 * size square (shapes.js triangle: its radius times 1.15,
+    // so 2.3 * size wide and sqrt(3) * 1.15 * size tall, its centroid 0.275 * 1.15 * size below the node's center): the
+    // apex 1.0117 * size above the center, the base 0.9802 * size below; triangleDown is it turned over, a corner down.
+    // The square stays the node's box, which places its label
+    if (shape === "triangle" || shape === "triangleDown") {
+        const [apex, base] = shape === "triangle" ? ["1.0117", "-0.9802"] : ["-1.0117", "0.9802"];
         row.shape = "polygon";
-        row.shapePoints = "-1,1 0,-1 1,1";
+        row.shapePoints = `0,${apex} 1.15,${base} -1.15,${base}`;
+        row.shapePointsStretch = false;
     }
     return row;
 }
@@ -2530,7 +2587,7 @@ function visGeometry(snapshot: GraphSnapshot, nodeValues: Values, shapes: readon
         }
         return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : Number.NaN;
     };
-    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const [xs, ys] = visPlaces(snapshot);
     const num = (v: StyleValue | null | undefined): number | null => (typeof v === "number" && v > 0 ? v : null);
     return {
         at: (i) => {
@@ -2845,7 +2902,7 @@ function visSupport(physics: unknown, layout: unknown, placed: boolean): Row | n
  * @returns true when every node is placed
  */
 function visPlacesAll(snapshot: GraphSnapshot): boolean {
-    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const [xs, ys] = visPlaces(snapshot);
     // as visGeometry reads a place: a number, or a string vis-network parses as one
     const at = (cell: ((i: number) => unknown) | null, i: number): boolean => {
         const v = cell?.(i);
@@ -3119,7 +3176,7 @@ const VIS_SHAPES: ReadonlyMap<string, readonly [string, boolean]> = new Map([
     ["ellipse", ["dot", true]],
     ["rectangle", ["square", true]],
     ["round-rectangle", ["box", true]],
-    ["triangle", ["triangle", true]],
+    ["triangle", ["triangle", false]],
     ["diamond", ["diamond", true]],
     ["star", ["star", true]],
     ["hexagon", ["hexagon", true]],
@@ -3161,6 +3218,36 @@ function visShape(shape: string): readonly [string, boolean] {
 }
 
 /**
+ * The vis-network shape a node is written as: an ellipse fitted to its label (`labelFit` "bounds"), or with no size
+ * of its own, is vis-network's label-sized `ellipse` (its `circle` when the fit is square), whose label vis-network
+ * draws inside it; any other node its shape's (visShape).
+ * @param shape - the neutral shape
+ * @param fitted - whether the node is fitted to its label or has no size of its own
+ * @param square - whether its fit is square (`labelFitSquare`)
+ * @returns the vis-network shape and whether it is exact
+ */
+function visNodeShape(shape: string, fitted: boolean, square: boolean): readonly [string, boolean] {
+    if (shape === "ellipse" && fitted) {
+        return [square ? "circle" : "ellipse", true];
+    }
+    return visShape(shape);
+}
+
+/**
+ * The vis-network shape a written node is read back as, from the block's values of the element (visNodeShape).
+ * @param want - the block's values of the element
+ * @returns the shape, vis-network's default `ellipse` for a node with none
+ */
+const visShapeBack = (want: (p: string) => StyleValue | null): string => {
+    const s = want("shape");
+    if (typeof s !== "string") {
+        return "ellipse";
+    }
+    const fitted = want("labelFit") === "bounds" || oneSize(want) === null;
+    return visNodeShape(s, fitted, want("labelFitSquare") === true)[0];
+};
+
+/**
  * A neutral arrow as vis-network's arrow type: the type (null for none), and whether it is exact.
  * @param arrow - the neutral arrow
  * @returns the type and whether it is exact
@@ -3183,38 +3270,18 @@ function visArrowType(arrow: string): readonly [string | null, boolean] {
  * @param want - the block's values of the element
  * @returns the size read back
  */
-const visSize = (want: (p: string) => StyleValue | null): StyleValue | null => {
-    const s = want("shape");
-    const shape = typeof s === "string" ? visShape(s)[0] : "ellipse";
-    return VIS_SIZED.has(shape) ? oneSize(want) : null;
-};
+const visSize = (want: (p: string) => StyleValue | null): StyleValue | null =>
+    VIS_SIZED.has(visShapeBack(want)) ? oneSize(want) : null;
 
 /**
- * The vis.js shape a written node is read back as.
+ * The height a written vis.js hexagon reads back as (visSizedShape): its size is its width, not its height.
  * @param want - the block's values of the element
- * @returns the shape
+ * @returns the height read back, null for any other shape
  */
-const visShapeBack = (want: (p: string) => StyleValue | null): string => {
-    const s = want("shape");
-    return typeof s === "string" ? visShape(s)[0] : "ellipse";
+const visHexagonHeightBack = (want: (p: string) => StyleValue | null): StyleValue | null => {
+    const size = visSize(want);
+    return visShapeBack(want) === "hexagon" && typeof size === "number" ? (Math.sqrt(3) * size) / 2 : null;
 };
-
-/**
- * What a written vis.js node of a shape that changes what its size gives back reads as (visSizedShape, visFitShape):
- * a hexagon's height and how far below its square its label hangs, a database's label at its top.
- * @param property - the fact
- * @returns the reading back of the element's values, null where the shape changes nothing
- */
-const visShapeFactBack =
-    (property: "height" | "labelOffsetY") =>
-    (want: (p: string) => StyleValue | null): StyleValue | null => {
-        const shape = visShapeBack(want);
-        const size = visSize(want);
-        if (shape === "hexagon" && typeof size === "number") {
-            return property === "height" ? (Math.sqrt(3) * size) / 2 : ((2 - Math.sqrt(3)) * size) / 4;
-        }
-        return null;
-    };
 
 /**
  * What the reader reads back for a fact of a node the writer wrote in a shape vis-network sizes by its label: the
@@ -3225,9 +3292,27 @@ const visShapeFactBack =
 const visFitBack =
     (property: string) =>
     (want: (p: string) => StyleValue | null): StyleValue | null => {
-        const s = want("shape");
-        const shape = typeof s === "string" ? visShape(s)[0] : "ellipse";
-        return visLabelFit({ fontSize: want("labelSize"), label: want("label") }, shape)[property] ?? null;
+        return visLabelFit({ fontSize: want("labelSize"), label: want("label") }, visShapeBack(want))[property] ?? null;
+    };
+
+/**
+ * A fact of a written vis.js node as the reader reads it back: the reader's own reading (visNodeRow) of what the
+ * writer writes, its shape, size, font size and label, so a label vis-network hangs below a sized node reads back as
+ * the block's offset, and a triangle as the block's triangle, not the equilateral polygon vis-network draws.
+ * @param property - the fact
+ * @returns the reading back of the element's values
+ */
+const visRowBack =
+    (property: string) =>
+    (want: (p: string) => StyleValue | null): StyleValue | null => {
+        const size = visSize(want);
+        const layer: VisLayer = {
+            label: want("label") ?? undefined,
+            fontSize: want("labelSize") ?? undefined,
+            size: typeof size === "number" ? size / 2 : undefined,
+        };
+        const site = (p: string): CanonSite => ({ notes: new StyleNotes(), target: "node", property: p });
+        return visNodeRow(layer, visShapeBack(want), null, site)[property] ?? null;
     };
 
 /**
@@ -3272,8 +3357,10 @@ function visWritten(snapshot: GraphSnapshot, edgeValues: Values): Written {
 const VIS_WRITTEN: Written = {
     node: {
         width: (want) => visSize(want) ?? visFitBack("width")(want),
-        height: (want) => visShapeFactBack("height")(want) ?? visSize(want) ?? visFitBack("height")(want),
-        labelOffsetY: visShapeFactBack("labelOffsetY"),
+        height: (want) => visHexagonHeightBack(want) ?? visSize(want) ?? visFitBack("height")(want),
+        labelOffsetY: visRowBack("labelOffsetY"),
+        shapePoints: visRowBack("shapePoints"),
+        shapePointsStretch: visRowBack("shapePointsStretch"),
         labelFit: visFitBack("labelFit"),
         labelPaddingX: visFitBack("labelPaddingX"),
         labelPaddingY: visFitBack("labelPaddingY"),
@@ -3289,14 +3376,13 @@ const VIS_WRITTEN: Written = {
                 return null;
             }
             const site = { notes: new StyleNotes(), target: "node" as const, property: "shape" };
-            return canonEnum("shape", visShape(s)[0], "vis", site);
+            return visRowBack("shape")(want) ?? canonEnum("shape", visShapeBack(want), "vis", site);
         },
         labelPosition: (want) => {
-            const s = want("shape");
-            if (typeof s !== "string") {
+            if (typeof want("shape") !== "string") {
                 return null;
             }
-            const shape = visShape(s)[0];
+            const shape = visShapeBack(want);
             if (shape === "database") {
                 return "inside-top";
             }
@@ -3742,24 +3828,6 @@ function notWritten(
     return out;
 }
 
-/**
- * A style note as a loss note.
- * @param n - the note
- * @returns the loss note
- */
-function lossOf(n: StyleNote): LossNote {
-    return Object.freeze({
-        code: n.code,
-        message: n.message,
-        column: null,
-        count: n.params.count,
-        style:
-            n.params.target === null || n.params.property === null
-                ? undefined
-                : Object.freeze({ target: n.params.target, property: n.params.property as never }),
-    });
-}
-
 /** An editable attribute table of `snapshot.withColumns()`. */
 type Table = ReturnType<GraphSnapshot["withColumns"]>["nodes"];
 
@@ -4035,10 +4103,11 @@ function writeVis(
         replaced,
     );
     const sizes = nodeSizes(p("node", "width"), p("node", "height"), approximated);
+    const fits = p("node", "labelFit");
+    const squares = p("node", "labelFitSquare");
     const shapes = p("node", "shape").map((s, i) => {
-        const [written, exact] = typeof s === "string" ? visShape(s) : [null, true];
-        // an ellipse with no size of its own is vis-network's label-sized `ellipse`, one with a size its `dot`
-        const shape = written === "dot" && s === "ellipse" && sizes[i] === null ? "ellipse" : written;
+        const fitted = fits[i] === "bounds" || sizes[i] === null;
+        const [shape, exact] = typeof s === "string" ? visNodeShape(s, fitted, squares[i] === true) : [null, true];
         if (!exact) {
             approximated.add("node", "shape", s);
         }

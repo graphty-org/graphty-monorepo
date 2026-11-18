@@ -323,6 +323,13 @@ export interface GraphSink {
         attrs: Readonly<Record<string, unknown>>,
         weightKey?: string | null,
     ): number;
+    /**
+     * Tombstone a node by index and every live incident edge. Optional: an importer that must drop a node it added
+     * (GEXF 1.0's undeclared edge endpoints) does so only when the sink offers it. GraphBuilder does.
+     * @param index - the node index
+     * @returns the removed live incident edge indices
+     */
+    removeNodeByIndex?(index: number): U32;
 }
 
 /**

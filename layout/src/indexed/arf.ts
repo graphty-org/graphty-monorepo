@@ -4,7 +4,7 @@ import { type LayoutResult, rescaleInPlace } from "../positions.js";
 import { kickDir } from "../simulation/forceatlas2.js";
 import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { refusal } from "./common.js";
+import { checkScaleCenter, refusal } from "./common.js";
 import { layoutDim, startColumn } from "./start.js";
 
 /** Options of indexed.arf. */
@@ -175,6 +175,7 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
     if (a <= 1) {
         throw refusal(new Error("The parameter a should be larger than 1"), "E_BAD_OPTION", { option: "a", value: a });
     }
+    checkScaleCenter(options.scale, options.center);
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;

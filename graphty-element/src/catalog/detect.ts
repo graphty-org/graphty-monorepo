@@ -55,6 +55,7 @@ import {
 import { GraphtyError } from "../errors";
 import { registeredFormats } from "./formatRegistry";
 import { FORMAT_DESCRIPTORS, UNSERVED_FORMAT_IDS } from "./formats";
+import { englishDescription } from "./options";
 import type { FormatId } from "./types";
 
 /** The column separators that make a first line a table rather than prose. */
@@ -280,7 +281,7 @@ export function unknownFormat(name: string): GraphtyError {
     if (unserved !== undefined) {
         refusal = `the format "${name}" cannot be read: ${unserved.reason}`;
     } else if (writeOnly !== undefined) {
-        refusal = `the format "${name}" is written, not imported. ${writeOnly.description ?? ""}`.trimEnd();
+        refusal = `the format "${name}" is written, not imported. ${englishDescription(writeOnly)}`.trimEnd();
     }
 
     return new GraphtyError({

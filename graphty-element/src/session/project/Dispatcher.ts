@@ -32,6 +32,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
 import type { DataService, EdgeIdentityService } from "../commands/data";
+import type { DataDeriveCommand } from "../commands/derive";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
 import type { NoteService } from "../commands/notes";
 import type { SetService } from "../commands/sets";
@@ -56,7 +57,7 @@ import {
     touchedBy,
     withoutNoOps,
 } from "./draft";
-import { createdNodes, GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
+import { createdNodes, GraphOps, type GraphPass, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
 import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { retainedVersion } from "./retained";
 import { createProjectState, type ProjectState } from "./state";
@@ -107,8 +108,6 @@ interface CommandServices {
     layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
-    /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
-    timeline?: () => boolean;
     /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
     batched?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
@@ -128,12 +127,12 @@ interface CommandServices {
      * carried their shaders meant by that id. Undefined when the catalog lists no such shader.
      */
     legacyShaderText?: (id: string) => Promise<string | undefined>;
-    /** True while a project open restores the style values its file saved, which it does with the experiment off. */
-    restoringFileStyles?: boolean;
     /** Tells `time:field` listeners the designated field changed other than through `time.setField`. */
     timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
     progress?: (change: ProgressChange) => void;
+    /** The command that brings the computed columns up to date now, or null when nothing changes. */
+    derive?: () => DataDeriveCommand | null;
 }
 
 /** What the queue hands a queued command when its slot comes up. */
@@ -217,8 +216,11 @@ interface DefinitionBase<C extends CommandLike> {
      * purpose, or holds its slot while a layout can move the lane (a chunked import).
      */
     readonly moves: boolean;
-    /** For an op only some of whose commands take one (`clear` among the data mutations). */
-    movesWhen?(command: C): boolean;
+    /**
+     * For an op only some of whose commands take one (`clear` among the data mutations), or that
+     * takes one only while a service says it moves nodes (a filter edit a layout follows).
+     */
+    movesWhen?(command: C, services: CommandServices): boolean;
     /** The keys it will write, known before it runs. */
     keys(command: C, state: ProjectState): readonly SliceKey[];
     readonly lane: Lane<C>;
@@ -234,6 +236,12 @@ interface DefinitionBase<C extends CommandLike> {
      * frozen (a style layer's `userData`). Everything else is copied and frozen at dispatch.
      */
     readonly byReference?: readonly string[];
+    /**
+     * The command as it is kept (by its job, its step and the journal), made from the dispatch
+     * copy when its job starts. `data.apply` freezes its records here, so one copy serves the
+     * command and the graph.
+     */
+    kept?(command: C): C;
     /**
      * For a compound op (`batch`): the commands it is made of. It runs as a transaction of
      * them, one step, and its own `execute` is never called.
@@ -256,10 +264,13 @@ interface DefinitionBase<C extends CommandLike> {
 export interface UndoableDefinition<C extends CommandLike> extends DefinitionBase<C> {
     readonly undo: {
         readonly kind: "undoable";
-        /** What the step is called in the history ("Changed colour of Hubs"). */
-        label(command: C, state: ProjectState): string;
+        /**
+         * What the step is called in the history ("Changed colour of Hubs"). `services` reaches
+         * what sits beside the state, such as a removed set's name.
+         */
+        label(command: C, state: ProjectState, services: CommandServices): string;
         /** What the step did, as a code and its values, for an application to word. */
-        fact(command: C, state: ProjectState): CodedFact<HistoryCode>;
+        fact(command: C, state: ProjectState, services: CommandServices): CodedFact<HistoryCode>;
         /** Steps with equal keys recorded close together become one step. */
         coalesce?(command: C): string | null;
     };
@@ -333,6 +344,8 @@ interface ProjectChange {
      * when the change does not say (an undo, a redo, a restore, a rollback): compare the slice.
      */
     readonly notes?: readonly string[];
+    /** The graph op logs the change applied, in order, for the `data:changed` publisher. */
+    readonly graph?: readonly GraphPass[];
 }
 
 /** Why the history, or what the next undo will do, changed. */
@@ -508,7 +521,6 @@ const NO_SCHEDULER: Scheduler = {
 /** Pending undoable work, as the history lists it. Frozen. */
 interface PendingStep {
     readonly id: string;
-    readonly label: string;
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
     readonly since: string;
@@ -739,13 +751,30 @@ function slicesOf(patch: Patch): readonly Slice[] {
 }
 
 /**
- * The note ids a patch wrote, each once, for a change; nothing when it wrote no note.
+ * What a command's change says beyond its slices: the note ids its patch wrote, each once (absent
+ * when it wrote no note), and its op log, for `data:changed`.
  * @param patch - The patch.
- * @returns The change's `notes`, or an empty object.
+ * @returns The change's `notes` and `graph`.
  */
-function notesOf(patch: Patch): Pick<ProjectChange, "notes"> {
+function detailsOf(patch: Patch): Pick<ProjectChange, "notes" | "graph"> {
     const notes = [...new Set(patch.entries.filter((entry) => entry.slice === "notes").map((entry) => entry.key))];
-    return notes.length === 0 ? {} : { notes };
+    return {
+        ...(notes.length === 0 ? {} : { notes }),
+        ...graphOf(
+            patch.log.some((entry) => entry.slice === "graph"),
+            [{ log: patch.log, undo: false }],
+        ),
+    };
+}
+
+/**
+ * A change's `graph`, only when it wrote the graph slice.
+ * @param wrote - Whether it did.
+ * @param passes - The op logs it applied.
+ * @returns The change's `graph`, or an empty object.
+ */
+function graphOf(wrote: boolean, passes: readonly GraphPass[]): Pick<ProjectChange, "graph"> {
+    return wrote ? { graph: passes } : {};
 }
 
 /**
@@ -863,6 +892,8 @@ export class Dispatcher {
     private readonly bySlice = new Map<string, Set<Group>>();
     /** Jobs waiting on a key another group holds. */
     private readonly waiters = new Set<Job>();
+    /** Writes on their way to the queue, not yet dispatched: see {@link Dispatcher.ahead}. */
+    private readonly coming = new Set<Promise<unknown>>();
     private readonly steps = new Map<string, StepMeta>();
     /** Orders dispatches, records, undos and hold acquisitions against each other. */
     private tick = 0;
@@ -888,6 +919,8 @@ export class Dispatcher {
     private emitting = 0;
     /** The ids the steps passed by the history call under way touched; null outside one. */
     private touching: TouchedIds | null = null;
+    /** The op logs the history call under way applied, in order. */
+    private passing: GraphPass[] = [];
     /** What an immediate command threw synchronously, for {@link Dispatcher.dispatchNow}. */
     private syncFailure: { error: unknown } | null = null;
     /** Whether commits still become the baseline rather than steps (design section 3.3). */
@@ -930,7 +963,6 @@ export class Dispatcher {
             },
             strict: this.strict,
             session: true,
-            countsRewrites: () => this.services.timeline?.() === true,
             batched: () => this.services.batched?.() === true,
             touchLater: (key) => {
                 this.lane.touchLater("graph", key);
@@ -951,10 +983,12 @@ export class Dispatcher {
         this.history = new History<Patch>({
             forward: (patch) => {
                 this.store.applyForward(patch);
+                this.passing.push({ log: patch.log, undo: false });
                 this.collect(patch);
             },
             backward: (patch) => {
                 this.store.applyBackward(patch);
+                this.passing.push({ log: patch.log, undo: true });
                 this.collect(patch);
             },
             merge: mergePatches,
@@ -1040,11 +1074,14 @@ export class Dispatcher {
      * A dispatch that goes where one made now would -- to the transaction or running command a
      * routed verb is inside, or to this dispatcher -- for a verb that dispatches after an await,
      * when the routing, which lasts for the synchronous part of the call only, has ended.
+     * @param options - How each dispatch it makes is made: its signal, for one.
      * @returns The dispatch.
      */
-    capturedDispatch(): <C extends CommandLike>(command: Dispatchable<C>) => Promise<unknown> {
+    capturedDispatch(
+        options: DispatchOptions = {},
+    ): <C extends CommandLike>(command: Dispatchable<C>) => Promise<unknown> {
         const via = this.route;
-        return via === null ? (command) => this.dispatch(command) : (command) => via(command, {});
+        return via === null ? (command) => this.dispatch(command, options) : (command) => via(command, options);
     }
 
     /**
@@ -1154,17 +1191,22 @@ export class Dispatcher {
                 throw error;
             },
         );
+        let onAbort = (): void => undefined;
         const aborted = new Promise<never>((_, reject) => {
-            signal.addEventListener(
-                "abort",
-                () => {
-                    void this.lane.settled().then(() => {
-                        reject(signal.reason as Error);
-                    });
-                },
-                { once: true },
-            );
+            onAbort = (): void => {
+                void this.lane.settled().then(() => {
+                    reject(signal.reason as Error);
+                });
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
         });
+        // Stop listening once the body settles: the signal outlives it (the group keeps its
+        // controller), and the listener would keep this call's closure, and the records its
+        // commands carried, alive.
+        const off = (): void => {
+            signal.removeEventListener("abort", onAbort);
+        };
+        settled.then(off, off);
 
         return Promise.race([settled, aborted]);
     }
@@ -1346,7 +1388,7 @@ export class Dispatcher {
      */
     private takesBefore(job: Job): boolean {
         const { definition, command } = job;
-        if (definition.moves || definition.movesWhen?.(command) === true) {
+        if (definition.moves || definition.movesWhen?.(command, this.services) === true) {
             return true;
         }
 
@@ -1435,6 +1477,7 @@ export class Dispatcher {
             this.lane.restore(direction);
             this.arrangement.stop();
             this.touching = this.startTouching();
+            this.passing = [];
             const moved = direction === "undo" ? this.history.undo() : this.history.redo();
             if (moved !== null) {
                 this.arrangement.restore(this.history.takeArrangement());
@@ -1448,8 +1491,13 @@ export class Dispatcher {
         }
 
         this.markUndone(direction, [step]);
-        const change = { slices: step.slices, cause: direction };
-        this.emit(change, [change]);
+        const change = {
+            slices: step.slices,
+            cause: direction,
+            ...graphOf(step.slices.includes("graph"), this.takePassing()),
+        };
+        // The derived event is told later and reads no op log: it does not keep one alive.
+        this.emit(change, [{ slices: step.slices, cause: direction }]);
         this.selectTouched();
         return { kind: direction === "undo" ? "undone" : "redone", steps: Object.freeze([step]) };
     }
@@ -1535,6 +1583,7 @@ export class Dispatcher {
             this.lane.restore();
             this.arrangement.stop();
             this.touching = this.startTouching();
+            this.passing = [];
             const steps = this.history.restoreTo(id);
             this.arrangement.restore(this.history.takeArrangement());
             return steps;
@@ -1542,11 +1591,23 @@ export class Dispatcher {
         this.markUndone(target < position ? "undo" : "redo", passed);
         const slices = [...new Set(passed.flatMap((step) => step.slices))];
         this.emit(
-            { slices, cause: "restore" },
+            { slices, cause: "restore", ...graphOf(slices.includes("graph"), this.takePassing()) },
             passed.map((step) => ({ slices: step.slices, cause: "restore" as const })),
         );
         this.selectTouched();
         return { kind: "restored", steps: passed };
+    }
+
+    /**
+     * The op logs the history call just applied, let go of here: the change that carries them is
+     * all that holds them once it has been told, so a replaced graph an undo passed is not kept
+     * until the next history call.
+     * @returns The op logs, in order.
+     */
+    private takePassing(): GraphPass[] {
+        const { passing } = this;
+        this.passing = [];
+        return passing;
     }
 
     /**
@@ -1625,6 +1686,11 @@ export class Dispatcher {
         this.notify(() => this.events.project?.(change));
         this.flushHistory();
         void this.lane.settled().then(() => {
+            // A session disposed meanwhile has no reader left to tell, and its data answers nothing.
+            if (this.lane.isClosed) {
+                return;
+            }
+
             for (const each of derived) {
                 this.notify(() => this.events.derived?.(each));
             }
@@ -1767,20 +1833,7 @@ export class Dispatcher {
         options: DispatchOptions = {},
         origin: DeferredOrigin | null = null,
     ): unknown {
-        this.checkStrict();
-        const { state } = this.store;
-        const raw = typeof command === "function" ? command(state) : command;
-        const definition = this.definitions.get(raw.op);
-        const concrete = deepFreezeArgs(raw, definition?.byReference);
-        this.events.dispatched?.(concrete);
-        if (definition === undefined) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `There is no command "${concrete.op}".`,
-                source: "history",
-                details: { op: concrete.op },
-            });
-        }
+        const { state, definition, concrete } = this.resolve(command);
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
@@ -1823,19 +1876,34 @@ export class Dispatcher {
             group.keys.add(key);
         }
 
-        options.signal?.addEventListener(
-            "abort",
-            () => {
-                this.obsolete(job, "cancel");
-            },
-            { once: true },
-        );
+        this.cancelOnAbort(job, options.signal);
         this.launch(job, concrete, group, options.beside === true, state);
         if (options.signal?.aborted === true) {
             this.obsolete(job, "cancel");
         }
 
         return job.promise;
+    }
+
+    /**
+     * Cancel a job when its caller's signal aborts, and stop listening once it settles: a signal
+     * that outlives the job would otherwise keep it, and its command's records, alive.
+     * @param job - The job.
+     * @param signal - The caller's signal, if it passed one.
+     */
+    private cancelOnAbort(job: Job, signal: AbortSignal | undefined): void {
+        if (signal === undefined) {
+            return;
+        }
+
+        const cancel = (): void => {
+            this.obsolete(job, "cancel");
+        };
+        const off = (): void => {
+            signal.removeEventListener("abort", cancel);
+        };
+        signal.addEventListener("abort", cancel, { once: true });
+        job.promise.then(off, off);
     }
 
     /**
@@ -1881,18 +1949,17 @@ export class Dispatcher {
     }
 
     /**
-     * Execute one command now in a running job's group, whatever its lane: `UndoableContext.inline`.
-     * It seals nothing and rolls back only its own writes when it fails; the group seals when the
-     * job that dispatched it does.
+     * A dispatched command made concrete against state now, copied as its definition says, and
+     * announced; the start of both {@link Dispatcher.submit} and {@link Dispatcher.inline}.
      * @param command - The command, or a function from state to one.
-     * @param parent - The running job.
-     * @returns What an exempt command returned, or the command's promise.
+     * @returns The state it was resolved against, its definition and the command as copied.
+     * @throws `E_BAD_COMMAND` when no definition has its op.
      */
-    private inline(command: Dispatchable, parent: Job): unknown {
-        if (parent.status !== "running") {
-            throw cancelledError(parent.group.label, "cancel");
-        }
-
+    private resolve(command: Dispatchable): {
+        state: ProjectState;
+        definition: CommandDefinition<CommandLike>;
+        concrete: CommandLike;
+    } {
         this.checkStrict();
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
@@ -1907,6 +1974,24 @@ export class Dispatcher {
                 details: { op: concrete.op },
             });
         }
+
+        return { state, definition, concrete };
+    }
+
+    /**
+     * Execute one command now in a running job's group, whatever its lane: `UndoableContext.inline`.
+     * It seals nothing and rolls back only its own writes when it fails; the group seals when the
+     * job that dispatched it does.
+     * @param command - The command, or a function from state to one.
+     * @param parent - The running job.
+     * @returns What an exempt command returned, or the command's promise.
+     */
+    private inline(command: Dispatchable, parent: Job): unknown {
+        if (parent.status !== "running") {
+            throw cancelledError(parent.group.label, "cancel");
+        }
+
+        const { state, definition, concrete } = this.resolve(command);
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
@@ -1954,7 +2039,10 @@ export class Dispatcher {
         state: ProjectState,
     ): Group {
         return this.group(
-            { label: undoable.undo.label(concrete, state), fact: undoable.undo.fact(concrete, state) },
+            {
+                label: undoable.undo.label(concrete, state, this.services),
+                fact: undoable.undo.fact(concrete, state, this.services),
+            },
             origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
             {},
             origin?.step ?? null,
@@ -1988,18 +2076,22 @@ export class Dispatcher {
             job.slot = this.scheduler.enqueue(
                 lane.categoryOf?.(concrete) ?? lane.category,
                 (context) => this.turn(job, context),
-                job.definition.undo.label(concrete, state),
+                job.definition.undo.label(concrete, state, this.services),
             );
             job.status = "queued";
             group.jobs.add(job);
             this.enter(group);
-            job.slot.signal.addEventListener(
-                "abort",
-                () => {
-                    this.obsolete(job, "obsolete");
-                },
-                { once: true },
-            );
+            // Stop listening once the job settles, as cancelOnAbort does: the slot's signal would
+            // otherwise keep the job, and its command's records, alive.
+            const { signal } = job.slot;
+            const obsolete = (): void => {
+                this.obsolete(job, "obsolete");
+            };
+            const off = (): void => {
+                signal.removeEventListener("abort", obsolete);
+            };
+            signal.addEventListener("abort", obsolete, { once: true });
+            job.promise.then(off, off);
         } else {
             this.admit(job);
         }
@@ -2096,8 +2188,8 @@ export class Dispatcher {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
         } else if (group.tx === null && group.after === null && group.named === undefined) {
-            group.label = definition.undo.label(command, state);
-            group.fact = definition.undo.fact(command, state);
+            group.label = definition.undo.label(command, state, this.services);
+            group.fact = definition.undo.fact(command, state, this.services);
             group.key = definition.undo.coalesce?.(command) ?? null;
             if (this.open.has(group)) {
                 group.view = undefined;
@@ -2135,7 +2227,11 @@ export class Dispatcher {
         };
         let out: unknown;
         try {
-            out = definition.execute(command, ctx);
+            // Made into the command as kept when it runs, not at dispatch: `data.apply` freezes its
+            // records in `kept`, which at a million records would hold the caller's synchronous
+            // setter for half a second. A record it cannot copy fails the job, as ingest's did.
+            job.command = definition.kept?.(command) ?? command;
+            out = definition.execute(job.command, ctx);
         } catch (error) {
             this.syncFailure = { error };
             this.fail(job, error);
@@ -2290,8 +2386,8 @@ export class Dispatcher {
                 recorded === null
                     ? { label: group.label, fact: group.fact }
                     : {
-                          label: job.definition.undo.label(job.command, this.store.state),
-                          fact: job.definition.undo.fact(job.command, this.store.state),
+                          label: job.definition.undo.label(job.command, this.store.state, this.services),
+                          fact: job.definition.undo.fact(job.command, this.store.state, this.services),
                       },
                 null,
                 // Recorded as its own step when the transaction's is no longer on top: it is
@@ -2366,7 +2462,7 @@ export class Dispatcher {
         }
 
         if (baseline) {
-            const change = { slices: slicesOf(patch), cause: "command" as const, ...notesOf(patch) };
+            const change = { slices: slicesOf(patch), cause: "command" as const, ...detailsOf(patch) };
             this.emit(change, [change]);
             this.release(group, true);
             this.startDeferred(group, null);
@@ -2433,7 +2529,7 @@ export class Dispatcher {
         // else is a pin no step records.
         this.arrangement.checkPins();
 
-        const change = { slices, cause: "command" as const, ...notesOf(patch) };
+        const change = { slices, cause: "command" as const, ...detailsOf(patch) };
         this.emit(change, [change]);
         return id;
     }
@@ -2659,22 +2755,47 @@ export class Dispatcher {
      * @returns True while one is.
      */
     get hasWaiters(): boolean {
-        return this.waiters.size > 0;
+        return this.waiters.size > 0 || this.coming.size > 0;
     }
 
     /**
-     * Settles once no queued command is waiting off the queue for a key: each such command gave
-     * its queue slot up, so an idle queue does not mean it has run.
+     * Settles once no queued command is waiting off the queue for a key, and no write announced
+     * with {@link Dispatcher.ahead} is still on its way: each such command gave its queue slot up,
+     * or has not reached the queue yet, so an idle queue does not mean it has run.
      * @returns Whether there was one to wait for; what it ran may have queued more work.
      */
     async waitersSettled(): Promise<boolean> {
         let waited = false;
-        while (this.waiters.size > 0) {
+        while (this.waiters.size > 0 || this.coming.size > 0) {
             waited = true;
-            await Promise.allSettled([...this.waiters].map((job) => job.promise));
+            await Promise.allSettled([...[...this.waiters].map((job) => job.promise), ...this.coming]);
         }
 
         return waited;
+    }
+
+    /**
+     * Whether a write announced with {@link Dispatcher.ahead} is still on its way to the queue.
+     * @returns True while one is.
+     */
+    get writesAhead(): boolean {
+        return this.coming.size > 0;
+    }
+
+    /**
+     * Count a write that must wait before it can be dispatched -- a style edit loading the body of
+     * a catalog shader it names -- as owed, so a wait for the picture to settle waits for it
+     * rather than finding the queue idle and photographing the graph without it.
+     * @param work - Settles once the write has been dispatched and has run, or has failed.
+     * @returns The same promise.
+     */
+    ahead<T>(work: Promise<T>): Promise<T> {
+        this.coming.add(work);
+        const done = (): void => {
+            this.coming.delete(work);
+        };
+        work.then(done, done);
+        return work;
     }
 
     /**
@@ -3144,7 +3265,6 @@ export class Dispatcher {
     private view(group: Group): PendingStep {
         group.view ??= Object.freeze({
             id: group.id,
-            label: group.label,
             fact: frozenFact(group.fact),
             since: group.since,
             runIds: Object.freeze([]),

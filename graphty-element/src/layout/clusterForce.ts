@@ -5,10 +5,11 @@
  * {@link clusterCentroids}.
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
-import type { Node } from "../Node";
+import type { Node, NodeIdType } from "../Node";
+import type { LayoutEngine } from "./LayoutEngine";
 import { atPath } from "./SnapshotLayoutEngine";
 
 /** The `clusterBy` option every force layout publishes. */
@@ -86,6 +87,43 @@ export function readRowCommunities(
 ): Map<number, number> {
     const rows = Array.from({ length: rowCount }, (_, row) => row);
     return readMembers(path, rows, (row) => row, dataOf, column, skip, graph);
+}
+
+/**
+ * {@link readCommunities} over a force engine's bodies, by node id: its `Node`s, and under renderPath "batched" the
+ * rows it holds with no `Node`, so a row is pulled into its community whether or not its `Node` was ever built.
+ * @param path - The option's value.
+ * @param nodes - The bodies with a `Node`.
+ * @param rowIds - The ids of the bodies with no `Node`.
+ * @param engine - The engine's store readers: each row's store row and record, and the session path reader.
+ * @param skip - Answers true for a row the force must leave alone.
+ * @returns The community of every body that is in one, by node id.
+ */
+export function readBodyCommunities(
+    path: string,
+    nodes: Iterable<Node>,
+    rowIds: Iterable<NodeIdType>,
+    engine: Pick<LayoutEngine, "clusterColumn" | "rowRecord" | "storeRowOf">,
+    skip: (row: number) => boolean,
+): Map<NodeIdType, number> {
+    const bodies = new Map<NodeIdType, { row: number; data: () => unknown }>();
+    for (const node of nodes) {
+        bodies.set(node.id, { row: node.index, data: () => node.data });
+    }
+
+    for (const id of rowIds) {
+        const row = engine.storeRowOf?.(id) ?? INVALID_INDEX;
+        bodies.set(id, { row, data: () => engine.rowRecord?.(row) });
+    }
+
+    return readMembers(
+        path,
+        bodies.keys(),
+        (id) => bodies.get(id)?.row ?? INVALID_INDEX,
+        (id) => bodies.get(id)?.data(),
+        engine.clusterColumn,
+        (row) => row === INVALID_INDEX || skip(row),
+    );
 }
 
 /**

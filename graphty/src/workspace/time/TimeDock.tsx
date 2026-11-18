@@ -32,18 +32,22 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
+import { TimeCard } from "../data-place/TimeCard";
 import { GLYPHS } from "../glyphs";
 import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
+import { SettingsPopout } from "../options/SettingsPopout";
+import { TIME_EVENTS, useSessionEvents } from "../sessionEvents";
+import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useBoxSize } from "../useBoxSize";
 import {
     announceWindow,
+    changeSpeed,
     jumpToSelection,
     openTimeSheet,
     PHONE_WIDTH,
-    playAt,
     reportTimeError,
     selectionSpan,
     stepWindow,
@@ -52,7 +56,6 @@ import {
 } from "./timeActions";
 import { TimePhoneDock } from "./TimePhoneDock";
 import { countWords, instantWords, rangeWords, readoutRange, SPEEDS, windowWords } from "./timeWords";
-import { useTimeVersion } from "./useTimeVersion";
 import { useTimeZoom } from "./useTimeZoom";
 
 /** The narrowest a bar is drawn: the element is asked for at most one bin per this many pixels. */
@@ -540,8 +543,7 @@ function SpeedButton({
                     store.set({ timeSpeed: nextSpeed });
                     // A play in progress goes on at the new speed.
                     if (session.time.playing) {
-                        session.time.pause();
-                        playAt(session, nextSpeed);
+                        changeSpeed(session, store, nextSpeed);
                     }
                 }}
             >
@@ -568,7 +570,6 @@ function AllTimeButton({
     return (
         <Tooltip label="Show all time">
             <ActionIcon
-                className="tl-all"
                 variant="subtle"
                 aria-label="Show all time"
                 onClick={() => {
@@ -583,12 +584,126 @@ function AllTimeButton({
 }
 
 /**
+ * The dock's settings button: the timeline's settings (field, step, mode, zone and the rest) in the
+ * settings popover every panel uses.
+ * @returns the button and its popover.
+ */
+function SettingsButton(): React.JSX.Element {
+    return (
+        <PopoutManager>
+            <SettingsPopout label="Timeline settings" width={280}>
+                <TimeCard />
+            </SettingsPopout>
+        </PopoutManager>
+    );
+}
+
+/**
+ * A bin's words with how many of its elements are selected, when there is a selection.
+ * @param words - the bin's words.
+ * @param selected - how many are selected, or undefined with no selection.
+ * @returns the words.
+ */
+function withSelected(words: string, selected: number | undefined): string {
+    return selected === undefined ? words : `${words}, ${formatCount(selected)} selected`;
+}
+
+/**
+ * What the line over the bars is, while it is drawn: a swatch of it and its name.
+ * @param props - Component props
+ * @param props.shown - whether the line is drawn.
+ * @returns the legend, or nothing.
+ */
+function SelectionLegend({ shown }: Readonly<{ shown: boolean }>): React.JSX.Element | null {
+    if (!shown) {
+        return null;
+    }
+    return (
+        <Group gap={4} wrap="nowrap" className="tl-legend">
+            <svg width="16" height="8" aria-hidden="true">
+                <line x1="0" y1="4" x2="16" y2="4" />
+            </svg>
+            <Text size="xs" c="dimmed">
+                Selection
+            </Text>
+        </Group>
+    );
+}
+
+/**
+ * Where on the axis the pointer rests over the chart, for its tooltip: nowhere over a bar the
+ * brush leaves uncovered, which has its own.
+ * @param event - the pointer's move.
+ * @param min - the axis's start, at the chart's left edge.
+ * @param max - the axis's end, at its right edge.
+ * @returns the value there, or null.
+ */
+function pointedAt(event: React.PointerEvent<HTMLElement>, min: number, max: number): number | null {
+    const box = event.currentTarget.getBoundingClientRect();
+    if ((event.target as Element).hasAttribute("title") || box.width === 0) {
+        return null;
+    }
+    return min + ((event.clientX - box.left) / box.width) * (max - min);
+}
+
+/**
+ * The selection's count in each bin, for the line over the bars.
+ * @param profile - the selection's bins, or null with no selection.
+ * @param countOf - what a bin counts.
+ * @returns the counts, or null when there is no line to draw.
+ */
+function profileCounts(profile: readonly TimeBin[] | null, countOf: (bin: TimeBin) => number): number[] | null {
+    return profile === null || profile.length === 0 ? null : profile.map(countOf);
+}
+
+/**
+ * The chart's tooltip: the words of the bin under the pointer.
+ * @param props - Component props
+ * @param props.binAt - the bin at a value on the axis.
+ * @param props.binWords - a bin's words.
+ * @param props.min - the axis's start.
+ * @param props.max - the axis's end.
+ * @param props.children - the chart.
+ * @returns the chart with its tooltip.
+ */
+function ChartTooltip({
+    binAt,
+    binWords,
+    min,
+    max,
+    children,
+}: Readonly<{
+    binAt: (value: number) => TimeBin | undefined;
+    binWords: (bin: TimeBin) => string;
+    min: number;
+    max: number;
+    children: React.ReactNode;
+}>): React.JSX.Element {
+    const [at, setAt] = useState<number | null>(null);
+    const bin = at === null ? undefined : binAt(at);
+    return (
+        <Tooltip.Floating label={bin === undefined ? "" : binWords(bin)} disabled={bin === undefined}>
+            <div
+                onPointerMove={(event) => {
+                    setAt(pointedAt(event, min, max));
+                }}
+                onPointerLeave={() => {
+                    setAt(null);
+                }}
+            >
+                {children}
+            </div>
+        </Tooltip.Floating>
+    );
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
 export function TimeDock(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useTimeVersion(session);
+    useSessionEvents(session, TIME_EVENTS);
     const speed = useWorkspaceState((state) => state.timeSpeed);
     const open = useWorkspaceState((state) => state.timelineOpen);
     // The brush while it is dragged; written to the element once, on release.
@@ -620,8 +735,9 @@ export function TimeDock(): React.JSX.Element | null {
     const noun = onEdges ? "edge" : "node";
     const window: TimeWindow | null = time.current;
     const { timeZone: zone } = time;
-    const whole = time.bins({ maxCount }) ?? [];
-    const all = time.bins({ ...view, maxCount }) ?? [];
+    // The track counts every timed element; the bars over it, what the filter passes.
+    const whole = time.bins({ maxCount, scope: "all" }) ?? [];
+    const all = time.bins({ ...view, maxCount, scope: "all" }) ?? [];
     const visible = time.bins({ ...view, maxCount, scope: "visible" }) ?? [];
     const first = all.at(0);
     const last = all.at(-1);
@@ -638,8 +754,18 @@ export function TimeDock(): React.JSX.Element | null {
             ? null
             : time.bins({ ...view, maxCount, of: { nodes, edges, incident: true } });
     const step = window?.step;
+    const selected = profileCounts(profile, countOf);
+    // A bin's words, as its tooltip, its row for a screen reader and a thumb's name: what it holds,
+    // and with a selection, how many of those are the selection's.
+    const binWords = (bin: TimeBin): string =>
+        withSelected(
+            `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`,
+            selected?.[all.indexOf(bin)],
+        );
     const readout = readoutWords(drag, window, extent, unit, zone);
+    // What the window holds (the window narrows only the drawing); with no window, what the filters keep.
     const { visibleEdges, visibleNodes } = session.visibility.summary;
+    const inside = time.inside ?? { nodes: visibleNodes, edges: visibleEdges };
     const valueText = (value: number, thumb: 0 | 1): string =>
         thumb === 0 ? instantWords(value, unit, step, zone) : rangeWords(value - 1, value, unit, step, zone);
     const binAt = (value: number): TimeBin | undefined => all.find((bin) => value >= bin.start && value < bin.end);
@@ -656,58 +782,65 @@ export function TimeDock(): React.JSX.Element | null {
     const speedButton = <SpeedButton session={session} store={store} speed={speed} />;
     const counts = (
         <Text size="xs" c="dimmed" className="tl-counts">
-            {`${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`}
+            {`${countWords(inside.nodes, "node")}, ${countWords(inside.edges, "edge")}`}
         </Text>
     );
+    // What the line over the bars is, while it is drawn: a swatch of it and its name.
+    const legend = <SelectionLegend shown={selected !== null} />;
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
-    const allTime = <AllTimeButton session={session} store={store} />;
+    // Always the bar's last buttons, at its right end, whatever comes and goes before them. Show all
+    // time is drawn in the same flow, so it stays beside the gear on whatever line the bar wraps it to.
+    const settingsButton = (
+        <div className="tl-settings">
+            <AllTimeButton session={session} store={store} />
+            <SettingsButton />
+        </div>
+    );
     const chart = (
         <div className="tl-chart" data-panel-start="" ref={chartRef}>
-            <HistogramRow
-                label={label}
-                bins={all.map((bin, index) => {
-                    const inside = window !== null && overlaps(bin, range);
-                    const shown = countOf(visible[index]);
-                    return {
-                        label: `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`,
-                        count: shown,
-                        ghost: countOf(bin),
-                        from: bin.start,
-                        to: bin.end,
-                        // Lit only for a bin holding something the window shows; outside it, dimmed.
-                        highlighted: inside && shown > 0,
-                        dimmed: window !== null && !inside,
-                    };
-                })}
-                minLabel={minLabel}
-                maxLabel={maxLabel}
-                {...(profile === null || profile.length === 0
-                    ? {}
-                    : { overlay: { label: "Selection over time", values: profile.map(countOf) } })}
-                brush={{
-                    min,
-                    max,
-                    step: Math.min(brushStep(first?.step), brushStep(step)),
-                    value: range,
-                    startLabel: "Window start",
-                    endLabel: "Window end",
-                    bodyLabel: "Window",
-                    valueText,
-                    rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
-                    thumbLabel: (value) => {
-                        const bin = binAt(value);
-                        return bin === undefined
-                            ? instantWords(value, unit, step, zone)
-                            : `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`;
-                    },
-                    ...brushGesture(session, store, setDrag, hold, pinched, shown),
-                }}
-            />
+            <ChartTooltip binAt={binAt} binWords={binWords} min={min} max={max}>
+                <HistogramRow
+                    label={label}
+                    bins={all.map((bin, index) => {
+                        const inside = window !== null && overlaps(bin, range);
+                        const shown = countOf(visible[index]);
+                        return {
+                            label: binWords(bin),
+                            count: shown,
+                            ghost: countOf(bin),
+                            from: bin.start,
+                            to: bin.end,
+                            // Lit only for a bin holding something the window shows; outside it, dimmed.
+                            highlighted: inside && shown > 0,
+                            dimmed: window !== null && !inside,
+                        };
+                    })}
+                    minLabel={minLabel}
+                    maxLabel={maxLabel}
+                    {...(selected === null ? {} : { overlay: { label: "Selection over time", values: selected } })}
+                    brush={{
+                        min,
+                        max,
+                        step: Math.min(brushStep(first?.step), brushStep(step)),
+                        value: range,
+                        startLabel: "Window start",
+                        endLabel: "Window end",
+                        bodyLabel: "Window",
+                        valueText,
+                        rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
+                        thumbLabel: (value) => {
+                            const bin = binAt(value);
+                            return bin === undefined ? instantWords(value, unit, step, zone) : binWords(bin);
+                        },
+                        ...brushGesture(session, store, setDrag, hold, pinched, shown),
+                    }}
+                />
+            </ChartTooltip>
         </div>
     );
 
     return (
-        <section // NOSONAR(S6847): Space plays and pauses as it bubbles from the dock's own controls
+        <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- Space plays and pauses as it bubbles from the dock's own controls
             className={phone ? "tl-dock tl-phone" : "tl-dock"}
             aria-label="Timeline"
             ref={ref}
@@ -741,8 +874,9 @@ export function TimeDock(): React.JSX.Element | null {
                         <>
                             {speedButton}
                             {counts}
+                            {legend}
                             {viewButtons}
-                            {allTime}
+                            {settingsButton}
                         </>
                     }
                     chart={chart}
@@ -755,10 +889,11 @@ export function TimeDock(): React.JSX.Element | null {
                         {speedButton}
                         <ReadoutEntry readout={readout} form={form} />
                         {counts}
+                        {legend}
                         {viewButtons}
+                        {settingsButton}
                     </Group>
                     {chart}
-                    {allTime}
                 </>
             )}
         </section>

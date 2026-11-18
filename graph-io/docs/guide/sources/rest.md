@@ -179,16 +179,34 @@ When the mapping names a `modified` selector, the newest value the load read is 
 
 ## Examples
 
-The `rest` source's descriptor lists two examples, each with its mapping in its params
-(`descriptor.examples` in `listSources()`). STRING's mapping is pinned to STRING 12.5's
-versioned address, `https://version-12-5.string-db.org`, so its answer does not change with
-STRING's releases. The `openalex` source lists one, the citations of the Watts-Strogatz paper
-(`W2112090702`), which loads its first page of about 200 works.
+The `rest` source's descriptor lists five examples, each with its mapping in its params
+(`descriptor.examples` in `listSources()`), and each mapping is exported from
+`@graphty/graph-io/sources/rest` to load other ids or to copy as a starting point. Every one of
+these services answers a browser's cross-origin request without a key. STRING's mapping is pinned
+to STRING 12.5's versioned address, `https://version-12-5.string-db.org`, so its answer does not
+change with STRING's releases. Crossref keeps only the references that carry a DOI. Wikipedia's
+mapping reads English Wikipedia, follows a redirect, and loads one page of up to 500 links. The
+`openalex` source lists one, the citations of the Watts-Strogatz paper (`W2112090702`), which loads
+its first page of about 200 works.
 
-| Example            | What it loads                                                              | Nodes / edges |
-| ------------------ | -------------------------------------------------------------------------- | ------------- |
-| `string-tp53`      | STRING: the functional partners of the protein TP53 (`STRING_MAPPING`)     | 21 / 113      |
-| `deps-dev-webpack` | deps.dev: the resolved dependencies of webpack 5.90.0 (`DEPS_DEV_MAPPING`) | 84 / 121      |
+| Example                   | What it loads                                                                      | Params                                | Nodes / edges |
+| ------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | ------------- |
+| `string-tp53`             | STRING: the functional partners of the protein TP53 (`STRING_MAPPING`)             | `identifiers`, `species`, `add_nodes` | 21 / 113      |
+| `deps-dev-webpack`        | deps.dev: the resolved dependencies of webpack 5.90.0 (`DEPS_DEV_MAPPING`)         | `system`, `package`, `version`        | 84 / 121      |
+| `reactome-tp53`           | Reactome: the molecules that interact with TP53, from IntAct (`REACTOME_MAPPING`)  | `accession` (UniProt)                 | 249 / 249     |
+| `crossref-watts-strogatz` | Crossref: the Watts-Strogatz paper and the works it cites (`CROSSREF_MAPPING`)     | `doi`                                 | 21 / 20       |
+| `wikipedia-eulerian-path` | Wikipedia: the articles the "Eulerian path" article links to (`WIKIPEDIA_MAPPING`) | `title`                               | 101 / 100     |
+
+```ts
+import { loadFromSource } from "@graphty/graph-io";
+import { CROSSREF_MAPPING } from "@graphty/graph-io/sources/rest";
+
+const { snapshot } = await loadFromSource("rest", { mapping: CROSSREF_MAPPING, doi: "10.1103/PhysRevLett.86.3200" });
+```
+
+Semantic Scholar and BioGRID are not among them: Semantic Scholar answers most requests without a
+key with 429, and BioGRID needs a key for every request. Either can be read with a mapping of your
+own and a credential.
 
 ## OpenAlex
 

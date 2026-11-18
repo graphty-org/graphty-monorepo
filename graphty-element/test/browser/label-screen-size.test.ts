@@ -24,7 +24,6 @@ const LES_MISERABLES = await lesMiserables();
 const SIZE = 14;
 const WORDS = "Valjean";
 const FONT = "Verdana";
-const FRAMING_TIMEOUT_MS = 10_000;
 
 const cleanups: (() => void)[] = [];
 
@@ -81,13 +80,9 @@ async function framed(style: LabelStyle, viewMode: "2d" | "3d"): Promise<Graph> 
     await operationQueueOf(graph).waitForCompletion();
     await draw(graph);
 
-    await new Promise<void>((done, fail) => {
-        const timer = setTimeout(() => {
-            off();
-            fail(new Error("the element never framed the graph"));
-        }, FRAMING_TIMEOUT_MS);
+    // No deadline of its own: the one hang guard (tools/test-wait-guard.mjs) ends a framing that never comes.
+    await new Promise<void>((done) => {
         const off = graph.on("zoom-to-fit-complete", () => {
-            clearTimeout(timer);
             off();
             done();
         });

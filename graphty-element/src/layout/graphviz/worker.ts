@@ -19,4 +19,5 @@ function handle(event: MessageEvent<GraphvizRequest>): void {
 }
 
 // A dedicated Worker hears only the page that started it, so there is no origin to check.
+// eslint-disable-next-line sonarjs/post-message -- a dedicated Worker receives messages only from the page that created it, and such a message carries no origin to check
 self.addEventListener("message", handle);

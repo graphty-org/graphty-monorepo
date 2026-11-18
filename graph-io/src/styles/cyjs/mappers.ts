@@ -15,7 +15,7 @@
  *   property to its Cytoscape.js default, whatever the rules beneath say.
  */
 
-import { canonColor } from "../canon/color.js";
+import { canonColor, hexChannels } from "../canon/color.js";
 import { CSS_COLORS } from "../canon/color-tables.js";
 import { canonEnum } from "../canon/enums.js";
 import { num6 } from "../canon/number.js";
@@ -32,6 +32,7 @@ type CyjsValueType =
     | "signedSize"
     | "nodeSize"
     | "positive"
+    | "percent"
     | "text"
     | "fontFamily"
     | "fontWeight"
@@ -175,6 +176,8 @@ const LABEL: [string, CyjsPropertySpec][] = [
             enums: ["rectangle", "round-rectangle", "roundrectangle", "circle"],
         },
     ],
+    // what a line of the label measures as tall: its font size, or its letters' ink (`labelBoxShape`)
+    ["text-metrics", { property: "_textMetrics", type: "enum", enums: ["font", "glyph"] }],
     ["text-rotation", { property: "_rotation", type: "text" }],
     // the words' own opacity, drawn times the element's (`combineLabelOpacity`)
     ["text-opacity", { property: "_textOpacity", type: "zeroOne" }],
@@ -727,6 +730,17 @@ function namedColor(name: string): string | undefined {
 }
 
 /**
+ * A percentage as Cytoscape.js reads its `percent` type: 0 to 100, its `%` implicit (a pie slice's or a stripe's size).
+ * @param value - the value, trimmed
+ * @returns the number, or null when refused
+ */
+function parsePercent(value: unknown): FlatParse {
+    const m = /^(\d+(?:\.\d+)?|\.\d+)%?$/.exec(String(value));
+    const x = m === null ? Number.NaN : Number(m[1]);
+    return x <= 100 ? { kind: "number", value: x, units: null, str: String(x) } : null;
+}
+
+/**
  * A color as Cytoscape.js reads it (`color2tuple`).
  * @param value - the trimmed text
  * @returns red, green and blue, or null when Cytoscape.js refuses it
@@ -734,11 +748,7 @@ function namedColor(name: string): string | undefined {
 function colorTuple(value: string): [number, number, number] | null {
     const named = namedColor(value.toLowerCase());
     if (named !== undefined) {
-        return [
-            Number.parseInt(named.slice(1, 3), 16),
-            Number.parseInt(named.slice(3, 5), 16),
-            Number.parseInt(named.slice(5, 7), 16),
-        ];
+        return hexChannels(named);
     }
     if ((value.length === 4 || value.length === 7) && value.startsWith("#")) {
         const short = value.length === 4;
@@ -947,6 +957,8 @@ function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): Flat
             const ok = spec.type === "zeroOne" ? x >= 0 && x <= 1 : x > 0;
             return ok ? { kind: "number", value: x, units: null, str: String(x) } : null;
         }
+        case "percent":
+            return parsePercent(value);
         case "size":
         case "signedSize":
         case "nodeSize":
@@ -1128,6 +1140,7 @@ function parseMapData(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode
     const numeric =
         spec.type === "zeroOne" ||
         spec.type === "positive" ||
+        spec.type === "percent" ||
         spec.type === "size" ||
         spec.type === "signedSize" ||
         spec.type === "nodeSize";
@@ -1305,13 +1318,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
         case "shape":
             return cyjsShape(String(word), site);
         case "borderStyle":
-            return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "outerBorderStyle":
-            // cytoscape.js 3.34.3 drawOutline strokes a double outline whole and then erases a line a third of the
-            // BORDER's width down its middle, a hairline under a border of 1: the ring it shows is solid
-            return word === "double"
-                ? "solid"
-                : (canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined);
+            return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "lineStyle":
             return canonEnum("lineStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "sourceArrow":

@@ -8,11 +8,11 @@
 
 import "../../src/algorithms";
 
-import { ActionManager } from "@babylonjs/core";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../src/Graph.js";
 import { sessionRunsOf } from "../../src/session/GraphSession.js";
+import { doubleClick, nodePoint } from "../helpers/real-input.js";
 
 const NODES = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}` }));
 const EDGES = NODES.slice(1).map((node, i) => ({ source: `n${i}`, target: node.id }));
@@ -29,9 +29,11 @@ let graph: Graph | null = null;
  * @returns the graph and the request count per algorithm
  */
 async function makeGraph(): Promise<{ graph: Graph; starts: Map<string, number> }> {
-    document.body.innerHTML = '<canvas id="on-load-canvas"></canvas>';
+    // A sized container inside the test frame, so the real pointer reaches what the graph draws.
+    document.body.innerHTML = '<div id="on-load" style="width: 400px; height: 300px"></div>';
     const { Graph: GraphClass } = await import("../../src/Graph.js");
-    const made = new GraphClass(document.getElementById("on-load-canvas") as HTMLCanvasElement);
+    const made = new GraphClass(document.getElementById("on-load") as HTMLDivElement);
+    await made.init();
     await made.getSession().config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree", "pagerank"] } });
 
     const starts = new Map<string, number>();
@@ -114,15 +116,17 @@ describe("the load-time algorithm list", () => {
             fetchNodes: () => [{ id: "x1" }],
         });
 
-        await made.addNodes([{ id: "n0" }]);
+        await made.setViewMode("2d");
+        await made.setLayout("fixed", { dim: 2 });
+        await made.addNodes([{ id: "n0", position: { x: 0, y: 0, z: 0 } }]);
         await settle(made);
         assert.deepStrictEqual(Object.fromEntries(starts), { degree: 1, pagerank: 1 });
 
-        const node = made.getDataManager().getNode("n0");
-        assert.isDefined(node);
-        const action = node.mesh.actionManager?.actions.find((a) => a.trigger === ActionManager.OnDoublePickTrigger);
-        assert.isDefined(action, "double-clicking a node does something");
-        (action as unknown as { execute: (event: unknown) => void }).execute({ source: node.mesh });
+        await made.waitForStableFrame();
+        await doubleClick(made.canvas, nodePoint(made, "n0"));
+        await vi.waitFor(() => {
+            assert.isDefined(made.getDataManager().getNode("x1"), "the double-click started the expansion");
+        });
         await settle(made);
 
         assert.isDefined(made.getDataManager().getNode("x1"), "the expansion added the fetched node");

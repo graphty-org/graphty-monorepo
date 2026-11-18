@@ -10,13 +10,21 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { openDataPage } from "../request";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
 
 const GML = `graph [
   directed 0
@@ -471,6 +479,53 @@ describe("the Data page on the real element", () => {
         assert.lengthOf(session.data.sources(), 1);
     });
 
+    it("Edit source... reopens a load made outside the page on the files and roles graphty-element kept, and replaces only that load", async () => {
+        await page.viewport(1366, 768);
+        const store = createWorkspaceStore({ project: { name: "team", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        let found: GraphSession | undefined;
+        await waitFor(() => {
+            found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+        });
+        if (found === undefined) {
+            throw new Error("the element never came up");
+        }
+        const session = found;
+        // Two loads the app never saw: people, then ties read with its weight as an attribute.
+        await act(async () => {
+            await session.data.import({ config: { file: new File([PEOPLE], "people.csv") } });
+            await session.data.import(
+                { config: { file: new File([TIES], "ties.csv") } },
+                { mode: "merge", mapping: { weight: null } },
+            );
+        });
+        assert.lengthOf(session.data.sources(), 2);
+
+        const row = await screen.findByRole("listitem", { name: "ties.csv" });
+        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
+        await screen.findByRole("heading", { name: "Replace: ties.csv" });
+        await waitFor(() => {
+            assert.equal(
+                screen.getByRole<HTMLInputElement>("combobox", { name: "Role of weight" }).value,
+                "Attribute",
+                "the role the load was read with comes back",
+            );
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
+        assert.deepEqual(
+            session.data.sources().map((each) => each.name),
+            ["people.csv", "ties.csv"],
+            "only ties.csv is replaced; people.csv stays",
+        );
+        assert.equal(session.data.statistics().edgeCount, 3, "the load is replaced, not loaded twice");
+    });
+
     it("Sources says a load left a row out; the source's inspector counts it and lists the row", async () => {
         await page.viewport(1366, 768);
         const { store } = await openFromEmptyApp();
@@ -740,5 +795,82 @@ describe("the Data page on the real element", () => {
         await chooseFiles(new File(["source,target\na,b\nb,c\n"], "plain.csv"));
         await screen.findByText("Weight: none (each edge counts 1)", {});
         assert.isNull(screen.queryByRole("radiogroup", { name: "Higher means" }));
+    });
+
+    it("Tables + File... adds the chosen table beside the one on the page", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File([PEOPLE], "people.csv"));
+        await screen.findByRole("grid", { name: "Rows of people.csv" });
+        await commands.chooseNextFile("ties.csv", "text/csv", TIES);
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "File..." }));
+        await screen.findByRole("grid", { name: "Rows of ties.csv" });
+        await waitFor(() => {
+            assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 3 nodes, 2 edges");
+        });
+    });
+
+    it("Tables + Paste reads the clipboard's table, and says so when the clipboard is empty", async () => {
+        await openFromEmptyApp();
+        await navigator.clipboard.writeText("  ");
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await screen.findByText("Clipboard empty", {});
+        assert.isNull(screen.queryByTestId("model-strip"), "nothing was read");
+
+        await navigator.clipboard.writeText("source,target\na,b\nb,c\n");
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await waitFor(() => {
+            assert.include(screen.getByTestId("model-strip").textContent, "3 nodes, 2 edges");
+        });
+    });
+
+    it("Tables + From a URL... reads the address typed, and its upload button takes a file", async () => {
+        await openFromEmptyApp();
+        const suppliers = PROTOTYPE_SAMPLES.find((each) => sampleName(each) === "suppliers.csv");
+        if (suppliers === undefined) {
+            throw new Error("no suppliers.csv fixture");
+        }
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        await userEvent.type(await screen.findByRole("textbox", { name: "Address" }), `${sampleUrl(suppliers)}{Enter}`);
+        await waitFor(() => {
+            assert.include(screen.getByTestId("model-strip").textContent, "40 nodes");
+        });
+        assert.isNull(screen.queryByRole("textbox", { name: "Address" }), "the URL panel closed");
+
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        await screen.findByRole("textbox", { name: "Address" });
+        await commands.chooseNextFile("ties.csv", "text/csv", TIES);
+        await userEvent.click(screen.getByRole("button", { name: "Choose file" }));
+        await screen.findByRole("grid", { name: "Rows of ties.csv" });
+        assert.isNull(screen.queryByRole("textbox", { name: "Address" }), "the URL panel closed");
+    });
+
+    it("refuses three files dropped at once and keeps the page empty", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(
+            new File([PEOPLE], "people.csv"),
+            new File([TIES], "ties.csv"),
+            new File([TRIPS], "trips.csv"),
+        );
+        await screen.findByText(
+            "The Data page reads one file, or a node table and an edge table. Choose at most two files.",
+            {},
+        );
+        assert.isNull(screen.queryByTestId("model-strip"), "nothing was read");
+    });
+
+    it("a role's reset gives the column back its default role", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
+        await screen.findByText("Weight: none (each edge counts 1)", {});
+        await pick("Role of km", "Weight");
+        await screen.findByText("Weight: km", { exact: false });
+        await userEvent.click(screen.getByRole("button", { name: "Reset km to default" }));
+        await screen.findByText("Weight: none (each edge counts 1)", {});
+        assert.isNull(screen.queryByRole("button", { name: "Reset km to default" }));
     });
 });

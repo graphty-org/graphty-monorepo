@@ -126,6 +126,8 @@ describe("select({ note })", () => {
     it("selects a filtered target, which is in the graph, and skips a removed set", async () => {
         const h = notesHarness();
         const { session } = h;
+        // With the working graph off: on, a select of a node the filter hides drops it.
+        session.workingGraph = false;
         const set = session.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" });
         const id = session.notes.add({ text: "x", targets: [{ node: "a" }, { set }] });
         await session.visibility.set({ kind: "degree", min: 2 });

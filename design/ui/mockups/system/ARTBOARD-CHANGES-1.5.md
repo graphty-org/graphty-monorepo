@@ -843,7 +843,8 @@ settings"`). **Collision resolved:** DEF-4 would render `Window` and `Step`
    action): - Rebuild every row from VOCAB section 10 "Subtle action row" -- transparent
    at rest, no border, 24 px tall, full panel width, 4 px radius, a 14 px
    leading icon in `#7a828e`, an 11 px label at weight 500, hover fill
-   `#374047`. Draw one row in the hover state so the fill is visible. - Delete every key chip from the trailing column and move each binding into
+   `#374047`. Draw one row in the hover state so the fill is visible. - Move every key chip out of the trailing column to just after the row's
+   label (VOCAB section 10 "Subtle action row"), and repeat each binding in
    the row's `title`, in parentheses at the end:
    `title="Zoom to selection (F)"`, `title="Select neighbors (Shift+E)"`,
    `title="Expand neighbors of all (E)"`, `title="Invert (I)"`,

@@ -1,6 +1,6 @@
 /**
  * Records the Neo4j demo server's answers the Cypher source tests replay (paging, a user query, a
- * neighborhood, a syntax error, a probe), checking each against the live server; never run in CI.
+ * neighborhood, a syntax error, a probe, a capped expansion in pages), checking each against the live server; never run in CI.
  * Loading every example whole is scripts/live-examples.ts's job.
  *
  * Usage: `GRAPH_IO_LIVE=1 pnpm exec tsx scripts/record-cypher.ts [--record <dir>]`. With `--record`,
@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import {
     credentials,
+    expandFromSource,
     ImportError,
     loadFromSource,
     probeSource,
@@ -75,7 +76,7 @@ function check(ok: boolean, what: string): void {
 
 const login = (): ReturnType<typeof credentials.basic> => credentials.basic("movies", "movies");
 
-// 2. movies in pages of 100, for the cursor test
+// 1. movies in pages of 100, for the cursor test
 {
     const r = recorder();
     let cursor: SourceCursor | null | undefined;
@@ -96,7 +97,7 @@ const login = (): ReturnType<typeof credentials.basic> => credentials.basic("mov
     save("movies-paged", r.recordings);
 }
 
-// 3. a user query, a neighborhood, a syntax error and a probe
+// 2. a user query, a neighborhood, a syntax error and a probe
 {
     const r = recorder();
     const options = { endpoint: DEMO, credential: login(), fetch: r.fetch };
@@ -147,4 +148,31 @@ const login = (): ReturnType<typeof credentials.basic> => credentials.basic("mov
         `probe: ${JSON.stringify(probe.server)}`,
     );
     save("movies-queries", r.recordings);
+}
+
+// 3. Keanu Reeves' neighbors in capped pages of 3, for the expansion cursor test
+{
+    const keanu = await loadFromSource(
+        "neo4j",
+        { database: "movies", query: "MATCH (k:Person {name: $name}) RETURN k", parameters: { name: "Keanu Reeves" } },
+        { endpoint: DEMO, credential: login() },
+    );
+    const [seed] = keanu.snapshot.ids;
+    const r = recorder();
+    const pages: number[] = [];
+    let cursor: SourceCursor | undefined;
+    for (let i = 0; i < 20; i++) {
+        const page = await expandFromSource(
+            "neo4j",
+            { params: { database: "movies" }, ids: [seed], limit: 3 },
+            { endpoint: DEMO, credential: login(), fetch: r.fetch, ...(cursor === undefined ? {} : { cursor }) },
+        );
+        pages.push(page.snapshot.nodeCount - 1);
+        cursor = page.report.source?.next ?? undefined;
+        if (cursor === undefined) {
+            break;
+        }
+    }
+    check(pages.join() === "3,3,1", `Keanu Reeves' expansion in pages of 3: ${pages.join(", ")}`);
+    save("movies-expand-paged", r.recordings);
 }

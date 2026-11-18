@@ -1,4 +1,4 @@
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /** Work one element does before every frame of its scene. */
 export type FrameCallback = () => void;

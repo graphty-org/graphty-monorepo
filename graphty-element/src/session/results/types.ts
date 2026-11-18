@@ -77,16 +77,38 @@ export function resultPath(runId: RunId, field?: string): Path {
 }
 
 /**
- * The name a grouping result gives one of its groups, from its place in the size order.
- *
- * The summary and the legend both print this, so one group is called the same thing in the list
- * of groups and in the key to the colours -- rather than "Group 1" in one and its raw id "0" in the
- * other.
- * @param rank - The group's 1-based place, largest group first.
- * @returns The name, such as "Group 1".
+ * What a value path reads, split into its parts: a data column by its name, or a run's field by
+ * the run and the field. See {@link pathParts}.
+ * @since 3.40.0
  */
-export function groupName(rank: number): string {
-    return `Group ${String(rank)}`;
+export type PathParts =
+    | { readonly from: "data"; readonly column: string }
+    | { readonly from: "run"; readonly runId: RunId; readonly field: string };
+
+/**
+ * Split a value path into what it reads, so a caller never parses the path's spelling itself.
+ *
+ * ```ts
+ * import { pathParts } from "@graphty/graphty-element/session";
+ *
+ * pathParts("data.minutes"); // { from: "data", column: "minutes" }
+ * pathParts("results.louvain.group"); // { from: "run", runId: "louvain", field: "group" }
+ * pathParts("id"); // undefined
+ * ```
+ * @param path - A path such as `data.<column>` or `results.<run>.<field>`, as
+ *   `data.readableValues()` lists it.
+ * @returns Its parts, or undefined for any other path (the node id, `source`, a whole run).
+ * @since 3.40.0
+ */
+export function pathParts(path: Path): PathParts | undefined {
+    const [root, ...rest] = path.split(".");
+    if (root === "data" && rest.length > 0 && rest.join(".") !== "") {
+        return { from: "data", column: rest.join(".") };
+    }
+    if (root === RESULT_ROOT && rest.length === 2 && rest[0] !== "" && rest[1] !== "") {
+        return { from: "run", runId: rest[0], field: rest[1] };
+    }
+    return undefined;
 }
 
 /**
@@ -669,7 +691,7 @@ export interface RankingEntry {
  * 4), a group of size `s` at rank `r` is in exactly when `r + s - 1 <= n`. So the top never holds
  * more than `n` elements and never splits a tie by an arbitrary order -- and it can hold FEWER
  * than `n`, or none at all on a graph whose top value is shared by more than `n` elements.
- * {@link TopRanking.leftOut} and {@link TopRanking.reason} say when that happened.
+ * {@link TopRanking.leftOut} says when that happened.
  */
 export interface TopRanking {
     /** The elements taken, best first: whole tie groups only, never more than the limit. */
@@ -679,8 +701,6 @@ export interface TopRanking {
      * value and its size. Null when nothing was left out on account of a tie.
      */
     readonly leftOut: { readonly value: number; readonly count: number } | null;
-    /** Why fewer elements were taken than the limit allowed, in a sentence; null when none were left out. */
-    readonly reason: string | null;
     /**
      * The value of the highest-ranked element left out, or null when every measured element is in
      * the top. An `{ above }` selection target or a `threshold` filter at this value selects
@@ -839,12 +859,6 @@ export interface SummaryGroup {
      * a group the same way: word it from the rank ("Group 3").
      */
     readonly rank?: number;
-    /**
-     * What to call it, such as "Group 1", for a result that partitions into groups.
-     * @deprecated English words; word the group from {@link SummaryGroup.rank} instead. Removed in
-     *   the next major.
-     */
-    readonly name?: string;
 }
 
 /**
@@ -927,6 +941,21 @@ export interface RunResult {
      */
     column(field: string): NumericColumnView;
     /**
+     * The element at each position of {@link RunResult.column}: `ids(field)[i]` is the node or edge
+     * whose value is `column(field).get(i)`. One array for the whole column, so a consumer pairs ids
+     * with values without a {@link RunResult.node} call per element.
+     *
+     * ```ts
+     * const ids = result.ids("value");
+     * const values = result.column("value");
+     * for (let i = 0; i < values.length; i++) scores.set(ids[i], values.get(i));
+     * ```
+     * @param field - The field name, as {@link RunResult.column} takes it.
+     * @returns The ids, in column order.
+     * @since 3.40.0
+     */
+    ids(field: string): readonly NodeId[];
+    /**
      * The highest-ranked elements on one field.
      * @param field - The field to rank on.
      * @param limit - How many entries to return; the whole ranking when absent.
@@ -979,6 +1008,19 @@ export interface RunResult {
      */
     groupRanks(): ReadonlyMap<string, number> | undefined;
     /**
+     * Every group of a partition into groups, largest first: its id, its size and its rank (1 for
+     * the largest), for every group and not only the ones a summary lists.
+     *
+     * ```ts
+     * for (const { group, size, rank } of result.groups() ?? []) {
+     *     console.log(rank, group, size); // 1 "4" 37
+     * }
+     * ```
+     * @returns The groups, or undefined for a result that is not a partition into groups.
+     * @beta
+     */
+    groups(): readonly SummaryGroup[] | undefined;
+    /**
      * What this result means, as a code and the figures it is about: one fact per result shape.
      *
      * Every figure comes from the result's own statistics; nothing is asserted that the run did
@@ -1003,6 +1045,29 @@ export interface RunResult {
      * @returns The band, or undefined when the field has no interpretation or no finite value.
      */
     band(field: string): FieldBand | undefined;
+    /**
+     * The result as tab-separated text at full stored precision: a header of field names, then
+     * one row per element the run published values for (an `id` column first, and a `kind` column
+     * of `node` or `edge` when the result has fields of both). A result with no per-element field
+     * is one row of its graph-level fields. Numbers are written in the shortest form that reads
+     * back to the same value, never rounded for display; a tab or line break inside a text value
+     * becomes a space.
+     *
+     * ```ts
+     * await navigator.clipboard.writeText(result.toTsv());
+     * ```
+     * @returns The text, ending without a trailing line break.
+     * @since 3.56.0
+     */
+    toTsv(): string;
+    /**
+     * The ids of the elements the result picks out: the nodes or edges in a set, the nodes and
+     * edges on a path, and for any other shape every element it published values for (nodes
+     * first, then edges).
+     * @returns The ids, in the result's own order.
+     * @since 3.56.0
+     */
+    memberIds(): readonly NodeId[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1022,12 +1087,6 @@ export type RunRef = Run | RunResult | RunId;
 export interface ResultRoot {
     /** The run id, which is the path segment under `results`. */
     readonly runId: RunId;
-    /**
-     * What to call the run in a completion list.
-     * @deprecated Word the run from its algorithm, {@link ResultRoot.distinguishedBy} and
-     *   {@link ResultRoot.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
     /**
      * The option the run's name was suggested by, once it left its default. See
      * {@link Run.distinguishedBy}.

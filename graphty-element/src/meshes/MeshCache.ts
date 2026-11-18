@@ -3,7 +3,10 @@
 // See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import { InstancedMesh, Mesh, type Scene, type TransformNode } from "@babylonjs/core";
+import type { InstancedMesh } from "@babylonjs/core";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import { NodeBatch } from "./NodeBatch";
@@ -232,7 +235,8 @@ export class MeshCache {
      *
      * Every creator handed to get() builds a fresh material for its mesh, so the material dies
      * with it; `mesh.dispose()` alone would leave it in `scene.materials` for good. Textures are
-     * kept: node gradient textures are shared across materials per scene. A batch of the mesh goes
+     * kept: node gradient textures are shared across materials per scene, and NodeMesh disposes
+     * one when the last material drawing it is disposed. A batch of the mesh goes
      * first, as it draws with that material.
      * @param mesh - The cached source mesh
      */

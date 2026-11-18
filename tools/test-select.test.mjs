@@ -44,6 +44,7 @@ import {
     selectStories,
     storiesReaching,
     storyBins,
+    LIGHT_STORY_BIN_LIMIT_MS,
     STORY_BIN_LIMIT_MS,
     STORY_BIN_MAX_MS,
     STORY_JOB_BUDGET,
@@ -264,7 +265,7 @@ describe("deferring downstream packages' tests (landing checks)", () => {
         const ioOnly = run(["graph-io/src/index.ts"], true);
         assert.ok(ioOnly.length > 0 && ioOnly.every((p) => p === "graph-io"), ioOnly.join(", "));
         assert.ok(run(["graph-io/src/index.ts"], false).includes("graphty-element"), "without deferral it runs");
-        const shared = run(["vitest.shared.config.ts"], true);
+        const shared = run(["vitest.base.mjs"], true);
         assert.deepEqual([...new Set(shared)].sort(), ["graph-format", "graph-io", "graphty", "graphty-element"]);
     });
 });
@@ -273,7 +274,7 @@ describe("shards", () => {
     it("reads each vitest run of a shard command", () => {
         const runs = shardRuns(SHARDS.find((s) => s.shard === "graphty-element-browser-2"));
         assert.deepEqual(runs, [
-            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/8" },
+            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/12" },
         ]);
         assert.deepEqual(
             shardRuns(SHARDS.find((s) => s.shard === "graph-io-browser"))[0].config,
@@ -392,7 +393,6 @@ describe("the rules file", () => {
             "algorithms",
             "compact-mantine",
             "cytoscape-extensions",
-            "githerd",
             "graph-format",
             "graph-io",
             "graph-samples",
@@ -879,9 +879,14 @@ describe("running a selection", () => {
     });
 
     it("plans none, files and all, folds the slices of one family into one run, and runs an unreadable one whole", () => {
-        const shards = ["graphty-1", "graphty-2", "graphty-3", "layout", "githerd", "webgpu-graph-algorithms-node"].map(
-            byName,
-        );
+        const shards = [
+            "graphty-1",
+            "graphty-2",
+            "graphty-3",
+            "layout",
+            "remote-logger",
+            "webgpu-graph-algorithms-node",
+        ].map(byName);
         const app = files("graphty/src/a.test.tsx");
         const selection = [
             { shard: "graphty-1", mode: "files", files: app, reasons: [] },
@@ -901,7 +906,7 @@ describe("running a selection", () => {
             [
                 ["graphty-1+graphty-2+graphty-3", "files"],
                 ["layout", "none"],
-                ["githerd", "all"],
+                ["remote-logger", "all"],
                 ["webgpu-graph-algorithms-node", "all"],
             ],
         );
@@ -910,7 +915,7 @@ describe("running a selection", () => {
         const text = describePlan(plan).join("\n");
         assert.match(text, /graphty-1, graphty-2, graphty-3: 1 test file/u);
         assert.match(text, /graphty\/src\/a\.test\.tsx {2}<- imports it/u);
-        assert.match(text, /githerd: WHOLE SHARD/u);
+        assert.match(text, /remote-logger: WHOLE SHARD/u);
         assert.match(text, /nothing to run: layout/u);
     });
 
@@ -1570,7 +1575,7 @@ describe("visual-review files only the story setups load", () => {
     it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
         const picked = run(["visual-review/capture/story-test-setup.mjs"]);
         const story = SHARDS.filter(
-            (s) => /^(graphty(-element)?|layout)-storybook/u.test(s.shard) && !s["full-run-only"],
+            (s) => /^(graphty(-element)?|layout)-storybook/u.test(s.shard) && !s["full-run-only"] && s.flags !== "on",
         ).map((s) => s.shard);
         const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
         // algorithms-browser and layout gate ci.yml's story-tests job for those two projects
@@ -1886,31 +1891,17 @@ describe("packBins", () => {
 
     it("plans a family's bins at what they ran, so a bin that ran over 8 minutes is planned over (#5048)", () => {
         // [family, files, recorded ms, run-group wall ms]: every bin over 8 minutes in pull request runs
-        // 41040420195, 41058628979 and 41061566840, each planned at 8 minutes or less with 5 s a file
+        // 41040420195, 41058628979 and 41061566840, each planned at 8 minutes or less with 5 s a file;
+        // graphty-element-browser's rows left with its re-fit to the 2026-11-17 runs (FAMILY_BIN_COST, #5404)
         const ran = [
             ["graphty", 15, 404956, 502000],
             ["graphty", 10, 429763, 537000],
-            ["graphty-element-browser", 52, 219997, 533000],
-            ["graphty-element-browser", 31, 324812, 533000],
-            ["graphty-element-browser", 93, 14386, 555000],
-            ["graphty-element-browser", 88, 37527, 571000],
-            ["graphty-element-browser", 80, 76658, 560000],
             ["graphty", 15, 404917, 536000],
             ["graphty", 10, 428700, 506000],
-            ["graphty-element-browser", 88, 40000, 578000],
-            ["graphty-element-browser", 51, 224963, 504000],
-            ["graphty-element-browser", 93, 14218, 554000],
-            ["graphty-element-browser", 30, 327984, 523000],
             ["graphty-element-storybook", 34, 309521, 544000],
             ["graphty", 14, 409993, 503000],
             ["graphty", 21, 374911, 485000],
             ["graphty", 10, 429847, 499000],
-            ["graphty-element-browser", 71, 124990, 489000],
-            ["graphty-element-browser", 88, 39978, 594000],
-            ["graphty-element-browser", 51, 224972, 517000],
-            ["graphty-element-browser", 30, 329835, 545000],
-            ["graphty-element-browser", 93, 13825, 559000],
-            ["graphty-element-browser", 80, 76558, 529000],
             ["graphty-element-storybook", 34, 309752, 556000],
         ];
         for (const [family, n, recorded, wall] of ran) {
@@ -1920,6 +1911,18 @@ describe("packBins", () => {
             const planned = packBins(files, ms, Infinity, overheadMs, scale)[0].ms;
             assert.ok(planned >= wall, `${family}, ${n} files: planned ${planned} ms, ran ${wall} ms`);
         }
+    });
+
+    it("gives a features-on twin its family's cost (#5404)", () => {
+        for (const family of [
+            "graphty-element-browser",
+            "graphty-element-default",
+            "graphty-element-storybook",
+            "graphty",
+        ]) {
+            assert.deepEqual(binCost(`${family}-features-on`), binCost(family));
+        }
+        assert.deepEqual(binCost("graph-io-features-on"), { overheadMs: FILE_OVERHEAD_MS, scale: 1 });
     });
 
     it("packs a family that runs its files in parallel workers by its small per-file cost (#5048)", () => {
@@ -2044,21 +2047,21 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
 
     it("packs a one-package change into bins of at most BIN_LIMIT_MS, one vitest run of its files each", () => {
         const app = many(10);
-        const shards = ["graphty-1", "graphty-2", "layout", "githerd"].map(byName);
+        const shards = ["graphty-1", "graphty-2", "layout", "remote-logger"].map(byName);
         const selection = [
             sel("graphty-1", "files", app),
             sel("graphty-2", "files", app),
             sel("layout", "none"),
-            sel("githerd", "all"),
+            sel("remote-logger", "all"),
         ];
-        // 1 min recorded is 1.4 min planned with graphty's cost (binCost()): two files a bin
+        // 1 min recorded is 1.4 min planned with graphty's cost (binCost()): four files a bin
         const durations = { graphty: Object.fromEntries(app.map((f) => [f, 1 * MIN])) };
         const out = lightPlan(ROOT, shards, selection, durations);
-        assert.deepEqual(out.whole, ["githerd"]);
+        assert.deepEqual(out.whole, ["remote-logger"]);
         assert.deepEqual(out.none, ["layout"]);
         assert.deepEqual(
             out.bins.map((b) => b.name),
-            ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
+            ["graphty-1", "graphty-2", "graphty-3"],
         );
         assert.ok(
             out.bins.every((b) => b.ms <= BIN_LIMIT_MS),
@@ -2073,7 +2076,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         const include = matrixPlan(["graphty"], ["graphty-1", "graphty-2"], out);
         assert.deepEqual(
             include.map((e) => e.shard).filter((s) => /^graphty-\d+$/u.test(s)),
-            ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
+            ["graphty-1", "graphty-2", "graphty-3"],
             "no slice the bins stand in for runs whole beside them",
         );
     });
@@ -2151,11 +2154,11 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             { file: "graphty/src/a.test.tsx", why: "imports graphty/src/a.ts" },
             { file: "graphty/src/b.test.tsx", why: "changed" },
         ];
-        const shards = ["graphty-1", "layout", "githerd"].map(byName);
+        const shards = ["graphty-1", "layout", "remote-logger"].map(byName);
         const out = lightPlan(ROOT, shards, [
             { shard: "graphty-1", mode: "files", files, reasons: [] },
             sel("layout", "none"),
-            { ...sel("githerd", "all"), reasons: ["githerd/package.json changed"] },
+            { ...sel("remote-logger", "all"), reasons: ["remote-logger/package.json changed"] },
         ]);
         assert.deepEqual(out.bins[0].why, {
             "graphty/src/a.test.tsx": "imports graphty/src/a.ts",
@@ -2163,7 +2166,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         });
         const md = planSummary(out);
         assert.match(md, /^### Light check: 1 test bins, 1 shards whole, 1 shards with nothing selected/u);
-        assert.match(md, /\*\*githerd\*\* runs whole: githerd\/package.json changed/u);
+        assert.match(md, /\*\*remote-logger\*\* runs whole: remote-logger\/package.json changed/u);
         assert.match(md, /nothing selected, not run: layout/u);
         assert.match(md, /graphty-1: 2 files/u);
         assert.match(md, /`graphty\/src\/a.test.tsx`: imports graphty\/src\/a.ts/u);
@@ -2454,7 +2457,7 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
                 }
             }
         };
-        for (const f of ["vitest.shared.config.ts", ...configs]) walk(f);
+        for (const f of configs) walk(f);
         assert.ok(seen.has("tools/test-slots.mjs"), "the walk finds the configs' tools");
         assert.deepEqual(
             [...seen].filter((f) => storyless.some((re) => re.test(f))),
@@ -2604,7 +2607,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         assert.ok(n > 1, "the Start screen is longer than one bin");
         assert.deepEqual(parts.sort(), Array.from({ length: n }, (_, i) => `${slow}#${i + 1}/${n}`).sort());
         assert.ok(
-            bins.every((b) => b.ms <= STORY_BIN_LIMIT_MS),
+            bins.every((b) => b.ms <= LIGHT_STORY_BIN_LIMIT_MS),
             "every bin fits",
         );
         assert.ok(bins.flatMap((b) => b.files).includes(other), "a short file stays whole");
@@ -2620,14 +2623,13 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             { "graph-io-storybook": { [files[0]]: 1_000 } },
             () => 13,
         );
-        // 13 stories a file: two files fit in a bin, a third starts the next one
-        assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
+        // 13 stories a file: four files fit in a bin, a fifth starts the next one
+        assert.ok(4 * perFile <= LIGHT_STORY_BIN_LIMIT_MS && 5 * perFile > LIGHT_STORY_BIN_LIMIT_MS);
         assert.deepEqual(
             bins.map((b) => [b.name, b.files.length, b.ms]),
             [
-                ["graph-io-fidelity-1", 2, 2 * perFile],
-                ["graph-io-fidelity-2", 2, 2 * perFile],
-                ["graph-io-fidelity-3", 1, perFile],
+                ["graph-io-fidelity-1", 4, 4 * perFile],
+                ["graph-io-fidelity-2", 1, perFile],
             ],
         );
     });
@@ -2669,7 +2671,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("packs a change's stories into at most the job budget, growing every bin's limit only as needed (#3448)", () => {
-        const ids = Array.from({ length: 2000 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 4000 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins(
             [
                 entry("graph-io-fidelity", "all", [], ids),
@@ -2679,7 +2681,10 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             projects,
             list,
         );
-        assert.ok(2000 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
+        assert.ok(
+            4000 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * LIGHT_STORY_BIN_LIMIT_MS,
+            "over budget at the starting limit",
+        );
         assert.ok(bins.length <= STORY_JOB_BUDGET, `${bins.length} bins`);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_MAX_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids, "a--one"].sort());
@@ -2689,12 +2694,12 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         ]);
     });
 
-    it("never stretches a bin past 3 minutes with jobBudget Infinity (the rolling slices, early-capture.md 4a)", () => {
-        const ids = Array.from({ length: 2000 }, (_, i) => `gexf-specimens--s${i}`);
+    it("never stretches a bin past LIGHT_STORY_BIN_LIMIT_MS with jobBudget Infinity", () => {
+        const ids = Array.from({ length: 4000 }, (_, i) => `gexf-specimens--s${i}`);
         const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
         const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
         assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);
-        for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
+        for (const b of bins) assert.ok(b.ms <= LIGHT_STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids].sort());
         // the default budget still stretches the same stories into STORY_JOB_BUDGET jobs
         assert.ok(storyBins(stories, projects, list).length <= STORY_JOB_BUDGET);
@@ -2704,7 +2709,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         const ids = Array.from({ length: 200 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins([entry("graph-io-fidelity", "all", [], ids)], projects, list);
         assert.ok(bins.length > 1);
-        for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
+        for (const b of bins) assert.ok(b.ms <= LIGHT_STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
         const got = bins.flatMap((b) => b.ids);
         assert.equal(got.length, ids.length);
         assert.deepEqual([...got].sort(), [...ids].sort());

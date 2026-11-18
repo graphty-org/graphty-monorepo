@@ -1,0 +1,47 @@
+diff --git a/cjs/components/Combobox/use-combobox/use-combobox.cjs b/cjs/components/Combobox/use-combobox/use-combobox.cjs
+index c384faae2499f278b229844eeac5d29097813f90..7815e135e76a073d78319812d1a9bc8671993b93 100644
+--- a/cjs/components/Combobox/use-combobox/use-combobox.cjs
++++ b/cjs/components/Combobox/use-combobox/use-combobox.cjs
+@@ -24,6 +24,7 @@ function useCombobox({
+     onChange: onOpenedChange
+   });
+   const listId = React.useRef(null);
++  const [, setRenderedListId] = React.useState(null);
+   const selectedOptionIndex = React.useRef(-1);
+   const searchRef = React.useRef(null);
+   const targetRef = React.useRef(null);
+@@ -157,6 +158,7 @@ function useCombobox({
+   }, []);
+   const setListId = React.useCallback((id) => {
+     listId.current = id;
++    setRenderedListId(id);
+   }, []);
+   const focusSearchInput = React.useCallback(() => {
+     focusSearchTimeout.current = window.setTimeout(() => searchRef.current?.focus(), 0);
+diff --git a/esm/components/Combobox/use-combobox/use-combobox.mjs b/esm/components/Combobox/use-combobox/use-combobox.mjs
+index ef1e4221258c2b3bef3887796b3489b56f5c954d..15fa754ba4bd855a056ee7cf654ab96fcaf32a69 100644
+--- a/esm/components/Combobox/use-combobox/use-combobox.mjs
++++ b/esm/components/Combobox/use-combobox/use-combobox.mjs
+@@ -1,5 +1,5 @@
+ 'use client';
+-import { useRef, useCallback, useEffect } from 'react';
++import { useRef, useCallback, useEffect, useState } from 'react';
+ import { useUncontrolled } from '@mantine/hooks';
+ import '../../../core/utils/units-converters/rem.mjs';
+ import 'react/jsx-runtime';
+@@ -22,6 +22,7 @@ function useCombobox({
+     onChange: onOpenedChange
+   });
+   const listId = useRef(null);
++  const [, setRenderedListId] = useState(null);
+   const selectedOptionIndex = useRef(-1);
+   const searchRef = useRef(null);
+   const targetRef = useRef(null);
+@@ -155,6 +156,7 @@ function useCombobox({
+   }, []);
+   const setListId = useCallback((id) => {
+     listId.current = id;
++    setRenderedListId(id);
+   }, []);
+   const focusSearchInput = useCallback(() => {
+     focusSearchTimeout.current = window.setTimeout(() => searchRef.current?.focus(), 0);

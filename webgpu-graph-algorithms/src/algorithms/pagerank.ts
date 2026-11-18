@@ -1,15 +1,16 @@
 /**
- * PageRank and personalized PageRank on the device (spec 8.2, 3.3): a pull over the reverse adjacency with the
+ * PageRank and personalized PageRank on the device: a pull over the reverse adjacency with the
  * out-weight normaliser folded into `xNorm` by `pr-scale`, the dangling mass and the L1 delta folded by
  * `pr-finalize` into the header at `partials[0]`, and `spmv-pull` writing the next iterate. Iterations run in
  * batches of PR_BATCH per submit, ONE readback per batch (the header and the iterate together), and the device
- * records `firstConverged` the first time the delta falls below `tolerance * n`, so the reported `iterations` is the
- * first converged iteration and not the batch boundary (spec 9.7).
+ * records `firstConverged` the first time the delta falls below `tolerance` (the scores sum to 1, so a threshold scaled
+ * by the node count would stop a large graph after a pass or two; issue #1182), so the reported `iterations` is the
+ * first converged iteration and not the batch boundary.
  *
- * PLAN DECISION PD-7: the ping-pong is TWO buffers (`rankA`, `rankB`) alternated through two cached bind groups;
+ * The ping-pong is TWO buffers (`rankA`, `rankB`) alternated through two cached bind groups;
  * one buffer of two aliased halves would bind (each kernel sees the halves in one access mode) but saves nothing.
- * PLAN DECISION PD-8: `outWeightSum` is call scratch from the Lease, one `segmentedReduce` pass per call.
- * PLAN DECISION PD-9: `pr-scale` at iteration i reads x(i-1) and x(i-2), so its delta is the error of iteration
+ * `outWeightSum` is call scratch from the Lease, one `segmentedReduce` pass per call.
+ * `pr-scale` at iteration i reads x(i-1) and x(i-2), so its delta is the error of iteration
  * i - 1 and `pr-finalize` records `P.iteration - 1`; the ping-pong supplies `rankPrev` for free because it is the
  * buffer this iteration overwrites, and `pr-scale` runs before `spmv-pull` in the same pass.
  */
@@ -30,9 +31,10 @@ import { assertDeviceComputes } from "../primitives/verify.js";
 import { type GpuPageRankResult, type PageRankOptions } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
+import { checkTolerance } from "./power-iteration.js";
 import { algorithmScope } from "./scope.js";
 
-/** Iterations per submit (spec 8.2: k = 8). */
+/** Iterations per submit. */
 const PR_BATCH = 8;
 /** Params slots of one batch: per iteration one PrParams (shared by pr-scale and pr-finalize) and one SpmvParams, plus the normaliser's RangeParams and the last batch's convergence check; a smaller ring wraps onto a slot the same batch still reads. */
 const RING_SLOTS = 2 * PR_BATCH + 2;
@@ -63,8 +65,8 @@ function checkDest(dest: Float32Array | Uint32Array | undefined, n: number, algo
 }
 
 /**
- * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (spec 3.8, 3.12;
- * DEP-P4-B: only degree and segmentedReduce execute windows).
+ * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (only degree and
+ * segmentedReduce execute windows).
  * @param ctx - the context
  * @param s - the snapshot
  * @param algorithm - the caller's name
@@ -111,6 +113,21 @@ function checkMaxIterations(maxIterations: number, algorithm: string): void {
             argument: "maxIterations",
             value: maxIterations,
             expected: "a positive integer",
+        });
+    }
+}
+
+/**
+ * Refuses a dampingFactor outside [0, 1] or not finite: such a value gives NaN or diverging scores.
+ * @param dampingFactor - the option
+ * @param algorithm - the caller's name
+ */
+function checkDampingFactor(dampingFactor: number, algorithm: string): void {
+    if (!Number.isFinite(dampingFactor) || dampingFactor < 0 || dampingFactor > 1) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: dampingFactor must be a number in [0, 1]`, {
+            argument: "dampingFactor",
+            value: dampingFactor,
+            expected: "a number in [0, 1]",
         });
     }
 }
@@ -239,6 +256,8 @@ async function run(
     const tolerance = options?.tolerance ?? 1e-6;
     const useWeights = options?.weighted !== false;
     checkMaxIterations(maxIterations, algorithm);
+    checkDampingFactor(alpha, algorithm);
+    checkTolerance(tolerance, algorithm);
     const dest = checkDest(options?.dest, n, algorithm);
     throwIfAborted(options, algorithm);
     if (n === 0) {
@@ -313,7 +332,7 @@ async function run(
                 groups,
                 iteration: iterationsRun + i + 1,
                 trackConvergence: 1,
-                convergeThreshold: tolerance * n,
+                convergeThreshold: tolerance,
             });
         // the scale + finalize of an iteration, measuring the error of the one before it
         const recordMeasure = (
@@ -341,7 +360,7 @@ async function run(
                 normaliser.record(pass, weightedCore, outWeightSumBinding);
             }
             const last = iterationsRun + k === maxIterations;
-            // the scale + finalize of iteration i measures the error of iteration i - 1 (PD-9), so the last batch
+            // the scale + finalize of iteration i measures the error of iteration i - 1, so the last batch
             // runs them once more, with no pull, to measure the error of iteration maxIterations itself
             for (let i = 0; i < k; i++) {
                 const other = 1 - cur;
@@ -393,8 +412,8 @@ async function run(
 }
 
 /**
- * PageRank on the device (spec 3.3, 8.2): NetworkX semantics, f32 scores, `iterations` the first converged
- * iteration (spec 9.7).
+ * PageRank on the device: NetworkX semantics, f32 scores, `iterations` the first converged
+ * iteration.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param options - dampingFactor 0.85 / maxIterations 100 / tolerance 1e-6 / weighted true, plus dest / signal / onProgress
@@ -409,7 +428,7 @@ export function pageRank(
 }
 
 /**
- * Personalized PageRank on the device (spec 3.3, 8.2): the personalization vector replaces the uniform 1 / n in
+ * Personalized PageRank on the device: the personalization vector replaces the uniform 1 / n in
  * the teleport and the dangling redistribution; it is normalised to sum 1 on the host.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)

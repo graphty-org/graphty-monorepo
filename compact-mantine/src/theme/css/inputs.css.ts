@@ -213,9 +213,8 @@ const css = `
     box-sizing: border-box;
     min-width: 0;
     max-width: calc(100vw - 12px);
-    /* The list scrolls itself (no ScrollArea), clamped to the viewport less 6px each side and to
-       the visual viewport's cap (viewportCap.ts); the menus' chevron rows (cm-menu) cover 24px at
-       a scrollable end, so keyboard scrolling keeps the highlight clear of them. */
+    /* A list built on Combobox directly scrolls the surface, clamped to the viewport less 6px
+       each side and to the visual viewport's cap (viewportCap.ts). */
     max-height: min(calc(100vh - 12px), ${VIEWPORT_CAP});
     overflow-y: auto;
     scrollbar-width: none;
@@ -226,6 +225,29 @@ const css = `
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     box-shadow: var(--cm-menu-shadow);
+}
+/* A field's own list (Select, Autocomplete, MultiSelect, TagsInput, ComboInput): the surface only
+   frames it, with no padding of its own, and the role="listbox" inside carries the 8px and
+   scrolls itself (no ScrollArea), so its rows scroll to the surface's edge and the combobox's
+   popup is the scroller. Restated at four classes to beat the popover surface's padding. */
+.cm-listbox.cm-listbox-frame.cm-menu-surface,
+.cm-listbox.cm-listbox-frame.cm-menu-surface.cm-popover-surface {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+/* The menus' chevron rows (cm-menu) cover 24px at a scrollable end, so keyboard scrolling keeps
+   the highlight clear of them. */
+.cm-listbox-frame .cm-listbox-options {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    flex: 0 1 auto;
+    overflow-y: auto;
+    scrollbar-width: none;
+    scroll-padding-block: 24px;
+    padding: 8px 0;
 }
 .cm-listbox .cm-listbox-option {
     gap: 4px;
@@ -712,6 +734,31 @@ const css = `
 .cm-file-drop-glyph {
     display: inline-flex;
 }
+.cm-file-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+}
+.cm-file-hint {
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--cm-text-secondary);
+    text-align: center;
+}
+.cm-file-source[data-fill] {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.cm-file-source[data-fill] > .cm-file-drop-target {
+    flex: 1 1 auto;
+    justify-content: center;
+}
+.cm-file-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
 .cm-file-url-row {
     display: flex;
     align-items: center;
@@ -721,6 +768,61 @@ const css = `
 .cm-file-url-row > .cm-file-url {
     flex: 1;
     min-width: 0;
+}
+/* dropping / dropLabel: the row's drop cue, drawn over its field in the drop target's own drag-over colors. */
+.cm-file-source[data-dropping] {
+    position: relative;
+}
+.cm-file-drop-cue {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px dashed var(--cm-border-selected);
+    border-radius: 5px;
+    background-color: var(--cm-bg-selected);
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    pointer-events: none;
+}
+/* loaded: one line naming what was loaded, filled so it reads as a value held, not a field to type in. */
+.cm-file-loaded {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    min-width: 0;
+    padding-left: 4px;
+    border: 1px solid var(--cm-border);
+    border-radius: 5px;
+    background-color: var(--cm-bg-secondary);
+    color: var(--cm-icon-secondary);
+}
+.cm-file-loaded-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--cm-text);
+    white-space: nowrap;
+}
+.cm-file-loaded-head {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-file-source[data-disabled] .cm-file-loaded {
+    border-color: var(--cm-border-disabled);
+    color: var(--cm-icon-disabled);
+}
+.cm-file-source[data-disabled] .cm-file-loaded-name {
+    color: var(--cm-text-disabled);
 }
 `;
 

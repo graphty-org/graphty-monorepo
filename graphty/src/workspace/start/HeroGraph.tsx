@@ -665,6 +665,8 @@ function HeroGraphBody({
                 {defined ? (
                     <graphty-element
                         ref={ref}
+                        // Usage data never captures a click on the drawing, and a replay shows it blank.
+                        className="ph-no-capture"
                         data-start-page=""
                         aria-label="A network drawn as a 3D graph. Drag or use the arrow keys to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}

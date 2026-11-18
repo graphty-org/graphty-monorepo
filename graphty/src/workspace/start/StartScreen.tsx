@@ -37,6 +37,8 @@ const ELEMENT_DOCS = "https://graphty.app/docs/graphty-element/";
 const DOCS = "https://graphty.app/docs/";
 /** graphty-element's license. */
 const LICENSE = `${GITHUB}/blob/master/graphty-element/LICENSE`;
+/** What usage data is sent and where; served by this site (public/privacy.html). */
+const PRIVACY = "/privacy.html";
 
 /** The canvas color behind the graph, per color scheme; the same as `--ws-land-canvas`. */
 const CANVAS = { light: "#fbfbfd", dark: "#15171e" } as const;
@@ -410,7 +412,7 @@ function SampleLibrary(): React.JSX.Element {
 }
 
 /**
- * The foot of the page: the formats it opens, the license, the code and the docs.
+ * The foot of the page: the formats it opens, the license, the code, the docs and the privacy page.
  * @returns The footer
  */
 function PageFoot(): React.JSX.Element {
@@ -431,6 +433,10 @@ function PageFoot(): React.JSX.Element {
                 &middot;{" "}
                 <a href={DOCS} target="_blank" rel="noopener noreferrer">
                     Docs
+                </a>{" "}
+                &middot;{" "}
+                <a href={PRIVACY} target="_blank" rel="noopener noreferrer">
+                    Privacy
                 </a>{" "}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
                 {/* The footer's other "Docs" is the app's; this one names what it documents. */}

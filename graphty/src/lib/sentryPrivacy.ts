@@ -11,15 +11,19 @@
  * Kept: the error's type, its message and its stack (both with anything shaped like a key
  * removed), the SDK's own bookkeeping (event id, time, release, environment, trace and replay
  * ids, the browser), and for a breadcrumb its kind and level, plus a request's method, status
- * and URL without its query. Dropped: every other error field, `extra`, `user`, other contexts
- * and tags, request bodies, query strings, and the text of console, click and input breadcrumbs.
+ * and URL cut as the analytics cut it (`cleanUrl` in analytics.ts: this site's URLs keep their
+ * path, any other site's keep only its origin, so a file's address never leaves). Dropped: every
+ * other error field, `extra`, `user`, other contexts and tags, request bodies, query strings,
+ * console breadcrumbs, and the text of click and input breadcrumbs.
  *
  * Feedback the reader writes (`captureUserFeedback`) is not an error event and passes through
  * none of these hooks except the breadcrumb one: its words are what the reader chose to send.
  */
 
 import { redactSecrets } from "@graphty/graphty-element/logging";
-import type { Breadcrumb, BrowserOptions, Event, Exception } from "@sentry/react";
+import type { Breadcrumb, BrowserOptions, Event, Exception, ReplayFrameEvent } from "@sentry/react";
+
+import { cleanUrl as cutUrl } from "./analytics";
 
 type Json = Record<string, unknown>;
 
@@ -80,7 +84,8 @@ function pick(from: unknown, fields: readonly string[]): Json {
 }
 
 /**
- * A URL with its query and fragment removed, and any key left in the path.
+ * A URL cut as the analytics cut it, then with any key left in it removed. This site's own URLs
+ * keep their origin, so a stack frame still names the script Sentry has the source map of.
  * @param url - an absolute or relative URL.
  * @returns the URL safe to send, or undefined for none.
  */
@@ -88,7 +93,8 @@ function cleanUrl(url: unknown): string | undefined {
     if (typeof url !== "string") {
         return undefined;
     }
-    return redactSecrets(url.split(/[?#]/)[0]);
+    const cut = cutUrl(url);
+    return redactSecrets(cut.startsWith("/") ? globalThis.location.origin + cut : cut);
 }
 
 /**
@@ -118,7 +124,11 @@ function cleanSpanData(data: unknown): Json {
  * @param crumb - the breadcrumb Sentry recorded.
  * @returns the breadcrumb that is kept.
  */
-function cleanBreadcrumb(crumb: Breadcrumb): Breadcrumb {
+function cleanBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
+    if (crumb.category === "console") {
+        // A guard: sentry.ts removes the Console integration, so none should arrive.
+        return null;
+    }
     const out: Breadcrumb = pick(crumb, ["timestamp", "type", "category", "level"]);
     const data: Json = crumb.data ?? {};
     if (crumb.category === "fetch" || crumb.category === "xhr") {
@@ -169,7 +179,7 @@ function cleanEvent<T extends Event>(event: T): T {
         tags: pick(event.tags, ["replayId"]),
         transaction: cleanText(event.transaction),
         message: cleanText(event.message),
-        breadcrumbs: event.breadcrumbs?.map(cleanBreadcrumb),
+        breadcrumbs: event.breadcrumbs?.map(cleanBreadcrumb).filter((crumb) => crumb !== null),
     };
     if (event.exception?.values) {
         out.exception = { values: event.exception.values.map(cleanException) };
@@ -187,13 +197,32 @@ function cleanEvent<T extends Event>(event: T): T {
     return out as T;
 }
 
+/**
+ * The error replay's own hook: replay recordings pass neither `beforeSend` nor `beforeBreadcrumb`.
+ * Drops console breadcrumbs and cuts the URL each performance span (navigation, resource, network)
+ * carries in its description. It never sees the recording's Meta event, whose address the query
+ * strip before `initSentry` protects (analytics.ts `stripQueryForRecorders`).
+ * @param event - a custom recording event.
+ * @returns the event to record, or null to drop it.
+ */
+export function beforeAddRecordingEvent(event: ReplayFrameEvent): ReplayFrameEvent | null {
+    const { data } = event;
+    if (data.tag === "breadcrumb" && data.payload.category === "console") {
+        return null;
+    }
+    if (data.tag === "performanceSpan" && typeof data.payload.description === "string") {
+        return {
+            ...event,
+            data: { ...data, payload: { ...data.payload, description: cleanText(data.payload.description) ?? "" } },
+        };
+    }
+    return event;
+}
+
 /** The hooks handed to `Sentry.init`. */
-export const privacyFilters: Pick<BrowserOptions, "beforeSend" | "beforeSendTransaction" | "beforeBreadcrumb"> = {
+// No beforeSendTransaction: sentry.ts sets up no tracing, and with tracing's lifecycle left at Sentry
+// 11's default (streamed spans) the hook is ignored and only logs a warning on every init.
+export const privacyFilters: Pick<BrowserOptions, "beforeSend" | "beforeBreadcrumb"> = {
     beforeSend: cleanEvent,
-    // Deprecated by Sentry for span streaming, which sentry.ts turns off (traceLifecycle "static") so
-    // that spans are sent inside their transaction, through this filter. Moves to beforeSendSpan
-    // before Sentry 12 removes it.
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    beforeSendTransaction: cleanEvent,
     beforeBreadcrumb: cleanBreadcrumb,
 };

@@ -2,6 +2,7 @@ import { ModalFooter } from "@graphty/compact-mantine";
 import { Badge, Button, Group, Text } from "@mantine/core";
 import React, { useState } from "react";
 
+import { count } from "../../lib/analytics";
 import { askAssetChoices } from "../project/actions";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { fileName, saveBlob, slug } from "./choices";
@@ -83,8 +84,10 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
                 return;
             }
             await element?.downloadProject({ fileName: name, ...(Object.keys(assets).length === 0 ? {} : { assets }) });
+            count("export_done", { kind, destination: "download" });
         } else if (contents?.text !== undefined) {
             saveBlob(new Blob([contents.text], { type: "application/json" }), name);
+            count("export_done", { kind, destination: "download" });
         }
         onDone(`Exported ${name}`, name);
     };

@@ -1,11 +1,13 @@
 /**
- * The usage data gate (tier1-design.md section 2.11): nothing is sent until the reader answers
- * Share usage data, and sending stops after a later No. The answer is the reader's own
- * preference, kept in this browser.
+ * The usage data gate (design/graphty/usage-analytics.md, section 3): Share starts PostHog and
+ * error reporting, No stops both, here and in every other open tab. Anonymous counts (Umami,
+ * lib/analytics.ts) are sent whatever the answer; Share adds one, `usage_data_shared`. The answer
+ * is the reader's own preference, kept in this browser.
  */
 
 import { useSyncExternalStore } from "react";
 
+import { count, startPostHog, stopPostHog, stripQueryForRecorders } from "../../lib/analytics";
 import { initSentry, stopSentry } from "../../lib/sentry";
 
 /** The reader's answer to the usage data card. */
@@ -13,19 +15,31 @@ export type UsageAnswer = "share" | "declined";
 
 const KEY = "graphty.usageData.v1";
 const listeners = new Set<() => void>();
-/** What Share and No switch on and off: Sentry, or the stand-in a test passed in. */
-let sending = { start: initSentry, stop: stopSentry };
+/** What Share and No switch on and off: the address bar's query is removed before either recorder starts. */
+const live = {
+    start: (): void => {
+        stripQueryForRecorders();
+        initSentry();
+        startPostHog();
+    },
+    stop: (): void => {
+        stopSentry();
+        stopPostHog();
+    },
+};
+/** The live sender, or the stand-in a test passed in. */
+let sending = live;
 
 /**
- * Makes Share and No call a stand-in rather than start and stop Sentry. A test passes one in here
- * instead of mocking the Sentry module: in a browser test, a module mock switches the page's HTTP
+ * Makes Share and No call a stand-in rather than start and stop PostHog and Sentry. A test passes one
+ * in here instead of mocking those modules: in a browser test, a module mock switches the page's HTTP
  * cache off (issue #3416).
- * @param sender - the stand-in, or nothing for Sentry again.
- * @param sender.start - called where Sentry would start.
- * @param sender.stop - called where Sentry would stop.
+ * @param sender - the stand-in, or nothing for the live sender again.
+ * @param sender.start - called where sending would start.
+ * @param sender.stop - called where sending would stop.
  */
 export function setUsageSenderForTests(sender?: { start: () => void; stop: () => void }): void {
-    sending = sender ?? { start: initSentry, stop: stopSentry };
+    sending = sender ?? live;
 }
 
 /** The answer when browser storage is unavailable (a private window): kept for this page view. */
@@ -59,6 +73,8 @@ export function answerUsageData(answer: UsageAnswer): void {
         // Storage blocked: the answer holds for this page view only.
     }
     if (answer === "share") {
+        // Counted before PostHog starts, so it reaches Umami only: its count over first_visit is the opt-in rate.
+        count("usage_data_shared");
         sending.start();
     } else {
         sending.stop();
@@ -67,6 +83,19 @@ export function answerUsageData(answer: UsageAnswer): void {
         listener();
     });
 }
+
+// Another tab's No (or a cleared answer) stops sending here too, or this tab would keep recording
+// and PostHog would write its id back after the other tab deleted it.
+globalThis.addEventListener("storage", (event) => {
+    if ((event.key !== KEY && event.key !== null) || event.newValue === "share") {
+        return;
+    }
+    remembered = event.newValue === "declined" ? "declined" : null;
+    sending.stop();
+    listeners.forEach((listener) => {
+        listener();
+    });
+});
 
 /**
  * At startup: starts sending only when the reader said Share on an earlier visit.

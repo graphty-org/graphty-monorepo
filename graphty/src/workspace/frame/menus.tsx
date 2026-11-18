@@ -25,6 +25,7 @@ import { useCommand, useWorkspace } from "../state/WorkspaceContext";
  * @param props.icon - Its icon, drawn before the label
  * @param props.reasonDrawn - Whether the reason is drawn; false where a row above already shows
  *   the same words, so a menu says a shared reason once. It is still read with the row.
+ * @param props.control - The registered command id the row runs, which usage data may name.
  * @returns The row
  */
 export function CommandMenuItem({
@@ -34,6 +35,7 @@ export function CommandMenuItem({
     onRun,
     icon,
     reasonDrawn = true,
+    control,
 }: Readonly<{
     label: string;
     shortcut: string | undefined;
@@ -41,6 +43,7 @@ export function CommandMenuItem({
     onRun: () => void;
     icon?: React.ReactNode;
     reasonDrawn?: boolean;
+    control?: string;
 }>): React.JSX.Element {
     let why: React.ReactNode = null;
     if (reason !== null) {
@@ -57,6 +60,7 @@ export function CommandMenuItem({
             closeMenuOnClick={reason === null}
             aria-disabled={reason !== null}
             data-disabled={reason === null ? undefined : true}
+            data-ph-capture-attribute-control={control}
             aria-keyshortcuts={shortcut === undefined ? undefined : ariaKey(shortcut)}
             rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
         >
@@ -84,6 +88,7 @@ function CommandItem({ id }: Readonly<{ id: string }>): React.JSX.Element | null
             shortcut={command.keys?.[0] ?? command.rowKeys?.[0]}
             reason={disabledReason}
             onRun={run}
+            control={id}
         />
     );
 }

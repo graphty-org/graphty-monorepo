@@ -8,14 +8,14 @@ import { UsageDataText } from "./UsageDataText";
 /** The line after an answer, by the answer. */
 const ANSWER_WORDS: Record<UsageAnswer, string> = {
     share: "Thank you. Usage data is on, with content masked.",
-    declined: "Usage data stays off.",
+    declined: "Usage data stays off. Anonymous counts are still sent.",
 };
 
 /**
  * The usage data question (tier1-design.md section 2.11), pinned to the foot of the window on
  * every page -- the start screen or an open project -- until it is answered, so a first visit is
- * asked wherever it lands. It never blocks: a sample can be opened first, and nothing is collected
- * until the reader answers. After an answer, one line says what was chosen and where to change it,
+ * asked wherever it lands. It never blocks: a sample can be opened first. Anonymous counts (Umami)
+ * are sent whatever the answer; Share adds PostHog and Sentry. After an answer, one line says what was chosen and where to change it,
  * until it is closed; an answer from an earlier visit shows nothing.
  * @param props - Component props
  * @param props.returnFocus - Where focus goes when the answer line is closed from inside it, else
@@ -81,7 +81,8 @@ export function UsageDataCard({
             <Stack gap={6}>
                 <UsageDataText />
                 <Text size="xs" c="dimmed">
-                    Nothing is collected until you answer.
+                    Anonymous counts are sent whatever you answer: visits, the site that sent you, which sample, file
+                    format, layout, measure and export you use, and whether you share. No cookies, no names or contents.
                 </Text>
                 <Group gap="xs">
                     <Button

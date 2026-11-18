@@ -16,7 +16,9 @@ import { useAssistantSendsTo } from "./useAssistantSendsTo";
 export function PrivacyChip(): React.JSX.Element {
     const { run } = useWorkspace();
     const on = useUsageAnswer() === "share";
-    const usage = on ? "Usage data is sent, content masked" : "Nothing is sent";
+    const usage = on
+        ? "Usage data is sent, content masked"
+        : "Your files stay on this computer. Anonymous counts are sent";
     const sendsTo = useAssistantSendsTo();
     const usageWords = on ? "Usage data on, content masked" : "Local only";
     const glyph =

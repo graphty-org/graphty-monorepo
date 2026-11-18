@@ -1,4 +1,5 @@
 import { defineRegistration } from "../commands/registry";
+import { layoutChanged } from "../privacy/useUsageEvents";
 import { nothingDrawn } from "../toolbar/disabledReasons";
 import { togglePopover } from "../toolbar/popover";
 import { randomSeed, takesSeed } from "./methods";
@@ -35,7 +36,13 @@ export const registration = defineRegistration({
             run: async ({ session }) => {
                 if (session !== null) {
                     const { id, engine, options } = session.layout;
-                    await session.layout.set(id, { engine, options: { ...options, seed: randomSeed() } });
+                    try {
+                        await session.layout.set(id, { engine, options: { ...options, seed: randomSeed() } });
+                    } catch (error) {
+                        layoutChanged(session, id, "failed");
+                        throw error;
+                    }
+                    layoutChanged(session, id, "applied");
                 }
             },
         },

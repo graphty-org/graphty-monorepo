@@ -52,6 +52,7 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
             ref={ref}
             // Where a region the command opened sends focus back to (Escape in the table).
             data-command={commandId}
+            data-ph-capture-attribute-control={commandId}
             // A button whose face stands for a state says it in its name (WCAG 2.5.3): "Mode, 3D".
             label={shows === undefined ? command.label : `${command.label}, ${shows}`}
             icon={icon}
@@ -97,6 +98,7 @@ function CheckItem({
         <MenuCheckItem
             radio={radio}
             checked={checked}
+            data-ph-capture-attribute-control={commandId}
             onClick={reason === null && !(radio && checked) ? door.run : undefined}
             closeMenuOnClick={reason === null}
             aria-disabled={reason !== null}
@@ -160,6 +162,7 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
                         shortcut={undefined}
                         reason={exit.disabledReason}
                         onRun={exit.run}
+                        control="view.exit-xr"
                     />
                     <Menu.Divider />
                 </>

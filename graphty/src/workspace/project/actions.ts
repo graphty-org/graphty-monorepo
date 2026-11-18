@@ -18,6 +18,7 @@ import {
     type ProjectSaveReport,
 } from "@graphty/graphty-element/session";
 
+import { count, detail } from "../../lib/analytics";
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
@@ -394,6 +395,7 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
         } else {
             await element.downloadProject({ assets, fileName, markSaved: false });
         }
+        count("export_done", { kind: "project", destination: "download" });
     } catch {
         workspace.set({ notice: { message: `A copy of ${name} could not be saved.`, error: true } });
     }
@@ -555,6 +557,12 @@ async function openedProject(
             resolve();
         });
     });
+    // A file the reader picked or dropped counts as their own file; a Recent or browser-kept project is a reopen.
+    if (pending.storedId === undefined && pending.recentId === undefined) {
+        count("own_file_opened", { format: "graphty", via: "file" });
+    } else {
+        detail("project_reopened");
+    }
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
     state.recentId = pending.recentId ?? null;

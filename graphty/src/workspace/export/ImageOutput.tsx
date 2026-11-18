@@ -5,6 +5,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { allowlisted, count } from "../../lib/analytics";
 import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
@@ -173,6 +174,11 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 setStatus({ kind: "clipboard-refused" });
                 return;
             }
+            count("export_done", {
+                kind: "image",
+                format: allowlisted(choices.format, new Set(Object.keys(IMAGE_EXTENSIONS))),
+                destination,
+            });
             if (destination === "clipboard") {
                 onDone("Copied the image");
             } else {

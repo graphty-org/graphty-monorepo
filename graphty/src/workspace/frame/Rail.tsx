@@ -52,6 +52,7 @@ export function Rail(): React.JSX.Element {
                         shortcut={settingsKey === undefined ? undefined : formatKey(settingsKey)}
                         aria-haspopup="dialog"
                         aria-expanded={settingsOpen}
+                        data-ph-capture-attribute-control="settings.open"
                         onClick={settings.run}
                     />
                 )
@@ -62,6 +63,7 @@ export function Rail(): React.JSX.Element {
                 label="Graph"
                 active={place === "graph"}
                 aria-current={place === "graph" ? "page" : undefined}
+                data-ph-capture-attribute-control="place.graph"
                 onClick={() => {
                     run("place.graph");
                 }}
@@ -71,6 +73,7 @@ export function Rail(): React.JSX.Element {
                 label="Data"
                 active={place === "data"}
                 aria-current={place === "data" ? "page" : undefined}
+                data-ph-capture-attribute-control="place.data"
                 onClick={() => {
                     run("place.data");
                 }}
@@ -83,6 +86,7 @@ export function Rail(): React.JSX.Element {
                     active={place === "assistant"}
                     aria-current={place === "assistant" ? "page" : undefined}
                     data-assistant-door=""
+                    data-ph-capture-attribute-control="place.assistant"
                     aria-description={waiting ? "Waiting for you" : undefined}
                     onClick={() => {
                         if (place === "assistant") {
@@ -98,6 +102,7 @@ export function Rail(): React.JSX.Element {
                 label="Notes"
                 active={place === "notes"}
                 aria-current={place === "notes" ? "page" : undefined}
+                data-ph-capture-attribute-control="place.notes"
                 onClick={() => {
                     run("place.notes");
                 }}

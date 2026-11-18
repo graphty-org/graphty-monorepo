@@ -1,6 +1,7 @@
 import { ModalFooter, PageList, SegmentedControl } from "@graphty/compact-mantine";
 import type { AccelerationStatus } from "@graphty/graphty-element/session";
 import {
+    Anchor,
     Button,
     Input,
     type MantineColorScheme,
@@ -187,7 +188,10 @@ function General(): React.JSX.Element {
 function Privacy(): React.JSX.Element {
     const on = useUsageAnswer() === "share";
     const sendsTo = useAssistantSendsTo();
-    const usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
+    const usageOff =
+        sendsTo === null
+            ? "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use."
+            : "Usage data: off. Anonymous counts are still sent.";
     return (
         <Stack gap="md">
             <Stack gap={6}>
@@ -214,6 +218,10 @@ function Privacy(): React.JSX.Element {
                 <Text size="xs">
                     {on ? "Usage data: sent with content masked, only while Share usage data is on." : usageOff}
                 </Text>
+                <Text size="xs">Anonymous counts: for everyone, with no cookies (Umami).</Text>
+                <Anchor href="/privacy.html" target="_blank" rel="noopener noreferrer" size="xs">
+                    Privacy details
+                </Anchor>
             </Stack>
         </Stack>
     );

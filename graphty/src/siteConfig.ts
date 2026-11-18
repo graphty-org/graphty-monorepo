@@ -1,9 +1,11 @@
 /**
  * The site's own configuration: one build of the app serves canary, nightly and production, and
  * each site serves a `site.json` at its root saying which it is, which experiments its readers get,
- * where its datasets live and how Sentry labels its errors (design/ci/channels-pipeline/features.md,
- * section 5). A missing, unreadable or invalid file switches every experiment off, so a broken
- * configuration can only make a site look more like production.
+ * where its datasets live, how Sentry labels its errors (design/ci/channels-pipeline/features.md,
+ * section 5) and which analytics ids it sends with (design/graphty/usage-analytics.md, section 9).
+ * A missing, unreadable or invalid file switches every experiment off, so a broken configuration
+ * can only make a site look more like production; an invalid analytics block switches only
+ * analytics off.
  */
 
 import { featuresFromUrl, resolveFeatures } from "@graphty/graphty-element/catalog";
@@ -21,7 +23,24 @@ export interface SiteConfig {
     readonly datasets?: string;
     /** Sentry's environment label; absent means the site's name. */
     readonly sentryEnvironment?: string;
+    /** Analytics ids for this site; absent means nothing is sent. All are public client ids. */
+    readonly analytics?: SiteAnalytics;
 }
+
+/** The analytics block of a `site.json` (design/graphty/usage-analytics.md, section 9). */
+export interface SiteAnalytics {
+    /** Umami website id (a UUID). */
+    readonly umamiWebsiteId?: string;
+    /** PostHog project key ("phc_..."); it takes effect only with `posthogHost`. */
+    readonly posthogKey?: string;
+    /** PostHog ingest host: the EU or the US ingest host of PostHog Cloud, written out in full. */
+    readonly posthogHost?: string;
+}
+
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const POSTHOG_KEY = /^phc_[A-Za-z0-9]+$/;
+/** PostHog Cloud's two ingest hosts. A pattern, not the two strings: the landing page must hold no PostHog host (scripts/check-posthog-chunks.mjs). */
+const POSTHOG_HOST = /^https:\/\/(eu|us)\.i\.posthog\.com$/;
 
 const SITES: ReadonlySet<unknown> = new Set<SiteName>(["canary", "nightly", "production"]);
 
@@ -49,12 +68,45 @@ function parse(value: unknown): (Omit<SiteConfig, "features"> & { features: stri
     if (!isSite || !isList || !optionalText(datasets) || !optionalText(sentryEnvironment)) {
         return null;
     }
+    const analytics = parseAnalytics((value as Record<string, unknown>).analytics);
     return {
         site: site === undefined ? "unknown" : (site as SiteName),
         features,
         ...(datasets === undefined ? {} : { datasets: datasets as string }),
         ...(sentryEnvironment === undefined ? {} : { sentryEnvironment: sentryEnvironment as string }),
+        ...(analytics === undefined ? {} : { analytics }),
     };
+}
+
+/**
+ * Reads the analytics block on its own, so a typo in it switches analytics off and nothing else.
+ * @param value - the block as parsed.
+ * @returns the block, or undefined (with one console line when one was there but is invalid).
+ */
+function parseAnalytics(value: unknown): SiteAnalytics | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    const block = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
+    const { umamiWebsiteId, posthogKey, posthogHost } = block;
+    const fits = (field: unknown, pattern: RegExp): boolean =>
+        field === undefined || (typeof field === "string" && pattern.test(field));
+    const valid =
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value) &&
+        fits(umamiWebsiteId, UUID) &&
+        fits(posthogKey, POSTHOG_KEY) &&
+        fits(posthogHost, POSTHOG_HOST) &&
+        // A key with no host would send nowhere the reader was told about.
+        (posthogKey === undefined || posthogHost !== undefined);
+    if (!valid) {
+        console.warn("[graphty] site.json: the analytics block is invalid; analytics is off");
+        return undefined;
+    }
+    return Object.fromEntries(
+        Object.entries({ umamiWebsiteId, posthogKey, posthogHost }).filter(([, field]) => field !== undefined),
+    );
 }
 
 /**

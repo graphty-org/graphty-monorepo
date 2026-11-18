@@ -76,7 +76,9 @@ describe("the Assistant with its experiment off", () => {
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         await userEvent.click(within(dialog).getByRole("gridcell", { name: "Privacy" }));
         await within(dialog).findByText("Files you open: read on this computer, never uploaded.");
-        await within(dialog).findByText("Usage data: off. Nothing is sent.");
+        await within(dialog).findByText(
+            "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use.",
+        );
         await within(dialog).findByText("No file contents ever leave your computer.");
         assert.isNull(within(dialog).queryByText(/^Assistant:/));
         writeAssistantChoice(null);

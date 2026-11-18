@@ -460,8 +460,8 @@ Shown whenever no project is open (spec 11.1). It replaces the whole frame.
 
 **Usage data card** (spec 11.2; owner decision, owner's words kept whole): shown the first time
 the app opens, as a non-blocking card at the foot of the start screen, and again on each launch
-until it is answered; a sample can be opened before answering and nothing is sent until the answer
-is yes. **Owner decision needed before shipping:** in round 8, 6 of 6 read "the author ... and his
+until it is answered; a sample can be opened before answering. Anonymous counts (Umami, no
+cookies) are sent whatever the answer; everything else waits for yes (design/graphty/usage-analytics.md). **Owner decision needed before shipping:** in round 8, 6 of 6 read "the author ... and his
 Claude Code sessions" as an unexplained second recipient and 4 said it drove their No; in round 7,
 3 of 3 declined on the session replay. The owner allowed the wording to be tightened if every
 commitment is kept; a tightened draft goes to the owner, and the text below stays until the owner
@@ -472,12 +472,19 @@ chooses.
 > experience. This data will only ever be used by the author of the application and his Claude
 > Code sessions.
 
-Buttons **Share usage data** and **No thanks**, equal weight, no default. A **What is collected**
-disclosure lists: a replay of each session with every node name, attribute value, label and file
-content masked; anonymous task events with their timings (file loaded, first graph drawn, measure
-run, result read, style added, export, undo); errors and performance; a feedback widget. It ends
-"No file contents ever leave your computer." After an answer: "Thank you. Usage data is on, with
-content masked." or "Usage data stays off.", then "Change this in Settings > Privacy".
+Below the owner's words: "Anonymous counts are sent whatever you answer: visits, the site that
+sent you, which sample, file format, layout, measure and export you use, and whether you share. No
+cookies, no names or contents." Buttons **Share usage data** and **No thanks**, equal weight, no
+default. A **What is collected** disclosure lists what Share adds: a replay of some sessions, with
+all text, typing, labels, file names and the graph hidden (PostHog); which buttons, panels,
+commands and steps you use, by name only, and how you use the canvas: selecting, dragging, zooming
+(PostHog); page speed; your answers to a short survey, if you answer it, including any text you
+type in its Other box; error reports, with a masked replay of the moments before the error
+(Sentry); feedback you send. Then "PostHog keeps a random id in this browser while sharing is on."
+It ends "No file contents ever leave your computer." After an answer: "Thank you. Usage data is on,
+with content masked." or "Usage data stays off. Anonymous counts are still sent.", then "Change
+this in Settings > Privacy". The start screen's footer links **Privacy** to `/privacy.html`, which
+lists every event and property.
 
 Routes: `#/start-screen/first-run`, `#/start-screen/disclosure`, `#/start-screen/answered`,
 `#/start-screen/declined`, `#/start-screen/returning`, `#/start-screen/drop-target`,
@@ -490,7 +497,10 @@ One dialog, a section list down the left, closed with X or Esc, Mod+, (spec 12.3
 - **General**: Theme (System, Light, Dark; the app's chrome only); Number format.
 - **Privacy**: Usage data (a switch, with the owner's text and the "What is collected" list);
   **Where your data goes**, read-only lines: files are read on this computer; the project is saved
-  where you save it; usage data, masked, is sent only while Usage data is on.
+  where you save it; usage data, masked, is sent only while Usage data is on (off: "Anonymous counts
+  are still sent: visits, the site that sent you, and which sample, file format, layout, measure and
+  export you use."); anonymous counts: for everyone, with no cookies (Umami); a **Privacy details**
+  link to `/privacy.html`.
 - **Accessibility and input**: Single-key shortcuts (on/off, WCAG 2.1.4). Reduced motion is not
   drawn until graphty-element honors it (an unbuilt item is not drawn).
 

@@ -1,9 +1,18 @@
 /**
- * The usage data gate: nothing is sent until the reader says Share, a later No stops sending,
- * and the answer is kept for the next launch.
+ * The usage data gate: PostHog and error reporting start only after the reader says Share, a later
+ * No (here or in another tab) stops them, and the answer is kept for the next launch.
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import {
+    resetAnalyticsForTests,
+    setAnalyticsCallsForTests,
+    setPostHogClientForTests,
+    startPageCounts,
+    type UmamiBody,
+} from "../../../lib/analytics";
+import * as sentry from "../../../lib/sentry";
+import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import {
     answerUsageData,
     forgetUsageAnswer,
@@ -12,7 +21,7 @@ import {
     startUsageDataIfShared,
 } from "../usageData";
 
-/** Where Sentry would start and stop. */
+/** Where sending would start and stop. */
 const initSentry = vi.fn();
 const stopSentry = vi.fn();
 setUsageSenderForTests({ start: initSentry, stop: stopSentry });
@@ -50,5 +59,82 @@ describe("the usage data gate", () => {
         initSentry.mockClear();
         startUsageDataIfShared();
         assert.equal(initSentry.mock.calls.length, 0);
+    });
+});
+
+describe("the live sender", () => {
+    const sends: UmamiBody[] = [];
+    const close = vi.fn(() => Promise.resolve(true));
+
+    beforeEach(async () => {
+        setUsageSenderForTests();
+        resetAnalyticsForTests();
+        resetSiteConfig();
+        forgetUsageAnswer();
+        sends.length = 0;
+        close.mockClear();
+        setAnalyticsCallsForTests({
+            send: (body) => {
+                sends.push(body);
+                return undefined;
+            },
+            hostname: () => "graphty.app",
+            privacySignals: () => ({ dnt: true, gpc: false }),
+        });
+        const file = {
+            site: "production",
+            features: [],
+            analytics: { umamiWebsiteId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+        };
+        startPageCounts(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(file))}`));
+        sends.length = 0;
+    });
+    afterEach(() => {
+        forgetUsageAnswer();
+        sentry.stopSentry();
+        sentry.resetSentryState();
+        sentry.setSentryCallsForTests();
+        setAnalyticsCallsForTests();
+        resetAnalyticsForTests();
+        resetSiteConfig();
+        setUsageSenderForTests({ start: initSentry, stop: stopSentry });
+    });
+
+    it("counts one usage_data_shared on Share, and nothing on No", () => {
+        answerUsageData("declined");
+        assert.deepEqual(sends, []);
+        answerUsageData("share");
+        assert.deepEqual(
+            sends.map((body) => body.payload.name),
+            ["usage_data_shared"],
+        );
+    });
+
+    it("stops PostHog and error reporting when another tab says No", () => {
+        sentry.setSentryCallsForTests({
+            init: vi.fn(),
+            close,
+            replayIntegration: vi.fn(() => ({ name: "Replay", stop: vi.fn(() => Promise.resolve()) })),
+        } as unknown as Partial<sentry.SentryCalls>);
+        sentry.initSentry({ dsn: "https://public@o0.ingest.sentry.io/0" });
+        const optOut = vi.fn();
+        setPostHogClientForTests({ opt_out_capturing: optOut });
+        localStorage.setItem("ph_phc_x_posthog", "{}");
+
+        // As the browser reports another tab's write: this tab's storage already holds it.
+        localStorage.setItem("graphty.usageData.v1", "declined");
+        globalThis.dispatchEvent(
+            new StorageEvent("storage", {
+                key: "graphty.usageData.v1",
+                oldValue: "share",
+                newValue: "declined",
+                storageArea: localStorage,
+            }),
+        );
+
+        assert.equal(close.mock.calls.length, 1);
+        assert.equal(optOut.mock.calls.length, 1);
+        assert.isNull(localStorage.getItem("ph_phc_x_posthog"));
+        assert.equal(readUsageAnswer(), "declined");
     });
 });

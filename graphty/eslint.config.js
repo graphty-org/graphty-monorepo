@@ -331,4 +331,11 @@ export default tseslint.config(
         files: ["src/workspace/**"],
         rules: { "react/jsx-pascal-case": "off" },
     },
+    {
+        // PostHog's vocabulary: its init options (opt_out_capturing_by_default), client methods
+        // (opt_in_capturing) and the event names and properties it reads (use_case, $geoip_disable)
+        // are snake_case. Names the app declares itself are still checked.
+        files: ["src/lib/analytics.ts", "src/lib/analytics*.test.ts", "src/workspace/privacy/**"],
+        rules: { camelcase: ["error", { properties: "never" }] },
+    },
 );

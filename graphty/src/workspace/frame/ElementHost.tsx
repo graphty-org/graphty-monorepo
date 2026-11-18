@@ -215,6 +215,8 @@ export function ElementHost({
     return (
         <graphty-element
             ref={ref}
+            // Usage data never captures a click on the drawing, and a replay shows it blank.
+            className="ph-no-capture"
             aria-label="Graph drawing"
             layout={LAYOUT_ID}
             layoutConfig={LAYOUT_CONFIG}

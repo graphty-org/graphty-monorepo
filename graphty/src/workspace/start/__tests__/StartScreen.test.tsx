@@ -181,7 +181,11 @@ describe("the start screen", () => {
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isFalse(within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" }).checked);
-        assert.isNotNull(within(dialog).getByText("Usage data: off. Nothing is sent."));
+        assert.isNotNull(
+            within(dialog).getByText(
+                "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use.",
+            ),
+        );
     });
 
     it("asks a first visit that lands straight in a project, and the answer line closes", async () => {

@@ -57,6 +57,8 @@ export function CommandButton({
                 // Every key, where the tooltip shows the first: Redo is Shift+Control+Z and Control+Y.
                 aria-keyshortcuts={command.keys?.map(ariaKey).join(" ")}
                 aria-pressed={pressed}
+                // The command id, the one attribute usage data keeps from a click (lib/analytics.ts).
+                data-ph-capture-attribute-control={id}
                 data-popout-keep={keepsPopouts === true ? "" : undefined}
                 aria-disabled={disabledReason !== null}
                 data-disabled={disabledReason === null ? undefined : true}

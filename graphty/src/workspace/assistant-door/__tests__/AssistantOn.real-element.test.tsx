@@ -100,7 +100,7 @@ describe("the Assistant with its experiment on", () => {
         await userEvent.click(within(dialog).getByRole("gridcell", { name: "Privacy" }));
         await within(dialog).findByText(/^Assistant: .* go straight to Google\. Google charges your key\.$/);
         await within(dialog).findByText(/^Files you open: .* Only what the assistant reads from them is sent\.$/);
-        await within(dialog).findByText("Usage data: off.");
+        await within(dialog).findByText("Usage data: off. Anonymous counts are still sent.");
         await within(dialog).findByText("Usage data holds no file contents.");
         assert.notMatch(dialog.textContent, /never uploaded|Nothing is sent|ever leave/);
     });

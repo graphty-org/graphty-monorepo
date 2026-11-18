@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ErrorFallback } from "../components/ErrorFallback";
-import { isSentryEnabled, testCaptureError } from "../lib/sentry";
+import { initSentry, isSentryEnabled, sentryConfigured, testCaptureError } from "../lib/sentry";
 
 const meta: Meta<typeof ErrorFallback> = {
     title: "Sentry",
@@ -68,5 +68,15 @@ export function SourceMapTestContent(): React.JSX.Element {
 }
 
 export const SourceMapTest: Story = {
+    // Nothing starts Sentry without the reader's consent, Storybook included; this story starts it
+    // itself when a DSN is built in, so it still shows source maps working.
+    loaders: [
+        () => {
+            if (sentryConfigured()) {
+                initSentry();
+            }
+            return {};
+        },
+    ],
     render: () => <SourceMapTestContent />,
 };

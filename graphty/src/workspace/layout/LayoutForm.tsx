@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
+import { layoutChanged } from "../privacy/useUsageEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
 import {
@@ -420,14 +421,19 @@ export function LayoutForm({
     };
     const apply = (asked: Record<string, unknown>): void => {
         setError(null);
-        session.layout
-            .set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked })
-            .then(onApplied, (failure: unknown) => {
+        session.layout.set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked }).then(
+            () => {
+                layoutChanged(session, descriptor.id, "applied");
+                onApplied?.();
+            },
+            (failure: unknown) => {
+                layoutChanged(session, descriptor.id, "failed");
                 setError(
                     layoutErrorWords(failure) ??
                         `${layoutName(descriptor)} could not lay out this graph, so the drawing is unchanged`,
                 );
-            });
+            },
+        );
     };
     // A new map is drawn under nodes that stay where they are, so on the applied map with nothing
     // else edited it applies at once, and the form stays open.
@@ -436,9 +442,15 @@ export function LayoutForm({
         if (isCurrent && !differs) {
             setValues(next);
             setError(null);
-            session.layout.set(descriptor.id, { options: next }).catch(() => {
-                setError(`${layoutName(descriptor)} could not draw this map`);
-            });
+            session.layout.set(descriptor.id, { options: next }).then(
+                () => {
+                    layoutChanged(session, descriptor.id, "applied");
+                },
+                () => {
+                    layoutChanged(session, descriptor.id, "failed");
+                    setError(`${layoutName(descriptor)} could not draw this map`);
+                },
+            );
             return;
         }
         edit(next);

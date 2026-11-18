@@ -16,7 +16,9 @@ import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
+import { SurveyCard } from "./privacy/SurveyCard";
 import { UsageDataCard } from "./privacy/UsageDataCard";
+import { useUsageEvents } from "./privacy/useUsageEvents";
 import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
@@ -110,6 +112,8 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
+    // Anonymous usage counts from the project's element and the panels (lib/analytics.ts).
+    useUsageEvents(element.session, store);
     // The project the workspace started with (a story's, a test's) is left as its maker set it.
     const [startProjectId] = useState(() => store.get().project?.id);
     // Set while a just-opened project's sample is read, so focus waits for it.
@@ -428,6 +432,8 @@ export function Workspace({
             <ReportDialog />
             {/* The usage data question, on whatever page a first visit lands, until it is answered. */}
             <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+            {/* A short survey, only while usage data is shared (usage-analytics.md section 4.4). */}
+            <SurveyCard />
             <ProjectDialogs />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a

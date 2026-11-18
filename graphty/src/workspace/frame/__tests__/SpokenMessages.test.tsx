@@ -35,7 +35,7 @@ describe("spoken messages", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
 
-        const words = "Usage data stays off. Change this in Settings > Privacy";
+        const words = "Usage data stays off. Anonymous counts are still sent. Change this in Settings > Privacy";
         await waitFor(() => {
             assert.lengthOf(regionsSaying(words), 1);
         });

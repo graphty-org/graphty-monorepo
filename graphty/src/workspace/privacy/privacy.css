@@ -19,3 +19,9 @@
     overflow: auto;
     box-shadow: var(--mantine-shadow-md);
 }
+
+/* The survey (SurveyCard, rendered right after UsageDataCard) takes the same corner: while it is up,
+   the line confirming a Share just pressed steps aside rather than being drawn under it. */
+.ws-usage-notice:has(+ .ws-usage-notice) {
+    display: none;
+}

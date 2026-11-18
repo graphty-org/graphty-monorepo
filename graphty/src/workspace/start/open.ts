@@ -95,6 +95,7 @@ function openWithStylePanel(
  * @param source - the source id.
  * @param example - the example's id within that source.
  * @param signal - stops the read; a stopped read opens nothing and says nothing.
+ * @param callerKey - the load's `callerKey`: `"reopen"` for a reload.
  * @returns settles once the read has opened the app or failed.
  */
 export async function openNetworkSample(
@@ -103,6 +104,7 @@ export async function openNetworkSample(
     source: string,
     example: string,
     signal: AbortSignal,
+    callerKey?: string,
 ): Promise<void> {
     workspace.set({ notice: null });
     // Loaded on first use rather than with the start page, which does not need a session to show.
@@ -113,7 +115,11 @@ export async function openNetworkSample(
     try {
         const read = await scratch.data.readExample(source, example, { signal });
         openWithStylePanel(workspace, name, async (session) => {
-            await session.data.import(read, { history: "start" });
+            await session.data.import(read, {
+                history: "start",
+                origin: "sample",
+                ...(callerKey === undefined ? {} : { callerKey }),
+            });
         });
         remember(workspace, { kind: "network", name, source, example });
     } catch (error) {
@@ -200,10 +206,15 @@ export function samplePicture(sample: Pick<StartSample, "id" | "picture">): stri
  * element downloads it and loads it.
  * @param workspace - the workspace store.
  * @param dataset - the dataset's metadata, from graph-samples' catalog.
+ * @param callerKey - the load's `callerKey`: `"reopen"` for a reload.
  */
-export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
+export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta, callerKey?: string): void {
     openProject(workspace, dataset.title, (session) =>
-        session.data.loadDataset(dataset.name, { history: "start", ...datasetBase() }),
+        session.data.loadDataset(dataset.name, {
+            history: "start",
+            ...datasetBase(),
+            ...(callerKey === undefined ? {} : { callerKey }),
+        }),
     );
     remember(workspace, { kind: "dataset", dataset: dataset.name });
 }
@@ -213,14 +224,19 @@ export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): vo
  * @param workspace - the workspace store.
  * @param generator - the generator, from graph-samples' catalog.
  * @param params - its parameters.
+ * @param callerKey - the load's `callerKey`: `"reopen"` for a reload.
  */
 export function openGenerated(
     workspace: WorkspaceStore,
     generator: GeneratorDescriptor,
     params: GeneratorParams,
+    callerKey?: string,
 ): void {
     openProject(workspace, generator.plainName, (session) =>
-        session.data.generate(generator.name, params, { history: "start" }),
+        session.data.generate(generator.name, params, {
+            history: "start",
+            ...(callerKey === undefined ? {} : { callerKey }),
+        }),
     );
     remember(workspace, { kind: "generator", generator: generator.name, params });
 }
@@ -237,28 +253,37 @@ function remember(workspace: WorkspaceStore, opened: Opener): void {
 /**
  * Opens again the project this tab had open, the way it was opened: for a reload that came before
  * graphty-element's autosave wrote anything, when the project held nothing but what was opened.
+ * Every load carries `callerKey: "reopen"`, so a reload is not counted as a new load.
  * @param workspace - the workspace store.
  * @param opened - how it was opened.
  */
 export function openAgain(workspace: WorkspaceStore, opened: Opener): void {
+    const callerKey = "reopen";
     if (opened.kind === "sample") {
-        openSample(workspace, opened.sample);
+        openSample(workspace, opened.sample, callerKey);
         return;
     }
     if (opened.kind === "network") {
-        void openNetworkSample(workspace, opened.name, opened.source, opened.example, new AbortController().signal);
+        void openNetworkSample(
+            workspace,
+            opened.name,
+            opened.source,
+            opened.example,
+            new AbortController().signal,
+            callerKey,
+        );
         return;
     }
     if (opened.kind === "dataset") {
         const dataset = DATASET_DESCRIPTORS.find((each) => each.name === opened.dataset);
         if (dataset !== undefined) {
-            openDataset(workspace, dataset);
+            openDataset(workspace, dataset, callerKey);
         }
         return;
     }
     const generator = GENERATOR_DESCRIPTORS.find((each) => each.name === opened.generator);
     if (generator !== undefined) {
-        openGenerated(workspace, generator, opened.params);
+        openGenerated(workspace, generator, opened.params, callerKey);
     }
 }
 
@@ -268,6 +293,11 @@ export interface Incoming {
     readonly source: DataSourceInput;
     /** One of the app's own samples, read from its web address. */
     readonly origin?: "sample";
+    /**
+     * The load's `callerKey`, echoed on graphty-element's `source:loaded` for usage counts:
+     * `"sample:<StartSample.id>"` for one of the app's own samples, `"reopen"` for a reload.
+     */
+    readonly callerKey?: string;
 }
 
 /**
@@ -300,6 +330,7 @@ export function incomingFiles(files: readonly File[]): Incoming {
  * @param fresh - whether it is a new project's first load, which starts its history.
  * @param read - the source already read into a draft (by `project.open`), else it is read here.
  * @param origin - "sample" for one of the app's own samples.
+ * @param callerKey - the load's `callerKey` (see {@link Incoming.callerKey}).
  */
 async function drawFirst(
     workspace: WorkspaceStore,
@@ -308,6 +339,7 @@ async function drawFirst(
     fresh = false,
     read?: LoadDraft,
     origin?: "sample",
+    callerKey?: string,
 ): Promise<void> {
     const draft = read ?? (await session.data.prepare(source, { guess: "values" }));
     const fixed = draft.tables.every((table) => table.fixed);
@@ -321,6 +353,7 @@ async function drawFirst(
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
         ...(origin === undefined ? {} : { origin }),
+        ...(callerKey === undefined ? {} : { callerKey }),
     });
     if (styled) {
         noticeFileStyles(workspace, session);
@@ -379,20 +412,31 @@ async function takeIn(
  */
 export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): void {
     openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
-        drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin),
+        drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin, incoming.callerKey),
     );
+}
+
+/**
+ * The `callerKey` a load of one of the app's own samples carries, which usage counts read back.
+ * @param sample - the sample.
+ * @returns `"sample:<id>"`.
+ */
+export function sampleKey(sample: Pick<StartSample, "id">): string {
+    return `sample:${sample.id}`;
 }
 
 /**
  * Opens one of the app's own samples as a new project named after it, drawn as a first file is.
  * @param workspace - the workspace store.
  * @param sample - the sample.
+ * @param callerKey - the load's `callerKey`; the sample's own by default, `"reopen"` for a reload.
  */
-export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
+export function openSample(workspace: WorkspaceStore, sample: StartSample, callerKey = sampleKey(sample)): void {
     openSeparate(workspace, {
         name: sample.name,
         source: { config: { url: sample.url }, name: sample.name },
         origin: "sample",
+        callerKey,
     });
     remember(workspace, { kind: "sample", sample });
 }
@@ -427,7 +471,7 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
     }
     const first = session.data.sources().length === 0;
     const work = first
-        ? drawFirst(workspace, session, incoming.source, false, read, incoming.origin)
+        ? drawFirst(workspace, session, incoming.source, false, read, incoming.origin, incoming.callerKey)
         : takeIn(workspace, session, incoming, read);
     if (first) {
         // The project's first graph: an open, which `opened` follows as a new project's.
@@ -455,7 +499,7 @@ async function openFirst({ workspace, session }: CommandContext, incoming: Incom
     }
     const focusLater = focusOpenedGraphLater();
     try {
-        await drawFirst(workspace, session, incoming.source, true, read, incoming.origin);
+        await drawFirst(workspace, session, incoming.source, true, read, incoming.origin, incoming.callerKey);
         focusLater();
     } catch (error) {
         focusLater(false);

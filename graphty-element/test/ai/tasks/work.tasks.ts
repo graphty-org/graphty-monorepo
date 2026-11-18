@@ -10,6 +10,7 @@ import {
     assertSameMembers,
     defineTask,
     degrees,
+    isColorNamed,
     matching,
     neighborhood,
     setMembers,
@@ -395,8 +396,8 @@ export const COMMUNICATION_TASKS = [
             ],
         ],
         check: ({ s }) => {
-            const color = String((s.config.background as { color?: unknown }).color).toLowerCase();
-            assert.include(["#000000", "#000", "black"], color);
+            const { color } = s.config.background as { color?: unknown };
+            assert.isTrue(isColorNamed(color, "black"), `the background is ${String(color)}, not black`);
         },
     }),
     defineTask({

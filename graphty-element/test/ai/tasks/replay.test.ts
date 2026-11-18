@@ -44,6 +44,39 @@ describe("assistant tasks, replayed", () => {
         assert.strictEqual(metrics.wrongTools, 0, metrics.calls.join(", "));
     });
 
+    it("style-a-typed-subset takes a blue other than #0000ff", async () => {
+        // A real model's answer (#8836): the servers painted #2563EB, a blue.
+        const task = TASKS.find((each) => each.id === "style-a-typed-subset")!;
+        const session = await taskSession(task.dataset);
+        const assistant = new ScriptedAssistant(session, { graph: STAND_IN_RENDERER });
+        const calls = [
+            {
+                tool: "style",
+                args: {
+                    action: "add",
+                    name: "Server nodes",
+                    values: { "node.color": "#2563EB", "node.size": 2 },
+                    where: "data.type == 'server'",
+                },
+            },
+        ];
+        const driver: Driver = async (prompt) => {
+            const { result } = await assistant.say(prompt, calls);
+            return {
+                prompt,
+                calls,
+                results: [],
+                text: "",
+                code: result.code ?? "",
+                inputTokens: 0,
+                outputTokens: 0,
+                turns: 2,
+            };
+        };
+        const metrics = await runTask(task, driver, session);
+        assert.isTrue(metrics.success, metrics.failure);
+    });
+
     describe("conference-breakdown judges the answer's words", () => {
         // A real model's answer (#7721), its first 300 characters as logged, then a plausible end:
         // the independents grouped as one line, not named one by one.

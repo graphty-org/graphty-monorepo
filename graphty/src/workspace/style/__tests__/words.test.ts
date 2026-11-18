@@ -371,6 +371,10 @@ describe("model variant words", () => {
             tip: "points are drawn as small solids",
         });
         assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
+        assert.equal(
+            modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "image", name: "maps/wood.png" } }).tip,
+            "picture not read: maps/wood.png",
+        );
         for (const [rule, tip] of [
             ["fbx", "FBX data damaged"],
             ["usd", "USD data damaged"],

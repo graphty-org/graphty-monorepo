@@ -183,7 +183,13 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     }),
     E_MODEL_URL_BLOCKED: (p) => ({ word: "Blocked", tip: hostOf(p) }),
     E_MODEL_TOO_LARGE: (p) => ({ word: "Too large", tip: tooLargeTip(p) }),
-    E_MODEL_STRUCTURE: (p) => ({ word: "Not loaded", tip: STRUCTURE_TIPS[said(p.rule)] ?? "file damaged" }),
+    E_MODEL_STRUCTURE: (p) => ({
+        word: "Not loaded",
+        tip:
+            p.rule === "image"
+                ? both("picture not read:", said(p.name))
+                : (STRUCTURE_TIPS[said(p.rule)] ?? "file damaged"),
+    }),
     E_MODEL_FORMAT_UNKNOWN: (p) => ({ word: "Not loaded", tip: both(said(p.fileName), "not a 3D model") }),
     E_MODEL_EXTERNAL_URL: notLoaded("parts on another site; export as GLB"),
     E_MODEL_DECODER_UNAVAILABLE: (p) => ({ word: "Not loaded", tip: decoderTip(p) }),

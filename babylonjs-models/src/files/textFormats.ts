@@ -19,7 +19,7 @@
 import { gunzipSync } from "fflate";
 
 import { parseGltfJson } from "./gltfChecks.js";
-import { babylonTextureNames, readBabylon } from "./readers/babylon.js";
+import { babylonPictureUses, babylonTextureNames, embeddedPictureName, readBabylon } from "./readers/babylon.js";
 import { ModelReadError, pointsDrawn, SPLAT_ROW_BYTES, TRIANGLES_PER_POINT } from "./readers/geometry.js";
 import { plyGeometryKind, type PlyHeader, plyTextureFile, readPlyHeader } from "./readers/ply.js";
 import { stlFacts } from "./readers/stl.js";
@@ -35,7 +35,7 @@ import {
     setKeyOf,
     textureBytesOf,
 } from "./references.js";
-import type { ModelFact, ModelLimits, ModelSummary } from "./types.js";
+import type { ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
 
 /** What a scan returns. */
 export interface Scanned {
@@ -115,6 +115,7 @@ function baseSummary(
         format,
         upAxis,
         animations: Object.freeze([]),
+        pictures: Object.freeze([]),
         skinned: false,
         morphTargets: 0,
         transparent: false,
@@ -309,6 +310,8 @@ function checkPositiveIndices(text: string, vertices: number): void {
 interface MtlTally {
     readonly materials: string[];
     readonly textures: Set<string>;
+    /** Each picture's path in the set, and the materials that draw it. */
+    readonly pictures: Map<string, Set<string>>;
     textureBytes: number;
     transparent: boolean;
 }
@@ -338,6 +341,9 @@ function addTexture(
     tally: MtlTally,
 ): void {
     const image = resolveReference(name, mtlPath, files);
+    const using = tally.pictures.get(image.path) ?? new Set<string>();
+    using.add(tally.materials.at(-1) ?? "");
+    tally.pictures.set(image.path, using);
     if (tally.textures.has(image.path)) {
         return;
     }
@@ -367,7 +373,13 @@ function readMtls(
     files: ReadonlyMap<string, Uint8Array>,
     limits: ModelLimits,
 ): MtlTally {
-    const tally: MtlTally = { materials: [], textures: new Set(), textureBytes: 0, transparent: false };
+    const tally: MtlTally = {
+        materials: [],
+        textures: new Set(),
+        pictures: new Map(),
+        textureBytes: 0,
+        transparent: false,
+    };
     for (const name of mtlFiles) {
         const mtl = resolveReference(name, path, files);
         for (const raw of textOf(mtl.bytes, limits).split("\n")) {
@@ -400,7 +412,7 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
     // A positive index may only name a vertex the file has.
     checkPositiveIndices(text, vertices);
 
-    const { materials, textures, textureBytes, transparent } = readMtls(mtlFiles, path, files, limits);
+    const { materials, textures, pictures, textureBytes, transparent } = readMtls(mtlFiles, path, files, limits);
     const bounds = box.value;
     return {
         summary: Object.freeze({
@@ -408,6 +420,9 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
             triangles,
             meshes: Math.max(groups, 1),
             materials: Object.freeze(materials),
+            pictures: Object.freeze(
+                [...pictures].map(([name, using]) => Object.freeze({ name, materials: Object.freeze([...using]) })),
+            ),
             textures: textures.size,
             textureBytes,
             transparent,
@@ -675,6 +690,12 @@ export function scanPly(path: string, files: ReadonlyMap<string, Uint8Array>, li
             materials: Object.freeze([]),
             textures: texture === undefined ? 0 : 1,
             textureBytes: texture === undefined ? 0 : textureBytesOf(texture.bytes, texture.path),
+            // A PLY's one picture paints its one unnamed part.
+            pictures: Object.freeze(
+                texture === undefined || texture.path === ""
+                    ? []
+                    : [Object.freeze({ name: texture.path, materials: Object.freeze([""]) })],
+            ),
             ...facts,
             encoding: encoding.get(header.format as "ascii"),
             ...(kind === "splats" || names.has("red") || names.has("diffuse_red") ? { vertexColors: true } : {}),
@@ -875,9 +896,15 @@ export function scanBabylon(path: string, files: ReadonlyMap<string, Uint8Array>
 
     let textureBytes = 0;
     const names = babylonTextureNames(json);
+    const uses = babylonPictureUses(json);
+    const pictures: ModelPicture[] = [];
     for (const name of names) {
         const image = resolveReference(name, path, files);
         textureBytes += textureBytesOf(image.bytes, image.path);
+        // Named by its path in the set, or an embedded one by its place, as `withoutPictures` takes it.
+        const using = (uses.get(name) ?? []).map((each) => cut(each));
+        const named = image.path === "" ? embeddedPictureName(name, names) : image.path;
+        pictures.push(Object.freeze({ name: named ?? image.path, materials: Object.freeze(using) }));
     }
 
     if (textureBytes > limits.maxTextureBytes) {
@@ -898,6 +925,7 @@ export function scanBabylon(path: string, files: ReadonlyMap<string, Uint8Array>
             ),
             textures: names.length,
             textureBytes,
+            pictures: Object.freeze(pictures),
             transparent: scene.materials.some((m) => m.alpha !== undefined && m.alpha < 1),
             geometry: "mesh",
             ...(scene.meshes.some((m) => m.geometry.colors !== undefined) ? { vertexColors: true } : {}),
@@ -912,6 +940,48 @@ export const WHITE_PNG = Uint8Array.from(
     atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg=="),
     (c) => c.codePointAt(0) ?? 0,
 );
+
+/**
+ * Whether an MTL map statement names one of the pictures, by its path in the set or its base name.
+ * @param path - The MTL's path in the set.
+ * @param tokens - The statement's tokens.
+ * @param gone - The pictures, lowercased.
+ * @returns True when it does.
+ */
+function namesOneOf(path: string, tokens: readonly string[], gone: ReadonlySet<string>): boolean {
+    const name = mapFileName(tokens.slice(1)).replaceAll("\\", "/");
+    const resolved = (setKeyOf(dirOf(path) + name) ?? name).toLowerCase();
+    return gone.has(resolved) || gone.has(baseName(name).toLowerCase());
+}
+
+/**
+ * The MTL materials whose color picture (`map_Kd`) is one of these pictures: drawn without it,
+ * they have no look of their own left.
+ * @param files - The set as given.
+ * @param pictures - The pictures drawn without, by their path in the set.
+ * @returns The materials' names.
+ */
+export function mtlMaterialsWithout(files: ReadonlyMap<string, Uint8Array>, pictures: readonly string[]): Set<string> {
+    const gone = new Set(pictures.map((name) => name.toLowerCase()));
+    const out = new Set<string>();
+    for (const [path, bytes] of files) {
+        if (gone.size === 0 || !/\.mtl$/i.test(path)) {
+            continue;
+        }
+
+        let current = "";
+        for (const raw of new TextDecoder().decode(bytes).split("\n")) {
+            const tokens = raw.trim().split(/\s+/);
+            if (tokens[0] === "newmtl") {
+                current = raw.trim().slice("newmtl".length).trim();
+            } else if (tokens[0]?.toLowerCase() === "map_kd" && namesOneOf(path, tokens, gone)) {
+                out.add(current);
+            }
+        }
+    }
+
+    return out;
+}
 
 /**
  * A file set with its skipped parts filled in (design 12.4): a skipped picture is a 1 x 1 white
@@ -955,9 +1025,7 @@ export function withSkips(
                         return true;
                     }
 
-                    const name = mapFileName(tokens.slice(1)).replaceAll("\\", "/");
-                    const resolved = (setKeyOf(dirOf(path) + name) ?? name).toLowerCase();
-                    return !gone.has(resolved) && !gone.has(baseName(name).toLowerCase());
+                    return !namesOneOf(path, tokens, gone);
                 });
             out.set(path, new TextEncoder().encode(kept.join("\n")));
         }

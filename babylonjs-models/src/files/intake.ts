@@ -462,12 +462,28 @@ async function readBody(
             const whole = new Uint8Array(await response.arrayBuffer());
             read = { chunks: [whole], total: whole.length };
         } else {
-            read = await readChunks(response.body.getReader(), limits.maxBytes, onChunk);
+            // A stop ends the read itself: a body that does not end with its request (a fetch
+            // stand-in, a service worker's stream) kept the download waiting after it was stopped.
+            const reader = response.body.getReader();
+            const stop = (): void => {
+                reader.cancel().catch(() => undefined);
+            };
+            signal?.addEventListener("abort", stop, { once: true });
+            if (signal?.aborted === true) {
+                stop();
+            }
+            try {
+                read = await readChunks(reader, limits.maxBytes, onChunk);
+            } finally {
+                signal?.removeEventListener("abort", stop);
+            }
         }
     } catch {
         signal?.throwIfAborted();
         refuse("E_MODEL_FETCH", { url: shown, status: null, offline: isOffline() });
     }
+
+    signal?.throwIfAborted();
 
     if (read.total > limits.maxBytes) {
         refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: read.total, limit: limits.maxBytes });
@@ -499,6 +515,9 @@ function fetchedName(url: URL): string {
     return normalizePath(name) || BYTES_KEY;
 }
 
+/** The longest delay setTimeout honors; a longer one fires at once. */
+const MAX_TIMER_MS = 2_147_483_647;
+
 /**
  * Fetch a model with no credentials, no referrer, an idle time limit and a byte cap enforced while
  * the body streams.
@@ -521,10 +540,13 @@ export async function fetchModel(
     checkFetchable(url);
     const shown = shownUrl(url);
     const controller = new AbortController();
-    const idle = (): ReturnType<typeof setTimeout> =>
-        setTimeout(() => {
-            controller.abort();
-        }, limits.fetchTimeoutMs);
+    // setTimeout fires at once for a delay past 2^31 - 1 ms (Infinity too): such a wait is no wait.
+    const idle = (): ReturnType<typeof setTimeout> | undefined =>
+        limits.fetchTimeoutMs > MAX_TIMER_MS
+            ? undefined
+            : setTimeout(() => {
+                  controller.abort();
+              }, limits.fetchTimeoutMs);
     let timer = idle();
     const onAbort = (): void => {
         controller.abort();
@@ -563,9 +585,6 @@ export async function fetchModel(
         signal?.removeEventListener("abort", onAbort);
     }
 }
-
-/** The most files a model fetched by URL may load beside its main file. */
-const MAX_COMPANION_FILES = 64;
 
 /** The most requests the automatic tries make for one part beyond its first (design 12.2). */
 const MAX_EXTRA_REQUESTS = 16;
@@ -669,7 +688,7 @@ function triesFor(fact: ModelFact, main: URL): (readonly [string, URL])[] {
 interface PartFetch {
     readonly url: URL;
     readonly limits: ModelLimits;
-    readonly signal: AbortSignal | undefined;
+    signal: AbortSignal | undefined;
     readonly gate: RedirectGate | undefined;
     readonly given: Map<string, Uint8Array>;
     /** The bytes fetched so far, misses included. */
@@ -825,8 +844,13 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
     tried.set(name, shown);
     const budget = { requests: 0 };
     for (const [path, address] of triesFor(fact, fetching.url)) {
-        if (fetching.given.size > MAX_COMPANION_FILES) {
-            refuse("E_MODEL_TOO_LARGE", { what: "count", found: fetching.given.size, limit: MAX_COMPANION_FILES });
+        if (fetching.given.size > fetching.limits.maxFiles) {
+            refuse("E_MODEL_TOO_LARGE", {
+                what: "count",
+                item: "files",
+                found: fetching.given.size,
+                limit: fetching.limits.maxFiles,
+            });
         }
 
         if (shown.length < MAX_TRIED_SHOWN) {
@@ -852,7 +876,7 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
  * and the images the .mtl names. Each is tried at the addresses of design 12.2, all on the main
  * file's origin: in its folder or below, or at the address a reference outside the folder names
  * (design 3.3); the set's total, misses included, is held to `maxBytes`, at most
- * {@link MAX_COMPANION_FILES} files are added and at most {@link MAX_EXTRA_REQUESTS} requests
+ * `maxFiles` files are added and at most {@link MAX_EXTRA_REQUESTS} requests
  * beyond the first are made for one part. A reference to another origin is never fetched here: it
  * stays a missing part carrying its `url`, for the reader to supply. Every part still missing
  * after its tries is reported at once, with the addresses tried.
@@ -861,6 +885,9 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
  * @param signal - The caller's signal.
  * @param gate - What to ask when an answer comes from another host.
  * @param onProgress - Hears the bytes received so far, the main file's and then its parts'.
+ * @param pictures - Pictures may arrive last: `onWaiting` hears the set once only pictures are
+ *     still to fetch (a copy, with the facts naming them), and `signal` stops fetching pictures:
+ *     those not fetched are then reported missing, as if they had not been found.
  * @returns The file set and its main file (none for a zip, whose main file is inside it).
  */
 export async function fetchModelSet(
@@ -869,6 +896,7 @@ export async function fetchModelSet(
     signal?: AbortSignal,
     gate?: RedirectGate,
     onProgress?: ModelProgressListener,
+    pictures?: PictureFetch,
 ): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
     if (isKnownWebPage(url)) {
         refuse("E_MODEL_WEB_PAGE", webPageParams(url));
@@ -903,9 +931,87 @@ export async function fetchModelSet(
             throw finalRefusal(facts, tried, parts, { given, main });
         }
 
-        for (const fact of fresh) {
-            await fetchPart(fact, fetching, tried);
+        const others = notPictures(fresh, pictures);
+        if (others.length > 0) {
+            for (const fact of others) {
+                await fetchPart(fact, fetching, tried);
+            }
+
+            continue;
         }
+
+        pictures?.onWaiting?.({ given: new Map(given), main }, facts);
+        await fetchPictures(fresh, fetching, tried, pictures?.signal, pictures?.part);
+    }
+}
+
+/**
+ * The missing parts to fetch before the pictures: with `pictures`, everything but them, so the
+ * model can be held without them; without, every part.
+ * @param fresh - The parts not tried yet.
+ * @param pictures - How pictures are fetched, if they may arrive last.
+ * @returns The parts to fetch now; none when only pictures are left.
+ */
+function notPictures(fresh: readonly ModelFact[], pictures: PictureFetch | undefined): readonly ModelFact[] {
+    return pictures === undefined ? fresh : fresh.filter((f) => roleOfName(String(f.params.name)) !== "texture");
+}
+
+/** How {@link fetchModelSet} fetches a model's pictures, which a reader may go without. */
+export interface PictureFetch {
+    /** Stops fetching pictures; the rest of the set is kept. */
+    readonly signal?: AbortSignal;
+    /**
+     * Stops fetching one picture, by its name in the set's facts: it is then reported missing, as
+     * one stopped by `signal` is, and the other pictures go on.
+     */
+    readonly part?: (name: string) => AbortSignal | undefined;
+    /** Hears the set once only pictures are left to fetch, and the facts naming them. */
+    readonly onWaiting?: (
+        held: { readonly given: Map<string, Uint8Array>; readonly main: string },
+        facts: readonly ModelFact[],
+    ) => void;
+}
+
+/**
+ * Fetch a model's missing pictures until `stop` aborts: one in flight then stops, and the rest are
+ * marked tried, so they are reported missing.
+ * @param facts - The missing pictures.
+ * @param fetching - The shared state.
+ * @param tried - The addresses tried, by part name.
+ * @param stop - Stops fetching pictures.
+ * @param part - Stops fetching one picture, by name.
+ */
+async function fetchPictures(
+    facts: readonly ModelFact[],
+    fetching: PartFetch,
+    tried: Map<string, string[]>,
+    stop: AbortSignal | undefined,
+    part?: (name: string) => AbortSignal | undefined,
+): Promise<void> {
+    const outer = fetching.signal;
+    try {
+        for (const fact of facts) {
+            const name = String(fact.params.name);
+            const one = part?.(name);
+            // Read afresh after each await: a reader may stop the pictures, or this one, while it downloads.
+            const stopped = (): boolean => stop?.aborted === true || one?.aborted === true;
+            if (stopped()) {
+                tried.set(name, tried.get(name) ?? []);
+                continue;
+            }
+
+            const signals = [outer, stop, one].filter((s): s is AbortSignal => s !== undefined);
+            fetching.signal = signals.length <= 1 ? signals[0] : AbortSignal.any(signals);
+            try {
+                await fetchPart(fact, fetching, tried);
+            } catch (error) {
+                if (!stopped() || outer?.aborted === true) {
+                    throw error;
+                }
+            }
+        }
+    } finally {
+        fetching.signal = outer;
     }
 }
 
@@ -969,6 +1075,7 @@ export async function checkModelFiles(
             textureBytes,
             upAxis: "unknown",
             animations: [],
+            pictures: [],
             skinned: false,
             morphTargets: 0,
             transparent: false,

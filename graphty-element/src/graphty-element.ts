@@ -55,7 +55,7 @@ import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operation
 import { GraphtyLogger, type Logger } from "./logging";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
-import type { ModelPreview, ModelPreviewOptions } from "./meshes/ModelPreview";
+import type { ModelCheck, ModelCheckOptions, ModelPreview, ModelPreviewOptions } from "./meshes/ModelPreview";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { type Antialias, antialiasDefault } from "./meshes/PulledLineBatch";
@@ -4496,6 +4496,25 @@ export class Graphty extends LitElement {
      */
     async modelPreview(ref: string, host: HTMLElement, options?: ModelPreviewOptions): Promise<ModelPreview> {
         return this.#graph.modelPreview(ref, host, options);
+    }
+
+    /**
+     * Whether a model can be drawn, without drawing it on screen: for a model picker that marks the
+     * files of a set it cannot draw before the reader steps to them. The model is loaded and built
+     * once, as a node would draw it, and freed; the answer is kept by the model's files.
+     * @param ref - What `node.model` takes: an asset id, a sample's id, or a URL the session holds.
+     * @param options - `signal` to stop waiting; `standInMissing` to count a model waiting only for
+     *     pictures or materials as drawable, as `modelThumbnail` draws it.
+     * @returns `{ drawable: true }`; `{ drawable: false, failure }` with the code `modelThumbnail`
+     *     would reject with; or `{ drawable: null }` when nothing is drawn here (no WebGL).
+     * @example
+     * ```typescript
+     * const check = await element.checkModel(asset.id);
+     * if (check.drawable === false) console.warn(check.failure?.code);
+     * ```
+     */
+    async checkModel(ref: string, options?: ModelCheckOptions): Promise<ModelCheck> {
+        return this.#graph.checkModel(ref, options);
     }
 
     /**

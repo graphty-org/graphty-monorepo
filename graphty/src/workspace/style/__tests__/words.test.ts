@@ -234,6 +234,7 @@ describe("model variant words", () => {
                 textureBytes: 0,
                 upAxis: "unknown",
                 animations: [],
+                pictures: [],
                 skinned: false,
                 morphTargets: 0,
                 transparent: false,
@@ -269,6 +270,7 @@ describe("model variant words", () => {
                 textureBytes: 2_000_000,
                 upAxis: "y",
                 animations: [{ name: "Walk", seconds: 2 }],
+                pictures: [],
                 skinned: true,
                 morphTargets: 0,
                 transparent: true,
@@ -280,6 +282,25 @@ describe("model variant words", () => {
         const value = (name: string): string | undefined => rows.find((row) => row.name === name)?.value;
         assert.equal(value("Animations"), "Walk, 2.0 s");
         assert.equal(value("Textures"), "3, 2.0 MB");
+        const summary = {
+            format: "babylon",
+            triangles: 474,
+            meshes: 5,
+            materials: [],
+            textures: 2,
+            textureBytes: 12,
+            upAxis: "y",
+            animations: [],
+            pictures: [],
+            skinned: false,
+            morphTargets: 0,
+            transparent: false,
+            extensionsRequired: [],
+        } as const;
+        const textures = (waiting: Parameters<typeof CUSTOM_MODEL.detailRows>[3]): string | undefined =>
+            CUSTOM_MODEL.detailRows(summary, undefined, [], waiting).find((row) => row.name === "Textures")?.value;
+        assert.equal(textures({ count: 0, downloading: false, skipped: 2 }), "2, 2 skipped", "no size for stand-ins");
+        assert.equal(textures({ count: 2, downloading: false }), "2, 2 missing");
         assert.equal(rows.find((row) => row.name === "Materials")?.tip, "Glass");
         assert.equal(value("Extensions ignored"), "KHR_materials_transmission");
         assert.equal(value("Skinned"), "Yes");
@@ -289,6 +310,21 @@ describe("model variant words", () => {
     it("says how much of a load has come", () => {
         assert.equal(CUSTOM_MODEL.bytes(3_200_000, 12_400_000), "3.2 of 12.4 MB");
         assert.equal(CUSTOM_MODEL.bytes(640_000, null), "640 KB");
+    });
+
+    it("names what a count limit counted, and says byte limits as sizes", () => {
+        const tip = (params: Record<string, string | number>): string =>
+            modelChip({ code: "E_MODEL_TOO_LARGE", params }).tip;
+        assert.equal(tip({ what: "count", item: "materials", found: 148, limit: 64 }), "148 materials over 64");
+        assert.equal(
+            tip({ what: "sessionBytes", found: 271_678_933, limit: 268_435_456 }),
+            "271.7 MB in this session over 268.4 MB",
+        );
+        assert.equal(tip({ what: "bytes", found: 2_000_000, limit: 1_000_000 }), "2.0 MB over 1.0 MB");
+        assert.equal(
+            tip({ what: "triangles", found: 1_500_000, limit: 1_000_000 }),
+            "1,500,000 triangles over 1,000,000",
+        );
     });
 
     it("says why a decoder failed by its reason, and calls approximated points a chip", () => {

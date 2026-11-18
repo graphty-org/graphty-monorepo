@@ -38,6 +38,7 @@ import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
+import { megabytes } from "./modelWords";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -1093,7 +1094,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
     W_MODEL_POINTS_APPROXIMATED: (p) => `This model's ${amount(p.points)} points are drawn as small solids.`,
-    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Choose one under Animation to play it.",
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Animation in Model settings plays one or holds a pose.",
     W_MODEL_EXTENSION_IGNORED: (p) => `This model's ${said(p.extension)} look is drawn opaque.`,
     W_MODEL_ANIMATION_UNKNOWN: (p) =>
         `This model has no animation called ${said(p.name)}. It has ${said(p.available) || "none"}.`,
@@ -1999,13 +2000,28 @@ function formatWord(format: string): string {
 }
 
 /** The Load custom model dialog's words (node-models design 14.6). */
+
 /**
- * Bytes as a reader reads a file's size: "12.4 MB", "640 KB".
- * @param bytes - how many.
+ * The Details Textures row: how many, then the pictures not in yet or drawn without, else their size.
+ * @param summary - from graphty-element's `assets.inspect`.
+ * @param waiting - the pictures missing or skipped, as `detailRows` takes them.
+ * @param waiting.count - how many are not in yet.
+ * @param waiting.downloading - whether they still download.
+ * @param waiting.skipped - how many the model is drawn without.
  * @returns the words.
  */
-function megabytes(bytes: number): string {
-    return bytes < 1_000_000 ? `${formatCount(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+function texturesLine(
+    summary: ModelSummary,
+    waiting?: { readonly count: number; readonly downloading: boolean; readonly skipped?: number },
+): string {
+    const count = formatCount(summary.textures);
+    if (waiting !== undefined && waiting.count > 0) {
+        return `${count}, ${formatCount(waiting.count)} ${waiting.downloading ? "downloading" : "missing"}`;
+    }
+    if (waiting?.skipped !== undefined && waiting.skipped > 0) {
+        return `${count}, ${formatCount(waiting.skipped)} skipped`;
+    }
+    return `${count}, ${megabytes(summary.textureBytes)}`;
 }
 
 /**
@@ -2026,12 +2042,10 @@ export const CUSTOM_MODEL = {
     addressOrDrop: "Model address, or drop a file",
     /** What the file row says over itself while files are dragged over the dialog. */
     dropToLoad: "Drop to load model",
-    /** The empty preview, drawn as a drop area before any model is loaded. */
-    dropHere: "Drop a model file, a folder or a .zip here",
     chooseFile: "Choose file",
     chooseFolder: "Choose folder",
-    /** The Animated chip's tip where the dialog has no Animation control (opened from the menu). */
-    animatedInLayer: "choose a clip under Animation in a layer's Model",
+    /** The folder icon's hover text: when to use it. */
+    folderTip: "Choose folder: for a model exported with its textures and parts in a folder",
     cancelLoad: "Cancel load",
     /**
      * Said when the reader stops a load.
@@ -2055,8 +2069,30 @@ export const CUSTOM_MODEL = {
         total === null || total <= 0
             ? megabytes(completed)
             : `${megabytes(completed).replace(/ MB$/, "")} of ${megabytes(total)}`,
-    moreOptions: "More options",
+    /** The button at the end of Name that opens the model's own settings, and their pop-over's title. */
+    settings: "Model settings",
+    /** The x that closes the Model settings pop-over, back to the dialog. */
+    closeSettings: "Close model settings",
+    textures: "Textures",
+    allTextures: "All textures",
+    /** Over the rows only a layer takes (Light, Wireframe, Picture), opened from a layer. */
+    forThisLayer: "For this layer",
+    /**
+     * Under the model's settings, opened from a layer that sets some of them itself.
+     * @param words - the settings' words, "Turn, Color".
+     * @returns the words.
+     */
+    layerOwn: (words: string): string => `This layer sets its own ${words}, which wins over the model's`,
+    /**
+     * The undo step that stores a model's settings with it.
+     * @param name - the model's name.
+     * @returns the words.
+     */
+    settingsStep: (name: string): string => `setting ${name}'s model settings`,
+    /** The heading over Model settings' animation rows. */
     animation: "Animation",
+    /** The Animation group's switch: on plays the clip, off holds the model still. */
+    playing: "Playing",
     still: "Still",
     pose: "Pose",
     /**
@@ -2094,6 +2130,12 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     removed: (name: string): string => `${name} removed`,
+    /**
+     * A part of a model still downloading: the model is shown meanwhile, and Add waits for it.
+     * @param file - the part's file name.
+     * @returns the spinner's name.
+     */
+    downloadingPart: (file: string): string => `Downloading ${file}`,
     name: "Name",
     color: "Color",
     files: "Files",
@@ -2120,12 +2162,19 @@ export const CUSTOM_MODEL = {
      * @param summary - from graphty-element's `assets.inspect`.
      * @param fileBytes - the model's files, in bytes, if known.
      * @param ignored - the extensions graphty-element drew without (`W_MODEL_EXTENSION_IGNORED`).
+     * @param waiting - the pictures not in yet, and whether they still download: their size is not
+     *     known, so the Textures row gives none.
+     * @param waiting.count - how many.
+     * @param waiting.downloading - whether they still download.
+     * @param waiting.skipped - how many the model is drawn without (`W_MODEL_PART_SKIPPED`): drawn
+     *     with none of their own, so the Textures row gives no size for them either.
      * @returns each row's name, its value, and a tooltip for a value that lists more than it shows.
      */
     detailRows: (
         summary: ModelSummary,
         fileBytes: number | undefined,
         ignored: readonly string[] = [],
+        waiting?: { readonly count: number; readonly downloading: boolean; readonly skipped?: number },
     ): readonly { readonly name: string; readonly value: string; readonly tip?: string }[] => {
         const rows: { name: string; value: string; tip?: string }[] = [
             { name: "Format", value: CUSTOM_MODEL.variantLine(summary) },
@@ -2145,7 +2194,7 @@ export const CUSTOM_MODEL = {
             formatCount(summary.materials.length),
             summary.materials.filter((m) => m !== "").join(", ") || undefined,
         );
-        add(summary.textures > 0, "Textures", `${formatCount(summary.textures)}, ${megabytes(summary.textureBytes)}`);
+        add(summary.textures > 0, "Textures", texturesLine(summary, waiting));
         add(
             summary.animations.length > 0,
             "Animations",
@@ -2216,6 +2265,12 @@ export const CUSTOM_MODEL = {
      */
     loaded: (name: string): string => `${name} loaded`,
     /**
+     * The file is already in the project: Add adds a second model of it, leaving the first as it is.
+     * @param name - the first model's name.
+     * @returns the words.
+     */
+    again: (name: string): string => `Already in the project as ${name}. Add adds another, set up on its own.`,
+    /**
      * Said once the main menu's dialog added a model.
      * @param name - its name.
      * @returns the words.
@@ -2254,6 +2309,14 @@ export const CUSTOM_MODEL = {
     position: (at: number, count: number): string => `${at} of ${count}`,
     previousModel: "Previous model",
     nextModel: "Next model",
+    /** Over a set's list of its models, in the loading column. */
+    setModels: "Models",
+    /**
+     * A set's list: the checkbox that says whether Add takes the model in this file.
+     * @param file - the model's file.
+     * @returns the words.
+     */
+    loadFile: (file: string): string => `Load ${file}`,
     /** The checkbox under a set's preview: whether Add takes the model shown. */
     loadThis: "Load this model",
     /** Add's tooltip while no model of a set is chosen. */
@@ -2325,7 +2388,7 @@ export const MODEL_SETTING_ROWS: readonly {
         ],
     },
     // Its choices are the model's clips, which the row reads from graphty-element's summary.
-    { channel: "node.modelAnimation", word: "Animation", choices: [["", "Still"]] },
+    { channel: "node.modelAnimation", word: "Clip", choices: [["", "Still"]] },
     { channel: "node.modelAnimationSpeed", word: "Speed", unit: "x", step: 0.1 },
     { channel: "node.modelAnimationOffset", word: "Start", unit: "s", step: 0.1 },
     {
@@ -2361,14 +2424,6 @@ export const ANIMATION_CHANNELS: ReadonlySet<Channel> = new Set([
     "node.modelAnimationSpeed",
     "node.modelAnimationOffset",
 ]);
-
-/** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
-export const MODEL_SETTING_CHIPS: Readonly<
-    Partial<Record<Channel, { readonly code: string; readonly word: string; readonly tip: string }>>
-> = {
-    "node.modelSourceUp": { code: "W_MODEL_UP_GUESSED", word: "Guessed", tip: "up axis guessed from the file" },
-    "node.modelTint": { code: "W_MODEL_COLOR_IGNORED", word: "Color unused", tip: "node color not drawn on the model" },
-};
 
 /**
  * A rule as the reader reads and types it: its numbers without the backticks the element writes

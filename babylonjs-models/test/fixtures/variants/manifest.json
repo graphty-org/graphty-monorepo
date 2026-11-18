@@ -152,7 +152,7 @@
         "id": "gltf-morph-animated",
         "format": "glb",
         "color": "blue",
-        "what": "GLB whose one clip moves a morph target's weight (held at rest when played)",
+        "what": "GLB whose one clip, 'grow', moves a morph target's weight from 0 to 1",
         "files": ["cube.glb"]
     },
     {
@@ -228,8 +228,8 @@
         "upload": "files",
         "id": "gltf-transmission-used",
         "format": "glb",
-        "color": "blue",
-        "what": "GLB using KHR_materials_transmission (drawn opaque)",
+        "color": "any",
+        "what": "GLB using KHR_materials_transmission (drawn see-through, its blue faint)",
         "files": ["cube.glb"]
     },
     {
@@ -240,8 +240,8 @@
         "id": "gltf-transmission-required",
         "format": "gltf",
         "compression": ["webp"],
-        "color": "green",
-        "what": ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn opaque)",
+        "color": "any",
+        "what": ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn see-through, its green faint)",
         "files": ["cube.gltf", "cube.bin", "base.webp", "orm.webp", "normal.webp"]
     },
     {

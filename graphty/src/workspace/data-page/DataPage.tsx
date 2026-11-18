@@ -33,7 +33,6 @@ import {
     Checkbox,
     Group,
     Input,
-    Loader,
     Menu,
     NavLink,
     NumberInput,
@@ -545,6 +544,21 @@ interface PartProps {
 function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
     const { store } = useWorkspace();
     const [entry, setEntry] = useState(false);
+    // An address entered in "From a URL" keeps it open, with its bar, until the read ends.
+    const [entryReading, setEntryReading] = useState(false);
+    const sawReading = useRef(false);
+    useEffect(() => {
+        if (!entryReading) {
+            return;
+        }
+        if (page.reading) {
+            sawReading.current = true;
+        } else if (sawReading.current) {
+            sawReading.current = false;
+            setEntryReading(false);
+            setEntry(false);
+        }
+    }, [entryReading, page.reading]);
     const addButton = useRef<HTMLButtonElement>(null);
     const { draft } = page;
     const paste = async (): Promise<void> => {
@@ -601,12 +615,17 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                         <Popout.Content>
                             {entry ? (
                                 <FileSource
+                                    submitOnBlur
+                                    barUnderField
                                     variant="row"
                                     url
                                     multiple
                                     placeholder="Address"
+                                    disabled={entryReading}
+                                    progress={entryReading ? page.readProgress : undefined}
                                     onUrl={(url) => {
-                                        setEntry(false);
+                                        sawReading.current = false;
+                                        setEntryReading(true);
                                         page.setSource({ kind: "url", url });
                                     }}
                                     onFiles={(files) => {
@@ -764,29 +783,28 @@ function MainView({
     onFiles,
 }: PartProps & { joins: Joins; onChooseFiles: () => void; onFiles: (files: File[]) => void }): React.JSX.Element {
     const { draft, source } = page;
-    if (source === null) {
-        // The whole page takes a drop; this area says so at the size of the space it fills.
+    // A source chosen but not yet read (the render before its read starts) counts as reading.
+    const reading = page.reading || (source !== null && draft === null && page.readError === null);
+    if (source === null || reading) {
+        // The whole page takes a drop; this area says so at the size of the space it fills. While a
+        // source is read it stays, with the read's bar under its URL field.
         return (
             <div className="dp-drop">
                 <FileSource
+                    submitOnBlur
+                    barUnderField
                     variant="drop"
                     multiple
                     url
+                    disabled={reading}
+                    progress={reading ? page.readProgress : undefined}
+                    status={source === null ? undefined : { label: `Reading ${sourceName(source)}` }}
                     onFiles={onFiles}
                     onUrl={(url) => {
                         page.setSource({ kind: "url", url });
                     }}
                 />
             </div>
-        );
-    }
-    if (page.reading) {
-        return (
-            <Group gap="xs" p="md">
-                <Loader size="xs" />
-                {/* No running row count until prepare() reports progress (#910). */}
-                <Text size="sm">Reading {sourceName(source)}</Text>
-            </Group>
         );
     }
     if (draft === null) {

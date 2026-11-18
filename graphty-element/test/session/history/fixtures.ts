@@ -817,6 +817,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "asset.defaults",
+        tags: BOTH,
+        command: { op: "asset.defaults", id: "asset:fixture", patch: { style: { "node.modelTurn": 90 } } },
+    },
+    {
         name: "data.columns",
         tags: BOTH,
         command: {

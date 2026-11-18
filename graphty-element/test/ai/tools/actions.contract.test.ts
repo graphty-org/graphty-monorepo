@@ -129,6 +129,10 @@ const seededSession = async (): Promise<GraphSession> => {
     return session;
 };
 /** A run of degree, for the actions that read one. */
+/** One triangle as an ASCII STL, for a model to give settings to. */
+const ONE_TRIANGLE_STL =
+    "solid t\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid t\n";
+
 const withRun = async (session: GraphSession): Promise<unknown> => session.runs.start("degree");
 /** A set, for the sets actions. */
 const withSet = (session: GraphSession): Promise<unknown> =>
@@ -522,6 +526,14 @@ const ROWS: Record<string, Row> = {
     "import_data.last_import": { args: { action: "last_import" } },
     "export_graph.export": { args: { format: "graphml" } },
     "project.settings": { args: { action: "settings", runAlgorithmsOnLoad: true } },
+    "project.model_settings": {
+        args: { action: "model_settings", model: "asset:tool-model", values: { "node.modelTurn": 90 } },
+        setup: (s) =>
+            s.assets.add(
+                { files: new Map([["tool.stl", new TextEncoder().encode(ONE_TRIANGLE_STL)]]) },
+                { name: "asset:tool-model" },
+            ),
+    },
     "project.generate_background": {
         args: { action: "generate_background", prompt: "a starry night" },
         image: true,

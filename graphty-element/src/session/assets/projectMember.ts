@@ -13,10 +13,11 @@ import { normalizePath, roleOfName } from "babylonjs-models/detect";
 import type { LayerId } from "../../catalog/types";
 import type { GraphtyErrorCode, GraphtyWarningCode } from "../../errors/codes";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { patchedDefaults } from "../commands/assets";
 import type { CodedFact } from "../shared";
 import type { GraphSession } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
-import type { AssetRecord, AssetsApiInternal } from "./AssetsApi";
+import type { AssetRecord, AssetsApiInternal, ModelDefaults } from "./AssetsApi";
 import { digestFileSet } from "./digest";
 
 /** The member's kind. */
@@ -24,9 +25,6 @@ export const ASSETS_MEMBER = "graphty-assets";
 
 /** The member's version. */
 const VERSION = 1;
-
-/** The most file bytes one document embeds: 64 MB. */
-export const MAX_DOCUMENT_ASSET_BYTES = 64 * 1024 * 1024;
 
 /** A problem about the member, as the project file reports it. */
 type Problem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
@@ -41,7 +39,21 @@ interface SavedFile {
 
 /** The members an entry and a file may have; anything else refuses the entry. */
 const MEMBER_KEYS = new Set(["kind", "version", "assets", "extensions"]);
-const ENTRY_KEYS = new Set(["id", "sha256", "format", "main", "source", "stored", "files", "skipped", "plainName"]);
+/** The keys an entry's `defaults` may carry. */
+const DEFAULTS_KEYS = new Set(["style", "hiddenTextures"]);
+
+const ENTRY_KEYS = new Set([
+    "id",
+    "sha256",
+    "format",
+    "main",
+    "source",
+    "stored",
+    "files",
+    "skipped",
+    "plainName",
+    "defaults",
+]);
 const FILE_KEYS = new Set(["path", "mediaType", "byteLength", "data"]);
 
 /** Media types by file ending; anything else is application/octet-stream. */
@@ -301,6 +313,18 @@ function savedFiles(assets: AssetsApiInternal, id: AssetId): SavedFile[] {
 }
 
 /**
+ * A record's model settings as an entry saves them.
+ * @param record - The record.
+ * @returns The `defaults` field, or nothing when the model has none.
+ */
+function savedDefaults(record: AssetRecord): { defaults?: ModelDefaults } {
+    const { defaults } = record;
+    return defaults === undefined
+        ? {}
+        : { defaults: { style: { ...defaults.style }, hiddenTextures: [...defaults.hiddenTextures] } };
+}
+
+/**
  * Write an entry that embeds an asset's files, or shares those of an earlier entry with the same
  * digest, unless the document cap would be passed.
  * @param build - The member as it is built.
@@ -310,13 +334,14 @@ function savedFiles(assets: AssetsApiInternal, id: AssetId): SavedFile[] {
  */
 function embedEntry(build: MemberBuild, record: AssetRecord, key: string, source: string | undefined): void {
     const first = !build.digests.has(record.digest);
-    if (first && build.bytes + record.byteLength > MAX_DOCUMENT_ASSET_BYTES) {
+    const limit = build.assets.limits().documentBytes;
+    if (first && build.bytes + record.byteLength > limit) {
         build.leftOut.push({
             code: "E_MODEL_TOO_LARGE",
             params: {
                 what: "documentBytes",
                 found: build.bytes + record.byteLength,
-                limit: MAX_DOCUMENT_ASSET_BYTES,
+                limit,
                 id: record.id,
             },
         });
@@ -337,6 +362,7 @@ function embedEntry(build: MemberBuild, record: AssetRecord, key: string, source
         ...(source === undefined ? {} : { source }),
         ...(record.skipped === undefined ? {} : { skipped: [...record.skipped] }),
         ...(record.plainName === undefined ? {} : { plainName: record.plainName }),
+        ...savedDefaults(record),
         // Later entries with the same digest share the first one's files.
         ...(first ? { files: savedFiles(build.assets, record.id) } : {}),
     });
@@ -382,6 +408,7 @@ function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
             source: ref,
             stored: "url",
             ...(record.plainName === undefined ? {} : { plainName: record.plainName }),
+            ...savedDefaults(record),
         });
         return;
     }
@@ -478,10 +505,11 @@ function refused(code: "E_BAD_DOCUMENT" | "E_MODEL_TOO_LARGE", details: Record<s
 /**
  * Check a whole member before anything is decoded: its closed top level and the document cap.
  * @param member - The member.
+ * @param limit - The session's `documentBytes` limit.
  * @returns Its entries.
  * @throws A `GraphtyError` with `E_BAD_DOCUMENT` or `E_MODEL_TOO_LARGE`.
  */
-function entriesOf(member: Record<string, unknown>): unknown[] {
+function entriesOf(member: Record<string, unknown>, limit: number): unknown[] {
     const extra = unknownKey(member, MEMBER_KEYS);
     if (extra !== undefined) {
         throw refused("E_BAD_DOCUMENT", { pointer: `/${extra}` });
@@ -498,11 +526,11 @@ function entriesOf(member: Record<string, unknown>): unknown[] {
         }
     }
 
-    if (length > base64Length(MAX_DOCUMENT_ASSET_BYTES)) {
+    if (length > base64Length(limit)) {
         throw refused("E_MODEL_TOO_LARGE", {
             what: "documentBytes",
             found: Math.floor((length * 3) / 4),
-            limit: MAX_DOCUMENT_ASSET_BYTES,
+            limit,
         });
     }
 
@@ -519,6 +547,7 @@ interface Entry {
     readonly files?: readonly SavedFile[];
     readonly skipped?: readonly string[];
     readonly plainName?: string;
+    readonly defaults?: ModelDefaults;
 }
 
 /**
@@ -622,7 +651,44 @@ function checkEntry(entry: unknown): Entry | string {
         return "/plainName";
     }
 
+    if (entry.defaults !== undefined && !defaultsOk(id, entry.defaults)) {
+        return "/defaults";
+    }
+
     return filesPointer(files) ?? (entry as unknown as Entry);
+}
+
+/**
+ * Whether an entry's `defaults` is a model's settings: `style` of its channels' values and
+ * `hiddenTextures` of picture names, nothing else.
+ * @param id - The entry's id.
+ * @param defaults - The member.
+ * @returns True when it may be applied.
+ */
+function defaultsOk(id: string, defaults: unknown): boolean {
+    if (!isObject(defaults) || unknownKey(defaults, DEFAULTS_KEYS) !== undefined || !isObject(defaults.style)) {
+        return false;
+    }
+
+    try {
+        patchedDefaults(id, undefined, defaults);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Put a model's saved settings back, when its entry has any.
+ * @param assets - The session's assets.
+ * @param id - The model's id.
+ * @param defaults - The entry's `defaults`.
+ * @returns Once they are recorded.
+ */
+async function restoreDefaults(assets: AssetsApiInternal, id: AssetId, defaults?: ModelDefaults): Promise<void> {
+    if (defaults !== undefined) {
+        await assets.putDefaults(id, defaults);
+    }
 }
 
 /**
@@ -703,6 +769,7 @@ async function restoreEntry(
         // Kept by URL: it loads from there, as the reader allows, and is checked against this.
         assets.expectDigest(entry.source as string, entry.sha256);
         assets.rememberStorage(entry.source as string, "url");
+        await restoreDefaults(assets, entry.id, entry.defaults);
         return undefined;
     }
 
@@ -745,6 +812,8 @@ async function restoreEntry(
         assets.rename(record.id, entry.plainName);
     }
 
+    await restoreDefaults(assets, record.id, entry.defaults);
+
     if (entry.source !== undefined) {
         assets.bindUrl(entry.source, record.id);
         assets.rememberStorage(entry.source, "embed");
@@ -765,7 +834,7 @@ async function restoreEntry(
  */
 export async function restoreAssets(session: GraphSession, member: Record<string, unknown>): Promise<Problem[]> {
     const assets = assetsOf(session);
-    const entries = entriesOf(member);
+    const entries = entriesOf(member, assets.limits().documentBytes);
     const problems: Problem[] = [];
     const decoded = new Map<string, Map<string, Uint8Array>>();
     for (const [index, raw] of entries.entries()) {

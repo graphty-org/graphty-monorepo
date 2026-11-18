@@ -13,8 +13,10 @@
  * attribute; one clock per scene moves time on while any node plays, holding the scene's
  * every-frame claim, and letting it go when all are still.
  *
- * Morph targets (shape keys) are not baked: their parts hold their rest shape
- * (`W_MODEL_ANIMATION_PARTIAL`). A texture over {@link MAX_TEXTURE_BYTES} is sampled at fewer frames
+ * A part moved by morph targets (shape keys) gets a bone for each set of its vertices that move
+ * alike, which carries them by the clip's blend of its targets, on top of the part's own movement.
+ * A skinned part's shape keys, or more bones than a texture row holds, are not baked: those parts
+ * hold their rest shape (`W_MODEL_ANIMATION_PARTIAL`). A texture over {@link MAX_TEXTURE_BYTES} is sampled at fewer frames
  * a second (`W_MODEL_ANIMATION_REDUCED`).
  */
 
@@ -64,8 +66,15 @@ export interface TemplateAnimation {
     readonly fps: number;
     /** What is worth saying: `W_MODEL_ANIMATION_REDUCED`, `W_MODEL_ANIMATION_PARTIAL`. */
     readonly notes: readonly CodedFact[];
-    /** Every part's corners over every frame, in the unit box: what the node is picked and culled by. */
+    /** Every moving part's reach over every frame, in the unit box: what the node is picked and culled by. */
     readonly bounds: { readonly min: Vector3; readonly max: Vector3 };
+    /**
+     * The furthest any moving vertex gets from the center over every frame of a clip that plays in
+     * place (wings, legs): what the model is framed and its edges trimmed by. A clip that carries
+     * the model out of its own sphere (a plane's flight path) counts each frame's reach from that
+     * frame's own middle instead, so the path does not shrink the model to a speck.
+     */
+    readonly radius: number;
     /**
      * Have a node's instances play a clip.
      * @param owner - The node.
@@ -140,7 +149,7 @@ function restore(poses: readonly Pose[]): void {
 
 /**
  * Pose every node of a clip at a moment: each of its animations evaluated and written to its
- * target, morph weights left alone.
+ * target, a morph target's weight included.
  * @param group - The clip.
  * @param frame - The moment, in the clip's own frames.
  * @returns Whether the clip moves a morph target.
@@ -148,11 +157,7 @@ function restore(poses: readonly Pose[]): void {
 function poseAt(group: AssetContainer["animationGroups"][number], frame: number): boolean {
     let morph = false;
     for (const { animation, target } of group.targetedAnimations) {
-        if (target instanceof MorphTarget) {
-            morph = true;
-            continue;
-        }
-
+        morph ||= target instanceof MorphTarget;
         const path = animation.targetPropertyPath;
         let owner = target as Record<string, unknown>;
         for (const key of path.slice(0, -1)) {
@@ -189,11 +194,12 @@ interface Sampled {
  * @returns The clips.
  */
 function clipsOf(container: AssetContainer, fps: number): Sampled[] {
-    return container.animationGroups.map((group, i) => {
+    return container.animationGroups.map((group) => {
         const rate = group.targetedAnimations[0]?.animation.framePerSecond ?? 60;
         const seconds = Math.max(0, (group.to - group.from) / rate);
         return {
-            name: group.name === "" ? `clip ${String(i + 1)}` : group.name,
+            // The loader names an unnamed glTF clip `animation<index>`, as the model summary lists it.
+            name: group.name,
             group,
             from: group.from,
             rate,
@@ -202,19 +208,83 @@ function clipsOf(container: AssetContainer, fps: number): Sampled[] {
     });
 }
 
+/** A part moved by its morph targets: its vertices that move alike share a bone. */
+interface Morph {
+    /** Each vertex's bone, counted from the part's first. */
+    readonly boneOf: Uint32Array;
+    /** One vertex of each bone, which moves as all of that bone's vertices do. */
+    readonly first: readonly number[];
+    /** Each target, and how far it moves each vertex at full weight. */
+    readonly targets: readonly { readonly target: MorphTarget; readonly deltas: Float32Array }[];
+}
+
 /** Where each animated part's bones start in the shared table. */
 interface BoneMap {
     readonly offsets: Map<AnimatedPart, number>;
     readonly count: number;
+    /** The parts whose morph targets are baked. */
+    readonly morphs: ReadonlyMap<AnimatedPart, Morph>;
 }
 
 /**
- * Give every movable part its bones: a skin its skeleton's (shared by the parts that share it),
- * any other part one of its own. Bone 0 never moves.
+ * The movable parts with morph targets and no skin, each vertex given the bone of the vertices
+ * every target moves alike (a vertex split at a seam moves with its twin; one no target moves
+ * shares a bone with the others).
  * @param parts - The parts.
+ * @returns Their morphs.
+ */
+function morphsOf(parts: readonly AnimatedPart[]): Map<AnimatedPart, Morph> {
+    const out = new Map<AnimatedPart, Morph>();
+    for (const part of parts) {
+        const manager = part.mesh?.morphTargetManager ?? null;
+        const base = part.local?.positions ?? null;
+        const skinned = (part.mesh?.skeleton ?? null) !== null && (part.local?.matricesIndices ?? null) !== null;
+        if (manager === null || manager.numTargets === 0 || base === null || skinned) {
+            // ponytail: a skinned part's shape keys hold still; blend the skin into each vertex's bone if a file needs them.
+            continue;
+        }
+
+        const targets = Array.from({ length: manager.numTargets }, (_, t) => {
+            const target = manager.getTarget(t);
+            // Babylon keeps a target's positions whole, not as offsets from the base.
+            const positions = target.getPositions();
+            const deltas = new Float32Array(base.length);
+            if (positions !== null) {
+                for (let k = 0; k < base.length; k++) {
+                    deltas[k] = positions[k] - base[k];
+                }
+            }
+            return { target, deltas };
+        });
+        const count = base.length / 3;
+        const boneOf = new Uint32Array(count);
+        const first: number[] = [];
+        const keys = new Map<string, number>();
+        for (let v = 0; v < count; v++) {
+            const key = targets.map(({ deltas }) => deltas.subarray(v * 3, v * 3 + 3).join(",")).join(";");
+            let bone = keys.get(key);
+            if (bone === undefined) {
+                bone = first.length;
+                keys.set(key, bone);
+                first.push(v);
+            }
+            boneOf[v] = bone;
+        }
+        out.set(part, { boneOf, first, targets });
+    }
+
+    return out;
+}
+
+/**
+ * Give every movable part its bones: a skin its skeleton's (shared by the parts that share it), a
+ * part with baked morph targets one for each set of its vertices that move alike, any other part
+ * one of its own. Bone 0 never moves.
+ * @param parts - The parts.
+ * @param morphs - The parts whose morph targets are baked.
  * @returns Each part's first bone and the bone count.
  */
-function mapBones(parts: readonly AnimatedPart[]): BoneMap {
+function mapBones(parts: readonly AnimatedPart[], morphs: ReadonlyMap<AnimatedPart, Morph>): BoneMap {
     const offsets = new Map<AnimatedPart, number>();
     const skeletons = new Map<Skeleton, number>();
     let count = 1;
@@ -234,11 +304,188 @@ function mapBones(parts: readonly AnimatedPart[]): BoneMap {
             offsets.set(part, offset);
         } else {
             offsets.set(part, count);
-            count += 1;
+            count += morphs.get(part)?.first.length ?? 1;
         }
     }
 
-    return { offsets, count };
+    return { offsets, count, morphs };
+}
+
+/** Directions spread evenly over the sphere: the vertices furthest along each stand for a bone's. */
+const DIRECTIONS: readonly Vector3[] = Array.from({ length: 64 }, (_, i) => {
+    // A Fibonacci sphere: no two neighbours more than about 15 degrees apart, so the furthest of
+    // these points is within 4% of the furthest vertex.
+    const y = 1 - ((i + 0.5) * 2) / 64;
+    const r = Math.sqrt(1 - y * y);
+    const a = i * Math.PI * (3 - Math.sqrt(5));
+    return new Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+});
+
+/**
+ * For each bone of each movable part, the few vertices it moves that stand for all of them: the
+ * furthest along each of {@link DIRECTIONS}, in the part's own (bind) space. A skinned vertex is
+ * a weighted blend of where its bones put it, so it stays within what these points bound; a
+ * whole-mesh box moved by every bone does not (a foot bone carries the body's box with it).
+ * @param parts - The parts.
+ * @param bones - Their bones.
+ * @returns The points, per part, per bone.
+ */
+function extremesOf(parts: readonly AnimatedPart[], bones: BoneMap): Map<AnimatedPart, Vector3[][]> {
+    const out = new Map<AnimatedPart, Vector3[][]>();
+    for (const part of parts) {
+        const positions = part.local?.positions ?? null;
+        if (bones.offsets.has(part) && part.mesh !== undefined && part.local !== undefined && positions !== null) {
+            const morph = bones.morphs.get(part);
+            const moved = morph === undefined ? movedBy(part.local, part.mesh.skeleton) : groupsOf(morph);
+            out.set(
+                part,
+                moved.map((list) => furthestOf(positions, list)),
+            );
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The vertices each bone moves: all of them on one bone for a part with no skin.
+ * @param data - The part's own vertices, with its skin weights.
+ * @param skeleton - Its skeleton, or null.
+ * @returns The vertex indices, per bone.
+ */
+function movedBy(data: VertexData, skeleton: Skeleton | null): number[][] {
+    const count = (data.positions?.length ?? 0) / 3;
+    const skin = skeleton === null ? null : data.matricesIndices;
+    if (skin === null || skeleton === null) {
+        return [Array.from({ length: count }, (_, v) => v)];
+    }
+
+    const weights = data.matricesWeights;
+    const moved: number[][] = skeleton.bones.map(() => []);
+    for (let v = 0; v < count; v++) {
+        for (let k = 0; k < 4; k++) {
+            if ((weights?.[v * 4 + k] ?? 0) > 0) {
+                moved[Math.floor(skin[v * 4 + k])]?.push(v);
+            }
+        }
+    }
+
+    return moved;
+}
+
+/**
+ * The vertices each bone of a morph moves.
+ * @param morph - The morph.
+ * @returns The vertex indices, per bone.
+ */
+function groupsOf(morph: Morph): number[][] {
+    const groups: number[][] = morph.first.map(() => []);
+    for (const [v, bone] of morph.boneOf.entries()) {
+        groups[bone].push(v);
+    }
+
+    return groups;
+}
+
+/**
+ * Where a morph's bones move their vertices by its targets' weights now.
+ * @param morph - The morph.
+ * @param world - The part's own matrix, applied after.
+ * @returns Each bone's matrix.
+ */
+function morphMatrices(morph: Morph, world: Matrix): Matrix[] {
+    return morph.first.map((v) => {
+        let [x, y, z] = [0, 0, 0];
+        for (const { target, deltas } of morph.targets) {
+            x += target.influence * deltas[v * 3];
+            y += target.influence * deltas[v * 3 + 1];
+            z += target.influence * deltas[v * 3 + 2];
+        }
+        return Matrix.Translation(x, y, z).multiply(world);
+    });
+}
+
+/**
+ * The vertices furthest along each of {@link DIRECTIONS}, once each.
+ * @param positions - The positions.
+ * @param list - The vertices to choose from.
+ * @returns Their points.
+ */
+function furthestOf(positions: ArrayLike<number>, list: readonly number[]): Vector3[] {
+    const chosen = DIRECTIONS.map((dir) => {
+        let best = -Infinity;
+        let at = -1;
+        for (const v of list) {
+            const along = positions[v * 3] * dir.x + positions[v * 3 + 1] * dir.y + positions[v * 3 + 2] * dir.z;
+            if (along > best) {
+                best = along;
+                at = v;
+            }
+        }
+        return at;
+    });
+    return [...new Set(chosen.filter((v) => v >= 0))].map((v) => Vector3.FromArray(positions, v * 3));
+}
+
+/** The box every frame's posed vertices reach. */
+interface Reach {
+    readonly min: Vector3;
+    readonly max: Vector3;
+}
+
+/** Where one frame's posed vertices are. */
+interface FrameReach {
+    /** The middle of their box. */
+    readonly middle: Vector3;
+    /** The furthest from the center. */
+    readonly reach: number;
+    /** The furthest from their own middle. */
+    readonly own: number;
+}
+
+/**
+ * The radius a clip's frames are framed by: every frame's reach about the center while the clip
+ * plays in place; each frame's reach about its own middle once the clip carries the model further
+ * from where it started than the model's own radius.
+ * @param frames - The clip's frames.
+ * @returns The radius.
+ */
+function clipRadius(frames: readonly FrameReach[]): number {
+    let reach = 0;
+    let own = 0;
+    let travel = 0;
+    for (const frame of frames) {
+        reach = Math.max(reach, frame.reach);
+        own = Math.max(own, frame.own);
+        travel = Math.max(travel, Vector3.Distance(frame.middle, frames[0].middle));
+    }
+
+    return travel > own ? own : reach;
+}
+
+/**
+ * A movable part's bones' matrices for the moment the nodes are posed at.
+ * @param part - The part.
+ * @param mesh - Its mesh.
+ * @param bones - The bones.
+ * @param place - The orientation and fit every matrix ends with.
+ * @returns Its bones' matrices, in order.
+ */
+function boneMatrices(part: AnimatedPart, mesh: Mesh, bones: BoneMap, place: Matrix): Matrix[] {
+    const world = mesh.computeWorldMatrix(true).multiply(place);
+    const morph = bones.morphs.get(part);
+    if (morph !== undefined) {
+        return morphMatrices(morph, world);
+    }
+
+    const { skeleton } = mesh;
+    if (skeleton === null || part.local?.matricesIndices === null) {
+        return [world];
+    }
+
+    skeleton.prepare(true);
+    const skin = skeleton.getTransformMatrices(mesh);
+    return skeleton.bones.map((_, b) => Matrix.FromArray(skin, b * 16).multiply(world));
 }
 
 /**
@@ -248,9 +495,9 @@ function mapBones(parts: readonly AnimatedPart[]): BoneMap {
  * @param place - The orientation and fit every matrix ends with.
  * @param into - The texture data.
  * @param row - The frame's first float.
- * @param bounds - The corners seen so far, grown.
- * @param bounds.min - The low corner.
- * @param bounds.max - The high corner.
+ * @param bounds - The box seen so far, grown.
+ * @param extremes - The points standing for each bone's vertices ({@link extremesOf}).
+ * @returns Where this frame's vertices are.
  */
 function writeFrame(
     parts: readonly AnimatedPart[],
@@ -258,39 +505,45 @@ function writeFrame(
     place: Matrix,
     into: Float32Array,
     row: number,
-    bounds: { min: Vector3; max: Vector3 },
-): void {
+    bounds: Reach,
+    extremes: ReadonlyMap<AnimatedPart, Vector3[][]>,
+): FrameReach {
     Matrix.IdentityReadOnly.copyToArray(into, row);
-    const corner = new Vector3();
+    const posed: Vector3[] = [];
     for (const part of parts) {
         const offset = bones.offsets.get(part);
         if (offset === undefined || part.mesh === undefined) {
             continue;
         }
 
-        const world = part.mesh.computeWorldMatrix(true).multiply(place);
-        const { skeleton } = part.mesh;
-        const matrices: Matrix[] = [];
-        if (skeleton !== null && part.local?.matricesIndices !== null) {
-            skeleton.prepare(true);
-            const skin = skeleton.getTransformMatrices(part.mesh);
-            for (let b = 0; b < skeleton.bones.length; b++) {
-                matrices.push(Matrix.FromArray(skin, b * 16).multiply(world));
-            }
-        } else {
-            matrices.push(world);
-        }
-
-        const box = part.mesh.getBoundingInfo().boundingBox;
+        const matrices = boneMatrices(part, part.mesh, bones, place);
+        const points = extremes.get(part) ?? [];
         for (const [b, matrix] of matrices.entries()) {
             matrix.copyToArray(into, row + (offset + b) * 16);
-            for (const point of box.vectors) {
-                Vector3.TransformCoordinatesToRef(point, matrix, corner);
-                bounds.min.minimizeInPlace(corner);
-                bounds.max.maximizeInPlace(corner);
+            for (const point of points[b] ?? []) {
+                posed.push(Vector3.TransformCoordinates(point, matrix));
             }
         }
     }
+
+    const min = new Vector3(Infinity, Infinity, Infinity);
+    const max = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const point of posed) {
+        min.minimizeInPlace(point);
+        max.maximizeInPlace(point);
+    }
+
+    bounds.min.minimizeInPlace(min);
+    bounds.max.maximizeInPlace(max);
+    const middle = posed.length === 0 ? Vector3.Zero() : min.add(max).scale(0.5);
+    let reach = 0;
+    let own = 0;
+    for (const point of posed) {
+        reach = Math.max(reach, point.length());
+        own = Math.max(own, Vector3.Distance(point, middle));
+    }
+
+    return { middle, reach, own };
 }
 
 /**
@@ -309,6 +562,7 @@ function rebind(parts: readonly AnimatedPart[], bones: BoneMap): void {
             offset !== undefined &&
             (part.local?.matricesIndices ?? null) !== null &&
             (part.mesh?.skeleton ?? null) !== null;
+        const morph = bones.morphs.get(part);
         for (let v = 0; v < count; v++) {
             if (skinned) {
                 // ponytail: more than four influences (the extra weights) are dropped; renormalize if a file needs them.
@@ -317,7 +571,7 @@ function rebind(parts: readonly AnimatedPart[], bones: BoneMap): void {
                     weights[v * 4 + k] = data.matricesWeights?.[v * 4 + k] ?? 0;
                 }
             } else {
-                indices[v * 4] = offset ?? 0;
+                indices[v * 4] = (offset ?? 0) + (morph?.boneOf[v] ?? 0);
                 weights[v * 4] = 1;
             }
         }
@@ -328,6 +582,36 @@ function rebind(parts: readonly AnimatedPart[], bones: BoneMap): void {
         data.matricesWeightsExtra = null;
         part.vertices = data;
     }
+}
+
+/**
+ * The parts' bones, with their morph targets baked while a frame's bones fit one texture row
+ * (four texels each).
+ * @param scene - The scene.
+ * @param parts - The parts.
+ * @returns The bones.
+ */
+function bonesFor(scene: Scene, parts: readonly AnimatedPart[]): BoneMap {
+    const bones = mapBones(parts, morphsOf(parts));
+    // ponytail: past the widest row, shape keys hold still; split a frame over rows if a file needs more.
+    return bones.count * 4 > scene.getEngine().getCaps().maxTextureSize ? mapBones(parts, new Map()) : bones;
+}
+
+/**
+ * The file's morph target weights now, to put back.
+ * @param container - The loaded model.
+ * @returns What puts them back.
+ */
+function weightsOf(container: AssetContainer): () => void {
+    const targets = container.morphTargetManagers.flatMap((manager) =>
+        Array.from({ length: manager.numTargets }, (_, t) => manager.getTarget(t)),
+    );
+    const weights = targets.map((target) => target.influence);
+    return () => {
+        for (const [t, target] of targets.entries()) {
+            target.influence = weights[t];
+        }
+    };
 }
 
 /**
@@ -354,7 +638,7 @@ export function bakeAnimation(
         group.stop();
     }
 
-    const bones = mapBones(parts);
+    const bones = bonesFor(scene, parts);
     let fps = BAKE_FPS;
     const notes: CodedFact[] = [];
     const floatsPerFrame = bones.count * 16;
@@ -375,33 +659,46 @@ export function bakeAnimation(
     const data = new Float32Array(floatsPerFrame * total);
     const nodes = inOrder(container);
     const rest = posesOf(nodes);
-    const bounds = {
+    const restWeights = weightsOf(container);
+    const restAll = (): void => {
+        restore(rest);
+        restWeights();
+    };
+    const bounds: Reach = {
         min: new Vector3(Infinity, Infinity, Infinity),
         max: new Vector3(-Infinity, -Infinity, -Infinity),
     };
+    let radius = 0;
+    const extremes = extremesOf(parts, bones);
     const ranges = new Map<string, { start: number; end: number }>();
     let frame = 0;
     let morph = false;
     for (const clip of clips) {
-        restore(rest);
+        restAll();
         ranges.set(clip.name, { start: frame, end: frame + clip.frames - 1 });
+        const reaches: FrameReach[] = [];
         for (let k = 0; k < clip.frames; k++) {
             morph = poseAt(clip.group, clip.from + (k / fps) * clip.rate) || morph;
             for (const node of nodes) {
                 node.computeWorldMatrix(true);
             }
-            writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame, bounds);
+            reaches.push(writeFrame(parts, bones, place, data, (frame + k) * floatsPerFrame, bounds, extremes));
         }
+        radius = Math.max(radius, clipRadius(reaches));
         frame += clip.frames;
     }
 
-    restore(rest);
-    if (morph) {
+    restAll();
+    // A clip moved a morph target some part could not bake.
+    const unbaked = parts.some(
+        (part) => (part.mesh?.morphTargetManager?.numTargets ?? 0) > 0 && !bones.morphs.has(part),
+    );
+    if (morph && unbaked) {
         notes.push({ code: "W_MODEL_ANIMATION_PARTIAL", params: { reason: "morph" } });
     }
 
     rebind(parts, bones);
-    return animationFor(scene, name, { data, bones: bones.count, total, fps, ranges, notes, bounds });
+    return animationFor(scene, name, { data, bones: bones.count, total, fps, ranges, notes, bounds, radius });
 }
 
 /**
@@ -415,9 +712,8 @@ export function bakeAnimation(
  * @param baked.fps - Frames a second.
  * @param baked.ranges - Each clip's frames.
  * @param baked.notes - What is worth saying.
- * @param baked.bounds - Every corner over every frame.
- * @param baked.bounds.min - The low corner.
- * @param baked.bounds.max - The high corner.
+ * @param baked.bounds - The box every frame reaches.
+ * @param baked.radius - What the model is framed by ({@link TemplateAnimation.radius}).
  * @returns The animation.
  */
 function animationFor(
@@ -430,7 +726,8 @@ function animationFor(
         fps: number;
         ranges: Map<string, { start: number; end: number }>;
         notes: CodedFact[];
-        bounds: { min: Vector3; max: Vector3 };
+        bounds: Reach;
+        radius: number;
     },
 ): TemplateAnimation {
     const texture = RawTexture.CreateRGBATexture(
@@ -464,7 +761,8 @@ function animationFor(
         clips: baked.ranges,
         fps: baked.fps,
         notes: baked.notes,
-        bounds: baked.bounds,
+        bounds: { min: baked.bounds.min, max: baked.bounds.max },
+        radius: baked.radius,
         play(owner, instances, clip, speed, offset) {
             const range = (clip === null ? undefined : baked.ranges.get(clip)) ?? first;
             const length = range.end - range.start + 1;

@@ -96,7 +96,7 @@ export function ModelProblems({
         return null;
     }
     return (
-        <Group gap={4} className="ws-model-chips">
+        <Group gap={4} className="ws-model-actions">
             {partsChip === undefined ? null : (
                 <Tooltip label={`${partsChip.word}: ${partsChip.tip}`}>
                     <Button

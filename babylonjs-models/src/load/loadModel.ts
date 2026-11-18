@@ -14,13 +14,13 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import { allowed } from "../decoders/config.js";
 import type { BuiltInModelFormat, ModelFormat } from "../files/detect.js";
-import { IGNORED_EXTENSIONS, readGlb } from "../files/gltfChecks.js";
+import { IGNORED_EXTENSIONS, readGlb, withoutGltfPictures } from "../files/gltfChecks.js";
 import { checkModelFiles, fetchModelSet, readModelFiles } from "../files/intake.js";
 import { DEFAULT_MODEL_LIMITS } from "../files/limits.js";
 import { ModelReadError } from "../files/readers/geometry.js";
 import { isGltf1, readGlb1, upgradeGltf1 } from "../files/readers/gltf1.js";
 import { ModelError } from "../files/references.js";
-import { withSkips } from "../files/textFormats.js";
+import { mtlMaterialsWithout, withSkips } from "../files/textFormats.js";
 import type {
     ModelFact,
     ModelFileOptions,
@@ -31,6 +31,7 @@ import type {
 } from "../files/types.js";
 import { loadBabylonModel, type LoaderOptions, loadOwnModel, type ModelExtension, type OwnFormat } from "./loaders.js";
 import { guardRequests, REFUSED } from "./requestGuard.js";
+import { markWithoutPictures } from "./withoutPicture.js";
 
 /** Which reader draws each built-in format: one of Babylon's loaders, or the element's own. */
 const READERS: Readonly<Record<BuiltInModelFormat, ModelExtension | OwnFormat>> = {
@@ -79,6 +80,8 @@ interface GltfPrepared {
     readonly extension: ModelExtension;
     readonly used: readonly string[];
     readonly required: readonly string[];
+    /** The names of the materials drawn see-through in place of transmission ({@link seeThrough}). */
+    readonly seeThrough?: ReadonlySet<string>;
 }
 
 /**
@@ -87,9 +90,18 @@ interface GltfPrepared {
  * @param files - The file set.
  * @param main - The main file.
  * @param format - `glb` or `gltf`.
+ * @param hidden - Pictures to draw without, by their summary names.
+ * @param skipped - Parts loaded without, by their path in the set: a picture among them is drawn
+ *     without too, so its part draws in its plain color rather than over a white stand-in.
  * @returns The set to load, the loader, and the extensions the file uses and requires.
  */
-function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, format: "glb" | "gltf"): GltfPrepared {
+function prepareGltf(
+    files: ReadonlyMap<string, Uint8Array>,
+    main: string,
+    format: "glb" | "gltf",
+    hidden: ReadonlySet<string>,
+    skipped: ReadonlySet<string> = new Set(),
+): GltfPrepared {
     const bytes = files.get(main) as Uint8Array;
     const glbVersion = format === "glb" ? new DataView(bytes.buffer, bytes.byteOffset, 8).getUint32(4, true) : 0;
     let json: Record<string, unknown>;
@@ -117,17 +129,25 @@ function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, forma
         // the loader draws those parts opaque rather than refusing the file or building the
         // scene-wide render target transmission needs.
         const stripped = [...used, ...required].some((name) => IGNORED_EXTENSIONS.has(name));
+        const clear = stripped ? seeThrough(json) : new Set<string>();
         if (stripped) {
             json.extensionsRequired = required.filter((name) => !IGNORED_EXTENSIONS.has(name));
             json.extensionsUsed = used.filter((name) => !IGNORED_EXTENSIONS.has(name));
         }
 
-        const plain = withoutClimbs(json, files, main, body, stripped);
+        const plain = withoutClimbs(
+            json,
+            files,
+            main,
+            body,
+            withoutGltfPictures(json, hidden, skipped, main) || stripped,
+        );
         return {
             files: plain.files,
             extension: plain.extension ?? (READERS[format] as ModelExtension),
             used,
             required,
+            seeThrough: clear,
         };
     }
 
@@ -140,6 +160,95 @@ function prepareGltf(files: ReadonlyMap<string, Uint8Array>, main: string, forma
     }
 
     return { files: upgraded, extension: ".gltf", used: [], required: [] };
+}
+
+/** The least opacity a transmissive material drawn without transmission keeps, so it is still seen. */
+const TRANSMISSION_FLOOR = 0.2;
+
+/**
+ * Draw each transmissive material see-through: alpha blended, its opacity scaled by one minus its
+ * transmission factor (with {@link TRANSMISSION_FLOOR}). Drawn opaque, a watch's glass would hide
+ * its dial and hands.
+ * @param json - The glTF's JSON, changed in place.
+ * @returns The names of the materials made see-through.
+ */
+function seeThrough(json: Record<string, unknown>): Set<string> {
+    const names = new Set<string>();
+    const materials = Array.isArray(json.materials) ? (json.materials as unknown[]) : [];
+    for (const material of materials) {
+        if (
+            typeof material === "object" &&
+            material !== null &&
+            blendTransmissive(material as Record<string, unknown>)
+        ) {
+            const { name } = material as { name?: unknown };
+            names.add(typeof name === "string" ? name : "");
+        }
+    }
+
+    return names;
+}
+
+/**
+ * Make one transmissive material see-through ({@link seeThrough}), unless it is a solid volume.
+ * @param entry - The glTF material, changed in place.
+ * @returns Whether it was made see-through.
+ */
+function blendTransmissive(entry: Record<string, unknown>): boolean {
+    const extensions = entry.extensions as Record<string, unknown> | undefined;
+    const transmission = extensions?.KHR_materials_transmission as { transmissionFactor?: unknown } | undefined;
+    const factor = typeof transmission?.transmissionFactor === "number" ? transmission.transmissionFactor : 0;
+    // A volume with thickness is a solid body (in glTF, thickness 0 means thin-walled glass). Drawn
+    // without its volume it is opaque, as an object with no transmission is: made see-through by
+    // its transmission factor, the amber DragonAttenuation dragon was a white ghost at 20%.
+    const volume = extensions?.KHR_materials_volume as { thicknessFactor?: unknown } | undefined;
+    const solid = typeof volume?.thicknessFactor === "number" && volume.thicknessFactor > 0;
+    if (factor <= 0 || solid) {
+        return false;
+    }
+
+    const pbr = (
+        typeof entry.pbrMetallicRoughness === "object" && entry.pbrMetallicRoughness !== null
+            ? entry.pbrMetallicRoughness
+            : {}
+    ) as Record<string, unknown>;
+    const base = Array.isArray(pbr.baseColorFactor) ? (pbr.baseColorFactor as number[]) : [1, 1, 1, 1];
+    const alpha = typeof base[3] === "number" ? base[3] : 1;
+    pbr.baseColorFactor = [base[0] ?? 1, base[1] ?? 1, base[2] ?? 1, alpha * Math.max(TRANSMISSION_FLOOR, 1 - factor)];
+    entry.pbrMetallicRoughness = pbr;
+    entry.alphaMode = "BLEND";
+    return true;
+}
+
+/**
+ * Keep a see-through material's reflections see-through too. Babylon draws a PBR material's
+ * specular and environment reflections over its alpha by default, so a glossy glass at 20%
+ * opacity still covered a watch's dial and hands with an opaque disc of reflected sky.
+ * @param container - The loaded model.
+ * @param names - The see-through materials' names.
+ */
+function clearReflections(container: AssetContainer, names: ReadonlySet<string>): void {
+    for (const material of container.materials) {
+        if (names.has(material.name) && material.alpha < 1 && "useRadianceOverAlpha" in material) {
+            Object.assign(material, { useRadianceOverAlpha: false, useSpecularOverAlpha: false });
+        }
+    }
+}
+
+/**
+ * Draw an OBJ's faces as faces. Babylon's OBJ loader turns an MTL material into a point cloud when
+ * any mesh using it has no faces, and an OBJ's empty `o` or `g` line makes such a mesh: three.js's
+ * male02 drew its whole suit as sparse dots. A material a faced mesh uses draws faces again.
+ * @param container - The loaded OBJ.
+ */
+function facesNotPoints(container: AssetContainer): void {
+    // ponytail: a faceless mesh with vertices sharing that material loses its points; give it its
+    // own point material if an OBJ ever needs both.
+    for (const mesh of container.meshes) {
+        if (mesh.material?.pointsCloud === true && mesh.getTotalIndices() > 0) {
+            mesh.material.pointsCloud = false;
+        }
+    }
 }
 
 /**
@@ -309,10 +418,16 @@ function failureOf(error: unknown, format: string): ModelFact {
 /** Options for {@link loadModelFiles}. */
 export interface LoadModelFilesOptions extends LoaderOptions {
     /**
-     * Parts to load without, by their path in the set: a picture is a 1 x 1 white PNG, and an
-     * OBJ's MTL lines naming it are dropped. Default: none.
+     * Parts to load without, by their path in the set: a material that draws a skipped picture
+     * (an OBJ's MTL line, a glTF's texture) draws without it, in its plain color. Default: none.
      */
     readonly skipped?: readonly string[];
+    /**
+     * Pictures to draw without, by their {@link ModelSummary.pictures} name: every material that
+     * draws one loses it, so that part draws in its plain color (glTF, OBJ, `.babylon` and PLY).
+     * Default: none.
+     */
+    readonly withoutPictures?: readonly string[];
 }
 
 /**
@@ -340,15 +455,25 @@ export async function loadModelFiles(
     }
 
     const skipped = options.skipped ?? [];
+    const hidden = options.withoutPictures ?? [];
+    // An OBJ's MTL lines naming a picture drawn without are dropped below: its materials by name.
+    const lostPicture = format === "obj" ? mtlMaterialsWithout(files, [...skipped, ...hidden]) : new Set<string>();
     if (skipped.length > 0) {
         files = withSkips(files, skipped, format === "obj");
     }
 
+    if (format === "obj" && hidden.length > 0) {
+        // An OBJ's pictures are named by their paths: their MTL lines are dropped, as a skip's are.
+        files = withSkips(files, hidden, true);
+    }
+
     let reader = READERS[format];
     let draco: DracoModule | undefined;
+    let clear: ReadonlySet<string> = new Set();
     if (format === "glb" || format === "gltf") {
-        const prepared = prepareGltf(files, main, format);
+        const prepared = prepareGltf(files, main, format, new Set(hidden), new Set(skipped));
         ({ files } = prepared);
+        clear = prepared.seeThrough ?? clear;
         reader = prepared.extension;
         draco = await loadDecoders(prepared.used, prepared.required);
     }
@@ -364,9 +489,27 @@ export async function loadModelFiles(
     try {
         const slash = main.lastIndexOf("/");
         const folder = root + main.slice(0, slash + 1);
-        return reader.startsWith(".")
-            ? await loadBabylonModel(scene, folder, main.slice(slash + 1), reader as ModelExtension, options)
-            : await loadOwnModel(scene, files, main, reader as OwnFormat, folder);
+        if (!reader.startsWith(".")) {
+            const own = await loadOwnModel(scene, files, main, reader as OwnFormat, folder, new Set(hidden));
+            // Their pictures are named by their paths in the set: taken off once loaded, as a skip's are.
+            markWithoutPictures(own, root, [...skipped, ...hidden], lostPicture);
+            return own;
+        }
+
+        const container = await loadBabylonModel(
+            scene,
+            folder,
+            main.slice(slash + 1),
+            reader as ModelExtension,
+            options,
+        );
+        clearReflections(container, clear);
+        if (format === "obj") {
+            facesNotPoints(container);
+        }
+
+        markWithoutPictures(container, root, skipped, lostPicture);
+        return container;
     } catch (error) {
         const fact = failureOf(error, format);
         // Only a decoder that failed to load is dropped: a damaged file ("decode") or a KTX2

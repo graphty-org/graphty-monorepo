@@ -2001,16 +2001,25 @@ export class SessionData implements SessionDataApi {
      * @param options.signal - Abandons the read.
      * @param options.onto - `"graph"` holds the rows as a table to join onto the graph.
      * @param options.guess - `"values"` also reads the values when no header names the roles.
+     * @param options.onProgress - Called with each change the read publishes.
      * @returns The draft.
      * @throws What `import` would reject with while reading, with the same code.
      */
     async prepare(
         source: DataSourceInput,
-        options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
+        options: {
+            readonly signal?: AbortSignal;
+            readonly onto?: "graph";
+            readonly guess?: "names" | "values";
+            readonly onProgress?: (change: ProgressChange) => void;
+        } = {},
     ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
+        const read = await readWithProgress(source, options.signal, (change) => {
+            this.writes.progress?.(change);
+            options.onProgress?.(change);
+        });
         this.reads.set(source, read);
         return this.draftOf(source, read, options);
     }

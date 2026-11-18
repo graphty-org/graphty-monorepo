@@ -61,6 +61,8 @@ describe("the text and plain binary formats", () => {
     it("hold a text file to its byte limit before parsing it", async () => {
         const fact = await refusalOf(one("obj-alone", "cube.obj"), { maxTextBytes: 10 });
         assert.deepInclude(fact, { code: "E_MODEL_TOO_LARGE" });
+        // By default only text longer than a browser's longest string (V8: 2^29 - 24) is refused.
+        assert.strictEqual(DEFAULT_MODEL_LIMITS.maxTextBytes, 2 ** 29 - 24);
     });
 
     it("refuse a face naming a vertex the OBJ does not have, and a cut binary STL", async () => {

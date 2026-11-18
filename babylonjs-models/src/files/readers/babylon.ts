@@ -160,6 +160,36 @@ export function babylonTextureNames(json: Json): string[] {
 }
 
 /**
+ * The name an embedded (`data:`) picture of a `.babylon` file goes by in its summary:
+ * `image<index>`, its place among {@link babylonTextureNames}, as a glTF's unnamed image is named.
+ * @param texture - The picture as a material names it.
+ * @param names - The file's picture names, from {@link babylonTextureNames}.
+ * @returns The name, or undefined for a picture in a file of its own (named by its path).
+ */
+export function embeddedPictureName(texture: string, names: readonly string[]): string | undefined {
+    return /^data:/i.test(texture) ? `image${String(names.indexOf(texture))}` : undefined;
+}
+
+/**
+ * The pictures a `.babylon` file's materials draw as their color, each with the names of the
+ * materials that draw it ("" for an unnamed one).
+ * @param json - The parsed file.
+ * @returns The materials' names, by picture name, in the file's order.
+ */
+export function babylonPictureUses(json: Json): Map<string, string[]> {
+    const list = Array.isArray(json.materials) ? json.materials.filter(isObject) : [];
+    const uses = new Map<string, string[]>();
+    for (const m of list) {
+        const texture = isObject(m.diffuseTexture) ? m.diffuseTexture.name : undefined;
+        if (typeof texture === "string" && texture !== "") {
+            uses.set(texture, [...(uses.get(texture) ?? []), typeof m.name === "string" ? m.name : ""]);
+        }
+    }
+
+    return uses;
+}
+
+/**
  * Read a parsed `.babylon` file.
  * @param json - The parsed file.
  * @returns Its meshes and materials.

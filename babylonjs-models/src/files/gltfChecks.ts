@@ -20,20 +20,20 @@
  * What comes out is the model's summary, built from the same JSON.
  */
 
-import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references.js";
-import type { ModelCompression, ModelFact, ModelLimits, ModelSummary } from "./types.js";
+import {
+    cut,
+    dirOf,
+    type Findings,
+    findReference,
+    refuse,
+    resolveReference,
+    setKeyOf,
+    textureBytesOf,
+} from "./references.js";
+import type { ModelCompression, ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
 
-/** The counts a glTF may hold, so a file cannot stall the main thread on shader or hierarchy work. */
-const GLTF_CAPS = Object.freeze({
-    nodes: 10_000,
-    meshes: 1_000,
-    materials: 64,
-    textures: 64,
-    animations: 64,
-    morphTargets: 64,
-    joints: 256,
-    depth: 64,
-});
+/** How deep a glTF's JSON and node tree may nest, so reading it cannot exhaust the stack. */
+const MAX_DEPTH = 64;
 
 /**
  * Required extensions the bundled loader reads (src/load/loaders.ts registers each, and
@@ -72,7 +72,8 @@ const READABLE_EXTENSIONS = new Set([
 
 /**
  * Required extensions that are drawn without: the transmission family. A part using one is drawn
- * opaque with `W_MODEL_EXTENSION_IGNORED`, rather than the whole model refused.
+ * with `W_MODEL_EXTENSION_IGNORED`, rather than the whole model refused: a transmissive part alpha
+ * blended by its transmission factor unless it is a solid volume (see loadModel), the others opaque.
  */
 export const IGNORED_EXTENSIONS: ReadonlySet<string> = new Set([
     "KHR_materials_transmission",
@@ -167,7 +168,7 @@ function checkKey(text: string, start: number, end: number, top: JsonFrame | und
 function stepStructure(c: string, stack: JsonFrame[]): void {
     if (c === "{" || c === "[") {
         stack.push({ keys: c === "{" ? new Set() : undefined, expectKey: c === "{" });
-        if (stack.length > GLTF_CAPS.depth) {
+        if (stack.length > MAX_DEPTH) {
             refuse("E_MODEL_STRUCTURE", { rule: "depth" });
         }
     } else if (c === "}" || c === "]") {
@@ -430,7 +431,7 @@ function checkDepth(nodes: readonly Record<string, unknown>[], parent: Int32Arra
 
     while (stack.length > 0) {
         const n = stack.pop() as number;
-        if (depth[n] > GLTF_CAPS.depth) {
+        if (depth[n] > MAX_DEPTH) {
             refuse("E_MODEL_STRUCTURE", { rule: "depth" });
         }
 
@@ -710,6 +711,8 @@ interface MeshTally {
     /** Triangles per mesh, for one use of it. */
     readonly triangles: Float64Array;
     morphTargets: number;
+    /** The most morph targets one primitive has. */
+    mostTargets: number;
     bounds: Bounds | undefined;
 }
 
@@ -785,12 +788,11 @@ function mergeBounds(bounds: Bounds | undefined, accessor: Record<string, unknow
 }
 
 /**
- * Check a primitive's morph targets: within the cap, every accessor index in range.
+ * Check a primitive's morph targets: every accessor index in range.
  * @param targets - The targets.
  * @param accessors - How many accessors the glTF has.
  */
 function checkTargets(targets: readonly unknown[], accessors: number): void {
-    cap("morphTargets", targets.length, GLTF_CAPS.morphTargets);
     for (const target of targets) {
         for (const a of Object.values(isObject(target) ? target : {})) {
             index(a, accessors, "primitive.targets");
@@ -830,6 +832,7 @@ function tallyPrimitive(
     const targets = Array.isArray(primitive.targets) ? primitive.targets : [];
     checkTargets(targets, accessors.length);
     tally.morphTargets += targets.length;
+    tally.mostTargets = Math.max(tally.mostTargets, targets.length);
 
     const counted = indices ?? position;
     const count = counted === undefined ? 0 : (accessors[counted].count as number);
@@ -875,7 +878,12 @@ function tallyMeshes(
     materials: number,
     views: number,
 ): MeshTally {
-    const tally: MeshTally = { triangles: new Float64Array(meshes.length), morphTargets: 0, bounds: undefined };
+    const tally: MeshTally = {
+        triangles: new Float64Array(meshes.length),
+        morphTargets: 0,
+        mostTargets: 0,
+        bounds: undefined,
+    };
     meshes.forEach((mesh, m) => {
         const primitives = Array.isArray(mesh.primitives) ? (mesh.primitives as unknown[]) : [];
         for (const primitive of primitives) {
@@ -918,7 +926,7 @@ function drawnTriangles(
 }
 
 /**
- * Check every skin: joints within the cap, every index in range.
+ * Check every skin: every index in range.
  * @param skins - The glTF's skins.
  * @param nodes - How many nodes it has.
  * @param accessors - How many accessors.
@@ -926,7 +934,6 @@ function drawnTriangles(
 function checkSkins(skins: readonly Record<string, unknown>[], nodes: number, accessors: number): void {
     for (const skin of skins) {
         const joints = Array.isArray(skin.joints) ? skin.joints : [];
-        cap("joints", joints.length, GLTF_CAPS.joints);
         joints.forEach((j) => index(j, nodes, "skin.joints"));
         index(skin.inverseBindMatrices, accessors, "skin.inverseBindMatrices");
         index(skin.skeleton, nodes, "skin.skeleton");
@@ -1086,12 +1093,175 @@ function animationClips(
     accessors: readonly Record<string, unknown>[],
     nodes: number,
 ): { readonly name: string; readonly seconds: number }[] {
-    return animations.map((animation) => {
+    return animations.map((animation, at) => {
         const animSamplers = Array.isArray(animation.samplers) ? (animation.samplers as unknown[]) : [];
         const seconds = clipSeconds(animSamplers, accessors);
         checkChannels(animation, animSamplers.length, nodes);
-        return Object.freeze({ name: cut(typeof animation.name === "string" ? animation.name : ""), seconds });
+        // An unnamed clip is called what Babylon's glTF loader calls its animation group
+        // (`animation.name || "animation" + index`), so the name listed is the name that plays.
+        const named = typeof animation.name === "string" && animation.name !== "" ? animation.name : "";
+        return Object.freeze({ name: cut(named === "" ? `animation${String(at)}` : named), seconds });
     });
+}
+
+/** Where a texture may name its image: its own `source`, or an image-format extension's. */
+const SOURCE_EXTENSIONS = ["EXT_texture_webp", "EXT_texture_avif", "KHR_texture_basisu"];
+
+/**
+ * Each image's picture name: its name, else its `uri` (not a data URI), else `image<index>`, as
+ * Babylon's glTF loader names it.
+ * @param images - The glTF's images.
+ * @returns The names, by image index.
+ */
+function pictureNames(images: readonly Record<string, unknown>[]): string[] {
+    return images.map((image, at) => {
+        if (typeof image.name === "string" && image.name !== "") {
+            return cut(image.name);
+        }
+
+        return cut(typeof image.uri === "string" && !/^data:/i.test(image.uri) ? image.uri : `image${String(at)}`);
+    });
+}
+
+/**
+ * The images a texture may draw.
+ * @param texture - The texture.
+ * @returns Their indices.
+ */
+function sourcesOf(texture: Record<string, unknown> | undefined): number[] {
+    if (texture === undefined) {
+        return [];
+    }
+
+    const extensions = isObject(texture.extensions) ? texture.extensions : {};
+    return [
+        texture.source,
+        ...SOURCE_EXTENSIONS.map((name) => (extensions[name] as { source?: unknown } | undefined)?.source),
+    ].filter((source): source is number => typeof source === "number");
+}
+
+/**
+ * Every texture reference in a material (`baseColorTexture`, `normalTexture`, an extension's
+ * `...Texture`), with the object holding it, to read or drop.
+ * @param value - The material, or a part of it.
+ * @param found - Where each reference goes: its holder, its key and its texture index.
+ */
+function textureRefs(value: unknown, found: [Record<string, unknown>, string, number][]): void {
+    if (!isObject(value)) {
+        return;
+    }
+
+    for (const [key, entry] of Object.entries(value)) {
+        if (key.endsWith("Texture") && isObject(entry) && typeof entry.index === "number") {
+            found.push([value, key, entry.index]);
+        } else {
+            textureRefs(entry, found);
+        }
+    }
+}
+
+/**
+ * Every picture a glTF's materials draw, and the materials that draw it.
+ * @param json - The glTF.
+ * @returns The pictures, in image order.
+ */
+function picturesOf(json: Record<string, unknown>): ModelPicture[] {
+    const images = list(json, "images");
+    const textures = list(json, "textures");
+    const names = pictureNames(images);
+    const using = images.map(() => new Set<string>());
+    for (const material of list(json, "materials")) {
+        const refs: [Record<string, unknown>, string, number][] = [];
+        textureRefs(material, refs);
+        for (const [, , texture] of refs) {
+            for (const image of sourcesOf(textures[texture])) {
+                using[image]?.add(cut(typeof material.name === "string" ? material.name : ""));
+            }
+        }
+    }
+
+    return names.map((name, at) => Object.freeze({ name, materials: Object.freeze([...using[at]]) }));
+}
+
+/**
+ * The key in the file set an image's `uri` names, or undefined for an embedded one.
+ * @param image - The image.
+ * @param main - The glTF's path in the set.
+ * @returns The key.
+ */
+function imageKey(image: Record<string, unknown> | undefined, main: string): string | undefined {
+    const uri = image?.uri;
+    if (typeof uri !== "string" || /^data:/i.test(uri)) {
+        return undefined;
+    }
+
+    try {
+        return setKeyOf(dirOf(main) + decodeURIComponent(uri));
+    } catch {
+        return setKeyOf(dirOf(main) + uri);
+    }
+}
+
+/**
+ * Drop every material's references to the named pictures, and to pictures whose file is loaded
+ * without (a skipped part), so those parts draw without them, in their plain color.
+ * @param json - The glTF, changed in place.
+ * @param hidden - Picture names, as {@link ModelSummary.pictures} gives them.
+ * @param skipped - Parts loaded without, by their path in the set. Default: none.
+ * @param main - The glTF's path in the set, which `skipped` paths are resolved against.
+ * @returns Whether anything was dropped.
+ */
+export function withoutGltfPictures(
+    json: Record<string, unknown>,
+    hidden: ReadonlySet<string>,
+    skipped: ReadonlySet<string> = new Set(),
+    main = "",
+): boolean {
+    if (hidden.size === 0 && skipped.size === 0) {
+        return false;
+    }
+
+    const images = Array.isArray(json.images) ? json.images.filter(isObject) : [];
+    const names = pictureNames(images);
+    const gone = (image: number): boolean =>
+        hidden.has(names[image] ?? "") || skipped.has(imageKey(images[image], main) ?? "");
+    const textures = Array.isArray(json.textures) ? json.textures.filter(isObject) : [];
+    const materials = Array.isArray(json.materials) ? json.materials : [];
+    let dropped = false;
+    for (const material of materials) {
+        const refs: [Record<string, unknown>, string, number][] = [];
+        textureRefs(material, refs);
+        for (const [holder, key, texture] of refs) {
+            if (sourcesOf(textures[texture]).some((image) => gone(image))) {
+                Reflect.deleteProperty(holder, key);
+                dropped = true;
+                // The picture that was its color: the part has no look of its own left.
+                if (key === "baseColorTexture" || key === "diffuseTexture") {
+                    markWithoutPicture(material);
+                }
+            }
+        }
+    }
+
+    return dropped;
+}
+
+/** The glTF material `extras` key that says the material's color picture was taken away. */
+export const WITHOUT_PICTURE_EXTRA = "babylonjsModelsWithoutPicture";
+
+/**
+ * Say in a glTF material's `extras` that it lost a picture, so the loaded material says so too.
+ * @param material - The glTF material, changed in place.
+ */
+function markWithoutPicture(material: unknown): void {
+    if (!isObject(material)) {
+        return;
+    }
+
+    const { extras } = material;
+    if (extras === undefined || isObject(extras)) {
+        material.extras = { ...extras, [WITHOUT_PICTURE_EXTRA]: true };
+    }
 }
 
 /**
@@ -1128,14 +1298,22 @@ export function checkGltf(input: GltfInput): GltfChecked {
 
     // Every index the loader follows.
     checkNodes(nodes, meshes.length, skins.length, cameras.length, accessors);
-    const { triangles, morphTargets, bounds } = tallyMeshes(meshes, accessors, materials.length, views.length);
+    const { triangles, morphTargets, mostTargets, bounds } = tallyMeshes(
+        meshes,
+        accessors,
+        materials.length,
+        views.length,
+    );
     const drawn = drawnTriangles(reached, nodes, triangles, limits, accessors);
 
-    cap("nodes", nodes.length, GLTF_CAPS.nodes);
-    cap("meshes", meshes.length, GLTF_CAPS.meshes);
-    cap("materials", materials.length, GLTF_CAPS.materials);
-    cap("textures", textures.length, GLTF_CAPS.textures);
-    cap("animations", animations.length, GLTF_CAPS.animations);
+    cap("nodes", nodes.length, limits.maxNodes);
+    cap("meshes", meshes.length, limits.maxMeshes);
+    cap("materials", materials.length, limits.maxMaterials);
+    cap("textures", textures.length, limits.maxTextures);
+    cap("animations", animations.length, limits.maxAnimations);
+    cap("morphTargets", mostTargets, limits.maxMorphTargets);
+    const mostJoints = skins.reduce((most, s) => Math.max(most, Array.isArray(s.joints) ? s.joints.length : 0), 0);
+    cap("joints", mostJoints, limits.maxJoints);
 
     checkSkins(skins, nodes.length, accessors.length);
     checkTextureIndices(textures, materials, images.length, samplers.length);
@@ -1152,6 +1330,7 @@ export function checkGltf(input: GltfInput): GltfChecked {
         ...(bounds === undefined ? {} : { bounds: Object.freeze(bounds) }),
         upAxis: "y" as const,
         animations: Object.freeze(clips),
+        pictures: Object.freeze(picturesOf(json)),
         skinned: skins.length > 0,
         morphTargets,
         transparent: materials.some((m) => m.alphaMode === "BLEND"),

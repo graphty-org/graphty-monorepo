@@ -268,6 +268,33 @@ describe("session.assets: ids and records", () => {
         assertRejected(await assets.add(binaryStl(2)), "E_MODEL_TOO_LARGE", { what: "bytes" });
     });
 
+    it("draws a model with many materials by default, and refuses it under a page's lower count limit", async () => {
+        const materials = gltfPair(triangleGltf({ materials: Array.from({ length: 148 }, () => ({})) }));
+        assert.strictEqual((await add({ files: materials })).state, "accepted");
+        const assets = createAssetsApi();
+        assets.setLimits({ maxMaterials: 64 });
+        assertRejected(await assets.add({ files: materials }), "E_MODEL_TOO_LARGE", {
+            what: "count",
+            item: "materials",
+            found: 148,
+            limit: 64,
+        });
+    });
+
+    it("holds any number of models by default, and refuses one past a page's session limit", async () => {
+        const assets = createAssetsApi();
+        assert.strictEqual(assets.limits().sessionBytes, Number.POSITIVE_INFINITY);
+        assert.strictEqual((await assets.add(binaryStl(2))).state, "accepted");
+        assert.strictEqual((await assets.add(binaryStl(3))).state, "accepted");
+        assets.setLimits({ sessionBytes: 1 });
+        assertRejected(await assets.add(binaryStl(4)), "E_MODEL_TOO_LARGE", { what: "sessionBytes" });
+        assets.setLimits({ sessionBytes: Number.POSITIVE_INFINITY });
+        assert.strictEqual((await assets.add(binaryStl(5))).state, "accepted");
+        assert.throws(() => {
+            assets.setLimits({ sessionBytes: Number.NaN });
+        }, /positive/);
+    });
+
     it("refuses a bad name with E_BAD_COMMAND", async () => {
         try {
             await add(binaryStl(1), { name: "rack" as `asset:${string}` });
@@ -331,7 +358,7 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assert.strictEqual(done.state, "accepted", JSON.stringify(done.problems));
     });
 
-    it("refuses an accessor of 2e8 elements with no buffer view", async () => {
+    it("refuses an accessor of 3e8 elements with no buffer view", async () => {
         assertRejected(await add({ files: accessorBomb() }), "E_MODEL_TOO_LARGE", { what: "decodedBytes" });
     });
 
@@ -346,7 +373,9 @@ describe("session.assets: hostile files, each refused with its code", () => {
     });
 
     it("counts the triangles of a mesh per use, refusing one mesh used by 100,000 nodes", async () => {
-        assertRejected(await add({ files: meshUsedBy(100_000) }), "E_MODEL_TOO_LARGE", {
+        const strict = createAssetsApi();
+        strict.setLimits({ maxTriangles: 1_000_000 });
+        assertRejected(await strict.add({ files: meshUsedBy(100_000) }), "E_MODEL_TOO_LARGE", {
             what: "triangles",
             limit: 1_000_000,
         });
@@ -655,6 +684,29 @@ describe("session.assets: tolerant matching (design 12.5)", () => {
             assert.isFalse(
                 log.some((url) => /Users|C:/i.test(decodeURIComponent(url))),
                 log.join(" "),
+            );
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("lets go of a model by its address, with the digest id it was held under once accepted", async () => {
+        const base = "https://models.example.com/drop/";
+        stubSite({
+            [`${base}quad.obj`]: { body: utf8(quad) },
+            [`${base}quad.mtl`]: { body: utf8("newmtl m\nmap_Kd wood.png\n") },
+            [`${base}wood.png`]: { body: PNG_1X1 },
+        });
+        try {
+            const api = createAssetsApi();
+            const record = await api.ready(`${base}quad.obj`);
+            assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+            api.remove(`${base}quad.obj`);
+            assert.isUndefined(api.find(record.id), "not held under its id");
+            assert.isUndefined(api.find(`${base}quad.obj`), "nor under its address");
+            assert.notInclude(
+                api.list().map((r) => r.id),
+                record.id,
             );
         } finally {
             vi.unstubAllGlobals();

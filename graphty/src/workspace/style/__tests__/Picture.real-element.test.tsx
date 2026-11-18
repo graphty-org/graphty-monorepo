@@ -129,7 +129,9 @@ describe("pictures on nodes, on the real element", () => {
         assert.isNotNull(within(picture).getByRole("button", { name: "colormap" }));
         await choose(picture, "Choose picture", [new File([quadGlb()], "quad.glb")]);
         const use = await within(picture).findByRole("button", { name: "Use quad as model" });
-        assert.isNotNull(within(picture).getByText("Not a picture"));
+        // Said as the field's error, not a chip.
+        assert.isNotNull(within(picture).getByText("Not a picture: this file is a 3D model"));
+        assert.isNull(picture.querySelector(".mantine-Badge-root"), "no pill in the Picture pop-over");
         await userEvent.click(use);
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
@@ -147,7 +149,10 @@ describe("pictures on nodes, on the real element", () => {
             return { "node.model": id };
         });
 
-        await userEvent.click(await within(tab).findByRole("button", { name: "Use colormap as picture" }));
+        const use = await within(tab).findByRole("button", { name: "Use colormap as picture" });
+        // The Shape field offers the button only: the refusal is no chip in the Style panel.
+        assert.isNull(tab.querySelector(".ws-model-actions .mantine-Badge-root"), "no chip under the Shape field");
+        await userEvent.click(use);
         await waitFor(() => {
             assert.equal(written(session, "node.texture"), id);
             assert.isUndefined(written(session, "node.model"));

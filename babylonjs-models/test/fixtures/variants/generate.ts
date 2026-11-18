@@ -1019,7 +1019,7 @@ async function main(): Promise<void> {
         "gltf-morph-animated",
         { morph: true, animatedWeights: true },
         "blue",
-        "GLB whose one clip moves a morph target's weight (held at rest when played)",
+        "GLB whose one clip, 'grow', moves a morph target's weight from 0 to 1",
         ["W_MODEL_HAS_ANIMATIONS"],
     );
     gltfOne(
@@ -1047,8 +1047,8 @@ async function main(): Promise<void> {
     gltfOne(
         "gltf-transmission-used",
         { transmissionUsed: true },
-        "blue",
-        "GLB using KHR_materials_transmission (drawn opaque)",
+        "any",
+        "GLB using KHR_materials_transmission (drawn see-through, its blue faint)",
         ["W_MODEL_EXTENSION_IGNORED"],
     );
     {
@@ -1087,8 +1087,8 @@ async function main(): Promise<void> {
                 id: "gltf-transmission-required",
                 format: "gltf",
                 compression: ["webp"],
-                color: "green",
-                what: ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn opaque)",
+                color: "any",
+                what: ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn see-through, its green faint)",
                 warnings: ["W_MODEL_EXTENSION_IGNORED"],
             },
             {

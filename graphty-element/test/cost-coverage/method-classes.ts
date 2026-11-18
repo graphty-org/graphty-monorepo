@@ -320,6 +320,8 @@ export const MUTATING: readonly string[] = [
     "StylesApi.setValueHidden",
     "StylesApi.showBranches",
     "StylesApi.update",
+    // A model's own settings, saved with the project as one undoable step.
+    "AssetsApi.setDefaults",
     "StylesApi.updateMany",
     "StylesApi.writeRow",
     "UpdateManager.bindViewMasks",
@@ -366,8 +368,10 @@ export const READ_ONLY: readonly string[] = [
     "EnabledFeatures.has",
     // The model file library: it changes no node, edge, style or saved state, and its cost grows
     // with the files added, not with the graph. Reclassify add and remove when layers draw assets.
+    "AssetsApi.accept",
     "AssetsApi.add",
     "AssetsApi.addEach",
+    "AssetsApi.dropPart",
     "AssetsApi.allowHosts",
     "AssetsApi.files",
     "AssetsApi.find",
@@ -729,6 +733,7 @@ export const READ_ONLY: readonly string[] = [
     "Graph.needsRayUpdate",
     "Graph.newAiConversation",
     "Graph.nodeScreenPosition",
+    "Graph.checkModel",
     "Graph.modelPreview",
     "ModelPreview.dispose",
     "ModelPreview.resetView",
@@ -909,6 +914,7 @@ export const READ_ONLY: readonly string[] = [
     "Graphty.loadCameraPreset",
     "Graphty.newAiConversation",
     "Graphty.nodeScreenPosition",
+    "Graphty.checkModel",
     "Graphty.modelPreview",
     "Graphty.modelThumbnail",
     "Graphty.nodeThumbnail",

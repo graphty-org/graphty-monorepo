@@ -301,6 +301,14 @@ export async function previewOf(dialog: HTMLElement, name: string): Promise<HTML
  * @param word - the button's name: "Add model" with a layer, "Add to project" from the Main menu.
  */
 export async function addModel(dialog: HTMLElement, word = "Add model"): Promise<void> {
+    // Model settings is a modal pop-over over the dialog: the reader closes it to reach Add.
+    const close = screen.queryByRole("button", { name: "Close model settings" });
+    if (close !== null) {
+        await userEvent.click(close);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
+        });
+    }
     const add = within(dialog).getByRole("button", { name: word });
     await waitFor(() => {
         assert.isNull(add.getAttribute("aria-disabled"));

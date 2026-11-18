@@ -21,10 +21,16 @@ import {
     normalizePath,
     roleOfName,
 } from "babylonjs-models/detect";
-import type { ModelProgress, ModelProgressListener, RedirectGate } from "babylonjs-models/files";
+import type {
+    ModelLimits as FileModelLimits,
+    ModelProgress,
+    ModelProgressListener,
+    ModelSummary,
+    RedirectGate,
+} from "babylonjs-models/files";
 
-import type { LayerId } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import type { ChannelValue, LayerId } from "../../catalog/types";
+import { GraphtyError, type GraphtyErrorCode, isGraphtyErrorCode } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
 import type { CodedFact, ProgressChange } from "../shared";
 import type { SessionStylesApi } from "../styles";
@@ -47,6 +53,13 @@ const loadSamples = (): Promise<typeof import("./samples")> => import("./samples
 
 export { type AssetId, isAssetId } from "./assetId";
 export type { BuiltInModelFormat, ModelFormat } from "babylonjs-models/detect";
+export type {
+    ModelCompression,
+    ModelEncoding,
+    ModelGeometry,
+    ModelPicture,
+    ModelSummary,
+} from "babylonjs-models/files";
 
 /** A File, or anything shaped like one: a name and its bytes. No DOM type is named. */
 export interface NamedBlob {
@@ -88,8 +101,8 @@ export interface AddAssetOptions {
     readonly format?: ModelFormat;
     /**
      * Parts to draw without: pictures and `.mtl` files the model names, by their path in the set.
-     * A picture is drawn as plain white, so the material's own color still applies; an OBJ
-     * without its `.mtl` draws with the default material. The record lists them in `skipped`.
+     * A material that draws a skipped picture draws without it, in its own plain color (the
+     * node's color when it states none); an OBJ without its `.mtl` draws with the default material. The record lists them in `skipped`.
      * Default: none.
      */
     readonly skipped?: readonly string[];
@@ -105,6 +118,21 @@ export interface AddAssetOptions {
      * problem's code otherwise, `"cancelled"` when the signal stopped it).
      */
     readonly onProgress?: (change: ProgressChange) => void;
+    /**
+     * A URL only: hears the model once everything but its pictures has arrived, while the pictures
+     * still download. The record waits for them (`state: "rejected"`, each picture an
+     * `E_MODEL_MISSING_FILE` with `downloading: true`); `modelPreview` and `checkModel` with
+     * `standInMissing` draw it at once, and `accept(ref, { without: "missing" })` stops the
+     * downloads and takes it without them. The download otherwise goes on and `add` settles as usual.
+     */
+    readonly onWaiting?: (record: AssetRecord) => void;
+    /**
+     * A URL only: stops the pictures still downloading, and nothing else. The model settles waiting
+     * for them, each an `E_MODEL_MISSING_FILE` as if it had not come, so it can be handed them
+     * (`supply`) or taken without them (`accept`). For a "stop loading" button beside a model
+     * shown through `onWaiting`; `signal` stops the whole download.
+     */
+    readonly stopPictures?: AbortSignal;
 }
 
 /**
@@ -194,103 +222,99 @@ export interface AssetRecord {
     readonly parts?: readonly ModelPart[];
     /** The reader's name for it (`assets.rename`), saved with the project. */
     readonly plainName?: string;
+    /**
+     * The model's own settings (`assets.setDefaults`): every node drawing it starts from them, and a
+     * layer's value wins. Saved with the project and undone like any edit. Absent when none is set.
+     */
+    readonly defaults?: ModelDefaults;
 }
 
-/** What a model holds, read from its files without drawing it. */
-export interface ModelSummary {
-    readonly format: ModelFormat;
-    /** Counted per use: a mesh used by three scene nodes counts three times. */
-    readonly triangles: number;
-    readonly meshes: number;
-    /** Material names, each cut to 256 characters ("" for an unnamed one). */
-    readonly materials: readonly string[];
-    readonly textures: number;
-    /** Decoded, as width x height x 4 x 4/3 (RGBA with mipmaps). */
-    readonly textureBytes: number;
-    /** As authored, from the vertex positions, before any node transform. */
-    readonly bounds?: {
-        readonly min: readonly [number, number, number];
-        readonly max: readonly [number, number, number];
-    };
-    /**
-     * The axis that points up in the file: fixed for glTF, assumed for the others (`"-y"` for
-     * Gaussian splats, which store Y pointing down). `node.modelSourceUp: "detected"` draws it up.
-     */
-    readonly upAxis: "y" | "z" | "-y" | "unknown";
-    readonly animations: readonly { readonly name: string; readonly seconds: number }[];
-    readonly skinned: boolean;
-    readonly morphTargets: number;
-    readonly transparent: boolean;
-    /** glTF only. */
-    readonly extensionsRequired: readonly string[];
-    /**
-     * What the file draws: triangles (`mesh`), a point cloud (`points`) or Gaussian splats
-     * (`splats`). Points and splats are drawn as small solids, one per point, and earn
-     * `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
-     */
-    readonly geometry?: ModelGeometry;
-    /** Points or splats in the file, before thinning. Points and splats only. */
-    readonly points?: number;
-    /** STL and PLY: how the file is stored. */
-    readonly encoding?: ModelEncoding;
-    /** The file carries per-vertex or per-face colors, and they are drawn. */
-    readonly vertexColors?: boolean;
-    /** glTF only: the compression its data uses, from `extensionsUsed`. */
-    readonly compression?: readonly ModelCompression[];
-    /** glTF only: `"1.0"` for a glTF 1.0 file, upgraded to 2.0 on reading. */
-    readonly gltfVersion?: "1.0" | "2.0";
-    /** glTF only: every extension the file uses, beside `extensionsRequired`. */
-    readonly extensionsUsed?: readonly string[];
-}
+/** The `node.model*` settings a model can carry for every node that draws it ({@link ModelDefaults}). */
+export type ModelDefaultChannel =
+    | "node.modelSourceUp"
+    | "node.modelTurn"
+    | "node.modelTint"
+    | "node.modelAnimation"
+    | "node.modelAnimationSpeed"
+    | "node.modelAnimationOffset"
+    | "node.modelFit"
+    | "node.modelCenter"
+    | "node.modelDoubleSided";
 
-/** What a model file draws: see {@link ModelSummary.geometry}. */
-export type ModelGeometry = "mesh" | "points" | "splats";
-
-/** How an STL or PLY file is stored: see {@link ModelSummary.encoding}. */
-export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
+/** Every {@link ModelDefaultChannel}. */
+export const MODEL_DEFAULT_CHANNELS: readonly ModelDefaultChannel[] = Object.freeze([
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelFit",
+    "node.modelCenter",
+    "node.modelDoubleSided",
+]);
 
 /**
- * A compression a glTF's data uses: Draco or meshopt geometry, KTX2 / Basis Universal, WebP or
- * AVIF pictures. See {@link ModelSummary.compression}.
+ * A model's own settings: a node drawing it takes each `style` value its layers leave unset (a
+ * layer's value wins, then the model's, then the channel's default), and draws the pictures
+ * named in `hiddenTextures` without them.
  */
-export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
+export interface ModelDefaults {
+    /** Values of the model's channels, as a layer's `set` holds them. */
+    readonly style: Readonly<Partial<Record<ModelDefaultChannel, ChannelValue>>>;
+    /**
+     * Pictures drawn without, by {@link ModelSummary.pictures} name: each part that drew one draws
+     * in its material's plain color, which takes the node's color when that is plain white.
+     */
+    readonly hiddenTextures: readonly string[];
+}
 
-/** The limits that protect the tab. Only the page's code sets them; a document never does. */
-export interface ModelLimits {
-    /** Per model file or unzipped set. Default 32 MB. */
-    readonly maxBytes: number;
-    /** Per OBJ, ASCII STL or ASCII PLY file, which parse on the main thread. Default 8 MB. */
-    readonly maxTextBytes: number;
-    /** Per model, counted per use. Default 1,000,000. */
-    readonly maxTriangles: number;
-    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 128 MB. */
-    readonly maxTextureBytes: number;
-    /** What every glTF accessor decodes to, together. Default 256 MB. */
-    readonly maxDecodedBytes: number;
-    /** Pixels per texture side; larger textures are drawn smaller. Default 2048. */
-    readonly maxTextureSize: number;
-    /** Decoded texture bytes of all models in a scene. Default 256 MB. */
-    readonly sceneTextureBytes: number;
-    /** Stored asset bytes in the session. Default 256 MB. */
+/** A change to a model's settings (`assets.setDefaults`). */
+export interface ModelDefaultsPatch {
+    /** Values to set; `undefined` (or `null`) takes a value out. Keys left out keep their value. */
+    readonly style?: Readonly<Partial<Record<ModelDefaultChannel, ChannelValue | null | undefined>>>;
+    /** The pictures drawn without, replacing the list whole. Left out keeps it. */
+    readonly hiddenTextures?: readonly string[];
+}
+
+/**
+ * The limits that protect the tab. Only the page's code sets them; a document never does. The
+ * per-model defaults (babylonjs-models' own) refuse only what a browser tab cannot hold or draw;
+ * lower any to be stricter. A session adds three limits across models.
+ */
+export interface ModelLimits extends FileModelLimits {
+    /**
+     * Stored asset bytes in the session, all models together. Default `Infinity`: no limit, since
+     * a model held but not drawn costs only memory; a page that wants a cap sets one.
+     */
     readonly sessionBytes: number;
+    /** Model file bytes one project file embeds, all models together. Default 64 MB. */
+    readonly documentBytes: number;
     /** Triangles across the scene before `W_MODEL_BUDGET`. Default 2,000,000. */
     readonly sceneTriangleBudget: number;
-    /** Default 30,000. */
-    readonly fetchTimeoutMs: number;
 }
 
 const MB = 1024 * 1024;
 
 /** The limits a session starts with. */
 export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
-    maxBytes: 32 * MB,
-    maxTextBytes: 8 * MB,
-    maxTriangles: 1_000_000,
-    maxTextureBytes: 128 * MB,
-    maxDecodedBytes: 256 * MB,
+    maxBytes: 1024 * MB,
+    // The longest string a browser holds (V8's 2^29 - 24 characters): longer text cannot be read.
+    maxTextBytes: 2 ** 29 - 24,
+    maxTriangles: 20_000_000,
+    maxTextureBytes: 1024 * MB,
+    maxDecodedBytes: 1024 * MB,
+    maxFiles: 10_000,
+    maxNodes: Number.POSITIVE_INFINITY,
+    maxMeshes: Number.POSITIVE_INFINITY,
+    maxMaterials: Number.POSITIVE_INFINITY,
+    maxTextures: Number.POSITIVE_INFINITY,
+    maxAnimations: Number.POSITIVE_INFINITY,
+    maxMorphTargets: Number.POSITIVE_INFINITY,
+    maxJoints: Number.POSITIVE_INFINITY,
     maxTextureSize: 2048,
-    sceneTextureBytes: 256 * MB,
-    sessionBytes: 256 * MB,
+    sessionBytes: Number.POSITIVE_INFINITY,
+    documentBytes: 64 * MB,
     sceneTriangleBudget: 2_000_000,
     fetchTimeoutMs: 30_000,
 });
@@ -365,14 +389,16 @@ export interface AssetsApi {
      */
     list(): readonly AssetRecord[];
     /**
-     * What an accepted model holds, read from its files without drawing it.
+     * What an accepted model holds, read from its files without drawing it; for a model waiting
+     * for pictures or materials, what it holds drawn without them (as `standInMissing` draws it).
      * @param id - The id.
      * @returns The summary.
-     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for an id with no accepted model.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for an id with no model to read.
      */
     inspect(id: AssetId): ModelSummary;
     /**
      * Remove an asset, or let go of a model held for `supply`. Nothing happens for an unknown ref.
+     * A model named by its URL goes under every name it is held by, its id among them.
      * @param id - The id, or the URL a layer named.
      */
     remove(id: string): void;
@@ -432,6 +458,63 @@ export interface AssetsApi {
      */
     supply(ref: string, answer: PartAnswer, options?: { readonly signal?: AbortSignal }): Promise<AssetRecord>;
     /**
+     * Accept a model waiting for parts without the ones it can be drawn without: every missing
+     * picture and `.mtl` is skipped at once, as `supply`'s `skip` would skip it one at a time, and
+     * the record lists them in `skipped`. For an "add it anyway" button beside a model whose
+     * pictures did not come.
+     * @param ref - What a layer named, or the record's id.
+     * @param options - `without: "missing"`: skip every missing part.
+     * @param options.without - What to accept the model without.
+     * @returns The accepted record, with its digest id (the id it had while it waited still finds it).
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold,
+     *     or `E_MODEL_PART_REQUIRED` when a missing part is its geometry (a glTF's `.bin`), with
+     *     `details.name` naming it; nothing is skipped then. A model refused for anything else (too
+     *     large, unreadable) throws that problem's code, such as `E_MODEL_TOO_LARGE`, with its params.
+     * @example
+     * ```ts
+     * const waiting = await graph.session.assets.add(input.files);
+     * if (waiting.state === "rejected") await graph.session.assets.accept(waiting.id, { without: "missing" });
+     * ```
+     */
+    accept(ref: string, options: { readonly without: "missing" }): Promise<AssetRecord>;
+    /**
+     * Take one file back out of a model, for a part handed over by mistake: the model is read
+     * again from its other files, as `add` reads a set, so that part is missing again (and asked
+     * for, or drawn without, as any missing part). Pictures, `.mtl` files and buffers only; the
+     * model's own file is cleared with `remove`. A model still waiting for parts is read again in
+     * place, keeping its id; an accepted one gives a new record, and the model as it was stays
+     * held until the caller removes it. A picture of a URL still downloading (its
+     * `E_MODEL_MISSING_FILE` says `downloading: true`) stops downloading at once while the others
+     * go on, and the model waits for it as for any missing part.
+     * @param ref - What a layer named, or the record's id.
+     * @param name - The part's name, as `record.parts` lists it.
+     * @returns The model read without it: a new record, waiting for that part.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold,
+     *     or `E_BAD_COMMAND` for a name that is not one of its parts or is its own file.
+     * @example
+     * ```ts
+     * const again = await graph.session.assets.dropPart(model.id, "textures/wrong.png");
+     * ```
+     */
+    dropPart(ref: string, name: string): Promise<AssetRecord>;
+    /**
+     * A second model of the same files as an accepted one, with an id of its own and none of the
+     * first one's settings (`defaults`) or name, so the two can be set up apart: the same file
+     * walking on one layer and standing still on another. `add` hands back the model the session
+     * already holds for the same files or address; `copy` is how to get another. The copy is named
+     * by its id, never by the first one's address, which still names the first.
+     * @param ref - What a layer named, or the record's id.
+     * @returns The copy's record, accepted.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref with no accepted model.
+     * @example
+     * ```ts
+     * const walking = await graph.session.assets.add("https://example.com/fox.glb");
+     * const still = await graph.session.assets.copy(walking.id);
+     * await graph.session.assets.setDefaults(still.id, { style: { "node.modelAnimationSpeed": 0 } });
+     * ```
+     */
+    copy(ref: string): Promise<AssetRecord>;
+    /**
      * Hand files to the session first, before treating them as new assets: every file that exactly
      * one waiting model is missing (by its folder path, then by its base name, in any case) is
      * supplied to that model. A file two models could take is never guessed; it stays in `rest`.
@@ -481,6 +564,30 @@ export interface AssetsApi {
      * ```
      */
     rename(ref: string, plainName?: string): AssetRecord;
+    /**
+     * Change a model's own settings ({@link ModelDefaults}): one undoable step, saved with the
+     * project. Inside `session.transaction`, call it on the transaction's `tx.assets` to join it.
+     * @param ref - An asset id, or a URL the session holds.
+     * @param patch - The values to set or take out, and the pictures to draw without.
+     * @returns The record, with its `defaults`.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold, or
+     *     `E_BAD_COMMAND` for a channel that is not a model's or a value its channel does not take.
+     * @example
+     * ```ts
+     * await graph.session.assets.setDefaults(record.id, { style: { "node.modelTurn": 90 } });
+     * ```
+     */
+    setDefaults(ref: string, patch: ModelDefaultsPatch): Promise<AssetRecord>;
+}
+
+/** How `session.assets` reaches the project's model settings: read one, and dispatch a change. */
+export interface ModelDefaultsBinding {
+    read(id: AssetId): ModelDefaults | undefined;
+    dispatch(command: {
+        readonly op: "asset.defaults";
+        readonly id: AssetId;
+        readonly patch: ModelDefaultsPatch;
+    }): Promise<unknown>;
 }
 
 /** A model missing parts, held for `supply` (design 12.4). */
@@ -509,6 +616,55 @@ interface Entry {
     fetch?: UrlFetch;
 }
 
+/**
+ * What stops one picture of a URL's download, made the first time it is asked for.
+ * @param fetch - The download.
+ * @param name - The picture's name in the set.
+ * @returns Its controller.
+ */
+function partStop(fetch: UrlFetch, name: string): AbortController {
+    let stop = fetch.parts.get(name);
+    if (stop === undefined) {
+        stop = new AbortController();
+        fetch.parts.set(name, stop);
+    }
+    return stop;
+}
+
+/**
+ * Take a picture still downloading out of a model by URL: that download stops, and the model waits
+ * for the picture as for any missing one; the other pictures go on.
+ * @param entry - The model's entry.
+ * @param name - The picture's name in the set.
+ * @returns The model's record now, or undefined when that picture is not downloading.
+ */
+function stopDownload(entry: Entry, name: string): AssetRecord | undefined {
+    const downloading = entry.fetch;
+    const isDownloading = (p: CodedFact): boolean =>
+        p.code === "E_MODEL_MISSING_FILE" && p.params.downloading === true && String(p.params.name) === name;
+    if (downloading === undefined || !entry.record.problems.some(isDownloading)) {
+        return undefined;
+    }
+
+    partStop(downloading, name).abort();
+    const after = record({
+        ...entry.record,
+        problems: entry.record.problems.map((p) =>
+            isDownloading(p)
+                ? {
+                      code: p.code,
+                      params: Object.fromEntries(Object.entries(p.params).filter(([k]) => k !== "downloading")),
+                  }
+                : p,
+        ),
+    });
+    entry.record = after;
+    if (downloading.waiting !== undefined) {
+        downloading.waiting = after;
+    }
+    return after;
+}
+
 /** A URL's download, shared by every caller of `add` asking for it. */
 interface UrlFetch {
     /** The URL, as the session keys it. */
@@ -519,6 +675,14 @@ interface UrlFetch {
     callers: number;
     /** A caller waits with no signal, so nothing stops the download. */
     pinned: boolean;
+    /** Stops downloading the pictures; the rest of the set is kept (`accept`). */
+    readonly pictures: AbortController;
+    /** What stops one picture's download, by its name (`dropPart` while it downloads). */
+    readonly parts: Map<string, AbortController>;
+    /** The model held while its pictures download, once everything else has arrived. */
+    waiting?: AssetRecord;
+    /** Who hears {@link UrlFetch.waiting} (`onWaiting`). */
+    readonly waiters: Set<(record: AssetRecord) => void>;
 }
 
 /**
@@ -577,6 +741,24 @@ const PART_CODES = new Set(["E_MODEL_MISSING_FILE", "E_MODEL_PART_AMBIGUOUS", "E
 
 /** The assets API plus what the drawing side reads and the public interface does not offer. */
 export interface AssetsApiInternal extends AssetsApi {
+    /**
+     * Give the assets the project's model settings, once the session's dispatcher exists.
+     * @param binding - How to read and change them.
+     */
+    bindDefaults(binding: ModelDefaultsBinding): void;
+    /**
+     * Read the model settings of some assets again, after the project's changed (an edit, an undo).
+     * @param ids - The assets' ids.
+     */
+    refreshDefaults(ids: Iterable<string>): void;
+    /**
+     * Put a model's settings back whole, as a project file saved them, whether or not the session
+     * holds the model yet (one kept by URL loads later).
+     * @param id - The model's accepted id.
+     * @param defaults - The settings.
+     * @returns Once they are recorded.
+     */
+    putDefaults(id: AssetId, defaults: ModelDefaultsPatch): Promise<void>;
     /**
      * Whether a layer that did not come from code may fetch from a host.
      * @param host - The host name.
@@ -965,6 +1147,16 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const expectedDigests = new Map<string, string>();
     const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
+    let defaultsBinding: ModelDefaultsBinding | undefined;
+    /**
+     * A record's `defaults` field, as the project holds it now.
+     * @param id - The record's id.
+     * @returns The field, or nothing when the project sets none.
+     */
+    const defaultsOf = (id: AssetId): { defaults?: ModelDefaults } => {
+        const defaults = defaultsBinding?.read(id);
+        return defaults === undefined ? {} : { defaults };
+    };
 
     /**
      * Every entry once, whatever names it.
@@ -996,7 +1188,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @returns True when every error is a missing, ambiguous or unchosen part.
      */
     const onlyParts = (problems: readonly CodedFact[]): boolean =>
-        problems.length > 0 && problems.every((fact) => PART_CODES.has(fact.code));
+        problems.some((fact) => PART_CODES.has(fact.code)) &&
+        // A warning beside the missing parts (what the file says of itself) does not refuse it.
+        problems.every((fact) => PART_CODES.has(fact.code) || fact.code.startsWith("W_"));
 
     /**
      * A set as its entries: a `.zip` unpacked (its id is its entries' digest, so a zip, a folder
@@ -1124,6 +1318,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             problems: checked.warnings,
             ...at.extra,
             ...(checked.kind === "model" ? parts : {}),
+            ...defaultsOf(at.acceptedId),
         });
         return { settled, summary: checked.summary };
     };
@@ -1136,6 +1331,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @param sample - True for one of the element's samples, which is kept apart from the session's assets.
      * @param url - The URL it was fetched from, as named, when it was.
      * @param into - A held entry `supply` checks again: it is updated in place, keeping its id while rejected.
+     * @param fill - Fill missing pictures from the session's own (false for `dropPart`).
      * @returns The settled record.
      */
     const intake = async (
@@ -1145,6 +1341,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         sample = false,
         url?: string,
         into?: Entry,
+        fill = true,
     ): Promise<AssetRecord> => {
         const skipped = [...(options.skipped ?? [])];
         const files = await asEntries(given);
@@ -1189,7 +1386,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         }
 
         (sample ? samples : entries).set(id, entry);
-        return entry.held === undefined ? settled : fillFromProject(entry);
+        if (entry.held === undefined) {
+            return settled;
+        }
+
+        const summarized = await summarizeHeld(entry);
+        return fill ? fillFromProject(entry) : summarized;
     };
 
     /**
@@ -1287,6 +1489,36 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             listeners: new Set(),
             callers: 0,
             pinned: false,
+            pictures: new AbortController(),
+            parts: new Map(),
+            waiters: new Set(),
+        };
+        // The download has ended: a waiting record built after it is stale.
+        let arrived = false;
+        // Everything but the pictures has arrived: held now, drawn with them stood in for.
+        const onWaiting = (held: NonNullable<ModelError["held"]>, facts: readonly CodedFact[]): void => {
+            const downloading = facts.map((fact) =>
+                fact.code === "E_MODEL_MISSING_FILE"
+                    ? { code: fact.code, params: { ...fact.params, downloading: true } }
+                    : fact,
+            );
+            void heldRecord(early(downloading, provisional), held, named).then(async (waiting) => {
+                if (arrived || entry.fetch !== fetch) {
+                    return;
+                }
+
+                entry.held = { ...held, skipped: [], options: shared, url: named };
+                entry.record = waiting;
+                const summarized = await summarizeHeld(entry);
+                if (arrived) {
+                    return;
+                }
+
+                fetch.waiting = summarized;
+                for (const waiter of fetch.waiters) {
+                    waiter(summarized);
+                }
+            });
         };
         entry.fetch = fetch;
         entry.settled = (async () => {
@@ -1295,11 +1527,24 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 const kind = roleOfName(url.pathname) === "texture" ? "texture" : "model";
                 const fetched = await (
                     await loadIntake()
-                ).fetchModelSet(url, limits, fetch.controller.signal, redirectGate(kind, "file"), (progress) => {
-                    for (const listener of fetch.listeners) {
-                        listener(progress);
-                    }
-                });
+                )
+                    .fetchModelSet(
+                        url,
+                        limits,
+                        fetch.controller.signal,
+                        redirectGate(kind, "file"),
+                        (progress) => {
+                            for (const listener of fetch.listeners) {
+                                listener(progress);
+                            }
+                        },
+                        { signal: fetch.pictures.signal, onWaiting, part: (name) => partStop(fetch, name).signal },
+                    )
+                    .finally(() => {
+                        arrived = true;
+                    });
+                // Held while the pictures downloaded; whole now.
+                delete entry.held;
                 settled = await intake(fetched.given, shared, fetched.main, false, named);
                 const expected = expectedDigests.get(url.href);
                 if (settled.state === "accepted" && expected !== undefined && expected !== settled.digest) {
@@ -1331,7 +1576,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };
                     settled = await heldRecord(settled, error.held, named);
                     entry.record = settled;
-                    settled = await fillFromProject(entry);
+                    settled = await summarizeHeld(entry);
+                    // A picture the reader took out while it downloaded is not filled straight back.
+                    const dropped = [...fetch.parts].filter(([, stop]) => stop.signal.aborted).map(([name]) => name);
+                    settled = await fillFromProject(entry, new Set(dropped));
                 }
             }
 
@@ -1364,7 +1612,22 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return () => undefined;
         }
 
-        const { onProgress, signal } = options;
+        const { onProgress, signal, onWaiting, stopPictures } = options;
+        const onStopPictures = (): void => {
+            fetch.pictures.abort(stopPictures?.reason);
+        };
+        if (stopPictures?.aborted === true) {
+            onStopPictures();
+        } else {
+            stopPictures?.addEventListener("abort", onStopPictures, { once: true });
+        }
+        if (onWaiting !== undefined) {
+            fetch.waiters.add(onWaiting);
+            if (fetch.waiting !== undefined) {
+                onWaiting(fetch.waiting);
+            }
+        }
+
         const listener: ModelProgressListener | undefined =
             onProgress === undefined
                 ? undefined
@@ -1398,7 +1661,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 fetch.listeners.delete(listener);
             }
 
+            if (onWaiting !== undefined) {
+                fetch.waiters.delete(onWaiting);
+            }
+
             signal?.removeEventListener("abort", onAbort);
+            stopPictures?.removeEventListener("abort", onStopPictures);
         };
     };
 
@@ -1769,6 +2037,37 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @param url - The address it was added by.
      * @returns The record.
      */
+    /**
+     * What a model waiting for pictures or materials holds, read as it is drawn meanwhile (with
+     * them stood in for), so `inspect` answers for it too: its clips, pictures and size. The
+     * warnings the file gives of itself join its record.
+     * @param entry - The waiting model.
+     * @returns Its record now.
+     */
+    const summarizeHeld = async (entry: Entry): Promise<AssetRecord> => {
+        const standIn = api.standIn(entry.record.id);
+        if (standIn === undefined) {
+            return entry.record;
+        }
+
+        try {
+            const intakeModule = await loadIntake();
+            const { files, main, format, skipped } = standIn;
+            const checked = await intakeModule.checkModelFiles(files, { main, format, skipped }, limits);
+            entry.summary = checked.summary;
+            // What the file says of itself (its clips, how it is drawn) is known before its pictures
+            // arrive: the waiting record carries those warnings as the accepted one will.
+            const has = new Set(entry.record.problems.map((p) => p.code));
+            const known = checked.warnings.filter((w) => !has.has(w.code));
+            if (known.length > 0) {
+                entry.record = record({ ...entry.record, problems: [...entry.record.problems, ...known] });
+            }
+        } catch {
+            // Not readable without them: `inspect` keeps refusing, as before.
+        }
+        return entry.record;
+    };
+
     const heldRecord = async (
         settled: AssetRecord,
         held: NonNullable<ModelError["held"]>,
@@ -1780,6 +2079,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         return record({
             ...settled,
             url,
+            // The files that have arrived, not the 0 of a record made before any did.
+            byteLength: byteLengthOf(held.given),
             ...(main === undefined ? {} : { path: main }),
             ...(parts === undefined ? {} : { parts: Object.freeze(parts) }),
         });
@@ -1866,6 +2167,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             entries.set(settled.id, entry);
         } else {
             entry.held = { ...held, given, ...(main === undefined ? {} : { main }), skipped };
+            return summarizeHeld(entry);
         }
 
         return settled;
@@ -1918,16 +2220,17 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * Supply a model that has just started waiting with the pictures the session already holds
      * (design 12.4): a kit whose models share one picture asks for it once.
      * @param entry - The held model.
+     * @param skip - Pictures not to fill, by name: those the reader took out.
      * @returns Its record afterwards.
      */
-    const fillFromProject = async (entry: Entry): Promise<AssetRecord> => {
+    const fillFromProject = async (entry: Entry, skip: ReadonlySet<string> = new Set()): Promise<AssetRecord> => {
         const substituted: CodedFact[] = [];
         for (const fact of [...entry.record.problems]) {
-            if (fact.code !== "E_MODEL_MISSING_FILE" || fact.params.role !== "texture") {
+            const name = String(fact.params.name);
+            if (fact.code !== "E_MODEL_MISSING_FILE" || fact.params.role !== "texture" || skip.has(name)) {
                 continue;
             }
 
-            const name = String(fact.params.name);
             const found = projectPicture(name, entry);
             if (found === undefined || entry.held === undefined) {
                 continue;
@@ -2120,15 +2423,17 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         inspect(id) {
-            return lookup(id)?.summary ?? unknownAsset(id);
+            return (lookup(id) ?? findEntry(id))?.summary ?? unknownAsset(id);
         },
 
         remove(id) {
             // Also a URL or a provisional id, so a model held for supply can be let go.
             const entry = findEntry(id);
+            // A model by address, once accepted, is also held under its digest id: that goes too.
+            const ids = new Set([id, entry?.record.id]);
             for (const map of [entries, urls]) {
                 for (const [key, each] of map) {
-                    if (each === entry || each.record.id === id) {
+                    if (each === entry || ids.has(each.record.id)) {
                         map.delete(key);
                     }
                 }
@@ -2173,6 +2478,125 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 return turn;
             });
             return abortable(result, options.signal);
+        },
+
+        async accept(ref) {
+            const entry = findEntry(ref);
+            // Pictures still downloading are gone without: the download stops, the rest is kept.
+            entry?.fetch?.pictures.abort();
+            if (entry === undefined) {
+                throw new GraphtyError({
+                    code: "E_MODEL_UNKNOWN_ASSET",
+                    source: "data",
+                    message: `No model is held as ${ref}.`,
+                    details: { id: ref },
+                });
+            }
+
+            let current = await api.ready(ref);
+            const missing = (current.parts ?? []).filter((part) => part.state === "missing");
+            const geometry = missing.find((part) => part.role === "geometry" || part.role === "model");
+            if (geometry !== undefined) {
+                throw supplyError("E_MODEL_PART_REQUIRED", { id: current.id, name: geometry.name });
+            }
+
+            for (const part of missing) {
+                current = await api.supply(ref, { name: part.name, skip: true });
+            }
+
+            // Refused for something other than a missing part (too large, unreadable): never taken.
+            if (current.state !== "accepted") {
+                const problem = current.problems.find((p) => isGraphtyErrorCode(p.code));
+                const code: GraphtyErrorCode =
+                    problem !== undefined && isGraphtyErrorCode(problem.code) ? problem.code : "E_MODEL_PARSE";
+                throw new GraphtyError({
+                    code,
+                    source: "data",
+                    message: `The model ${current.id} was refused.`,
+                    details: { id: current.id, ...problem?.params },
+                });
+            }
+
+            return current;
+        },
+
+        async copy(ref) {
+            const named = findEntry(ref);
+            // A model by address is held, once accepted, under its digest id with its files.
+            const entry = (named === undefined ? undefined : entries.get(named.record.id)) ?? named;
+            if (entry?.record.state !== "accepted" || entry.given === undefined) {
+                return unknownAsset(ref as AssetId);
+            }
+
+            const from = entry.record.id;
+            let n = 2;
+            while (entries.has(`${from}-${n}`)) {
+                n += 1;
+            }
+
+            const { skipped } = entry.record;
+            const options: AddAssetOptions = { name: `${from}-${n}`, ...(skipped === undefined ? {} : { skipped }) };
+            // Not filled from the project's pictures: the copy holds exactly what the first one does.
+            return intake(entry.given, options, entry.record.path, false, undefined, undefined, false);
+        },
+
+        async dropPart(ref, name) {
+            const named = findEntry(ref);
+            const stopped = named === undefined ? undefined : stopDownload(named, name);
+            if (stopped !== undefined) {
+                return stopped;
+            }
+            // A model by address is held, once accepted, under its digest id with its files.
+            const entry = (named === undefined ? undefined : lookup(named.record.id)) ?? named;
+            const given = entry?.held?.given ?? entry?.given;
+            if (entry === undefined || given === undefined) {
+                throw new GraphtyError({
+                    code: "E_MODEL_UNKNOWN_ASSET",
+                    source: "data",
+                    message: `No model is held as ${ref}.`,
+                    details: { id: ref },
+                });
+            }
+
+            const main = entry.held?.main ?? entry.record.path;
+            const part = entry.record.parts?.find((p) => p.name === name);
+            const file = part?.file ?? name;
+            if (part === undefined || name === main || part.role === "model" || !given.has(file)) {
+                throw supplyError("E_BAD_COMMAND", { id: entry.record.id, name: cutParam(name) });
+            }
+
+            const rest = new Map([...given].filter(([path]) => path !== file));
+            const skipped = (entry.held?.skipped ?? entry.record.skipped ?? []).filter((n) => n !== name);
+            const options = skipped.length === 0 ? {} : { skipped };
+            const { held } = entry;
+            if (held === undefined) {
+                // A model finished from parts is also named by the id it waited under, which is the
+                // id of the set without the part: that name goes to the model read again, or the
+                // read would hand back the finished model unchanged.
+                for (const [key, each] of entries) {
+                    if (each === entry && key !== entry.record.id) {
+                        entries.delete(key);
+                    }
+                }
+                // Not filled from the project's pictures: the part taken back would come straight back.
+                return intake(rest, options, main, false, undefined, undefined, false);
+            }
+
+            // A model still waiting is read again in place, keeping its id, as `supply` does: the
+            // set without the part is the set it was first added as, whose id it already holds.
+            const settled = await intake(rest, { ...held.options, ...options }, main, false, held.url, entry, false);
+            entry.record = settled;
+            entry.settled = Promise.resolve(settled);
+            if (settled.state === "accepted") {
+                // The part taken back was one it never needed.
+                entry.given = rest;
+                delete entry.held;
+                entries.set(settled.id, entry);
+                return settled;
+            }
+
+            entry.held = { ...held, given: rest, skipped };
+            return summarizeHeld(entry);
         },
 
         async offer(files, options = {}) {
@@ -2231,6 +2655,62 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return entry.record;
         },
 
+        bindDefaults(binding) {
+            defaultsBinding = binding;
+        },
+
+        refreshDefaults(ids) {
+            const wanted = new Set(ids);
+            for (const each of allEntries()) {
+                if (wanted.has(each.record.id)) {
+                    const fields: { -readonly [K in keyof AssetRecord]: AssetRecord[K] } = { ...each.record };
+                    delete fields.defaults;
+                    each.record = record({ ...fields, ...defaultsOf(each.record.id) });
+                    each.settled = Promise.resolve(each.record);
+                }
+            }
+        },
+
+        async putDefaults(id, defaults) {
+            if (defaultsBinding === undefined) {
+                return;
+            }
+
+            // Every channel the file does not set is taken out: the file's settings replace the model's.
+            const style = Object.fromEntries(
+                MODEL_DEFAULT_CHANNELS.map((channel) => [channel, defaults.style?.[channel] ?? null]),
+            );
+            await defaultsBinding.dispatch({
+                op: "asset.defaults",
+                id,
+                patch: { style, hiddenTextures: defaults.hiddenTextures ?? [] },
+            });
+            api.refreshDefaults([id]);
+        },
+
+        setDefaults(ref, patch) {
+            try {
+                const entry = findEntry(ref);
+                if (entry === undefined || defaultsBinding === undefined) {
+                    throw new GraphtyError({
+                        code: "E_MODEL_UNKNOWN_ASSET",
+                        source: "data",
+                        message: `No model is held as ${ref}.`,
+                        details: { id: ref },
+                    });
+                }
+
+                const { id } = entry.record;
+                // Dispatched before any await, so a call routed into a transaction joins it.
+                return defaultsBinding.dispatch({ op: "asset.defaults", id, patch }).then(() => {
+                    api.refreshDefaults([id]);
+                    return findEntry(ref)?.record ?? entry.record;
+                });
+            } catch (error) {
+                return Promise.reject(error);
+            }
+        },
+
         usedBy(ref) {
             // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
             const id = api.find(ref)?.id;
@@ -2258,13 +2738,16 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         },
 
         standIn(id) {
-            const entry = lookup(id);
+            // A model loaded by address waits under its provisional id, among the URLs.
+            const entry = lookup(id) ?? findEntry(id);
             const main = entry?.record.path;
             if (entry?.held === undefined || entry.record.state !== "rejected" || main === undefined) {
                 return undefined;
             }
 
-            const { problems } = entry.record;
+            // Only what keeps it waiting counts: a warning beside the missing parts (a glTF's
+            // transmission drawn without, the ChronographWatch) left a waiting glTF undrawn.
+            const problems = entry.record.problems.filter((fact) => !fact.code.startsWith("W_"));
             const stoodIn = problems.every(
                 (fact) =>
                     fact.code === "E_MODEL_MISSING_FILE" &&
@@ -2298,16 +2781,11 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         setLimits(changes) {
             const next: Record<string, number> = { ...limits };
             for (const [key, value] of Object.entries(changes)) {
-                if (
-                    !(key in DEFAULT_MODEL_LIMITS) ||
-                    typeof value !== "number" ||
-                    value <= 0 ||
-                    !Number.isFinite(value)
-                ) {
+                if (!(key in DEFAULT_MODEL_LIMITS) || typeof value !== "number" || value <= 0 || Number.isNaN(value)) {
                     throw new GraphtyError({
                         code: "E_OPTION_RANGE",
                         source: "config",
-                        message: `The model limit ${key} must be a positive number.`,
+                        message: `The model limit ${key} must be a positive number (Infinity for none).`,
                         details: { option: key, value: String(value) },
                     });
                 }

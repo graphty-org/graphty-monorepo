@@ -17,6 +17,7 @@ import type { NodeSizeSpace as NodeSizeSpaceValue } from "../config/NodeStyle";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
+import type { ModelDefaults } from "../session/assets/AssetsApi";
 import {
     asColorValue,
     CHANNEL_DESCRIPTORS,
@@ -1296,11 +1297,34 @@ export class StylePainter {
      *     cheap; a painter with no graph behind it draws edges as directed.
      * @param minimums - The smallest node size and edge width drawn (the project setting
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
+     * @param modelDefaults - A model's own settings, by what `node.model` names; asked once per
+     *     node painted with a model.
      */
     constructor(
         private readonly directed: (row: number) => boolean = () => true,
         private readonly minimums: () => MarkMinimums | undefined = () => undefined,
+        private readonly modelDefaults: (model: string) => ModelDefaults | undefined = () => undefined,
     ) {}
+
+    /**
+     * A node's values with its model's own settings under them: each `node.model*` value no layer
+     * set comes from the model it draws (`session.assets.setDefaults`), and the key says which
+     * settings, so a change of them draws the node again.
+     * @param resolved - What the stack painted the node.
+     * @returns The values, and what goes on its mesh key.
+     */
+    private withModelDefaults(resolved: ResolvedStyle): { resolved: ResolvedStyle; tag: string } {
+        const model = resolved["node.model"];
+        const defaults = typeof model === "string" && model !== "" ? this.modelDefaults(model) : undefined;
+        if (defaults === undefined) {
+            return { resolved, tag: "" };
+        }
+
+        return {
+            resolved: { ...defaults.style, ...resolved } as ResolvedStyle,
+            tag: `|md${JSON.stringify([defaults.style, defaults.hiddenTextures])}`,
+        };
+    }
 
     /** The minimums the cached paints were built at; see {@link StylePainter.floorOf}. */
     private floorSeen = "";
@@ -1606,13 +1630,35 @@ export class StylePainter {
             return null;
         }
 
+        const { make } = this.nodePaintMaker(paint, index);
+        return make();
+    }
+
+    /**
+     * The resolved style of one node row, with its model's defaults under it, and how to build its
+     * paint: shared by {@link StylePainter.nodePaint} and {@link StylePainter.rowPaint}.
+     * @param paint - The bound paint source.
+     * @param index - The row's dense index.
+     * @returns The resolved style, its mesh key, the model-defaults tag and the paint builder.
+     */
+    private nodePaintMaker(
+        paint: ElementPaint,
+        index: number,
+    ): { resolved: ResolvedStyle; meshKey: number; tag: string; make: () => NodePaint } {
         const floor = this.floorOf("node");
-        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
-        return keyedByFloor(
-            nodePaintOf(resolved, paint.meshKeyOf("node", index), (channel) => paint.plainText("node", index, channel)),
-            resolved,
-            floor,
+        const { resolved, tag } = this.withModelDefaults(
+            floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE),
         );
+        const meshKey = paint.meshKeyOf("node", index);
+        const make = (): NodePaint => {
+            const made = keyedByFloor(
+                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
+                resolved,
+                floor,
+            );
+            return tag === "" ? made : { ...made, meshKey: made.meshKey + tag };
+        };
+        return { resolved, meshKey, tag, make };
     }
 
     /**
@@ -1632,16 +1678,9 @@ export class StylePainter {
             return null;
         }
 
-        const floor = this.floorOf("node");
-        const resolved = floored(paint.styleOf("node", index), "node.size", floor, NODE_SIZE);
-        const meshKey = paint.meshKeyOf("node", index);
-        const make = (): NodePaint =>
-            keyedByFloor(
-                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
-                resolved,
-                floor,
-            );
-        const identity = nodeIdentity(resolved, meshKey);
+        const { resolved, meshKey, tag, make } = this.nodePaintMaker(paint, index);
+        const bare = nodeIdentity(resolved, meshKey);
+        const identity = bare === null ? null : bare + tag;
         if (identity === null) {
             return make();
         }

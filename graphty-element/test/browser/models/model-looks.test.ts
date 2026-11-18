@@ -7,16 +7,20 @@
  * of a download and stops it on a signal.
  */
 
+import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { assert, describe, it, vi } from "vitest";
 
 import manifest from "../../../../babylonjs-models/test/fixtures/variants/manifest.json";
-import { DEFAULT_MODEL_LIMITS } from "../../../src/session/assets/AssetsApi";
+import { type AssetRecord, DEFAULT_MODEL_LIMITS } from "../../../src/session/assets/AssetsApi";
 import type { ProgressChange } from "../../../src/session/shared";
+import { gltfPair, triangleGltf } from "../../fixtures/models/fixtures";
 import { cleanups, countIn, drawModel, filesOf, type Frame, mount, readFrame, stubFetch } from "./helpers";
 
 /** Pixel tests by color. */
 const RED = (r: number, g: number, b: number): boolean => r > 120 && g < 60 && b < 60;
 const GREEN = (r: number, g: number, b: number): boolean => g > 100 && r < 70 && b < 70;
+/** Tinted green at all: a see-through green over the light canvas. */
+const GREENISH = (r: number, g: number, b: number): boolean => g > r + 12 && g > b + 12;
 const BLUE = (r: number, g: number, b: number): boolean => b > 100 && r < 70 && g < 70;
 /** The default Selected layer's halo, #0077BB (selectionStyle's default). */
 const MARK = (r: number, g: number, b: number): boolean => r < 50 && g > 90 && g < 150 && b > 160;
@@ -50,14 +54,86 @@ async function restyle(
 }
 
 describe("the ChronographWatch glTF-WEBP shape", () => {
-    it("loads from its files, says transmission was drawn without, and draws its WebP picture", async () => {
+    it("loads from its files, says transmission was drawn without, and draws its WebP picture see-through", async () => {
         const element = await mount();
         const { problems } = await drawModel(element, "gltf-transmission-required", [{ id: "a", x: 0 }]);
         assert.deepInclude(problems, {
             code: "W_MODEL_EXTENSION_IGNORED",
             params: { extension: "KHR_materials_transmission" },
         });
-        assert.isAbove(count(await readFrame(element), GREEN), 300, "the green WebP picture is drawn");
+        const frame = await readFrame(element);
+        // Fully transmissive glass is drawn faint over what is behind it, never as an opaque
+        // surface that would hide the watch's dial and hands.
+        assert.isAbove(count(frame, GREENISH), 300, "the green WebP picture is drawn");
+        assert.strictEqual(count(frame, GREEN), 0, "and drawn see-through, not opaque");
+        // Its reflections are see-through too: drawn over the alpha (Babylon's default), a glossy
+        // glass covered the real watch's dial and hands with an opaque disc of reflected sky.
+        const glass = element.graph.scene.materials.filter((m) => m instanceof PBRMaterial && m.alpha < 1);
+        assert.isAbove(glass.length, 0, "the glass is drawn see-through");
+        for (const material of glass as PBRMaterial[]) {
+            assert.isFalse(material.useRadianceOverAlpha, material.name);
+            assert.isFalse(material.useSpecularOverAlpha, material.name);
+        }
+    });
+
+    it("keeps a white, untextured glass see-through in the node's color, never the opaque flat look", async () => {
+        const element = await mount();
+        const glass = gltfPair(
+            triangleGltf({
+                extensionsUsed: ["KHR_materials_transmission"],
+                materials: [
+                    {
+                        name: "glass",
+                        pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: 0 },
+                        // eslint-disable-next-line camelcase -- a glTF extension's name, as the format spells it
+                        extensions: { KHR_materials_transmission: { transmissionFactor: 1 } },
+                    },
+                ],
+            }),
+        );
+        await drawModel(element, glass, [{ id: "a", x: 0 }], { "node.color": "#ff0000" });
+        const drawn = element.graph.scene.meshes
+            .filter((m) => (m.metadata as { graphtyModelGroup?: string } | null)?.graphtyModelGroup !== undefined)
+            .map((m) => m.material);
+        assert.isNotEmpty(drawn);
+        for (const material of drawn) {
+            assert.isBelow(material?.alpha ?? 1, 1, "the glass keeps its own see-through look");
+        }
+    });
+
+    it("draws a solid see-through body (a volume with thickness) opaque, as drawn without both", async () => {
+        const element = await mount();
+        // DragonAttenuation's dragon: fully transmissive, with a thick amber volume. Drawn at its
+        // transmission factor it was a white ghost at 20%; drawn without its volume it is opaque.
+        const dragon = gltfPair(
+            triangleGltf({
+                extensionsUsed: ["KHR_materials_transmission", "KHR_materials_volume"],
+                materials: [
+                    {
+                        name: "dragon",
+                        pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: 0 },
+                        extensions: {
+                            // eslint-disable-next-line camelcase -- a glTF extension's name, as the format spells it
+                            KHR_materials_transmission: { transmissionFactor: 1 },
+                            // eslint-disable-next-line camelcase -- a glTF extension's name, as the format spells it
+                            KHR_materials_volume: { thicknessFactor: 2.27, attenuationDistance: 0.155 },
+                        },
+                    },
+                ],
+            }),
+        );
+        const { problems } = await drawModel(element, dragon, [{ id: "a", x: 0 }]);
+        for (const extension of ["KHR_materials_transmission", "KHR_materials_volume"]) {
+            assert.deepInclude(problems, { code: "W_MODEL_EXTENSION_IGNORED", params: { extension } });
+        }
+        const drawn = element.graph.scene.meshes
+            .filter((m) => (m.metadata as { graphtyModelGroup?: string } | null)?.graphtyModelGroup !== undefined)
+            .map((m) => m.material);
+        assert.isNotEmpty(drawn);
+        for (const material of drawn) {
+            assert.strictEqual(material?.alpha, 1, "the solid body is drawn opaque");
+            assert.isFalse(material?.needAlphaBlending() ?? true, "and not blended");
+        }
     });
 
     it("loads from an address, fetching its .bin and three WebP pictures beside it", async () => {
@@ -78,6 +154,102 @@ describe("the ChronographWatch glTF-WEBP shape", () => {
         for (const name of variant.files) {
             assert.include(requested, base + name);
         }
+        // One picture taken back out, by the address the model came from.
+        const again = await element.session.assets.dropPart(`${base}cube.gltf`, "base.webp");
+        assert.strictEqual(again.parts?.find((p) => p.name === "base.webp")?.state, "missing");
+    });
+});
+
+describe("a model by address whose pictures are still downloading", () => {
+    it("is held and drawn before its pictures arrive, and accept takes it without them (#8614)", async () => {
+        const files = await filesOf("gltf-transmission-required");
+        const base = "https://models.example.com/slow/";
+        const answers = new Map(
+            [...files].filter(([name]) => !name.endsWith(".webp")).map(([name, bytes]) => [base + name, bytes]),
+        );
+        stubFetch(answers);
+        // Every picture is held until the reader stops it.
+        const spy = vi.spyOn(globalThis, "fetch");
+        const plain = spy.getMockImplementation();
+        spy.mockImplementation((input, init) => {
+            const url = input instanceof Request ? input.url : String(input);
+            if (!url.endsWith(".webp")) {
+                return (plain as typeof fetch)(input, init);
+            }
+            return new Promise((_, reject) => {
+                init?.signal?.addEventListener("abort", () => {
+                    reject(new DOMException("stopped", "AbortError"));
+                });
+            });
+        });
+        const element = await mount();
+        const { assets } = element.session;
+        let early: AssetRecord | undefined;
+        const heard = new Promise<void>((resolve) => {
+            void assets.add(`${base}cube.gltf`, {
+                onWaiting: (record) => {
+                    early = record;
+                    resolve();
+                },
+            });
+        });
+        await heard;
+        assert.isDefined(early);
+        assert.strictEqual(early.state, "rejected");
+        const pictures = early.problems.filter((p) => p.code === "E_MODEL_MISSING_FILE");
+        assert.isAbove(pictures.length, 0);
+        assert.isTrue(
+            pictures.every((p) => p.params.downloading === true),
+            "each picture is said to be downloading",
+        );
+        assert.isAbove(assets.inspect(early.id).triangles, 0, "what it holds is read before its pictures arrive");
+        const url = await element.modelThumbnail(`${base}cube.gltf`, { size: 64, standInMissing: true });
+        assert.match(url, /^data:image\/png/, "drawn while the pictures download");
+
+        const accepted = await assets.accept(`${base}cube.gltf`, { without: "missing" });
+        assert.strictEqual(accepted.state, "accepted", JSON.stringify(accepted.problems));
+        assert.isNotEmpty(accepted.skipped ?? [], "taken without its pictures");
+    });
+});
+
+describe("a picture taken back out while it downloads", () => {
+    it("stops that download alone, and the model waits for that picture (#8609)", async () => {
+        const files = await filesOf("gltf-transmission-required");
+        const base = "https://models.example.com/drop/";
+        stubFetch(new Map([...files].filter(([name]) => !name.endsWith(".webp")).map(([n, b]) => [base + n, b])));
+        const spy = vi.spyOn(globalThis, "fetch");
+        const plain = spy.getMockImplementation();
+        const stopped: string[] = [];
+        spy.mockImplementation((input, init) => {
+            const url = input instanceof Request ? input.url : String(input);
+            if (!url.endsWith(".webp")) {
+                return (plain as typeof fetch)(input, init);
+            }
+            return new Promise((_, reject) => {
+                init?.signal?.addEventListener("abort", () => {
+                    stopped.push(url);
+                    reject(new DOMException("stopped", "AbortError"));
+                });
+            });
+        });
+        const element = await mount();
+        const { assets } = element.session;
+        const heard = new Promise<AssetRecord>((resolve) => {
+            void assets.add(`${base}cube.gltf`, { onWaiting: resolve });
+        });
+        const early = await heard;
+        const first = early.problems.find((p) => p.code === "E_MODEL_MISSING_FILE");
+        assert.isDefined(first);
+        const name = String(first.params.name);
+
+        const after = await assets.dropPart(`${base}cube.gltf`, name);
+        assert.deepEqual(stopped, [base + name], "only that picture's download stopped");
+        const facts = after.problems.filter((p) => p.code === "E_MODEL_MISSING_FILE");
+        assert.isUndefined(facts.find((p) => p.params.name === name)?.params.downloading, "no longer downloading");
+        assert.isTrue(
+            facts.filter((p) => p.params.name !== name).every((p) => p.params.downloading === true),
+            "the other pictures go on downloading",
+        );
     });
 });
 
@@ -91,6 +263,55 @@ describe("model colors", () => {
         );
         assert.isAbove(count(await readFrame(element), RED), 500, "the plain model is drawn red");
     });
+
+    it("draws a model taken without its picture in the node's color, with no tint asked (#8614)", async () => {
+        const element = await mount();
+        // A cube whose only material draws cube.png, as the Duck's draws DuckCM.png.
+        const files = await filesOf("gltf-textured");
+        files.delete("cube.png");
+        const { problems } = await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" }, [
+            "cube.png",
+        ]);
+        assert.notInclude(
+            problems.map((fact) => fact.code),
+            "W_MODEL_COLOR_IGNORED",
+        );
+        const frame = await readFrame(element);
+        assert.isAbove(count(frame, RED), 500, "the part that lost its picture is drawn red");
+        assert.strictEqual(count(frame, GREEN), 0, "nothing of the picture is left");
+    });
+
+    // A part whose own color is blue and whose picture was left out: car.babylon's look. The part
+    // that lost its picture takes the node's color in every format, whatever its own color.
+    const BLUE_WITHOUT_PICTURE: readonly (readonly [string, (text: string) => string])[] = [
+        ["babylon-textured", (text) => text.replace('"diffuse":[1,1,1]', '"diffuse":[0,0,1]')],
+        ["obj-mtl-png", (text) => text.replace("Kd 1 1 1", "Kd 0 0 1")],
+        [
+            "gltf-textured",
+            (text) => {
+                const json = JSON.parse(text) as { materials: { pbrMetallicRoughness: Record<string, unknown> }[] };
+                json.materials[0].pbrMetallicRoughness.baseColorFactor = [0, 0, 1, 1];
+                return JSON.stringify(json);
+            },
+        ],
+    ];
+    it.each(BLUE_WITHOUT_PICTURE)(
+        "draws a blue %s part added without its picture in the node's color (#8614)",
+        async (variant, recolor) => {
+            const element = await mount();
+            const files = await filesOf(variant);
+            files.delete("cube.png");
+            const own = [...files.keys()].find((name) => /\.(babylon|mtl|gltf)$/.test(name)) as string;
+            const text = new TextDecoder().decode(files.get(own));
+            const blue = recolor(text);
+            assert.notStrictEqual(blue, text, "the fixture's color was changed");
+            files.set(own, new TextEncoder().encode(blue));
+            await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" }, ["cube.png"]);
+            const frame = await readFrame(element);
+            assert.isAbove(count(frame, RED), 500, "the part that lost its picture is drawn red");
+            assert.strictEqual(count(frame, BLUE), 0, "not in its own blue");
+        },
+    );
 
     it("keeps a picture under its own colors and 'untextured', darkens it on top, and paints over it under 'replace'", async () => {
         const element = await mount();
@@ -133,6 +354,20 @@ describe("model colors", () => {
         assert.strictEqual(count(untextured, BLUE), 0);
     });
 
+    it("draws an OBJ's faces, not points, when an empty group shares their MTL material (male02.obj)", async () => {
+        const element = await mount();
+        const files = boxesObj([["body", "blue", [-1, -1, 1, 1]]]);
+        // three.js's male02 opens each object with an "o" and a "g" holding no faces: Babylon's
+        // OBJ loader makes empty meshes of them and turned the material they share into points.
+        const text = new TextDecoder().decode(files.get("l.obj"));
+        files.set(
+            "l.obj",
+            new TextEncoder().encode(text.replace("mtllib l.mtl", "mtllib l.mtl\no empty\ng empty_blue\nusemtl blue")),
+        );
+        await drawModel(element, files, [{ id: "a", x: 0 }]);
+        assert.isAbove(count(await readFrame(element), BLUE), 300, "a solid blue box, not its eight corner dots");
+    });
+
     it("multiplies the node color into vertex colors on top, and drops them under 'replace'", async () => {
         const element = await mount();
         const { layer, asset } = await drawModel(element, "ply-ascii-colors", [{ id: "a", x: 0 }], {
@@ -172,11 +407,23 @@ describe("model orientation", () => {
  * @returns Its files.
  */
 function lShape(): Map<string, Uint8Array> {
+    return boxesObj([
+        ["bar", "blue", [0, 0, 4, 1]],
+        ["post", "green", [0, 1, 1, 4]],
+    ]);
+}
+
+/**
+ * An OBJ of boxes in blue or green.
+ * @param boxes - Each box's name, material and x0, y0, x1, y1 and depth (1 when left out).
+ * @returns Its files.
+ */
+function boxesObj(boxes: readonly (readonly [string, "blue" | "green", readonly number[]])[]): Map<string, Uint8Array> {
     const lines = ["mtllib l.mtl"];
     let at = 1;
-    const box = (name: string, material: string, [x0, y0, x1, y1]: readonly number[]): void => {
+    const box = (name: string, material: string, [x0, y0, x1, y1, z1 = 1]: readonly number[]): void => {
         lines.push(`o ${name}`, `usemtl ${material}`);
-        for (const z of [0, 1]) {
+        for (const z of [0, z1]) {
             for (const [x, y] of [
                 [x0, y0],
                 [x1, y0],
@@ -202,8 +449,9 @@ function lShape(): Map<string, Uint8Array> {
         }
         at += 8;
     };
-    box("bar", "blue", [0, 0, 4, 1]);
-    box("post", "green", [0, 1, 1, 4]);
+    for (const [name, material, corners] of boxes) {
+        box(name, material, corners);
+    }
     const mtl = ["newmtl blue", "Kd 0 0 1", "newmtl green", "Kd 0 0.7 0"].join("\n");
     const encoder = new TextEncoder();
     return new Map([
@@ -319,6 +567,9 @@ describe("marks on model nodes", () => {
         );
         const away = mark.filter((g, i) => g && fromModel[i] > 16).length;
         assert.strictEqual(away, 0, "no mark apart from the model: no second, misaligned copy");
+        // The selection's band is a thin line along the outline, so a small model is not lost in it.
+        const wide = mark.filter((g, i) => g && fromModel[i] > 4).length;
+        assert.strictEqual(wide, 0, "the band hugs the model, a few pixels wide");
         // The band straddles the silhouette's edge by up to its width; nothing reaches deeper.
         const over = mark.filter((g, i) => g && inside[i] > 12).length;
         assert.strictEqual(over, 0, "no mark over the model's inside");
@@ -347,6 +598,49 @@ describe("marks on model nodes", () => {
 
         element.graph.deselectNode();
         assert.strictEqual(count(await readFrame(element), MARK), 0, "the mark goes with the selection");
+    });
+
+    it("rings a part thinner than the band on both sides, with no copy beside it and nothing over it", async () => {
+        const element = await mount(600, 300);
+        // A wide halo (a 9 pixel band) for a trunk thinner than it.
+        element.graph.setSelectionStyle({ scale: 2.5 });
+        await drawModel(
+            element,
+            boxesObj([["trunk", "green", [0, 0, 0.04, 4, 0.04]]]),
+            [
+                { id: "a", x: -1 },
+                { id: "b", x: 1 },
+            ],
+            { "node.modelDoubleSided": true },
+        );
+        element.graph.zoomToFit();
+        const before = await readFrame(element);
+        const model = maskOf(before, (r, g, b) => r < 200 || g < 200 || b < 200, "left");
+        const { width } = before;
+        const xs = model.flatMap((m, i) => (m ? [i % width] : []));
+        assert.isAbove(xs.length, 50, "the trunk is drawn");
+        const [left, right] = [Math.min(...xs), Math.max(...xs)];
+        assert.isBelow(right - left, 9, "the trunk is thinner than the band");
+
+        assert.isTrue(element.graph.selectNode("a"));
+        const mark = maskOf(await readFrame(element), MARK, "left");
+        // Inside the trunk, past its antialiased edge columns.
+        const inner = model.map((m, i) => m && model[i - 1] && model[i + 1]);
+        assert.isAbove(inner.filter(Boolean).length, 100, "the trunk has an inside");
+        assert.strictEqual(
+            mark.filter((m, i) => m && inner[i]).length,
+            0,
+            "no mark over the trunk: Babylon's outline drew a shifted copy across it",
+        );
+        const leftOf = mark.filter((m, i) => m && i % width < left).length;
+        const rightOf = mark.filter((m, i) => m && i % width > right).length;
+        assert.isAbove(leftOf, 50, "a band on its left");
+        assert.isAbove(rightOf, 50, "a band on its right");
+        assert.isAbove(
+            Math.min(leftOf, rightOf) / Math.max(leftOf, rightOf),
+            0.6,
+            "the band is even, not a copy to one side",
+        );
     });
 
     it("glows one node of a model and leaves the other node of the same model unmarked", async () => {

@@ -46,6 +46,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     GraphSession: (session) => session,
     ElementSession: (session) => session,
     SessionHistory: (session) => session.history,
+    AssetsApi: (session) => session.assets,
     SessionDataApi: (session) => session.data,
     SessionGraphStore: (session) => session.data.store,
     RunsApi: (session) => session.runs,

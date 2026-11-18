@@ -1,13 +1,12 @@
-import { FileSource, PanelField, Popout, useFileDrop } from "@graphty/compact-mantine";
+import { DataRow, FileSource, PanelField, Popout, useFileDrop } from "@graphty/compact-mantine";
 import { type CodedFact, type GraphSession, GraphtyError, type PartAnswer } from "@graphty/graphty-element/session";
-import { Button, Group, Loader, Stack, Text, Tooltip } from "@mantine/core";
+import { Button, Group, Input, Loader, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { modelName } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { FactChip } from "./ModelChip";
-import { middleCut, roleWord } from "./modelWords";
+import { chipLine, middleCut, modelChip, roleWord } from "./modelWords";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
 /** The pop-over's width: room for a part's name and its address. */
@@ -195,6 +194,7 @@ function SupplyPart({
                 />
             ) : null}
             <FileSource
+                submitOnBlur
                 variant="row"
                 url
                 autoFocus={first && unused.length === 0}
@@ -239,7 +239,7 @@ function SupplyPart({
  * @param props.errors - the problems about this part
  * @param props.onRetry - hands the last answer over again, when there is one
  * @param props.onUseAddress - fills in the file's own address
- * @returns The chips, or nothing
+ * @returns The errors and buttons, or nothing
  */
 function PartErrors({
     errors,
@@ -256,8 +256,9 @@ function PartErrors({
     const suggested = errors.find((e) => e.code === "E_MODEL_WEB_PAGE")?.params.suggested;
     return (
         <Group gap={4}>
+            {/* Said as a field's error is, under the part's field: no chip. */}
             {errors.map((fact) => (
-                <FactChip key={fact.code} fact={fact} />
+                <Input.Error key={fact.code}>{chipLine(fact)}</Input.Error>
             ))}
             {errors.some((e) => e.code === "E_MODEL_FETCH") && onRetry !== undefined ? (
                 <Button size="compact-xs" variant="default" onClick={onRetry}>
@@ -465,13 +466,10 @@ export function PartsPopover({
                         <Text size="xs" c="var(--cm-text-secondary)">
                             Drop files here
                         </Text>
-                        {unused.length === 0 ? null : (
-                            <Group gap={4}>
-                                {unused.map((fact) => (
-                                    <FactChip key={String(fact.params.fileName)} fact={fact} />
-                                ))}
-                            </Group>
-                        )}
+                        {unused.map((fact) => {
+                            const { word, tip } = modelChip(fact);
+                            return <DataRow key={String(fact.params.fileName)} stat name={word} value={tip} />;
+                        })}
                     </Stack>
                 </Popout.Content>
             </Popout.Panel>

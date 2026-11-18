@@ -402,6 +402,7 @@ const TX_PARTS = [
     "visibility",
     "styles",
     "shaders",
+    "assets",
     "time",
     "views",
     "annotations",
@@ -699,6 +700,17 @@ class Session implements ElementSession {
         this.unwatchCeilings = this.ceilings.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
+        // A model's own settings live in the project (undone and saved with it); its records show them.
+        const { assets } = this;
+        assets.bindDefaults({
+            read: (id) => this.dispatcher.state.modelDefaults.get(id),
+            dispatch: (command) => this.dispatcher.dispatch(command),
+        });
+        this.dispatcher.lane.register("modelDefaults", (rendered, target, dirty) => {
+            assets.refreshDefaults(
+                [...dirty].filter((id) => rendered.modelDefaults.get(id) !== target.modelDefaults.get(id)),
+            );
+        });
         // A collapse is worked out from the graph once the loads ahead of it have landed.
         // Inside a transaction or a command (`tx.groups`, a project opening) the steps join it at
         // once, as a door called through a routed facade does; on their own they are one step,

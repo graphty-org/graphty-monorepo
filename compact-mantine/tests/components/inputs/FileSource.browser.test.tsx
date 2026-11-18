@@ -191,6 +191,36 @@ describe("FileSource", () => {
         assert.sameMembers([...paths.keys()], ["kit/car.obj", "kit/parts/car.mtl"]);
     });
 
+    it("says when to use the row's folder icon on hover with folderTip, keeping its name", async () => {
+        await renderThemed(
+            <div style={{ width: 320 }}>
+                <FileSource
+                    variant="row"
+                    folder
+                    folderTip="For a model with its textures in a folder"
+                    onFiles={() => undefined}
+                    onUrl={() => undefined}
+                />
+            </div>,
+        );
+        const button = screen.getByRole("button", { name: "Choose folder" });
+        assert.equal(button.getAttribute("title"), "For a model with its textures in a folder");
+        assert.equal(
+            screen.getByRole("button", { name: "Choose file" }).getAttribute("title"),
+            "Choose file",
+            "the file icon's hover text is its name, as before",
+        );
+    });
+
+    it("keeps the row's folder icon's hover text as its name without folderTip", async () => {
+        await renderThemed(
+            <div style={{ width: 320 }}>
+                <FileSource variant="row" folder onFiles={() => undefined} onUrl={() => undefined} />
+            </div>,
+        );
+        assert.equal(screen.getByRole("button", { name: "Choose folder" }).getAttribute("title"), "Choose folder");
+    });
+
     it("draws no folder icon in a row that was not asked for one", async () => {
         await renderThemed(<FileSource variant="row" onFiles={() => undefined} onUrl={() => undefined} />);
         assert.isNull(screen.queryByRole("button", { name: "Choose folder" }));
@@ -310,6 +340,132 @@ function dragOver(target: Element): DataTransfer {
     }
     return dataTransfer;
 }
+
+describe("FileSource's submitOnBlur", () => {
+    const KARATE = "https://graphty.app/data/karate.json";
+
+    /**
+     * A row with a button to click away to.
+     * @param onUrl - the onUrl spy.
+     * @param props - more props.
+     */
+    async function row(onUrl: () => void, props: { submitOnBlur?: boolean; defaultValue?: string }): Promise<void> {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <FileSource variant="row" onFiles={() => undefined} onUrl={onUrl} {...props} />
+                <button type="button">elsewhere</button>
+            </div>,
+        );
+    }
+
+    it("submits a typed address once when the field loses focus by Tab or a click elsewhere", async () => {
+        const onUrl = vi.fn();
+        await row(onUrl, { submitOnBlur: true });
+        const field = screen.getByRole("textbox", { name: "URL" });
+
+        await userEvent.click(field);
+        await userEvent.keyboard(KARATE);
+        await userEvent.tab();
+        expect(onUrl.mock.calls).toEqual([[KARATE]]);
+
+        // Back in and out again with the same address: nothing reloads.
+        await userEvent.click(field);
+        await userEvent.click(screen.getByRole("button", { name: "elsewhere" }));
+        expect(onUrl).toHaveBeenCalledTimes(1);
+
+        // Enter, then blur: one submit, not two.
+        await userEvent.click(field);
+        await userEvent.keyboard("{Control>}a{/Control}https://graphty.app/data/les.json{Enter}");
+        await userEvent.click(screen.getByRole("button", { name: "elsewhere" }));
+        expect(onUrl.mock.calls).toEqual([[KARATE], ["https://graphty.app/data/les.json"]]);
+    });
+
+    it("submits nothing for an empty field or the address already in effect, and marks a bad one", async () => {
+        const onUrl = vi.fn();
+        await row(onUrl, { submitOnBlur: true, defaultValue: KARATE });
+        const field = screen.getByRole("textbox", { name: "URL" });
+
+        await userEvent.click(field);
+        await userEvent.tab();
+        await userEvent.click(field);
+        await userEvent.clear(field);
+        await userEvent.tab();
+        expect(onUrl).not.toHaveBeenCalled();
+
+        await userEvent.click(field);
+        await userEvent.keyboard("not a url");
+        await userEvent.tab();
+        expect(onUrl).not.toHaveBeenCalled();
+        expect(field).toHaveAttribute("aria-invalid", "true");
+    });
+
+    it("leaves the Open button to submit, once, when focus moves to it", async () => {
+        const onUrl = vi.fn();
+        await renderThemed(
+            <FileSource variant="drop" submitOnBlur openLabel="Add" onFiles={() => undefined} onUrl={onUrl} />,
+        );
+        await userEvent.click(screen.getByRole("textbox", { name: "URL" }));
+        await userEvent.keyboard(KARATE);
+        await userEvent.click(screen.getByRole("button", { name: "Add" }));
+        expect(onUrl.mock.calls).toEqual([[KARATE]]);
+    });
+
+    it("never submits on blur without the prop", async () => {
+        const onUrl = vi.fn();
+        await row(onUrl, {});
+        await userEvent.click(screen.getByRole("textbox", { name: "URL" }));
+        await userEvent.keyboard(KARATE);
+        await userEvent.tab();
+        expect(onUrl).not.toHaveBeenCalled();
+    });
+});
+
+describe("FileSource's barUnderField", () => {
+    /** A row whose load moves on when its buttons are pressed. @returns the row. */
+    function Load(): React.JSX.Element {
+        const [progress, setProgress] = useState<number | null | undefined>(null);
+        return (
+            <div style={{ width: 240 }}>
+                <FileSource
+                    variant="row"
+                    barUnderField
+                    progress={progress}
+                    status={progress === undefined ? undefined : { label: "Downloading" }}
+                    onCancel={() => undefined}
+                    onFiles={() => undefined}
+                    onUrl={() => undefined}
+                />
+                <button type="button" onClick={() => setProgress(0.5)}>
+                    half
+                </button>
+                <button type="button" onClick={() => setProgress(undefined)}>
+                    done
+                </button>
+            </div>
+        );
+    }
+
+    it("draws the bar directly under the URL field, above the status line, and removes it when done", async () => {
+        await renderThemed(<Load />);
+        const field = screen.getByRole("textbox", { name: "URL" });
+        const bar = screen.getByRole("progressbar", { name: "Loading" });
+        const fieldBottom = field.getBoundingClientRect().bottom;
+        const barRect = bar.getBoundingClientRect();
+        assert.isAtLeast(barRect.top, fieldBottom, "below the field");
+        assert.isAtMost(barRect.top - fieldBottom, 6, "directly under it");
+        assert.isAtLeast(barRect.height, 4, "thick enough to read as a bar");
+        assert.isNull(bar.getAttribute("aria-valuenow"), "indeterminate while the size is not known");
+        assert.isAbove(screen.getByText("Downloading").getBoundingClientRect().top, barRect.bottom);
+        assert.lengthOf(screen.getAllByRole("progressbar"), 1);
+
+        await userEvent.click(screen.getByRole("button", { name: "half" }));
+        assert.equal(screen.getByRole("progressbar", { name: "Loading" }).getAttribute("aria-valuenow"), "50");
+
+        await userEvent.click(screen.getByRole("button", { name: "done" }));
+        assert.isNull(screen.queryByRole("progressbar"));
+        assert.strictEqual(screen.getByRole("textbox", { name: "URL" }), field, "the field was never remounted");
+    });
+});
 
 describe("FileSource's picker", () => {
     it("keeps its file input alive while the picker is open, so Safari does not drop the choice", async () => {

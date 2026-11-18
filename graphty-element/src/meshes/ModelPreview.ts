@@ -11,6 +11,7 @@ import type { Lighting } from "../config/Lighting";
 import { GraphtyError } from "../errors";
 import { LIGHTS } from "../managers/RenderManager";
 import type { ModelTemplate } from "../models/ModelCache";
+import type { CodedFact } from "../session/shared";
 import { useBundledStandardShaders } from "./bundledStandardShaders";
 import { type PlacedModel, placeModel } from "./NodeThumbnail";
 
@@ -25,6 +26,34 @@ export interface ModelPreviewOptions {
      */
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
     /** As `modelThumbnail`'s: draw a model still waiting for pictures or materials with them stood in for. */
+    readonly standInMissing?: boolean;
+    /**
+     * As `modelThumbnail`'s: the pictures drawn without, by `ModelSummary.pictures` name, in place
+     * of the model's own `defaults.hiddenTextures`. Fixed for the preview's life.
+     */
+    readonly hiddenTextures?: readonly string[];
+}
+
+/** Whether a model can be drawn (`checkModel`). */
+export interface ModelCheck {
+    /**
+     * True when it can be drawn; false when it cannot, with `failure` saying why; null when that
+     * could not be told because nothing is drawn here (no WebGL), which is not the model's fault.
+     */
+    readonly drawable: boolean | null;
+    /**
+     * Why it cannot be drawn, as `modelThumbnail` would reject: its first problem for a rejected or
+     * waiting model, the load or build failure (`E_MODEL_PARSE`, `E_MODEL_STRUCTURE`,
+     * `E_MODEL_DECODER_UNAVAILABLE`, ...) for an accepted one, `E_MODEL_UNKNOWN_ASSET` for nothing held.
+     */
+    readonly failure?: CodedFact;
+}
+
+/** What `checkModel` takes. */
+export interface ModelCheckOptions {
+    /** Stops waiting: the check rejects with the signal's reason. */
+    readonly signal?: AbortSignal;
+    /** As `modelThumbnail`'s: a model waiting only for pictures or materials counts as drawable. */
     readonly standInMissing?: boolean;
 }
 
@@ -116,6 +145,22 @@ export class PreviewEngines {
             }
         }
         const canvas = document.createElement("canvas");
+        // No focus ring for a pointer, as on the graph's canvas (RenderManager.focusOnPointer):
+        // Babylon's camera input focuses the canvas by script on a press, and a browser drew its
+        // keyboard ring for that after a drag (a frame in Chromium, two blue slivers in WebKit).
+        // Focused here first, without scrolling, so Babylon's own focus call finds it focused.
+        // Tab or a key in the canvas brings the browser's ring back.
+        const fromPointer = (): void => {
+            canvas.style.outline = "none";
+            canvas.focus({ preventScroll: true });
+        };
+        const ring = (): void => {
+            canvas.style.outline = "";
+        };
+        canvas.addEventListener("pointerdown", fromPointer);
+        canvas.addEventListener("pointerup", fromPointer);
+        canvas.addEventListener("blur", ring);
+        canvas.addEventListener("keydown", ring);
         try {
             // The last frame is kept, so the page can read the picture (a screenshot, a test).
             const engine = new Engine(
@@ -188,6 +233,8 @@ export class LiveModelPreview implements ModelPreview {
     readonly #scene: Scene;
     readonly #camera: ArcRotateCamera;
     readonly #load: TemplateLoader;
+    /** The model's own settings, under every style the preview is given. */
+    readonly #base: Readonly<Partial<Record<Channel, ChannelValue>>>;
     #template: ModelTemplate | null = null;
     #placed: PlacedModel | null = null;
     /** The camera distance that frames the model; the reader's zoom is kept as a share of it. */
@@ -210,9 +257,17 @@ export class LiveModelPreview implements ModelPreview {
      * @param load - Builds the template in the preview's scene.
      * @param lighting - The graph's lighting.
      * @param engines - The graph's kept preview engines.
+     * @param base - The model's own settings, under every style it is given.
      */
-    constructor(host: HTMLElement, load: TemplateLoader, lighting: Lighting, engines: PreviewEngines) {
+    constructor(
+        host: HTMLElement,
+        load: TemplateLoader,
+        lighting: Lighting,
+        engines: PreviewEngines,
+        base: Readonly<Partial<Record<Channel, ChannelValue>>> = {},
+    ) {
         this.#load = load;
+        this.#base = base;
         this.#engines = engines;
         this.#drawing = engines.take();
         const { canvas, engine } = this.#drawing;
@@ -220,7 +275,9 @@ export class LiveModelPreview implements ModelPreview {
         this.#engine = engine;
         canvas.tabIndex = 0;
         // The canvas takes every drag, wheel and pinch: the page neither scrolls nor zooms under it.
-        canvas.style.cssText = "display:block;width:100%;height:100%;touch-action:none;outline-offset:-2px";
+        // A drag on the page around it must not select the canvas (as Graph.createCanvas does).
+        canvas.style.cssText =
+            "display:block;width:100%;height:100%;touch-action:none;outline-offset:-2px;user-select:none;-webkit-user-select:none";
         host.appendChild(canvas);
         engine.resize();
         this.#resized =
@@ -277,10 +334,11 @@ export class LiveModelPreview implements ModelPreview {
 
     /**
      * Draw the model with other style values, keeping the reader's view. See {@link ModelPreview.update}.
-     * @param style - The node's style values.
+     * @param given - The node's style values; the model's own settings fill what they leave out.
      * @returns Resolves once drawn with them.
      */
-    update(style: Readonly<Partial<Record<Channel, ChannelValue>>>): Promise<void> {
+    update(given: Readonly<Partial<Record<Channel, ChannelValue>>>): Promise<void> {
+        const style = { ...this.#base, ...given };
         const turn = ++this.#asked;
         const next = this.#queue.then(async () => {
             if (this.#disposed || turn !== this.#asked) {

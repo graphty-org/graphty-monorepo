@@ -33,7 +33,7 @@ import {
     writeIn,
 } from "./row";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
-import { ValueField } from "./ValueField";
+import { ModelNameField, ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
     bindingTitle,
@@ -101,8 +101,12 @@ export interface ManyRows {
     readonly count: (channel: Channel) => number;
     /** How many rows are edited together. */
     readonly of: number;
-    /** Writes one value or binding to every row. */
-    readonly write: (channel: Channel, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
+    /** Writes one value or binding to every row; `after` merges it into that undo step. */
+    readonly write: (
+        channel: Channel,
+        write: LiteralWrite | { readonly binding: DataBinding },
+        after?: HistoryStepId,
+    ) => Promise<unknown>;
     /** Takes the channel off every row. */
     readonly clear: (channel: Channel) => Promise<unknown>;
     /**
@@ -835,6 +839,9 @@ function OneValue({
         return (
             <NumberValue descriptor={descriptor} name={name} value={value} combine={combine} writeValue={writeValue} />
         );
+    }
+    if (descriptor.channel === "node.model") {
+        return <ModelNameField label={name} value={value} />;
     }
     return <TextValue name={name} value={value} writeValue={writeValue} />;
 }

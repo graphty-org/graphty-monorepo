@@ -165,6 +165,7 @@ export async function filesOf(id: string): Promise<Map<string, Uint8Array>> {
  * @param files - The model's files, or a variant's id.
  * @param nodes - The nodes, with their x positions.
  * @param set - More values for the model layer.
+ * @param skipped - Parts to draw it without (`assets.add`'s `skipped`).
  * @returns The model's problems once drawn, and the layer's id.
  */
 export async function drawModel(
@@ -172,11 +173,13 @@ export async function drawModel(
     files: string | ReadonlyMap<string, Uint8Array>,
     nodes: readonly { id: string; x: number }[],
     set: Record<string, unknown> = {},
+    skipped: readonly string[] = [],
 ): Promise<{ problems: readonly CodedFact[]; layer: string; asset: string }> {
     const { graph } = element;
-    const record = await element.session.assets.add({
-        files: typeof files === "string" ? await filesOf(files) : files,
-    });
+    const record = await element.session.assets.add(
+        { files: typeof files === "string" ? await filesOf(files) : files },
+        { skipped },
+    );
     assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
     await graph.addNodes(nodes.map((n) => ({ id: n.id, position: { x: n.x, y: 0, z: 0 } })));
     await graph.setLayout("fixed", { dim: 3 });

@@ -441,7 +441,7 @@ export class NodeMesh {
      */
     static createModelInstance(template: ModelTemplate, shape: NodeStyleConfig["shape"], name: string): InstancedMesh {
         const [first, ...rest] = template.groups;
-        const root = first.createInstance(name);
+        const root = modelInstance(first, name);
         root.isPickable = true;
         root.instancedBuffers.color = new Color4(1, 1, 1, 1);
         // The box only: a pointer move tests no model triangle (design section 3.8).
@@ -449,7 +449,7 @@ export class NodeMesh {
         root.intersects = (ray, fastCheck, trianglePredicate, _onlyBoundingInfo, worldToUse, skipBoundingInfo) =>
             intersects(ray, fastCheck, trianglePredicate, true, worldToUse, skipBoundingInfo);
         for (const group of rest) {
-            const part = group.createInstance(`${name}-part`);
+            const part = modelInstance(group, `${name}-part`);
             part.parent = root;
             part.isPickable = false;
             part.instancedBuffers.color = new Color4(1, 1, 1, 1);
@@ -1671,4 +1671,20 @@ export class NodeMesh {
             scene,
         );
     }
+}
+
+/**
+ * An instance of a model template's group, answering for the group's own locked box. Babylon
+ * sizes an instance of a skinned source from its raw vertices, and an animated template's are in
+ * the file's units (its bones place and fit them), so a Fox was boxed 150 times too large and the
+ * camera framed the graph by that box (issue #8607).
+ * @param group - The template's group.
+ * @param name - The instance's name.
+ * @returns The instance.
+ */
+function modelInstance(group: Mesh, name: string): InstancedMesh {
+    const instance = group.createInstance(name);
+    const { minimum, maximum } = group.getBoundingInfo();
+    instance.buildBoundingInfo(minimum, maximum);
+    return instance;
 }

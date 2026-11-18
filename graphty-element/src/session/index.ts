@@ -12,28 +12,9 @@
 
 export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
 export type { DrawnAnnotation, DrawnAnnotations } from "./annotations";
-export type {
-    AddAssetOptions,
-    AssetId,
-    AssetOffer,
-    AssetRecord,
-    AssetsApi,
-    AssetSource,
-    AssetState,
-    BuiltInModelFormat,
-    ModelCompression,
-    ModelEncoding,
-    ModelFormat,
-    ModelGeometry,
-    ModelLimits,
-    ModelPart,
-    ModelPartRole,
-    ModelPartState,
-    ModelSummary,
-    NamedBlob,
-    PartAnswer,
-} from "./assets/AssetsApi";
-export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+// Every model type, named one by one where it is published (session.ts).
+export type * from "./assets/AssetsApi";
+export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./assets/AssetsApi";
 export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./backgroundImage";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";

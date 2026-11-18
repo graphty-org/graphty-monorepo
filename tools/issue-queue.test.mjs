@@ -1,9 +1,12 @@
 // Tests of tools/issue-queue.mjs on GraphQL answers shaped like GitHub's (the fields its queries ask for).
 // Run: node tools/issue-queue.test.mjs
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { main } from "./issue-queue.mjs";
+import { heldBy, heldEntry, main, sweepClaims } from "./issue-queue.mjs";
 
 const NOW = Date.parse("2026-11-02T12:00:00Z");
 const user = (login) => ({ __typename: "User", login });
@@ -450,5 +453,208 @@ describe("taken", () => {
         assert.match(take(["fix/7-x", ".worktrees/x", "7", "--files", "a.ts", "--why", "w"], {}).out, /SESSION_ID/);
         assert.equal(take(["fix/7-x", ".worktrees/x", "--files", "a.ts", "--why", "w"]).code, 2);
         assert.deepEqual(calls, []);
+    });
+});
+
+describe("sweepClaims", () => {
+    const MIN = 60_000;
+    const agent = user("graphty-agent");
+    const marker = (id, body, at) => ({
+        databaseId: id,
+        createdAt: new Date(at).toISOString(),
+        body,
+        author: agent,
+        editor: null,
+        lastEditedAt: null,
+    });
+    const takenBody = (session, branch) =>
+        `pipeline-round: taken by session ${session}, branch ${branch}, worktree .worktrees/w${branch.length} -- x; files a.ts`;
+    const claimed = (n, comments, extra = {}) => ({
+        id: `I_${n}`,
+        number: n,
+        title: `t${n}`,
+        labels: { nodes: [{ id: "L_ip", name: "in-progress" }] },
+        comments: { nodes: comments },
+        timelineItems: { nodes: [] },
+        ...extra,
+    });
+    // facts with nothing alive: no pull request, no commit, no change, no ticket, no transcript, no live session
+    const facts = (over = {}) => ({
+        openPrBranches: new Set(),
+        roundSession: "round",
+        branchCommitAt: () => 0,
+        worktreeChangedAt: () => 0,
+        ticketIn: () => false,
+        transcriptAt: () => 0,
+        sessionAlive: () => false,
+        commitsAhead: () => 0,
+        ...over,
+    });
+    const judge = (issue, f = facts()) => sweepClaims([issue], f, NOW).claims[0];
+
+    it("(a) releases the round session's claim with no commit, change, ticket or transcript for 61 min", () => {
+        const c = judge(
+            claimed(1, [marker(1, takenBody("round", "fix/1-a"), NOW - 61 * MIN)]),
+            facts({ sessionAlive: () => true }),
+        );
+        assert.equal(c.live, false);
+        assert.equal(c.action, "release");
+        assert.equal(c.branch, "fix/1-a");
+        assert.equal(judge(claimed(1, [marker(1, takenBody("round", "fix/1-a"), NOW - 59 * MIN)])).live, true);
+    });
+
+    it("(b) keeps the same claim while its worktree holds or waits for a test slot, or its subagent writes", () => {
+        const issue = claimed(1, [marker(1, takenBody("round", "fix/1-a"), NOW - 3 * 60 * MIN)]);
+        assert.equal(judge(issue, facts({ ticketIn: (wt) => wt === ".worktrees/w7" })).live, true);
+        assert.equal(judge(issue, facts({ transcriptAt: (s, b) => (b === "fix/1-a" ? NOW - 5 * MIN : 0) })).live, true);
+        assert.equal(judge(issue, facts({ openPrBranches: new Set(["fix/1-a"]) })).why, "open pull request");
+        assert.equal(judge(issue, facts({ worktreeChangedAt: () => NOW - 10 * MIN })).live, true);
+    });
+
+    it("keeps another live session's claim for 24 h of branch activity, never the round's own", () => {
+        const issue = (s, age) => claimed(1, [marker(1, takenBody(s, "fix/1-a"), NOW - age)]);
+        const alive = facts({ sessionAlive: () => true });
+        assert.equal(judge(issue("other", 23 * 60 * MIN), alive).live, true);
+        assert.equal(judge(issue("other", 25 * 60 * MIN), alive).live, false);
+        assert.equal(judge(issue("round", 2 * 60 * MIN), alive).live, false);
+    });
+
+    it("(c) reports a dead claim with commits of its own as stranded, never released", () => {
+        const c = judge(
+            claimed(1, [marker(1, "pipeline-round: ready fix/1-a abc", NOW - 5 * 60 * MIN)]),
+            facts({ commitsAhead: (b) => (b === "fix/1-a" ? 3 : 0) }),
+        );
+        assert.equal(c.kind, "ready");
+        assert.equal(c.action, "stranded");
+        assert.equal(c.commits, 3);
+    });
+
+    it("(d) judges a bare label with no marker by its label event, and a label left after a release as label-only", () => {
+        const bare = claimed(1, [], {
+            timelineItems: {
+                nodes: [{ createdAt: new Date(NOW - 30 * MIN).toISOString(), label: { name: "in-progress" } }],
+            },
+        });
+        assert.equal(judge(bare).kind, "label");
+        assert.equal(judge(bare).live, true);
+        const old = {
+            timelineItems: {
+                nodes: [{ createdAt: new Date(NOW - 90 * MIN).toISOString(), label: { name: "in-progress" } }],
+            },
+        };
+        assert.equal(judge(claimed(1, [], old)).action, "release");
+        const released = claimed(1, [
+            marker(1, takenBody("s", "fix/1-a"), NOW - 9e6),
+            marker(2, "pipeline-round: released -- x", NOW - 8e6),
+        ]);
+        assert.equal(judge(released).action, "unlabel");
+        const stranger = claimed(1, [{ ...marker(1, takenBody("s", "fix/1-a"), NOW), author: user("stranger") }]);
+        assert.equal(judge(stranger).kind, "label", "an untrusted marker is no claim");
+    });
+
+    it("(e) judges all 140 claims across pages, releases dead ones in batched mutations and writes state.json", () => {
+        const issues = Array.from({ length: 140 }, (_, k) => {
+            const n = k + 1;
+            const age = n <= 70 ? 2 * 60 * MIN : 10 * MIN;
+            return claimed(n, [marker(n, takenBody(n % 2 ? "round" : "other", `fix/${n}-a`), NOW - age)]);
+        });
+        const mutations = [];
+        const run = (query, vars) => {
+            if (query.startsWith("mutation")) {
+                mutations.push(query);
+                return {};
+            }
+            if (query.includes("pullRequests(states: OPEN")) {
+                return {
+                    repository: {
+                        pullRequests: {
+                            pageInfo: { hasNextPage: false },
+                            nodes: [{ number: 5, headRefName: "fix/2-a" }],
+                        },
+                    },
+                };
+            }
+            const label = vars.label;
+            if (label === "blocked") return { repository: { issues: { pageInfo: { hasNextPage: false }, nodes: [] } } };
+            const i = vars.after === undefined ? 0 : Number(vars.after);
+            const page = issues.slice(i * 50, i * 50 + 50);
+            return {
+                repository: {
+                    issues: { pageInfo: { hasNextPage: i * 50 + 50 < 140, endCursor: String(i + 1) }, nodes: page },
+                },
+            };
+        };
+        const dir = mkdtempSync(join(tmpdir(), "claims-"));
+        const f = facts();
+        delete f.openPrBranches; // the command reads the open pull requests itself
+        const r = main(["claims", "--fix"], run, NOW, undefined, {
+            claims: { dir, facts: { ...f, openPrBranches: new Set(["fix/2-a"]) } },
+        });
+        assert.equal(r.code, 0);
+        assert.match(r.out, /^claims: 140 in-progress, 71 live, 69 released, 0 label-only, 0 stranded$/m);
+        assert.equal(mutations.length, 4, "69 releases in batches of 20");
+        assert.equal((mutations.join("").match(/addComment/g) ?? []).length, 69);
+        assert.equal((mutations.join("").match(/removeLabelsFromLabelable/g) ?? []).length, 69);
+        const state = readFileSync(join(dir, "state.json"), "utf8");
+        // (f) worktree-cleanup.mjs heldBranches holds a branch whose state text has `branch <b>,`
+        assert.ok(state.includes("branch fix/2-a,"), "the live claim with an open pull request keeps its worktree");
+        assert.ok(state.includes("branch fix/100-a,"));
+        assert.ok(!state.includes("branch fix/1-a,"), "a released claim no longer holds its worktree");
+        assert.equal(JSON.parse(state).claims.length, 140);
+    });
+});
+
+describe("held", () => {
+    const GUARD = /^(visual-review\/|\.claude\/settings\.json$|tools\/pr-open\.sh$)/;
+    const c = (body, login = "graphty-agent") => ({
+        createdAt: "2026-11-01T00:00:00Z",
+        body,
+        author: user(login),
+        editor: null,
+        lastEditedAt: null,
+    });
+    const held = (n, labels, comments = []) => issue(n, `t${n}`, labels, { comments: { nodes: comments } });
+
+    it("lists an issue held only by ux-owner, never one also in progress", () => {
+        assert.deepEqual(heldBy(held(1, ["enhancement", "ux-owner"])), ["ux-owner"]);
+        assert.deepEqual(heldBy(held(2, ["enhancement"])), ["no ux label"]);
+        assert.equal(heldBy(held(3, ["bug", "ux-owner", "in-progress"])), null);
+        assert.equal(heldBy(held(4, ["bug"])), null);
+    });
+
+    it("flags a blocked issue citing only .claude/settings.json as misheld, never one citing visual-review/trusted/", () => {
+        const only = heldEntry(
+            held(5, ["bug", "blocked"], [c("blocked: needs .claude/settings.json, owner-guarded")]),
+            GUARD,
+        );
+        assert.equal(only.misheld, true);
+        const owner = heldEntry(
+            held(6, ["bug", "blocked"], [c("blocked: touches visual-review/trusted/ and .claude/settings.json")]),
+            GUARD,
+        );
+        assert.equal(owner.misheld, false);
+        const e = heldEntry(held(7, ["bug", "blocked"], [c("decided", "apowers313"), c("blocked on #8123")]), GUARD);
+        assert.equal(e.ownerComment.body, "decided");
+        assert.deepEqual(e.cites, [8123]);
+        assert.equal(e.misheld, false);
+    });
+
+    it("prints the held listing as JSON from one paged query", () => {
+        const pages = [
+            [
+                held(1, ["enhancement", "ux-owner"]),
+                held(2, ["bug", "in-progress"]),
+                held(3, ["bug", "blocked"], [c("blocked: .claude/settings.json")]),
+            ],
+        ];
+        const r = main(["list", "--held", "--json"], runner({ pages }).run, NOW, undefined, { guard: () => GUARD });
+        const out = JSON.parse(r.out);
+        assert.deepEqual(
+            out.map((h) => [h.number, h.misheld]),
+            [
+                [1, false],
+                [3, true],
+            ],
+        );
     });
 });

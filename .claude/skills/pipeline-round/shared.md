@@ -1,9 +1,9 @@
 # Rules shared by pipeline-round and issue-round
 
-Two skills keep graphty-monorepo's work moving without the owner routing it. **pipeline-round** handles alarms, red
-pull requests whose session is gone and finished branches with no pull request; it never starts new issue work.
-**issue-round** starts issue work in background subagents, each of which opens its own pull request with
-`tools/pr-open.sh` and stops. Both read this file at the start of every round. Every change reaches master through
+Two skills keep graphty-monorepo's work moving without the owner routing it. **pipeline-round** handles alarms; it
+never starts new issue work. **issue-round** starts issue work in background subagents, each of which opens its own
+pull request with `tools/pr-open.sh` and stops, and also takes red agent pull requests and finished branches with no
+pull request as jobs (`fix-red` and `open` lines of `node tools/issue-groups.mjs jobs`). Both read this file at the start of every round. Every change reaches master through
 its own pull request (CLAUDE.md, "Shipping a change").
 
 ## Hard rules
@@ -30,9 +30,8 @@ its own pull request (CLAUDE.md, "Shipping a change").
   the API directly; what it withholds is never fetched another way (#5719).
 - **Act as graphty-agent only.** Never read or use the owner's credentials (the credential guard hook refuses it);
   if the agent account cannot do something, it is an owner item.
-- **Never steer another session.** Coordinate through the `in-progress` label and markers; the one message allowed is
-  the status question to an idle claim's session (see "Idle claims"). Skip an issue another live session marked
-  `in-progress` while its claim is not idle.
+- **Never steer another session.** Coordinate through the `in-progress` label and markers, and send no messages.
+  Skip an issue whose claim the claims sweep judges live (see "Claims").
 - **Verify, never trust.** A subagent's summary, an exit status read through a pipe, or a run conclusion after re-runs
   is a claim. What counts: the commit exists, the pull request's state, `git merge-base --is-ancestor <sha>
 origin/master` (merged), the issue's state, what npm lists.
@@ -56,10 +55,9 @@ From the main checkout, `/home/apowers/Projects/graphty-monorepo`:
 
 ```bash
 git fetch -q --prune --no-tags origin
-# Keep the main checkout on master, so new sessions read master's CLAUDE.md, skills and settings. A merge, not a
-# fast-forward: `tools/live.sh workspace <commit>` puts a branch's change there before its pull request lands.
-[ "$(git symbolic-ref -q --short HEAD)" = master ] && [ -z "$(git status --porcelain -uno)" ] &&
-  git merge -q --no-edit origin/master || echo "main checkout NOT following master: $(git symbolic-ref -q --short HEAD)"
+# The main checkout follows master through `node tools/issue-groups.mjs check --fix` (tools/workspace-sync.mjs), and
+# every claim is judged by the claims sweep, which `jobs`, `idle` and `check --fix` also run when it is 30 minutes old.
+node tools/issue-groups.mjs check --fix | tail -3
 jq -r '"broker \(.fetchedAt) error=\(.error)", (.pullRequests[] | "#\(.number) \(.head) -> \(.base) draft=\(.draft) \(.state) \(.labels|join(","))")' tmp/pr-status/status.json
 d=tmp/${ROUND:-pipeline-round}; mkdir -p "$d"
 gh api graphql -f query='{
@@ -72,11 +70,9 @@ gh api graphql -f query='{
     nodes { ... on Issue { number title ...W } ... on PullRequest { number title headRefName ...W } } }
   held: search(type: ISSUE, first: 10, query: "repo:graphty-org/graphty-monorepo is:open is:issue in:title \"Release held:\"") {
     nodes { ... on Issue { number title ...W } } }
-  marked: search(type: ISSUE, first: 30, query: "repo:graphty-org/graphty-monorepo is:open is:issue label:in-progress") {
-    nodes { ... on Issue { number title ...W comments(last: 20) { nodes { createdAt body ...W } } } } }
 }
 fragment W on Comment { author { __typename login } editor { __typename login } lastEditedAt }' |
-  node tools/issue-queue.mjs filter | tee "$d/state.json"
+  node tools/issue-queue.mjs filter | tee "$d/round-state.json"
 gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --limit 3 \
   --json status,conclusion,headSha,url --jq '.[] | "\(.status) \(.conclusion) \(.headSha[0:9]) \(.url)"'
 gh run list -R graphty-org/graphty-monorepo --workflow deploy-pages.yml --status completed --limit 1 \
@@ -85,9 +81,9 @@ gh run list -R graphty-org/graphty-monorepo --workflow deploy-pages.yml --status
 gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json databaseId,conclusion,headSha --jq '.[]|"\(.databaseId) \(.conclusion) \(.headSha[0:9])"' | while read id c sha; do s=$c; if [ "$c" != success ]; then v=$(mktemp -d); gh run download $id -R graphty-org/graphty-monorepo -p 'verdict-*' -D $v >/dev/null 2>&1; s=$(jq -rs 'max_by(.attempt)|if .forward then "forward" elif .deferred or .state==null then "" else .state end' $v/*/*.json 2>/dev/null); [ -z "$s" ] && { [ "$c" = cancelled ] && continue; s=$c; }; fi; [ "$s" = forward ] && continue; echo "release.yml $s $sha run $id"; break; done
 ```
 
-issue-round runs the block with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json` and two clients do
-not overwrite each other. `marked` returns at most 30 issues with their last 20 comments each; when it returns 30,
-say so and work on what it returned. If git, the broker file or GitHub cannot be read, say so in one line and end the
+issue-round runs the block with `ROUND=issue-round` set, so it writes `tmp/issue-round/round-state.json` and two
+clients do not overwrite each other. The claims (every `in-progress` issue, judged live or dead) are in
+`tmp/issue-round/state.json`, which only the claims sweep writes (see "Claims"). If git, the broker file or GitHub cannot be read, say so in one line and end the
 round: unknown is a state, not "nothing to do". If the broker's `fetchedAt` is more than a few minutes old, start it
 (see "The GitHub API budget" in CLAUDE.md). master's build is **red** when the newest _completed_ run above failed (an
 in-progress run is no verdict). **Master is red** -- the owner's meaning (2026-10-26) -- when the newest full run's
@@ -103,11 +99,12 @@ is red.
 ## Renewing the loop
 
 A /loop is a CronCreate recurring job, and those expire after 7 days: the job fires one last time and is deleted,
-with no warning, and CronList never shows when a job was created. So at the start of every round the session renews
-its own loop. It keeps `tmp/<round name>/loop-created` (one line: the job id and an ISO time, written when the job is
-created; a one-client loop running both skills keeps it under `tmp/pipeline-round/`). When the file is missing, names
-a job CronList no longer shows, or is 6 days old or more: CronCreate a new recurring job with the same cron and prompt,
-CronDelete the old one if it is still listed, and rewrite the file.
+with no warning, and CronList never shows when a job was created. The PostToolUse hook `tools/loop-record-hook.mjs`
+records every round's CronCreate in `tmp/<round name>/loop-created` (JSON: id, session, cron, prompt, createdAt; a
+one-client loop running both skills keeps it under `tmp/pipeline-round/`), and the Stop hook
+`tools/issue-round-idle-hook.mjs` blocks that session once the record is 6 days old, with the exact CronCreate to run
+and the CronDelete after it. Do what it says; never write the file by hand. A loop started before the hook existed
+has no record: renew it by hand (CronCreate the same cron and prompt, then CronDelete the old id).
 
 **A lapsed issue loop.** issue-round writes `tmp/issue-round/last-round` every round (an ISO time and its session).
 Every pipeline-round reads it. When it is more than 75 minutes old and the owner did not stop that loop on purpose
@@ -137,11 +134,11 @@ base nobody has tested.
   before any issue job: issue-round starts no job while one waits for a slot. That holds whatever the slot count
   (`tmp/test-slots/.count`). Every pipeline-round also checks memory: when `free -g` shows under 10 GB available
   and `.count` says more than 4, it writes 4 there, so a raised count never outlives issue-round's loop.
-- **When master is green**, each pipeline-round opens the queued `ready` branches (its step 9), oldest first, one
-  after another while CI's runners allow (the `pipeline-health` MCP tool `runners`, checked again after each), each
-  through `tools/pr-open.sh`, which merges master first. Queued branches can conflict with each other as master moves:
+- **When master is green**, issue-round's `open` jobs open the queued `ready` branches (one job per branch, ready
+  over 2 hours with no pull request), while CI's runners allow (the `pipeline-health` MCP tool `runners`), each
+  through `tools/pr-open.sh`, which merges master first. While master is red an `open` job is not started. Queued branches can conflict with each other as master moves:
   an exit 2 goes to a fix subagent.
-- **No cap on the ready queue.** A cap stops issue work to protect master from a burst that step 9 already paces; on
+- **No cap on the ready queue.** A cap stops issue work to protect master from a burst the `open` jobs already pace; on
   2026-11-13 eighteen finished branches waited about 6 hours behind a red master while the queue was frozen.
 - **Master red for more than 1 hour with no fix job running is pipeline-round's first item**, including a red
   verdict with every test green (a full run whose benchmark job hit its time limit held everything for 5.3 hours on
@@ -177,7 +174,6 @@ right; it reads only trusted authors and orders markers by comment id.
 - `pipeline-round: reran <run id>`
 - `pipeline-round: released -- <reason>` (always with the `in-progress` label removed in the same step:
   `gh issue edit <n> --remove-label in-progress`)
-- `pipeline-round: asked session <session id> -- idle since <time>` (the status question; see "Idle claims")
 - `pipeline-round: diagnosis -- <root cause; where the fix goes>` (a read-only agent's finding, so the later fix is
   quick)
 - `pipeline-round: stranded branch <b> not opened -- <reason>`
@@ -187,33 +183,18 @@ right; it reads only trusted authors and orders markers by comment id.
 be reused, so the start time must match too):
 `jq -r --arg s <session id> 'select(.sessionId==$s) | "\(.pid) \(.procStart)"' ~/.claude/sessions/*.json | while read -r p t; do [ "$(awk '{print $22}' /proc/$p/stat 2>/dev/null)" = "$t" ] && echo alive; done | head -1`.
 
-**Stale.** An `in-progress` issue is stale when its session is not alive and its issue has no `ready` marker newer than its newest `taken` marker and no
-open pull request. A session's own job is stale when no background task of that session names it and its worktree has
-no commit or changed file since the `taken` marker. A stale issue with no commits on its branch is released (marker
-plus label removal) and goes back to issue-round; one with commits is a stranded branch for pipeline-round.
-
-**Idle claims.** A live session can move on and keep its claims forever (#6422 sat 43 hours, #6123 four days). A
-branch's **last activity** is the newest of: its last commit (`git log -1 --format=%cI origin/<b>`), its progress
-note's edit (the `<!-- branch-note: <b> -->` comment's `lastEditedAt`, else `createdAt`) and its issue's newest
-`pipeline-round:` marker. An `in-progress` issue whose branch has had no activity for 24 hours is idle, whether its
-session is alive or not:
-
-1. No `asked session` marker since the last activity: ask once. `SendMessage` to the owning session when `ListAgents`
-   finds it ("no activity on <b> since <time>: run `node tools/branch-note.mjs update` if you are still on it, or
-   release it"), and write `pipeline-round: asked session <id> -- idle since <time>` on the issue; when the session
-   cannot be found, that comment is the question.
-2. An `asked session` marker and still no activity after it, in a later round: no commits on the branch, release it
-   (`released -- idle since <time>, no answer`, label removed); commits, its branch is stranded (below).
-
-The alive check above still settles the dead-session case at once. For a `priority:critical` claim, issue-round's
-6-hour rule is measured from the branch's last activity, not the session's.
-
-**Label matches the last marker.** Releasing always removes `in-progress` in the same step, wherever release is
-described. Each round also checks `marked`: an open issue still labelled `in-progress` whose newest `pipeline-round:`
-marker is `released`, or whose only pull request merged with `Refs` and has no job running (its branch an ancestor of
-origin/master, no other open pull request or live claim names it), gets the label removed (#1577 and #5230 were left
-labelled). For the `Refs` case, first release it with a checklist of what is left, or close it with the evidence
-when nothing is.
+**Claims.** Every `in-progress` label is a claim, and `node tools/issue-queue.mjs claims --fix` (the claims sweep)
+is the one thing that releases a dead one. `issue-groups.mjs jobs`, `idle` and `check --fix` run it whenever
+`tmp/issue-round/state.json` is over 30 minutes old, so no round can skip it; it reads every claim (paged, no cap).
+A claim is live when ANY of these holds: an open pull request on its branch; a marker, commit or changed worktree
+file in the last 60 minutes; a test-slot ticket (held or waiting) in its worktree; a subagent transcript of its
+session that names its branch written in the last 30 minutes; or, for a session other than the issue round's, that
+session alive (see "Alive") and its branch active in the last 24 hours. The round's own session is always alive, so
+its liveness never holds a claim. A dead claim with no commits of its own is released (the `released` marker and the
+label removal in one step); one with commits is reported `stranded` and goes to the `open` or `fix-red` jobs, or to
+pipeline-round's stranded branches below; a label a `released` marker left on is removed. When GitHub cannot be read
+the sweep's line says `claims unknown`, which is a state, not "nothing to do". On 2026-11-17 about 140 claims held
+the queue at 49 of 403 open issues because the prose step that released them had not run for four days.
 
 **Stranded.** A pushed branch named for an open issue (`<type>/<n>-...`), with commits origin/master lacks
 (`git merge-base --is-ancestor origin/<b> origin/master` fails), no open pull request and no claim holding it (no
@@ -358,7 +339,7 @@ A red pull request whose failure master already has gets no fix job: it waits fo
 2026-11-14, 29 of 219 red pull-request runs (27 pull requests) failed only on a break inherited from master; one
 (#7688) held 4 pull requests, and each got its own fix job that debugged it from scratch.
 
-**Check before any fix job for a red pull request** (pipeline-round's step 8, issue-round's own red pull requests):
+**Check before any fix job for a red pull request** (issue-round's `fix-red` jobs):
 
 1. Name each failure: the failed check, and for a test job the failed tests (`file > name`).
 2. Read the `pipeline-health` MCP tool `master`, section `shared`: each row is a check failing on the same test in 2

@@ -22,6 +22,7 @@ import {
     createGroup,
     drift,
     emptyLedger,
+    fetchAgentPrs,
     fetchFacts,
     freeze,
     groupClass,
@@ -42,6 +43,7 @@ import {
     runningJobs,
     size,
     start,
+    summary,
     validate,
 } from "./issue-groups.mjs";
 
@@ -1488,21 +1490,32 @@ describe("the ledger file", () => {
 });
 
 describe("idle", () => {
-    const base = { running: 0, slots: { count: 4, held: 1, waitedMs: 0 }, load: 6, cores: 32, startable: 10 };
-    const taken = (id, session, branch, login) =>
-        comment(id, `pipeline-round: taken by session ${session}, branch ${branch}, worktree w -- x`, login);
+    const base = {
+        running: 0,
+        stuck: [],
+        sinks: {},
+        slots: { count: 4, held: 1, waitedMs: 0 },
+        load: 6,
+        cores: 32,
+        startable: 10,
+    };
 
     it("is idle with startable jobs, free slots, no long wait and load under the cores", () => {
         const v = idleVerdict(base);
         assert.equal(v.idle, true);
-        assert.equal(v.line, "idle: running 0, slots free 3 of 4, load 6/32, startable 10 -- start jobs");
+        assert.equal(v.line, "idle: running 0, stuck 0, slots free 3 of 4, load 6/32, startable 10 -- start jobs");
     });
 
-    it("is not idle when nothing is startable, the slots are full, a run waits or the load is high", () => {
+    it("reserves no slot for running jobs: startable 1, running 5 and 4 free is idle", () => {
+        const v = idleVerdict({ ...base, running: 5, startable: 1, slots: { count: 4, held: 0, waitedMs: 0 } });
+        assert.equal(v.idle, true);
+        assert.equal(v.reason, "start jobs");
+    });
+
+    it("is not idle when nothing is startable and no sink holds work, the slots are full, a run waits or the load is high", () => {
         const cases = [
             [{ startable: 0 }, "nothing startable"],
-            [{ running: 3 }, "the running jobs fill the free slots"],
-            [{ slots: { count: 4, held: 4, waitedMs: 0 } }, "the running jobs fill the free slots"],
+            [{ slots: { count: 4, held: 4, waitedMs: 0 } }, "no free test slot"],
             [{ slots: { count: 4, held: 1, waitedMs: 11 * 60_000 } }, "a run has waited 11 min for a slot"],
             [{ load: 32 }, "load is at or over the cores"],
         ];
@@ -1514,22 +1527,58 @@ describe("idle", () => {
         assert.equal(idleVerdict({ ...base, slots: { count: 0, held: 0, waitedMs: 0 } }).free, null);
     });
 
-    it("counts the session's own taken markers, one job per branch, and nothing after ready or released", () => {
-        const issues = new Map([
-            [1, { comments: [taken(1, "s1", "fix/1-a")] }],
-            [2, { comments: [taken(2, "s1", "fix/1-a")] }],
-            [3, { comments: [taken(3, "s1", "fix/3-b")] }],
-            [4, { comments: [taken(4, "s2", "fix/4-c")] }],
-            [5, { comments: [taken(5, "s1", "fix/5-d"), comment(6, "pipeline-round: ready fix/5-d abc")] }],
-            [6, { comments: [taken(7, "s1", "fix/6-e"), comment(8, "pipeline-round: released -- x")] }],
-            [7, { comments: [taken(9, "s1", "fix/7-f", "stranger")] }],
-            [8, { comments: [taken(10, "s10", "fix/8-g")] }],
-        ]);
-        assert.deepEqual(runningJobs(issues, "s1"), { jobs: 2, issues: [1, 2, 3] });
-        assert.deepEqual(runningJobs(issues, null), { jobs: 0, issues: [] });
+    it("is starved when nothing is startable, slots are free and a sink this session can clear holds work", () => {
+        const v = idleVerdict({ ...base, startable: 0, stuck: [{ n: 6673, hours: 45 }] });
+        assert.equal(v.idle, true);
+        assert.match(v.reason, /^starved: stuck 1 \(#6673 45h\)$/);
+        const sinks = { unopened: 2, stateAgeMs: 3 * HOUR, toolsBehind: "tools/issue-groups.mjs", workspace: "x" };
+        const all = idleVerdict({ ...base, startable: 0, sinks, info: "main checkout behind 3, ahead 0" });
+        assert.match(
+            all.reason,
+            /unopened 2 .*claims state 3 h old.*master changed tools\/issue-groups\.mjs.*main checkout x/,
+        );
+        assert.match(all.line, /; main checkout behind 3, ahead 0$/);
+        const full = idleVerdict({
+            ...base,
+            startable: 0,
+            stuck: [{ n: 1, hours: 2 }],
+            slots: { count: 4, held: 4, waitedMs: 0 },
+        });
+        assert.equal(full.idle, false, "no free slot: nothing to do yet");
+        assert.equal(
+            idleVerdict({ ...base, startable: 0, sinks: { stateAgeMs: HOUR } }).idle,
+            false,
+            "state 1 h old is fine",
+        );
     });
 
-    it("reads the open issues once and the markers of in-progress ones, exits 1 when idle and caches the verdict", () => {
+    it("counts only the session's live claims, one job per branch, and its dead ones with commits as stuck", () => {
+        const claims = [
+            { n: 1, kind: "taken", session: "s1", branch: "fix/1-a", live: true, action: null },
+            { n: 2, kind: "taken", session: "s1", branch: "fix/1-a", live: true, action: null },
+            { n: 3, kind: "restarted", session: "s1", branch: "fix/3-b", live: true, action: null },
+            { n: 4, kind: "taken", session: "s2", branch: "fix/4-c", live: true, action: null },
+            { n: 5, kind: "ready", session: "s1", branch: "fix/5-d", live: true, action: null },
+            {
+                n: 6673,
+                kind: "taken",
+                session: "s1",
+                branch: "fix/6673",
+                live: false,
+                action: "stranded",
+                at: NOW - 45 * HOUR,
+            },
+            { n: 7, kind: "taken", session: "s1", branch: "fix/7", live: false, action: "release", at: NOW - 2 * HOUR },
+        ];
+        assert.deepEqual(runningJobs(claims, "s1", NOW), {
+            jobs: 2,
+            issues: [1, 2, 3],
+            stuck: [{ n: 6673, hours: 45 }],
+        });
+        assert.deepEqual(runningJobs(claims, null, NOW), { jobs: 0, issues: [], stuck: [] });
+    });
+
+    it("reads the open issues once and the claims of the sweep, exits 1 when idle and caches the verdict", () => {
         const dir = tempDir();
         const ledgerPath = join(dir, "groups.json");
         const issue = (number, labels) => ({
@@ -1538,27 +1587,251 @@ describe("idle", () => {
         });
         const author = { __typename: "User", login: "graphty-agent" };
         const open = [issue(1, ["priority:high"]), issue(2, ["in-progress"])].map((i) => ({ ...i, author, body: "" }));
-        const asked = [];
+        const sweeps = [];
         const deps = {
             ledgerPath,
             now: NOW,
             fetchOpen: () => open,
             session: () => "s1",
-            markers: (numbers) => {
-                asked.push(numbers);
-                return new Map([[2, { comments: [taken(1, "s1", "fix/2-a")] }]]);
+            sweep: (force) => {
+                sweeps.push(force);
+                return {
+                    line: "claims: x",
+                    claims: [{ n: 2, kind: "taken", session: "s1", branch: "fix/2-a", live: true }],
+                };
             },
+            sinks: () => ({}),
             machine: () => ({ slots: { count: 4, held: 0, waitedMs: 0 }, load: 1, cores: 32 }),
         };
         const r = main(["idle"], deps);
         assert.equal(r.code, 1);
-        assert.equal(r.out, "idle: running 1, slots free 4 of 4, load 1/32, startable 1 -- start jobs");
-        assert.deepEqual(asked, [[2]]);
+        assert.equal(r.out, "idle: running 1, stuck 0, slots free 4 of 4, load 1/32, startable 1 -- start jobs");
+        assert.deepEqual(sweeps, [false]);
         const cached = JSON.parse(readFileSync(join(dir, "idle.json"), "utf8"));
         assert.equal(cached.at, NOW);
         assert.equal(cached.idle, true);
         const quiet = main(["idle", "--json"], { ...deps, fetchOpen: () => open.slice(1) });
         assert.equal(quiet.code, 0);
         assert.equal(JSON.parse(quiet.out).reason, "nothing startable");
+    });
+});
+
+describe("pipeline jobs", () => {
+    const pr = (number, extra = {}) => ({
+        number,
+        branch: `fix/${number}-x`,
+        author: "graphty-agent",
+        draft: false,
+        labels: [],
+        mergeable: "MERGEABLE",
+        checks: "FAILURE",
+        headAt: new Date(NOW - 7 * HOUR).toISOString(),
+        issues: [number - 1000],
+        priority: "medium",
+        markers: [],
+        ...extra,
+    });
+    const withPrs = (prs) => {
+        const l = fresh();
+        l.scannedAt = new Date(NOW).toISOString();
+        l.openPrs = { at: new Date(NOW).toISOString(), prs };
+        return l;
+    };
+
+    it("offers fix-red for an agent pull request red with a 7 h old head, ranked by the issues it blocks", () => {
+        const l = withPrs([pr(9001)]);
+        l.blocked = [{ issue: 1, prs: [9001], reason: "same file" }];
+        const r = ledgerJobs(l, q([1, "critical"], [2, "low"]), NOW);
+        const red = r.jobs.find((j) => j.kind === "fix-red");
+        assert.equal(red.pr, 9001);
+        assert.equal(red.priority, "critical");
+        assert.deepEqual(red.blocks, [1]);
+        assert.equal(r.jobs[0], red, "before the issue jobs of its priority");
+        assert.match(
+            jobLines(r)[0],
+            /^fix-red #9001 critical fix\/9001-x -- checks red, head 7 h old; blocks #1; issues #8001; attempts 0$/,
+        );
+        assert.match(jobLines(r).at(-2), /; 1 fix-red, 0 open$/);
+    });
+
+    it("offers nothing for a live fix attempt, a live claim, an inherited break, the owner's, a fresh head or a green one", () => {
+        const recent = { kind: "fix attempt", at: NOW - HOUR };
+        const prs = [
+            pr(9002, { markers: [recent] }),
+            pr(9003),
+            pr(9004, { markers: [{ kind: "inherited", at: NOW - 9 * HOUR }] }),
+            pr(9005, { author: "apowers313" }),
+            pr(9006, { headAt: new Date(NOW - HOUR).toISOString() }),
+            pr(9007, { checks: "SUCCESS" }),
+            pr(9008, { branch: "revert/abc1234" }),
+        ];
+        const claims = [{ n: 3, branch: "fix/9003-x", live: true }];
+        const r = ledgerJobs(withPrs(prs), q([1, "high"]), NOW, { claims });
+        assert.deepEqual(
+            r.jobs.filter((j) => j.kind),
+            [],
+        );
+        const old = ledgerJobs(
+            withPrs([
+                pr(9009, {
+                    markers: [
+                        { kind: "fix attempt", at: NOW - 8 * HOUR },
+                        { kind: "fix attempt", at: NOW - 7 * HOUR },
+                    ],
+                }),
+            ]),
+            [],
+            NOW,
+        );
+        assert.match(jobLines(old)[0], /2 fix attempts: close it, branch kept$/);
+    });
+
+    it("offers open for a ready branch with no pull request for over 2 h, never a landed or claimed one, capped at half the free slots", () => {
+        const l = withPrs([]);
+        for (const n of [1, 2, 3]) {
+            make(l, n);
+            start(l, `g${n}`, `fix/${n}-x`, NOW - 4 * HOUR);
+            ready(l, `g${n}`, `sha${n}`, NOW - 3 * HOUR);
+        }
+        make(l, 4);
+        start(l, "g4", "fix/4-x", NOW - 2 * HOUR);
+        ready(l, "g4", "sha4", NOW - HOUR);
+        const claims = [{ n: 2, branch: "fix/2-x", live: true }];
+        const isAncestor = (sha) => sha === "sha3";
+        const r = ledgerJobs(l, [], NOW, { claims, isAncestor });
+        assert.deepEqual(
+            r.jobs.map((j) => [j.kind, j.branch]),
+            [["open", "fix/1-x"]],
+        );
+        assert.match(jobLines(r)[0], /^open fix\/1-x none g1 -- ready sha1 3 h ago, no pull request; issues #1$/);
+        assert.equal(ledgerJobs(l, [], NOW, { isAncestor, free: 3 }).jobs.length, 1, "half of 3 free slots is 1");
+        assert.equal(ledgerJobs(l, [], NOW, { isAncestor, free: 1 }).jobs.length, 0);
+        assert.equal(
+            ledgerJobs({ ...l, openPrs: undefined }, [], NOW, { isAncestor }).jobs.length,
+            0,
+            "no pull request list",
+        );
+    });
+
+    it("drops a blocked entry once its pull request merged, and a free-text one 2 h after its scan", () => {
+        const l = withPrs([pr(9010)]);
+        l.blocked = [
+            { issue: 1, prs: [9010], reason: "file" },
+            { issue: 2, prs: [9011], reason: "file (merged)" },
+            { issue: 3, prs: [], reason: "owner-only?" },
+        ];
+        const offered = (now) =>
+            ledgerJobs(l, q([1, "high"], [2, "high"], [3, "high"]), now)
+                .jobs.filter((j) => !j.kind)
+                .flatMap((j) => j.issues);
+        assert.deepEqual(offered(NOW), [2]);
+        assert.deepEqual(offered(NOW + 3 * HOUR), [2, 3]);
+    });
+
+    it("fetches the open pull requests in one paged query with their markers", () => {
+        const agent = { __typename: "User", login: "graphty-agent" };
+        const c = (body, createdAt) => ({ body, createdAt, author: agent, editor: null, lastEditedAt: null });
+        const node = {
+            number: 9020,
+            headRefName: "fix/20-x",
+            isDraft: false,
+            createdAt: "2026-11-16T00:00:00Z",
+            mergeable: "CONFLICTING",
+            author: { login: "graphty-agent" },
+            labels: { nodes: [] },
+            commits: {
+                nodes: [{ commit: { committedDate: "2026-11-16T01:00:00Z", statusCheckRollup: { state: "FAILURE" } } }],
+            },
+            comments: { nodes: [c("pipeline-round: fix attempt fix/20-x abc -- x", "2026-11-16T03:00:00Z")] },
+            closingIssuesReferences: {
+                nodes: [
+                    {
+                        number: 20,
+                        labels: { nodes: [{ name: "priority:high" }] },
+                        comments: {
+                            nodes: [
+                                c("pipeline-round: inherited Lint > a -- waits on #1", "2026-11-16T02:00:00Z"),
+                                {
+                                    ...c("pipeline-round: inherited x", "2026-11-16T04:00:00Z"),
+                                    author: { __typename: "User", login: "stranger" },
+                                },
+                            ],
+                        },
+                    },
+                ],
+            },
+        };
+        const pages = [];
+        const run = (query) => {
+            pages.push(query);
+            const after = /after: "(\w+)"/.exec(query)?.[1];
+            return {
+                repository: {
+                    pullRequests: { pageInfo: { hasNextPage: !after, endCursor: "c1" }, nodes: after ? [] : [node] },
+                },
+            };
+        };
+        const [p] = fetchAgentPrs(run);
+        assert.equal(pages.length, 2);
+        assert.equal(p.priority, "high");
+        assert.equal(p.headAt, "2026-11-16T01:00:00Z");
+        assert.deepEqual(
+            p.markers.map((m) => m.kind),
+            ["inherited", "fix attempt"],
+        );
+        assert.equal(
+            fetchAgentPrs(() => ({ repository: {} })),
+            null,
+        );
+    });
+});
+
+describe("landed branches", () => {
+    it("closes a ready group whose ready commit landed off master's first-parent line, and nothing else", () => {
+        const l = fresh();
+        make(l, 1);
+        start(l, "g1", "fix/1-x", NOW);
+        ready(l, "g1", "merged-sha", NOW);
+        make(l, 2);
+        start(l, "g2", "fix/2-x", NOW);
+        ready(l, "g2", "open-sha", NOW);
+        make(l, 3);
+        start(l, "g3", "fix/3-x", NOW);
+        const landed = (sha) => sha === "merged-sha";
+        const facts = { issues: new Map(), prs: new Map(), landed };
+        const found = drift(l, facts, NOW).filter((d) => d.kind === "branch-merged");
+        assert.deepEqual(
+            found.map((d) => d.group),
+            ["g1"],
+        );
+        applyFix(l, found[0], NOW);
+        assert.equal(l.groups[0].state, "closed");
+    });
+
+    it("never closes a started group whose tip is a first-parent master commit", () => {
+        const l = fresh();
+        make(l, 1);
+        start(l, "g1", "fix/1-x", NOW);
+        // worktree-new.sh pushes a new branch at master's commit: landedOffLine is false for it, and a started group is
+        // never judged by ancestry at all
+        const facts = { issues: new Map(), prs: new Map(), landed: () => true };
+        assert.deepEqual(
+            drift(l, facts, NOW).filter((d) => d.kind === "branch-merged"),
+            [],
+        );
+    });
+
+    it("ends a wait on a branch whose tip, newer than the wait, landed on master", () => {
+        const l = fresh();
+        addWait(l, { n: 8197, on: "fix/8189-x", why: "same file", now: NOW });
+        addWait(l, { n: 8198, on: "fix/8190-x", why: "same file", now: NOW });
+        addWait(l, { n: 8199, on: "owner-figma", why: "owner", now: NOW });
+        const branchLanded = (b, since) => b === "fix/8189-x" && since === NOW;
+        const found = drift(l, { issues: new Map(), prs: new Map(), branchLanded }, NOW);
+        assert.deepEqual(
+            found.map((d) => [d.issue, d.kind, d.detail]),
+            [[8197, "wait-target-done", "fix/8189-x landed on master"]],
+        );
+        assert.match(summary(l), /; 1 owner-blocked$/);
     });
 });

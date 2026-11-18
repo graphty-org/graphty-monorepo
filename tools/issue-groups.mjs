@@ -45,15 +45,27 @@ import {
     closeSync,
 } from "node:fs";
 import { cpus, loadavg } from "node:os";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { fetchOpen, queue, runCli, trustedText } from "./issue-queue.mjs";
+import {
+    claimsCommand,
+    fetchOpen,
+    guardPaths,
+    mainRoot,
+    queue,
+    roundDir,
+    runCli,
+    trustedText,
+} from "./issue-queue.mjs";
 import { liveTickets, slotCount, slotDir } from "./test-slots.mjs";
+import { syncWorkspace } from "./workspace-sync.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
-const DEFAULT_LEDGER = fileURLToPath(new URL("../tmp/issue-round/groups.json", import.meta.url));
+// Resolved from git's common directory (issue-queue.mjs mainRoot), so a copy of this tool run from elsewhere reads the
+// main checkout's ledger.
+const defaultLedger = () => join(roundDir(), "groups.json");
 
 // The cap of a source group; docs and tests groups carry more (CAPS). Set from the 2026-11-16 measurement of
 // first-run failures per class (design/ci/issue-grouping.md section 1, "Size cap").
@@ -996,7 +1008,13 @@ const busyIssues = (ledger) => {
  * @param ledger the ledger
  * @param q the queue, from issue-queue.mjs queue()
  * @param now ms
- * @param options `{ everyMemberReviewed }`, default EVERY_MEMBER_REVIEWED
+ * Pipeline jobs come first among jobs of their priority, when check --fix has stored the open pull requests
+ * (`ledger.openPrs`): `fix-red` for each graphty-agent pull request red or conflicting with no head commit for 6 hours,
+ * and `open` for each ready branch whose ready commit is not on master and that has had no pull request for 2 hours.
+ * Neither is offered while a live claim holds its branch, nor `fix-red` after a fix attempt in the last 6 hours or an
+ * `inherited` marker (it waits on master's fix). They are capped at half the free slots.
+ * @param options `{ everyMemberReviewed, claims, isAncestor, free }`: the claims sweep's claims (state.json), git
+ *   ancestry on origin/master, the free test slots (no cap when left out)
  * @returns `{ jobs, rescan, stale }`
  */
 export function ledgerJobs(ledger, q, now, options = {}) {
@@ -1028,7 +1046,10 @@ export function ledgerJobs(ledger, q, now, options = {}) {
             });
         }
     }
-    const blocked = new Set((ledger.blocked ?? []).map((b) => b.issue));
+    const live = liveClaims(options.claims);
+    const blocked = new Set(
+        (ledger.blocked ?? []).filter((b) => blockActive(ledger, b, live, now)).map((b) => b.issue),
+    );
     const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n));
     const top = new Set(q.slice(0, 10).map((i) => i.number));
     let rescan = free.filter((n) => top.has(n));
@@ -1048,8 +1069,113 @@ export function ledgerJobs(ledger, q, now, options = {}) {
     const age = now - Date.parse(ledger.scannedAt ?? 0);
     const stale =
         Number.isNaN(age) || age > SCAN_STALE_MS ? `the last scan is older than 2 hours (${ledger.scannedAt})` : null;
-    return { jobs: out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead)), rescan, stale };
+    out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead));
+    return { jobs: withPipeJobs(out, pipeJobs(ledger, q, now, options, live)), rescan, stale };
 }
+
+const PRIORITIES = ["critical", "high", "medium", "low"];
+const prank = (p) => (PRIORITIES.includes(p) ? PRIORITIES.indexOf(p) : PRIORITIES.length);
+const BLOCK_TTL_MS = 2 * HOUR;
+const OPEN_AFTER_MS = 2 * HOUR;
+
+const liveClaims = (claims = []) => {
+    const live = claims.filter((c) => c.live);
+    return { branches: new Set(live.map((c) => c.branch).filter(Boolean)), issues: new Set(live.map((c) => c.n)) };
+};
+
+// A scan's blocked entry holds its issue only while what blocks it lasts: a pull request still open, a branch with an
+// open pull request or a live claim, a claim still live, a group still live. One naming none of those expires two
+// hours after the scan that wrote it. Pull requests are known only once check --fix stored them.
+const blockActive = (ledger, b, live, now) => {
+    const open = ledger.openPrs?.prs;
+    const prs = [...(b.prs ?? []), ...(b.pr ? [b.pr] : [])];
+    if (prs.length) return !open || prs.some((n) => open.some((p) => p.number === n));
+    if (b.branch) return (open ?? []).some((p) => p.branch === b.branch) || live.branches.has(b.branch);
+    if (b.claim) return live.issues.has(b.claim);
+    const g = b.group && ledger.groups.find((x) => x.id === b.group);
+    if (g) return isLive(g);
+    const age = now - Date.parse(ledger.scannedAt ?? 0);
+    return Number.isNaN(age) || age <= BLOCK_TTL_MS;
+};
+
+const bestPriority = (labelLists) =>
+    PRIORITIES.find((p) => labelLists.some((ls) => ls.includes(`priority:${p}`))) ?? "none";
+
+// The red agent pull requests and the finished branches no pull request opened (pipeline-round's old steps 8 and 9).
+const pipeJobs = (ledger, q, now, options, live) => {
+    const prs = ledger.openPrs?.prs;
+    if (!prs) return [];
+    const out = [...redJobs(ledger, prs, q, now, live), ...openJobs(ledger, prs, now, options, live)];
+    out.sort((a, b) => prank(a.priority) - prank(b.priority));
+    const cap = Number.isFinite(options.free) ? Math.floor(options.free / 2) : Infinity;
+    return out.slice(0, cap);
+};
+
+const redJobs = (ledger, prs, q, now, live) => {
+    const byNumber = new Map(q.map((i) => [i.number, i]));
+    const out = [];
+    for (const p of prs) {
+        if (p.author !== "graphty-agent" || p.draft || p.branch.startsWith("revert/") || p.labels.includes("hold"))
+            continue;
+        const red = ["FAILURE", "ERROR"].includes(p.checks) || p.mergeable === "CONFLICTING";
+        if (!red || now - Date.parse(p.headAt) < RED_PR_IDLE_MS || live.branches.has(p.branch)) continue;
+        const attempts = p.markers.filter((m) => m.kind === "fix attempt");
+        if (attempts.some((m) => now - m.at < RED_PR_IDLE_MS) || p.markers.at(-1)?.kind === "inherited") continue;
+        const blocks = (ledger.blocked ?? [])
+            .filter((b) => (b.prs ?? []).includes(p.number) && byNumber.has(b.issue))
+            .map((b) => b.issue);
+        const rank = Math.min(prank(p.priority), ...blocks.map((n) => prank(byNumber.get(n).priority)));
+        const why = [
+            p.checks === "FAILURE" || p.checks === "ERROR" ? "checks red" : "",
+            p.mergeable === "CONFLICTING" ? "conflicts" : "",
+        ]
+            .filter(Boolean)
+            .join(", ");
+        out.push({
+            kind: "fix-red",
+            pr: p.number,
+            branch: p.branch,
+            priority: PRIORITIES[rank] ?? "none",
+            issues: p.issues,
+            blocks,
+            attempts: attempts.length,
+            why: `${why}, head ${Math.round((now - Date.parse(p.headAt)) / HOUR)} h old`,
+        });
+    }
+    return out;
+};
+
+const openJobs = (ledger, prs, now, options, live) => {
+    const out = [];
+    for (const g of ledger.groups.filter((x) => x.state === "ready" && x.branch)) {
+        const ev = g.history.findLast((h) => h.event === "ready");
+        const since = Date.parse(ev?.at ?? g.readySince);
+        if (Number.isNaN(since) || now - since < OPEN_AFTER_MS || prs.some((p) => p.branch === g.branch)) continue;
+        if (live.branches.has(g.branch) || (ev?.sha && options.isAncestor?.(ev.sha))) continue;
+        const { issues, points } = size(g);
+        if (issues > CAPS[groupClass(g)].issues || points > CAPS[groupClass(g)].points) continue; // over-cap: split first
+        out.push({
+            kind: "open",
+            group: g.id,
+            branch: g.branch,
+            priority: PRIORITIES.find((p) => g.members.some((m) => m.priority === p)) ?? "none",
+            issues: g.members.map((m) => m.n),
+            why: `ready ${ev?.sha ?? "?"} ${Math.round((now - since) / HOUR)} h ago, no pull request`,
+        });
+    }
+    return out;
+};
+
+// Pipeline jobs go before the issue jobs of their own and lower priorities.
+const withPipeJobs = (issueJobs, pipe) => {
+    const out = [];
+    const rest = [...pipe];
+    for (const j of issueJobs) {
+        while (rest.length && prank(rest[0].priority) <= prank(j.priority)) out.push(rest.shift());
+        out.push(j);
+    }
+    return [...out, ...rest];
+};
 
 const hashes = (numbers) => numbers.map((n) => `#${n}`).join(" ");
 const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
@@ -1061,6 +1187,16 @@ const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
  */
 export function jobLines(result) {
     const lines = result.jobs.map((j) => {
+        if (j.kind === "fix-red") {
+            const close =
+                j.attempts >= 2 ? `; ${j.attempts} fix attempts: close it, branch kept` : `; attempts ${j.attempts}`;
+            const blocks = j.blocks.length ? `; blocks ${hashes(j.blocks)}` : "";
+            return ascii(
+                `fix-red #${j.pr} ${j.priority} ${j.branch} -- ${j.why}${blocks}; issues ${hashes(j.issues) || "none"}${close}`,
+            );
+        }
+        if (j.kind === "open")
+            return ascii(`open ${j.branch} ${j.priority} ${j.group} -- ${j.why}; issues ${hashes(j.issues)}`);
         if (j.unscanned) return `job ${hashes(j.issues)} ${j.priority} unscanned -- in no group of the ledger`;
         const pairs = j.issues.map((n, k) => n + ":" + j.tests[k]).join(" ");
         const tests = j.issues.length > 1 ? ` tests ${pairs}` : "";
@@ -1069,9 +1205,13 @@ export function jobLines(result) {
             `job ${hashes(j.issues)} ${j.priority} ${j.group}${tests} -- ${why}; files ${j.files.join(" ") || "none named"}`,
         );
     });
-    const issues = result.jobs.reduce((t, j) => t + j.issues.length, 0);
-    const grouped = result.jobs.filter((j) => j.issues.length > 1).length;
-    lines.push(`${result.jobs.length} jobs, ${issues} issues, ${grouped} grouped`);
+    const work = result.jobs.filter((j) => !j.kind);
+    const issues = work.reduce((t, j) => t + j.issues.length, 0);
+    const grouped = work.filter((j) => j.issues.length > 1).length;
+    const red = result.jobs.filter((j) => j.kind === "fix-red").length;
+    const open = result.jobs.filter((j) => j.kind === "open").length;
+    const pipe = red || open ? `; ${red} fix-red, ${open} open` : "";
+    lines.push(`${work.length} jobs, ${issues} issues, ${grouped} grouped${pipe}`);
     if (result.rescan.length || result.stale) {
         const why = result.stale ?? "not in the ledger";
         lines.push(`rescan: ${hashes(result.rescan) || "(none unscanned)"} -- start the free-queue scan (${why})`);
@@ -1116,7 +1256,8 @@ export function newestMarker(comments, skip = null) {
  * What differs between the ledger and GitHub, each with the fix `check --fix` applies (or none, to report only).
  * @param ledger the ledger
  * @param facts `{ issues: Map n -> { state, labels, comments }, prs: Map pr -> { state, mergeable, headAt, checks },
- *   diffs?: Map branch -> [path] }` (diffs of ready branches against master)
+ *   diffs?: Map branch -> [path], landed?: (sha) => boolean, branchLanded?: (branch, sinceMs) => boolean }` (diffs
+ *   of ready branches against master; landed: on master but not on its first-parent line)
  * @param now ms
  * @param isAncestor `(sha) => boolean`: whether a commit is on origin/master
  * @returns `[{ group, issue?, kind, detail, fix? }]`, fix one of the transition descriptors applied by applyFix()
@@ -1133,6 +1274,11 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
         out.push(...overCap(g, facts.diffs));
         if (g.state === "frozen") {
             out.push(...frozenDrift(ledger, g, facts.prs.get(g.pr), now));
+            continue;
+        }
+        const landed = readyLanded(g, facts);
+        if (landed) {
+            out.push(landed);
             continue;
         }
         out.push(...memberDrift(g, facts.issues));
@@ -1169,13 +1315,28 @@ export function waitPrRef(ledger, w) {
     return /^[\w.-]+\/[\w./-]+$/.test(branch) ? { branch } : null;
 }
 
-// Waits on a pull request that merged or closed end: nothing is left to wait for.
+// A READY group whose branch reached master another way (combined into a branch that merged): its ready commit is on
+// master but not on master's first-parent line. Only ready groups, and only by the ready commit: worktree-new.sh
+// pushes a new branch at master's own commit, so a started group's tip on master means nothing yet.
+const readyLanded = (g, facts) => {
+    if (g.state !== "ready" || !facts.landed) return null;
+    const sha = g.history.findLast((h) => h.event === "ready")?.sha;
+    if (!sha || !facts.landed(sha)) return null;
+    const detail = `${g.branch} ready at ${sha}, which is on master`;
+    return { group: g.id, kind: "branch-merged", detail, fix: { op: "close", merged: true } };
+};
+
+// Waits on a pull request that merged or closed end: nothing is left to wait for. So does a wait on a branch with a
+// commit newer than the wait that reached master another way.
 const prWaitDrift = (ledger, facts) =>
     liveWaits(ledger).flatMap((w) => {
         const ref = waitPrRef(ledger, w);
         const pr = ref?.pr ? facts.prs.get(ref.pr) : ref?.branch && facts.branchPrs?.get(ref.branch);
-        if (pr?.state !== "MERGED" && pr?.state !== "CLOSED") return [];
-        const why = `#${pr.number ?? ref.pr} ${pr.state === "MERGED" ? "merged" : "closed unmerged"}`;
+        const landed = ref?.branch && facts.branchLanded?.(ref.branch, Date.parse(w.since));
+        if (pr?.state !== "MERGED" && pr?.state !== "CLOSED" && !landed) return [];
+        let why = `${ref.branch} landed on master`;
+        if (pr?.state === "MERGED" || pr?.state === "CLOSED")
+            why = `#${pr.number ?? ref.pr} ${pr.state === "MERGED" ? "merged" : "closed unmerged"}`;
         return [
             {
                 group: null,
@@ -1710,7 +1871,10 @@ export function summary(ledger) {
     const waiting = liveWaits(ledger).length;
     const parked = ledger.groups.filter((g) => isLive(g) && g.parked).length;
     const grouped = ledger.groups.filter((g) => g.state === "frozen" && size(g).issues >= 2).length;
-    return `groups: ${c("started")} started, ${c("ready")} ready, ${waiting} waiting, ${c("frozen")} frozen, ${parked} parked, ${grouped} grouped PRs open; ${c("proposed")} proposed`;
+    // owner waits stay (only he ends them) but are named, so they never read as running work
+    const owner = liveWaits(ledger).filter((w) => /^owner/.test(String(w.on))).length;
+    const held = owner ? `; ${owner} owner-blocked` : "";
+    return `groups: ${c("started")} started, ${c("ready")} ready, ${waiting} waiting, ${c("frozen")} frozen, ${parked} parked, ${grouped} grouped PRs open; ${c("proposed")} proposed${held}`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1850,6 +2014,60 @@ export function fetchOpenPrs(branches, run = graphql) {
     return out;
 }
 
+const MARKER_KINDS = /^pipeline-round: (fix attempt|inherited|taken|released)\b/;
+const PR_TEXT = `createdAt body author ${ACTOR} editor ${ACTOR} lastEditedAt`;
+const AGENT_PRS = (after) => `query { repository(owner: "${OWNER}", name: "${NAME}") {
+  pullRequests(states: OPEN, first: 50${after ? `, after: "${after}"` : ""}) { pageInfo { hasNextPage endCursor }
+    nodes { number headRefName isDraft createdAt mergeable author { login } labels(first: 20) { nodes { name } }
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
+      comments(last: 20) { nodes { ${PR_TEXT} } }
+      closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } }
+        comments(last: 15) { nodes { ${PR_TEXT} } } } } } } } }`;
+
+/**
+ * Every open pull request with what the fix-red jobs need, one paged GraphQL query (no call per pull request): its
+ * branch, author, draft and labels, checks and mergeability, head commit time, the issues it closes and their best
+ * priority, and the trusted `fix attempt`, `inherited`, `taken` and `released` markers on it and on those issues,
+ * oldest first.
+ * @param run `(query) => data`
+ * @returns the records, or null when GitHub gave no pull request list
+ */
+export function fetchAgentPrs(run = graphql) {
+    const out = [];
+    let after;
+    do {
+        const page = run(AGENT_PRS(after))?.repository?.pullRequests;
+        if (!page) return null;
+        for (const p of page.nodes) {
+            const issues = p.closingIssuesReferences?.nodes ?? [];
+            const markers = [...(p.comments?.nodes ?? []), ...issues.flatMap((i) => i.comments?.nodes ?? [])]
+                .filter((c) => trustedText(c))
+                .map((c) => ({
+                    kind: MARKER_KINDS.exec((c.body ?? "").split("\n")[0])?.[1],
+                    at: Date.parse(c.createdAt),
+                }))
+                .filter((m) => m.kind)
+                .sort((a, b) => a.at - b.at);
+            const head = p.commits?.nodes?.[0]?.commit;
+            out.push({
+                number: p.number,
+                branch: p.headRefName,
+                author: p.author?.login ?? "ghost",
+                draft: p.isDraft,
+                labels: (p.labels?.nodes ?? []).map((l) => l.name),
+                mergeable: p.mergeable,
+                checks: head?.statusCheckRollup?.state ?? null,
+                headAt: head?.committedDate ?? p.createdAt,
+                issues: issues.map((i) => i.number),
+                priority: bestPriority(issues.map((i) => (i.labels?.nodes ?? []).map((l) => l.name))),
+                markers,
+            });
+        }
+        after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : undefined;
+    } while (after);
+    return out;
+}
+
 const gitOut = (args) => {
     try {
         return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -1857,17 +2075,24 @@ const gitOut = (args) => {
         return null;
     }
 };
+let firstParents = null;
+// On origin/master but not on its first-parent line: it landed through a merge, not as master's own commit.
+const landedOffLine = (sha) => {
+    const full = gitOut(["rev-parse", "--verify", "--quiet", `${sha}^{commit}`]);
+    if (!full || !gitAncestor(full)) return false;
+    firstParents ??= new Set((gitOut(["rev-list", "--first-parent", "origin/master"]) ?? "").split("\n"));
+    return !firstParents.has(full);
+};
 const GIT = {
     tip: (b) => gitOut(["rev-parse", "--verify", "--quiet", `origin/${b}`]),
     diff: (b) => (gitOut(["diff", "--name-only", `origin/master...origin/${b}`]) ?? "").split("\n").filter(Boolean),
-};
-
-// GUARD_PATHS of tools/pr-open.sh, read from the script so the two never drift apart.
-const readGuard = () => {
-    const text = readFileSync(fileURLToPath(new URL("./pr-open.sh", import.meta.url)), "utf8");
-    const m = /^GUARD_PATHS='([^']+)'/m.exec(text);
-    if (!m) throw new Error("GUARD_PATHS not found in tools/pr-open.sh");
-    return new RegExp(m[1]);
+    landed: landedOffLine,
+    // a branch whose tip, newer than `since`, reached master another way
+    branchLanded: (b, since) => {
+        const tip = gitOut(["rev-parse", "--verify", "--quiet", `origin/${b}`]);
+        if (!tip) return false;
+        return Number(gitOut(["log", "-1", "--format=%ct", tip]) ?? 0) * 1000 > since && landedOffLine(tip);
+    },
 };
 
 const gitAncestor = (sha) => {
@@ -1896,43 +2121,66 @@ const fallbackJobs = (rest) => {
 // jobs startable and test slots free).
 
 const SLOT_WAIT_LIMIT_MS = 10 * 60_000;
+const STATE_STALE_MS = 2 * HOUR;
+const SWEEP_EVERY_MS = 30 * 60_000;
+const BEHIND_LIMIT_MS = HOUR;
 
 /**
- * The fix jobs a session runs: issues whose newest state marker is that session's `taken`, one job per branch.
- * @param issues Map n -> `{ comments }` (fetchFacts with comments)
+ * The fix jobs a session runs, from the claims sweep: its live `taken` (or `restarted`) claims, one job per branch,
+ * and its dead ones as stuck (a dead claim with no commits is released by the sweep; what is left has commits).
+ * @param claims the sweep's claims (state.json)
  * @param session the session id
- * @returns `{ jobs, issues }`: the job count and the issue numbers
+ * @param now ms
+ * @returns `{ jobs, issues, stuck: [{ n, hours }] }`
  */
-export function runningJobs(issues, session) {
-    const branches = new Set();
-    const held = [];
-    if (!session) return { jobs: 0, issues: held };
-    for (const [n, f] of issues) {
-        const m = newestMarker(f.comments ?? []);
-        if (m?.kind !== "taken" || /^by session ([^,\s]+)/.exec(m.text)?.[1] !== session) continue;
-        held.push(n);
-        branches.add(m.branch ?? `#${n}`);
-    }
-    return { jobs: branches.size, issues: held.sort((a, b) => a - b) };
+export function runningJobs(claims, session, now = Date.now()) {
+    if (!session) return { jobs: 0, issues: [], stuck: [] };
+    const own = (claims ?? []).filter((c) => c.session === session && ["taken", "restarted"].includes(c.kind));
+    const live = own.filter((c) => c.live);
+    const stuck = own
+        .filter((c) => !c.live && c.action !== "release")
+        .map((c) => ({ n: c.n, hours: Math.round((now - c.at) / HOUR) }));
+    return {
+        jobs: new Set(live.map((c) => c.branch ?? `#${c.n}`)).size,
+        issues: live.map((c) => c.n).sort((a, b) => a - b),
+        stuck,
+    };
 }
 
+// The sinks this session can clear, as the words of a `starved` reason.
+const sinkParts = (stuck, sinks) => {
+    const ids = stuck.map((s) => `#${s.n} ${s.hours}h`).join(", ");
+    return [
+        stuck.length ? `stuck ${stuck.length} (${ids})` : null,
+        sinks.unopened ? `unopened ${sinks.unopened} ready branches over 2 h` : null,
+        sinks.stateAgeMs > STATE_STALE_MS ? `claims state ${Math.round(sinks.stateAgeMs / HOUR)} h old` : null,
+        sinks.toolsBehind ? `master changed ${sinks.toolsBehind}` : null,
+        sinks.workspace ? `main checkout ${sinks.workspace}` : null,
+    ].filter(Boolean);
+};
+
 /**
- * The idle verdict.
- * @param f `{ running, slots: { count, held, waitedMs }, load, cores, startable }`; slots.count 0 means no limit
+ * The idle verdict. Idle means the session should act now: jobs are startable and nothing on the machine says wait,
+ * or nothing is startable while test slots are free and a sink this session can clear holds work back (starved).
+ * @param f `{ running, stuck, sinks: { unopened, stateAgeMs, toolsBehind, workspace }, info, slots: { count, held,
+ *   waitedMs }, load, cores, startable }`; slots.count 0 means no limit
  * @returns `{ idle, reason, line, ...f, free }`
  */
 export function idleVerdict(f) {
     const free = f.slots.count === 0 ? Infinity : Math.max(0, f.slots.count - f.slots.held);
     const slots = f.slots.count === 0 ? "slots off" : `slots free ${free} of ${f.slots.count}`;
     const load = Math.round(f.load);
+    const stuck = f.stuck ?? [];
+    const parts = sinkParts(stuck, f.sinks ?? {});
     let reason = "start jobs";
-    if (f.startable === 0) reason = "nothing startable";
-    else if (f.running >= free) reason = "the running jobs fill the free slots";
+    if (f.startable === 0) reason = parts.length && free > 0 ? `starved: ${parts.join("; ")}` : "nothing startable";
     else if (f.slots.waitedMs > SLOT_WAIT_LIMIT_MS)
         reason = `a run has waited ${Math.round(f.slots.waitedMs / 60_000)} min for a slot`;
     else if (f.load >= f.cores) reason = "load is at or over the cores";
-    const idle = reason === "start jobs";
-    const line = `idle: running ${f.running}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} -- ${reason}`;
+    else if (free === 0) reason = "no free test slot";
+    const idle = reason === "start jobs" || reason.startsWith("starved");
+    const info = f.info ? `; ${f.info}` : "";
+    const line = `idle: running ${f.running}, stuck ${stuck.length}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} -- ${reason}${info}`;
     return { idle, reason, line, ...f, free: Number.isFinite(free) ? free : null };
 }
 
@@ -1959,22 +2207,104 @@ const lastRoundSession = (ledgerPath) => {
     }
 };
 
+const readJson = (path) => {
+    try {
+        return JSON.parse(readFileSync(path, "utf8"));
+    } catch {
+        return null;
+    }
+};
+
 /**
- * The facts of `idle`: the open issues once (the queue `jobs` reads), the comments of the in-progress ones once
- * (the marker read `check` makes), the test slots and the load from this machine.
- * @param c the command context
- * @returns the facts for idleVerdict(), plus `session` and `issues` (the running jobs' issues)
+ * The claims sweep, run when its state file is over 30 minutes old (or `force`): every command a round cannot skip
+ * (`jobs`, `idle`, `check --fix`) runs it, so no claim outlives its work for want of a prose step. It never refuses:
+ * when GitHub or git cannot be read, the line says `claims unknown` and the last state file's claims are used.
+ * @param dir the ledger's directory (state.json lives there)
+ * @param o `{ now, force }`
+ * @returns `{ line, claims, unknown }`
  */
-const idleFacts = (c) => {
+export function sweepIfStale(dir, o) {
+    const path = join(dir, "state.json");
+    const old = readJson(path);
+    const age = o.now - Date.parse(old?.sweptAt ?? 0);
+    if (!o.force && age < SWEEP_EVERY_MS) {
+        return { line: `claims: swept ${Math.round(age / 60_000)} min ago`, claims: old.claims ?? [] };
+    }
+    try {
+        const r = claimsCommand({ fix: true, now: o.now, dir });
+        return { line: r.out.split("\n").at(-1), claims: r.claims };
+    } catch (error) {
+        const msg = String(error.message).split("\n")[0];
+        return { line: `claims unknown (${msg})`, claims: old?.claims ?? [], unknown: true };
+    }
+}
+
+/**
+ * The sinks a round can clear, from this machine: how old the claims state is, whether master changed the round's own
+ * tools or skills since the main checkout last merged it, and the workspace sync's record.
+ * @param dir the ledger's directory
+ * @param now ms
+ * @returns `{ stateAgeMs, toolsBehind, workspace, info }`
+ */
+const machineSinks = (dir, now) => {
+    const state = readJson(join(dir, "state.json"));
+    const root = mainRoot();
+    let changed = [];
+    try {
+        const paths = ["tools/issue-*.mjs", ".claude/skills/issue-round", ".claude/skills/pipeline-round"];
+        changed = execFileSync("git", ["diff", "--name-only", "HEAD...origin/master", "--", ...paths], {
+            cwd: root,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+        })
+            .split("\n")
+            .filter(Boolean);
+    } catch {
+        // no origin/master here: nothing to compare
+    }
+    const sync = readJson(join(root, "tmp", "workspace-sync.json"));
+    let workspace = null;
+    if (sync?.conflict) workspace = "conflicts with master: merge it by hand";
+    else if (sync?.behind > 0 && now - Date.parse(sync.behindSince ?? sync.at) > BEHIND_LIMIT_MS)
+        workspace = `${sync.behind} commits behind master for over 1 h`;
+    return {
+        stateAgeMs: now - Date.parse(state?.sweptAt ?? 0),
+        toolsBehind: changed.length ? changed.join(" ") : null,
+        workspace,
+        info: sync ? `main checkout behind ${sync.behind}, ahead ${sync.ahead}` : null,
+    };
+};
+
+/**
+ * The facts of `idle`: the open issues once (the queue `jobs` reads), the claims sweep, the test slots and the load
+ * from this machine, and the sinks.
+ * @param c the command context
+ * @param sweep from sweepIfStale()
+ * @returns the facts for idleVerdict(), plus `session`, `issues` (the running jobs' issues) and `claims`
+ */
+const idleFacts = (c, sweep) => {
     const open = c.fetchOpen();
-    const inProgress = open
-        .filter((i) => (i.labels?.nodes ?? []).some((l) => l.name === "in-progress"))
-        .map((i) => i.number);
     const session = c.session();
-    const running = runningJobs(inProgress.length ? c.markers(inProgress) : new Map(), session);
-    const startable = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now).jobs.length;
     const machine = c.machine();
-    return { session, running: running.jobs, issues: running.issues, startable, ...machine };
+    const running = runningJobs(sweep.claims, session, c.now);
+    const free = machine.slots.count === 0 ? undefined : Math.max(0, machine.slots.count - machine.slots.held);
+    const options = { claims: sweep.claims, isAncestor: c.isAncestor, free };
+    const result = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now, options);
+    const { info, ...sinks } = c.sinks();
+    sinks.unopened = (sweep.claims ?? []).filter(
+        (x) => x.kind === "ready" && x.action === "stranded" && c.now - x.at > OPEN_AFTER_MS,
+    ).length;
+    const claimsInfo = sweep.unknown ? sweep.line : null;
+    return {
+        session,
+        running: running.jobs,
+        stuck: running.stuck,
+        issues: running.issues,
+        startable: result.jobs.length,
+        sinks,
+        info: [info, claimsInfo].filter(Boolean).join("; ") || null,
+        ...machine,
+    };
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -2124,7 +2454,7 @@ const COMMANDS = {
         return c.change((ledger) => ok(route(ledger, spec)));
     },
     "import-scan": (c) => {
-        const scan = JSON.parse(c.readFile(c.pos[0] ?? FREE_QUEUE));
+        const scan = JSON.parse(c.readFile(c.pos[0] ?? join(roundDir(), "free-queue.json")));
         return c.change((ledger) => {
             const r = importScan(ledger, scan, c.now);
             const alone = r.unreasoned ? `; ${r.unreasoned} members with no reason of their own started alone` : "";
@@ -2180,9 +2510,15 @@ const COMMANDS = {
     check: (c) => check(c.ledgerPath, c.o, c, c.now, c.isAncestor),
     jobs: (c) => {
         const ledger = readLedger(c.ledgerPath);
+        const sweep = c.sweep(false);
         if (!ledger.groups.length) return c.fallback(c.o.json ? ["--json"] : []);
-        const result = ledgerJobs(ledger, c.fetchQueue(), c.now);
-        return ok(c.o.json ? JSON.stringify(result, null, 2) : jobLines(result).join("\n"));
+        const { slots } = c.machine();
+        const free = slots.count === 0 ? undefined : Math.max(0, slots.count - slots.held);
+        const options = { claims: sweep.claims, isAncestor: c.isAncestor, free };
+        const result = ledgerJobs(ledger, c.fetchQueue(), c.now, options);
+        if (c.o.json) return ok(JSON.stringify(result, null, 2));
+        const prs = ledger.openPrs ? [] : ["pull requests unknown: run check --fix (no fix-red or open jobs)"];
+        return ok([...jobLines(result), ...prs, sweep.line].join("\n"));
     },
     "combine-plan": (c) => {
         const links = (c.o.link ?? []).map((arg) => {
@@ -2195,7 +2531,7 @@ const COMMANDS = {
     },
     metrics: (c) => metricsCommand(c),
     idle: (c) => {
-        const v = idleVerdict(idleFacts(c));
+        const v = idleVerdict(idleFacts(c, c.sweep(false)));
         // the Stop hook (tools/issue-round-idle-hook.mjs) reads this: the GitHub reads take ~10 s, too slow for a hook
         try {
             writeFileSync(`${dirname(c.ledgerPath)}/idle.json`, `${JSON.stringify({ at: c.now, ...v })}\n`);
@@ -2206,17 +2542,42 @@ const COMMANDS = {
     },
 };
 
-const FREE_QUEUE = fileURLToPath(new URL("../tmp/issue-round/free-queue.json", import.meta.url));
+/**
+ * The context entries that write to GitHub or the main checkout, or read the real pull requests. A caller that names
+ * its own ledger (a test) never reaches them unless it passes them too.
+ * @param deps the main() dependencies
+ * @param ledgerPath the ledger file
+ * @param now ms
+ * @param run the GraphQL runner
+ * @returns `{ sweep, sinks, sync, fetchPrs }`
+ */
+const sideEffects = (deps, ledgerPath, now, run) => {
+    const dir = dirname(ledgerPath);
+    const real = {
+        sweep: (force) => sweepIfStale(dir, { now, force }),
+        sinks: () => machineSinks(dir, now),
+        sync: () => syncWorkspace(mainRoot(), { now }),
+        fetchPrs: () => fetchAgentPrs(run),
+    };
+    const inert = {
+        sweep: () => ({ line: "claims: not swept", claims: [] }),
+        sinks: () => ({}),
+        sync: () => null,
+        fetchPrs: () => null,
+    };
+    const base = deps.ledgerPath ? inert : real;
+    return Object.fromEntries(Object.keys(real).map((k) => [k, deps[k] ?? base[k]]));
+};
 
 /**
  * The command line.
  * @param argv arguments after the script
  * @param deps `{ ledgerPath, run, now, fetchQueue, fetchOpen, readFile, isAncestor, fallback, metricsLog, git, guard,
- *   session, markers, machine }`
+ *   session, markers, machine, sweep, sinks, sync, fetchPrs }`
  * @returns `{ code, out }`
  */
 export function main(argv, deps = {}) {
-    const ledgerPath = deps.ledgerPath ?? (process.env.ISSUE_GROUPS_LEDGER || DEFAULT_LEDGER);
+    const ledgerPath = deps.ledgerPath ?? (process.env.ISSUE_GROUPS_LEDGER || defaultLedger());
     const now = deps.now ?? Date.now();
     const run = deps.run ?? graphql;
     let parsed;
@@ -2240,13 +2601,13 @@ export function main(argv, deps = {}) {
         isAncestor: deps.isAncestor ?? gitAncestor,
         fallback: deps.fallback ?? fallbackJobs,
         git: deps.git ?? GIT,
-        guard: deps.guard ?? readGuard,
+        guard: deps.guard ?? guardPaths,
         change: (fn) => mutate(ledgerPath, fn),
         facts: (numbers) => fetchFacts(numbers, [], run).issues,
         fetchOpen: deps.fetchOpen ?? (() => fetchOpen()),
         session: deps.session ?? (() => lastRoundSession(ledgerPath)),
-        markers: deps.markers ?? ((numbers) => fetchFacts(numbers, [], run, true).issues),
         machine: deps.machine ?? (() => ({ slots: slotFacts(now), load: loadavg()[0], cores: cpus().length })),
+        ...sideEffects(deps, ledgerPath, now, run),
     };
     try {
         return command(ctx);
@@ -2263,6 +2624,41 @@ const findingLine = (d) => {
     return `${d.group ?? "-"} ${issue}${d.kind}: ${d.detail}${fix}`;
 };
 
+// The open pull requests for the fix-red and open jobs; unreadable, they wait for the next check (jobs says so).
+const readOpenPrs = (ctx) => {
+    try {
+        return ctx.fetchPrs();
+    } catch (error) {
+        console.error(`issue-groups: open pull requests unreadable: ${String(error.message).split("\n")[0]}`);
+        return null;
+    }
+};
+
+// Each live member's priority, from its labels, for the open jobs (a ready group's members are out of the queue).
+const notePriorities = (ledger, issues) => {
+    for (const m of ledger.groups.filter((x) => isLive(x)).flatMap((g) => g.members)) {
+        const labels = issues.get(m.n)?.labels;
+        if (labels) m.priority = bestPriority([labels]);
+    }
+};
+
+// Applies each finding's fix, reporting the rest; returns whether a ready branch was found landed.
+const applyDrift = (ledger, found, now, lines) => {
+    for (const d of found) {
+        if (!d.fix) {
+            lines.push(`report ${findingLine(d)}`);
+            continue;
+        }
+        try {
+            lines.push(`fixed ${applyFix(ledger, d, now)}`);
+        } catch (error) {
+            if (!(error instanceof Refused)) throw error;
+            lines.push(`skipped ${d.group} ${d.kind}: ${error.message}`);
+        }
+    }
+    return found.some((d) => d.kind === "branch-merged");
+};
+
 /**
  * The `check` command: reads the facts once, then applies the fixes under the lock against the ledger as it is then.
  * @param ledgerPath the ledger file
@@ -2273,6 +2669,8 @@ const findingLine = (d) => {
  * @returns `{ code, out }`, code 1 when drift was found and not fixed
  */
 function check(ledgerPath, o, ctx, now, isAncestor) {
+    // the main checkout follows master from here, a command every round runs, never from a prose step it can skip
+    const synced = o.fix ? ctx.sync() : null;
     const ledger = readLedger(ledgerPath);
     const live = ledger.groups.filter((g) => isLive(g));
     const numbers = live.filter((g) => g.state !== "frozen").flatMap((g) => g.members.map((m) => m.n));
@@ -2283,6 +2681,8 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
     const facts = fetchFacts(numbers, prs, ctx.run, true, branches);
     const readyBranches = live.filter((g) => g.state === "ready" && g.branch).map((g) => g.branch);
     facts.diffs = new Map(readyBranches.map((b) => [b, ctx.git.diff(b)]));
+    if (ctx.git.landed) facts.landed = (sha) => ctx.git.landed(sha);
+    if (ctx.git.branchLanded) facts.branchLanded = (b, since) => ctx.git.branchLanded(b, since);
     if (!o.fix) {
         const found = drift(ledger, facts, now, isAncestor);
         if (o.json) return { code: found.length ? 1 : 0, out: JSON.stringify(found, null, 2) };
@@ -2290,23 +2690,19 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
         lines.push(`${found.length} differences, ${found.filter((d) => d.fix).length} fixable with --fix`);
         return { code: found.length ? 1 : 0, out: ascii(lines.join("\n")) };
     }
-    return mutate(ledgerPath, (current) => {
-        const lines = [];
-        for (const d of drift(current, facts, now, isAncestor)) {
-            if (!d.fix) {
-                lines.push(`report ${findingLine(d)}`);
-                continue;
-            }
-            try {
-                lines.push(`fixed ${applyFix(current, d, now)}`);
-            } catch (error) {
-                if (!(error instanceof Refused)) throw error;
-                lines.push(`skipped ${d.group} ${d.kind}: ${error.message}`);
-            }
-        }
+    const openPrs = readOpenPrs(ctx);
+    let landedAny = false;
+    const result = mutate(ledgerPath, (current) => {
+        const lines = synced?.line ? [synced.line] : [];
+        if (openPrs) current.openPrs = { at: new Date(now).toISOString(), prs: openPrs };
+        notePriorities(current, facts.issues);
+        landedAny = applyDrift(current, drift(current, facts, now, isAncestor), now, lines);
         lines.push(summary(current));
         return ok(ascii(lines.join("\n")));
     });
+    // a landed branch's issues still carry in-progress: the sweep releases them now (check makes no label writes)
+    const sweep = ctx.sweep(landedAny);
+    return { ...result, out: `${result.out}\n${ascii(sweep.line)}` };
 }
 
 runCli(import.meta.url, "issue-groups", main);

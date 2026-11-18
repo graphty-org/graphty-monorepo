@@ -1,15 +1,16 @@
 ---
 name: issue-round
-description: Use with /loop (for example `/loop 30m /issue-round`) to run one round of starting issue work in graphty-monorepo without the owner routing it -- pick the next open issue, or a group of related issues (up to its risk class cap), by priority, effort and age, mark them in-progress, and start one background subagent per job that fixes, commits, opens its pull request with tools/pr-open.sh and stops, as many at once as the machine's test slots and CI's runners have room for. It takes priority:critical and high issues before any medium or low one, never merges, reverts or fixes red pull requests of other sessions, and leaves pipeline-round's non-code alarms to it. Also use when changing this routine.
+description: Use with /loop (for example `/loop 30m /issue-round`) to run one round of starting issue work in graphty-monorepo without the owner routing it -- pick the next open issue, or a group of related issues (up to its risk class cap), by priority, effort and age, mark them in-progress, and start one background subagent per job that fixes, commits, opens its pull request with tools/pr-open.sh and stops, as many at once as the machine's test slots and CI's runners have room for. It takes priority:critical and high issues before any medium or low one, fixes red graphty-agent pull requests and opens finished branches as jobs of their own (fix-red, open), never merges or reverts, and leaves pipeline-round's non-code alarms to it. Also use when changing this routine.
 ---
 
 # One round of issue work
 
 Every change reaches master through its own pull request (see "Shipping a change" in CLAUDE.md). This skill only
 starts work: it picks issues, marks them and hands them to background subagents that fix, commit, open their pull
-request with `tools/pr-open.sh` and stop. The pipeline-round skill (`.claude/skills/pipeline-round/SKILL.md`) handles
-alarms and red pull requests whose session is gone. This skill **never** merges or reverts. It burns down
-`priority:critical` and `priority:high` issues first (step 2, "Strict priority order").
+request with `tools/pr-open.sh` and stop. It also owns the work that keeps finished work moving: every red or
+conflicting graphty-agent pull request (`fix-red` jobs) and every finished branch with no pull request (`open` jobs).
+The pipeline-round skill (`.claude/skills/pipeline-round/SKILL.md`) handles alarms. This skill **never** merges or
+reverts. It burns down `priority:critical` and `priority:high` issues first (step 2, "Strict priority order").
 
 **First read `.claude/skills/pipeline-round/shared.md`**: the hard rules, how to read the state (run its commands at
 the start of every round with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json`), the markers, the subagent rules, escalation and the
@@ -27,8 +28,9 @@ There is no fixed number of jobs. Fixes go through as fast as the two real bottl
 slots, where every job's local tests run, and CI's runners, where every pull request's checks run. A **job** is one
 branch: a single issue or a group.
 
-First tidy this session's own jobs: release its stale ones (see "Stale" in the shared file; a release always removes
-`in-progress` in the same step), or restart a subagent
+First tidy this session's own jobs. Dead claims with no commits are released by the claims sweep (see "Claims" in the
+shared file), which `issue-groups.mjs jobs`, `idle` and `check --fix` run; the idle line names this session's `stuck`
+jobs (dead, with commits). Restart a subagent
 on one whose branch has commits but no `ready` marker newer than its newest `taken` marker, writing a `restarted <branch>` marker on every issue of its
 group. A job that already has a `restarted` marker since its newest `taken` marker is not restarted again: release it
 with `released -- subagent died twice, branch <b> kept`. A job whose subagent is still running but whose worktree
@@ -36,13 +38,29 @@ has no commit and no changed file 60 minutes after its `taken` marker is stuck: 
 job (`released -- no work 60 min after taken`); the median job finishes in 11 minutes. A job whose newest marker is `ready` or `opened` is done here: its pull request (or pipeline-round, when it has
 none) takes it from there.
 
-**This session's red pull requests come before new issues.** At the start of the round and whenever any subagent
-reports, check this session's open pull requests (the broker file `tmp/pr-status/status.json`, or ONE GraphQL query
-for all of them) and start a fix job at once for each red or conflicting one that has no fix job running, before any
-new issue: a red pull request keeps its files blocked for every other issue (step 4). Its prompt follows
-`tmp/issue-round/red-pr-prompt.md` (main checkout). It counts against the limits below like any fix job. A pull
-request red only on a break master already has gets no job: link the master-break issue and update the branch when
-its fix merges ("Inherited failures" in `.claude/skills/pipeline-round/shared.md`).
+**Red pull requests and finished branches are jobs.** `node tools/issue-groups.mjs jobs` prints them among the
+issue jobs, before the issue jobs of their priority, from the open pull requests `check --fix` stored (a line
+`pull requests unknown` means run `check --fix` first). Both kinds count against the limits below like any fix job,
+at most half the free test slots, and both are claimed like any job (`issue-queue.mjs taken <branch> <worktree> <the
+branch's issues> --files <its changed files> --why "fix-red #<pr>"` or `"open <branch>"`), so no other round takes
+them while the job runs.
+
+- `fix-red #<pr> <priority> <branch> -- <why>; blocks #a ...; issues #b ...; attempts N`: a graphty-agent pull
+  request (never the owner's, never a master-guard revert) red or conflicting with no head commit for 6 hours, no
+  live claim, no `fix attempt` marker in the last 6 hours and not waiting on an inherited break. Ranked by the
+  priority of the issues it blocks: a red pull request keeps its files blocked for every other issue (step 4). First
+  check "Inherited failures" in the shared file; a pull request red only on a break master already has gets an
+  `inherited` marker and no job. Its prompt follows `tmp/issue-round/red-pr-prompt.md` (main checkout); the subagent
+  writes the `fix attempt` marker. Outside failures (see "Failure classes"): re-run the failed jobs once instead.
+  `2 fix attempts: close it, branch kept`: close the pull request with `pipeline-round: closed -- <reason>; branch
+kept` and give its issues a `released` marker with the evidence; never split it into a new pull request.
+- `open <branch> <priority> <group> -- ready <sha> <h> h ago, no pull request; issues #a ...`: a finished branch
+  whose ready commit is not on master, with no pull request for 2 hours and no live claim. Only while master is green
+  (step 1's runners check applies too); while it is red, skip it. Its subagent runs, from the branch's worktree (or a
+  new worktree of the branch), `tools/pr-open.sh --proof tmp/<name>/proof.md` with a Proof that cites the `ready`
+  marker and the tests the branch ran, and writes `opened`; a tip that moved past the `ready` sha is opened only when
+  every later commit is a merge of master. Exit 2 (a conflict with master): it merges origin/master, settles the
+  conflict and opens.
 
 **Combine finished branches before starting new ones.** Whenever branches sit finished and unopened (`ready`, no
 pull request), whatever master's state, combine their families into one branch each, so each family costs one CI run
@@ -109,6 +127,25 @@ is not a condition: it fills with idle memory from long-lived sessions and their
 even when nothing changes: `tools/test-slots.mjs` ignores a `.count` older than 2 hours, so a stopped loop's raised
 count lapses to the default. Lowering takes effect as runs end. The round's last line names the count.
 
+**Starved.** `node tools/issue-groups.mjs idle` exits 1 with `starved: <sinks>` when nothing is startable while test
+slots are free and something this session can clear holds the work. Clear each sink it names, then run `idle` again:
+
+- `stuck N (#n Hh, ...)`: this session's dead claims that have commits. Restart the job on its branch (`restarted`
+  marker, at most once) or release it with the branch kept, as above.
+- `unopened N ready branches over 2 h`: finished branches of this session with no pull request; start their `open`
+  jobs (they leave `jobs` only while a live claim holds them).
+- `claims state H h old`: the claims sweep has not written `tmp/issue-round/state.json` for over 2 hours. Run
+  `node tools/issue-queue.mjs claims --fix` and fix what makes it fail (a `claims unknown` line names it).
+- `master changed <files>`: master changed the round's tools or skills since the main checkout last merged it. Run
+  `node tools/issue-groups.mjs check --fix` (it syncs the checkout), then restart the loop so it reads them.
+- `main checkout conflicts with master` or `N commits behind master for over 1 h`: the sync could not merge. Open
+  pull requests for the workspace-only commits (`git log origin/master..HEAD` in the main checkout), then merge
+  origin/master there by hand, settling each conflict keeping both intents; never reset or stash.
+
+The line's tail (`main checkout behind B, ahead A`, `claims unknown`) is information, not a sink. The Stop hook
+`tools/issue-round-idle-hook.mjs` blocks the turn's end on an idle or starved verdict, and when the session wrote no
+verdict in 35 minutes.
+
 **Never leave a slot idle for want of a startable issue.** When free test slots exist but `issue-groups.mjs jobs` (step 2)
 has nothing startable (step 2's strict priority order holds back medium and low jobs while a critical or high issue
 is blocked), start the read-only diagnosis jobs below at once, without waiting for a later round; one
@@ -148,8 +185,8 @@ groups: 9 started, 16 ready, 8 waiting, 88 frozen, 0 parked, 24 grouped PRs open
 (`issue-groups.mjs jobs` prints the same three for what it offers); the `groups:` part is `node tools/issue-groups.mjs show`. Two GitHub calls give it, never one per issue:
 `gh issue list -R graphty-org/graphty-monorepo --state all --search "updated:>=<24 h ago, ISO>" --limit 300 --json number,createdAt,closedAt`
 (count the `createdAt` and `closedAt` inside the last 24 hours) and the `gh issue list -l bug --json number,labels`
-above. Claims without a pull request, their idle times (see "Idle claims" in the shared file) and the ready queue come
-from `tmp/issue-round/state.json` and the broker file. "Blocked by" is slots, load, memory, disk, runners, the
+above. Claims without a pull request, their idle times (the claims sweep's `claims` in
+`tmp/issue-round/state.json`) and the ready queue come from that file and the broker file. "Blocked by" is slots, load, memory, disk, runners, the
 GitHub budget or nothing. Each round also writes `tmp/issue-round/last-round` (one line: an ISO time and
 `$CLAUDE_CODE_SESSION_ID`), which pipeline-round reads to notice a lapsed loop.
 
@@ -202,7 +239,7 @@ Never read an issue around the tool (`gh issue view`, the API): `node tools/issu
 rounds had closed 161 low bugs and 160 high ones in 7 days while 13 of 20 open critical bugs had nobody on them):
 
 - [ ] Critical first. A `priority:critical` issue in the queue is taken before anything else when no live job works
-      it: no live `taken` marker (see "Stale" and "Idle claims" in the shared file), no open pull request naming it, and
+      it: no live claim (see "Claims" in the shared file), no open pull request naming it, and
       no `fix attempt` marker in the last 6 hours. The queue already drops the critical alarms that are not code work
       (alarm labels such as `release-status` and `ci-budget`, and the alarm titles in `ALARM_TITLES` in
       `tools/issue-queue.mjs`: red master, red full runs, nightly and release alarms, unsigned baselines; owner-review
@@ -232,8 +269,12 @@ taken only on the owner's order. The labels (owner, 2026-11-10):
 The owner's standing rules of 2026-11-13 (design/owner-standing-rules.md) order more enhancements without him: a
 non-breaking change to graphty-element or a library package whose default leaves the graphty app unchanged (rule 2),
 an issue he filed that states the result he expects (rule 3), and accessibility additions with no visible change or
-contrast fixes to defaults (rule 4). Before listing, label such an issue `ux-safe` (removing `ux-owner` or
-`needs-decision`) with a one-line comment `issue-round: ordered by owner rule <n> (2026-11-13) -- <why>`, so the
+contrast fixes to defaults (rule 4). Every round, `node tools/issue-queue.mjs list --held` lists the issues held only
+by `ux-owner`, `needs-decision`, `blocked` or an enhancement's missing ux label, with the owner's newest comment and
+the newest comment giving the reason; `MISHELD` marks one blocked only for `GUARD_PATHS` files of `tools/pr-open.sh`,
+which agents may edit (the owner only merges their pull requests): remove its `blocked` label with a one-line comment
+saying so. Before listing, label such an issue `ux-safe` (removing `ux-owner` or `needs-decision`) with a one-line
+comment `issue-round: ordered by owner rule <n> (2026-11-13) -- <why>`, so the
 queue offers it; a rule 3 or 4 job may change what users see, picks the remaining reversible details itself and
 states them in its pull request, and its screenshots go to the owner's review as usual. Rule 1 applies too: an
 issue that a standing rule decides, or with a comment recording his decision whose author is his own login
@@ -322,7 +363,7 @@ past its size test, or drop or duplicate an export.
 - a pull request red or conflicting (broker file) whose head commit's `committedDate` (in the query below) is more
   than 6 hours old, with no live `taken` marker and no
   `fix attempt` marker in the last 6 hours, and whose `Fixes`/`Refs` lines and branch issue do not name this job's
-  issues (an issue it names is in flight: step 2 skips it). Pipeline-round's step 8 fixes these first; once it writes a
+  issues (an issue it names is in flight: step 2 skips it). This round's `fix-red` jobs fix these first; once one writes a
   `fix attempt` marker the pull request counts again;
 - a draft, or a pull request labelled `hold`;
 - a pull request not by graphty-agent (the owner's long-lived branches, such as #1677 and #1975) older than 7 days
@@ -385,7 +426,7 @@ nothing for hours. Such an issue joins that branch:
   joins; it gets its own job.
 - **Mark** the job with `issue-queue.mjs taken <branch> <worktree> <every issue already on the branch> <new issues>
 --files ... --why "joins ready <branch>"`, so the newest marker on the branch's own issue is that `taken` and
-  pipeline-round's step 9 leaves the branch alone while the job runs. Work in the branch's worktree from its last
+  no `open` job is offered for the branch while the job runs. Work in the branch's worktree from its last
   `taken` marker, or a new one (`./tools/worktree-new.sh <branch> origin/<branch> <name>`); merge `origin/master`
   there first. The job adds its own commit with its own `Fixes #N` line, lists every issue of the branch in its Proof,
   and when done writes `pipeline-round: ready <branch> <full sha>` for the new head on every issue of the branch's
@@ -461,7 +502,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
   labelled `priority:high` naming it, whose fix lowers that class's cap by about a quarter (source to 3 issues and 4
   points); two breaches in a week make it `priority:critical`, and until it closes, group that class only by T1
   folds.
-- **A `ready` marker with no pull request** (the subagent's `pr-open.sh` failed): pipeline-round opens it (its step 9).
+- **A `ready` marker with no pull request** (the subagent's `pr-open.sh` failed, or master was red): after 2 hours
+  `jobs` offers it as an `open` job.
 - **A subagent released every issue of its group** (none reproduced, or all unrelated). The job is over: it holds no
   test slot and is not counted in step 1.
 - **A health dashboard member with no owner** (not ok in `health_status`, no open issue named for it, no open pull
@@ -490,12 +532,19 @@ Each: signal, meaning, action. Add to this list (see the next section).
 - **A claimed issue whose pull requests merged with `Refs` and no job running.** The rest of the issue never
   returns to the queue while `in-progress` stays on it: on 2026-11-04 twenty of this round's claims sat idle that
   way. Release it with a checklist of what is left, removing the label (or close it with the evidence when nothing
-  is), as the job prompt above now does for every `Refs` pull request; "Label matches the last marker" in the shared
-  file finds these every round.
+  is), as the job prompt above now does for every `Refs` pull request; the claims sweep releases any such claim left
+  with no open pull request and no commits of its own.
 - **An issue or comment from an untrusted account** (the tool drops or withholds it). No agent reads it, by any
   route. The owner decides whether to adopt it; he can re-file it.
 - **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-10-31 loop ran its last
-  round 2026-11-07 and nobody noticed for four days). Start it again and follow "Renewing the loop" in the shared file.
+  round 2026-11-07 and nobody noticed for four days). `tools/loop-record-hook.mjs` records each round's CronCreate and
+  the Stop hook asks for the renewal on day 6; a loop with no record is renewed by hand ("Renewing the loop" in the
+  shared file).
+- **Every round reports `0 jobs, nothing startable` while many issues are open.** On 2026-11-17 about 140 dead
+  claims, ten merged branches still `ready` in the ledger and a main checkout 465 commits behind master starved the
+  queue for about 15 hours, and the idle check read "nothing startable" as healthy. The claims sweep, the `open` and
+  `fix-red` jobs, the landed-branch check and the workspace sync now drain those in the commands every round runs;
+  the idle line reads `starved` when a sink is left.
 - **An issue held for the next major.** Since the owner's rule of 2026-11-10 (CLAUDE.md "Public API and breaking
   changes") nothing is held for a major: remove its `hold` or `blocked` label with a
   `pipeline-round: unheld -- breaking changes land as ordinary feat/fix commits since 2026-11-10` comment, and take it.

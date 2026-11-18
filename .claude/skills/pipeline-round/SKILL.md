@@ -1,6 +1,6 @@
 ---
 name: pipeline-round
-description: Use with /loop (for example `/loop 30m /pipeline-round`) to run one round of keeping graphty-monorepo's pipeline moving without the owner routing work -- react to a red master build and its master-guard reverts, a red 6-hour full run (bisect, revert, fix forward), flaky tests and base checks, CI budget alarms, held releases and failed publishes, the held nightly candidate and its promotion, owner items, red or conflicted agent pull requests, finished branches with no pull request, and check that finished worktrees are removed; escalate only what only the owner can do. It never starts new issue work (that is issue-round). Also use when changing this routine.
+description: Use with /loop (for example `/loop 30m /pipeline-round`) to run one round of keeping graphty-monorepo's pipeline moving without the owner routing work -- react to a red master build and its master-guard reverts, a red 6-hour full run (bisect, revert, fix forward), flaky tests and base checks, CI budget alarms, held releases and failed publishes, the held nightly candidate and its promotion, owner items, unarmed and dependabot pull requests, stranded branches, and check that finished worktrees are removed; escalate only what only the owner can do. It never starts new issue work, fixes red agent pull requests or opens finished branches (issue-round's fix-red and open jobs). Also use when changing this routine.
 ---
 
 # One round of the pipeline
@@ -135,7 +135,7 @@ A red master build comes first: it also blocks canary and the build cache every 
   reopen it as graphty-agent (`gh pr close <n> && gh pr reopen <n>`). When master is green again without it, close
   it with a one-line reason. After three failed fix attempts on one problem, keep master green by reverting the
   culprit and start the next attempt from a different approach, with the earlier attempts' evidence in its prompt.
-- **While master's build is red:** no other pull request is opened (steps 8 and 9 wait); the same holds while the
+- **While master's build is red:** no other pull request is opened (issue-round's `open` jobs wait); the same holds while the
   newest full run is red. Issue jobs keep working and queue `ready` branches, and master's fix takes a test slot
   first (see "While master is red" in the shared file).
 - **A critical issue no later step owns** is still this skill's alarm (issue-round also takes free code-work
@@ -285,27 +285,12 @@ several:
   old, and every pull request over 1,500 changed lines (tests and baselines not counted). Each is split into flagged
   pieces or its owner says why not, recorded with `tools/branch-note.mjs`. A warning, not a check.
 
-### 8. Red or conflicted agent pull requests
+### 8. Agent pull requests: unarmed and dependabot
 
-From the broker file (`tmp/pr-status/status.json`): every open pull request into master opened by graphty-agent
-(its `author`) whose `All Checks Pass` concluded `failure` on its head, that conflicts with master, or has unanswered
-review findings. A pull request anyone else opened -- the owner's, a master-guard revert (step 1) -- is not this step's: skip it.
-
-**Most-blocking first.** Order them by how many issues list them in `tmp/issue-round/free-queue.json`
-`blocked[].prs`, and start one fix subagent per red or conflicting pull request with no live owner, with no fixed
-number (only issue-round's step 1 limits on slots, load, memory and disk). Write the `fix attempt` marker when it
-starts: issue-round counts the pull request's files again from then on.
-
-- Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
-- Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
-  code or a conflict, mark the issue and start a fix subagent on the existing branch (fix prompt above), which merges
-  `origin/master` (never rebase), fixes and pushes.
-- **Inherited from master** (check this first, see "Inherited failures" in the shared file): link the master-break
-  issue with an `inherited` marker and start no fix job; once its fix merged, `PUT pulls/<n>/update-branch`.
-- **Close** a pull request that cannot go green after 2 fix attempts (or has 150 or more changed files): close it
-  with `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues
-  a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,
-  always merge"). Instead, pipeline-round may revert the red part on the same branch by an ordinary commit.
+Red or conflicting graphty-agent pull requests are issue-round's `fix-red` jobs, ranked by the issues they block
+(`node tools/issue-groups.mjs jobs`; prompt `tmp/issue-round/red-pr-prompt.md`). This step never starts a fix for one:
+on 2026-11-17 it reported "nothing has changed" while 59 of 88 pull requests were red, because the work sat here and
+issue-round was forbidden to do it.
 
 **Unarmed agent pull requests**, every round. One GraphQL query lists the open graphty-agent pull requests with
 `autoMergeRequest` and `timelineItems(itemTypes:[AUTO_MERGE_DISABLED_EVENT]){totalCount}`. This rule is only for a
@@ -326,23 +311,8 @@ wait for the owner. A red one is classified like an agent pull request.
 
 ### 9. Finished branches with no pull request
 
-A branch on GitHub with commits master lacks, no open pull request, and an issue with a `ready <branch> <sha>`
-marker and no later `opened <branch> ...` marker for that branch (a subagent whose `pr-open.sh` failed, or a job that
-stopped at its `ready` marker while master was red), and the issue still open. Later markers of these kinds do not
-excuse it: `fix attempt`, `inherited`, `reran`, `diagnosis`, `asked session`. A later `stranded branch <b> not
-opened`, `released`, `restarted` or newer `taken` marker does: skip the branch. A tip that moved past the `ready` sha
-is opened only when every commit after that sha is a merge of master, or when the session that owns the issue fails
-the "Alive" check; then cite both shas in the Proof. Any other later commit means a session is still working: skip. First combine the families of such branches into one
-branch each (issue-round step 1, "Combine finished branches"; a family it claims is marked `taken` at once, so its old
-branches are no longer opened here), then open what is left (never a branch `node tools/issue-groups.mjs check` reports
-`over-cap`) oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
-before any other (the `pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red,
-checked again after each one). `CI_PR_RUN_CAP` already limits how many
-pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);
-`pr-open.sh` merges master first. Run, from the branch's worktree (or a new worktree of the branch),
-`tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and the
-tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent. The round's last line names every
-branch opened and every one still waiting by issue number, and says which `ready` markers are over 24 h old.
+issue-round's `open` jobs (a ready branch whose ready commit is not on master, with no pull request for 2 hours). This
+step opens none. Branches with commits master lacks, for step 10:
 
 ```bash
 git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refname:short) %(committerdate:unix)' \
@@ -354,14 +324,10 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
 First `node tools/issue-groups.mjs check --fix` (issue-round runs it too; twice a round is harmless): it ends the
 waits of merged pull requests and makes their follow-up groups startable, dissolves groups whose pull request closed
 unmerged so their issues are routed again, and expires waits on a pull request red or conflicting with no new commit
-for 6 hours or held by the owner for over 24 (design/ci/issue-grouping.md section 4). Then, every round, over `marked`
-in the state file and the branch list above (no extra GitHub calls):
+for 6 hours or held by the owner for over 24 (design/ci/issue-grouping.md section 4), and runs the claims sweep (see
+"Claims" in the shared file), which releases dead claims with no commits and lists the stranded ones. Then, every
+round, over the sweep's `stranded` lines and the branch list above (no extra GitHub calls):
 
-- An `in-progress` issue that is stale (see "Stale" in the shared file) with no commits on its branch: write
-  `released -- <reason>` and remove the label in the same step, so issue-round can pick it again.
-- An idle claim (see "Idle claims" in the shared file): ask its session once, and in a later round with no answer
-  and still no activity, release it or treat its branch as stranded.
-- An issue whose label no longer matches its last marker (see "Label matches the last marker"): remove the label.
 - Every stranded branch (see "Stranded" in the shared file), every round, even when a step above acted or ended the
   round: a branch from the list above with no `ready` marker newer than its issue's newest `taken` marker, no pull request, no commit for a day, whose owner is
   provably gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened,

@@ -55,6 +55,16 @@
                         "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-area-rules.mjs\""
                     }
                 ]
+            },
+            {
+                "matcher": "CronCreate|CronDelete",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/loop-record-hook.mjs\"",
+                        "timeout": 5
+                    }
+                ]
             }
         ],
         "Stop": [

@@ -6,7 +6,9 @@
  * when an action has no row, so a new action is contract-tested the day it is generated.
  */
 
-import { fromEdgeArrays } from "@graphty/graph-format";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { defineSource, registerSource, registry } from "@graphty/graph-io";
 import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
@@ -191,22 +193,12 @@ const withSample = (): void => {
     }
 };
 
-/**
- * Answers every download with a two-node dataset file, until the test ends.
- * @returns When the file is ready.
- */
-async function answerDownloads(): Promise<void> {
-    const bytes = fromEdgeArrays({
-        directed: false,
-        nodeCount: 2,
-        src: new Uint32Array([0]),
-        dst: new Uint32Array([1]),
-        ids: ["d1", "d2"],
-    }).toBytes();
-    const zipped = await new Response(
-        new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")),
-    ).arrayBuffer();
-    vi.stubGlobal("fetch", () => Promise.resolve(new Response(zipped)));
+/** graph-samples' karate dataset, as graphty.app serves it (a made-up file fails its checksum). */
+const KARATE = readFileSync(resolve(__dirname, "../../../../graph-samples/dist/data/v1/karate.gsnp.gz"));
+
+/** Answers every download with the karate dataset file, until the test ends. */
+function answerDownloads(): void {
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(KARATE)));
 }
 
 /** A reference call for every action, by `tool.action`. */

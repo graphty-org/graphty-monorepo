@@ -1248,8 +1248,7 @@ class Neo4jImportSession {
             this.relationshipRow(section, reader, count);
         } else if (
             section.node !== null &&
-            (section.relationship === null ||
-                keyText(reader.cells, reader.quoted, section.node.idCells) !== null)
+            (section.relationship === null || keyText(reader.cells, reader.quoted, section.node.idCells) !== null)
         ) {
             this.nodeRow(section.node, reader, count);
         } else if (section.relationship !== null) {

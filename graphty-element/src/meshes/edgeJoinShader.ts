@@ -66,6 +66,7 @@
  * it, which is what dashing the centre line and then stroking each dash would draw.
  */
 
+import { EDGE_TRIM_GLSL, ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "./edgeTrim";
 import { PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
@@ -178,6 +179,10 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * `LEAN_TEMPLATE_OF`'s four vertices as six corners, instead of the join template's 30: the same rectangle and the same vertex shader after this, at fewer vertex
  * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
  * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
+ * With `EDGE_LINE_AA` (antialias "shader", on a canvas with no multisampling) the lean rectangle is
+ * half a pixel wider at each side, and the fragment stage multiplies the alpha by the share of the
+ * pixel the line covers, a smoothstep of its distance from the centre line: the smooth edge with no
+ * multisampling and no discard. Its ends stay square at the node centres, under the nodes.
  *
  * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
  * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
@@ -186,6 +191,96 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point draws
  * nothing, so an edge holds as many pieces as its longest cut.
  */
+/**
+ * A straight pulled piece's ends at translucent rows (#8281): a body drawn under opacity 1 shows the line through it,
+ * so the line leaves such a row where `Edge.leaveNode` says, at its drawn outline and border, and leaves any other
+ * row at its centre, which the body hides. Read per row from `rowExtent` (`RowTable.measure`): the seen-through flag,
+ * then the closed forms of `EDGE_TRIM_GLSL` (round, flat ellipse, box) or, for a flat shape with an outline of its
+ * own, its sides in `rowOutline`, as `surfaceReach` reads them. Nothing per edge is written on the CPU.
+ */
+export const PULLED_TRIM_GLSL = `
+uniform highp sampler2D rowExtent;
+uniform highp sampler2D rowOutline;
+${EDGE_TRIM_GLSL}
+
+// one function a table: WebGPU's GLSL takes no sampler as an argument
+vec4 pulledExtent(int i) {
+    return texelFetch(rowExtent, ivec2(i & 1023, i >> 10), 0);
+}
+
+vec4 pulledSide(int i) {
+    return texelFetch(rowOutline, ivec2(i & 1023, i >> 10), 0);
+}
+
+// shapeOutlines.rayReach: the farthest crossing of the outline's sides by a ray from its centre
+float pulledOutlineReach(float code, vec2 u) {
+    int named = int(code + 0.5);
+    int first = named >> 10;
+    int count = named & 1023;
+    float far = 0.0;
+    for (int i = 0; i < 1023; i++) {
+        if (i >= count) {
+            break;
+        }
+        vec4 side = pulledSide(first + i);
+        vec2 e = side.zw - side.xy;
+        float denom = u.x * e.y - u.y * e.x;
+        if (denom != 0.0) {
+            float t = (side.x * e.y - side.y * e.x) / denom;
+            float s = (side.x * u.y - side.y * u.x) / denom;
+            if (s >= 0.0 && s <= 1.0 && t > far) {
+                far = t;
+            }
+        }
+    }
+    return far;
+}
+
+// How far from a row's centre a line leaving it along dir starts: Edge.reachOf for a seen-through row, else 0.
+float pulledReach(int row, float w, vec3 dir) {
+    vec4 a = pulledExtent(row * 3);
+    int flags = int(a.w + 0.5);
+    if ((flags & ${String(ROW_EXTENT_SEEN_THROUGH)}) == 0) {
+        return 0.0;
+    }
+    vec4 b = pulledExtent(row * 3 + 1);
+    vec4 c = pulledExtent(row * 3 + 2);
+    vec3 halfSize = b.xyz * w;
+    if (c.w > 0.0 && halfSize.x > 0.0 && halfSize.y > 0.0 && (dir.x != 0.0 || dir.y != 0.0)) {
+        float reach = pulledOutlineReach(c.w, dir.xy / halfSize.xy);
+        if (reach > 0.0) {
+            return reach + a.z;
+        }
+    }
+    EdgeTrimEnd end;
+    end.radius = (flags & ${String(ROW_EXTENT_ROUND)}) != 0 ? a.y * w : -1.0;
+    end.halfSize = halfSize;
+    end.ellipse = (flags & ${String(ROW_EXTENT_ELLIPSE)}) != 0 ? 1.0 : 0.0;
+    end.border = a.z;
+    end.gap = 0.0;
+    end.measured = -1.0;
+    end.leaves = 0.0;
+    end.group = 0.0;
+    return edgeTrimReach(dir, end) + a.z;
+}
+
+// Edge.leaveNode at both ends: each moves toward the other by its reach, never past the other centre. No name here
+// may be one WGSL reserves ("from"): WebGPU's translation keeps the names, and its pipeline would be invalid.
+void pulledTrim(int fromRow, int toRow, float fromW, float toW, inout vec3 head, inout vec3 tail) {
+    vec3 line = tail - head;
+    float span = length(line);
+    if (span <= 0.0) {
+        return;
+    }
+    vec3 dir = line / span;
+    float fromReach = pulledReach(fromRow, fromW, dir);
+    float toReach = pulledReach(toRow, toW, -dir);
+    vec3 start = head + dir * min(fromReach, span);
+    tail = tail - dir * min(toReach, span);
+    head = start;
+}
+`;
+
 const PULLED_EDGE_GLSL = `
 #ifdef EDGE_PULLED
 uniform highp sampler2D rowPosition;
@@ -220,6 +315,7 @@ ${PULLED_CURVE_GLSL}
 const int PIECE_TEXELS = 4;
 #else
 const int PIECE_TEXELS = 2;
+${PULLED_TRIM_GLSL}
 #endif
 
 void pullEdge() {
@@ -273,6 +369,7 @@ void pullEdge() {
         if (a.w * b.w != 0.0) {
             pA = a.xyz;
             pB = b.xyz;
+            pulledTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, pA, pB);
         }
     }
     pPrev = pA;
@@ -365,6 +462,11 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+// The pixel's signed distance from the centre line and the line's drawn half width there, both in
+// pixels and times w, then w: divided by the interpolated w they are linear on screen.
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 attribute float runTotal;
@@ -616,7 +718,13 @@ void main() {
     float raw = atB ? rawB : rawA;
     bool joined = atB ? joinedB : joinedA;
 
+#ifdef EDGE_LINE_AA
+    // Half a pixel more on each side: the smoothed edge falls off from hw - 0.5 to hw + 0.5.
+    float across = side * (hw + 0.5);
+    vec2 off = n * across;
+#else
     vec2 off = side * n * hw;
+#endif
     bool onMiterLine = atB ? miterB : miterA;
     if (lenOwn <= EPS) {
         off = vec2(0.0);
@@ -694,6 +802,9 @@ void main() {
 
     vec2 here = sP + off;
     vScreen = vec4(here * cP.w, cP.w, hw);
+#ifdef EDGE_LINE_AA
+    vAcross = vec3(lenOwn > EPS ? across * cP.w : 0.0, hw * cP.w, cP.w);
+#endif
 
     float worldOwn = length(pB - pA);
     vOwn = vec4(sA, d);
@@ -752,6 +863,9 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 varying vec4 vEdgeColorA;
@@ -979,6 +1093,22 @@ void main() {
 #else
 #ifdef EDGE_PULLED
     gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);
+#ifdef EDGE_LINE_AA
+    // The share of the pixel the line covers, from its distance to the centre line: a smoothstep
+    // across one pixel at each side (antialias "shader", no multisampling). A line under a pixel
+    // wide is drawn a pixel wide and fainter (vWidth.z), so its whole profile still sums to its width.
+    float hwAA = vAcross.y / vAcross.z;
+    float acrossAA = abs(vAcross.x / vAcross.z);
+    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, acrossAA);
+#ifdef EDGE_LINE_AA_CUT
+    // In 3D a fragment writes depth however faint it is, and a farther line drawn after it fails
+    // the depth test there: drop the outer half of the fringe (coverage under about 0.16) and any
+    // fragment fainter than four levels in 255, so a faint or thin line cuts no hole in a farther one.
+    if (acrossAA > hwAA + 0.25 || gl_FragColor.a < 4.0 / 255.0) {
+        discard;
+    }
+#endif
+#endif
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);
 #endif

@@ -1,12 +1,13 @@
 import { ControlSection, PanelField, Popout, TargetTooltip } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
-import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { ControlLabel } from "./ControlLabel";
 import { shownChannel } from "./offered";
 import { GradientRow } from "./parts/GradientRow";
 import { Field, type RowContext } from "./PropertyRow";
@@ -176,7 +177,6 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
     const pending = descriptors.filter(
         (d) => !set.includes(d) && (waiting.includes(d.channel) || (joined && together.includes(d.channel))),
     );
-    const note = notAvailable(ctx, spec);
     // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
     // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
     const folded = new Set(
@@ -370,12 +370,6 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
                     ),
                 ])}
             </ControlSection>
-            {/* Outside the section's body, so it shows while the section sets nothing yet. */}
-            {note !== null && (
-                <Text size="xs" c="dimmed" px={16} pb={4} data-testid={`${ctx.side}-${spec.id}-note`}>
-                    {note}
-                </Text>
-            )}
         </div>
     );
 }
@@ -452,9 +446,9 @@ function ItemHead({
         <div className="ws-row ws-item-head" data-item={item.id}>
             <div className="ws-field" data-named="">
                 <span className="ws-field-label">
-                    <Text span size="xs" fw={600} className="ws-field-name">
+                    <ControlLabel span size="xs" fw={600} className="ws-field-name">
                         {item.name}
-                    </Text>
+                    </ControlLabel>
                 </span>
                 <div className="ws-field-control" />
                 <span className="ws-slot">{actions}</span>

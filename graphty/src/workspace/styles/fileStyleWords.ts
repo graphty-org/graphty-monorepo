@@ -1,16 +1,10 @@
 /**
  * The app's words for what a load did with a file's styles: each note of the load report
- * (`LoadReport.styles.notes`) and each style layer made from the file (its `fileStyleOf` facts).
+ * (`LoadReport.styles.notes`).
  * graphty-element returns codes and facts only; every sentence here is the app's.
  */
 
-import type {
-    ExportStyleLossCode,
-    FileStyleCode,
-    FileStyleNote,
-    FileStyleOrigin,
-    FileStyleReason,
-} from "@graphty/graphty-element/session";
+import type { ExportStyleLossCode, FileStyleCode, FileStyleNote } from "@graphty/graphty-element/session";
 
 import { property } from "../export/lossWords";
 import { count } from "../inspector/words";
@@ -67,33 +61,6 @@ export const STYLE_NOTE_WORDS: Readonly<Record<ImportStyleCode, string>> = {
 };
 
 /**
- * Why a layer copies the file's values, or how it was built, by reason code. Every code in the
- * element's `FILE_STYLE_REASONS` has an entry (a test enumerates them).
- */
-export const STYLE_REASON_WORDS: Readonly<Record<FileStyleReason, string>> = {
-    NO_EXPLANATION: "no column explains them",
-    STYLE_CLASS: "grouped by the styles elements share",
-    LAYER_CAP: "combined to keep the number of layers small",
-    SOURCE_NODE_COLOR: "each edge takes its source node's color, as the program draws it",
-    END_NODES_COLOR: "each edge takes the mix of its two nodes' colors, as the program draws it",
-    FILL_BORDER: "each node's border is a darker shade of its fill, as the program draws it",
-    NODE_SIZE_LABEL: "each node's label grows with the node, as the program draws it",
-    EDGE_WEIGHT: "each edge is as thick as its weight, as the program draws it",
-    END_NODE_COLORS: "each edge takes the mix of its two nodes' colors, as the program draws it",
-    NODE_FILL_SHADE: "each node is outlined in a shade of its fill, as the program draws it",
-    NODE_SIZE: "each value follows its node's size, as the program draws it",
-    NODE_POSITIONS: "each value follows how far apart the file places its nodes, as the program draws it",
-    NODE_NAME: "each node without a label shows its name, as the program draws it",
-    FUNCTION: "the file computes them with a function",
-    BUDGET: "they took too long to explain",
-    SELECTOR: "the file's selector was too complex to keep",
-    TABLE_SIZE: "the mapping table was too large to keep",
-    SCALE: "the file's scale cannot be kept as one",
-    CALCULATED: "they are calculated values",
-    RESULT_PATH: "they come from a value the file does not hold",
-};
-
-/**
  * One load note in words: what happened, where and how often.
  * @param note - a note of `LoadReport.styles.notes`.
  * @returns one sentence.
@@ -113,34 +80,4 @@ export function fileStyleNoteWords(note: FileStyleNote): string {
  */
 export function fileStyleNotesWords(notes: readonly FileStyleNote[]): string[] {
     return [...new Set(notes.map(fileStyleNoteWords))];
-}
-
-/**
- * A style layer made from a file, in words, from its facts.
- * @param origin - the layer's `fileStyleOf` facts.
- * @param columnName - the name of the column the layer reads, when the caller knows it.
- * @returns such as "From the file, by Modularity Class (9 values)".
- */
-export function fileStyleLayerWords(origin: FileStyleOrigin, columnName?: string): string {
-    const by = columnName === undefined ? "" : `, by ${columnName}`;
-    const reason: string | undefined = origin.reason === undefined ? undefined : STYLE_REASON_WORDS[origin.reason];
-    const because = reason === undefined ? "" : `: ${reason}`;
-    const elements = origin.elements === undefined ? "" : ` on ${count(origin.elements, "element")}`;
-    const classes = origin.classes === undefined ? "" : `, ${count(origin.classes, "class")}`;
-    const entries = origin.entries === undefined ? "" : ` (${count(origin.entries, "value")})`;
-    const distinct = origin.distinctValues === undefined ? "" : `, ${count(origin.distinctValues, "distinct value")}`;
-    switch (origin.role) {
-        case "defaults":
-            return origin.origin === "tool" ? "Defaults of the program that wrote the file" : "The file's defaults";
-        case "group":
-            return `A group from the file${elements}${classes}${because}`;
-        case "mapping":
-            return `From the file${by}${entries}`;
-        case "passthrough":
-            return `Copied from the file${by}${distinct}${because}`;
-        case "exceptions":
-            return `Exceptions from the file${elements}${because}`;
-        default:
-            return `From the file${by}${because}`;
-    }
 }

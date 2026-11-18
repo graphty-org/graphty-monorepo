@@ -66,12 +66,11 @@ Each package also has its own `npm run coverage:preview`.
 
 The monorepo uses shared configuration files in the root directory:
 
-| File                      | Purpose                                                         |
-| ------------------------- | --------------------------------------------------------------- |
-| `vite.shared.config.ts`   | Shared Vite config factory (build formats)                      |
-| `vitest.shared.config.ts` | Shared Vitest config factory (coverage thresholds, environment) |
-| `tsconfig.base.json`      | Shared TypeScript settings with project references              |
-| `eslint.config.js`        | Shared ESLint flat config                                       |
+| File                 | Purpose                                                        |
+| -------------------- | -------------------------------------------------------------- |
+| `vitest.base.mjs`    | Shared Vitest settings every package spreads in (`baseTest()`) |
+| `tsconfig.base.json` | Shared TypeScript settings with project references             |
+| `eslint.config.js`   | Shared ESLint flat config                                      |
 
 ### Lint
 
@@ -113,6 +112,7 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `pr-review.sh`                      | The fresh-context review `pr-open.sh` runs before it pushes; a blocking finding stops it (exit 3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `worktree-new.sh`                   | `<branch> [base] [name]`: a worktree in `.worktrees/<name>` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done. It needs the branch's issue (a number of three or more digits in the branch name, `--issue N`, or `--new-issue "<title>"`), pushes the new branch, labels the issue `in-progress` and writes the branch's progress note. The `design/**` images are LFS pointer files there (`--full-images`, or `git lfs pull --include "design/**"`, to get them)                                                                                                                                                                                                                                                                                                                                          |
 | `branch-note.mjs`                   | The branch's progress note on its issue: `update --done <t> --left <t> --next <t>` when you stop working                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `issue-groups.mjs`                  | The issue-group ledger (design/ci/issue-grouping.md): which issues are fixed together and why. `route`, `create`, `add`, `import-scan` (the free-queue scan), `jobs` (what issue-round starts), `check --fix` (follows the markers and pull request states), `start`/`ready`/`freeze`/`close`/`release`/`wait`, `archive`, `compact`, `metrics [--append]`, `show`; the ledger is `tmp/issue-round/groups.json`                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `issue-queue.mjs`                   | The only way an agent reads issues: `list [--limit N] [--json]` (the issue round's queue, trusted authors only), `show <n>` (untrusted comments withheld), `filter` (withholds untrusted text in a GraphQL answer)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `branch-push.sh`                    | Run by `.husky/post-commit`: pushes the current branch in the background after every commit (never master); a branch that moved on GitHub is not merged, `git pull` brings it in. Log: `tmp/branch-push.log` in the main checkout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `no-copy.sh`                        | Run by the commit and rebase hooks: refuses a cherry-pick or a rebase. Never copy, always merge                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -455,7 +455,7 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
 
 The `design/` directory contains architecture documentation:
 
-- `monorepo/monorepo-design.md` - Overall architecture
+- `README.md` - The index of every design directory
 - `ci/channels-pipeline.md` - The pipeline: pull requests, canary, nightly, production
 - `graph-format/graph-format-design.md` - The shared graph data format and the consumer migration
 - `graph-samples/graph-samples-design.md` - The generators and datasets package: API, the seed determinism contract, dataset hosting and licensing, roadmap
@@ -514,7 +514,5 @@ graphty-monorepo/
 |-- nx.json               # Nx configuration
 |-- pnpm-workspace.yaml   # pnpm workspace config
 |-- tsconfig.base.json    # Shared TypeScript config (project references)
-|-- vite.shared.config.ts # Shared Vite config factory
-|-- vitest.shared.config.ts # Shared Vitest config factory
 `-- eslint.config.js      # Shared ESLint config
 ```

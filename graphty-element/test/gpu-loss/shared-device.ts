@@ -7,25 +7,16 @@
 import "../../src/graphty-element";
 import "../../webgpu";
 
-import { Logger } from "@babylonjs/core";
 import { afterEach, assert, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
-import type { RecoveringWebGPUEngine } from "../../src/managers/RecoveringWebGPUEngine";
+import { mounted, unmount } from "./device-helpers";
+
+export { countUncaptured, deviceOf, mounted, unmount } from "./device-helpers";
 
 const NODES = Array.from({ length: 200 }, (_, i) => ({ id: `n${String(i)}` }));
 const EDGES = NODES.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i * 7 + 1) % 200)}` }));
-
-export const mounted: { graph: Graph; container: HTMLElement }[] = [];
-
-/** Disposes every graph the test built. */
-export function unmount(): void {
-    for (const { graph, container } of mounted.splice(0)) {
-        graph.dispose();
-        container.remove();
-    }
-}
 
 afterEach(() => {
     unmount();
@@ -175,24 +166,6 @@ export async function copied(graph: Graph): Promise<void> {
     while (table.copies <= before) {
         await nextFrame();
     }
-}
-
-/**
- * Counts Babylon's reports of an uncaptured device error from now on.
- * @returns The number so far.
- */
-export function countUncaptured(): () => number {
-    const warn = vi.spyOn(Logger, "Warn");
-    return () => warn.mock.calls.filter(([message]) => String(message).includes("uncaptured error")).length;
-}
-
-/**
- * The device the graph draws on.
- * @param graph - The graph.
- * @returns The device.
- */
-export function deviceOf(graph: Graph): Promise<GPUDevice> {
-    return (graph.engine as RecoveringWebGPUEngine).drawingDevice();
 }
 
 /**

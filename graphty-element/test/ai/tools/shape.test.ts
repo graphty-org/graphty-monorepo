@@ -22,6 +22,13 @@ describe("compactRecord", () => {
         assert.deepStrictEqual(compactRecord(edge, ["source", "data.latency", "latency"]), { source: "1" });
     });
 
+    it("returns every attribute for the field data, data.* or * (#8749)", () => {
+        const team = { id: "0", label: "BrighamYoung", conference: "Mountain West", value: 7 };
+        for (const whole of ["data", "data.*", "*"]) {
+            assert.deepStrictEqual(compactRecord(team, ["id", "label", whole]), team, whole);
+        }
+    });
+
     it("returns every field when none is asked for", () => {
         assert.deepStrictEqual(compactRecord(edge), edge);
     });

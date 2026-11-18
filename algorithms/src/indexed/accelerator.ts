@@ -43,7 +43,7 @@ import type { MaxFlowOptions, MaxFlowResult, MinCutResult } from "./flow.js";
 import type { GirvanNewmanOptions, GirvanNewmanResult } from "./girvan-newman.js";
 import { checkHitsOptions, type HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
-import { checkKatzOptions, type KatzOptions } from "./katz.js";
+import { checkKatzOptions, katzAlpha, type KatzOptions, katzRadiusBound } from "./katz.js";
 import type { LabelPropagationOptions, SynchronousLabelPropagationOptions } from "./label-propagation.js";
 import type { LeidenOptions, LeidenResult } from "./leiden.js";
 import type { LinkPredictionOptions, LinkPredictionResult } from "./link-prediction.js";
@@ -652,38 +652,27 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * radius sqrt(d), not d -- so one busy node does not keep a graph off the accelerator.
  * @param s - The snapshot
  * @param options - The caller's port options
+ * @param alpha - The alpha the run uses: the caller's, or the one `katzAlpha` derives
  * @returns True when the call may go to the accelerator
  */
-function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined): boolean {
+function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined, alpha: number): boolean {
     checkKatzOptions(s, options);
-    if (options?.normalized === false || options?.alpha === 0) {
+    if (options?.normalized === false || alpha === 0) {
         return false;
     }
     const rev = s.reverse();
     const weights = options?.weighted === true ? rev.weights : null;
-    const totals = new Float64Array(s.nodeCount);
     let first: number | undefined;
     let uneven = false;
     for (let v = 0; v < s.nodeCount; v++) {
         let inWeight = 0;
         for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
             inWeight += weights === null ? 1 : weights[a];
-            totals[v] += weights === null ? 1 : Math.abs(weights[a]);
         }
         first ??= inWeight;
         uneven ||= inWeight !== first;
     }
-    if (!uneven) {
-        return false;
-    }
-    let largest = 0;
-    for (let v = 0; v < s.nodeCount; v++) {
-        for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
-            largest = Math.max(largest, totals[v] * totals[rev.colIdx[a]]);
-        }
-    }
-    const alpha = options?.alpha ?? 0.1;
-    return alpha * alpha * largest < 1;
+    return uneven && alpha * katzRadiusBound(s, options?.weighted === true) < 1;
 }
 
 /**
@@ -873,18 +862,21 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.kCoreDecomposition !== undefined
                 ? acc.kCoreDecomposition(s)
                 : Promise.resolve(indexed.kCoreDecomposition(s)),
-        katzCentrality: (s, options) =>
-            acc?.katzCentrality !== undefined && acceleratorAnswersKatz(s, options)
+        katzCentrality: (s, options) => {
+            // Resolved here so the accelerator runs the alpha the port would, not a default of its own.
+            const alpha = acc?.katzCentrality === undefined ? undefined : katzAlpha(s, options);
+            return acc?.katzCentrality !== undefined && alpha !== undefined && acceleratorAnswersKatz(s, options, alpha)
                 ? acc
                       .katzCentrality(s, {
-                          alpha: options?.alpha,
+                          alpha,
                           beta: options?.beta,
                           maxIterations: options?.maxIterations,
                           tolerance: options?.tolerance,
                           weighted: options?.weighted === true,
                       })
                       .then((like) => finishKatz(like, options))
-                : Promise.resolve(indexed.katzCentrality(s, options)),
+                : Promise.resolve(indexed.katzCentrality(s, options));
+        },
         hits: (s, options) =>
             acc?.hits !== undefined && passes(checkHitsOptions, s, options)
                 ? acc

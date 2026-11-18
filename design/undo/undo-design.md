@@ -1,7 +1,10 @@
 # Undo and redo in graphty-element
 
 GitHub issue #427. Related: #197 (the graphty app's Undo button reverts nothing) and #337 (the
-command vocabulary for the `./commands` entry point, not yet implemented).
+command vocabulary for the `./commands` entry point, which graphty-element exports since 2.0.0).
+
+Status: implemented in graphty-element 3.0.0 (`session.undo()`, `session.redo()`, `session.history`,
+`session.transaction()`); the journal behind them is `graphty-element/src/session/journal.ts`.
 
 Paths are relative to the repository root. Line numbers are those of branch `feat/element-undo`
 at its base commit, `082ecf35`. The four inventories beside this document list every mutation path

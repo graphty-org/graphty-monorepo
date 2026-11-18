@@ -10,6 +10,7 @@
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
 import type { AiPointing } from "@graphty/graphty-element/ai";
 import type { AiResultCode, AiResultParams, GeneratorParams } from "@graphty/graphty-element/catalog";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
@@ -18,6 +19,7 @@ import type {
     LoadDraft,
     NoteTargetInput,
     ScopeInput,
+    ScoreTerm,
     SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
@@ -307,6 +309,13 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
+    /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
+    readonly recording: boolean;
+    /**
+     * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
+     * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
+     */
+    readonly followSelection: boolean;
     /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
@@ -315,6 +324,10 @@ export interface WorkspaceState {
     readonly exportOn: "image" | "nodes" | "edges";
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
+    /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
+    readonly analyzeValues: Readonly<Record<string, unknown>> | null;
+    /** The terms the Custom score dialog opens with (a result's Combine into a score...), else null. */
+    readonly scoreOn: { readonly kind: "node" | "edge"; readonly terms: readonly ScoreTerm[] } | null;
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
@@ -436,10 +449,14 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
+    recording: "fresh: a recording ends with the page that ran it",
+    followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
+    analyzeValues: "fresh: set when a result's Run again with changes... opens Analyze",
+    scoreOn: "fresh: set when a result's Combine into a score... opens the Custom score dialog",
     serverEdit: "fresh: set when the server form opens",
     singleKeyShortcuts: "fresh: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read from this browser's settings at start",
@@ -546,10 +563,14 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
+    recording: false,
+    followSelection: true,
     exportOn: "image",
     exportSource: null,
     serverKind: null,
     analyzeOn: null,
+    analyzeValues: null,
+    scoreOn: null,
     serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,
@@ -656,6 +677,12 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
         get: () => state,
         set: (change) => {
             const given = typeof change === "function" ? change(state) : change;
+            if (given.notice !== undefined && given.notice !== null) {
+                GraphtyLogger.getLogger(["graphty", "workspace"]).info("notice", {
+                    message: given.notice.message,
+                    error: given.notice.error === true,
+                });
+            }
             // A notice that is not a failure is spoken once, politely, by the status line (its
             // toast is not an alert); a failure's toast is its own alert. A write that says its
             // own words keeps them.

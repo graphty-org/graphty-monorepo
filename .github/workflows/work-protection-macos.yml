@@ -237,10 +237,14 @@ jobs:
               env: { HUSKY: "0" }
             - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
+            # A Simulator's first boot on a fresh runner took 3 minutes in one run and 22 in another (issue #8852).
+            # Booted here, it does not count against the test file's guard, which in the test file's beforeAll it
+            # used up; bootstatus ends when the boot is complete, and this step prints how long it took.
+            - name: Boot the iOS Simulator
+              run: node test/lifecycle/simulator.ts
             - name: App switch, memory warning, Safari or its web content process killed, return to a discarded tab
               timeout-minutes: 30
-              # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them (vitest's
-              # lifecycle project allows them with GRAPHTY_LIFECYCLE_MACOS set).
+              # Safari's first launch takes minutes: the step's limit bounds it.
               run: cd .. && node tools/results/run-group.mjs macos-ios-lifecycle "cd graphty-element && pnpm exec vitest run --project=lifecycle test/lifecycle/ios-simulator.test.ts"
             - name: Keep the Simulator's screen and Safari's log of a failed scenario
               if: failure()

@@ -36,6 +36,7 @@ import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { ANNOTATIONS_VALUE, drawnAnnotationsOf } from "./annotations";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
 import {
     assetChoices,
@@ -69,12 +70,6 @@ import {
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import { computeFingerprint } from "./statistics";
-import {
-    asFileStyleStore,
-    FILE_STYLES_VALUE,
-    type FileStyleLoadValues,
-    fileStyleValuesOf,
-} from "./styles/fileStyles/store";
 import type {
     DataSourceInput,
     GraphSession,
@@ -82,6 +77,7 @@ import type {
     LoadedSource,
     ProjectConfigPatch,
     ProjectSlice,
+    ScoreTerm,
     TransactionScope,
 } from "./types";
 import { valueLabelOf } from "./valueLabels";
@@ -871,27 +867,11 @@ function withoutKeys<T extends Readonly<Record<string, unknown>>>(record: T, key
  * was declared, what each declared column measures (a field with its own version, so a file
  * without it still opens).
  * @param sources - The session and its dispatcher.
- * @param ids - The graph's ids, or a function that reads them (called only when a file-style load
- * holds an edge column).
  * @returns The member.
  */
-export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => GraphIds)): Record<string, unknown> {
+export function sessionMember(sources: ProjectSources): Record<string, unknown> {
     const { session, dispatcher } = sources;
-    // The file-style values, an edge named by its position in the data as a run's edges are. The
-    // edge ids are read only when a load holds an edge column, as for the view state.
-    let edgeAt: Map<EdgeId, number> | undefined;
-    const indexOf = (edge: EdgeId): number => {
-        edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]));
-        return edgeAt.get(edge) ?? -1;
-    };
-    const fileStyles = fileStyleValuesOf(asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE))).map(
-        (load) => ({
-            ...load,
-            columns: load.columns.map((column) =>
-                column.kind === "node" ? column : { ...column, ids: column.ids.map((id) => indexOf(id as EdgeId)) },
-            ),
-        }),
-    );
+    const annotations = drawnAnnotationsOf(dispatcher.state.graph.values.get(ANNOTATIONS_VALUE));
     const { layout, visibility } = session;
     const columnSettings = dispatcher.state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
     const issueState = dispatcher.state.graph.values.get(ISSUES_VALUE) as IssueState | undefined;
@@ -929,6 +909,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                 ? {}
                 : { hidden: dispatcher.state.visibility.hidden }),
         },
+        // Whether the timeline has written its Timeline Hidden row, always written (outside `config`, so
+        // an older reader ignores it): a file without it was saved when every project with the
+        // starting rows had the row (`timelineRowWritten`).
+        timelineHiddenAdded: session.config.timelineHiddenAdded,
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
         // Written only when a value is named, so a project without names saves as before.
@@ -941,8 +925,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                   })),
               }),
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
-        // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
-        ...(fileStyles.length === 0 ? {} : { fileStyles }),
+        // Additive: a project with no annotations writes nothing here.
+        ...(annotations === null
+            ? {}
+            : { [ANNOTATIONS_VALUE]: { scale: annotations.scale, annotations: annotations.annotations } }),
         // The hidden columns, the types columns were given and the renames, when any was made.
         ...(columnSettings === undefined
             ? {}
@@ -1176,7 +1162,7 @@ function write(
     const file = sourcesFileOf(session);
     const members = [
         dataMember(session, file),
-        sessionMember(sources, ids),
+        sessionMember(sources),
         arrangementMember(session, ids),
         resultsMember(
             session,
@@ -1435,7 +1421,6 @@ function readDocument(text: string): ReadDocument {
             positions.set(member, index);
         }
     });
-
     return {
         ...(typeof document.name === "string" ? { name: document.name } : {}),
         extensions: isObject(document.extensions) ? document.extensions : {},
@@ -1731,7 +1716,10 @@ function withHeldChoices(listed: unknown, held: unknown): unknown {
             return each;
         }
 
-        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name) => [name, saved[name]]);
+        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name): [string, unknown] => [
+            name,
+            saved[name],
+        ]);
         return { ...(each as Record<string, unknown>), ...Object.fromEntries(kept) };
     });
 }
@@ -1989,6 +1977,35 @@ async function readSelection(
 }
 
 /**
+ * Whether a file's project has had its Timeline Hidden row written, as the session member says. A
+ * file saved before the row came only with the timeline says nothing: then every project with the
+ * starting rows got the row, so one holding a style tree had it (and a reader who deleted it meant
+ * it), and the timeline turning on never adds another. Such a file does not say whether the starting
+ * rows were on, and a tree that never had the row reads the same as one whose reader deleted it, so
+ * both count as having had it. A file with neither had no row to keep: false, so the project before
+ * it never decides.
+ * @param doc - The read document.
+ * @returns Whether the row was written.
+ */
+function timelineRowWritten(doc: ReadDocument): boolean {
+    const saved = doc.members.get("graphty-session")?.[0]?.timelineHiddenAdded;
+    return typeof saved === "boolean" ? saved : doc.members.has("graphty-style");
+}
+
+/**
+ * Write a file's Timeline Hidden record once its style tree is back: a tree that never had the row
+ * gets it now when the project has the starting rows and a time field, as the timeline turning on
+ * would add it, and otherwise the record stays false for when it does.
+ * @param opening - The open.
+ * @param doc - The read document.
+ */
+async function addTimelineRowAfterTree(opening: Opening, doc: ReadDocument): Promise<void> {
+    if (doc.members.has("graphty-style") && !timelineRowWritten(doc)) {
+        await attempt(opening, "config", () => opening.tx.config.set({ timelineHiddenAdded: false }));
+    }
+}
+
+/**
  * Read a project's settings: the style member's shaders first, so the background never names one
  * the project lacks, then the settings themselves.
  * @param opening - The open.
@@ -2012,14 +2029,20 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
         }
     }
 
+    // The settings just read write the default rows when they turn `startingRows` on, and Timeline
+    // Hidden while the timeline is on and the file never had it. A file that holds a style tree comes
+    // back with exactly that tree, so those rows go again: otherwise the tree's own copies land beside
+    // them and every starting row is there twice (issue #7843). Its Timeline Hidden row waits for the
+    // tree (`addTimelineRowAfterTree`), so the record says true only when the row is there.
+    const tree = doc.members.has("graphty-style");
     await attempt(opening, "config", () =>
-        tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
+        tx.config.set({
+            ...withReadableBackground(opening, withAddedDefaults(config)),
+            name,
+            timelineHiddenAdded: tree || timelineRowWritten(doc),
+        }),
     );
-    // The settings just read write the default rows when they turn `startingRows` on (Timeline Hidden
-    // among them while the timeline is on). A file that
-    // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
-    // tree's own copies land beside them and every starting row is there twice (issue #7843).
-    if (doc.members.has("graphty-style")) {
+    if (tree) {
         await clearStyleRows(tx);
     }
 }
@@ -2057,19 +2080,11 @@ async function readProject(
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
-    // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
-    if (Array.isArray(state.fileStyles)) {
-        const loads = state.fileStyles as unknown[];
-        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
-        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
-        opening.services.restoringFileStyles = true;
-        try {
-            await attempt(opening, "graph", () =>
-                tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
-            );
-        } finally {
-            opening.services.restoringFileStyles = false;
-        }
+    const annotations = drawnAnnotationsOf(state[ANNOTATIONS_VALUE]);
+    if (annotations !== null && annotations.annotations.length > 0) {
+        await attempt(opening, "graph", () =>
+            tx.execute({ op: "annotations.set", annotations: annotations.annotations, scale: annotations.scale }),
+        );
     }
 
     const layout = state.layout as
@@ -2163,6 +2178,7 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
+    await addTimelineRowAfterTree(opening, doc);
     await attempt(opening, "styles", () =>
         outsideWindowLayers(tx, state.visibility as Readonly<Record<string, unknown>> | undefined),
     );
@@ -2444,11 +2460,15 @@ async function readDerived(opening: Opening, derived: unknown): Promise<void> {
     }
 
     for (const column of Array.isArray(derived.columns) ? (derived.columns as unknown[]) : []) {
-        const { kind, name, expression } = isObject(column) ? column : {};
+        const { kind, name, expression, score } = isObject(column) ? column : {};
+        const options = { kind: kind as "node" | "edge" };
         await attempt(
             opening,
             "graph",
-            () => opening.tx.data.derive(name as string, expression as string, { kind: kind as "node" | "edge" }),
+            () =>
+                score === undefined
+                    ? opening.tx.data.derive(name as string, expression as string, options)
+                    : opening.tx.data.deriveScore(name as string, score as ScoreTerm[], options),
             `${String(kind)}:${String(name)}`,
         );
     }
@@ -2545,66 +2565,6 @@ async function readColumnSettings(opening: Opening, columns: unknown): Promise<v
             settings: { hidden, types, renamed } as unknown as ColumnSettings,
         }),
     );
-}
-
-/**
- * A project file's file-style values, rewritten onto this session's elements: a node by its id,
- * kept when the data holds it; an edge by its position in the data, given the id this session
- * gave it. Anything malformed is left for the command to refuse.
- * @param loads - The saved loads.
- * @param nodeIds - The nodes the session holds.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The loads, over this session's ids.
- */
-function fileStylesInto(
-    loads: readonly unknown[],
-    nodeIds: ReadonlySet<NodeId>,
-    edgeIds: readonly (EdgeId | undefined)[],
-): FileStyleLoadValues[] {
-    return loads.map((load) => {
-        if (!isObject(load) || !Array.isArray(load.columns)) {
-            return load as FileStyleLoadValues;
-        }
-
-        const columns = (load.columns as unknown[]).map((column) => {
-            if (!isObject(column) || !Array.isArray(column.ids) || !Array.isArray(column.values)) {
-                return column;
-            }
-
-            const ids: (NodeId | EdgeId)[] = [];
-            const values: unknown[] = [];
-            const saved = column.values as unknown[];
-            (column.ids as unknown[]).forEach((id, at) => {
-                const mapped = column.kind === "edge" ? edgeOf(id, edgeIds) : nodeOf(id, nodeIds);
-                if (mapped !== undefined) {
-                    ids.push(mapped);
-                    values.push(saved[at]);
-                }
-            });
-            return { ...column, ids, values };
-        });
-        return { ...load, columns } as unknown as FileStyleLoadValues;
-    });
-}
-
-/**
- * The node a saved file-style id names, when the session holds it.
- * @param id - The saved id.
- * @param nodeIds - The nodes the session holds.
- * @returns The node id, or undefined.
- */
-function nodeOf(id: unknown, nodeIds: ReadonlySet<NodeId>): NodeId | undefined {
-    return (typeof id === "string" || typeof id === "number") && nodeIds.has(id) ? id : undefined;
-}
-
-/**
- * The edge a saved file-style position names.
- * @param at - The saved position in the data.
- * @param edgeIds - The edge ids this session gave the file's edges, by position.
- * @returns The edge id, or undefined.
- */
-function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId | undefined {
-    return typeof at === "number" ? edgeIds[at] : undefined;
 }
 
 /** What reading one saved run needs to know about the data it opens over. */

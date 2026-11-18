@@ -48,7 +48,6 @@ export type {
     Channel,
     ChannelValue,
     CostClass,
-    DeprecatedAlgorithm,
     DeprecatedCatalogMethod,
     DrawingMode,
     EdgeId,
@@ -113,7 +112,6 @@ export type {
 export {
     ATTRIBUTE_TYPES,
     COST_CLASSES,
-    DEPRECATED_ALGORITHMS,
     DEPRECATED_LAYOUT_IDS,
     isAttributeType,
     isCostClass,

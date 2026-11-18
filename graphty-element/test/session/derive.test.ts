@@ -271,3 +271,98 @@ describe("session.data.derive does work in proportion to the graph", () => {
         );
     });
 });
+
+describe("session.data.deriveScore", () => {
+    it("rescales each term to 0..1 and sums them by weight", async () => {
+        const session = await people();
+        // a: score 1, size 10; b: score 2, size 0; c: score 1, size 5.
+        await session.data.updateNodes([
+            { id: "a", values: { size: 10 } },
+            { id: "b", values: { size: 0 } },
+            { id: "c", values: { size: 5 } },
+        ]);
+        const run = session.run({ op: "algo.run", algorithm: "degree" });
+        await run;
+        const terms = [
+            { path: resultPath(run.id, "value"), weight: 0.6 },
+            { path: "data.size", weight: 0.4 },
+        ];
+        await session.data.deriveScore("importance", terms);
+
+        assert.closeTo(session.data.node("a")?.importance as number, 0.4, 1e-12);
+        assert.closeTo(session.data.node("b")?.importance as number, 0.6, 1e-12);
+        assert.closeTo(session.data.node("c")?.importance as number, 0.2, 1e-12);
+        const [column] = session.data.derivedColumns();
+        assert.deepStrictEqual(column.score, terms);
+        assert.strictEqual(column.expression, `${quotePath(terms[0].path)} * \`0.6\` + data.size * \`0.4\``);
+        session.dispose();
+    });
+
+    it("follows its inputs, scores null where a term has no number, and counts a flat column 0", async () => {
+        const session = await people();
+        await session.data.updateNodes([
+            { id: "a", values: { size: 3, flat: 7 } },
+            { id: "b", values: { size: 1, flat: 7 } },
+        ]);
+        await session.data.deriveScore("s", [{ path: "data.size" }, { path: "data.flat" }]);
+        assert.strictEqual(session.data.node("a")?.s, 1);
+        assert.strictEqual(session.data.node("b")?.s, 0);
+        assert.isNull(session.data.node("c")?.s ?? null, "c has no size");
+
+        await session.data.updateNodes([{ id: "c", values: { size: 5, flat: 7 } }]);
+        assert.strictEqual(session.data.node("c")?.s, 1, "the new largest");
+        assert.strictEqual(session.data.node("a")?.s, 0.5, "rescaled in the same step");
+        session.dispose();
+    });
+
+    it("is undoable, and saved as its terms and worked out again on open", async () => {
+        const saved = await people();
+        const run = saved.run({ op: "algo.run", algorithm: "degree" });
+        await run;
+        await saved.data.deriveScore("s", [{ path: resultPath(run.id, "value"), weight: 2 }]);
+        const { text } = await saved.project.save();
+
+        const opened = createGraphSession({ runs: { execute: scores } });
+        const report = await opened.project.open(text);
+        assert.deepStrictEqual(report.problems, []);
+        assert.deepStrictEqual(opened.data.derivedColumns(), saved.data.derivedColumns());
+        assert.strictEqual(opened.data.node("b")?.s, 2);
+
+        await saved.undo();
+        assert.deepStrictEqual(saved.data.derivedColumns(), []);
+        saved.dispose();
+        opened.dispose();
+    });
+
+    it("refuses what it cannot take, with a code", async () => {
+        const session = await people();
+        const none = await refusal(() => session.data.deriveScore("s", []));
+        assert.strictEqual(none.details.reason, "no-terms");
+        const weight = await refusal(() => session.data.deriveScore("s", [{ path: "data.name", weight: Number.NaN }]));
+        assert.strictEqual(weight.details.reason, "bad-weight");
+        const unknown = await refusal(() => session.data.deriveScore("s", [{ path: "data.nmae" }]));
+        assert.strictEqual(unknown.code, "E_UNKNOWN_ATTRIBUTE");
+        const taken = await refusal(() => session.data.deriveScore("name", [{ path: "data.nickname" }]));
+        assert.strictEqual(taken.details.reason, "name-taken");
+        assert.deepStrictEqual(session.data.derivedColumns(), []);
+        session.dispose();
+    });
+
+    it("SessionDataApi.deriveScore: no more than linear in the graph", async () => {
+        await assertScalesLinearly(
+            (size) =>
+                withConsumerStrictState(async () => {
+                    const session = createGraphSession();
+                    await session.data.addNodes(
+                        Array.from({ length: size }, (_, at) => ({ id: `n${String(at)}`, weight: at })),
+                    );
+                    const visits = await visitsDuring(() =>
+                        session.data.deriveScore("heavy", [{ path: "data.weight", weight: 2 }]),
+                    );
+                    session.dispose();
+                    return visits;
+                }),
+            { sizes: [200, 800], growth: "linear", counter: "elements visited by SessionDataApi.deriveScore" },
+        );
+    });
+});

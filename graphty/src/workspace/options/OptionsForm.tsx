@@ -18,6 +18,7 @@ import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
+import { runName } from "../runWords";
 import { drawnYet } from "./notYetDrawn";
 import { splitOptions } from "./splitOptions";
 
@@ -118,6 +119,33 @@ function num(value: unknown): number | undefined {
     return typeof value === "number" ? value : undefined;
 }
 
+/**
+ * What to call a choice that is a run's result column: the run's name, and the column's name
+ * after it when the run offers more than one. Any other choice keeps the element's label.
+ * @param session - The element's session.
+ * @param choices - Every choice of the option.
+ * @param choice - The choice.
+ * @param choice.value - Its value: an attribute name or a result path.
+ * @param choice.label - The element's label for it.
+ * @returns The label.
+ */
+function choiceLabel(
+    session: GraphSession,
+    choices: readonly { readonly value: string }[],
+    choice: { readonly value: string; readonly label: string },
+): string {
+    const root = session.results.roots.find((each) => each.fields.some((field) => field.path === choice.value));
+    const run = root === undefined ? undefined : session.runs.get(root.runId);
+    if (root === undefined || run === undefined) {
+        return choice.label;
+    }
+
+    const name = runName(session, run);
+    const field = root.fields.find((each) => each.path === choice.value);
+    const offered = choices.filter((each) => root.fields.some((f) => f.path === each.value)).length;
+    return offered === 1 || field === undefined ? name : `${name}: ${field.plainName}`;
+}
+
 /** Props for one field. */
 interface FieldProps extends Omit<
     OptionsFormProps,
@@ -175,7 +203,7 @@ function AttributeField({
                   }
                   return {
                       value: choice.value,
-                      label: choice.label,
+                      label: choiceLabel(session, option.values ?? [], choice),
                       ...(choice.refusal === undefined ? {} : { disabled: true }),
                   };
               })

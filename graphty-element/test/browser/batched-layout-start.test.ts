@@ -12,6 +12,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { storeCounters } from "../../src/data/GraphStore";
 import { operationQueueOf } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 
 const cleanups: (() => void)[] = [];
@@ -76,5 +77,31 @@ describe('a layout started under renderPath "batched" on unchanged data', () => 
         await operationQueueOf(graph).waitForCompletion();
         assert.strictEqual(dataManager.getSnapshot(), frozen, "no freeze at the next layout start");
         assert.strictEqual(storeCounters.undirectedDerivations, once, "the undirected view is reused");
+    });
+
+    it("lets a simulation's publish scratch go when the layout stops, and makes it again on resume", async () => {
+        const element = await mounted();
+        const { graph } = element;
+        await graph.setLayout("ngraph", { dim: 2, seed: 1 });
+        await operationQueueOf(graph).waitForCompletion();
+        const layouts = graph.getLayoutManager();
+        const engine = layouts.layoutEngine;
+        assert(engine !== undefined);
+        // ngraph on 200 nodes moves for many frames: one stepped frame publishes through the scratch.
+        const published = layouts.steppedPublishes;
+        await vi.waitFor(() => {
+            assert.isAbove(layouts.steppedPublishes, published);
+        });
+        assert.strictEqual(layoutEngineInternals.scratchHeld(engine), 4 * NODES.length, "running: kept");
+
+        element.setRunning(false);
+        assert.strictEqual(layoutEngineInternals.scratchHeld(engine), 0, "stopped: let go");
+
+        element.setRunning(true);
+        const resumed = layouts.steppedPublishes;
+        await vi.waitFor(() => {
+            assert.isAbove(layouts.steppedPublishes, resumed);
+        });
+        assert.strictEqual(layoutEngineInternals.scratchHeld(engine), 4 * NODES.length, "resumed: made again");
     });
 });

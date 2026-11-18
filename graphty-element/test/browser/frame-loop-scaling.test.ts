@@ -21,7 +21,8 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
-import { laneStoreOf } from "../../src/managers/DataManager";
+import { dataManagerInternals, laneStoreOf } from "../../src/managers/DataManager";
+import { layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
@@ -677,7 +678,7 @@ const CASES: readonly Case[] = [
                         graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
-                        assert.strictEqual((data as unknown as { styles: unknown }).styles, graph.styles);
+                        assert.strictEqual(dataManagerInternals.styles(data), graph.styles);
                     },
                 ),
             );
@@ -698,7 +699,7 @@ const CASES: readonly Case[] = [
                         graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
-                        assert.strictEqual((layout as unknown as { styles: unknown }).styles, graph.styles);
+                        assert.strictEqual(layoutManagerInternals.styles(layout), graph.styles);
                     },
                 ),
             );

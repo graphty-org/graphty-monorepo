@@ -4,7 +4,17 @@ import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { GraphtyError } from "../../../src/errors";
+import type { Caveats } from "../../../src/session/runs/types";
 import { createMockGraph } from "../../helpers/mockGraph";
+
+/**
+ * The facts an algorithm's caveats carry, empty when its output states none.
+ * @param caveats - The caveats.
+ * @returns The facts.
+ */
+function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
+    return "facts" in caveats ? caveats.facts : [];
+}
 
 /**
  * Undirected-style data: a path declared A-B, C-B, so no directed path runs from A to C, and the
@@ -106,9 +116,9 @@ describe("MaxFlowAlgorithm", () => {
 
             assert.ok(output);
             assert.strictEqual(output.graph?.maxFlow, 0);
-            const notes = output.caveats.notes.join("\n");
-            assert.match(notes, /chosen automatically/);
-            assert.match(notes, /no directed path from A to C/i);
+            const codes = factsOf(output.caveats).map((fact) => fact.code);
+            assert.include(codes, "flow.ends-chosen");
+            assert.deepInclude(factsOf(output.caveats), { code: "flow.no-path", params: { source: "A", sink: "C" } });
         });
 
         it("adds neither note when both ends are given and flow exists", async () => {
@@ -117,9 +127,9 @@ describe("MaxFlowAlgorithm", () => {
 
             assert.ok(output);
             assert.strictEqual(output.graph?.maxFlow, 1);
-            const notes = output.caveats.notes.join("\n");
-            assert.notMatch(notes, /chosen automatically/);
-            assert.notMatch(notes, /no directed path/i);
+            const codes = factsOf(output.caveats).map((fact) => fact.code);
+            assert.notInclude(codes, "flow.ends-chosen");
+            assert.notInclude(codes, "flow.no-path");
         });
     });
 

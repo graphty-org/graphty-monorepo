@@ -36,7 +36,7 @@ session.data.export(format: string, options?: {
 }>
 ```
 
-`format` is a format id of graphty-element's catalogue (`csv`, `graphml`, `gexf`, `gml`, `dot`,
+`format` is a format id of graphty-element's catalog (`csv`, `graphml`, `gexf`, `gml`, `dot`,
 `pajek`, `json`, `neo4j`). The call refuses before writing anything when result names collide
 ("Results as columns" rule 2). It works the same in a `createGraphSession()` session in Node, where
 the drawn appearance is the resolved style values and positions are written only when a layout
@@ -91,7 +91,7 @@ Each included run contributes one column per published field of its result, per 
    `rank` role, a component the `component` role, so formats that map roles place them. One column
    per role per table: the first run to claim a role takes it, and a later claimant is written as a
    plain column, reported with `W_GRAPHTY_ROLE_TAKEN`.
-6. **Graph-level fields** of a result (`min`, `max`, `mean`, the normalisation used) and each run's
+6. **Graph-level fields** of a result (`min`, `max`, `mean`, the normalization used) and each run's
    precision and exactness are written as graph-level attributes `<run>.<field>` where the format
    has them, and reported with `W_GRAPHTY_GRAPH_FIELDS` where it does not.
 7. **Which runs.** Every run the session holds, unless the caller names runs; a run left out is not
@@ -101,11 +101,11 @@ Each included run contributes one column per published field of its result, per 
 ## Drawn appearance
 
 A format that holds appearance holds it per element, not as rules: GEXF's `viz` module records a
-colour, a size and a shape on each node and has no way to say "colour by logFC on a diverging
+color, a size and a shape on each node and has no way to say "color by logFC on a diverging
 scale". So exporting to such a format writes the values: graphty-element resolves every enabled
 layer for every element and writes the result. The rules are lost, reported with
 `W_GRAPHTY_STYLE_RULES`, and travel intact only in a style member ("A graphty document beside an
-export"). The caller MAY leave layers out by id. Colours are written from the parsed RGBA, never as
+export"). The caller MAY leave layers out by id. Colors are written from the parsed RGBA, never as
 the authored string. When the imported data already holds visual-role columns, the drawn
 appearance takes the roles and the imported columns are written as plain columns, reported with
 `W_GRAPHTY_ROLE_TAKEN`.
@@ -114,7 +114,7 @@ appearance takes the roles and the imported columns are written as plain columns
 | Channel | graph-format role | Written as |
 | --- | --- | --- |
 | `node.color`, `edge.color` | `color` | the resolved RGBA; alpha where the format has it |
-| `node.opacity`, `edge.opacity` | folded into the colour's alpha | alpha times opacity |
+| `node.opacity`, `edge.opacity` | folded into the color's alpha | alpha times opacity |
 | `node.size` | `size` (node) | scene units |
 | `edge.width` | `thickness` (edge) | scene units |
 | `node.shape` | `shape` (node) | the shape table below; each translated shape reported with `W_GRAPHTY_SHAPE` |

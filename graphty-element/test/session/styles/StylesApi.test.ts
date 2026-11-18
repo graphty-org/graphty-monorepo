@@ -56,6 +56,9 @@ import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/st
 import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
 import { takeCaughtErrors } from "../../helpers/caught-errors";
 
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = EncodingRun & { readonly label: string };
+
 /** One element's columns, keyed by the path a selector names. */
 type Row = Readonly<Record<Path, unknown>>;
 
@@ -113,7 +116,7 @@ function field(
 }
 
 /** A centrality run: a number per node, which is a thing to encode. */
-const BETWEENNESS: EncodingRun = {
+const BETWEENNESS: NamedRun = {
     id: "betweenness",
     label: "Betweenness",
     distinguishedBy: null,
@@ -125,7 +128,7 @@ const BETWEENNESS: EncodingRun = {
 };
 
 /** A route: membership on the nodes AND on the edges, which is a thing to highlight. */
-const ROUTE: EncodingRun = {
+const ROUTE: NamedRun = {
     id: "route",
     label: "Shortest Path",
     distinguishedBy: null,
@@ -141,7 +144,7 @@ const ROUTE: EncodingRun = {
 };
 
 /** A chosen set of nodes, which is the other thing to highlight. */
-const INFLUENCERS: EncodingRun = {
+const INFLUENCERS: NamedRun = {
     id: "influencers",
     label: "Influencers",
     distinguishedBy: null,
@@ -153,12 +156,13 @@ const INFLUENCERS: EncodingRun = {
 };
 
 /** Every run these harnesses can look up. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, ROUTE, INFLUENCERS];
+const RUNS: readonly NamedRun[] = [BETWEENNESS, ROUTE, INFLUENCERS];
 
 /** Where a run is looked up, which is all the two run-bound verbs need from a session. */
 const RUN_SOURCE: EncodingSource = {
     run: (ref: RunRef): EncodingRun | undefined => RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => RUNS.find((entry) => entry.id === id)?.label,
 };
 
 /** The scales the prepared bindings below are read through. */
@@ -1304,7 +1308,6 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.strictEqual(blocks.length, 1);
         assert.strictEqual(block?.channel, "node.color");
         assert.strictEqual(block?.runId, "betweenness");
-        assert.strictEqual(block?.field?.plainName, "Betweenness");
         assert.strictEqual(block?.field?.path, "results.betweenness.value");
         assert.isAbove(swatches.length, 0);
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
@@ -1342,8 +1345,14 @@ describe("the legend, and why one element looks the way it does", () => {
 
             const [lower, upper] = styles.legend();
 
-            assert.include(lower?.departures, 'painted over by "Route colour"');
-            assert.notInclude(upper?.departures ?? [], 'painted over by "By betweenness"');
+            assert.deepInclude(
+                (lower?.facts ?? []).map((fact) => [fact.code, fact.params.name]),
+                ["legend.painted-over", "Route colour"],
+            );
+            assert.notInclude(
+                (upper?.facts ?? []).map((fact) => fact.code),
+                "legend.painted-over",
+            );
         });
 
         it("says nothing when the layer above selects only some of them", async () => {
@@ -1359,7 +1368,10 @@ describe("the legend, and why one element looks the way it does", () => {
 
             const [lower] = styles.legend();
 
-            assert.notInclude(lower?.departures ?? [], 'painted over by "Group colour"');
+            assert.notInclude(
+                (lower?.facts ?? []).map((fact) => fact.code),
+                "legend.painted-over",
+            );
         });
     });
 
@@ -1380,7 +1392,7 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.strictEqual(colour?.layerId, layer.id);
         assert.strictEqual(colour?.mode, "encoded");
         assert.isFalse(colour?.editable);
-        assert.isString(colour?.reason);
+        assert.isDefined(colour?.fact);
     });
 
     it("says why a rule cannot be edited as a code and its values", async () => {
@@ -1421,7 +1433,6 @@ describe("the legend, and why one element looks the way it does", () => {
 
         assert.isTrue(colour?.editable);
         assert.isUndefined(colour?.fact);
-        assert.isUndefined(colour?.reason);
     });
 
     it("lists the layers that contributed, bottom first", async () => {
@@ -1565,7 +1576,6 @@ describe("a style document, out and back in", () => {
             unbound.map((entry: UnboundLayer) => entry.needs),
             [["results.pagerank.score"]],
         );
-        assert.include(unbound[0]?.reason ?? "", "results.pagerank.score");
         assert.deepStrictEqual(unbound[0]?.fact, {
             code: "layer.unanswered",
             params: { layerId: unbound[0]?.layerId ?? "", name: "Waiting", paths: ["results.pagerank.score"] },

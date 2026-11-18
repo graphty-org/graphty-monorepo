@@ -158,7 +158,8 @@ function addDistanceGradient(grad: number[], positions: number[][], invDist: num
 
 /**
  * Cost function and gradient for Kamada-Kawai layout algorithm, as networkx's _kamada_kawai_costfn:
- * the distance term sums over every ORDERED pair, so each unordered pair below counts twice.
+ * networkx takes half the sum over every ordered pair, which is the sum over unordered pairs, so each
+ * unordered pair below counts once.
  * @param posVec - Flattened position array
  * @param invDist - Inverse distance matrix
  * @param meanWeight - Weight for centering positions

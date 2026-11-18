@@ -9,8 +9,28 @@ import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { SettingsPopout } from "../options/SettingsPopout";
 import { PATH_ALGORITHM, PathForm } from "./PathForm";
-import { paramsFor, planOptions, type RunPlan, runPlan, settingsOf, startAlgorithm, unavailable } from "./run";
-import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, runRefusalWords, wordsFor } from "./words";
+import {
+    paramsFor,
+    planOptions,
+    runAllMethods,
+    runningBatch,
+    type RunPlan,
+    runPlan,
+    settingsOf,
+    startAlgorithm,
+    startAll,
+    unavailable,
+} from "./run";
+import {
+    costLine,
+    groupAlgorithms,
+    type Heading,
+    HEADINGS,
+    optionWords,
+    RUN_ALL,
+    runRefusalWords,
+    wordsFor,
+} from "./words";
 
 /** The type icon of the row a run adds, by heading. */
 const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
@@ -19,6 +39,15 @@ const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
     paths: <GLYPHS.paths size={16} />,
     measure: <GLYPHS.number size={16} />,
 };
+
+/** A heading's Run all entry: every method under it that can run now. */
+interface RunAllEntry {
+    readonly all: Heading;
+    readonly methods: readonly AlgorithmDescriptor[];
+}
+
+/** One entry of the list: an algorithm, or a heading's Run all. */
+type Entry = AlgorithmDescriptor | RunAllEntry;
 
 /** How many recent algorithms the list leads with. */
 const RECENT = 3;
@@ -53,6 +82,8 @@ interface AnalyzePopoverProps {
     initialPick?: string;
     /** The filter text to open with, for a story. */
     initialFilter?: string;
+    /** The settings to open the picked algorithm with, such as a result's own. */
+    initialValues?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -62,6 +93,8 @@ interface AnalyzePopoverProps {
  * list: ArrowDown and ArrowUp move the active entry, Enter opens it, and while there is filter
  * text the first match is active, so Enter on a single match opens it, and so does Tab. Esc steps back one level,
  * and a second Esc closes. Running closes the popover; the new row in the tree is the feedback.
+ * Each heading ends with Run all (issue #195): its methods as one graphty-element batch, each its
+ * own run and row, and Cancel all while that batch runs.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.onClose - Closes the popover
@@ -69,6 +102,7 @@ interface AnalyzePopoverProps {
  * @param props.onStarted - Called with a run's name as it starts
  * @param props.initialPick - An algorithm to open on
  * @param props.initialFilter - The filter text to open with
+ * @param props.initialValues - The settings to open the picked algorithm with
  * @param props.onPathStarted - Called with a path search's run as it starts
  * @param props.path - Open straight on the Path form
  * @returns The popover's body
@@ -82,6 +116,7 @@ export function AnalyzePopover({
     path = false,
     initialPick,
     initialFilter = "",
+    initialValues,
 }: Readonly<AnalyzePopoverProps>): React.JSX.Element {
     const algorithms = session.catalog.algorithms();
     // The approved prototype: a calm list of names, the chosen row with its settings at its end, Run
@@ -93,7 +128,7 @@ export function AnalyzePopover({
     const [chosen, setChosen] = useState<AlgorithmDescriptor | undefined>(() =>
         algorithms.find((a) => a.key === initialPick && a.key !== PATH_ALGORITHM),
     );
-    const [values, setValues] = useState<Record<string, unknown>>({});
+    const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...initialValues }));
     // The entry ArrowUp/Down moved to; null follows the filter (its first match, or none).
     const [moved, setMoved] = useState<number | null>(null);
     const listId = useId();
@@ -168,7 +203,27 @@ export function AnalyzePopover({
         onClose();
     };
 
-    const groups = groupAlgorithms(algorithms, filter);
+    // Run all ends each heading with two or more methods that can run now (or whose batch still
+    // runs, to cancel it); only on the whole list, so it always means every method of the heading.
+    // Run all starts one graphty-element batch and closes, as Run does; on a batch still running
+    // it cancels the whole batch and stays open.
+    const runAll = ({ all, methods }: RunAllEntry): void => {
+        const running = runningBatch(session, all.id);
+        if (running !== undefined) {
+            running.cancel();
+            return;
+        }
+        startAll(session, all.id, all.title, methods);
+        onStarted(all.title);
+        onClose();
+    };
+
+    const groups = groupAlgorithms(algorithms, filter).map((group) => {
+        const methods = runAllMethods(session, group.entries);
+        const offered =
+            filter.trim() === "" && (methods.length > 1 || runningBatch(session, group.heading.id) !== undefined);
+        return { ...group, all: offered ? { all: group.heading, methods } : undefined };
+    });
     const recentKeys = [
         ...new Set(
             session.runs
@@ -185,12 +240,20 @@ export function AnalyzePopover({
                   .filter((a): a is AlgorithmDescriptor => a !== undefined)
             : [];
     // Every entry in list order (Recent repeats some), for the active entry.
-    const flat = [...recent, ...groups.flatMap((g) => g.entries)];
+    const flat: Entry[] = [
+        ...recent,
+        ...groups.flatMap((g): Entry[] => (g.all === undefined ? [...g.entries] : [...g.entries, g.all])),
+    ];
     // Nothing is active until the reader types or arrows; typing makes the first entry that can run
     // active, never one that cannot.
-    const active = moved ?? (filter.trim() === "" ? -1 : flat.findIndex((d) => unavailable(session, d) === null));
+    const active =
+        moved ?? (filter.trim() === "" ? -1 : flat.findIndex((d) => "all" in d || unavailable(session, d) === null));
     const optionId = (i: number): string => `${listId}-${String(i)}`;
-    const open = (descriptor: AlgorithmDescriptor | undefined): void => {
+    const open = (descriptor: Entry | undefined): void => {
+        if (descriptor !== undefined && "all" in descriptor) {
+            runAll(descriptor);
+            return;
+        }
         if (descriptor === undefined || unavailable(session, descriptor) !== null) {
             return;
         }
@@ -276,6 +339,39 @@ export function AnalyzePopover({
         );
     };
 
+    const allEntry = ({ all, methods }: RunAllEntry): React.JSX.Element => {
+        const i = index++;
+        const words = runningBatch(session, all.id) === undefined ? RUN_ALL.run : RUN_ALL.cancel;
+        return (
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a layout wrapper between the listbox and its option, which no image could be
+                key={`${String(i)}-all`}
+                className="ws-analyze-row"
+                role="presentation"
+            >
+                <UnstyledButton
+                    component="div"
+                    role="option"
+                    id={optionId(i)}
+                    aria-selected={i === active}
+                    className="ws-analyze-entry"
+                    aria-label={`${words}, ${all.title}`}
+                    onClick={() => {
+                        runAll({ all, methods });
+                    }}
+                >
+                    <Group gap={8} wrap="nowrap">
+                        <span className="ws-analyze-icon" aria-hidden="true">
+                            <GLYPHS.run size={16} />
+                        </span>
+                        <Text size="sm" truncate>
+                            {words}
+                        </Text>
+                    </Group>
+                </UnstyledButton>
+            </div>
+        );
+    };
+
     return (
         // The settings popover's panels are drawn inside Analyze, so a press in one is not outside it.
         <PopoutManager>
@@ -315,7 +411,7 @@ export function AnalyzePopover({
                             {recent.map((descriptor) => entry(descriptor, true))}
                         </div>
                     ) : null}
-                    {groups.map(({ heading, entries }) => (
+                    {groups.map(({ heading, entries, all }) => (
                         <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option group inside an ARIA listbox; optgroup needs a native select
                             role="group"
                             key={heading.id}
@@ -325,6 +421,7 @@ export function AnalyzePopover({
                                 {heading.title}
                             </Text>
                             {entries.map((descriptor) => entry(descriptor))}
+                            {all === undefined ? null : allEntry(all)}
                         </div>
                     ))}
                     {groups.length === 0 ? (

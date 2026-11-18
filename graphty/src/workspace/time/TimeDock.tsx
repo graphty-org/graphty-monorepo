@@ -37,6 +37,7 @@ import { GLYPHS } from "../glyphs";
 import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
 import { SettingsPopout } from "../options/SettingsPopout";
+import { TIME_EVENTS, useSessionEvents } from "../sessionEvents";
 import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -55,7 +56,6 @@ import {
 } from "./timeActions";
 import { TimePhoneDock } from "./TimePhoneDock";
 import { countWords, instantWords, rangeWords, readoutRange, SPEEDS, windowWords } from "./timeWords";
-import { useTimeVersion } from "./useTimeVersion";
 import { useTimeZoom } from "./useTimeZoom";
 
 /** The narrowest a bar is drawn: the element is asked for at most one bin per this many pixels. */
@@ -703,7 +703,7 @@ function ChartTooltip({
  */
 export function TimeDock(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useTimeVersion(session);
+    useSessionEvents(session, TIME_EVENTS);
     const speed = useWorkspaceState((state) => state.timeSpeed);
     const open = useWorkspaceState((state) => state.timelineOpen);
     // The brush while it is dragged; written to the element once, on release.

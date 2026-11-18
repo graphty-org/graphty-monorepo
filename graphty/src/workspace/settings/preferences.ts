@@ -53,7 +53,7 @@ export const OPEN_PROJECT_URLS = {
 
 /**
  * Default timeline style (Settings > General): the look the
- * Timeline Hidden row starts with when a new project gets it, as graphty-element's
+ * Timeline Hidden row starts with when a project's timeline first turns on, as graphty-element's
  * `timelineHiddenLook`. It never rewrites a row a project already has.
  */
 export const TIMELINE_STYLE = {

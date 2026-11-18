@@ -663,13 +663,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #nodeMass: F32 | null = null;
 
-    /**
-     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
-     * renderPath "batched".
-     * @internal
-     */
-    rowRecord: ((row: number) => unknown) | null = null;
-
     /** The last read of `clusterBy`: by `Node` under renderPath "objects", by row under "batched". */
     #communities: ReadonlyMap<Node | number, number> = new Map();
 

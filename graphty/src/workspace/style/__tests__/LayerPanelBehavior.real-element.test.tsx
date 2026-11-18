@@ -4,7 +4,7 @@
  * layer's default name says what it covers now; a default name made from several cards is short
  * enough to read whole; an attribute of the other kind is one click from its card on the other
  * tab; a run's group opened from a node's Memberships is its layer row, with the tree's header;
- * every layer row shows its count; Why this look and a "Covered by" name open the layer on Style.
+ * every layer row shows its count; Why this look opens the layer on Style.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -192,8 +192,7 @@ describe("the layer panel's behavior", () => {
             await session.selection.apply({ nodes: [idOf("Valjean")] });
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        // The node's Style tab edits the selected layer (#3409), whose own caption may name Thanked
-        // too: the link here is the one under the node's look.
+        // The link here is the one under the node's look.
         const opens = await screen.findAllByRole("button", { name: "Open layer Thanked" });
         const why = opens.find((button) => button.closest('[data-testid="why-line"]') !== null);
         if (why === undefined) {
@@ -205,26 +204,5 @@ describe("the layer panel's behavior", () => {
             assert.equal(screen.getByRole("tab", { name: "Style" }).getAttribute("aria-selected"), "true");
         });
         await screen.findByRole("button", { name: /^Which nodes, / });
-
-        // Everything's color, covered by Thanked on two nodes: the name opens Thanked, on Style.
-        store.set({ inspected: { kind: "everything-row" } });
-        await act(async () => {
-            await session.selection.apply({ nodes: [] });
-        });
-        await userEvent.click(await treeRow("Everything"));
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        const caption = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-covered-caption]");
-            assert.isNotNull(found);
-            return found;
-        });
-        if (caption === null) {
-            return;
-        }
-        await userEvent.click(within(caption).getByRole("button", { name: "Open layer Thanked" }));
-        await waitFor(() => {
-            assert.equal(store.get().inspected?.id, top.row ?? top.id);
-            assert.equal(screen.getByRole("tab", { name: "Style" }).getAttribute("aria-selected"), "true");
-        });
     });
 });

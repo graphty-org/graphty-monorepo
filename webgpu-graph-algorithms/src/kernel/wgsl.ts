@@ -39,7 +39,7 @@ export interface OverrideDecl {
     readonly type: "u32" | "bool" | "f32";
     readonly default: number | boolean;
 }
-/** Spec 3.5 WgslModuleSpec, verbatim. `needs: ["subgroups"]` means "this body calls a wg_reduce_* helper": the composer splices the subgroup helper block when the device has the feature and the workgroup-memory twin otherwise. */
+/** The declaration of one WGSL kernel module. `needs: ["subgroups"]` means "this body calls a wg_reduce_* helper": the composer splices the subgroup helper block when the device has the feature and the workgroup-memory twin otherwise. */
 export interface WgslModuleSpec {
     readonly id: string;
     readonly body: string;
@@ -422,11 +422,7 @@ function validateBody(spec: WgslModuleSpec, body: string): void {
     for (const match of stripped.matchAll(IDENTIFIER_TOKENS)) {
         const word = match[0];
         if (RESERVED.has(word)) {
-            throw composeError(
-                id,
-                `reserved:${word}`,
-                `"${word}" is a WGSL reserved word (spec 16.2) and cannot be an identifier`,
-            );
+            throw composeError(id, `reserved:${word}`, `"${word}" is a WGSL reserved word and cannot be an identifier`);
         }
         if (helpers.includes(word) && !spec.needs.includes("subgroups")) {
             throw composeError(id, `helper:${word}`, `the body calls ${word} but spec.needs does not list "subgroups"`);

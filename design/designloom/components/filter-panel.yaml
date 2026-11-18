@@ -21,6 +21,9 @@ used_in_workflows:
     - W19
     - W07
     - W12
+    - W22
+    - W23
+    - W24
 dependencies:
     - filter-chip
     - select

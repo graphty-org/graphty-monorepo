@@ -10,12 +10,11 @@
  */
 
 import type { NodeId } from "../../catalog/types";
-import { englishNotes } from "../english";
 import { elementIdsOf, isBuiltResult, renumberResult } from "../results/RunResult";
 import type { RunResult } from "../results/types";
 import type { CodedFact } from "../shared";
 import { matchGroups } from "../styles/values";
-import { caveat, type CaveatCode, caveatSentence } from "./caveatFacts";
+import { caveat, type CaveatCode } from "./caveatFacts";
 import type { Caveats } from "./types";
 
 /** One field's renaming, and what it could not say by numbers alone. */
@@ -172,11 +171,10 @@ export function keepGroupNumbers<T>(
     if (renames.size === 0) {
         return { result: after, caveats };
     }
-    const more = { facts, sentences: facts.map(caveatSentence) };
+    const more = { facts };
     const kept: Caveats = Object.freeze({
         ...caveats,
         facts: Object.freeze([...caveats.facts, ...more.facts]),
-        notes: Object.freeze([...englishNotes(caveats), ...more.sentences]),
     });
     return { result: renumberResult(after, renames, more) as T, caveats: kept };
 }

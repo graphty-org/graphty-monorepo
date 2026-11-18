@@ -14,7 +14,7 @@ import { findNodes } from "../../../src/ai/commands/QueryCommands";
 import { CONNECTED_BY_SYNTAX, nodeScopeOf, SELECTOR_SYNTAX } from "../../../src/ai/commands/selectors";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 import { makeSession } from "../../session/helpers";
 
 describe("AI command selectors", () => {
@@ -22,7 +22,7 @@ describe("AI command selectors", () => {
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph({
+        graph = createMockTestGraph({
             nodes: 6,
             edges: 3,
             nodeData: (i) => ({ type: i % 2 === 0 ? "server" : "database", age: i * 10 }),

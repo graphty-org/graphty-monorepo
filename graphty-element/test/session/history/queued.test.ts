@@ -34,7 +34,7 @@ describe("the queued lane", () => {
 
         assert.deepEqual(executions, []);
         assert.deepEqual(
-            dispatcher.pending.map((item) => item.label),
+            dispatcher.pending.map((item) => item.fact.params.label),
             ["Loaded flights"],
         );
         await queue.next();
@@ -43,7 +43,7 @@ describe("the queued lane", () => {
         assert.deepEqual(executions, ["import:flights"]);
         assert.strictEqual(dispatcher.state.config.get("graph"), "flights");
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Loaded flights"],
         );
         assert.lengthOf(dispatcher.pending, 0);
@@ -62,7 +62,7 @@ describe("the queued lane", () => {
         assert.deepEqual(await second, { value: undefined });
         assert.strictEqual(dispatcher.state.config.get("graph"), "b");
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Loaded b"],
         );
     });
@@ -139,7 +139,7 @@ describe("key holds", () => {
         assert.include((held as Error).message, "Assistant message");
         assert.isFalse(dispatcher.state.config.has("pin/x"));
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Assistant message"],
         );
     });
@@ -191,7 +191,7 @@ describe("key holds", () => {
 
         assert.isFalse(dispatcher.state.config.has("pin/x"));
         assert.deepEqual(
-            dispatcher.pending.map((item) => item.label),
+            dispatcher.pending.map((item) => item.fact.params.label),
             ["Loaded big", "Pinned x"],
         );
 
@@ -201,7 +201,7 @@ describe("key holds", () => {
         assert.deepEqual(await pinned, { value: undefined });
         assert.isTrue(dispatcher.state.config.get("pin/x"));
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Loaded big", "Pinned x"],
         );
         assert.lengthOf(dispatcher.pending, 0);
@@ -262,7 +262,7 @@ describe("key holds", () => {
 
         assert.isTrue(dispatcher.state.config.get("pin/y"));
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Pinned y", "Message"],
         );
     });
@@ -282,7 +282,7 @@ describe("queueScheduler over the element's operation queue", () => {
         op: "load",
         undo: {
             kind: "undoable",
-            fact: () => ({ code: "transaction", params: { label: null } }),
+            fact: (c) => ({ code: "transaction", params: { label: `Loaded ${c.name}` } }),
             label: (c) => `Loaded ${c.name}`,
         },
         moves: false,
@@ -297,7 +297,7 @@ describe("queueScheduler over the element's operation queue", () => {
         op: "compute",
         undo: {
             kind: "undoable",
-            fact: () => ({ code: "transaction", params: { label: null } }),
+            fact: () => ({ code: "transaction", params: { label: "Ran degree" } }),
             label: () => "Ran degree",
         },
         moves: false,
@@ -322,7 +322,7 @@ describe("queueScheduler over the element's operation queue", () => {
             op: "edit",
             undo: {
                 kind: "undoable",
-                fact: () => ({ code: "transaction", params: { label: null } }),
+                fact: () => ({ code: "transaction", params: { label: "Edited a" } }),
                 label: () => "Edited a",
             },
             moves: false,
@@ -336,7 +336,7 @@ describe("queueScheduler over the element's operation queue", () => {
             op: "batch",
             undo: {
                 kind: "undoable",
-                fact: () => ({ code: "transaction", params: { label: null } }),
+                fact: () => ({ code: "transaction", params: { label: "Batch" } }),
                 label: () => "Batch",
             },
             moves: false,
@@ -378,7 +378,7 @@ describe("queueScheduler over the element's operation queue", () => {
         assert.deepEqual(await loaded, { value: undefined });
         assert.strictEqual(dispatcher.state.config.get("graph"), "flights");
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Loaded flights"],
         );
         queue.dispose();

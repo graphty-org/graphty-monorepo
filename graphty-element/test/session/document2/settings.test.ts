@@ -1,6 +1,6 @@
 /**
  * @file The version 2 `settings` section (spec 4.4): what it holds and leaves out, the column
- * dependencies, secrets, unknown keys kept, playback with the timeline on and off, and the round
+ * dependencies, secrets, unknown keys kept, playback, and the round
  * trips state -> section -> state and section -> state -> section.
  */
 
@@ -20,7 +20,6 @@ const SPEC = new URL("../../../spec/", import.meta.url);
 const readJson = (path: string): JsonObject => JSON.parse(readFileSync(new URL(path, SPEC), "utf8")) as JsonObject;
 const CODECS: CodecRegistry = { settings: settingsCodec };
 const ON = { features: ["save-files-v2", "timeline"] };
-const NO_TIMELINE = { features: ["save-files-v2"] };
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 const addFormats = (addFormatsModule as unknown as { default?: typeof addFormatsModule }).default ?? addFormatsModule;
@@ -118,7 +117,7 @@ async function changed(): Promise<GraphSession> {
         name: "A project",
         startingRows: true,
     });
-    await session.time.setSettings({ mode: "cumulative", outside: "ghost", timeZone: "Europe/Paris", ageFade: 0.4 });
+    await session.time.setSettings({ mode: "cumulative", timeZone: "Europe/Paris", ageFade: 0.4 });
     return session;
 }
 
@@ -139,7 +138,6 @@ describe("settings section", () => {
         }
         assert.deepEqual(section.playback, {
             mode: "cumulative",
-            outside: "ghost",
             timeZone: "Europe/Paris",
             ageFade: 0.4,
         });
@@ -245,17 +243,6 @@ describe("settings section", () => {
         assert.strictEqual(problems[0].params.pointer, `/settings/${name.slice(0, 256)}`);
     });
 
-    it("leaves playback off with the timeline off, reports it, and writes it back", async () => {
-        const section = await save(await changed());
-        const session = createGraphSession(NO_TIMELINE);
-        const problems = await open(session, section);
-        assert.deepEqual(problems, [
-            { code: "E_FEATURE_OFF", params: { feature: "timeline", key: "playback" } },
-        ] as unknown as DocumentProblem[]);
-        const saved = await save(session);
-        assert.deepEqual(saved.playback, section.playback);
-    });
-
     it("keeps an unknown playback member", async () => {
         const session = createGraphSession(ON);
         const problems = await open(session, {
@@ -274,7 +261,7 @@ describe("settings section", () => {
         const example = readJson("examples/card-fraud.graphty-settings.json");
         assert.deepEqual(await open(session, example), []);
         assert.strictEqual(session.config.layoutTransition?.transition, "glide");
-        assert.strictEqual(session.time.settings.outside, "ghost");
+        assert.strictEqual(session.time.settings.missing, "outside");
         // The header it was read with is kept on re-save (spec 8.1 rule 5).
         const saved = await save(session);
         assert.deepEqual(saved.dependencies, example.dependencies);

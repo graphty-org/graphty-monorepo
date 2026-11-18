@@ -1,7 +1,8 @@
 /**
- * @file Static: nothing under src/ writes a record's `data` except the attribute writer
- * (design/sets/sets-design.md 6.2). A write that bypasses it bumps no revision, and a resolution
- * cached against that revision answers from values the graph no longer holds.
+ * @file Static: nothing under src/ writes a record's `data` directly (design/sets/sets-design.md
+ * 6.2). Records are written by the graph primitives in session/project/graphOps.ts, whose
+ * `bumpFields` moves each written field's revision. A write that bypasses them bumps no revision,
+ * and a resolution cached against that revision answers from values the graph no longer holds.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -9,9 +10,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
-
-/** The writer's own file. */
-const WRITER = join("session", "attributes.ts");
 
 /**
  * Writes that stay, each with why a missed revision cannot follow from it. Keyed by file and the
@@ -45,13 +43,13 @@ const ALLOWED: readonly (readonly [file: string, line: string, reason: string])[
 const WRITE = /Object\.assign\(\s*[\w.$[\]]*\.data\b|\.data\s*=(?!=)/;
 
 describe("one attribute writer", () => {
-    it("src/ writes .data only through writeAttributes and the allowlist", () => {
+    it("src/ writes .data only through the graph primitives and the allowlist", () => {
         const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "src");
         const offenders: string[] = [];
         const used = new Set<number>();
 
         for (const entry of readdirSync(root, { recursive: true, encoding: "utf8" })) {
-            if (!entry.endsWith(".ts") || entry === WRITER) {
+            if (!entry.endsWith(".ts")) {
                 continue;
             }
 
@@ -71,7 +69,11 @@ describe("one attribute writer", () => {
             });
         }
 
-        assert.deepStrictEqual(offenders, [], "route these writes through writeAttributes (session/attributes.ts)");
+        assert.deepStrictEqual(
+            offenders,
+            [],
+            "route these writes through the graph primitives (session/project/graphOps.ts, bumpFields)",
+        );
         assert.deepStrictEqual(
             ALLOWED.filter((_, index) => !used.has(index)).map(([file, line]) => `${file}: ${line}`),
             [],

@@ -87,7 +87,7 @@ const MEMBERS = [
 /**
  * The members read from the live session where it has them (a renderer's camera, the timeline's
  * playhead) and otherwise kept from the open and written back: a session that draws nothing has
- * no camera, and one with the timeline off has no playhead.
+ * no camera, and one with no time window has no playhead.
  */
 const HELD_ONLY = new Set<string>(["camera", "timeline"]);
 
@@ -347,16 +347,14 @@ function layersJson(w: Writer): JsonObject[] {
 }
 
 /**
- * A time window as a view section writes it: an instant bound as a `toISOString` string, a raw
- * value as a number; `windowRaw` is not written (spec 4.7 rule 4).
- * @param session - The session.
+ * A time window as a view section writes it: each bound an instant, as a `toISOString` string
+ * (spec 4.7 rule 4).
  * @param window - The window.
  * @returns Its members.
  */
-function windowJson(session: GraphSession, window: TimeWindow): JsonObject {
-    const instants = (session.visibility as SessionVisibilityApi).holdsInstants(window);
+function windowJson(window: TimeWindow): JsonObject {
     const bound = (value: number | string): number | string =>
-        instants && typeof value === "number" ? new Date(value).toISOString() : value;
+        typeof value === "number" ? new Date(value).toISOString() : value;
     return Object.fromEntries(
         Object.entries({ ...window, from: bound(window.from), to: bound(window.to) }).filter(
             ([, value]) => value !== undefined,
@@ -376,19 +374,18 @@ function liveCamera(session: GraphSession): JsonObject | undefined {
 
 /**
  * The `timeline` member: the playhead, where a seek would put the window in force -- its start
- * when sliding, its end when cumulative -- or undefined with the timeline off or no window.
+ * when sliding, its end when cumulative -- or undefined with no window.
  * @param session - The session.
  * @returns The member.
  */
 function timelineJson(session: GraphSession): JsonObject | undefined {
-    const window = session.features.has("timeline") ? session.time.committed : null;
+    const window = session.time.committed;
     if (window === null) {
         return undefined;
     }
 
     const at = (window.mode ?? session.time.settings.mode) === "cumulative" ? window.to : window.from;
-    const instants = (session.visibility as SessionVisibilityApi).holdsInstants(window);
-    return { at: instants && typeof at === "number" ? new Date(at).toISOString() : at };
+    return { at: typeof at === "number" ? new Date(at).toISOString() : at };
 }
 
 /**
@@ -427,7 +424,7 @@ function visibilityJson(w: Writer): JsonObject | undefined {
     // No filter in force is left out (spec 4.7 rule 4).
     return {
         ...(filter === null ? {} : { filter: filterJson(w, filter) }),
-        ...(window === null ? {} : { window: windowJson(w.session, window) }),
+        ...(window === null ? {} : { window: windowJson(window) }),
         showContext,
         conditions: mapRefs(conditions, w.mapper, "") as unknown[],
         hidden,
@@ -848,8 +845,7 @@ async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> 
 
         if (isObject(read.window)) {
             const window = read.window as unknown as TimeWindow;
-            // A raw value is a number; an instant is a `toISOString` string (spec 4.7 rule 4).
-            await api.restoreWindow(window, typeof window.from === "number" && typeof window.to === "number");
+            await api.restoreWindow(window);
         }
 
         if (Array.isArray(read.conditions)) {

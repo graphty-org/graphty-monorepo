@@ -11,16 +11,12 @@ import { isGraphtyError } from "../../../src/errors";
 import { SLICED_ROWS } from "../../../src/session/time/timeIndex";
 import type { ElementSession } from "../../../src/session/types";
 
-const ON = { features: ["timeline"] };
-
 /**
  * A session whose five edges start at 0, 10, 20, 30 and 40, and whose nodes start at 0.
- * @param features - The experiments it runs with.
- * @param features.features - The ids.
  * @returns The session, as the renderer reads it.
  */
-async function edges(features: { readonly features: readonly string[] } = ON): Promise<ElementSession> {
-    const session = createGraphSession(features) as ElementSession;
+async function edges(): Promise<ElementSession> {
+    const session = createGraphSession() as ElementSession;
     await session.data.addNodes(Array.from({ length: 6 }, (_, i) => ({ id: `n${String(i)}`, t: 0 })));
     await session.data.addEdges(
         Array.from({ length: 5 }, (_, i) => ({ src: `n${String(i)}`, dst: `n${String(i + 1)}`, t: i * 10 })),
@@ -96,7 +92,7 @@ describe("fade by age", () => {
         assert.deepEqual(inactive(nodesOnly), ["no-edge-time"]);
         assert.isNull(nodesOnly.edgeAges());
 
-        const spells = createGraphSession(ON) as ElementSession;
+        const spells = createGraphSession() as ElementSession;
         await spells.data.addNodes([{ id: "a" }, { id: "b" }]);
         await spells.data.addEdges([{ src: "a", dst: "b", t: 1, s: [[1, 3]] }]);
         await spells.time.setField({ edges: { start: "t", spells: "s", unit: "ordinal" } });
@@ -119,35 +115,14 @@ describe("fade by age", () => {
         await session.time.setSettings({ ageFade: 0.3 });
         const { text } = await session.project.save();
 
-        const reopened = createGraphSession(ON) as ElementSession;
+        const reopened = createGraphSession() as ElementSession;
         await reopened.project.open(text);
         assert.strictEqual(reopened.time.settings.ageFade, 0.3);
     });
 
-    it("with the timeline off, keeps a saved fade and draws none", async () => {
-        const session = await edges();
-        await session.time.setField({ edges: { start: "t", unit: "ordinal" } });
-        await session.time.setSettings({ ageFade: 0.3 });
-        await session.time.window({ from: 0, to: 30 });
-        const { text } = await session.project.save();
-
-        const off = createGraphSession({ features: [] }) as ElementSession;
-        await off.project.open(text);
-        assert.isNull(off.edgeAges());
-        assert.include((await off.project.save()).text, '"ageFade":0.3');
-
-        // A value the flag would refuse is not checked while it is off: it stays as it came.
-        const odd = text.replace('"ageFade":0.3', '"ageFade":2');
-        const offOdd = createGraphSession({ features: [] }) as ElementSession;
-        await offOdd.project.open(odd);
-        const kept = (await offOdd.project.save()).text;
-        assert.include(kept, '"ageFade":2');
-        assert.include(kept, '"playback"');
-    });
-
     it("keeps fading while new edges are merged in", async () => {
         // Enough rows that the index merges new edges a slice at a time, after the add returns.
-        const session = createGraphSession(ON) as ElementSession;
+        const session = createGraphSession() as ElementSession;
         await session.data.addNodes(Array.from({ length: 6 }, (_, i) => ({ id: `n${String(i)}` })));
         await session.data.addEdges(
             Array.from({ length: SLICED_ROWS }, (_, i) => ({

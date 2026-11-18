@@ -67,9 +67,15 @@ async function read(url: string): Promise<ReturnType<typeof parse>> {
         // GitHub Pages serves max-age=600; no-cache revalidates, so a flipped flag reaches readers
         // on their next load.
         const response = await fetch(url, { cache: "no-cache" });
-        const parsed = response.ok ? parse(await response.json()) : null;
+        // With no file, a single-page fallback (vite preview, the dev server) answers with
+        // index.html and a 200: parsing that as JSON fails with a message naming no cause.
+        const isPage = response.headers.get("content-type")?.includes("text/html") ?? false;
+        const parsed = response.ok && !isPage ? parse(await response.json()) : null;
         if (parsed === null) {
-            const why = response.ok ? "not a site configuration" : `HTTP ${String(response.status)}`;
+            let why = `HTTP ${String(response.status)}`;
+            if (response.ok) {
+                why = isPage ? "served an HTML page, not a site configuration" : "not a site configuration";
+            }
             console.warn(`[graphty] ${url}: ${why}; every experiment is off`);
         }
         return parsed;
@@ -106,15 +112,6 @@ export function loadSiteConfig(url = `${import.meta.env.BASE_URL}site.json`): Pr
  */
 export function siteConfig(): SiteConfig {
     return current;
-}
-
-/**
- * Whether this site switches the timeline on, for a door the start page draws before any session
- * exists; `timelineOn(session)` answers everywhere else.
- * @returns true when it is on.
- */
-export function siteTimeline(): boolean {
-    return resolveFeatures(current.features).enabled.includes("timeline");
 }
 
 /**

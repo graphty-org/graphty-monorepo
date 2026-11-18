@@ -167,11 +167,11 @@ describe("the graph-io import helper", () => {
         // "b" was added by the first edge, before its declaration: its row is 1 either way, and
         // "z" (row 2) is never declared.
         assert.deepEqual(
-            nodes.map((node) => node.row),
+            nodes.map((node): unknown => node.row),
             [0, 1],
         );
         assert.deepEqual(
-            edges.map((edge) => edge.row),
+            edges.map((edge): unknown => edge.row),
             [0, 1],
         );
     });
@@ -268,7 +268,7 @@ describe("the graph-io import helper's options, weights, cells and failures", ()
         const { edges } = toRecords(await importDocument(importer, "doc", {}), { node() {}, edge() {} });
 
         assert.deepEqual(
-            edges.map((edge) => edge.weight),
+            edges.map((edge): unknown => edge.weight),
             [0.1, 16777217, undefined],
         );
         assert.isFalse("weight" in edges[2]);
@@ -279,7 +279,7 @@ describe("the graph-io import helper's options, weights, cells and failures", ()
         const { edges } = toRecords(await importDocument(importer, "doc", {}), { node() {}, edge() {} });
 
         assert.deepEqual(
-            edges.map((edge) => edge.weight),
+            edges.map((edge): unknown => edge.weight),
             [2, 0.5],
         );
     });

@@ -59,13 +59,13 @@ describe("parseHeaderField", () => {
         "a:b:c",
         "a(b",
     ])("rejects %j", (cell) => {
+        expect(() => parseHeaderField(cell)).toThrow(
+            expect.objectContaining({
+                code: "E_UNSUPPORTED",
+                details: expect.objectContaining({ reason: "header" }) as unknown,
+            }),
+        );
         expect(() => parseHeaderField(cell)).toThrow(GraphFormatError);
-        try {
-            parseHeaderField(cell);
-        } catch (err) {
-            expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
-            expect((err as GraphFormatError).details.reason).toBe("header");
-        }
     });
 });
 

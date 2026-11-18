@@ -14,7 +14,6 @@ import { createGraphSession, type GraphSession } from "../../../session";
 import { isGraphtyError } from "../../../src/errors";
 import { dataCodec } from "../../../src/session/document2/codecs/data";
 import type { DocumentProblem, JsonObject } from "../../../src/session/document2/types";
-import type { SessionVisibilityApi } from "../../../src/session/visibility/VisibilityApi";
 import { finishAtOnce } from "../runs/harness";
 
 const SPEC = new URL("../../../spec/", import.meta.url);
@@ -309,30 +308,6 @@ describe("the sections a reader changed from the session", () => {
         assert.notInclude(codes(report.problems), "W_DATA_CHANGED");
         session.dispose();
         opened.dispose();
-    });
-
-    it("keeps a window whose bounds are values, set with the timeline off, as values", async () => {
-        const session = createGraphSession(ON);
-        await session.data.addNodes([
-            { id: "a", year: 1995 },
-            { id: "b", year: 2005 },
-        ]);
-        await session.visibility.setWindow({ attribute: "year", from: 1990, to: 2000 });
-        const holds = (each: GraphSession): boolean =>
-            (each.visibility as SessionVisibilityApi).holdsInstants(
-                each.visibility.window ?? { attribute: "year", from: 0, to: 0 },
-            );
-        assert.isFalse(holds(session));
-        const saved = await session.project.save({ format: 2 });
-        // A raw bound is a JSON number; `windowRaw` is not written (spec 4.7 rule 4).
-        const window = (sectionsOf(saved.text).view.visibility as JsonObject).window as JsonObject;
-        assert.deepEqual([window.from, window.to, window.raw], [1990, 2000, undefined]);
-
-        const reopened = createGraphSession(ON);
-        await reopened.project.open(saved.text);
-        assert.isFalse(holds(reopened));
-        session.dispose();
-        reopened.dispose();
     });
 });
 

@@ -821,7 +821,6 @@
                 "mode": "sliding",
                 "step": "auto",
                 "missing": "outside",
-                "outside": "ghost",
                 "timeZone": "UTC"
             }
         },

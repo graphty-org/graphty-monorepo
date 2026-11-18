@@ -9,6 +9,7 @@
 import { afterEach, assert, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, type GraphSession, registerSource } from "../../../session";
+import { rejectionCodeOf } from "../helpers";
 
 /** What the counted source was asked, by method. */
 const asked = { records: 0, validate: 0, expand: 0 };
@@ -95,18 +96,6 @@ async function opened(text: string): Promise<GraphSession> {
     return session;
 }
 
-/**
- * The code a call rejected with.
- * @param work - the call
- * @returns the code, or null when it resolved
- */
-async function codeOf(work: Promise<unknown>): Promise<string | null> {
-    return work.then(
-        () => null,
-        (error: unknown) => (error as { code?: string }).code ?? "no code",
-    );
-}
-
 describe("a reopened project's network entries", () => {
     it("src-14: refresh, more, check and expand of a pending load fetch nothing", async () => {
         const session = await opened(await savedFile());
@@ -117,12 +106,12 @@ describe("a reopened project's network entries", () => {
         const failed: string[] = [];
         session.on("source:expand-failed", ({ code }) => failed.push(code));
 
-        assert.strictEqual(await codeOf(session.data.refresh("s1")), "E_SOURCE_PENDING");
-        assert.strictEqual(await codeOf(session.data.more({ load: "s1" })), "E_SOURCE_PENDING");
-        assert.strictEqual(await codeOf(session.data.checkSource("s1")), "E_SOURCE_PENDING");
-        assert.strictEqual(await codeOf(session.data.expand(["n0"])), "E_SOURCE_PENDING");
+        assert.strictEqual(await rejectionCodeOf(session.data.refresh("s1")), "E_SOURCE_PENDING");
+        assert.strictEqual(await rejectionCodeOf(session.data.more({ load: "s1" })), "E_SOURCE_PENDING");
+        assert.strictEqual(await rejectionCodeOf(session.data.checkSource("s1")), "E_SOURCE_PENDING");
+        assert.strictEqual(await rejectionCodeOf(session.data.expand(["n0"])), "E_SOURCE_PENDING");
         // `more()` with no load picks the newest one that may fetch, and there is none
-        assert.isNull(await codeOf(session.data.more()));
+        assert.isNull(await rejectionCodeOf(session.data.more()));
 
         assert.deepEqual(asked, { records: 0, validate: 0, expand: 0 }, "nothing was asked of the source");
         assert.deepEqual(failed, ["E_SOURCE_PENDING"]);
@@ -204,7 +193,7 @@ describe("a reopened project's network entries", () => {
         await session.data.checkSource(entry.key);
         await session.data.refresh(entry.key);
         assert.strictEqual(session.data.nodes().length, 2);
-        assert.strictEqual(await codeOf(session.data.refresh("s9")), "E_LOAD_UNKNOWN");
+        assert.strictEqual(await rejectionCodeOf(session.data.refresh("s9")), "E_LOAD_UNKNOWN");
     });
 
     it("src-58: never takes a click-to-expand trigger from a file", async () => {

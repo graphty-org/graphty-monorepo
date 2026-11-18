@@ -80,10 +80,6 @@
                     "type": "string",
                     "minLength": 1
                 },
-                "outside": {
-                    "type": "string",
-                    "minLength": 1
-                },
                 "timeZone": {
                     "type": "string",
                     "minLength": 1

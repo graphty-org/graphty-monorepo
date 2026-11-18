@@ -351,19 +351,21 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                           | Type                                | Default   |
-| -------------------------------- | ----------------------------------- | --------- |
-| [`dialect`](#export-dialect)     | `"gephi" \| "generic"`              | `"gephi"` |
-| [`table`](#export-table)         | `"adjacency" \| "nodes" \| "edges"` | `"edges"` |
-| [`delimiter`](#export-delimiter) | `string`                            | `","`     |
-| [`newline`](#export-newline)     | `"\n" \| "\r\n"`                    | `"\n"`    |
-| [`header`](#export-header)       | `boolean`                           | `true`    |
+| Option                                       | Type                                | Default   |
+| -------------------------------------------- | ----------------------------------- | --------- |
+| [`dialect`](#export-dialect)                 | `"gephi" \| "generic"`              | `"gephi"` |
+| [`table`](#export-table)                     | `"adjacency" \| "nodes" \| "edges"` | `"edges"` |
+| [`delimiter`](#export-delimiter)             | `string`                            | `","`     |
+| [`newline`](#export-newline)                 | `"\n" \| "\r\n"`                    | `"\n"`    |
+| [`header`](#export-header)                   | `boolean`                           | `true`    |
+| [`spreadsheetSafe`](#export-spreadsheetsafe) | `boolean`                           | `false`   |
 
 - <a id="export-dialect"></a>`dialect`: The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's direction in `Type`; "generic" writes `source,target,...,weight` and no direction column. A JSON dialect name, from an options object shared with JSON saves, is ignored.
 - <a id="export-table"></a>`table`: Which table to write. "edges": one edge per row, with the edge attributes; isolated nodes and node attributes are not in it. "nodes": one node per row, with the node attributes and no edges. "adjacency": a node and its neighbors per row, which keeps every node and the node order but no attributes (read it back with `table: "adjacency"`). To keep both nodes and edges, write the node table and the edge table to two files and read them back with the `nodes` import option.
 - <a id="export-delimiter"></a>`delimiter`: The field delimiter.
 - <a id="export-newline"></a>`newline`: The line terminator.
 - <a id="export-header"></a>`header`: Whether to write the header row (an adjacency table never has one). A file without a header is read back by position: source, target, weight, then unnamed columns. checkExport() returns `W_CSV_HEADERLESS` when the table has other columns; for a plain headerless edge list, pass `dialect: "generic"` and write a graph whose edges have only weights.
+- <a id="export-spreadsheetsafe"></a>`spreadsheetSafe`: Whether to keep spreadsheets from running cells as formulas: a cell starting with `=`, `+`, `-`, `@`, a tab or a CR (other than a plain number such as `-5`) is written with a leading `'`. Turn it on for a file someone may open in Excel or LibreOffice when the graph came from a source you do not trust: a label such as `=HYPERLINK("http://x","click")` otherwise runs as a formula, quoted or not. The prefixed cells read back with the `'`, so the round trip is no longer exact.
 
 ## Import issue codes
 

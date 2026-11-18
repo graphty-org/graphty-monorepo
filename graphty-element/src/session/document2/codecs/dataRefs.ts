@@ -9,8 +9,9 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { sha256HexSync } from "@graphty/graph-io";
+
 import type { EdgeId, NodeId } from "../../../catalog/types";
-import { sha256Hex } from "../../../utils/sha256";
 import { COLUMNS_VALUE, type ColumnSettings } from "../../commands/data";
 import { dispatcherOf } from "../../dispatchers";
 import { expandedGraph } from "../../groups";
@@ -98,7 +99,7 @@ export function canonicalJson(value: unknown): string {
  * @returns The digest.
  */
 function digestOf(value: unknown): string {
-    return `sha256:${sha256Hex(canonicalJson(value))}`;
+    return `sha256:${sha256HexSync(canonicalJson(value))}`;
 }
 
 /** A ULID: 26 Crockford base-32 characters. */

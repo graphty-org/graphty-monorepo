@@ -5,7 +5,6 @@ import {
     HueSlider,
     isColorValid,
     parseColor,
-    SegmentedControl,
     Select,
     Tooltip,
     VisuallyHidden,
@@ -16,6 +15,7 @@ import React, { type ReactNode, useEffect, useRef, useState } from "react";
 import { UiGlyph } from "../../icons";
 import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
 import { useOptionalPopoutContext } from "../popout/PopoutContext";
+import { SegmentedControl } from "../SegmentedControl";
 import { Chit } from "./Chit";
 import { useDiscardedEdit } from "./escape";
 import { OpacityInput } from "./OpacityInput";

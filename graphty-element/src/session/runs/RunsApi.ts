@@ -25,7 +25,6 @@ import { registeredAlgorithmByKey } from "../../catalog/registry";
 import {
     type AlgorithmDescriptor,
     type AlgorithmKey,
-    isDeprecatedAlgorithm,
     type LayerId,
     type NodeId,
     type OptionDescriptor,
@@ -37,6 +36,7 @@ import {
     type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { algorithmLog } from "../../logging/algorithmLog";
 import {
     ALGO_DEFINITIONS,
     type AlgoMoveCommand,
@@ -73,6 +73,7 @@ import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
 import { isLabelledValue, valueLabelKey, valueLabelOf } from "../valueLabels";
 import {
+    isAbortLike,
     ManagedRun,
     type RunBody,
     type RunDefinition,
@@ -261,8 +262,6 @@ export interface RunsApiOptions {
      * @returns The accepted window key, or undefined.
      */
     readonly acceptedWindow?: (id: RunId) => string | undefined;
-    /** Whether the timeline experiment is on; absent reads on. */
-    readonly timeline?: () => boolean;
     /**
      * The name of a kept set, for a run label.
      * @param id - The set.
@@ -345,6 +344,13 @@ export interface SessionRunsApi extends RunsApi {
      * @returns True when the element derived the id.
      */
     isDerivedId(id: RunId): boolean;
+    /**
+     * The name the layers a run paints are given when the caller names none: its algorithm's
+     * catalog name, gaining what tells it apart from a sibling run of the same algorithm.
+     * @param id - The run id.
+     * @returns The name, or undefined when this session holds no such run.
+     */
+    defaultLayerName(id: RunId): string | undefined;
     /**
      * Mark a run a project open brought back under its saved id as one whose id the element
      * minted, as it was when saved.
@@ -553,15 +559,6 @@ const NO_QUEUE_PROGRESS: RunProgressSink = Object.freeze({
         // The run publishes its own progress; there is no operation to report on.
     },
 });
-
-/**
- * Tell whether a thrown value is an abort rather than a failure.
- * @param error - The thrown value.
- * @returns True when it is an `AbortError` or a `TimeoutError`.
- */
-function isAbortLike(error: unknown): boolean {
-    return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
-}
 
 /**
  * What to call a scope in a run label.
@@ -1090,7 +1087,9 @@ class Runs implements SessionRunsApi {
         const label = options.label ?? "Batch";
         const identity: RunIdentity = {
             algorithm: "batch",
-            params: { label, specs: specs.map((spec) => ({ ...spec })) },
+            // What each member paints is no part of what it computes, as with a single run: left out,
+            // or a style holding a function (a group-name callback) would leave no id to derive.
+            params: { label, specs: specs.map(({ style: _style, ...spec }) => ({ ...spec })) },
             scope: this.defaultScope,
             seed: null,
             sample: null,
@@ -1204,6 +1203,15 @@ class Runs implements SessionRunsApi {
         const run = this.runs.get(id);
 
         return run !== undefined && this.listed(run) ? run : undefined;
+    }
+
+    /**
+     * The name a run's layers are given by default.
+     * @param id - The run id.
+     * @returns The name, or undefined when this session holds no such run.
+     */
+    defaultLayerName(id: RunId): string | undefined {
+        return this.runs.get(id)?.label;
     }
 
     /**
@@ -1441,6 +1449,7 @@ class Runs implements SessionRunsApi {
         const command = own ? this.pinnedTo(id, asked) : asked;
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
+        algorithmLog.info("run requested", { algorithm, id, params: params ?? null, existing: existing !== undefined });
 
         if (hold === undefined) {
             this.holds.delete(id);
@@ -1653,7 +1662,6 @@ class Runs implements SessionRunsApi {
             siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
-            timeline: () => this.options.timeline?.() !== false,
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
             ...(this.options.scopeFacts === undefined
                 ? {}
@@ -1842,7 +1850,7 @@ class Runs implements SessionRunsApi {
      */
     private windowMoved(run: ManagedRun): boolean {
         const ran = run.scopeWindow;
-        if (ran === undefined || this.options.windowNow === undefined || this.options.timeline?.() === false) {
+        if (ran === undefined || this.options.windowNow === undefined) {
             return false;
         }
 
@@ -2912,19 +2920,9 @@ class Runs implements SessionRunsApi {
      * One algorithm's catalogue entry, insisting that it exists.
      * @param algorithm - The algorithm key.
      * @returns The descriptor.
-     * @throws A `GraphtyError` with code `E_UNSUPPORTED` for a deprecated built-in name the
-     *   element reserves but does not run, or `E_UNKNOWN_ALGORITHM` when nothing registers that key.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_ALGORITHM` when nothing registers that key.
      */
     private descriptorFor(algorithm: AlgorithmKey): AlgorithmDescriptor {
-        if (isDeprecatedAlgorithm(algorithm)) {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: `The "${algorithm}" algorithm is not implemented. The name is deprecated and will be removed at the next major release unless it is implemented first.`,
-                source: "run",
-                details: { algorithm, reason: "deprecated" },
-            });
-        }
-
         const descriptor = this.findDescriptor(algorithm);
 
         if (descriptor === undefined) {

@@ -487,8 +487,9 @@ A settings section holds `settings` and `playback`.
    and `name` are never saved. No `data.*` key is written here: each has its home in the data
    section, and a key with none is refused on save and reported (8.1 rule 2). A key a reader does
    not know is kept.
-2. `playback` holds timeline playback: `mode`, `step`, `missing`, `outside`, `timeZone`, `ageFade`
-   and `results`.
+2. `playback` holds timeline playback: `mode`, `step`, `missing`, `timeZone`, `ageFade` and
+   `results`. How what lies outside the time window draws is held by the style layers that select
+   it, never here.
 3. Settings that name columns list them in `dependencies.columns`.
 4. Loading a settings section onto an open project sets only the keys it holds; an absent key
    means its schema default only when a file is opened as a new session.
@@ -570,10 +571,10 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    rule, one naming members, a group of leaves) is written as a rule tree in exactly the shape a
    rule set's `definition` holds its `where` (common schema `boundRuleTree`), element-naming
    leaves as element references. A reader tells the two apart by structure, not a tag: a rule
-   tree has a `kind`, a `graphFilter` has none. No filter is left out. `window` is graphty-element's `TimeWindow`: an instant bound is
-   a `toISOString` string, a raw value (a step number, a year) a JSON number; `attribute`, `end`
+   tree has a `kind`, a `graphFilter` has none. No filter is left out. `window` is graphty-element's `TimeWindow`: a bound is an instant,
+   written as a `toISOString` string (a JSON number read there is milliseconds since 1970); `attribute`, `end`
    and `spells` are value paths (`data.<working column>`); the window's own `missing`, `mode` and
-   `timeZone` win over playback's; the element's `windowRaw` flag is not written. `conditions`
+   `timeZone` win over playback's; no `windowRaw` flag is written. `conditions`
    holds every keep, exclude and select condition as one plain list, element leaves as element
    references, with no nested `version`. `hidden` holds the nodes hidden from the drawing.
 5. **Run records.** Each carries its run `id`; a recipe-made run its `namespace` and `as`; the

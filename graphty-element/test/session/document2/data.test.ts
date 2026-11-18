@@ -530,7 +530,7 @@ describe("data section version 2", () => {
         assert.strictEqual(body.build, example.build, "nothing changed since the open");
         const copies = (from: JsonObject): Record<string, unknown> =>
             Object.fromEntries(
-                (from.sources as JsonObject[]).map((source) => [source.id, (source.origin as JsonObject).copy]),
+                (from.sources as JsonObject[]).map((source) => [String(source.id), (source.origin as JsonObject).copy]),
             );
         const written = copies(body);
         const file = String((example.sources as JsonObject[]).find((source) => source.kind === "file")?.id);

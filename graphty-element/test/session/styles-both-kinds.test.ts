@@ -369,7 +369,7 @@ describe("a row whose kind changes", () => {
             assert.strictEqual(row.id, id, `${target}: the row keeps its id`);
             assert.strictEqual(row.target, target);
             assert.lengthOf(session.history.steps, steps + 1, `${target}: one step`);
-            assert.include(session.history.steps.at(-1)?.label ?? "", first.name, "the step names the row");
+            assert.strictEqual(session.history.steps.at(-1)?.fact.params.layer, first.name, "the step names the row");
 
             const now = shot(session, id);
             assert.strictEqual(now.name, first.name, `${target}: the row keeps its name`);

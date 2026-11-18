@@ -43,3 +43,20 @@ export function yedLabelBox(policy: string | null | undefined, position: string 
     }
     return position?.startsWith("inside-") === true ? "words-at-side" : null;
 }
+
+/** A label's box round its lines of words: yEd's padding, and each line against the font's size. */
+export const YED_LABEL_BOX_PADDING = 4;
+export const YED_LABEL_LINE = 1.164;
+
+/** A label's words against their font size, for a file that stores no width. */
+export const YED_LABEL_CHARACTER = 0.55;
+
+/**
+ * The height yEd gives a label of some lines of text: each line its font's ascent plus descent, and the box's padding.
+ * @param text - the label's text
+ * @param fontSize - its font size
+ * @returns the height
+ */
+export function yedLabelHeight(text: string, fontSize: number): number {
+    return text.split("\n").length * YED_LABEL_LINE * fontSize + YED_LABEL_BOX_PADDING;
+}

@@ -5,8 +5,9 @@
  * (`save-files-v2`). Pure: no session.
  */
 
+import { sha256HexSync } from "@graphty/graph-io";
+
 import { GraphtyError } from "../../errors/GraphtyError";
-import { sha256Hex } from "../../utils/sha256";
 import { FILE_TEMPLATE_PREFIX } from "../styles/fileStyles/store";
 import { canonicalJson as sharedCanonicalJson, freeColumnName, LOOK_TAKEN, lookPathsRewrite } from "./codecs/dataRefs";
 import type { DocumentProblem, EdgeRef, JsonObject, NodeRef } from "./types";
@@ -75,7 +76,7 @@ const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
  * @returns The ULID.
  */
 export function ulidOf(seed: string): string {
-    const hex = sha256Hex(seed);
+    const hex = sha256HexSync(seed);
     // The first character holds 3 bits, as a ULID's 128 bits allow.
     return Array.from({ length: 26 }, (_, at) => {
         const digit = Number.parseInt(hex.slice(at * 2, at * 2 + 2), 16);
@@ -731,7 +732,7 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const copyId = ulidOf(`copy\u0000${seed}`);
     const readerCopy = ulidOf(`reader\u0000${seed}`);
     const build = ulidOf(`build\u0000${seed}`);
-    const dataId = `data_v1_${sha256Hex(seed).slice(0, 32)}`;
+    const dataId = `data_v1_${sha256HexSync(seed).slice(0, 32)}`;
     const space = `source:${source}`;
 
     const config = isObject(session?.config) && isObject(session.config.data) ? session.config.data : {};

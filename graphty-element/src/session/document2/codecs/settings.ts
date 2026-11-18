@@ -19,15 +19,7 @@ import { dispatcherOf } from "../../dispatchers";
 import { redactedParams } from "../../sources/member";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
 import { projectMemory } from "../memory";
-import type {
-    DocumentProblem,
-    JsonObject,
-    ReadContext,
-    ReadSection,
-    SectionCodec,
-    SectionWrite,
-    WriteContext,
-} from "../types";
+import type { JsonObject, ReadContext, ReadSection, SectionCodec, SectionWrite, WriteContext } from "../types";
 
 /** The `config.set` keys another section holds (view) or no section saves. */
 const NOT_HERE: ReadonlySet<string> = new Set([
@@ -62,7 +54,8 @@ const NO_HOME: readonly string[] = [
 ];
 
 /** The members of `playback`, in the order it writes them (spec 4.4 rule 2). */
-const PLAYBACK_MEMBERS = ["mode", "step", "missing", "outside", "timeZone", "ageFade", "results"] as const;
+// How what lies outside the window draws is the style layers' (`{ match: "state", state: "outsideWindow" }`).
+const PLAYBACK_MEMBERS = ["mode", "step", "missing", "timeZone", "ageFade", "results"] as const;
 
 /** What a read kept that the session cannot hold, written back on the next save. */
 interface Kept {
@@ -72,8 +65,6 @@ interface Kept {
     readonly settings: JsonObject;
     /** `playback` members this release does not know. */
     readonly playback: JsonObject;
-    /** The whole `playback` as read, while the timeline is off and it was not applied. */
-    readonly heldPlayback?: JsonObject;
 }
 
 const KEPT = projectMemory<Kept>();
@@ -123,7 +114,7 @@ function valueAt(root: unknown, path: string): unknown {
 function playbackOf(context: WriteContext, kept: Kept | undefined): JsonObject | undefined {
     const live = dispatcherOf(context.session).state.visibility.playback;
     if (live === null || live === undefined) {
-        return kept?.heldPlayback;
+        return undefined;
     }
 
     const written: JsonObject = {};
@@ -295,7 +286,6 @@ interface KeptSettings {
     header: JsonObject;
     settings: JsonObject;
     playback: JsonObject;
-    heldPlayback?: JsonObject;
 }
 
 /**
@@ -390,18 +380,11 @@ function merge(base: JsonObject, over: JsonObject): JsonObject {
  * @param playback - The member as read.
  * @param at - Its pointer.
  * @param context - The open.
- * @param kept - Where the unknown members, or the whole member with the timeline off, are kept.
+ * @param kept - Where the unknown members are kept.
  */
 async function readPlayback(playback: unknown, at: string, context: ReadContext, kept: KeptSettings): Promise<void> {
     if (!isObject(playback)) {
         bad(context, at);
-        return;
-    }
-
-    if (!context.session.features.has("timeline")) {
-        // Kept as read and written back, as version 1 keeps it; it does nothing with the timeline off.
-        kept.heldPlayback = playback;
-        context.problems.push(featureOff("playback"));
         return;
     }
 
@@ -416,15 +399,6 @@ async function readPlayback(playback: unknown, at: string, context: ReadContext,
         }
         bad(context, at);
     }
-}
-
-/**
- * The report of a part left out with the timeline off, as version 1's `timelineLeftOff` makes it.
- * @param key - The member left out.
- * @returns The problem.
- */
-function featureOff(key: string): DocumentProblem {
-    return { code: "E_FEATURE_OFF", params: { feature: "timeline", key } };
 }
 
 /** The `graphty-settings` section, version 1. */

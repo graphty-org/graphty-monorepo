@@ -101,6 +101,41 @@ describe("the ChronographWatch glTF-WEBP shape", () => {
         }
     });
 
+    it("draws a solid see-through body (a volume with thickness) opaque, as drawn without both", async () => {
+        const element = await mount();
+        // DragonAttenuation's dragon: fully transmissive, with a thick amber volume. Drawn at its
+        // transmission factor it was a white ghost at 20%; drawn without its volume it is opaque.
+        const dragon = gltfPair(
+            triangleGltf({
+                extensionsUsed: ["KHR_materials_transmission", "KHR_materials_volume"],
+                materials: [
+                    {
+                        name: "dragon",
+                        pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: 0 },
+                        extensions: {
+                            // eslint-disable-next-line camelcase -- a glTF extension's name, as the format spells it
+                            KHR_materials_transmission: { transmissionFactor: 1 },
+                            // eslint-disable-next-line camelcase -- a glTF extension's name, as the format spells it
+                            KHR_materials_volume: { thicknessFactor: 2.27, attenuationDistance: 0.155 },
+                        },
+                    },
+                ],
+            }),
+        );
+        const { problems } = await drawModel(element, dragon, [{ id: "a", x: 0 }]);
+        for (const extension of ["KHR_materials_transmission", "KHR_materials_volume"]) {
+            assert.deepInclude(problems, { code: "W_MODEL_EXTENSION_IGNORED", params: { extension } });
+        }
+        const drawn = element.graph.scene.meshes
+            .filter((m) => (m.metadata as { graphtyModelGroup?: string } | null)?.graphtyModelGroup !== undefined)
+            .map((m) => m.material);
+        assert.isNotEmpty(drawn);
+        for (const material of drawn) {
+            assert.strictEqual(material?.alpha, 1, "the solid body is drawn opaque");
+            assert.isFalse(material?.needAlphaBlending() ?? true, "and not blended");
+        }
+    });
+
     it("loads from an address, fetching its .bin and three WebP pictures beside it", async () => {
         const variant = (manifest as { id: string; files: string[] }[]).find(
             (v) => v.id === "gltf-transmission-required",

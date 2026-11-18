@@ -190,15 +190,20 @@ function seeThrough(json: Record<string, unknown>): Set<string> {
 }
 
 /**
- * Make one transmissive material see-through ({@link seeThrough}).
+ * Make one transmissive material see-through ({@link seeThrough}), unless it is a solid volume.
  * @param entry - The glTF material, changed in place.
- * @returns Whether it was transmissive.
+ * @returns Whether it was made see-through.
  */
 function blendTransmissive(entry: Record<string, unknown>): boolean {
     const extensions = entry.extensions as Record<string, unknown> | undefined;
     const transmission = extensions?.KHR_materials_transmission as { transmissionFactor?: unknown } | undefined;
     const factor = typeof transmission?.transmissionFactor === "number" ? transmission.transmissionFactor : 0;
-    if (factor <= 0) {
+    // A volume with thickness is a solid body (in glTF, thickness 0 means thin-walled glass). Drawn
+    // without its volume it is opaque, as an object with no transmission is: made see-through by
+    // its transmission factor, the amber DragonAttenuation dragon was a white ghost at 20%.
+    const volume = extensions?.KHR_materials_volume as { thicknessFactor?: unknown } | undefined;
+    const solid = typeof volume?.thicknessFactor === "number" && volume.thicknessFactor > 0;
+    if (factor <= 0 || solid) {
         return false;
     }
 

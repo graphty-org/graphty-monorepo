@@ -73,7 +73,7 @@ const READABLE_EXTENSIONS = new Set([
 /**
  * Required extensions that are drawn without: the transmission family. A part using one is drawn
  * with `W_MODEL_EXTENSION_IGNORED`, rather than the whole model refused: a transmissive part alpha
- * blended by its transmission factor (see loadModel), the others opaque.
+ * blended by its transmission factor unless it is a solid volume (see loadModel), the others opaque.
  */
 export const IGNORED_EXTENSIONS: ReadonlySet<string> = new Set([
     "KHR_materials_transmission",

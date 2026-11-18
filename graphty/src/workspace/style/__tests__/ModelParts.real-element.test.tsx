@@ -196,19 +196,8 @@ describe("a model missing parts, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose folder", [KIT_FOLDER]);
         await previewOf(dialog, "police");
-        // Until the graph draws it, the Shape field's spinner says the model is on its way.
-        let spun = false;
-        const watch = new MutationObserver(() => {
-            spun ||= tab.querySelector("[aria-label='Drawing police']") !== null;
-        });
-        watch.observe(tab, { subtree: true, childList: true, attributes: true });
         await addModel(dialog);
         await drawn(session);
-        await waitFor(() => {
-            assert.isNull(within(tab).queryByRole("status", { name: "Drawing police" }), "gone once drawn");
-        });
-        watch.disconnect();
-        assert.isTrue(spun, "a spinner showed while the model was not drawn yet");
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
     });
 

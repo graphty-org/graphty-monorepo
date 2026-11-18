@@ -20,8 +20,10 @@
  *   out; a shard it runs whole stays as it is.
  *   --pull-request leaves out the shards marked "full-run-only" (and their bins): they run in the 6-hour full run
  *   (graphty-element-lifecycle, the fidelity slices), unless --only names them. A shard marked
- *   "pull-request": "selected" (the features-on twins, FEATURES_ON_SHARDS) runs on a pull request only as the bins
- *   of the files the change selected, never whole and never as a whole family packed into bins.
+ *   "pull-request": "selected" (the features-on twins, FEATURES_ON_SHARDS, and the forced-batched shards) runs on a
+ *   pull request only as the bins of the files the change selected, never whole and never as a whole family packed
+ *   into bins; a "pull-request-when" list of path patterns (BATCHED_PATH_CHANGES) further limits that to a change
+ *   touching one of them (tools/test-select.mjs onlyWhenChanged()).
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -79,6 +81,19 @@ const ELEMENT_BROWSER_PARTS = 12;
  * p90 in full runs to 2026-11-14 (#7849); two bring the p90 to about 620 s.
  */
 const ELEMENT_DEFAULT_PARTS = 2;
+
+/**
+ * The changed paths that make a pull request run the forced-batched variant of its selected test files: a
+ * graphty-element browser or interaction test (or the variant's own setup and skip list), and the render path --
+ * the meshes (EdgeMesh, the batches, edge trim), Edge.ts and Node.ts, src/render, and the managers that place
+ * rows and paint them. Regular expressions over repository paths.
+ */
+export const BATCHED_PATH_CHANGES = [
+    "^graphty-element/test/(browser|interactions|forced-batched)/",
+    "^graphty-element/src/(meshes|render)/",
+    String.raw`^graphty-element/src/(Edge|Node)\.ts$`,
+    String.raw`^graphty-element/src/managers/(UpdateManager|RenderManager|StylePainter)\.ts$`,
+];
 
 /**
  * How many parts graphty's tests (graphty-N) and their experiments-on twins (graphty-features-on-N) split into. A
@@ -460,12 +475,17 @@ const OFF_SHARDS = [
     // ubuntu-24.04 without a GPU (run 42466940961, 2026-11-08, 542 files; 629 by 2026-11-16), about 6,300 s of tests
     // now: split like the browser shards, about 525 s a part against the 900 s shard budget. No coverage (the browser
     // shards measure it). Its oracle-scorecard.test.ts decodes oracle pictures, Git LFS objects.
+    // On a pull request it runs only as the bins of the files the change selected ("pull-request": "selected", as the
+    // features-on twins), and only when the change touches a browser or interaction test or the render path
+    // ("pull-request-when", tools/test-select.mjs onlyWhenChanged()): twice on 2026-11-18 a batched-path break
+    // passed its pull request and first failed here in the full run (#8826).
     ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-forced-batched-${n}`,
         package: "graphty-element",
         "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
-        "full-run-only": true,
+        "pull-request": "selected",
+        "pull-request-when": BATCHED_PATH_CHANGES,
         // every oracle's rasterized PNG (about 48 MB, the fidelity slices' cached pull), since a glob of the
         // scorecard's 28 would mean reading its sample list when this file is imported
         lfs: "graph-io/test/fidelity/oracles/*.png",

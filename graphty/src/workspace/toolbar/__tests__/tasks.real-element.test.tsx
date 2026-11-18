@@ -476,7 +476,10 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Views and tours... opens the Graph place's Views section on its first view; Delete forgets it.
         await userEvent.click(within(await open()).getByRole("menuitem", { name: "Views and tours..." }));
         await waitFor(() => {
-            assert.equal(document.activeElement?.getAttribute("data-view-row"), "View 1");
+            assert.equal(
+                document.activeElement,
+                within(screen.getByRole("grid", { name: "Saved views" })).getByRole("gridcell", { name: "View 1" }),
+            );
         });
         await userEvent.keyboard("{Delete}");
         await waitFor(() => {

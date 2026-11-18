@@ -197,7 +197,7 @@ describe("tours on a real element", () => {
         const before = graph.getCameraState();
         const placedBefore = graph.isCameraPlaced();
         const reached: string[] = [];
-        graph.on("tour-progress", (event) => reached.push(`${event.stop}:${event.phase}`));
+        graph.on("tour-progress", (event) => reached.push(`${event.stop}:${event.phase}:${event.view}`));
         const ended: TourEndReason[] = [];
         graph.on("tour-ended", (event) => ended.push(event.reason));
         await graph.getSession().tours.save([
@@ -215,7 +215,7 @@ describe("tours on a real element", () => {
         const { reason } = await graph.playTour("walk", { restoreCamera: true });
         assert.strictEqual(reason, "finished");
         assert.deepStrictEqual(ended, ["finished"]);
-        assert.deepStrictEqual(reached, ["0:hold", "1:flight", "1:hold"], "no flight phase for a jump");
+        assert.deepStrictEqual(reached, ["0:hold:a", "1:flight:b", "1:hold:b"], "no flight phase for a jump");
         assert.isTrue(samePosition(graph.getCameraState(), before), "the camera is back");
         assert.strictEqual(graph.isCameraPlaced(), placedBefore, "the tour's own moves are not a placement");
 

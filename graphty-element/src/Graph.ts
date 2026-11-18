@@ -8357,7 +8357,11 @@ export class Graph implements GraphContext {
             const target = stopTarget(stop);
             return orbitAnglesToPosition(typeof target === "string" ? this.resolveCameraPreset(target) : target);
         });
-        return { name: tour.name, easing: tour.easing, plan, states };
+        const views = tour.stops.map((stop) => {
+            const target = stopTarget(stop);
+            return typeof target === "string" ? target : undefined;
+        });
+        return { name: tour.name, easing: tour.easing, plan, states, views };
     }
 
     /**
@@ -8490,10 +8494,12 @@ export class Graph implements GraphContext {
      */
     async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName, authored = false): Promise<void> {
         const progress = (stop: number, phase: "flight" | "hold"): void => {
+            const view = flown.views[stop];
             this.eventManager.emit("tour-progress", {
                 tour: tour.name,
                 stop,
                 stops: tour.stops,
+                ...(view === undefined ? {} : { view }),
                 phase,
             } satisfies Omit<TourProgressEvent, "type">);
         };
@@ -11645,6 +11651,8 @@ interface FlownTour {
     readonly plan: TourPlan;
     /** The camera state each stop flies to. */
     readonly states: readonly import("./screenshot/types.js").CameraState[];
+    /** The saved view each stop flies to, or undefined for a stop given as a camera state. */
+    readonly views: readonly (string | undefined)[];
 }
 
 /**

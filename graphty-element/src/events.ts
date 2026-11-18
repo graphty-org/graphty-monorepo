@@ -629,6 +629,11 @@ export interface TourProgressEvent {
     stop: number;
     /** How many stops the tour has. */
     stops: number;
+    /**
+     * The saved view this stop flies to, as the tour was when it started playing (an edit while it
+     * plays does not change it); absent for a stop given as a camera state.
+     */
+    view?: string;
     phase: "flight" | "hold";
 }
 

@@ -10,6 +10,7 @@ import {
     ActionRow,
     CardList,
     type CardListItem,
+    ControlGroup,
     ControlSection,
     MenuCheckItem,
     PageList,
@@ -518,31 +519,12 @@ function TourList({ session, element, store }: ListProps): React.JSX.Element {
         };
     }, []);
 
-    const head = (
-        <div className="ws-views-head">
-            <Text span className="ws-views-title">
-                Tours
-            </Text>
-            {names.length === 0 ? null : (
-                <NewTourButton
-                    onRun={() => {
-                        void newTour(session).then(setOpen, (error: unknown) => {
-                            store.set({
-                                notice: { message: errorWords("Could not start a tour", error), error: true },
-                            });
-                        });
-                    }}
-                />
-            )}
-        </div>
-    );
     return (
         <div className="ws-tours" ref={wrapper}>
-            {head}
-            {names.length === 0 ? (
-                <ActionRow
-                    state="No tours"
-                    actions={
+            <ControlGroup
+                label="Tours"
+                actions={
+                    names.length === 0 ? undefined : (
                         <NewTourButton
                             onRun={() => {
                                 void newTour(session).then(setOpen, (error: unknown) => {
@@ -552,34 +534,54 @@ function TourList({ session, element, store }: ListProps): React.JSX.Element {
                                 });
                             }}
                         />
-                    }
-                />
-            ) : (
-                <CardList
-                    label="Tours"
-                    items={names.flatMap((name) => {
-                        const tour = session.tours.get(name);
-                        return tour === undefined ? [] : [card(name, tour)];
-                    })}
-                    autoFold={false}
-                    folded={new Set(names.filter((name) => name !== open))}
-                    onFoldedChange={(folded) => {
-                        // One open at a time: the card just unfolded, or none.
-                        setOpen(names.find((name) => !folded.has(name) && name !== open) ?? null);
-                    }}
-                    renaming={renaming}
-                    onRenamingChange={setRenaming}
-                    onRename={(from, to) => {
-                        const name = to.trim();
-                        if (name !== "" && name !== from) {
-                            if (open === from) {
-                                setOpen(name);
-                            }
-                            void orRefusal(store, `rename ${from}`, session.tours.rename(from, name));
+                    )
+                }
+            >
+                {names.length === 0 ? (
+                    <ActionRow
+                        state="No tours"
+                        actions={
+                            <NewTourButton
+                                onRun={() => {
+                                    void newTour(session).then(setOpen, (error: unknown) => {
+                                        store.set({
+                                            notice: {
+                                                message: errorWords("Could not start a tour", error),
+                                                error: true,
+                                            },
+                                        });
+                                    });
+                                }}
+                            />
                         }
-                    }}
-                />
-            )}
+                    />
+                ) : (
+                    <CardList
+                        label="Tours"
+                        items={names.flatMap((name) => {
+                            const tour = session.tours.get(name);
+                            return tour === undefined ? [] : [card(name, tour)];
+                        })}
+                        autoFold={false}
+                        folded={new Set(names.filter((name) => name !== open))}
+                        onFoldedChange={(folded) => {
+                            // One open at a time: the card just unfolded, or none.
+                            setOpen(names.find((name) => !folded.has(name) && name !== open) ?? null);
+                        }}
+                        renaming={renaming}
+                        onRenamingChange={setRenaming}
+                        onRename={(from, to) => {
+                            const name = to.trim();
+                            if (name !== "" && name !== from) {
+                                if (open === from) {
+                                    setOpen(name);
+                                }
+                                void orRefusal(store, `rename ${from}`, session.tours.rename(from, name));
+                            }
+                        }}
+                    />
+                )}
+            </ControlGroup>
         </div>
     );
 }
@@ -658,12 +660,9 @@ export function ViewsSection({ session }: Readonly<{ session: GraphSession }>): 
                     )
                 }
             >
-                <div className="ws-views-head">
-                    <Text span className="ws-views-title">
-                        Saved views
-                    </Text>
-                </div>
-                <ViewList session={session} element={element} store={store} />
+                <ControlGroup label="Saved views">
+                    <ViewList session={session} element={element} store={store} />
+                </ControlGroup>
                 <TourList session={session} element={element} store={store} />
             </ControlSection>
         </div>

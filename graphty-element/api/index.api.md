@@ -8812,6 +8812,7 @@ export interface TourProgressEvent {
     tour: string | null;
     // (undocumented)
     type: "tour-progress";
+    view?: string;
 }
 
 // @public

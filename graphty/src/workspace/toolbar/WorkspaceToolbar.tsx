@@ -318,14 +318,14 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
 /**
  * A tour's stop as the status line says it: "Stop 3 of 4, Port nodes".
  * @param session - The element's session.
- * @param tour - The saved tour's name, or null for a tour given inline.
- * @param stop - The stop, 0-based.
- * @param stops - How many stops it has.
+ * @param progress - The `tour-progress` event's detail.
+ * @param progress.stop - The stop, 0-based.
+ * @param progress.stops - How many stops the tour has.
+ * @param progress.view - The saved view the stop flies to, if any.
  * @returns The words.
  */
-function stopWords(session: GraphSession, tour: string | null, stop: number, stops: number): string {
+function stopWords(session: GraphSession, { stop, stops, view }: TourProgressEvent): string {
     const lead = `Stop ${String(stop + 1)} of ${String(stops)}`;
-    const view = tour === null ? undefined : session.tours.get(tour)?.stops[stop]?.view;
     if (view === undefined) {
         return lead;
     }
@@ -345,13 +345,14 @@ function useCameraFacts(element: ReturnType<typeof useWorkspace>["element"]): vo
         if (element === null) {
             return undefined;
         }
-        const progress = ({ detail: { tour, stop, stops } }: CustomEvent<TourProgressEvent>): void => {
+        const progress = ({ detail }: CustomEvent<TourProgressEvent>): void => {
+            const { tour, stop, stops } = detail;
             const before = store.get().tourProgress;
             const moved = before?.tour !== tour || before.stop !== stop;
             store.set({
                 tourProgress: { tour, stop, stops },
                 // The polite status line says each stop once, as it is reached, never a phase or a tick.
-                ...(moved ? { announcement: stopWords(element.session, tour, stop, stops) } : {}),
+                ...(moved ? { announcement: stopWords(element.session, detail) } : {}),
             });
         };
         const ended = (): void => {

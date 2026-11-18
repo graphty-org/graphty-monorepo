@@ -289,8 +289,8 @@ however the tour ended, with `{ reason }`:
 
 `restoreCamera: true` puts the camera back where it was, only when the tour finishes. After an
 interruption the camera stays where the reader left it. Auto-rotate and following the selection
-wait while a tour plays. `tour-progress` (`{ tour, stop, stops, phase }`) fires on each stop and
-phase, and `tour-ended` (`{ tour, reason }`) once at the end.
+wait while a tour plays. `tour-progress` (`{ tour, stop, stops, view, phase }`, `view` absent for a
+stop given as a camera state) fires on each stop and phase, and `tour-ended` (`{ tour, reason }`) once at the end.
 
 **The advanced path.** An editor that shows a tour's length and its broken stops before playing
 asks `planTour`, which checks and times a tour without moving anything, and plans again on

@@ -21,6 +21,7 @@ used_in_workflows:
     - W17
     - W19
     - W12
+    - W24
 dependencies:
     - metric-card
     - histogram

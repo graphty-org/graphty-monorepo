@@ -20,9 +20,11 @@ import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { DVIPS_COLORS } from "../../styles/canon/color-tables.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
+import { graphvizFontName, postscriptFont } from "../../styles/canon/postscript-font.js";
 import { type CanonSite, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
@@ -41,8 +43,6 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { graphvizFontName, postscriptFont } from "../dot/drawing.js";
-import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
     drawLines,
     drawsLineLabels,

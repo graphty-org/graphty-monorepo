@@ -98,6 +98,7 @@ describe("check-features", () => {
             "graphty-element/src/features/registry.ts": registry(TIMELINE, `"old-map"`),
             "graphty-element/src/catalog/layouts.ts": `export const timelineLayout = { feature: "timeline" };\n`,
             "graphty/src/Panel.tsx": `if (el.features.has("mapz")) show();\nconst legacy = "old-map";\n`,
+            "graphty/src/commands.ts": `const c = { keywords: ["old-map", "map"] };\n`,
             "graphty/src/Panel.stories.tsx": `export const S = { parameters: { features: ["timeline", "nope"] } };\n`,
             "graphty/sites/nightly.json": `{ "site": "nightly", "features": ["timeline", "gone"] }\n`,
             "graphty-element/src/errors.ts": `details: { feature: "webllm" },\n`,

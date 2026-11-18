@@ -400,10 +400,11 @@ export const REPLACEABLE = new Set(["red", "owner-item", "rejected", "refused", 
  * @param [o.heldState] the held head's own latest verdict ("" when no run judged it)
  * @param [o.newer] whether the judged commit is newer on master than the held one (its history holds it)
  * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end the held head: a newer
- *   green-clean commit then promotes, a green-images one is held in its place) or "none"
+ *   green-clean commit then promotes, a green-images one is held in its place), "unknown" (the store did not say what
+ *   is held: nothing can be decided, and release.yml fails the Verdict job so a re-run decides, #5597) or "none"
  */
 export function holdAction({ held, sha, state, heldState = "", newer = false }) {
-    if (held === "unknown") return "none";
+    if (held === "unknown") return "unknown";
     if (!held) return state === "green-clean" ? "none" : "start";
     if (held === sha) return "update";
     const green = state === "green-clean" || state === "green-images";
@@ -593,8 +594,11 @@ const output = (fields) => {
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
     console.log(lines.join("\n"));
 };
-const read = async (cfg, path) => {
-    const r = await call(cfg, "GET", path);
+// The held head's read waits longer than call()'s own retries (1 + 3 s): a store that answered 5xx for 12 s left a
+// newer green-images verdict unable to replace the hold (#5597), and the verdict has minutes to spare.
+const HELD_RETRY_MS = [5000, 15000, 30000, 60000];
+const read = async (cfg, path, retryMs = undefined) => {
+    const r = await call(retryMs ? { ...cfg, retryMs: cfg.retryMs ?? retryMs } : cfg, "GET", path);
     if (!r.ok) console.log(`::warning::results store: GET ${path} did not answer (${r.why})`);
     return r.ok ? r.data : null;
 };
@@ -607,7 +611,7 @@ const read = async (cfg, path) => {
  */
 export async function heldNow(cfg, fallback) {
     if (!cfg) return { head: fallback ?? "unknown", base: "", state: "" };
-    const store = await read(cfg, "/v1/candidate");
+    const store = await read(cfg, "/v1/candidate", HELD_RETRY_MS);
     if (!store) return { head: "unknown", base: "", state: "" };
     const hold = store.hold;
     if (!hold?.head) return { head: "", base: "", state: "" };

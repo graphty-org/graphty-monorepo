@@ -184,10 +184,10 @@ describe("site-deploy.yml", () => {
 describe("graphty/sites/nightly.json", () => {
     const config = JSON.parse(readFileSync(new URL("../../graphty/sites/nightly.json", import.meta.url), "utf8"));
 
-    it("names the nightly site, its own datasets and the selection workspace", () => {
+    it("names the nightly site, its own datasets and no experiment yet", () => {
         assert.deepEqual(config, {
             site: "nightly",
-            features: ["selection-workspace"],
+            features: [],
             datasets: "https://nightly.graphty.app/data/graph-samples/v1/",
             sentryEnvironment: "nightly",
         });

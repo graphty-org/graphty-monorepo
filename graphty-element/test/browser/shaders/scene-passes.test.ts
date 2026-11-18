@@ -13,8 +13,7 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import { BACKGROUND_LAYER } from "../../../src/meshes/BackgroundPass";
 import { BLOOM_LAYER } from "../../../src/meshes/BloomPass";
 import { OUTLINE_LAYER } from "../../../src/meshes/GroupOutlinePass";
@@ -125,15 +124,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 }
 
 /**
- * The element's render manager, which holds the scene passes.
- * @param element - The element.
- * @returns The render manager.
- */
-function renderManagerOf(element: Graphty): RenderManager {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager;
-}
-
-/**
  * A layer's id by its name.
  * @param element - The element.
  * @param name - The layer's name.
@@ -181,7 +171,7 @@ describe("a background shader", () => {
                 },
             ],
         );
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         element.background = { backgroundType: "color", color: "#000000", shader: { id: "e6/sky" } };
         await until(
             element,
@@ -236,7 +226,7 @@ describe("a background shader", () => {
     it("is drawn again only when it moves or the camera does", async () => {
         const element = await mounted([{ id: "a", x: 0, y: 0 }], []);
         element.background = { backgroundType: "color", shader: { id: "e6/drift", params: { drift: 0 } } };
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         const scene = element.graph.getScene();
         await until(element, "the background draws", () => (renderManager.shaderPasses().background?.draws ?? 0) > 0);
         await drawnFrames(scene, 2);
@@ -290,7 +280,7 @@ describe("group outlines", () => {
             outer,
             inner,
         ]);
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         await until(
             element,
             "both layers draw",
@@ -328,7 +318,7 @@ describe("group outlines", () => {
     it("tint a background by the outlines laid out after it drew", async () => {
         const element = await mounted(nodes, []);
         element.background = { backgroundType: "color", shader: { id: "e6/tinted" } };
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         await until(element, "the background draws", () => (renderManager.shaderPasses().background?.draws ?? 0) > 0);
 
         // The outline pass starts after the background's, so it lays the groups out after the
@@ -352,7 +342,7 @@ describe("group outlines", () => {
         const element = await mounted(nodes, [outer]);
         element.background = { backgroundType: "color", shader: { id: "e6/tinted" } };
         await element.graph.waitForStableFrame();
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         const { outline, background } = renderManager.shaderPasses();
         assert.lengthOf(outline?.tints(4) ?? [], 1, "the outline is laid out in the stable frame");
         assert.isFalse(renderManager.shaderPicturePending(), "no shader picture is on its way once it is stable");
@@ -362,7 +352,7 @@ describe("group outlines", () => {
 
     it("follow a running force layout", async () => {
         const element = await mounted(nodes, [outer]);
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         const scene = element.graph.getScene();
         await until(
             element,
@@ -405,7 +395,7 @@ describe("group outlines", () => {
 
     it("report a real click on an outline as its layer and group", async () => {
         const element = await mounted(nodes, [outer, inner]);
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         await until(
             element,
             "both layers draw",
@@ -442,7 +432,7 @@ describe("group outlines", () => {
 describe("the shared bloom", () => {
     it("is allocated once while a layer names a bloom shader, on screen or not", async () => {
         const element = await mounted([{ id: "a", x: 0, y: 0 }], []);
-        const renderManager = renderManagerOf(element);
+        const renderManager = renderManagerOf(element.graph);
         const scene = element.graph.getScene();
         const blooms = (): number => scene.effectLayers.filter((layer) => layer.name === BLOOM_LAYER).length;
         assert.isNull(renderManager.shaderPasses().bloom, "no bloom before a layer names one");

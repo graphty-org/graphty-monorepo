@@ -19,7 +19,6 @@
  */
 
 import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { breadthFirstSearch } from "../../src/algorithms/bfs.js";
 import { predBufferWords, sssp, type SsspTuning, ssspWithTuning } from "../../src/algorithms/sssp.js";
@@ -68,7 +67,7 @@ import {
 } from "../helpers/sssp.js";
 import { expectPredArcAttains, expectTriangleInequality } from "../helpers/traversal-check.js";
 import { bfsOracle, dijkstraOracle } from "../oracle/traversal.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { sharedContext } from "../setup/gpu.js";
 
 /** The tuned delta of the stage comparison: the weighted karate's farthest distance is a few units, so the ladder has several steps. */
 const INSPECT_DELTA = 1;
@@ -231,14 +230,7 @@ async function predOverWindow(ctx: GpuContext): Promise<U32> {
 }
 
 describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "sssp" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "sssp" });
 
     /**
      * The differential of one run: twice through the tuning entry (which reads the counters block after every

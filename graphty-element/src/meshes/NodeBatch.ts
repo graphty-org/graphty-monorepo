@@ -486,7 +486,7 @@ function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
 }
 
 /** A view in which nothing keeps a row out of a batch: what a plain paint is drawn in. */
-const UNLIT_VIEW: BatchView = { flatOutline: false };
+const UNLIT_VIEW: BatchView = { flatOutline: false, sizeSpace: "scene" };
 
 /** The shapes a row can be round from every side as, as `Node` keeps them. */
 const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
@@ -544,6 +544,8 @@ export class ColumnRow implements RowMeasure {
             shape?.model === undefined &&
             (texture?.image ?? "") === "" &&
             drawnText(label) === undefined &&
+            // A view-sized row needs a `Node`: only a `Node` scales with the view.
+            (shape?.sizeSpace ?? view.sizeSpace) === "scene" &&
             // A plain paint is the fallback past an object budget: under 3D flat lighting, which batches nothing
             // else, it is still drawn by a batch, without the outline only a `Node` draws.
             batchableOf(paint, isPlainPaint(paint) ? UNLIT_VIEW : view)
@@ -1174,7 +1176,7 @@ export class NodeBatches {
     /** Bring every batch up to date before a frame. */
     private flush(): void {
         const view = this.host.view();
-        if (view.flatOutline !== this.view.flatOutline) {
+        if (view.flatOutline !== this.view.flatOutline || view.sizeSpace !== this.view.sizeSpace) {
             this.view = view;
             this.syncAll();
         }

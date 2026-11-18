@@ -19,8 +19,8 @@ describe("notes and the history", () => {
         session.notes.remove(id);
 
         assert.deepEqual(
-            session.history.steps.slice(-3).map((step) => step.label),
-            ["Added note", "Edited note", "Removed note"],
+            session.history.steps.slice(-3).map((step) => step.fact.code),
+            ["note.add", "note.update", "note.remove"],
         );
         assert.deepEqual(session.history.steps.at(-1)?.slices, ["notes"]);
 
@@ -52,7 +52,7 @@ describe("notes and the history", () => {
 
         assert.strictEqual(session.history.steps.length, steps + 1);
         const step = session.history.steps.at(-1);
-        assert.strictEqual(step?.label, "Mark the core");
+        assert.strictEqual(step?.fact.params.label, "Mark the core");
         assert.sameMembers([...(step?.slices ?? [])], ["sets", "notes"]);
         assert.strictEqual(session.notes.get(ids[0])?.text, "the core");
 

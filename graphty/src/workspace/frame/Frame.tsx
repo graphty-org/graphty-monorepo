@@ -12,7 +12,6 @@ import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
-import { selectionWorkspaceOn } from "../features";
 import { GraphPlace } from "../graph-place/GraphPlace";
 import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
@@ -59,7 +58,7 @@ interface FrameProps {
  * @returns The frame
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
-    const { store, element, session } = useWorkspace();
+    const { store, element } = useWorkspace();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -69,10 +68,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const dockMaximized = useWorkspaceState((state) => state.dockMaximized);
     const autosave = useWorkspaceState((state) => state.autosave);
-    // The selection workspace covers one side panel (spec 3.0): it takes no focus under it.
+    // The full-screen selection workspace covers both side panels: they take no focus under it.
     const covered = useWorkspaceState((state) => state.selectionWorkspace?.host ?? null);
-    // The full-screen selection workspace (an experiment) covers both side panels.
-    const modalCover = covered !== null && selectionWorkspaceOn(session);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the graph's heading, or the open place's list while the inspector shows something else
@@ -131,7 +128,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     aria-label="Left panel"
                     hidden={!panels}
                     data-fills={left.fills ? "" : undefined}
-                    inert={modalCover || covered === "selector"}
+                    inert={covered !== null}
                 >
                     <div className="ws-panel-body">
                         <PanelBoundary key={place} name="Place">
@@ -213,7 +210,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         className="ws-right"
                         aria-label="Inspector"
                         hidden={!panels || left.fills}
-                        inert={left.fills || modalCover || covered === "filter"}
+                        inert={left.fills || covered !== null}
                     >
                         <div className="ws-panel-body">
                             <PanelBoundary name="Inspector">

@@ -262,7 +262,6 @@ export const MultipleButtons: Story = {
                             <Popout key={row.label}>
                                 <ControlGroup
                                     label={row.label}
-                                    bleed
                                     actions={
                                         <Popout.Trigger>
                                             <PopoutButton

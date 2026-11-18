@@ -18,21 +18,9 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
 import { type ExtensionHandle, type U32 } from "../../src/types/index.js";
+import { thrownCode } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
 
 function list(array: U32 | null): number[] | null {
     return array === null ? null : Array.from(array);
@@ -355,7 +343,7 @@ describe("audit: dangling references and I12", () => {
         // design 5.11: a dangling reference is INVALID_INDEX with the row UNSET; I12 forbids a set row
         // holding INVALID_INDEX; remapColumn() flips such a column to nullable for exactly this case
         expect(parent.isSet(0)).toBe(false);
-        expect(code(() => s.validate({ level: "full" }))).toBeNull();
+        expect(thrownCode(() => s.validate({ level: "full" }))).toBeNull();
     });
 
     // VERIFIER (round 1): the same defect on the path without compaction. A non-nullable refersTo
@@ -372,7 +360,7 @@ describe("audit: dangling references and I12", () => {
         expect(none.meta.nullable).toBe(true);
         expect(none.nullCount).toBe(3);
         expect([none.isSet(0), none.isSet(1), none.isSet(2)]).toEqual([false, false, false]);
-        expect(code(() => untouched.validate({ level: "full" }))).toBeNull();
+        expect(thrownCode(() => untouched.validate({ level: "full" }))).toBeNull();
 
         b.setNodeValue("parent", 1, 0);
         const partial = b.freeze();
@@ -381,11 +369,11 @@ describe("audit: dangling references and I12", () => {
         expect(some.meta.nullable).toBe(true);
         expect(some.nullCount).toBe(2);
         expect([some.isSet(0), some.isSet(1), some.isSet(2)]).toEqual([false, true, false]);
-        expect(code(() => partial.validate({ level: "full" }))).toBeNull();
+        expect(thrownCode(() => partial.validate({ level: "full" }))).toBeNull();
         assertInvariants(partial);
 
         // the builder still refuses to unset a row of its non-nullable column
-        expect(code(() => b.setNodeValue("parent", 0, INVALID_INDEX))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("parent", 0, INVALID_INDEX))).toBe("E_COLUMN_TYPE");
 
         b.setNodeValue("parent", 0, 2);
         b.setNodeValue("parent", 2, 1);
@@ -394,7 +382,7 @@ describe("audit: dangling references and I12", () => {
         expect(Array.from(all.data)).toEqual([2, 0, 1]);
         expect(all.meta.nullable).toBe(false);
         expect(all.validity).toBeNull();
-        expect(code(() => full.validate({ level: "full" }))).toBeNull();
+        expect(thrownCode(() => full.validate({ level: "full" }))).toBeNull();
 
         // an edge column referring to edges, and a refersTo column with an explicit in-range fill
         b.addEdge("a", "b");
@@ -406,7 +394,7 @@ describe("audit: dangling references and I12", () => {
         const root = mixed.nodes.requireTyped("root", "u32");
         expect(root.meta.nullable).toBe(false);
         expect(Array.from(root.data)).toEqual([0, 0, 0]);
-        expect(code(() => mixed.validate({ level: "full" }))).toBeNull();
+        expect(thrownCode(() => mixed.validate({ level: "full" }))).toBeNull();
     });
 
     it("the public remapColumn helper handles the same column correctly (the reference behaviour)", async () => {

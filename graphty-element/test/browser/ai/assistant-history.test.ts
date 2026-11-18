@@ -80,7 +80,7 @@ describe("an assistant message under undo", () => {
         assert.lengthOf(session.history.steps, steps + 1, "one step");
         const step = session.history.steps.at(-1);
         assert.strictEqual(step?.provenance.via, "assistant");
-        assert.strictEqual(step?.label, "do three things");
+        assert.strictEqual(step?.fact.params.label, "do three things");
         assert.includeMembers([...(step?.ops ?? [])], ["layout.set", "algo.run", "style.patch"]);
         assert.strictEqual(session.layout.engine, "circular");
         assert.isTrue(hasRedLayer());

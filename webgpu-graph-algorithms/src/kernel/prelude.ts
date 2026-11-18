@@ -1,11 +1,11 @@
 /**
- * The WGSL prelude every composed module receives first (contract 4.1), the two reduction-helper blocks the
- * composer splices for a body whose spec lists `needs: ["subgroups"]` (contract 4.3, D16), and the WGSL
- * reserved-word list the composer rejects identifiers from (contract 3.9).
+ * The WGSL prelude every composed module receives first, the two reduction-helper blocks the
+ * composer splices for a body whose spec lists `needs: ["subgroups"]`, and the WGSL
+ * reserved-word list the composer rejects identifiers from.
  *
- * CONTRACT DECISION (3.9): this text lives in the kernel layer, not in `src/wgsl/`, because the composer must own
+ * This text lives in the kernel layer, not in `src/wgsl/`, because the composer must own
  * what it splices and `src/wgsl/` then holds kernel BODIES only. Every numeric constant is interpolated from
- * `constants.ts` and graph-format's `INVALID_INDEX`; the literal-grep test of spec 3.5 (`test/kernel/wgsl.test.ts`)
+ * `constants.ts` and graph-format's `INVALID_INDEX`; the literal-grep test (`test/kernel/wgsl.test.ts`)
  * covers this file's template, so no u32 sentinel or workgroup-size literal is ever typed here.
  */
 
@@ -38,7 +38,7 @@ import { WebGpuGraphError } from "../errors.js";
 
 /**
  * Formats a finite number as a WGSL f32 literal that always carries a decimal point or an exponent (`0.01`,
- * `1e-8`, `2.0`), so an integral value never becomes an abstract-int literal (contract 4.1).
+ * `1e-8`, `2.0`), so an integral value never becomes an abstract-int literal.
  * @param value - the number to format
  * @returns the literal text
  */
@@ -54,7 +54,7 @@ export function wgslF32Literal(value: number): string {
     return /[.e]/.test(text) ? text : `${text}.0`;
 }
 
-/** The prelude text with the constants interpolated from constants.ts and graph-format's INVALID_INDEX (4.1). */
+/** The prelude text with the constants interpolated from constants.ts and graph-format's INVALID_INDEX. */
 export const PRELUDE_WGSL: string = /* wgsl */ `// ---- prelude: constants, standard overrides, helpers (every module receives this text first)
 const INVALID_INDEX: u32 = ${INVALID_INDEX}u;
 const U32_MAX: u32 = ${U32_MAX}u;
@@ -122,7 +122,7 @@ fn kick_dir(i: u32, j: u32, dim: u32) -> vec3f {
 /** Line count of PRELUDE_WGSL (the compilation-info formatter subtracts it plus the emitted declarations). */
 export const PRELUDE_LINES: number = PRELUDE_WGSL.split("\n").length;
 
-/** The workgroup-memory reduction helpers (the twin) (4.3), plus the workgroup-memory form of the P8 scan helper. */
+/** The workgroup-memory reduction helpers (the twin), plus the workgroup-memory form of the scan helper `wg_scan_u32`. */
 export const REDUCE_HELPERS_WORKGROUP_WGSL: string = /* wgsl */ `var<workgroup> wg_scratch_v: array<vec4f, WG>;
 var<workgroup> wg_scratch_u: array<u32, WG>;
 fn combine_v(a: vec4f, b: vec4f, op: u32) -> vec4f {
@@ -176,7 +176,7 @@ fn wg_scan_u32(v: u32, lid: u32) -> u32 {
 }
 fn wg_reduce_f32(v: f32, lid: u32, op: u32) -> f32 { return wg_reduce_vec4(vec4f(v, 0.0, 0.0, 0.0), lid, op).x; }`;
 
-/** The subgroup reduction helpers, spliced only with `enable subgroups;` (4.3), plus the subgroup form of the P8 scan helper. */
+/** The subgroup reduction helpers, spliced only with `enable subgroups;`, plus the subgroup form of the scan helper `wg_scan_u32`. */
 export const REDUCE_HELPERS_SUBGROUP_WGSL: string = /* wgsl */ `override SG_SLOTS: u32 = (WG + SUBGROUP_MIN - 1u) / SUBGROUP_MIN;   // one slot per subgroup; the count is largest when the compiler picks the SMALLEST size
 var<workgroup> sg_counter: atomic<u32>;
 var<workgroup> sg_val_v: array<vec4f, SG_SLOTS>;
@@ -272,13 +272,13 @@ fn wg_scan_u32(v: u32, lid: u32) -> u32 {
 }
 fn wg_reduce_f32(v: f32, lid: u32, op: u32) -> f32 { return wg_reduce_vec4(vec4f(v, 0.0, 0.0, 0.0), lid, op).x; }`;
 
-/** The helper function names a body may call when its spec lists needs: ["subgroups"]; `wg_scan_u32(v, lid)` is an INCLUSIVE prefix sum over the workgroup in lane order (P8-T1), bitwise the same in both forms. */
+/** The helper function names a body may call when its spec lists needs: ["subgroups"]; `wg_scan_u32(v, lid)` is an INCLUSIVE prefix sum over the workgroup in lane order, bitwise the same in both forms. */
 export const REDUCE_HELPER_NAMES = ["wg_reduce_f32", "wg_reduce_u32", "wg_reduce_vec4", "wg_scan_u32"] as const;
 
 /**
  * The WGSL reserved words of spec section 16.2 (the `_reserved` production), frozen; composeWgsl rejects a body or
- * snippet that uses one (3.9). PLAN DECISION: the list is the 146 words of the W3C Candidate Recommendation Draft
- * of 2026-08-31 (identical to the editor's draft of 2026-09-01); the contract's count of 147 predates the removal
+ * snippet that uses one. The list is the 146 words of the W3C Candidate Recommendation Draft
+ * of 2026-08-31 (identical to the editor's draft of 2026-09-01); an earlier count of 147 predates the removal
  * of `binding_array`. `free`, `valid`, `tile`, `slot`, `key` and `count` are NOT reserved.
  */
 export const WGSL_RESERVED_WORDS: readonly string[] = Object.freeze(

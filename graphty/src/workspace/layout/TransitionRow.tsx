@@ -1,9 +1,8 @@
-import { FieldRow, PanelField, PanelLabelsProvider } from "@graphty/compact-mantine";
+import { PanelField } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Select, Stack } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
 import { enumWords } from "../style/words";
 import { TRANSITION_WORDS as WORDS } from "./words";
@@ -39,13 +38,12 @@ export function TransitionRow({ session }: Readonly<{ session: GraphSession }>):
             added.current?.scrollIntoView?.({ block: "nearest" });
         }
     }, [chosen]);
-    const row = selectionWorkspaceOn(session);
     const seconds =
         now === undefined ? null : (
             <PanelField
                 label={WORDS.seconds}
                 kind="number"
-                width={row ? "fill" : undefined}
+                width="fill"
                 value={now.seconds ?? null}
                 placeholder={WORDS.defaultSeconds}
                 min={0}
@@ -58,7 +56,7 @@ export function TransitionRow({ session }: Readonly<{ session: GraphSession }>):
             />
         );
     return (
-        <Stack gap={row ? 4 : 8}>
+        <Stack gap={4}>
             <Select
                 size="xs"
                 label={WORDS.transition}
@@ -79,15 +77,10 @@ export function TransitionRow({ session }: Readonly<{ session: GraphSession }>):
                     );
                 }}
             />
-            {seconds !== null && row && (
+            {seconds !== null && (
                 <div ref={added} className="ws-transition-added">
                     <OptionRow label={WORDS.seconds}>{seconds}</OptionRow>
                 </div>
-            )}
-            {seconds !== null && !row && (
-                <PanelLabelsProvider showLabels>
-                    <FieldRow>{seconds}</FieldRow>
-                </PanelLabelsProvider>
             )}
             {now === undefined || descriptor === undefined || descriptor.params.length === 0 ? null : (
                 <OptionsForm

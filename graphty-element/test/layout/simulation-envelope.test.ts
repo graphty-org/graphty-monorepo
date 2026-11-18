@@ -78,10 +78,11 @@ describe("the envelope a simulation's arrangement is published in", () => {
         // every row a freeze has just added. Counted, it would poison the centre and the radius
         // for the whole graph.
         const withGaps = [Number.NaN, Number.NaN, Number.NaN, 10, 20, 30, 30, 40, 50];
-        const { scale, centre } = measureEnvelope(withGaps, 3, 100);
+        const { scale, centre, box } = measureEnvelope(withGaps, 3, 100);
 
         assert.deepEqual([centre[0], centre[1], centre[2]], [20, 30, 40]);
         assert.closeTo(scale, 100 / Math.hypot(10, 10, 10), 1e-12);
+        assert.deepEqual(box, [10, 20, 30, 30, 40, 50]);
     });
 
     it("answers the identity for a graph with no placed row at all", () => {

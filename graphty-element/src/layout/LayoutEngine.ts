@@ -342,6 +342,13 @@ export const layoutEngineInternals = {} as {
      * hands it to the engine. Undefined when an end has no position.
      */
     edgePositionOf(engine: LayoutEngine, e: Edge): EdgePosition | undefined;
+    /**
+     * Tell the engine whether the element has stopped stepping it (settled, paused or stopped). A
+     * resting engine lets go of its publish scratch and allocates it again on its next publish.
+     */
+    rest(engine: LayoutEngine, resting: boolean): void;
+    /** How many doubles the engine's publish scratch holds. */
+    scratchHeld(engine: LayoutEngine): number;
 };
 
 /**
@@ -408,6 +415,13 @@ export abstract class LayoutEngine {
             engine.unpin(n);
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.rest = (engine, resting) => {
+            engine.resting = resting;
+            if (resting) {
+                engine.releasePublishScratch();
+            }
+        };
+        layoutEngineInternals.scratchHeld = (engine) => engine.scratchRows.length + engine.scratchCoords.length;
         // An edge the working graph hides is drawn and, by design, never held.
         layoutEngineInternals.edgeProblems = (engine, drawn) =>
             engine.edgeProblems(
@@ -521,6 +535,17 @@ export abstract class LayoutEngine {
     static zodOptionsSchema?: OptionsSchema;
 
     /**
+     * The scene length that, filling the view's height, shows a node of size 1 under
+     * `node.sizeSpace: "screen"` at 1/that of the height; null for the element's default (50, so a
+     * size-1 node covers 2% of the view's height). A layout that knows the scale it draws at (the
+     * location map's frame) supplies it.
+     * @returns The length, or null.
+     */
+    get nodeScreenReference(): number | null {
+        return null;
+    }
+
+    /**
      * The array in use: the element's once one has been found, otherwise this engine's own.
      *
      * Undefined until the first publish or read, so an engine that is constructed and thrown away
@@ -538,6 +563,8 @@ export abstract class LayoutEngine {
 
     private scratchRows = new Float64Array(0);
     private scratchCoords = new Float64Array(0);
+    /** Whether the element has stopped stepping this engine; see `layoutEngineInternals.rest`. */
+    private resting = false;
 
     /**
      * The box the last {@link LayoutEngine.publishColumn} left the rows it was handed in: min x, y, z
@@ -958,6 +985,20 @@ export abstract class LayoutEngine {
     clusterColumn: ClusterColumn | null = null;
 
     /**
+     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
+     * renderPath "batched".
+     * @internal
+     */
+    rowRecord: ((row: number) => unknown) | null = null;
+
+    /**
+     * The store's row of a node id, which the layout manager fills in; read for `clusterBy` under renderPath
+     * "batched", where a row the engine holds may have no `Node` to ask.
+     * @internal
+     */
+    storeRowOf: ((id: NodeIdType) => number) | null = null;
+
+    /**
      * Read `clusterBy` again because a run's results changed, and start the layout again when the communities did.
      * @returns True when the frame loop has to start stepping this layout again.
      * @internal
@@ -1184,6 +1225,17 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Let go of {@link LayoutEngine.publishScratch}'s arrays, which a layout that publishes once
+     * and then holds its answer would otherwise keep for the life of the graph (42 MiB at a
+     * million nodes). The next publish allocates them again.
+     * @internal
+     */
+    protected releasePublishScratch(): void {
+        this.scratchRows = new Float64Array(0);
+        this.scratchCoords = new Float64Array(0);
+    }
+
+    /**
      * Publish a whole column: {@link LayoutEngine.writeNodePosition}'s guards in one loop over typed
      * arrays, with the array resolved once instead of per node.
      * @param n - any node of the column, or the element's array itself, which resolves the array;
@@ -1201,6 +1253,30 @@ export abstract class LayoutEngine {
         coords: Float64Array,
         count: number,
         firstPlacement = false,
+    ): void {
+        this.#publishColumn(n, rows, coords, count, firstPlacement);
+        // A settled or stopped simulation publishes seldom if ever again, so the scratch (42 MiB at
+        // a million nodes) is let go rather than kept for the life of the graph; a running one
+        // reuses it every frame.
+        if (rows === this.scratchRows && (this.resting || this.isSettled)) {
+            this.releasePublishScratch();
+        }
+    }
+
+    /**
+     * {@link LayoutEngine.publishColumn}, before the scratch is let go.
+     * @param n - see {@link LayoutEngine.publishColumn}
+     * @param rows - see {@link LayoutEngine.publishColumn}
+     * @param coords - see {@link LayoutEngine.publishColumn}
+     * @param count - see {@link LayoutEngine.publishColumn}
+     * @param firstPlacement - see {@link LayoutEngine.publishColumn}
+     */
+    #publishColumn(
+        n: Parameters<LayoutEngine["publishColumn"]>[0],
+        rows: Float64Array,
+        coords: Float64Array,
+        count: number,
+        firstPlacement: boolean,
     ): void {
         if (n === undefined) {
             return;
@@ -1859,6 +1935,8 @@ export const simpleLayoutInternals = {
     positions(engine: StaticLayoutEngine): RowPositions | null;
     /** How many nodes and edges the engine's lists hold, removed ones not yet swept included, without sweeping them. */
     held(engine: StaticLayoutEngine): { readonly nodes: number; readonly edges: number };
+    /** The doubles the engine's publish scratch holds, and whether it still holds the answer as computed. */
+    publishHeld(engine: StaticLayoutEngine): { readonly scratch: number; readonly result: boolean };
     /**
      * Hand the engine the element's graph, so that while `byRow` answers true it lays out and
      * publishes every row of the element's snapshot, a row it was handed no `Node` for included.
@@ -1908,6 +1986,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         simpleLayoutInternals.kept = (engine) => engine.#keptRows(engine.#loaded ?? engine.#load());
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
         simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
+        simpleLayoutInternals.publishHeld = (engine) => {
+            const { rows, coords } = engine.publishScratch(0);
+            return { scratch: rows.length + coords.length, result: engine.result !== null };
+        };
         simpleLayoutInternals.attachRows = (engine, source, byRow, graph) => {
             engine.#rows = { source, byRow, graph };
         };
@@ -2623,6 +2705,20 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * origin is a place a reader would draw at.
      */
     private publishComputed(): void {
+        // A settled static layout publishes once per run, or when the element asks it to again: the
+        // scratch it publishes through is let go after each, not kept for the life of the graph.
+        // One still waiting for an asynchronous answer is published every frame, so it keeps it.
+        try {
+            this.#publishComputed();
+        } finally {
+            if (this.isSettled) {
+                this.releasePublishScratch();
+            }
+        }
+    }
+
+    /** {@link StaticLayoutEngine.publishComputed}, through the publish scratch. */
+    #publishComputed(): void {
         if (this.#publishRows()) {
             return;
         }

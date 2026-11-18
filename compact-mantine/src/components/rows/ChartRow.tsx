@@ -816,7 +816,7 @@ export function HistogramRow({
                             );
                         })}
                         {overlay !== undefined && overlay.values.length > 0 && (
-                            <svg // NOSONAR(S6819): an inline SVG drawing named by aria-label; an <img> cannot hold it
+                            <svg // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an inline SVG drawing named by aria-label; an <img> cannot hold it
                                 data-testid="histogram-overlay"
                                 role="img"
                                 aria-label={overlay.label}

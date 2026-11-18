@@ -1396,6 +1396,18 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         expect(calls).toHaveLength(1);
     });
 
+    it("hands the accelerator the alpha the port derives when the caller gives none", async () => {
+        // A hub joined both ways to 36 leaves has radius 6, past 1 / (2 * 0.1): the derived alpha is 0.5 / 6.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 36; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+            g.addEdge("hub", `leaf${String(i)}`);
+        }
+        const calls: unknown[][] = [];
+        await accelerated(deviceLike(calls)).katzCentrality(toSnapshot(g));
+        expect(calls).toEqual([["katzCentrality", expect.objectContaining({ alpha: 0.5 / 6 })]]);
+    });
+
     it("hands HITS the iteration options unweighted and rescales both vectors to unit length like the port", async () => {
         const calls: unknown[][] = [];
         const s = uneven(true);

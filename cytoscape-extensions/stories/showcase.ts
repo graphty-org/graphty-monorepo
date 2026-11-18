@@ -9,7 +9,7 @@ import type { Core, NodeCollection, NodeSingular } from "cytoscape";
 
 import { GENERATOR_OPTION_NAMES } from "../src/algorithm-options.js";
 import type { GeneratorName } from "../src/index.js";
-import { colorByValue, elementsOf, GENERATE, markDirected, type Outcome, PALETTE } from "./demo.js";
+import { colorByValue, elementsOf, GENERATE, mainComponent, markDirected, type Outcome, PALETTE } from "./demo.js";
 import { colorBy, counts, placeSettled, runLayout } from "./run.js";
 
 /**
@@ -87,46 +87,25 @@ function spread(cy: Core, at: (n: NodeSingular) => { x: number; y: number } = (n
  * @returns how many nodes were removed
  */
 function keepLargestComponent(cy: Core): number {
-    let main = cy.collection();
-    for (const c of cy.elements().components()) {
-        if (c.nodes().length > main.nodes().length) {
-            main = c;
-        }
-    }
-    const rest = cy.nodes().difference(main.nodes());
+    const rest = cy.nodes().difference(mainComponent(cy));
     cy.remove(rest);
     return rest.length;
 }
 
 /**
- * Each node's layer in a directed acyclic graph: the length of the longest path into it.
+ * Each node's layer in a directed acyclic graph: the length of the longest path into it, by one pass over the
+ * package's graphtyTopologicalSort.
  * @param cy - the core
  */
 function topologicalLayers(cy: Core): void {
     const layer = new Map<string, number>();
-    const waiting = new Map(cy.nodes().map((n) => [n.id(), n.indegree(false)]));
-    const ready = cy
-        .nodes()
-        .filter((n) => n.indegree(false) === 0)
-        .map((n) => n.id());
-    for (const id of ready) {
-        layer.set(id, 0);
-    }
-    while (ready.length > 0) {
-        const id = ready.pop() as string;
-        for (const e of cy.getElementById(id).outgoers("edge")) {
-            const t = e.target().id();
-            layer.set(t, Math.max(layer.get(t) ?? 0, (layer.get(id) ?? 0) + 1));
-            const left = (waiting.get(t) ?? 0) - 1;
-            waiting.set(t, left);
-            if (left === 0) {
-                ready.push(t);
-            }
-        }
-    }
     cy.batch(() => {
-        cy.nodes().forEach((n) => {
-            n.data("layer", layer.get(n.id()) ?? 0);
+        cy.graphtyTopologicalSort()?.forEach((n) => {
+            const l = layer.get(n.id()) ?? 0;
+            n.data("layer", l);
+            n.outgoers("node").forEach((t) => {
+                layer.set(t.id(), Math.max(layer.get(t.id()) ?? 0, l + 1));
+            });
         });
     });
 }

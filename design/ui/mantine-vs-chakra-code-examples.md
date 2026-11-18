@@ -1,5 +1,8 @@
 # Mantine vs Chakra UI: Practical Code Examples
 
+Status: historical research (2025). The decision it informed is made: the graphty app uses Mantine,
+through `@graphty/compact-mantine`.
+
 ## Real-World Scenario Comparisons
 
 ### 1. Building a Complete User Profile Form

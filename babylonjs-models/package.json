@@ -57,7 +57,7 @@
     },
     "scripts": {
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node scripts/copy-decoders.mjs",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint": "eslint --pass-on-unpruned-suppressions && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "test": "vitest",

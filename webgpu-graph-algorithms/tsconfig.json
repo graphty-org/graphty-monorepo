@@ -23,7 +23,10 @@
         "test/**/*.ts",
         "benchmarks/**/*.ts",
         "scripts/**/*.d.ts",
-        "../graph-format/src/**/*.ts"
+        "../graph-format/src/**/*.ts",
+        "../graph-samples/data/venice-transit.ts",
+        "../graph-samples/data/build.ts",
+        "../graph-samples/src/types.ts"
     ],
     "exclude": ["node_modules", "dist", "coverage", "tmp"]
 }

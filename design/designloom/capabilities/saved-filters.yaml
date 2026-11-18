@@ -10,6 +10,7 @@ used_by_workflows:
     - W06
     - W09
     - W12
+    - W25
 implemented_by_components:
     - filter-chip
     - filter-panel

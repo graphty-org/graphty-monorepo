@@ -1,5 +1,7 @@
 # Golden-local landing
 
+> Status: Historical. The `golden` integration branch stopped taking landings on 2026-10-25, when the channels pipeline replaced it (design/ci/channels-pipeline.md, issue #3418). tools/land.mjs, tools/verify.mjs, tools/prepush.sh and tools/prepush-tests.mjs were removed on 2026-11-02 (commit d99cdf5060), and tools/branch-sync.mjs on 2026-10-25 (commit 0c011ef28f). Today every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md). The older status lines below are kept as written.
+
 > Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its landing model is replaced (the full-gate row of 3.1, sections 4.2, 4.3, 4.7 and 4.8, the landing-failure rows of 4.13, and 4.14's cut selection and one-round grace before a revert); the rest remains in force, and the tools follow this document until the fast pipeline is built.
 
 > Status: Partly superseded again on 2026-10-23 by design/ci/ci-full-testing.md (issue #3316): every push and landing runs a light local gate (lint, build, SonarQube on changed lines, the GPU tests when affected) and the full test suite runs in GitHub CI on golden before a cut. Sections 3.1 (the full-gate row), 3.2 (the first row), 4.2 step 4, 4.5, 4.7, 4.9 (the CI-failure row), 5.2 and 6.1 are marked below.

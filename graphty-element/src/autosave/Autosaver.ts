@@ -23,7 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
-import { dispatcherOf } from "../session/GraphSession";
+import { dispatcherOf } from "../session/dispatchers";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
@@ -697,7 +697,7 @@ export class Autosaver {
             this.#stash.delete(name);
         } else {
             // A JSON round trip on purpose: the stash keeps exactly what the entry will hold.
-            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // NOSONAR(S7784): JSON semantics wanted, not a structured clone
+            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // eslint-disable-line unicorn/prefer-structured-clone -- JSON semantics wanted, not a structured clone
         }
 
         if (this.#quiet > 0 && !this.#restoring) {
@@ -1833,7 +1833,7 @@ export class Autosaver {
             this.#kick();
         };
         // Playback moves the window every step: the write waits for the pause, then happens once.
-        if (this.#session.features.enabled.includes("timeline") && this.#session.time.playing) {
+        if (this.#session.time.playing) {
             return;
         }
 

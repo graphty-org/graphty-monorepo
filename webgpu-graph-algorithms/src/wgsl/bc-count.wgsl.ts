@@ -1,5 +1,5 @@
 /**
- * The `bc-count` kernel body (design 8.4, issue #719): the shortest-path counts of the depth a betweenness forward
+ * The `bc-count` kernel body (issue #719): the shortest-path counts of the depth a betweenness forward
  * level has just claimed, PULLED once the claims are complete. It runs only in a batch rerun because its u32 counts
  * wrapped (the forward bodies then run with `SCALED` and count nothing); `sigmaK` holds f32 bits throughout. One invocation per entry `t = s * n + x` of the range
  * `S[ends[level + 1] .. stackTop)` (the entries the forward dispatch appended), each summing `sigma[s][v]` over the

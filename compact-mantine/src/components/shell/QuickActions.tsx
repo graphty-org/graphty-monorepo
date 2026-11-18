@@ -324,7 +324,7 @@ export function QuickActions({
 
     const name = others["aria-label"] ?? labels.quickActions;
     return (
-        <div // NOSONAR(S6819): an inline panel the host places in its own popover; a native dialog adds its own top layer, box and Escape handling
+        <div // an inline panel the host places in its own popover; a native dialog adds its own top layer, box and Escape handling
             role={role}
             aria-label={name}
             className={className ? `cm-quick-actions ${className}` : "cm-quick-actions"}
@@ -379,14 +379,14 @@ export function QuickActions({
             <output className="cm-qa-empty" aria-live="polite">
                 {sections.length === 0 ? emptyWords : null}
             </output>
-            <div // NOSONAR(S6819): the popup of an ARIA combobox with grouped rows; a native select cannot be one
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- the popup of an ARIA combobox with grouped rows; a native select cannot be one
                 className="cm-qa-list"
                 id={listId}
                 role="listbox"
                 aria-label={name}
             >
                 {sections.map(([section, list]) => (
-                    <div // NOSONAR(S6819): a group of options inside an ARIA listbox; optgroup works only inside a native select
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a group of options inside an ARIA listbox; optgroup works only inside a native select
                         className="cm-qa-group"
                         role="group"
                         aria-label={section || undefined}
@@ -398,7 +398,7 @@ export function QuickActions({
                             </div>
                         ) : null}
                         {list.map((action) => (
-                            <div // NOSONAR(S6819): an option of an ARIA combobox popup with rich rows; a native option holds text only
+                            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an option of an ARIA combobox popup with rich rows; a native option holds text only
                                 key={action.value}
                                 id={optionId(action.value)}
                                 role="option"
@@ -453,6 +453,10 @@ export function QuickActions({
                                     <span className="cm-qa-row-label" data-truncate={truncate} data-tone={action.tone}>
                                         {truncate === "middle" ? <MiddleCut label={action.label} /> : action.label}
                                     </span>
+                                    {/* A space between the name and the description, so their words
+                                        do not run together in the row's text. Flex layout draws no
+                                        whitespace between items. */}
+                                    {action.description ? " " : null}
                                     {action.description ? (
                                         <span
                                             className="cm-qa-row-description"

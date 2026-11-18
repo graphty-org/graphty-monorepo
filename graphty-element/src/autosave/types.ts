@@ -67,7 +67,10 @@ export interface AutosaveCommitOptions {
 export interface AutosaveStore {
     /** Every entry of `key`, oldest `seq` first. */
     list(key: string): Promise<readonly AutosaveEntryMeta[]>;
-    /** One entry with all its parts, or `undefined` when there is none. */
+    /**
+     * One entry with all its parts, or `undefined` when there is none. The result is a copy: a
+     * caller that changes the returned meta or parts does not change the store.
+     */
     read(id: string): Promise<{ meta: AutosaveEntryMeta; parts: AutosaveParts } | undefined>;
     /**
      * Atomic: every write commits, or none does. Rejects with {@link AutosaveConflict} when any

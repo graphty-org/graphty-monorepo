@@ -9,12 +9,13 @@
  */
 import "../../src/graphty-element";
 
-import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 
 const SIZES = [100, 400] as const;
 
@@ -34,15 +35,7 @@ async function settled(element: Graphty): Promise<void> {
  * @returns The element.
  */
 async function mount(size: number): Promise<Graphty> {
-    const element = document.createElement("graphty-element");
-    element.style.width = "400px";
-    element.style.height = "300px";
-    element.style.display = "block";
-    document.body.appendChild(element);
-    await element.updateComplete;
-    await vi.waitFor(() => {
-        assert.isTrue(element.graph.initialized, "the element initialised its graph");
-    });
+    const element = await mountElement();
     element.graph.engine.stopRenderLoop();
     await element.graph.setLayout("random");
     await element.graph.addNodes(Array.from({ length: size }, (_, at) => ({ id: `n${String(at)}` })));
@@ -115,7 +108,7 @@ describe("a label on every element", () => {
                         assert.strictEqual(labelled(element, target), 0, "every label was taken down");
                         return visits;
                     } finally {
-                        element.remove();
+                        unmountElements();
                     }
                 },
                 {
@@ -182,7 +175,7 @@ describe("removing labelled elements", () => {
                         assert.strictEqual(element.graph.getDataManager().nodes.size, 0);
                         return visits;
                     } finally {
-                        element.remove();
+                        unmountElements();
                     }
                 },
                 {

@@ -220,7 +220,7 @@ export function attachRowPull(material: Material): void {
         material.unfreeze();
     }
 
-    new RowPullPlugin(material); // NOSONAR(S1848): the base constructor attaches it to the material
+    new RowPullPlugin(material); // eslint-disable-line sonarjs/constructor-for-side-effects -- the base constructor attaches it to the material
     if (frozen) {
         material.freeze();
     }

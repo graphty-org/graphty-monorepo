@@ -6,7 +6,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { arrowheadEdge } from "./associate";
+import { arrowheadEdge, runsThroughNode } from "./associate";
 import { boxOfPoints, type PEdge, type PNode, type Prim, type Pt } from "./primitives";
 
 const node = (id: string, cx: number, cy: number, w: number, h: number): PNode => ({
@@ -95,5 +95,34 @@ describe("an arrowhead drawn across a node", () => {
             [511.9, 651],
         ];
         assert.strictEqual(arrowheadEdge(shape(head), [line], nodes)?.end, "source");
+    });
+
+    it("sits on a node smaller than itself when centered on it, not through it", () => {
+        // graphml-stm32-func n70->n10: yEd centers a 2.7 px circle on a 0.6 px junction node, the line ending on it
+        const n70 = node("n70", 946.2, 484.2, 0.63, 0.62);
+        const line: PEdge = {
+            ...LINE,
+            id: "n70->n10#g0",
+            source: "n70",
+            target: "n10",
+            points: [
+                [945.9, 485.5],
+                [945.8, 555],
+            ],
+        };
+        const circle: Pt[] = Array.from({ length: 24 }, (_, i): Pt => {
+            const a = (i / 24) * 2 * Math.PI;
+            return [945.9 + 1.345 * Math.sin(a), 484.19 - 1.345 * Math.cos(a)];
+        });
+        assert.isFalse(runsThroughNode(circle, line, "source", n70));
+        // the same circle moved off the node, past its far side, still runs through it
+        assert.isTrue(
+            runsThroughNode(
+                circle.map(([x, y]): Pt => [x, y - 2]),
+                line,
+                "source",
+                n70,
+            ),
+        );
     });
 });

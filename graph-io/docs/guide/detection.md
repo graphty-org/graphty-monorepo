@@ -15,6 +15,7 @@ recognizes the content always outranks a format that only matches the extension 
 So:
 
 - a `.csv` file whose header is `:ID,name` is read as Neo4j CSV, not as plain CSV
+- a `.json` or `.csv` file written by `apoc.export.json` or `apoc.export.csv` is read as Neo4j, not as JSON or CSV
 - a `.xml` file is read as GraphML, GEXF or XGMML according to its root element
 - a `.txt` file that starts with `graph [` is read as GML
 - a file named `graph.graphml` that is really an HTML error page is refused with `E_UNKNOWN_FORMAT`

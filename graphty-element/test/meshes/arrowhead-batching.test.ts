@@ -27,14 +27,11 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
-import { MeshCache } from "../../src/meshes/MeshCache";
 
 let scene: Scene;
 
 function head(type: string, extra: { color?: string; size?: number; opacity?: number } = {}): ArrowCap {
     const cap = EdgeMesh.createArrowHead(
-        new MeshCache(),
-        "arrow",
         { type, width: 1, color: extra.color ?? "#ff0000", size: extra.size, opacity: extra.opacity },
         scene,
     );
@@ -202,12 +199,7 @@ describe("3D arrowheads share one mesh and one material per shape", () => {
     test("two scenes never share a batch", () => {
         const here = head("normal");
         const otherScene = new Scene(scene.getEngine());
-        const there = EdgeMesh.createArrowHead(
-            new MeshCache(),
-            "arrow",
-            { type: "normal", width: 1, color: "#ff0000" },
-            otherScene,
-        );
+        const there = EdgeMesh.createArrowHead({ type: "normal", width: 1, color: "#ff0000" }, otherScene);
 
         assert.isNotNull(there);
         assert.notStrictEqual(here.batchMesh, there.batchMesh);

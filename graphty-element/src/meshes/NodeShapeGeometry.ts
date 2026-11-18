@@ -4,6 +4,7 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
+import { noteSlabOutline } from "./convexHit";
 import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
 
 /**
@@ -174,7 +175,9 @@ export function outlineSlab(name: string, outline: readonly Point2[], depth: num
         }
     }
 
-    return slab.build(name, scene);
+    const mesh = slab.build(name, scene);
+    noteSlabOutline(mesh, outline);
+    return mesh;
 }
 
 /**

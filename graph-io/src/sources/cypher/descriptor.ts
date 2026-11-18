@@ -122,7 +122,7 @@ export const NEO4J_DESCRIPTOR: SourceDescriptor = Object.freeze({
             plainName: "Neo4j demo: movies over Bolt",
             endpoint: NEO4J_DEMO_BOLT,
             params: { database: "movies", mode: "all", transport: "bolt" },
-            publicLogin: { username: "movies", password: "movies" }, // NOSONAR(S2068): the public login Neo4j publishes for its demo server
+            publicLogin: { username: "movies", password: "movies" }, // the public login Neo4j publishes for its demo server
             counts: { nodes: 171, edges: 253 },
         },
         {

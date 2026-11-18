@@ -174,10 +174,10 @@ function segmentsOf(detail: MeshDetail | undefined, low = LOW_DETAIL_SEGMENTS): 
  * and is ample for a node-sized mesh; raising it multiplies the ceiling described on
  * MAX_GRADIENT_TEXTURES_PER_SCENE by the square of the change.
  */
+const GRADIENT_TEXTURE_SIZE = 128;
+
 /** The smallest size a node mesh is built at; a size of 0 draws this, never hidden. */
 const MIN_NODE_SIZE = 1e-3;
-
-const GRADIENT_TEXTURE_SIZE = 128;
 
 /**
  * Hard ceiling on how many distinct gradient ramps may be allocated for one scene.

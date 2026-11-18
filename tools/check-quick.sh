@@ -31,6 +31,8 @@
 # build (the Docs job; reproduce with pnpm run docs:build) and the whole-repository formatting check after a
 # change to prettier's inputs (the Checks job's "Formatting" step; reproduce with pnpm run format:check).
 #
+# Steps 1 and 2 run first; then 3, 5 and the rest (4, 6, 7, 8) run as three lanes side by side, since the tests
+# wait on test slots and the GPU tests on the GPU slot while the other checks need neither; step 9 runs last.
 # It runs every step, prints a summary and exits 1 when any failed. No tool self-tests, no screenshots.
 # Each step's time goes into <main checkout>/tmp/step-times.jsonl (tools/step-log.mjs).
 set -uo pipefail
@@ -68,6 +70,8 @@ log_step() { node "$ROOT_DIR/tools/step-log.mjs" "$@" >/dev/null 2>&1 || true; }
 RUN_START="$(date +%s%3N)"
 trap 'log_step check-quick "$RUN_START" total "$?"' EXIT
 FAILED=()
+# Steps in a background lane (below) cannot add to FAILED; each writes its failures here instead.
+LANES="$(mktemp -d)"
 step() {
     local name="$1" start rc=0
     shift
@@ -75,7 +79,7 @@ step() {
     start="$(date +%s%3N)"
     "$@" || rc=$?
     log_step check-quick-step "$start" "$name" "$rc"
-    if [ "$rc" = 0 ]; then echo "[PASS] $name"; else echo "[FAIL] $name"; FAILED+=("$name"); fi
+    if [ "$rc" = 0 ]; then echo "[PASS] $name"; else echo "[FAIL] $name"; FAILED+=("$name"); [ -z "${LANE:-}" ] || echo "$name" >>"$LANES/failed.$LANE"; fi
     echo ""
 }
 
@@ -96,70 +100,95 @@ gpu_tests() {
 
 step "Formatting" formatting
 step "Build, lint and type-check (affected)" pnpm exec nx affected -t build lint typecheck --base="$BASE"
-# The tests read no developer git config (their git sandboxes would inherit signing, hooks, aliases).
-step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE" "${TEST_ARGS[@]}"
-step "Duplicate code" pnpm run check:duplicates
+# Captured before the lanes start, so every lane reads the same answer.
 # Captured, not piped into grep -q: under pipefail an early grep exit could SIGPIPE nx and skip the
 # GPU step, and a failing nx must not read as "not affected". --json=false: nx 22 otherwise prints one
 # JSON array, which matches no project name, so every "when affected" step below was silently skipped.
 AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE" --json=false)" || FAILED+=("Affected projects (nx show projects)")
 affected() { grep -qx "$1" <<<"$AFFECTED"; }
-# graph-io's fidelity stories compile against graphty-element's source, but graph-io drops its project edge to
-# graphty-element (a build cycle), so an element-only change leaves graph-io's lint unrun. CI type-checks them
-# in the Storybooks job (graph-io:build-storybook depends on typecheck-stories).
-if affected graphty-element; then
-    step "graph-io fidelity stories type-check" pnpm exec nx run graph-io:typecheck-stories
-fi
-if affected webgpu-graph-algorithms; then
-    step "webgpu-graph-algorithms on the local NVIDIA GPU" gpu_tests
-fi
-step "PR Integrity (local)" node tools/pr-integrity.mjs --local --base "$BASE"
-# ci.yml's "Plan the package-only checks": the package is affected or the check's own script changed.
-if affected graphty-element || git diff --name-only "$MB" | grep -q '^tools/check-bundle-size'; then
-    step "Bundle size (graphty-element)" pnpm run check:bundle-size
-fi
-if affected graphty || git diff --name-only "$MB" | grep -qE '^graphty/scripts/(check-size|landing-files)'; then
-    step "Bundle size (graphty app)" pnpm --filter @graphty/graphty run size
-fi
-if affected cytoscape-extensions; then
-    step "Bundle size (cytoscape-extensions)" pnpm --filter @graphty/cytoscape-extensions run size
-fi
-# The Checks job (ci.yml), in its order. Its package-only steps run when the package is affected or the
-# step's own script changed, as "Plan the package-only checks" decides.
-touched() { grep -qE "$1" <<<"$(git diff --name-only "$MB")"; }
-step "CI workflow tests" pnpm run test:ci-workflows
-step "CI budgets" node tools/ci-budgets.mjs lint
-step "Links (offline)" ./tools/check-links.sh --offline
-no_signing_bypass() { ! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/; }
-step "No signing bypass in tools/ and .husky/" no_signing_bypass
-step "Knip (dead code)" pnpm run lint:knip
-step "Knip (production dependencies)" pnpm run lint:knip:prod
-# CI has every package built; here only the affected ones are, and only they can ship something new.
-published_deps() {
-    local dirs=() p
-    for p in $AFFECTED; do [ -f "$p/package.json" ] && dirs+=("$p"); done
-    [ ${#dirs[@]} -eq 0 ] || pnpm run check:published-deps "${dirs[@]}"
+
+# Three lanes run side by side, each printing its output whole when it ends (2026-11-17, a graph-samples
+# change: 33 min of tests, 12.5 min on the GPU and 3.5 min of checks had run one after another):
+#  - the selected tests, which take test slots (tools/test-changed.mjs runs half the slots side by side);
+#  - the NVIDIA tests, which take the GPU slot and no test slot (tools/test-slots.mjs --gpu);
+#  - every other check, one after another, on what step 2 built.
+# Their output is in $LANES until it is printed; tail it there to watch a long run.
+tests_lane() {
+    # The tests read no developer git config (their git sandboxes would inherit signing, hooks, aliases).
+    step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE" "${TEST_ARGS[@]}"
 }
-step "Published dependencies (affected)" published_deps
-step "Peer dependencies stable" pnpm run check:peer-deps
-step "ESLint root config" pnpm run lint:eslint-root
-if affected graphty-element || touched '^tools/api-report'; then
-    step "Public API report (graphty-element)" pnpm run check:api-report
-fi
-step "Feature flags" pnpm run check:features
-step "Declared build tools" pnpm run check:declared-tools
-step "Dry-run outcome checks kept" pnpm run check:dry-run-checks
-step "Release hold list" pnpm run check:release-hold
-if affected graphty-element || touched '^tools/check-data-source-migration'; then
-    step "Element data sources on graph-io" pnpm run check:data-source-migration
-fi
-step "Migration count script" pnpm run check:migration-counts
-step "Legacy graph API use" pnpm run check:legacy-use
-step "No special style layers" pnpm run check:special-layers
-step "Readers honor the working graph" pnpm run check:working-graph
-step "No committed walk screenshots" pnpm run check:committed-images
-step "compact-mantine Figma lock" pnpm run check:figma-lock
-step "Saved-format exceptions" pnpm run check:saved-format-allowlist
+gpu_lane() {
+    if affected webgpu-graph-algorithms; then
+        step "webgpu-graph-algorithms on the local NVIDIA GPU" gpu_tests
+    fi
+}
+checks() {
+    step "Duplicate code" pnpm run check:duplicates
+    # graph-io's fidelity stories compile against graphty-element's source, but graph-io drops its project edge to
+    # graphty-element (a build cycle), so an element-only change leaves graph-io's lint unrun. CI type-checks them
+    # in the Storybooks job (graph-io:build-storybook depends on typecheck-stories).
+    if affected graphty-element; then
+        step "graph-io fidelity stories type-check" pnpm exec nx run graph-io:typecheck-stories
+    fi
+    step "PR Integrity (local)" node tools/pr-integrity.mjs --local --base "$BASE"
+    # ci.yml's "Plan the package-only checks": the package is affected or the check's own script changed.
+    if affected graphty-element || git diff --name-only "$MB" | grep -q '^tools/check-bundle-size'; then
+        step "Bundle size (graphty-element)" pnpm run check:bundle-size
+    fi
+    if affected graphty || git diff --name-only "$MB" | grep -qE '^graphty/scripts/(check-size|landing-files)'; then
+        step "Bundle size (graphty app)" pnpm --filter @graphty/graphty run size
+    fi
+    if affected cytoscape-extensions; then
+        step "Bundle size (cytoscape-extensions)" pnpm --filter @graphty/cytoscape-extensions run size
+    fi
+    # The Checks job (ci.yml), in its order. Its package-only steps run when the package is affected or the
+    # step's own script changed, as "Plan the package-only checks" decides.
+    touched() { grep -qE "$1" <<<"$(git diff --name-only "$MB")"; }
+    step "CI workflow tests" pnpm run test:ci-workflows
+    step "CI budgets" node tools/ci-budgets.mjs lint
+    step "Links (offline)" ./tools/check-links.sh --offline
+    no_signing_bypass() { ! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/; }
+    step "No signing bypass in tools/ and .husky/" no_signing_bypass
+    step "Knip (dead code)" pnpm run lint:knip
+    step "Knip (production dependencies)" pnpm run lint:knip:prod
+    # CI has every package built; here only the affected ones are, and only they can ship something new.
+    published_deps() {
+        local dirs=() p
+        for p in $AFFECTED; do [ -f "$p/package.json" ] && dirs+=("$p"); done
+        [ ${#dirs[@]} -eq 0 ] || pnpm run check:published-deps "${dirs[@]}"
+    }
+    step "Published dependencies (affected)" published_deps
+    step "Peer dependencies stable" pnpm run check:peer-deps
+    step "ESLint root config" pnpm run lint:eslint-root
+    if affected graphty-element || touched '^tools/api-report'; then
+        step "Public API report (graphty-element)" pnpm run check:api-report
+    fi
+    step "Feature flags" pnpm run check:features
+    step "Declared build tools" pnpm run check:declared-tools
+    step "Dry-run outcome checks kept" pnpm run check:dry-run-checks
+    step "Release hold list" pnpm run check:release-hold
+    if affected graphty-element || touched '^tools/check-data-source-migration'; then
+        step "Element data sources on graph-io" pnpm run check:data-source-migration
+    fi
+    step "Migration count script" pnpm run check:migration-counts
+    step "Legacy graph API use" pnpm run check:legacy-use
+    step "No special style layers" pnpm run check:special-layers
+    step "Readers honor the working graph" pnpm run check:working-graph
+    step "No committed walk screenshots" pnpm run check:committed-images
+    step "compact-mantine Figma lock" pnpm run check:figma-lock
+    step "Saved-format exceptions" pnpm run check:saved-format-allowlist
+}
+echo "lanes: selected tests, NVIDIA tests and checks side by side (output in $LANES)"
+echo ""
+LANE=tests tests_lane >"$LANES/tests.log" 2>&1 &
+LANE=gpu gpu_lane >"$LANES/gpu.log" 2>&1 &
+LANE=checks checks >"$LANES/checks.log" 2>&1 &
+wait
+for lane in tests gpu checks; do
+    cat "$LANES/$lane.log"
+    [ -f "$LANES/failed.$lane" ] && mapfile -t -O "${#FAILED[@]}" FAILED <"$LANES/failed.$lane"
+done
+rm -rf "$LANES"
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.
 dry_run() { pnpm exec nx run graphty:build && node graphty/acceptance/run.mjs; }
 if [ "$DRY_RUN" = 1 ]; then

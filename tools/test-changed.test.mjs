@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { runArgs, withoutWholeBrowserShards } from "./test-changed.mjs";
+import { parallelRuns, pool, runArgs, startOrder, withoutWholeBrowserShards } from "./test-changed.mjs";
 
 const cmd = "cd graphty && pnpm exec vitest run --project='!storybook' src/a.real-element.test.tsx";
 
@@ -41,5 +41,33 @@ describe("tools/test-changed.mjs withoutWholeBrowserShards", () => {
         const node = { shard: "layout", package: "layout" };
         const [p] = withoutWholeBrowserShards([{ shard: node, mode: "all", files: [], covers: ["layout"] }]);
         assert.equal(p.mode, "all");
+    });
+});
+
+describe("tools/test-changed.mjs side-by-side runs", () => {
+    it("runs half the machine's test slots at once, at least one", () => {
+        assert.equal(parallelRuns(4), 2);
+        assert.equal(parallelRuns(1), 1);
+        assert.equal(parallelRuns(0), Infinity);
+    });
+    it("starts browser runs first", () => {
+        const runs = [{ shard: { shard: "a" } }, { shard: { shard: "b", "needs-browser": true } }];
+        assert.deepEqual(
+            startOrder(runs).map((r) => r.shard.shard),
+            ["b", "a"],
+        );
+    });
+    it("never has more than the limit in flight and keeps the results in order", async () => {
+        let inFlight = 0;
+        let most = 0;
+        const results = await pool([1, 2, 3, 4, 5], 2, async (n) => {
+            inFlight++;
+            most = Math.max(most, inFlight);
+            await new Promise((r) => setImmediate(r));
+            inFlight--;
+            return n * 10;
+        });
+        assert.equal(most, 2);
+        assert.deepEqual(results, [10, 20, 30, 40, 50]);
     });
 });

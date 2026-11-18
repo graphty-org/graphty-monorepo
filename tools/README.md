@@ -360,7 +360,8 @@ The root CLAUDE.md, "Shipping a change", steps 2 and 3, holds the rules; this is
 - **`pnpm run check:quick`** (a human's or a long-lived branch's alternative to the pre-push checklist) runs in the
   background, through `tools/low-priority.sh`: the selected tests, which leave whole browser shards to CI,
   the duplicate code check and every check of CI's Checks job except the whole-repository format check; CI's
-  Docs job builds the docs site.
+  Docs job builds the docs site. After the build, the selected tests (half the machine's test slots side by side),
+  the NVIDIA tests and the other checks run as three lanes at once, each printing its output when it ends.
 - **A long-lived branch** is one open more than about two days, holding more than a day of work, after a merge of
   master that brought app or graphty-element changes or needed conflicts resolved, or after a large change (a
   refactor of a shared component, a dependency or lockfile upgrade, a change to graphty-element's styling, layout

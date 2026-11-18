@@ -268,11 +268,6 @@
       "count": 2
     }
   },
-  "tools/test-changed.mjs": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
   "tools/test-history.mjs": {
     "unicorn/prefer-set-has": {
       "count": 1

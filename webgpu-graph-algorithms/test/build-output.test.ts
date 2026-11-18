@@ -200,8 +200,11 @@ describe("package.json (contract 2.1)", () => {
         // that holds the GPU for seconds must not share it, issue #1884), and the first split silently removed
         // its files from every local command until this assertion was widened with them.
         const nodeProjects = "vitest run --project=node --project=node-gpu-alone --project=node-device-errors";
-        expect(packageJson.scripts["test:run"]).toBe(nodeProjects);
-        expect(packageJson.scripts["test:node"]).toBe(nodeProjects);
+        // Two invocations, as CI's shards run them: selecting node-device-errors beside another project makes the
+        // whole run one file at a time (vitest.config.ts, serialRun), 742 s on the NVIDIA card against 233 s (2026-11-18).
+        const twoRuns = "vitest run --project=node --project=node-gpu-alone && vitest run --project=node-device-errors";
+        expect(packageJson.scripts["test:run"]).toBe(twoRuns);
+        expect(packageJson.scripts["test:node"]).toBe(twoRuns);
         expect(packageJson.scripts.coverage).toBe(`${nodeProjects} --coverage`);
         expect(packageJson.scripts["test:browser:ci"]).toBe("node scripts/run-browser-project.js");
         expect(packageJson.scripts["test:node:ci"]).toBe("node scripts/run-node-shard.js");

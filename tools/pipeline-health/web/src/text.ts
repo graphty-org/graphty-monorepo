@@ -596,7 +596,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "pull-requests.automerge_green_stuck": {
         name: "Green but not merging",
         short: "green but not merging",
-        def: "PRs that are green with auto-merge on and still unmerged 2 h later.",
+        def: "PRs that are green with auto-merge on, not in conflict with master, and still unmerged 2 h later.",
         red: "2 or more: merging itself is broken (branch rules or GitHub). The PRs are named in this row; an agent checks why they do not merge.",
     },
     "pull-requests.automerge_armed_long": {

@@ -30,7 +30,15 @@ import { ownRows } from "../styles/tree";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
 import type { Counted } from "./History";
-import type { LayoutChoice, NoteEntry, ProjectShaderEntry, ProjectState, RunEntry, VisibilityState } from "./state";
+import type {
+    LayoutChoice,
+    NoteEntry,
+    ProjectShaderEntry,
+    ProjectState,
+    RunEntry,
+    SavedTour,
+    VisibilityState,
+} from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
 /** Stands for "the key had no value": a map key that was not there. */
@@ -46,6 +54,7 @@ type ValueSlice =
     | "sets"
     | "views"
     | "viewOrder"
+    | "tours"
     | "notes"
     | "attributes"
     | "valueLabels"
@@ -54,7 +63,7 @@ type ValueSlice =
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
     readonly slice: ValueSlice;
-    /** The key within the slice; "" for the whole-value slices `styles`, `layout` and `viewOrder`. */
+    /** The key within the slice; "" for the whole-value slices `styles`, `layout`, `viewOrder` and `tours`. */
     readonly key: string;
     readonly prior: unknown;
     readonly next: unknown;
@@ -328,6 +337,8 @@ export interface Draft {
     layout: LayoutChoice | null;
     /** The saved views' names in project order, written whole. */
     viewOrder: readonly string[];
+    /** The saved tours in project order, written whole. */
+    tours: readonly SavedTour[];
     readonly config: KeyedWriter<string, unknown>;
     readonly runs: KeyedWriter<RunId, RunEntry>;
     readonly sets: KeyedWriter<SetId, ElementSet>;
@@ -459,6 +470,8 @@ export function createProjectStore(
                 return state.layout;
             case "viewOrder":
                 return state.viewOrder;
+            case "tours":
+                return state.tours;
             case "visibility":
                 return state.visibility[key as keyof VisibilityState];
             default:
@@ -477,6 +490,9 @@ export function createProjectStore(
                 return;
             case "viewOrder":
                 state.viewOrder = value as readonly string[];
+                return;
+            case "tours":
+                state.tours = value as readonly SavedTour[];
                 return;
             case "visibility":
                 state.visibility = Object.freeze({ ...state.visibility, [key]: value });
@@ -609,6 +625,12 @@ export function createProjectStore(
                 },
                 set viewOrder(next) {
                     write(draft, "viewOrder", "", Object.freeze([...next]));
+                },
+                get tours() {
+                    return state.tours;
+                },
+                set tours(next) {
+                    write(draft, "tours", "", Object.freeze([...next]));
                 },
                 config: keyed(draft, "config"),
                 runs: keyed(draft, "runs"),

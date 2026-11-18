@@ -1,6 +1,7 @@
 /**
  * @file The saved-view ops: `view.save` keeps camera states under names, `view.remove` forgets
- * them, `view.rename` and `view.move` rename and reorder them, and `view.camera` moves the camera.
+ * them, `view.rename` and `view.move` rename and reorder them (a rename rewrites every tour stop
+ * naming the view), and `view.camera` moves the camera.
  *
  * The views are kept in project order (the `viewOrder` value, reported as the `views` slice):
  * a save appends, a removal takes out, a rename keeps the place and a move rewrites it, and each
@@ -16,6 +17,7 @@ import { isCameraViewName } from "../../camera/resolve";
 import type { CameraState, Vec3 } from "../../camera/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableDefinition } from "../project/Dispatcher";
+import { renameTourStops } from "./tour";
 
 /** One view to save: a name and the camera state it holds. */
 interface SavedView {
@@ -184,11 +186,18 @@ const viewRename: UndoableDefinition<ViewRenameCommand> = {
     op: "view.rename",
     moves: false,
     lane: { kind: "immediate" },
-    keys: (command) => [`views/${command.from}`, `views/${command.to}`, "viewOrder"],
+    keys: (command) => [`views/${command.from}`, `views/${command.to}`, "viewOrder", "tours"],
     undo: {
         kind: "undoable",
-        label: () => "view.rename",
-        fact: (command) => ({ code: "view.rename", params: { from: command.from, to: command.to } }),
+        fact: (command, state) => ({
+            code: "view.rename",
+            params: {
+                from: command.from,
+                to: command.to,
+                // The tours whose stops name the view, which the rename rewrites; read before it.
+                tours: renameTourStops(state.tours, command.from, command.to).changed,
+            },
+        }),
     },
     execute: (command, ctx) => {
         const camera = ctx.state.views.get(command.from);
@@ -212,6 +221,11 @@ const viewRename: UndoableDefinition<ViewRenameCommand> = {
         ctx.draft.views.delete(command.from);
         ctx.draft.views.set(command.to, camera);
         ctx.draft.viewOrder = order;
+        // Every tour stop naming the view follows it, in the same step.
+        const renamed = renameTourStops(ctx.state.tours, command.from, command.to);
+        if (renamed.changed.length > 0) {
+            ctx.draft.tours = renamed.tours;
+        }
     },
 };
 
@@ -222,7 +236,6 @@ const viewMove: UndoableDefinition<ViewMoveCommand> = {
     keys: () => ["viewOrder"],
     undo: {
         kind: "undoable",
-        label: () => "view.move",
         fact: (command) => ({ code: "view.move", params: { name: command.name, index: command.index } }),
     },
     execute: (command, ctx) => {

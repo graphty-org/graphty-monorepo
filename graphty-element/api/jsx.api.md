@@ -277,6 +277,9 @@ export interface GraphtyElementJSXProps {
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
     "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     // (undocumented)

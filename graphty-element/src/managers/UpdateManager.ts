@@ -550,6 +550,11 @@ export class UpdateManager implements Manager {
     autoTurning = false;
     /** Whether motion is reduced, which keeps `camera.autoRotate` from turning; set by the graph. */
     reducedMotion = false;
+    /**
+     * Whether a tour holds the camera: `camera.autoRotate` and the glide to the selection wait
+     * until it ends, so a hold stands still. Set by the graph while a tour plays or records.
+     */
+    cameraHeld = false;
     /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
     private static readonly MAX_TURN_MS = 100;
     /** `camera.autoRotate` and `camera.autoRotateResume` as the last pass read them; a change ends the reader's pause. */
@@ -2366,6 +2371,21 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Remember whether the element frames the graph on its own and what it still owes, for a
+     * camera a tour places only for its own length.
+     * @returns Puts the framing back as it was.
+     */
+    saveFraming(): () => void {
+        const { needsZoomToFit, forceZoomToFit, explicitZoomToFit } = this;
+        return () => {
+            this.needsZoomToFit = needsZoomToFit;
+            this.forceZoomToFit = forceZoomToFit;
+            this.explicitZoomToFit = explicitZoomToFit;
+            this.fitRead = null;
+        };
+    }
+
+    /**
      * Get current zoom to fit state
      * @returns True if zoom to fit is enabled
      */
@@ -2960,7 +2980,7 @@ export class UpdateManager implements Manager {
      */
     private followSelection(frameMs: number): void {
         this.followingSelection = false;
-        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
+        if (this.cameraHeld || !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
         }
 
@@ -3051,7 +3071,7 @@ export class UpdateManager implements Manager {
         }
 
         // Reduced motion keeps the camera still.
-        const turnSpeed = this.reducedMotion ? 0 : camera.autoRotate;
+        const turnSpeed = this.reducedMotion || this.cameraHeld ? 0 : camera.autoRotate;
         this.autoTurning = this.camera.autoTurn(
             (turnSpeed * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
             frameMs,

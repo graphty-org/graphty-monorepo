@@ -80,6 +80,10 @@ export const COMMANDS = Object.freeze({
     "view.remove": { undo: "undoable" },
     "view.rename": { undo: "undoable" },
     "view.move": { undo: "undoable" },
+    "tour.save": { undo: "undoable" },
+    "tour.remove": { undo: "undoable" },
+    "tour.rename": { undo: "undoable" },
+    "tour.move": { undo: "undoable" },
     "view.camera": {
         undo: "exempt",
         reason: "Where the camera is looking is view state, not saved in a project file.",

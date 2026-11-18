@@ -350,6 +350,9 @@ export type {
     RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
+    TourEndedEvent,
+    TourProgressEvent,
+    ViewsChangedEvent,
     XRSessionEndedEvent,
     XRSessionStartedEvent,
 } from "./src/events";
@@ -389,6 +392,7 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type { EasingName, Tour, TourEndReason, TourInput, TourPlan, TourPlanStop, TourStop } from "./src/camera/tour";
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
 export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {

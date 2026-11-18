@@ -533,6 +533,9 @@ export class EventManager implements Manager {
             case "stats-update":
             case "input-enabled-changed":
             case "reduced-motion-changed":
+            case "tour-progress":
+            case "tour-ended":
+            case "views-changed":
             case "overview-changed":
             case "xr-session-started":
             case "xr-session-ended":

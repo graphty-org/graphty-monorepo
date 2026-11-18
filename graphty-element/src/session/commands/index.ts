@@ -24,6 +24,7 @@ import { SHADER_DEFINITIONS } from "./shaders";
 import { SOURCE_EXPAND_DEFINITIONS } from "./source-expand";
 import { SOURCE_LOAD_DEFINITIONS } from "./source-load";
 import { STYLE_DEFINITIONS } from "./style";
+import { TOUR_DEFINITIONS } from "./tour";
 import { VIEW_DEFINITIONS } from "./view";
 import { VISIBILITY_DEFINITIONS } from "./visibility";
 
@@ -109,6 +110,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...SET_DEFINITIONS,
     ...NOTE_DEFINITIONS,
     ...VIEW_DEFINITIONS,
+    ...TOUR_DEFINITIONS,
     ...CONFIG_DEFINITIONS,
     ...POSITIONS_DEFINITIONS,
     ...LAYOUT_DEFINITIONS,

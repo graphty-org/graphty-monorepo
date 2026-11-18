@@ -103,6 +103,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     },
     ProjectApi: (session) => session.project,
     SessionViews: (session) => session.views,
+    SessionTours: (session) => session.tours,
     SessionAnnotations: (session) => session.annotations,
     SessionLayout: (session) => session.layout,
     SessionConfig: (session) => session.config,

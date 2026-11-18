@@ -891,6 +891,48 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "view.move", name: "Second view", index: 0 },
     },
     {
+        name: "view.rename rewriting a tour's stops",
+        variant: "with tours",
+        tags: ["session"],
+        before: async (session) => {
+            await session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]);
+            await session.tours.save([
+                { name: "Fixture tour", tour: { stops: [{ view: "Fixture view", hold: 100 }] } },
+            ]);
+        },
+        command: { op: "view.rename", from: "Fixture view", to: "Renamed view" },
+    },
+    {
+        name: "tour.save",
+        tags: ["session"],
+        command: {
+            op: "tour.save",
+            tours: [{ name: "Fixture tour", tour: { stops: [{ view: "fitToGraph", duration: 0, hold: 2000 }] } }],
+        },
+    },
+    {
+        name: "tour.remove",
+        tags: ["session"],
+        before: (session) => session.tours.save([{ name: "Fixture tour", tour: { stops: [] } }]),
+        command: { op: "tour.remove", names: ["Fixture tour"] },
+    },
+    {
+        name: "tour.rename",
+        tags: ["session"],
+        before: (session) => session.tours.save([{ name: "Fixture tour", tour: { stops: [] } }]),
+        command: { op: "tour.rename", from: "Fixture tour", to: "Renamed tour" },
+    },
+    {
+        name: "tour.move",
+        tags: ["session"],
+        before: (session) =>
+            session.tours.save([
+                { name: "Fixture tour", tour: { stops: [] } },
+                { name: "Second tour", tour: { stops: [], easing: "linear" } },
+            ]),
+        command: { op: "tour.move", name: "Second tour", index: 0 },
+    },
+    {
         name: "config.set a data-config leaf",
         variant: "data",
         tags: BOTH,

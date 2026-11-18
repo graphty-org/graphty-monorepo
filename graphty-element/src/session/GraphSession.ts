@@ -22,6 +22,7 @@ import {
 } from "../acceleration";
 import { sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
+import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
 import { arrangedDimension, LAYOUT_CATALOG, LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
@@ -248,6 +249,7 @@ import type {
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     TransactionOptions,
@@ -404,6 +406,7 @@ const TX_PARTS = [
     "shaders",
     "time",
     "views",
+    "tours",
     "annotations",
     "positions",
     "config",
@@ -576,6 +579,7 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
+    readonly tours: SessionTours;
     readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
@@ -775,6 +779,7 @@ class Session implements ElementSession {
         registerSessionRuns(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
+        this.tours = toursOf(this.dispatcher);
         this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.
@@ -1965,11 +1970,11 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
         keys: () =>
             ordered()
                 .map(([name]) => name)
-                [Symbol.iterator](),
+                .values(),
         values: () =>
             ordered()
                 .map(([, camera]) => camera)
-                [Symbol.iterator](),
+                .values(),
         [Symbol.iterator]: () => ordered()[Symbol.iterator](),
         save: async (saved: readonly { readonly name: string; readonly camera?: CameraState }[]) => {
             // The camera is read once, here, so redo and replay never read the live camera again.
@@ -1988,6 +1993,57 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
     });
 
     return views;
+}
+
+/**
+ * The saved camera tours: the dispatcher's `tours` slice, read as a map in project order, with the
+ * verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The tours.
+ */
+function toursOf(dispatcher: Dispatcher): SessionTours {
+    const { state } = dispatcher;
+    /**
+     * The tours as entries, in project order.
+     * @returns The entries.
+     */
+    const entries = (): [string, Tour][] => state.tours.map((saved): [string, Tour] => [saved.name, saved.tour]);
+    const tours: SessionTours = Object.freeze({
+        get size() {
+            return state.tours.length;
+        },
+        get: (name: string) => state.tours.find((saved) => saved.name === name)?.tour,
+        has: (name: string) => state.tours.some((saved) => saved.name === name),
+        forEach: (visit: (tour: Tour, name: string, map: ReadonlyMap<string, Tour>) => void, self?: unknown) => {
+            for (const [name, tour] of entries()) {
+                visit.call(self, tour, name, tours);
+            }
+        },
+        entries: () => entries()[Symbol.iterator](),
+        keys: () =>
+            entries()
+                .map(([name]) => name)
+                .values(),
+        values: () =>
+            entries()
+                .map(([, tour]) => tour)
+                .values(),
+        [Symbol.iterator]: () => entries()[Symbol.iterator](),
+        save: async (saved: readonly { readonly name: string; readonly tour: Tour }[]) => {
+            await dispatcher.dispatch({ op: "tour.save", tours: saved });
+        },
+        remove: async (names: readonly string[]) => {
+            await dispatcher.dispatch({ op: "tour.remove", names });
+        },
+        rename: async (from: string, to: string) => {
+            await dispatcher.dispatch({ op: "tour.rename", from, to });
+        },
+        move: async (name: string, index: number) => {
+            await dispatcher.dispatch({ op: "tour.move", name, index });
+        },
+    });
+
+    return tours;
 }
 
 /**

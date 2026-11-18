@@ -1,3 +1,4 @@
+import type { EasingName } from "../camera/tour.js";
 import type { CameraState } from "../camera/types.js";
 
 /**
@@ -219,7 +220,7 @@ export type { CameraState } from "../camera/types.js";
 export interface CameraAnimationOptions {
     animate?: boolean;
     duration?: number;
-    easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
+    easing?: EasingName;
 
     // Operation queue options
     skipQueue?: boolean;

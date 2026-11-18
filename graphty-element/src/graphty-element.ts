@@ -4604,35 +4604,72 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
-     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
-     * `position` and `target`; `duration` is the flight to it and `hold` the time spent there, in
-     * milliseconds. Every stop is checked before the camera moves. `cameraTransitionDuration`,
-     * when set, replaces each flight's duration. `cancelCameraAnimation` ends the tour. To record
-     * the same tour, pass it as `cameraPath` to `captureAnimation`.
-     * @param path - The stops, in order.
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A tour is a
+     * saved tour's name (`session.tours`), a tour, or stops given inline. A stop names a view (a
+     * camera view or one saved in `session.views`), gives a camera state, or gives a 3D `position`
+     * and `target`; `duration` is the flight to it and `hold` the time spent there, in
+     * milliseconds, both taken as given (under reduced motion a flight is a cut held for its
+     * time). Every stop is checked before the camera moves. Auto-rotate and following the
+     * selection wait while a tour plays.
+     *
+     * It always resolves, with how it ended: `"finished"`; `"cancelled"` by `signal` or
+     * `cancelCameraAnimation()`; `"interrupted"` by the reader's drag, pinch, wheel, camera key or
+     * press on the canvas (the camera stays where the reader left it); `"replaced"` by another
+     * tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera`; or
+     * `"mode-changed"` by a switch between 2D, 3D and immersive. `tour-progress` marks each stop
+     * and phase; `tour-ended` says how it ended.
+     * @param tour - A saved tour's name, a tour, or stops.
      * @param options - How to fly.
-     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
-     * @returns Settles when the last stop's hold is over, or the tour is ended.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
-     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
+     * @param options.restoreCamera - Put the camera back where it was when the tour finishes.
+     *     Default false.
+     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @returns How the tour ended.
+     * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
+     *     `{ missing, available }` for an unknown tour name or `{ reason: "no-stops" }`,
+     *     `E_UNKNOWN_CAMERA` `{ name, available, stop }`, `E_UNSUPPORTED` `{ reason: "mode", ... }`
+     *     or `{ reason: "xr", mode }`, or `E_OPTION_RANGE` `{ option, stop }`.
      * @example
      * ```typescript
      * const el = document.querySelector("graphty-element");
-     * await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
-     * await el.playTour([
+     * await el.session.views.save([{ name: "cluster-a" }]); // the current camera
+     * await el.session.tours.save([{ name: "intro", tour: { stops: [
      *     { view: "fitToGraph", hold: 2000 },
      *     { view: "cluster-a", duration: 1500, hold: 3000 },
-     * ]);
+     * ] } }]);
+     * const { reason } = await el.playTour("intro", { restoreCamera: true });
      * ```
      */
     async playTour(
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-        options?: { easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" },
-    ): Promise<void> {
-        return this.#graph.playTour(path, options);
+        tour: import("./camera/tour.js").TourInput,
+        options?: {
+            easing?: import("./camera/tour.js").EasingName;
+            restoreCamera?: boolean;
+            signal?: AbortSignal;
+        },
+    ): Promise<{ reason: import("./camera/tour.js").TourEndReason }> {
+        return this.#graph.playTour(tour, options);
+    }
+
+    /**
+     * Check and time a tour without moving anything: the advanced path, for an editor that shows a
+     * tour's length and its broken stops before playing. `playTour` and `captureAnimation` refuse
+     * with the same problem, so a caller that only plays needs no plan. Plan again on
+     * `views-changed`, which fires whenever anything a plan reads may have changed.
+     * @param tour - A saved tour's name (`session.tours`), a tour, or stops given inline.
+     * @returns `totalMs` (the sum of the authored flights and holds), `playable`, each stop's
+     *     `startMs`, `duration`, `hold` and `problem` (as `viewProblem` answers, plus `stop`), and the
+     *     tour's own `problem` (`{ reason: "no-stops" }`, `{ missing, available }` or `xr`).
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * const plan = element.planTour("intro");
+     * lengthLabel.textContent = `${plan.totalMs / 1000} s`;
+     * playButton.disabled = !plan.playable;
+     * ```
+     */
+    planTour(tour: import("./camera/tour.js").TourInput): import("./camera/tour.js").TourPlan {
+        return this.#graph.planTour(tour);
     }
 
     /**

@@ -1,3 +1,4 @@
+import type { EasingName } from "../camera/tour.js";
 import type { CameraState } from "../screenshot/types.js";
 
 /**
@@ -121,7 +122,7 @@ export interface AnimationOptions {
      */
     tour?: readonly string[];
     /** Easing function for camera animations (default: 'easeInOut') */
-    easing?: "linear" | "easeInOut" | "easeIn" | "easeOut";
+    easing?: EasingName;
     /** Whether to automatically download the video after capture */
     download?: boolean;
     /** Filename for downloaded video (default: 'graphty-animation.{format}') */

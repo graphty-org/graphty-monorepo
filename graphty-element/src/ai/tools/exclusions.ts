@@ -177,6 +177,21 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         owner: "WAIVER_OWNER_UNASSIGNED",
         expires: "2027-01-11",
     })),
+    // Where a saved tour sits in the list, and what it is called or whether it is kept, is how the
+    // tour editor arranges them; the assistant plays and writes tours, it does not manage the list.
+    { op: "tour.move", reason: "panel-state", kind: BY_DESIGN },
+    { op: "tour.remove", reason: "panel-state", kind: BY_DESIGN },
+    { op: "tour.rename", reason: "panel-state", kind: BY_DESIGN },
+    { root: "SessionTours", members: ["move", "remove", "rename"], reason: "panel-state", kind: BY_DESIGN },
+    // Writing a tour: its tour.save action is owed with tour.list and tour.play
+    // (design/ui/camera-views-tours-and-capture.md section 4.8), in the step that makes room for them.
+    ...[{ op: "tour.save" }, { root: "SessionTours", members: ["save"] }].map((row): Exclusion => ({
+        ...row,
+        reason: "panel-state",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
 
     // What the door list already calls render bookkeeping: a decision made once, in `doors.ts`.
     ...DOOR_ROOTS.flatMap((root): Exclusion[] =>
@@ -541,6 +556,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "visibility",
             "styles",
             "views",
+            "tours",
             "layout",
             "positions",
             "hidden",
@@ -577,6 +593,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "visibility",
             "styles",
             "views",
+            "tours",
             "layout",
             "positions",
             "hidden",

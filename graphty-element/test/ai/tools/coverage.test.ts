@@ -73,7 +73,7 @@ describe("what the assistant reaches", () => {
         assert.strictEqual(items.filter((key) => reached.has(key)).length + excluded.size, items.length);
     });
 
-    it("reaches every catalog entry with a tool, and leaves no op out but the seven decided", () => {
+    it("reaches every catalog entry with a tool, and leaves no op out but the ones decided", () => {
         const { items, reached, excluded } = report();
         for (const item of items.filter((key) => key.startsWith("catalog:"))) {
             assert.isTrue(reached.has(item), `${item} is reached`);
@@ -85,6 +85,10 @@ describe("what the assistant reaches", () => {
             "op:layout.transport",
             "op:note.merge",
             "op:style.template",
+            "op:tour.move",
+            "op:tour.remove",
+            "op:tour.rename",
+            "op:tour.save",
             "op:view.move",
             "op:view.rename",
         ]);

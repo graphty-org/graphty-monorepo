@@ -11,6 +11,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point will reach it.
  */
 
+import type { Tour } from "../../camera/tour";
 import type { CameraState } from "../../camera/types";
 import type {
     EdgeId,
@@ -191,6 +192,11 @@ export interface ProjectState {
      * back where it was rather than at the end. Reported as the `views` slice.
      */
     readonly viewOrder: readonly string[];
+    /**
+     * The saved camera tours, in project order: one whole value, written whole by every tour op,
+     * so each undo restores the list exactly. Deep-frozen.
+     */
+    readonly tours: readonly SavedTour[];
     /** The notes, by id. */
     readonly notes: ReadonlyMap<NoteId, NoteEntry>;
     /** What columns were declared to measure, by `<kind>:<name>`. */
@@ -203,6 +209,12 @@ export interface ProjectState {
      * is the session's, not the project's, so it is not here.
      */
     readonly shaders: ReadonlyMap<string, ProjectShaderEntry>;
+}
+
+/** One saved camera tour: its name and the tour. */
+export interface SavedTour {
+    readonly name: string;
+    readonly tour: Tour;
 }
 
 /** One shader the project holds: its text, as it was pasted or loaded. */
@@ -249,6 +261,7 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         sets: new Map(init.sets),
         views: new Map(init.views),
         viewOrder: init.viewOrder ?? Object.freeze([...(init.views?.keys() ?? [])]),
+        tours: init.tours ?? Object.freeze([]),
         notes: new Map(init.notes),
         attributes: new Map(init.attributes),
         valueLabels: new Map(init.valueLabels),

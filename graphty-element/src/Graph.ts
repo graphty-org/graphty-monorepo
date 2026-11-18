@@ -102,12 +102,22 @@ import {
     isCameraViewName,
     resolveCameraView,
 } from "./camera/resolve.js";
+import {
+    type EasingName,
+    planTourStops,
+    stopTarget,
+    type TourEndReason,
+    type TourInput,
+    type TourPlan,
+    type TourPlanContext,
+} from "./camera/tour.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
+import { onCameraViewRegistered } from "./catalog/cameraRegistry";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
@@ -150,6 +160,7 @@ import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
+import type { GraphtyErrorCode } from "./errors/codes";
 import {
     EventCallbackType,
     EventOfType,
@@ -158,6 +169,8 @@ import {
     type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
+    type TourEndedEvent,
+    type TourProgressEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -818,8 +831,14 @@ export class Graph implements GraphContext {
      */
     #cameraPlaced = false;
 
-    /** The tour playing now, if any: `ended` is set to stop it at its next step or frame. */
+    /** The tour playing now, if any; `#finishTour` ends it. */
     #tour: TourHandle | undefined;
+
+    /**
+     * True while the element applies a camera state itself: the 2D camera reports that move as a
+     * reader's, which must not end a tour.
+     */
+    #applyingCameraState = false;
 
     /**
      * The reader moved the camera: the element's own framing stops until the next load or layout,
@@ -828,6 +847,11 @@ export class Graph implements GraphContext {
      * A consumer's own `zoomToFit()` still lands.
      */
     readonly #readerMovedCamera = (): void => {
+        // The reader's own move ends a tour; the element placing a state is not the reader's.
+        if (!this.#applyingCameraState) {
+            this.#endTour("interrupted");
+        }
+
         // A pan or a zoom of the reader's own is kept: the camera stops gliding back to the selection.
         this.updateManager.holdSelectionFollow();
         if (this.#cameraPlaced) {
@@ -1970,6 +1994,17 @@ export class Graph implements GraphContext {
                 this.followShown(cause === "undo" || cause === "redo");
             }
         });
+        // What a tour plan or `viewProblem` reads: the saved views, their order, the tours, and
+        // the camera views registered (the drawing mode is told in `writeSceneDimension`).
+        this.session.on("project:changed", ({ slices }) => {
+            if (slices.includes("views") || slices.includes("tours")) {
+                this.eventManager.emit("views-changed", {});
+            }
+        });
+        const unwatchCameraViews = onCameraViewRegistered(() => {
+            this.eventManager.emit("views-changed", {});
+        });
+        this.#teardown.signal.addEventListener("abort", unwatchCameraViews, { once: true });
         // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
         this.session.on("run:changed", ({ phase }) => {
             if (phase === "end" || phase === "removed" || phase === "restored") {
@@ -6079,8 +6114,14 @@ export class Graph implements GraphContext {
      */
     private writeSceneDimension(twoD: boolean): void {
         this.scene.metadata = this.scene.metadata ?? {};
+        const was = this.scene.metadata.viewMode as string | undefined;
         this.scene.metadata.twoD = twoD;
         this.scene.metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
+        if (was !== undefined && was !== this.scene.metadata.viewMode) {
+            // The drawing mode switched: a tour playing ends, and every view is judged again.
+            this.#endTour("mode-changed");
+            this.eventManager.emit("views-changed", {});
+        }
     }
 
     /**
@@ -8177,8 +8218,8 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Record a tour: the stops flown with the element's own camera moves while the recording runs,
-     * and the tour stopped when the recording ends.
+     * Record a tour: the stops flown with the tour's own camera path while the recording runs,
+     * and the tour ended when the recording ends.
      * @param options - Animation configuration options
      * @param path - The tour's stops
      * @param capture - Media recorder capture instance
@@ -8193,81 +8234,204 @@ export class Graph implements GraphContext {
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const stops = this.resolveTour(path);
-        const tour = this.beginTour();
+        const flown = this.#checkedTour(path);
+        const tour = this.#beginTour(null, flown.states.length);
         const recording = capture.captureRealtime(this.canvas, options, onProgress).finally(() => {
-            if (this.#tour === tour) {
-                this.cancelCameraAnimation();
-            }
+            this.#finishTour(tour, "cancelled");
         });
-        const [result] = await Promise.all([recording, this.flyTour(stops, options.easing, tour)]);
+        const flight = this.#flyTour(tour, flown, options.easing ?? "easeInOut").then(() => {
+            this.#finishTour(tour, "finished");
+        });
+        const [result] = await Promise.all([recording, flight]);
         this.handleVideoDownload(result, options);
         return result;
     }
 
     /**
-     * Each stop of a tour as the camera state it flies to, checked before anything moves.
-     * @param path - The stops.
-     * @returns The camera state, flight and hold of each stop.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
-     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * Check and time a tour, moving nothing: each stop's flight, hold and start time, and why it
+     * cannot be played now, if it cannot. `playTour` and a recording refuse with the same coded
+     * problem the plan reports, so a caller that only plays needs no plan; an editor showing
+     * lengths and broken stops plans on every `views-changed`.
+     * @param tour - A saved tour's name (`session.tours`), a tour, or stops given inline.
+     * @returns The plan: `totalMs`, `playable`, each stop's times and problem, and the tour's own
+     *     problem.
+     * @since 3.58.0
      */
-    private resolveTour(
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-    ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
-        const mode = this.#immersiveProblem()?.mode ?? this.dimension();
-        return path.map((stop, index) => {
-            const view = "view" in stop ? stop.view : { position: stop.position, target: stop.target };
-            const named = typeof view === "string" ? view : undefined;
-            const resolved = typeof view === "string" ? this.resolveCameraPreset(view) : view;
-            const problem = stateProblem(resolved, mode, {
-                ...(named === undefined ? {} : { name: named }),
-                stop: index,
-            });
-            if (problem !== null) {
-                throw cameraRefusal(problem);
-            }
-            const state = orbitAnglesToPosition(resolved);
-            return { state, duration: Math.max(0, stop.duration ?? 0), hold: Math.max(0, stop.hold ?? 0) };
-        });
+    planTour(tour: TourInput): TourPlan {
+        return planTourStops(tour, this.#tourContext()).plan;
     }
 
     /**
-     * Make a new tour the one playing, ending any tour or camera move under way.
+     * What the planner reads now: the view mode, the saved tours, and how a view name is judged.
+     * @returns The context.
+     */
+    #tourContext(): TourPlanContext {
+        return {
+            mode: this.#immersiveProblem()?.mode ?? this.dimension(),
+            tours: this.session.tours,
+            judge: (name) => this.viewProblem(name),
+        };
+    }
+
+    /**
+     * A tour checked and resolved: the camera state each stop flies to, with its plan.
+     * @param input - The tour.
+     * @returns The tour's name, easing, plan and states.
+     * @throws A `GraphtyError` with the first problem the plan reports.
+     */
+    #checkedTour(input: TourInput): FlownTour {
+        const { tour, plan } = planTourStops(input, this.#tourContext());
+        const problem = plan.problem ?? plan.stops.find((stop) => stop.problem !== null)?.problem ?? null;
+        if (tour === null || problem !== null) {
+            throw tourRefusal(problem ?? { code: "E_BAD_COMMAND", params: { reason: "no-stops" } });
+        }
+
+        const states = tour.stops.map((stop) => {
+            const target = stopTarget(stop);
+            return orbitAnglesToPosition(typeof target === "string" ? this.resolveCameraPreset(target) : target);
+        });
+        return { name: tour.name, easing: tour.easing, plan, states };
+    }
+
+    /**
+     * Make a new tour the one playing, ending any tour playing now as replaced. While it plays,
+     * auto-rotate and the glide to the selection wait, and a press on the canvas ends it.
+     * @param name - The saved tour's name, or null for one given inline.
+     * @param stops - How many stops it has.
      * @returns The tour's handle.
      */
-    private beginTour(): TourHandle {
-        this.cancelCameraAnimation();
-        const tour = { ended: false };
+    #beginTour(name: string | null, stops: number): TourHandle {
+        this.#endTour("replaced");
+        this.operationQueue.cancelByCategory("camera-update");
+        const onPress = (): void => {
+            this.#finishTour(tour, "interrupted");
+        };
+        const restorePlacement = this.saveCameraPlacement();
+        const restoreFraming = this.updateManager.saveFraming();
+        const tour: TourHandle = {
+            name,
+            stops,
+            ended: false,
+            reason: undefined,
+            wake: undefined,
+            restore: () => {
+                restoreFraming();
+                restorePlacement();
+            },
+            release: () => {
+                this.canvas.removeEventListener("pointerdown", onPress);
+                this.updateManager.cameraHeld = false;
+            },
+        };
+        this.canvas.addEventListener("pointerdown", onPress);
+        this.updateManager.cameraHeld = true;
         this.#tour = tour;
         return tour;
     }
 
     /**
-     * Fly a tour's stops in order, holding at each, until the last or until the tour is ended.
-     * @param stops - The resolved stops.
-     * @param easing - The easing of each flight.
-     * @param tour - The tour's handle, from `beginTour`.
+     * End a tour, once: let go of the camera, put the framing back unless the reader's own move
+     * ended it, say why, and wake the flight or hold it waits on.
+     * @param tour - The tour.
+     * @param reason - Why it ended.
      */
-    private async flyTour(
-        stops: readonly { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[],
-        easing: import("./screenshot/types.js").CameraAnimationOptions["easing"],
-        tour: TourHandle,
+    #finishTour(tour: TourHandle, reason: TourEndReason): void {
+        if (tour.ended) {
+            return;
+        }
+
+        tour.ended = true;
+        tour.reason = reason;
+        if (this.#tour === tour) {
+            this.#tour = undefined;
+        }
+
+        tour.release();
+        // A flight under way stops where it is.
+        this.operationQueue.cancelByCategory("camera-update");
+        // The reader's move stands as outside a tour: placed, and the element's framing stopped.
+        if (reason !== "interrupted") {
+            tour.restore();
+        }
+
+        this.eventManager.emit("tour-ended", { tour: tour.name, reason } satisfies Omit<TourEndedEvent, "type">);
+        tour.wake?.();
+    }
+
+    /**
+     * End the tour playing now, if any.
+     * @param reason - Why it ended.
+     * @returns True when a tour was playing.
+     */
+    #endTour(reason: TourEndReason): boolean {
+        const tour = this.#tour;
+        if (tour === undefined) {
+            return false;
+        }
+
+        this.#finishTour(tour, reason);
+        return true;
+    }
+
+    /**
+     * Place the camera for a tour: the flight time as given, never the view's own transition
+     * time, and no camera API call, so the tour does not end itself.
+     * @param state - Where the camera goes.
+     * @param ms - The flight; 0 jumps.
+     * @param easing - The flight's easing.
+     * @returns Settles once the camera has arrived, or the flight was cancelled.
+     */
+    #applyTourCamera(
+        state: import("./screenshot/types.js").CameraState,
+        ms: number,
+        easing: EasingName = "easeInOut",
     ): Promise<void> {
-        try {
-            for (const { state, duration, hold } of stops) {
-                if (tour.ended) {
-                    return;
+        return this.#placeCamera(state, ms > 0 ? { animate: true, duration: ms, easing } : undefined, true);
+    }
+
+    /**
+     * Fly a tour's stops in order, holding at each, until the last hold ends or the tour is ended.
+     * The caller finishes a tour that was not ended.
+     * Under reduced motion a flight is a cut at its start, held for the flight's time, so the tour
+     * lasts its planned length either way.
+     * @param tour - The tour's handle, from `#beginTour`.
+     * @param flown - The resolved stops and their plan.
+     * @param easing - The easing of each flight.
+     */
+    async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName): Promise<void> {
+        const progress = (stop: number, phase: "flight" | "hold"): void => {
+            this.eventManager.emit("tour-progress", {
+                tour: tour.name,
+                stop,
+                stops: tour.stops,
+                phase,
+            } satisfies Omit<TourProgressEvent, "type">);
+        };
+
+        for (const [index, state] of flown.states.entries()) {
+            const { duration, hold } = flown.plan.stops[index];
+            if (tour.ended) {
+                return;
+            }
+
+            if (duration > 0) {
+                progress(index, "flight");
+                if (this.#motionReduced()) {
+                    await this.#applyTourCamera(state, 0);
+                    await this.holdTourStop(duration, tour);
+                } else {
+                    await this.#applyTourCamera(state, duration, easing);
                 }
-                await this.#placeCamera(state, { animate: duration > 0, duration, easing: easing ?? "easeInOut" });
-                await this.holdTourStop(hold, tour);
+            } else {
+                await this.#applyTourCamera(state, 0);
             }
-        } finally {
-            if (this.#tour === tour) {
-                this.#tour = undefined;
+
+            if (tour.ended) {
+                return;
             }
+
+            progress(index, "hold");
+            await this.holdTourStop(hold, tour);
         }
     }
 
@@ -8283,49 +8447,90 @@ export class Graph implements GraphContext {
         }
         return new Promise((resolve) => {
             let held = 0;
+            const done = (): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                tour.wake = undefined;
+                resolve();
+            };
             const observer = this.scene.onAfterRenderObservable.add(() => {
                 held += this.engine.getDeltaTime();
-                if (held >= ms || tour.ended) {
-                    this.scene.onAfterRenderObservable.remove(observer);
-                    resolve();
+                if (held >= ms) {
+                    done();
                 }
             });
+            tour.wake = done;
         });
     }
 
     /**
-     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
-     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
-     * `position` and `target`. Every stop is checked before the camera moves. The camera's
-     * transition time (`setCameraTransitionDuration`), when set, replaces each flight's duration.
-     * `cancelCameraAnimation` ends the tour where it is; a new tour or a capture's tour replaces it.
-     * @param path - The stops, in order.
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A tour is a
+     * saved tour's name (`session.tours`), a tour, or stops given inline; a stop names a view (a
+     * camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`. Every stop is checked before the camera moves, as `planTour`
+     * checks it. A stop's `duration` is the flight to it, taken as given; under reduced motion a
+     * flight is a cut held for the flight's time. Auto-rotate and the glide to the selection wait
+     * while it plays.
+     *
+     * It ends `"finished"` after the last hold, `"cancelled"` on `signal` or
+     * `cancelCameraAnimation()`, `"interrupted"` when the reader moves the camera or presses the
+     * canvas, `"replaced"` when another tour, a recording, `setCameraState`, `applyCameraView`, the
+     * `view.camera` op or a screenshot with a `camera` moves the camera, and `"mode-changed"`
+     * when the drawing mode switches. `tour-progress` marks each stop and phase, `tour-ended`
+     * says how it ended. The element's own framing comes back as it was before the tour, except
+     * after `"interrupted"`, where the reader's move stands.
+     * @param tour - A saved tour's name, a tour, or stops.
      * @param options - How to fly.
-     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
-     * @returns Settles when the last stop's hold is over, or the tour is ended.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
-     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
+     * @param options.restoreCamera - Put the camera back where it was when the tour finishes
+     *     (only on `"finished"`). Default false.
+     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @returns How the tour ended; it resolves however it ends.
+     * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
+     *     `{ missing, available }` for a tour name nothing is saved under, `{ reason: "no-stops" }`
+     *     for no stops, `E_UNKNOWN_CAMERA` `{ name, available, stop }`, `E_UNSUPPORTED`
+     *     `{ reason: "mode", ... }` or `{ reason: "xr", mode }`, or `E_OPTION_RANGE`
+     *     `{ option, stop }`.
      * @example
      * ```typescript
-     * await graph.playTour([
+     * await graph.session.tours.save([{ name: "intro", tour: { stops: [
      *     { view: "overview", hold: 2000 },
      *     { view: "cluster-a", duration: 1500, hold: 3000 },
-     * ]);
+     * ] } }]);
+     * const { reason } = await graph.playTour("intro", { restoreCamera: true });
      * ```
      */
     async playTour(
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-        options?: { easing?: import("./screenshot/types.js").CameraAnimationOptions["easing"] },
-    ): Promise<void> {
-        const stops = this.resolveTour(path);
+        tour: TourInput,
+        options?: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal },
+    ): Promise<{ reason: TourEndReason }> {
+        const flown = this.#checkedTour(tour);
+        const { signal } = options ?? {};
+        if (signal?.aborted === true) {
+            return { reason: "cancelled" };
+        }
+
+        const before = options?.restoreCamera === true ? this.getCameraState() : undefined;
+        const handle = this.#beginTour(flown.name, flown.states.length);
+        const onAbort = (): void => {
+            this.#finishTour(handle, "cancelled");
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
         const releaseFrames = animatesEveryFrame(this.scene);
         try {
-            await this.flyTour(stops, options?.easing, this.beginTour());
+            await this.#flyTour(handle, flown, options?.easing ?? flown.easing ?? "easeInOut");
         } finally {
             releaseFrames();
+            signal?.removeEventListener("abort", onAbort);
         }
+
+        if (!handle.ended) {
+            // Put back before the tour is finished, which puts back the framing the camera had.
+            if (before !== undefined) {
+                await this.#applyTourCamera(before, 0);
+            }
+            this.#finishTour(handle, "finished");
+        }
+        return { reason: handle.reason ?? "finished" };
     }
 
     /**
@@ -8411,12 +8616,8 @@ export class Graph implements GraphContext {
      * ```
      */
     cancelCameraAnimation(): boolean {
-        const tour = this.#tour;
-        if (tour) {
-            tour.ended = true;
-            this.#tour = undefined;
-        }
-        return this.operationQueue.cancelByCategory("camera-update") > 0 || tour !== undefined;
+        const moves = this.operationQueue.cancelByCategory("camera-update");
+        return this.#endTour("cancelled") || moves > 0;
     }
 
     /**
@@ -8579,6 +8780,8 @@ export class Graph implements GraphContext {
             throw cameraRefusal(problem);
         }
 
+        // An outside move of the camera replaces a tour playing.
+        this.#endTour("replaced");
         return this.#placeCamera(resolved, options);
     }
 
@@ -8596,10 +8799,13 @@ export class Graph implements GraphContext {
      * mode it is in (a reset, a zoom step, a pan, a tour stop already judged).
      * @param state - The camera state.
      * @param options - Optional animation configuration.
+     * @param ownTime - Take the move's duration as given, not the view's own transition time
+     *     (a tour's flight).
      */
     async #placeCamera(
         state: import("./screenshot/types.js").CameraState,
         options?: import("./screenshot/types.js").CameraAnimationOptions,
+        ownTime = false,
     ): Promise<void> {
         const camera = this.scene.activeCamera;
         if (!camera) {
@@ -8625,7 +8831,7 @@ export class Graph implements GraphContext {
 
         // The view's own transition time, when set, wins over the move's.
         const moveMs = this.#cameraMoveMs();
-        if (options !== undefined && moveMs !== undefined) {
+        if (options !== undefined && moveMs !== undefined && !ownTime) {
             options = { ...options, duration: moveMs };
         }
 
@@ -8697,12 +8903,17 @@ export class Graph implements GraphContext {
         // Get the active camera controller
         const controller = this.camera.getActiveController();
 
-        if (controller instanceof OrbitCameraController) {
-            this.applyOrbitCameraState(controller, state);
-        } else if (controller instanceof TwoDCameraController) {
-            this.applyTwoDCameraState(controller, state);
-        } else {
-            this.applyFallbackCameraState(camera, state);
+        this.#applyingCameraState = true;
+        try {
+            if (controller instanceof OrbitCameraController) {
+                this.applyOrbitCameraState(controller, state);
+            } else if (controller instanceof TwoDCameraController) {
+                this.applyTwoDCameraState(controller, state);
+            } else {
+                this.applyFallbackCameraState(camera, state);
+            }
+        } finally {
+            this.#applyingCameraState = false;
         }
     }
 
@@ -9994,6 +10205,7 @@ export class Graph implements GraphContext {
             throw cameraRefusal(problem);
         }
 
+        this.#endTour("replaced");
         return this.#placeCamera(state, options);
     }
 
@@ -11246,7 +11458,45 @@ export class Graph implements GraphContext {
     }
 }
 
-/** A playing tour, ended by setting `ended`: it stops at its next step or frame. */
+/** A playing tour; `Graph.#finishTour` ends it, once. */
 interface TourHandle {
+    /** The saved tour's name, or null for one given inline. */
+    readonly name: string | null;
+    /** How many stops it has. */
+    readonly stops: number;
     ended: boolean;
+    reason: TourEndReason | undefined;
+    /** Ends the hold the tour waits in, at once. */
+    wake: (() => void) | undefined;
+    /** Puts the element's framing and the camera's placement back as before the tour. */
+    readonly restore: () => void;
+    /** Stops holding auto-rotate and the selection glide, and stops listening for a press. */
+    readonly release: () => void;
+}
+
+/** A tour checked and resolved, ready to fly. */
+interface FlownTour {
+    readonly name: string | null;
+    readonly easing: EasingName | undefined;
+    readonly plan: TourPlan;
+    /** The camera state each stop flies to. */
+    readonly states: readonly import("./screenshot/types.js").CameraState[];
+}
+
+/**
+ * The error a tour is refused with, for a problem its plan reports.
+ * @param problem - The plan's problem.
+ * @returns The error, whose `details` are the problem's params.
+ */
+function tourRefusal(problem: CodedFact): GraphtyError {
+    if (problem.code === "E_UNSUPPORTED") {
+        return cameraRefusal(problem.params);
+    }
+
+    return new GraphtyError({
+        code: problem.code as GraphtyErrorCode,
+        message: `the tour cannot be played: ${problem.code}`,
+        source: "view",
+        details: { ...problem.params },
+    });
 }

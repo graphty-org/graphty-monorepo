@@ -780,6 +780,18 @@ export interface GraphtyElementJSXProps {
      */
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
     /**
+     * Emitted once when a tour ends, however it ended; `playTour` resolves with the same reason.
+     */
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    /**
+     * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the flight to a stop (`"flight"`, absent for a zero-length flight) and the hold there (`"hold"`).
+     */
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    /**
+     * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view being registered. An editor showing tour lengths or broken stops plans again on it alone.
+     */
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
+    /**
      * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
      */
     "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;

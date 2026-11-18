@@ -55,6 +55,7 @@ import type { SetCommand } from "./commands/sets";
 import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
 import type { StyleCommand } from "./commands/style";
+import type { TourCommand } from "./commands/tour";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
@@ -142,6 +143,7 @@ export type SessionCommand =
     | SetCommand
     | NoteCommand
     | ViewCommand
+    | TourCommand
     | AnnotationsCommand
     | ConfigSetCommand
     | PositionsCommand

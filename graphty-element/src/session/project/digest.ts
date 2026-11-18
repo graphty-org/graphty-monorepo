@@ -152,6 +152,8 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `views=${canonical(state.views, path)}`,
         // The order the views are kept in; a canonical map sorts its keys.
         `viewOrder=${canonical(state.viewOrder, path)}`,
+        // Only when a tour is saved, so a digest of a state without tours is as it was.
+        ...(state.tours.length === 0 ? [] : [`tours=${canonical(state.tours, path)}`]),
         `notes=${canonical(state.notes, path)}`,
         `attributes=${canonical(state.attributes, path)}`,
         // Only when some value is named, so a digest of a state without names is as it was.

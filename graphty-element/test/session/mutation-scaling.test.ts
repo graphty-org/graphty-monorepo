@@ -892,6 +892,39 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SessionTours.save",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => session.tours.save([{ name: "Saved", tour: { stops: [{ view: "fitToGraph" }] } }])),
+    },
+    {
+        method: "SessionTours.remove",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([{ name: "Saved", tour: { stops: [] } }]);
+            return () => session.tours.remove(["Saved"]);
+        },
+    },
+    {
+        method: "SessionTours.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([{ name: "Saved", tour: { stops: [] } }]);
+            return () => session.tours.rename("Saved", "Renamed");
+        },
+    },
+    {
+        method: "SessionTours.move",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([
+                { name: "Saved", tour: { stops: [] } },
+                { name: "Second", tour: { stops: [] } },
+            ]);
+            return () => session.tours.move("Second", 0);
+        },
+    },
+    {
         method: "SessionAnnotations.add",
         growth: "constant",
         prepare: (session) => Promise.resolve(() => session.annotations.add(NOTE)),

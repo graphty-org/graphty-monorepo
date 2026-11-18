@@ -17,6 +17,7 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { GENERATOR_CATALOG } from "@graphty/graph-samples";
 
+import type { Tour } from "../camera/tour";
 import { sourceDescriptors } from "../catalog/sources";
 import {
     type EdgeId,
@@ -724,6 +725,9 @@ const DECLARATIONS_VERSION = 1;
 /** The version of the session member's `columns` field. */
 const COLUMNS_VERSION = 1;
 
+/** The version of the session member's `tours` field. */
+const TOURS_VERSION = 1;
+
 /**
  * The `graphty-data` member: the records, the direction and the source. The only builder that
  * reads the records.
@@ -915,6 +919,15 @@ export function sessionMember(sources: ProjectSources): Record<string, unknown> 
         timelineHiddenAdded: session.config.timelineHiddenAdded,
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
+        // Additive and versioned, written only when a tour is saved: an older reader ignores it.
+        ...(session.tours.size === 0
+            ? {}
+            : {
+                  tours: {
+                      version: TOURS_VERSION,
+                      list: [...session.tours].map(([name, tour]) => ({ name, ...tour })),
+                  },
+              }),
         // Written only when a value is named, so a project without names saves as before.
         ...(dispatcher.state.valueLabels.size === 0
             ? {}
@@ -1581,6 +1594,11 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
         await tx.views.remove([...tx.views.keys()]);
     }
 
+    // So no tour carries from one project into the next.
+    if (tx.tours.size > 0) {
+        await tx.tours.remove([...tx.tours.keys()]);
+    }
+
     if (tx.visibility.filter !== null) {
         await tx.visibility.set(null);
     }
@@ -2192,6 +2210,36 @@ async function readProject(
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
+    }
+
+    await readTours(opening, state.tours);
+}
+
+/**
+ * Restore the tours the session member saved, after the views their stops name. A file written
+ * before tours were saved has none; a newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param tours - The session member's `tours` field.
+ */
+async function readTours(opening: Opening, tours: unknown): Promise<void> {
+    if (!isObject(tours)) {
+        return;
+    }
+
+    if (tours.version !== TOURS_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "tours", found: tours.version as number },
+        });
+        return;
+    }
+
+    const list = (Array.isArray(tours.list) ? (tours.list as unknown[]) : []).filter(isObject).map((entry) => {
+        const { name, ...tour } = entry as unknown as { name: string } & Tour;
+        return { name, tour };
+    });
+    if (list.length > 0) {
+        await attempt(opening, "tours", () => opening.tx.tours.save(list));
     }
 }
 

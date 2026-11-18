@@ -963,6 +963,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     shaders: READ,
     views: READ,
+    tours: READ,
     annotations: READ,
     layout: READ,
     positions: READ,
@@ -1611,6 +1612,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             cancelAnimationCapture: CAPTURE,
             cancelCameraAnimation: IN_FLIGHT,
             playTour: CAMERA,
+            planTour: READ,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getViewMode: READ,
@@ -2003,6 +2005,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             cancelAnimationCapture: CAPTURE,
             cancelCameraAnimation: IN_FLIGHT,
             playTour: CAMERA,
+            planTour: READ,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getCameraState: READ,
@@ -3853,6 +3856,23 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.rename", from: "door view", to: "door renamed" }],
             ),
             move: calls(["door view", 0], [{ op: "view.move", name: "door view", index: 0 }]),
+        },
+    },
+    {
+        name: "SessionTours",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            save: calls(
+                [[{ name: "door tour", tour: { stops: [{ view: "fitToGraph" }] } }]],
+                [{ op: "tour.save", tours: [{ name: "door tour", tour: { stops: [{ view: "fitToGraph" }] } }] }],
+            ),
+            remove: calls([["door tour"]], [{ op: "tour.remove", names: ["door tour"] }]),
+            rename: calls(
+                ["door tour", "door renamed"],
+                [{ op: "tour.rename", from: "door tour", to: "door renamed" }],
+            ),
+            move: calls(["door tour", 0], [{ op: "tour.move", name: "door tour", index: 0 }]),
         },
     },
     {

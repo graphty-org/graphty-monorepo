@@ -101,6 +101,11 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
             ]),
         read: (session) => [...session.views],
     },
+    tours: {
+        change: (session) =>
+            session.tours.save([{ name: "Walk", tour: { stops: [{ view: "Overview", duration: 0, hold: 2000 }] } }]),
+        read: (session) => [...session.tours],
+    },
     notes: {
         change: (session) => {
             session.notes.add({ text: "b is the hub", targets: [{ node: "b" }] });

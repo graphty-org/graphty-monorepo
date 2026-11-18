@@ -6,6 +6,7 @@ import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { AiSource } from "./ai/conversation/snapshot";
 import type { AiPointing } from "./ai/tools/prompt";
+import type { TourEndReason } from "./camera/tour";
 import type { AiHostedToolId, AiResultCode, AiResultParams, AiTarget } from "./catalog/ai";
 import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
@@ -101,6 +102,9 @@ export type GraphEvent =
     | StatsUpdateEvent
     | InputEnabledChangedEvent
     | ReducedMotionChangedEvent
+    | TourProgressEvent
+    | TourEndedEvent
+    | ViewsChangedEvent
     | XRSessionStartedEvent
     | XRSessionEndedEvent
     | InputPointerEvent
@@ -610,6 +614,43 @@ export interface ReducedMotionChangedEvent {
     type: "reduced-motion-changed";
     /** Whether motion is reduced now. */
     reduced: boolean;
+}
+
+/**
+ * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the
+ * flight to a stop (`"flight"`, absent for a zero-length flight) and the hold there (`"hold"`).
+ * @since 3.58.0
+ */
+export interface TourProgressEvent {
+    type: "tour-progress";
+    /** The saved tour's name, or null for a tour given inline. */
+    tour: string | null;
+    /** The 0-based stop. */
+    stop: number;
+    /** How many stops the tour has. */
+    stops: number;
+    phase: "flight" | "hold";
+}
+
+/**
+ * Emitted once when a tour ends, however it ended; `playTour` resolves with the same reason.
+ * @since 3.58.0
+ */
+export interface TourEndedEvent {
+    type: "tour-ended";
+    /** The saved tour's name, or null for a tour given inline. */
+    tour: string | null;
+    reason: TourEndReason;
+}
+
+/**
+ * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their
+ * order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view
+ * being registered. An editor showing tour lengths or broken stops plans again on it alone.
+ * @since 3.58.0
+ */
+export interface ViewsChangedEvent {
+    type: "views-changed";
 }
 
 /** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */

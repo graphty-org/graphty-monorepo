@@ -141,6 +141,20 @@ describe("nextState", () => {
         });
         assert.equal(next.lastFull, state.lastFull);
     });
+
+    it("repeats a red run's slice, whose crashed files left no report to name them", () => {
+        const red = nextState({ prev: state, selection, results: [], sha: "c", run: "r", complete: false });
+        assert.equal(planSelection({ state: red, slices: 4, full: false, runNumber: 0, changed: [] }).slice, 2);
+        const first = nextState({
+            prev: state,
+            selection: { ...selection, slice: 0 },
+            results: [],
+            sha: "c",
+            run: "r",
+            complete: false,
+        });
+        assert.equal(planSelection({ state: first, slices: 4, full: false, runNumber: 0, changed: [] }).slice, 0);
+    });
 });
 
 describe("release.yml's LLM job", () => {

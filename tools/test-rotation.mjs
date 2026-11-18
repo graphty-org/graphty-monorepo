@@ -181,8 +181,10 @@ export function fileResults(dir) {
  * @param o.results this run's caseResults or fileResults
  * @param o.sha the run's commit
  * @param o.run the run's URL
- * @param o.complete false when some of the run's tests never ran (an earlier red step skipped them): a full run then
- *   does not count as the last full run, so the next run executes every test again
+ * @param o.complete false when the run went red: a crashed or hung test run writes no report, so the failed tests
+ *   cannot be named, and a red step skips the steps after it. The next run then repeats this run's slice (and
+ *   executes every test again after a full run), so nothing of it waits a whole turn; a lane that stays red keeps
+ *   its slice until it is green, which only a fix (a full run, when it touches the lane's paths) changes.
  * @returns the new record
  */
 export function nextState({ prev, selection, results, sha, run, complete = true }) {
@@ -193,7 +195,7 @@ export function nextState({ prev, selection, results, sha, run, complete = true 
     ];
     return {
         sha,
-        slice: selection.slice,
+        slice: complete ? selection.slice : (selection.slice + selection.slices - 1) % selection.slices,
         slices: selection.slices,
         lastFull: selection.full && complete ? sha : (prev?.lastFull ?? ""),
         failed,

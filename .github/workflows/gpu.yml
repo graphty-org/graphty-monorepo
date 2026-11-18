@@ -406,16 +406,15 @@ jobs:
               run: cd .. && node tools/results/run-group.mjs t4-browser "cd webgpu-graph-algorithms && node scripts/run-browser-project.js $T4_ARGS" # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
             # The next run's record: this run's slice and the files still failing, from the JUnit reports every vitest
             # run writes in CI. Only the release train's runs keep one (a run by hand or a bisect point tests some
-            # other commit), and only once the tests began: a run cut off before them repeats its slice next time.
-            # ponytail: a red step skips the sliced steps after it, so their files of this slice wait a full turn;
-            # carry them as extras if that ever matters.
+            # other commit), and only once the tests began: a run cut off before them repeats its slice next time, and
+            # so does a red run (COMPLETE), whose crashed or hung files write no report and whose later steps never ran.
             - name: Record which T4 test files ran and failed
               id: t4-record
               if: ${{ !cancelled() && !inputs.bisect_point && !contains(github.workflow_ref, '/gpu.yml@') && (steps.t4-node.outcome == 'success' || steps.t4-node.outcome == 'failure') }}
               working-directory: .
               env:
                   SHA: ${{ inputs.ref || github.sha }}
-                  # a red step skipped the sliced steps after it: a full run that stopped there is not the last full run
+                  # red: the next run repeats this slice, and a full run that stopped here is not the last full run
                   COMPLETE: ${{ job.status == 'success' }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |

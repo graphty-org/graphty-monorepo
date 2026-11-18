@@ -23,6 +23,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { EdgeId } from "../catalog/types";
 import type { Edge } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
+import { convexRayHit } from "../meshes/convexHit";
 import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
@@ -323,7 +324,13 @@ export class RowScan {
      */
     rowRayHitOn(row: number, ray: Ray): Vector3 | null {
         const root = this.root?.computeWorldMatrix() ?? this.identity;
-        return this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null;
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, as a node's own mesh is
+        const node = this.nodeAt(row);
+        const convex =
+            node?.drawnByRowScan === true ? convexRayHit(node.drawnSourceMesh, ray, this.rowWorld(row, root)) : null;
+        return convex === undefined
+            ? (this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null)
+            : convex;
     }
 
     /**
@@ -545,9 +552,27 @@ export class RowScan {
             return null;
         }
 
+        return node.drawnSourceMesh.intersects(
+            rayFor(this.rowWorld(row, root)),
+            false,
+            undefined,
+            false,
+            this.world,
+            false,
+        );
+    }
+
+    /**
+     * Where a row's node is drawn in the world: its bound's center and its scaling, under graph-root.
+     * @param row - The row.
+     * @param root - {@link RowScan.rootMatrix}.
+     * @returns The matrix, which the next call overwrites.
+     */
+    private rowWorld(row: number, root: Matrix): Matrix {
+        const node = this.nodeAt(row);
         const { rowBounds: bounds } = this.table;
         const at = row * 4;
-        const { x, y, z } = node.drawnScaling;
+        const { x, y, z } = node?.drawnScaling ?? { x: 1, y: 1, z: 1 };
         Matrix.FromValuesToRef(
             x,
             0,
@@ -568,7 +593,7 @@ export class RowScan {
             this.local,
         );
         this.local.multiplyToRef(root, this.world);
-        return node.drawnSourceMesh.intersects(rayFor(this.world), false, undefined, false, this.world, false);
+        return this.world;
     }
 }
 

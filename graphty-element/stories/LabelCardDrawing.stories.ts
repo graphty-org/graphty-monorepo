@@ -3,8 +3,7 @@
  * corners, and a drop shadow under the panel.
  *
  * Made only of public style options. It shows three things the label canvas draws: `padding`
- * moves the words in from the border (it used to grow the panel and leave the words where they
- * were), the border is as light at its corners as along its edges, and `panelShadow` throws a
+ * moves the words in from the border without growing the panel, the border is as light at its corners as along its edges, and `panelShadow` throws a
  * shadow that is not cut off at the label's edge.
  */
 

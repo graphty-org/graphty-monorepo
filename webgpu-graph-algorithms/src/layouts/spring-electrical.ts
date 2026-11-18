@@ -1,22 +1,22 @@
 /**
- * The spring-electrical preset on the exact or the grid repulsion tier (spec 7.20 "the preset", 7.8; contract 3.13):
+ * The spring-electrical preset on the exact or the grid repulsion tier:
  * ngraph.forcelayout's physics under ngraph's option names and defaults -- Coulomb repulsion `-g m_i m_j / d^2` (K3,
- * LAW 2; G6 / G7 with LAW 2 on the grid tier, P4-T13), Hooke springs
+ * LAW 2; G6 / G7 with LAW 2 on the grid tier), Hooke springs
  * `k_s (d - L)` (K2, LAW 2), drag and the semi-implicit Euler step with the unit speed clamp over a per-node velocity
- * (K5, APPLY 2), the kinetic energy folded into the trace (K1, STATS_MODE 2; PD-4) -- as the ForceModel that
+ * (K5, APPLY 2), the kinetic energy folded into the trace (K1, STATS_MODE 2) -- as the ForceModel that
  * ForceSimulation drives over the four FA2 kernels K1 K2 K3 K5 per iteration and toScene per batch. No K4: there is no
- * speed controller. The velocity is the model's `velocity` buffer bound into the `oldForce` slot of K3 and K5 (PD-2),
- * left alone by the FA2 text because the model compiles `SWING_MODE = 1` (PD-20). Mass is `1 + degree / 3` and the
- * weights are ignored (PD-11); `SpringElectricalOptions.gravity` is ngraph's Coulomb constant, written into
- * `Fa2Params.coulomb` while FA2's centre gravity is 0 (PD-12). Settlement is the shared rule of spec 7.17
- * (DEP-P5-A); `reheat()` leaves the velocities alone (ngraph has no reheat).
+ * speed controller. The velocity is the model's `velocity` buffer bound into the `oldForce` slot of K3 and K5,
+ * left alone by the FA2 text because the model compiles `SWING_MODE = 1`. Mass is `1 + degree / 3` and the
+ * weights are ignored; `SpringElectricalOptions.gravity` is ngraph's Coulomb constant, written into
+ * `Fa2Params.coulomb` while FA2's centre gravity is 0. Settlement is the settle rule every GPU layout
+ * shares; `reheat()` leaves the velocities alone (ngraph has no reheat).
  *
  * Model decisions this file shares with forceatlas2.ts: on the exact tier the K1-K5 dispatches of one batch share ONE
  * compute pass and toScene runs in a second pass that ends it; the fill kernel takes its FillParams from a model-owned
- * 256-byte uniform buffer. The grid tier (P4-T13, PD-22) is FA2's: `RepulsionGrid` with `LAW` 2 when `tierFor(tuning,
- * n)` says so (PD-18), the grid buffers from `buffers()`, K1's grid block under `gridMax > 0` (PD-14) over the model's
- * own `hubCounters`, the three passes `se-k1` / `se-attraction` / `se-grid` before `se-to-scene` (PD-16), and the
- * union stage list (PD-17; K4 is never recorded).
+ * 256-byte uniform buffer. The grid tier is FA2's: `RepulsionGrid` with `LAW` 2 when `tierFor(tuning,
+ * n)` says so, the grid buffers from `buffers()`, K1's grid block under `gridMax > 0` over the model's
+ * own `hubCounters`, the three passes `se-k1` / `se-attraction` / `se-grid` before `se-to-scene`, and the
+ * union stage list (K4 is never recorded).
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -73,7 +73,7 @@ import { RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js"
 
 // ============================================================ constants
 
-/** The model's constant override set (PD-1, PD-20): the spring / coulomb laws, ngraph's Euler step, the kinetic-energy statistic, SWING_MODE 1 so the FA2 text never touches the oldForce slot. */
+/** The model's constant override set: the spring / coulomb laws, ngraph's Euler step, the kinetic-energy statistic, SWING_MODE 1 so the FA2 text never touches the oldForce slot. */
 const SE_OVERRIDES: Overrides = Object.freeze({
     LINLOG: false,
     DISTRIBUTED: false,
@@ -86,7 +86,7 @@ const SE_OVERRIDES: Overrides = Object.freeze({
     STATS_MODE: 2,
 });
 
-/** The grid stage's override set (G6 / G7 / K4; P4-T13, PD-22): K3's constant three and the coulomb law. */
+/** The grid stage's override set (G6 / G7 / K4): K3's constant three and the coulomb law. */
 const SE_GRID_OVERRIDES: RepulsionGridOverrides = Object.freeze({
     SWING_MODE: 1,
     STRONG_GRAVITY: false,
@@ -94,7 +94,7 @@ const SE_GRID_OVERRIDES: RepulsionGridOverrides = Object.freeze({
     LAW: 2,
 });
 
-/** The name of the model's velocity buffer (bound into the `oldForce` slot of K3 / K5, PD-2). */
+/** The name of the model's velocity buffer (bound into the `oldForce` slot of K3 / K5). */
 const VELOCITY_BUFFER = "velocity";
 
 /** The resolved record with no option given: SE_DEFAULTS plus the origin centre and the null seed; the two force constants null = size-scaled at load. */
@@ -147,7 +147,7 @@ function pickNullable(
 // ============================================================ the resolver
 
 /**
- * Applies SE_DEFAULTS to the option record; validates ranges (spec 7.20; ngraph's constraints): `springLength` > 0,
+ * Applies SE_DEFAULTS to the option record; validates ranges (ngraph's constraints): `springLength` > 0,
  * `maxIter` an integer >= 1 as FA2's (null or absent: no cap), `springCoefficient` > 0, `dragCoefficient` >= 0, `timeStep` > 0, `gravity` any finite number (negative repels; ngraph's
  * comment: "if you make it positive nodes start attract each other"). `gravity` and `springCoefficient` left out (or
  * null) resolve to null: ngraph's constant times springSizeFactor(n), applied in paramsFor once n is known. With `previous` the record is a PATCH over it and
@@ -198,19 +198,19 @@ function massOf(s: GraphSnapshot): Float32Array<ArrayBuffer> {
     return out;
 }
 
-/** The spring-electrical model (spec 7.20: K1 K2 K3 K5 per iteration on the exact tier, K1 K2 G1..G7 K5 on the grid tier; toScene once per batch). Stages: the union list of PD-17. */
+/** The spring-electrical model (K1 K2 K3 K5 per iteration on the exact tier, K1 K2 G1..G7 K5 on the grid tier; toScene once per batch). Stages: the union list of both tiers. */
 export class SpringElectricalModel
     extends ForceModelBase<LawRepulsion>
     implements ForceModel<SpringElectricalOptions, SpringElectricalStats>
 {
-    /** The model kind of spec 7.19. */
+    /** The model kind, "springElectrical". */
     readonly kind = "springElectrical";
 
     /** The option record the model holds: the constructor's record, replaced by onSetParams() ONLY (the query hooks never assign it). */
     private current: ResolvedSpringElectricalOptions;
 
     /**
-     * Creates the model for one simulation. The velocity buffer takes the `oldForce` slot of K3, G7 and K5 (PD-2).
+     * Creates the model for one simulation. The velocity buffer takes the `oldForce` slot of K3, G7 and K5.
      * @param tuning - the resolved GPU-only tuning (only `repulsion` / `exactMaxNodes` / `nearMax` / `extentFactor`
      *   matter here)
      * @param resolved - the resolved option record at creation
@@ -221,9 +221,9 @@ export class SpringElectricalModel
     }
 
     /**
-     * { mass: 1 + degree / 3, weights: none } (PD-11): the preset has no mass or weight option, and K2 compiles
+     * { mass: 1 + degree / 3, weights: none }: the preset has no mass or weight option, and K2 compiles
      * HAS_WEIGHTS = false. No `fixed` (setFixed is the live API). Also remembers the grid of this load
-     * (`tierFor(tuning, n)`, spec 7.8) for onLoad() and specs(): the simulation calls inputs() first, then onLoad()
+     * (`tierFor(tuning, n)`) for onLoad() and specs(): the simulation calls inputs() first, then onLoad()
      * before bind().
      * @param s - the snapshot being loaded
      * @param options - the simulation's current option record (its dimension picks the grid's geometry)
@@ -237,7 +237,7 @@ export class SpringElectricalModel
     }
 
     /**
-     * The constant SE_OVERRIDES (PD-1): no option changes a law, so setParams never recompiles.
+     * The constant SE_OVERRIDES: no option changes a law, so setParams never recompiles.
      * @param _options - an option record (unused)
      * @returns the model's own override set
      */
@@ -270,7 +270,7 @@ export class SpringElectricalModel
     /**
      * Compiles the pipelines of one load: K1, K5, toScene and fill together, then K2 over the degree tiers through
      * compileAttraction (none when arcCount === 0), K3 on the exact tier or G1-G7 through RepulsionGrid on the grid
-     * tier (PD-18). The K2 TIER 1 / 2 pipelines compile on the first load whose degrees need them (P4 PD-7).
+     * tier. The K2 TIER 1 / 2 pipelines compile on the first load whose degrees need them.
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
      * @returns the pipelines
@@ -305,7 +305,7 @@ export class SpringElectricalModel
     }
 
     /**
-     * The Fa2Params values of one iteration: the shared fields, the FA2 fields at 0 (no centre gravity, PD-12; no
+     * The Fa2Params values of one iteration: the shared fields, the FA2 fields at 0 (no centre gravity; no
      * FR temperature) and ngraph's five constants with `gravity` in `coulomb`.
      * @param iteration - the global iteration index
      * @param options - the simulation's current option record
@@ -350,11 +350,11 @@ export class SpringElectricalModel
 
     /**
      * Nothing: the velocities carry on (ngraph has no reheat; a drag lands in the next batch through the override
-     * list, spec 7.12).
+     * list).
      * @param _state - the state writer of the simulation (unused)
      */
     onReheat(_state: StateWriter): void {
-        // intentionally empty (D8; DEP-P5-A)
+        // intentionally empty
     }
 
     /**
@@ -369,7 +369,7 @@ export class SpringElectricalModel
     /**
      * Decodes the state header and the k trace records of a completed batch into SpringElectricalStats: the shared
      * fields (ForceModelBase.sharedStats), `kineticEnergy` (the last folded value, one iteration behind the last
-     * integrate, PD-4) and the trace.
+     * integrate) and the trace.
      * @param state - a DataView over the 256-byte state header
      * @param trace - a DataView over the k Fa2Trace records of the batch
      * @returns the stats
@@ -410,8 +410,8 @@ function resolvePatch(
 }
 
 /**
- * Spec 3.3 createSpringElectrical, verbatim: a GpuLayoutSimulation running ngraph's spring-electrical model on the
- * exact or the grid repulsion tier (spec 7.8) with ngraph's defaults (spec 7.20) and the GPU-only tuning of
+ * Creates a GpuLayoutSimulation running ngraph's spring-electrical model on the
+ * exact or the grid repulsion tier with ngraph's defaults and the GPU-only tuning of
  * GpuLayoutTuning.
  * @param ctx - the context (E_DISPOSED / E_DEVICE_LOST through assertReady)
  * @param options - the spring-electrical options and the GPU-only tuning knobs in one record

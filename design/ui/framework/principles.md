@@ -59,7 +59,8 @@ dock) and these conventions:
   cost; every other overview row reads Not computed until asked (`files-and-recipes.md` 2, the
   one statement);
 - help on request: (i) icons, tooltips that wait and show the name plus the shortcut, and the
-  optional "Additional labels" toggle in the view menu, Figma's own;
+  optional "Additional labels" toggle in the view menu, Figma's own. A tooltip repeats a
+  shortcut; it is never its only home (Rules, "Every shortcut is on a visible control");
 - the familiar keys by role: the select tool key, the Quick actions chord, Enter and Shift+Enter,
   Shift+click, marquee, Esc (the keys themselves live in the keymaps, `interaction-pattern-entries.md` 9.3).
 
@@ -579,7 +580,8 @@ Everyone gets the same aids, and no feature appears for only one skill level:
 
 - undo and working defaults, so trying anything is safe;
 - the (i) on a technical term, defining it in at most two sentences, once per surface;
-- tooltips that wait and give the name plus the shortcut;
+- every shortcut printed on the visible control it runs, and tooltips that wait and give the name
+  plus the shortcut;
 - Quick actions, with friendly synonyms as aliases (principle 4);
 - the "Additional labels" toggle in the view menu;
 - sample graphs, listed by name, and the documentation.
@@ -628,6 +630,11 @@ These are fixed constraints, never traded away, so they are not ranked:
 - Only a run declared deterministic may drop its stored values; its row then reads "Values not
   kept" and offers Restore (`element-contract.md` 8).
 - No persona-specific features, modes or panels.
+- **Every shortcut is on a visible control that shows its key** (owner, 2026-10-25): the button,
+  action row or menu row that runs the command carries the key chip, as in "Accept [A]". A
+  shortcut that lives only in a tooltip, the shortcuts table or a help sheet is not usable, because
+  readers do not memorize keys; and no command is keyboard-only. Adding a key to a command never
+  removes its button.
 - Plain ASCII in all content.
 
 ## Decided elsewhere

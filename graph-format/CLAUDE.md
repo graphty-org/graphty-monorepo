@@ -109,7 +109,6 @@ pnpm exec knip --workspace graph-format   # from packages/: dead exports (un-exp
 # Benchmarks (design section 15.5)
 npm run benchmark                          # every group, appends benchmarks/results/<host>-node<version>.json
 npx tsx benchmarks/run.ts freeze --no-save # one group, no results file
-node --expose-gc --import tsx benchmarks/run.ts   # exact memory deltas
 
 # Everything before a commit
 npm run ready:commit

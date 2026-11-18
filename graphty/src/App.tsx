@@ -15,7 +15,7 @@ const CompactComponentsDemo = lazy(async () => ({
  * The workspace is the app. Any other query string, including `?next` (the parameter
  * it was built behind) and `?legacy` (the removed old shell), opens it too, so old
  * links keep working. `?demo` is the compact component gallery,
- * a component catalogue rather than a shell (design/ui/mockups/system/COMPACTION.md).
+ * a component catalogue rather than a shell (design/ui/mockups/system/COMPACTION-1.6.md).
  * @returns The application root component.
  */
 export function App(): React.JSX.Element {

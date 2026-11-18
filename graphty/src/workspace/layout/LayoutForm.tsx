@@ -1,4 +1,4 @@
-import { FieldRow, PanelField, PanelLabelsProvider, ResetButton, SegmentedControl } from "@graphty/compact-mantine";
+import { FieldRow, PanelField, SegmentedControl } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { BasemapConfig } from "@graphty/graphty-element/schema";
@@ -7,7 +7,6 @@ import { Button, Checkbox, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
-import { selectionWorkspaceOn } from "../features";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
@@ -15,8 +14,8 @@ import {
     engineOf,
     isDrawn,
     LAYOUT_SEED,
-    layoutDescription,
     layoutName,
+    MAP_LAYOUT,
     randomSeed,
     startingValues,
     unavailable,
@@ -24,9 +23,6 @@ import {
 import { columnFitWords, layoutErrorWords, locationFieldWords } from "./refusalWords";
 import { TransitionRow } from "./TransitionRow";
 import { SHOWN_ONLY_WORDS } from "./words";
-
-/** The location map's id, whose form names the columns it read and picks the map it draws on. */
-const MAP_LAYOUT = "location-map";
 
 /**
  * The map's options its form does not draw: Data > Fields designates its location columns, Shape
@@ -75,7 +71,7 @@ interface LayoutFormProps {
     session: GraphSession;
     /** The layout being edited. */
     descriptor: LayoutDescriptor;
-    /** Drawn above the description (the popover's Back and name). */
+    /** Drawn first (the popover's Back and name). */
     header?: React.ReactNode;
     /** Focus starts on the button (the popover), so Enter applies at once. */
     focusButton?: boolean;
@@ -181,26 +177,20 @@ function shapePicked(
 /**
  * Shape: whether the layout is drawn in 3D or flat in the 3D view.
  * @param props - Component props
- * @param props.id - The layout's id, for the label's id
  * @param props.shape - The shape asked for
  * @param props.onPick - Called with the shape picked
- * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The field
  */
 function ShapeField({
-    id,
     shape,
     onPick,
-    row,
 }: Readonly<{
-    id: string;
     shape: "2d" | "3d";
     onPick: (picked: "2d" | "3d") => void;
-    row: boolean;
 }>): React.JSX.Element {
     const control = (
         <SegmentedControl
-            {...(row ? { "aria-label": "Shape" } : { "aria-labelledby": `layout-shape-${id}` })}
+            aria-label="Shape"
             fullWidth
             value={shape}
             data={[
@@ -212,96 +202,48 @@ function ShapeField({
             }}
         />
     );
-    return row ? (
-        <OptionRow label="Shape">{control}</OptionRow>
-    ) : (
-        <Stack gap={2}>
-            <Text size="xs" id={`layout-shape-${id}`}>
-                Shape
-            </Text>
-            {control}
-        </Stack>
-    );
+    return <OptionRow label="Shape">{control}</OptionRow>;
 }
 
 /**
- * Seed, with its reset, and Reshuffle, which applies a new seed at once.
+ * Seed, and Reshuffle, which applies a new seed at once.
  * @param props - Component props
  * @param props.values - The form's values
  * @param props.edit - Writes the form's values
  * @param props.onReshuffle - Applies the layout with a new random seed
- * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The fields
  */
 function SeedField({
     values,
     edit,
     onReshuffle,
-    row,
 }: Readonly<{
     values: Record<string, unknown>;
     edit: (next: Record<string, unknown>) => void;
     onReshuffle: () => void;
-    row: boolean;
 }>): React.JSX.Element {
     const seed = typeof values.seed === "number" ? values.seed : undefined;
-    if (row) {
-        return (
-            <OptionRow
-                label="Seed"
-                after={
-                    <Button size="compact-xs" variant="default" onClick={onReshuffle}>
-                        Reshuffle
-                    </Button>
-                }
-            >
-                <PanelField
-                    label="Seed"
-                    kind="number"
-                    width="fill"
-                    value={seed ?? LAYOUT_SEED}
-                    step={1}
-                    decimalScale={0}
-                    onChange={(next) => {
-                        edit({ ...values, seed: Number(next) });
-                    }}
-                />
-            </OptionRow>
-        );
-    }
     return (
-        <Group gap={8} wrap="nowrap" align="flex-end">
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <PanelLabelsProvider showLabels>
-                    <FieldRow
-                        trailing={
-                            seed !== undefined && (
-                                <ResetButton
-                                    label="Seed"
-                                    onClick={() => {
-                                        edit({ ...values, seed: undefined });
-                                    }}
-                                />
-                            )
-                        }
-                    >
-                        <PanelField
-                            label="Seed"
-                            kind="number"
-                            value={seed ?? LAYOUT_SEED}
-                            step={1}
-                            decimalScale={0}
-                            onChange={(next) => {
-                                edit({ ...values, seed: Number(next) });
-                            }}
-                        />
-                    </FieldRow>
-                </PanelLabelsProvider>
-            </div>
-            <Button size="compact-xs" variant="default" onClick={onReshuffle}>
-                Reshuffle
-            </Button>
-        </Group>
+        <OptionRow
+            label="Seed"
+            after={
+                <Button size="compact-xs" variant="default" onClick={onReshuffle}>
+                    Reshuffle
+                </Button>
+            }
+        >
+            <PanelField
+                label="Seed"
+                kind="number"
+                width="fill"
+                value={seed ?? LAYOUT_SEED}
+                step={1}
+                decimalScale={0}
+                onChange={(next) => {
+                    edit({ ...values, seed: Number(next) });
+                }}
+            />
+        </OptionRow>
     );
 }
 
@@ -393,11 +335,9 @@ function MapLocation({
 /**
  * The layout form's "Shown nodes only" row: a layout over only the nodes the filter shows, laid
  * out again when the filter changes. A view preference, written on the element by the host.
- * @param props - Component props
- * @param props.row - Whether the form draws its settings as rows.
  * @returns The row
  */
-function ShownOnlyRow({ row }: Readonly<{ row: boolean }>): React.JSX.Element {
+function ShownOnlyRow(): React.JSX.Element {
     const { store } = useWorkspace();
     const checked = useWorkspaceState((state) => state.layoutShownOnly);
     const box = {
@@ -406,12 +346,10 @@ function ShownOnlyRow({ row }: Readonly<{ row: boolean }>): React.JSX.Element {
             store.set({ layoutShownOnly: event.currentTarget.checked });
         },
     };
-    return row ? (
+    return (
         <OptionRow label={SHOWN_ONLY_WORDS.shownOnly}>
             <Checkbox size="xs" aria-label={SHOWN_ONLY_WORDS.shownOnly} {...box} />
         </OptionRow>
-    ) : (
-        <Checkbox size="xs" label={SHOWN_ONLY_WORDS.shownOnly} {...box} />
     );
 }
 
@@ -424,7 +362,7 @@ function ShownOnlyRow({ row }: Readonly<{ row: boolean }>): React.JSX.Element {
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.descriptor - The layout
- * @param props.header - Drawn above the description
+ * @param props.header - Drawn first
  * @param props.focusButton - Whether focus starts on the button
  * @param props.onApplied - Called once a layout has been applied
  * @param props.onKeyDown - The host's key handling
@@ -515,12 +453,9 @@ export function LayoutForm({
         .join("; ");
     const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => optionWords(descriptor.id, option);
 
-    const description = layoutDescription(descriptor);
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
-    const row = selectionWorkspaceOn(session);
     const seed = takesSeed ? (
         <SeedField
-            row={row}
             values={values}
             edit={edit}
             onReshuffle={() => {
@@ -532,7 +467,7 @@ export function LayoutForm({
     ) : undefined;
 
     return (
-        <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls for the host
+        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- catches Esc bubbling from the form's own controls for the host
             aria-label={layoutName(descriptor)}
             ref={formRef}
             onKeyDown={onKeyDown}
@@ -543,14 +478,9 @@ export function LayoutForm({
                 }
             }}
         >
-            <Stack gap={row ? 4 : 8} className={row ? "ws-options-rows" : undefined}>
+            <Stack gap={4} className="ws-options-rows">
                 {header}
-                {description === "" || row ? null : (
-                    <Text size="xs" c="dimmed">
-                        {description}
-                    </Text>
-                )}
-                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} row={row} /> : null}
+                {showShape ? <ShapeField shape={shape} onPick={pickShape} /> : null}
                 {current.dimension === "3d" && descriptor.maxDimensions === 2 ? (
                     <Text size="xs" c="dimmed">
                         Draws flat
@@ -586,7 +516,7 @@ export function LayoutForm({
                     after={seed}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                 />
-                <ShownOnlyRow row={row} />
+                <ShownOnlyRow />
                 <TransitionRow session={session} />
                 {isMap ? (
                     <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />

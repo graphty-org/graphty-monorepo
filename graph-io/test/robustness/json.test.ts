@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { JSON_ISSUE, jsonImporter, type JsonImportOptions } from "../../src/formats/json/index.js";
 import { type CommonImportOptions, ImportError, type ImportIssue, type ImportReport } from "../../src/types.js";
 import { keyedLookups } from "../helpers/work-meter.js";
+import { codes, ids } from "./helpers.js";
 
 type Options = JsonImportOptions & CommonImportOptions;
 
@@ -41,18 +42,10 @@ async function fail(input: string | Uint8Array, options?: Options): Promise<Impo
     return caught as ImportError;
 }
 
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
-}
-
 function issue(report: ImportReport, code: string): ImportIssue {
     const found = report.issues.find((i) => i.code === code);
     expect(found, `${code} in ${JSON.stringify(codes(report))}`).toBeDefined();
     return found as ImportIssue;
-}
-
-function ids(s: GraphSnapshot): (string | number)[] {
-    return s.ids.toArray();
 }
 
 function edges(s: GraphSnapshot): string[] {

@@ -17,10 +17,10 @@ the expectation today; the reference points into
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 196 | 0 | 178 | 0 |
 | gexf | 110 | 110 | 0 | 107 | 0 |
-| gml | 109 | 109 | 0 | 98 | 4 |
+| gml | 109 | 109 | 0 | 98 | 0 |
 | graphml | 148 | 148 | 0 | 134 | 0 |
 | json | 427 | 427 | 0 | 109 | 0 |
-| neo4j | 45 | 30 | 15 | 29 | 0 |
+| neo4j | 45 | 45 | 0 | 44 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
@@ -193,13 +193,7 @@ No known failures.
 
 ## gml
 
-### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (#7744) (4)
-
-- `ogdf/invalid_invalid-integer.gml`: threw: GraphFormatError: 1 node id is not integers (first: "fooBar" at index 3); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/label.gml`: threw: GraphFormatError: 3 node ids are not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `gephi/emojis.gml`: threw: GraphFormatError: 1 node id is not integers (first: "A" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `authored/bareword-ids.gml`: threw: GraphFormatError: 2 node ids are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
+No known failures.
 
 ## graphml
 
@@ -211,27 +205,7 @@ No known failures.
 
 ## neo4j
 
-### APOC JSON exports are not read (sources.md 9.4) (#303) (12)
-
-- `apoc-json/all.json`: failed: E_CSV_QUOTE: "all.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: "all_array.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: "all_fields.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: "all_id_as_keys.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: "all_withoutNodeProps_withoutRelProps.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: "multiLabels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: "nodes_without_labels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: "relationship_type_injection.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: "importPointValues.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: "query_nodes.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: "query_nodes_path.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: "MapPath.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-
-### APOC CSV exports are not read (sources.md 9.4) (#304) (3)
-
-- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: "export-all.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _e
-- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: "multi-labels.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, 
-- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: "quotes-none.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _
-
+No known failures.
 
 ## obo
 
@@ -317,7 +291,7 @@ Minimal cases (`fixtures/generative/cases.json`):
 
 ## Schema validation
 
-Validated 1359 dot, 1398 gexf-1.2draft, 1398 gexf-1.3, 1399 graphml, 1408 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
+Validated 1374 dot, 1413 gexf-1.2draft, 1413 gexf-1.3, 1414 graphml, 1423 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
 797 documents have at least one error.
 
 | Class | Errors | Kind | Why |

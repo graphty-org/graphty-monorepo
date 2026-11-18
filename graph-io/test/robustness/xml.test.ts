@@ -9,20 +9,19 @@ import { describe, expect, it } from "vitest";
 
 import { gexfImporter } from "../../src/formats/gexf/importer.js";
 import { graphmlImporter } from "../../src/formats/graphml/importer.js";
+import { codes, ids } from "./helpers.js";
 import {
     bytesOf,
-    codes,
     concat,
     fatal,
     gexf,
     GEXF_NS,
     graphml,
     GRAPHML_NS,
-    ids,
     issuesOf,
     load,
+    loadFailure,
     nodesDoc,
-    rejection,
     textStream,
     type XmlFormat,
 } from "./xml-helpers.js";
@@ -56,7 +55,7 @@ function textOf(format: XmlFormat, result: Awaited<ReturnType<typeof load>>): un
 
 describe.each(FORMATS)("%s: truncated input", (format) => {
     it("xml-trunc-mid-entity-in-attribute: an input cut inside an entity of an attribute value is fatal at the tag's line", async () => {
-        const err = await rejection(format, `${ROOT[format]}\n<node id="a&am`);
+        const err = await loadFailure(format, `${ROOT[format]}\n<node id="a&am`);
         const issue = fatal(err, "E_XML_SYNTAX");
         expect(issue.message).toMatch(/unexpected end of input inside markup/);
         expect(issue.line).toBe(2);
@@ -66,13 +65,13 @@ describe.each(FORMATS)("%s: truncated input", (format) => {
     it("xml-trunc-mid-char-reference-in-text: an input cut inside a character reference is fatal, never a partly decoded value", async () => {
         const doc = textDoc(format, "caf&#x0");
         const cut = doc.slice(0, doc.indexOf("caf&#x0") + "caf&#x0".length);
-        const issue = fatal(await rejection(format, cut), "E_XML_SYNTAX");
+        const issue = fatal(await loadFailure(format, cut), "E_XML_SYNTAX");
         expect(issue.message).toMatch(/unterminated entity reference/);
     });
 
     it("xml-truncated-short-declaration: an input cut in the first characters of a comment, CDATA or DOCTYPE reads as truncated", async () => {
         for (const tail of ["<!-", "<!DOC", "<![CDA", "<!"]) {
-            const issue = fatal(await rejection(format, `${ROOT[format]}\n${tail}`), "E_XML_SYNTAX");
+            const issue = fatal(await loadFailure(format, `${ROOT[format]}\n${tail}`), "E_XML_SYNTAX");
             expect(issue.message, tail).toMatch(/unexpected end of input inside markup/);
         }
     });
@@ -80,7 +79,7 @@ describe.each(FORMATS)("%s: truncated input", (format) => {
     it("xml-trunc-mid-utf8-sequence: bytes cut inside a multi-byte UTF-8 character are E_INVALID_UTF8 at that byte, not a windows-1252 fallback", async () => {
         const head = bytesOf(`${ROOT[format]}<node id="`);
         // the first two bytes of the euro sign (E2 82 AC)
-        const err = await rejection(format, concat(head, [0xe2, 0x82]));
+        const err = await loadFailure(format, concat(head, [0xe2, 0x82]));
         const issue = fatal(err, "E_INVALID_UTF8");
         expect(issue.message).toContain(`at byte ${head.byteLength}`);
         expect(issue.message).toMatch(/truncated/);
@@ -91,7 +90,7 @@ describe.each(FORMATS)("%s: truncated input", (format) => {
     it("xml-trunc-mid-utf8-sequence (corrected): a lone lead byte at the end stays the windows-1252 fallback, since Latin-1 text ending in an e acute ends the same way", async () => {
         // the expectation was "never fall back"; a lone 0xE9 at the end is equally a Latin-1 "e acute"
         // without a final newline, so the fallback (with its warning) is the right reading
-        const err = await rejection(format, concat(bytesOf(`${ROOT[format]}<node id="`), [0xc3]));
+        const err = await loadFailure(format, concat(bytesOf(`${ROOT[format]}<node id="`), [0xc3]));
         expect(codes(err.report)).toEqual(["W_ENCODING_FALLBACK", "E_XML_SYNTAX"]);
     });
 });
@@ -101,7 +100,7 @@ describe.each(FORMATS)("%s: encodings", (format) => {
         const head = bytesOf(`${ROOT[format]}<node id="caf`);
         const middle = bytesOf(`"/><node id="`);
         const bytes = concat(head, [0xc3, 0xa9], middle, [0xff], bytesOf(`"/>`));
-        const err = await rejection(format, bytes);
+        const err = await loadFailure(format, bytes);
         const at = head.byteLength + 2 + middle.byteLength;
         const issue = fatal(err, "E_INVALID_UTF8");
         expect(issue.message).toContain(`at byte ${at}`);
@@ -137,7 +136,7 @@ describe.each(FORMATS)("%s: encodings", (format) => {
         const doc = nodesDoc(format, `<node id="caf${E_ACUTE}"/><node id="b"/>`).replace("UTF-8", "UTF-16");
         for (const encoding of ["utf-16le", "utf-16be"] as const) {
             const result = await load(format, bytesOf(doc, encoding));
-            expect(ids(result), encoding).toEqual([`caf${E_ACUTE}`, "b"]);
+            expect(ids(result.snapshot), encoding).toEqual([`caf${E_ACUTE}`, "b"]);
             expect(result.report.issues, encoding).toEqual([]);
         }
     });
@@ -149,7 +148,7 @@ describe.each(FORMATS)("%s: encodings", (format) => {
         for (let i = 0; i < doc.length; i++) {
             bytes[4 + 4 * i] = doc.charCodeAt(i);
         }
-        const issue = fatal(await rejection(format, bytes), "E_INVALID_ENCODING");
+        const issue = fatal(await loadFailure(format, bytes), "E_INVALID_ENCODING");
         expect(issue.message).toMatch(/UTF-32/);
     });
 
@@ -158,17 +157,17 @@ describe.each(FORMATS)("%s: encodings", (format) => {
         const utf8 = await load(format, concat([0xef, 0xbb, 0xbf], new TextEncoder().encode(latin)));
         expect(codes(utf8.report)).toEqual(["W_ENCODING_CONFLICT"]);
         expect(utf8.report.issues[0].message).toMatch(/ISO-8859-1.*byte order mark says utf-8/);
-        expect(ids(utf8)).toEqual([`caf${E_ACUTE}`]);
+        expect(ids(utf8.snapshot)).toEqual([`caf${E_ACUTE}`]);
 
         const utf16 = await load(format, concat([0xff, 0xfe], bytesOf(nodesDoc(format, `<node id="a"/>`), "utf-16le")));
         expect(codes(utf16.report)).toEqual(["W_ENCODING_CONFLICT"]);
-        expect(ids(utf16)).toEqual(["a"]);
+        expect(ids(utf16.snapshot)).toEqual(["a"]);
     });
 
     it("xml-utf16-odd-byte-truncation: an odd number of UTF-16 bytes is reported as a truncated file at the last byte", async () => {
         const bytes = concat([0xff, 0xfe], bytesOf(nodesDoc(format, `<node id="a"/>`), "utf-16le"));
         const cut = bytes.subarray(0, bytes.byteLength - 1);
-        const err = await rejection(format, cut);
+        const err = await loadFailure(format, cut);
         const issue = fatal(err, "E_INVALID_ENCODING");
         expect(issue.message).toMatch(/ends with half a utf-16le code unit/);
         expect(issue.message).toMatch(/truncated/);
@@ -181,7 +180,7 @@ describe.each(FORMATS)("%s: encodings", (format) => {
             `${nodesDoc(format, `<node id="a"/>`)}${String.fromCharCode(0)}`,
             nodesDoc(format, `<node id="a${String.fromCharCode(0xfffe)}"/>`),
         ]) {
-            const issue = fatal(await rejection(format, doc), "E_XML_SYNTAX");
+            const issue = fatal(await loadFailure(format, doc), "E_XML_SYNTAX");
             expect(issue.message).toMatch(/a character XML 1\.0 forbids/);
         }
     });
@@ -191,14 +190,14 @@ describe.each(FORMATS)("%s: not a graph document", (format) => {
     const notFormat = format === "graphml" ? "E_NOT_GRAPHML" : "E_NOT_GEXF";
 
     it("xml-whitespace-only: spaces, tabs and CRLF only are E_EMPTY_INPUT", async () => {
-        fatal(await rejection(format, "  \t\r\n \r\n"), "E_EMPTY_INPUT");
+        fatal(await loadFailure(format, "  \t\r\n \r\n"), "E_EMPTY_INPUT");
     });
 
     it("xml-bom-only: a byte order mark alone is E_EMPTY_INPUT; with a declaration and a comment but no element it has no root", async () => {
-        fatal(await rejection(format, Uint8Array.from([0xef, 0xbb, 0xbf])), "E_EMPTY_INPUT");
-        fatal(await rejection(format, BOM), "E_EMPTY_INPUT");
+        fatal(await loadFailure(format, Uint8Array.from([0xef, 0xbb, 0xbf])), "E_EMPTY_INPUT");
+        fatal(await loadFailure(format, BOM), "E_EMPTY_INPUT");
         const prolog = fatal(
-            await rejection(format, concat([0xef, 0xbb, 0xbf], bytesOf('<?xml version="1.0"?>\n<!-- nothing -->\n'))),
+            await loadFailure(format, concat([0xef, 0xbb, 0xbf], bytesOf('<?xml version="1.0"?>\n<!-- nothing -->\n'))),
             "E_XML_SYNTAX",
         );
         expect(prolog.message).toBe("no root element");
@@ -206,7 +205,7 @@ describe.each(FORMATS)("%s: not a graph document", (format) => {
 
     it("xml-gzip-bytes: gzip-compressed bytes are refused as compressed data", async () => {
         const issue = fatal(
-            await rejection(
+            await loadFailure(
                 format,
                 Uint8Array.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xab]),
             ),
@@ -217,7 +216,7 @@ describe.each(FORMATS)("%s: not a graph document", (format) => {
 
     it("xml-zip-bytes: a zip archive is refused as an archive", async () => {
         const issue = fatal(
-            await rejection(format, concat([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00], bytesOf("graph.graphml"))),
+            await loadFailure(format, concat([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00], bytesOf("graph.graphml"))),
             "E_FOREIGN_FORMAT",
         );
         expect(issue.message).toMatch(/zip archive/);
@@ -225,14 +224,14 @@ describe.each(FORMATS)("%s: not a graph document", (format) => {
 
     it("xml-html-error-page: an HTML error page is refused as not this format, naming <html> at its line", async () => {
         const page = `<!DOCTYPE html>\n<html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><br>&nbsp;</body></html>`;
-        const issue = fatal(await rejection(format, page), notFormat);
+        const issue = fatal(await loadFailure(format, page), notFormat);
         expect(issue.message).toContain("<html>");
         expect(issue.line).toBe(2);
     });
 
     it("xml-html5-lowercase-doctype: an HTML5 page (lowercase doctype) is a syntax error that says it looks like HTML", async () => {
         const issue = fatal(
-            await rejection(format, "<!doctype html>\n<html><head><title>502 Bad Gateway</title></head></html>"),
+            await loadFailure(format, "<!doctype html>\n<html><head><title>502 Bad Gateway</title></head></html>"),
             "E_XML_SYNTAX",
         );
         expect(issue.message).toMatch(/looks like an HTML document/);
@@ -260,7 +259,7 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
 
     it("xml-xml11-control-char-ref: an XML 1.0 forbidden character reference in an XML 1.1 document names XML 1.1", async () => {
         const issue = fatal(
-            await rejection(
+            await loadFailure(
                 format,
                 `<?xml version="1.1"?>${nodesDoc(format, `<node id="a&#1;"/>`).slice(doc.indexOf("?>") + 2)}`,
             ),
@@ -272,30 +271,30 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
 
     it("xml-xml11-control-char-ref: an XML 1.1 document within the 1.0 rules imports", async () => {
         const result = await load(format, `<?xml version="1.1"?>${body}`);
-        expect(ids(result)).toEqual(["a"]);
+        expect(ids(result.snapshot)).toEqual(["a"]);
     });
 
     it("xml-unknown-xml-version: version 2.0 is refused", async () => {
-        const issue = fatal(await rejection(format, `<?xml version="2.0"?>${body}`), "E_XML_SYNTAX");
+        const issue = fatal(await loadFailure(format, `<?xml version="2.0"?>${body}`), "E_XML_SYNTAX");
         expect(issue.message).toBe("XML version 2.0 is not supported (only 1.x)");
     });
 
     it("xml-declaration-not-first: whitespace before the XML declaration is fatal", async () => {
-        const issue = fatal(await rejection(format, `\n  ${doc}`), "E_XML_SYNTAX");
+        const issue = fatal(await loadFailure(format, `\n  ${doc}`), "E_XML_SYNTAX");
         expect(issue.message).toMatch(/very start of the document/);
         expect(issue.line).toBe(2);
     });
 
     it("xml-declaration-repeated-mid-document: a second XML declaration (inside the root, or a concatenated export) is fatal", async () => {
         const inside = doc.replace(`<node id="a"/>`, `<?xml version="1.0"?><node id="a"/>`);
-        expect(fatal(await rejection(format, inside), "E_XML_SYNTAX").message).toMatch(/target xml is reserved/);
-        expect(fatal(await rejection(format, `${doc}\n${doc}`), "E_XML_SYNTAX").line).toBe(3);
+        expect(fatal(await loadFailure(format, inside), "E_XML_SYNTAX").message).toMatch(/target xml is reserved/);
+        expect(fatal(await loadFailure(format, `${doc}\n${doc}`), "E_XML_SYNTAX").line).toBe(3);
         // case-insensitive: <?XML ...?> is the reserved target too
         const upper = doc.replace(`<node id="a"/>`, `<?XML x?><node id="a"/>`);
-        expect(fatal(await rejection(format, upper), "E_XML_SYNTAX").message).toMatch(/reserved/);
+        expect(fatal(await loadFailure(format, upper), "E_XML_SYNTAX").message).toMatch(/reserved/);
         // and at the start: the declaration is written <?xml exactly, so <?XML / <?Xml is not one
         for (const target of ["XML", "Xml"]) {
-            const issue = fatal(await rejection(format, doc.replace("<?xml", `<?${target}`)), "E_XML_SYNTAX");
+            const issue = fatal(await loadFailure(format, doc.replace("<?xml", `<?${target}`)), "E_XML_SYNTAX");
             expect(issue.message, target).toMatch(/lower case/);
         }
     });
@@ -303,14 +302,14 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
     it("xml-pi-without-target: a processing instruction without a target name is fatal", async () => {
         for (const pi of ["<? ?>", "<?123 x?>", "<??>"]) {
             const issue = fatal(
-                await rejection(format, doc.replace(`<node id="a"/>`, `${pi}<node id="a"/>`)),
+                await loadFailure(format, doc.replace(`<node id="a"/>`, `${pi}<node id="a"/>`)),
                 "E_XML_SYNTAX",
             );
             expect(issue.message, pi).toMatch(/needs a target name/);
         }
         // a named processing instruction is still skipped
         const result = await load(format, doc.replace(`<node id="a"/>`, `<?app setting="1"?><node id="a"/>`));
-        expect(ids(result)).toEqual(["a"]);
+        expect(ids(result.snapshot)).toEqual(["a"]);
     });
 
     it("xml-external-doctype: an external DOCTYPE is skipped (never fetched) and the document imports with no issue", async () => {
@@ -319,7 +318,7 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
                 ? `<!DOCTYPE graphml SYSTEM "http://graphml.graphdrawing.org/dtds/graphml.dtd">`
                 : `<!DOCTYPE gexf SYSTEM "http://www.gexf.net/gexf.dtd">`;
         const result = await load(format, doc.replace("?>\n", `?>\n${doctype}\n`));
-        expect(ids(result)).toEqual(["a"]);
+        expect(ids(result.snapshot)).toEqual(["a"]);
         expect(result.report.issues).toEqual([]);
     });
 
@@ -328,7 +327,7 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
         const after = `${doc}<!DOCTYPE x>`;
         const twice = doc.replace("?>\n", "?>\n<!DOCTYPE x><!DOCTYPE y>");
         for (const bad of [inside, after, twice]) {
-            const issue = fatal(await rejection(format, bad), "E_XML_SYNTAX");
+            const issue = fatal(await loadFailure(format, bad), "E_XML_SYNTAX");
             expect(issue.message).toBe("a DOCTYPE declaration is allowed once, before the root element");
         }
     });
@@ -338,27 +337,27 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
             format,
             doc.replace("?>\n", '?>\n<!DOCTYPE x [ <?note it\'s fine?> <!ENTITY e "v"> ]>\n'),
         );
-        expect(ids(result)).toEqual(["a"]);
+        expect(ids(result.snapshot)).toEqual(["a"]);
         expect(result.report.issues).toEqual([]);
     });
 });
 
 describe.each(FORMATS)("%s: well-formedness of tags, text and comments", (format) => {
     it("xml-lt-in-attribute-value: a literal < in an attribute value is fatal", async () => {
-        const issue = fatal(await rejection(format, nodesDoc(format, `<node id="a<b"/>`)), "E_XML_SYNTAX");
+        const issue = fatal(await loadFailure(format, nodesDoc(format, `<node id="a<b"/>`)), "E_XML_SYNTAX");
         expect(issue.message).toBe(`a "<" in the value of attribute id of <node> (write &lt;)`);
     });
 
     it("xml-no-space-between-attributes: attributes not separated by whitespace are fatal", async () => {
-        const issue = fatal(await rejection(format, nodesDoc(format, `<node id="a"foo="b"/>`)), "E_XML_SYNTAX");
+        const issue = fatal(await loadFailure(format, nodesDoc(format, `<node id="a"foo="b"/>`)), "E_XML_SYNTAX");
         expect(issue.message).toBe("the attributes of <node> must be separated by whitespace");
     });
 
     it("xml-cdata-close-in-text: a literal ]]> in character data is fatal, also split across chunks", async () => {
         const doc = textDoc(format, "x]]>y");
-        expect(fatal(await rejection(format, doc), "E_XML_SYNTAX").message).toMatch(/"\]\]>" is not allowed/);
+        expect(fatal(await loadFailure(format, doc), "E_XML_SYNTAX").message).toMatch(/"\]\]>" is not allowed/);
         const at = doc.indexOf("]]>") + 2;
-        const split = await rejection(format, textStream([doc.slice(0, at), doc.slice(at)]));
+        const split = await loadFailure(format, textStream([doc.slice(0, at), doc.slice(at)]));
         expect(fatal(split, "E_XML_SYNTAX").message).toMatch(/"\]\]>" is not allowed/);
         // ]]&gt; and a ]] that a comment interrupts are legal
         expect(textOf(format, await load(format, textDoc(format, "x]]&gt;y")))).toBe("x]]>y");
@@ -368,49 +367,49 @@ describe.each(FORMATS)("%s: well-formedness of tags, text and comments", (format
         for (const comment of ["<!-- a -- b -->", "<!-- a --->"]) {
             const read = await load(format, nodesDoc(format, `${comment}<node id="a"/>`));
             expect(codes(read.report), comment).toEqual([]);
-            expect(ids(read), comment).toEqual(["a"]);
+            expect(ids(read.snapshot), comment).toEqual(["a"]);
         }
     });
 
     it("xml-end-tag-space-after-slash: whitespace between </ and the name is fatal", async () => {
         const doc = format === "graphml" ? graphml(`<node id="a"></ node>`) : gexf(`<node id="a"></ node>`);
-        expect(fatal(await rejection(format, doc), "E_XML_SYNTAX").message).toBe("malformed end tag </ node>");
+        expect(fatal(await loadFailure(format, doc), "E_XML_SYNTAX").message).toBe("malformed end tag </ node>");
         // whitespace after the name is legal
         const ok = format === "graphml" ? graphml(`<node id="a"></node  >`) : gexf(`<node id="a"></node  >`);
-        expect(ids(await load(format, ok))).toEqual(["a"]);
+        expect(ids((await load(format, ok)).snapshot)).toEqual(["a"]);
     });
 
     it("xml-text-error-line-is-run-start: an error inside a long text run or a multi-line start tag cites its own line", async () => {
         const lines = Array.from({ length: 39 }, (_, i) => `line ${i}`).join("\n");
         const doc = textDoc(format, `${lines}\n&nbsp; here`);
         const runStart = doc.slice(0, doc.indexOf("line 0")).split("\n").length;
-        expect(fatal(await rejection(format, doc), "E_XML_SYNTAX")).toMatchObject({
+        expect(fatal(await loadFailure(format, doc), "E_XML_SYNTAX")).toMatchObject({
             message: "unknown entity &nbsp;",
             line: runStart + 39,
         });
         const control = textDoc(format, `${lines}\n${String.fromCharCode(1)}`);
-        expect(fatal(await rejection(format, control), "E_XML_SYNTAX").line).toBe(runStart + 39);
+        expect(fatal(await loadFailure(format, control), "E_XML_SYNTAX").line).toBe(runStart + 39);
         const tag = nodesDoc(format, `<node\n  id="a"\n  label="x"\n  id="b"/>`);
         const tagLine = tag.slice(0, tag.indexOf("<node")).split("\n").length;
-        expect(fatal(await rejection(format, tag), "E_XML_SYNTAX")).toMatchObject({
+        expect(fatal(await loadFailure(format, tag), "E_XML_SYNTAX")).toMatchObject({
             message: "duplicate attribute id in <node>",
             line: tagLine + 3,
         });
         const unquoted = nodesDoc(format, `<node\n  id="a"\n  label=x/>`);
-        expect(fatal(await rejection(format, unquoted), "E_XML_SYNTAX").line).toBe(tagLine + 2);
+        expect(fatal(await loadFailure(format, unquoted), "E_XML_SYNTAX").line).toBe(tagLine + 2);
     });
 
     it("xml-char-reference-leading-zeros: character references with any number of leading zeros decode, also split across chunks", async () => {
         const doc = nodesDoc(format, `<node id="&#x0000000041;"/><node id="&#00000066;"/>`);
-        expect(ids(await load(format, doc))).toEqual(["A", "B"]);
+        expect(ids((await load(format, doc)).snapshot)).toEqual(["A", "B"]);
         const text = textDoc(format, "x&#x000000000000000043;y");
         expect(textOf(format, await load(format, text))).toBe("xCy");
         // a chunk boundary more than 16 characters after the "&"
         const at = text.indexOf("&#x") + 20;
         expect(textOf(format, await load(format, textStream([text.slice(0, at), text.slice(at)])))).toBe("xCy");
-        expect(fatal(await rejection(format, nodesDoc(format, `<node id="&#x0000;"/>`)), "E_XML_SYNTAX").message).toBe(
-            "invalid character reference &#x0000;",
-        );
+        expect(
+            fatal(await loadFailure(format, nodesDoc(format, `<node id="&#x0000;"/>`)), "E_XML_SYNTAX").message,
+        ).toBe("invalid character reference &#x0000;");
     });
 
     it("xml-string-chunk-splits-surrogate-pair: text chunks split between the halves of an astral character import like the whole text", async () => {
@@ -422,7 +421,7 @@ describe.each(FORMATS)("%s: well-formedness of tags, text and comments", (format
         expect(textOf(format, split)).toBe(`a${emoji}b`);
         expect(textOf(format, split)).toBe(textOf(format, whole));
         // and a high surrogate the input really ends on is still refused
-        const lone = await rejection(format, textStream([doc.slice(0, at), ""]));
+        const lone = await loadFailure(format, textStream([doc.slice(0, at), ""]));
         expect(fatal(lone, "E_XML_SYNTAX").message).toMatch(/forbids|unexpected end/);
     });
 });

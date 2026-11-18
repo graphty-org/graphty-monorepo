@@ -1,7 +1,7 @@
 /**
- * Device acquisition (spec 2.2 steps 1-3, 2.6; contract 3.4): the adapter request, the software-adapter
+ * Device acquisition (steps 1-3 of create()): the adapter request, the software-adapter
  * test, the adapter summary, the requiredLimits / requiredFeatures builders and the device request. Nothing
- * above the device layer is constructed here (D26); src/context.ts sequences these calls. An adapter is
+ * above the device layer is constructed here; src/context.ts sequences these calls. An adapter is
  * consumed by its first requestDevice (WebGPU 3.5.1; Dawn-node rejects the second call with
  * `OperationError: adapter is "consumed"`), so every device the package creates comes from a fresh adapter.
  */
@@ -9,7 +9,7 @@
 import { WebGpuGraphError } from "../errors.js";
 import type { AdapterInfoLike, AdapterSummary, LimitPolicy, RaisableLimit } from "../types/context.js";
 
-/** The six raisable limits in the order create() requests them (spec 2.2). */
+/** The six raisable limits in the order create() requests them. */
 export const RAISABLE_LIMITS: readonly RaisableLimit[] = Object.freeze([
     "maxBufferSize",
     "maxStorageBufferBindingSize",
@@ -76,7 +76,7 @@ function messageOf(err: unknown): string {
 }
 
 /**
- * Software adapter test (spec 2.2 step 2): architecture "software" (Dawn llvmpipe) or "swiftshader", or
+ * Software adapter test (step 2 of create()): architecture "software" (Dawn llvmpipe) or "swiftshader", or
  * isFallbackAdapter === true (Chromium); the ONE reader of these fields.
  * @param info - the adapter info (structural, so tests can fake it)
  * @returns true for a software adapter
@@ -123,7 +123,7 @@ export function summarizeAdapter(adapter: GPUAdapter): AdapterSummary {
 /**
  * Step 1 of create(): requestAdapter with the power preference; null -> E_NO_ADAPTER.
  * @param gpu - navigator.gpu or the Dawn handle
- * @param powerPreference - honoured by browsers, ignored by Dawn-node (spec 2.6)
+ * @param powerPreference - honoured by browsers, ignored by Dawn-node
  * @returns an UNUSED adapter
  */
 export async function requestAdapter(gpu: GPU, powerPreference: GPUPowerPreference): Promise<GPUAdapter> {
@@ -213,8 +213,8 @@ export function buildRequiredFeatures(
 }
 
 /**
- * The E_NO_DEVICE of a consumed adapter; the runtime's text lives in the error message only (contract 3.1
- * documents `details` as { reason, adapter, limit?, requested?, available? }).
+ * The E_NO_DEVICE of a consumed adapter; the runtime's text lives in the error message only (`details` is
+ * documented as { reason, adapter, limit?, requested?, available? }).
  * @param adapter - the adapter that already created a device
  * @param message - the runtime's rejection message when there was a round trip
  * @returns E_NO_DEVICE { reason: "consumed", adapter }
@@ -222,7 +222,7 @@ export function buildRequiredFeatures(
 function consumedError(adapter: GPUAdapter, message: string): WebGpuGraphError {
     return new WebGpuGraphError(
         "E_NO_DEVICE",
-        `the adapter already created a device (an adapter is consumed by one requestDevice, spec 2.2 step 1): ${message}`,
+        `the adapter already created a device (an adapter is consumed by one requestDevice): ${message}`,
         { reason: "consumed", adapter: summarizeAdapter(adapter) },
     );
 }

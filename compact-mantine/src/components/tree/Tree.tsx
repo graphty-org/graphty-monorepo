@@ -67,7 +67,10 @@ const ACTION_CONTROLS = ".cm-tree-actions :is(button, a[href], input, select, te
 export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
     /** The visible name. */
     name: string;
-    /** The accessible name; defaults to `name`. */
+    /**
+     * The accessible name; defaults to `name` followed by the count, the row's visible text (WCAG
+     * 2.5.3 Label in Name). A `label` you pass is the whole name: the count is then its description.
+     */
     label?: string;
     /** The 16 x 16 type glyph. */
     icon?: React.ReactNode;
@@ -235,7 +238,7 @@ function RowProgress({
     }
     const fraction = typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : undefined;
     return (
-        <span // NOSONAR(S6819): a 2px bar inside the row, drawn the same when indeterminate
+        <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a 2px bar inside the row, drawn the same when indeterminate
             className="cm-tree-progress"
             role="progressbar"
             aria-label={name}
@@ -306,7 +309,10 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
     const id = useId();
     const countId = `${id}-count`;
     const descriptionId = `${id}-description`;
-    const describedBy = joinIds([hasCount ? countId : null, hasDescription ? descriptionId : null]);
+    // Unless the caller names the row, its name is what it shows: the name, then the count.
+    const countInName = hasCount && label === undefined;
+    const rowId = rest.id ?? `${id}-row`;
+    const describedBy = joinIds([hasCount && !countInName ? countId : null, hasDescription ? descriptionId : null]);
     // The trailing toggles (eye, lock) leave the Tab order, so a tree stays one Tab stop however
     // many rows it has. A pointer still reaches them; the caller gives each a row key
     // (`onRowKeyDown`) and a row-menu item, as Figma does.
@@ -333,8 +339,11 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         <div
             ref={ref}
             role="treeitem"
-            // Named by the layer name alone, not by the toggles inside the row.
+            id={rowId}
+            // Named by the layer name and its count, not by the toggles inside the row. The row
+            // itself is the first id: accname reads its aria-label there.
             aria-label={label ?? name}
+            aria-labelledby={countInName ? `${rowId} ${countId}` : undefined}
             aria-level={level}
             aria-posinset={posInSet}
             aria-setsize={setSize}
@@ -391,6 +400,9 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                 descriptionId={descriptionId}
                 detail={hasCount ? count : undefined}
             />
+            {/* A space between the name and the count, so their words do not run together in
+                the row's text. Flex layout draws no whitespace between items. */}
+            {hasCount && " "}
             {hasCount && (
                 <span className="cm-tree-count" id={countId} data-testid="tree-count" data-row-detail="">
                     {count}

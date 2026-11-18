@@ -37,7 +37,7 @@ import { routes } from "./routes.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
 const gitArgs = ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"];
-const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // NOSONAR(S4036): the developer's own git
+const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own git
 const main = dirname(commonDir.stdout.trim());
 const OUT = join(repo, "tmp/dry-run");
 const FILES = join(repo, "design/ui/studio/tool/files");
@@ -166,7 +166,7 @@ async function runAll(o) {
     const ids = picked.map((r) => r.id).join(",");
     const children = Array.from({ length: workers }, (_, n) =>
         spawn(
-            "bash", // NOSONAR(S4036): developer tooling runs the developer's own bash
+            "bash", // eslint-disable-line sonarjs/no-os-command-from-path -- developer tooling runs the developer's own bash
             [
                 gate,
                 process.execPath,
@@ -238,7 +238,7 @@ async function runAll(o) {
 
 function serve(dist) {
     const http = createServer(async (req, res) => {
-        const url = new URL(req.url, "http://x"); // NOSONAR(S5332): parses the request's path; the server is loopback only
+        const url = new URL(req.url, "http://x"); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
         const f = join(dist, path);
         if (f !== dist && !f.startsWith(dist + sep)) return res.writeHead(403).end();

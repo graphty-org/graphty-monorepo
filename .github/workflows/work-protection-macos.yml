@@ -2,7 +2,8 @@
 # runner has: Playwright's WebKit on macOS, real Safari through safaridriver, and Safari on iOS in the iOS
 # Simulator, including a return to a discarded tab that must keep its session storage and its own autosave entry
 # (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
-# ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element.
+# ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element. The safari job
+# also reopens kept work while the autosave database is held (#8207), which only real Safari showed stalling.
 #
 # Where it runs: the release train calls it on the commit it is about to release, beside hosts.yml, and a red run
 # holds the release; and on demand (gh workflow run work-protection-macos.yml --ref <branch>). Never on a pull
@@ -129,9 +130,9 @@ jobs:
             - name: "Probe: does IndexedDB survive from one safaridriver session to the next?"
               timeout-minutes: 5
               run: pnpm exec vitest run --project=lifecycle test/lifecycle/safari.test.ts -t "probe"
-            - name: The hide transition, stall detection and persist()
+            - name: The hide transition, stall detection, a stalled reopen and persist()
               timeout-minutes: 10
-              run: pnpm exec vitest run --project=lifecycle test/lifecycle/safari.test.ts -t "hidden|stalled|persist"
+              run: pnpm exec vitest run --project=lifecycle test/lifecycle/safari.test.ts -t "hidden|stalled|stalls|persist"
             # A session that never starts (#5564) leaves nothing in the step's log: keep safaridriver's own session
             # logs (--diagnose, safaridriver.ts) and the system log of Safari, WebKit and the automation daemons.
             - name: Collect safaridriver's logs and the system log of a failed run

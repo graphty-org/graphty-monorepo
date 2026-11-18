@@ -23,6 +23,13 @@ const ATTRIBUTE_PREFIX = "@_";
 /** The key of an element's character data when it also has attributes or children. */
 const TEXT_KEY = "#text";
 
+/**
+ * The deepest element nesting a tree value may hold: the validator and the writer recurse once per level, so a
+ * deeper value (a hostile file nests up to MAX_XML_DEPTH) is refused with E_COLUMN_TYPE instead of overflowing the
+ * stack. Real yFiles graphics nest about ten deep.
+ */
+const MAX_TREE_DEPTH = 256;
+
 /** A tree object: attributes, text and child elements by name. */
 type XmlTreeObject = Record<string, unknown>;
 
@@ -45,6 +52,9 @@ export class XmlTreeBuilder {
     private readonly frames: Frame[] = [];
 
     private readonly root: Frame;
+
+    /** The most child elements that were open at once. */
+    private deepest = 0;
 
     /** Create a builder whose implicit root is the containing element. */
     constructor() {
@@ -72,6 +82,7 @@ export class XmlTreeBuilder {
             hasAttrs = true;
         }
         this.frames.push({ name, node, hasAttrs, hasChildren: false, text: "" });
+        this.deepest = Math.max(this.deepest, this.frames.length);
     }
 
     /**
@@ -99,12 +110,20 @@ export class XmlTreeBuilder {
      * The content of the containing element: its text when it has no child elements, otherwise
      * the object of its children (with `#text` for non-whitespace mixed content).
      * @returns the value to store in the json column
+     * @throws {GraphFormatError} E_COLUMN_TYPE when its elements nest deeper than a tree value may
      */
     finish(): unknown {
         if (this.frames.length > 0) {
             throw new GraphFormatError("E_COLUMN_TYPE", "XmlTreeBuilder.finish() with open elements", {
                 reason: "tree builder open",
             });
+        }
+        if (this.deepest > MAX_TREE_DEPTH) {
+            throw new GraphFormatError(
+                "E_COLUMN_TYPE",
+                `elements nested ${this.deepest} deep in one value, more than ${MAX_TREE_DEPTH}; the value is skipped`,
+                { reason: "xml tree too deep" },
+            );
         }
         const { root } = this;
         if (!root.hasChildren) {
@@ -171,17 +190,30 @@ export function isXmlTree(value: unknown): boolean {
  * @category Plugin helpers
  */
 export function treeProblem(value: unknown): string | null {
+    return problemAt(value, 0);
+}
+
+/**
+ * Why a value nested this deep is not a serializable tree.
+ * @param value - the value
+ * @param depth - the elements it is nested in
+ * @returns a message, or null when the value is a tree
+ */
+function problemAt(value: unknown, depth: number): string | null {
     if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
         return null;
     }
+    if (depth > MAX_TREE_DEPTH) {
+        return `elements are nested more than ${MAX_TREE_DEPTH} deep`;
+    }
     if (Array.isArray(value)) {
-        return arrayTreeProblem(value);
+        return arrayTreeProblem(value, depth);
     }
     if (typeof value !== "object") {
         return `a ${typeof value} cannot be written as XML`;
     }
     for (const [key, child] of Object.entries(value)) {
-        const problem = entryTreeProblem(key, child);
+        const problem = entryTreeProblem(key, child, depth);
         if (problem !== null) {
             return problem;
         }
@@ -192,14 +224,15 @@ export function treeProblem(value: unknown): string | null {
 /**
  * Why an array is not a serializable tree: a nested array, or the first item that is not a tree.
  * @param value - the array
+ * @param depth - the elements it is nested in
  * @returns a message, or null when every item is a tree
  */
-function arrayTreeProblem(value: readonly unknown[]): string | null {
+function arrayTreeProblem(value: readonly unknown[], depth: number): string | null {
     for (const item of value) {
         if (Array.isArray(item)) {
             return "nested arrays cannot be written as elements";
         }
-        const problem = treeProblem(item);
+        const problem = problemAt(item, depth);
         if (problem !== null) {
             return problem;
         }
@@ -212,9 +245,10 @@ function arrayTreeProblem(value: readonly unknown[]): string | null {
  * attribute needs an XML name and a scalar value, a child element an XML name and a tree value.
  * @param key - the key
  * @param child - the value
+ * @param depth - the elements the object is nested in
  * @returns a message, or null when the entry can be written
  */
-function entryTreeProblem(key: string, child: unknown): string | null {
+function entryTreeProblem(key: string, child: unknown, depth: number): string | null {
     const scalar = child === null || typeof child !== "object";
     if (key === TEXT_KEY) {
         return scalar ? null : "#text must be a scalar";
@@ -229,7 +263,7 @@ function entryTreeProblem(key: string, child: unknown): string | null {
     if (!isXmlName(key)) {
         return `"${key}" is not an XML element name`;
     }
-    return treeProblem(child);
+    return problemAt(child, depth + 1);
 }
 
 /**

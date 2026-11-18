@@ -3,14 +3,11 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryContext, StoryObj } from "@storybook/react";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
-import { siteFeatures } from "../test/siteFeatures";
-import { openTimeCard } from "../workspace/data-place/filterCards";
 import type { WorkspaceState } from "../workspace/state/store";
 import { Workspace } from "../workspace/Workspace";
-import { freshStore, storeOf } from "./freshStore";
+import { freshStore } from "./freshStore";
 import { wheelOver } from "./real-input";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -105,15 +102,6 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Time dock",
     component: Workspace,
     parameters: { layout: "fullscreen" },
-    // The timeline is an experiment: these stories switch it on, as a site's site.json does, and
-    // put the page's own configuration back afterwards.
-    beforeEach: async () => {
-        await siteFeatures(["timeline"]);
-        return async () => {
-            resetSiteConfig();
-            await loadSiteConfig();
-        };
-    },
     ...freshStore(ON_GRAPH),
 };
 
@@ -177,13 +165,14 @@ export const Playing: Story = {
     },
 };
 
-/** A person selected: their emails over time as a line over the bars, and Jump to selection. */
+/** A person selected: their emails over time as a line over the bars named by its legend, and Jump to selection. */
 export const SelectionLine: Story = {
     play: async ({ canvasElement }) => {
         const { element, session } = await officeEmail(canvasElement);
         await session.selection.apply({ nodes: ["p01"] });
         const dock = await settled(canvasElement, element);
         await expect(await dock.findByRole("button", { name: "Jump to selection" })).toBeVisible();
+        await expect(dock.getByText("Selection")).toBeVisible();
     },
 };
 
@@ -234,12 +223,14 @@ export const OrdinalUnit: Story = {
 };
 
 /**
- * Opens the Time card in the inspector, beside the dock.
+ * Opens the timeline's settings from the dock's settings button, as a reader does.
  * @param context - the story's play context.
  */
-async function timeCardOpen(context: Pick<StoryContext, "canvasElement" | "loaded">): Promise<void> {
-    openTimeCard(storeOf(context));
-    await within(context.canvasElement).findByTestId("time-card");
+async function timeCardOpen(context: Pick<StoryContext, "canvasElement">): Promise<void> {
+    const dock = await within(context.canvasElement).findByRole("region", { name: "Timeline" });
+    await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
+    // The settings popover draws in a portal, outside the story's root.
+    await within(document.body).findByTestId("time-card");
 }
 
 /** A file with an email that has no time: the Time card's Untimed control. */
@@ -251,7 +242,7 @@ export const UntimedControl: Story = {
         });
         await session.time.window({ from: Date.UTC(2025, 0, 6), to: Date.UTC(2025, 0, 13) });
         await timeCardOpen(context);
-        await expect(await within(context.canvasElement).findByRole("radiogroup", { name: "Untimed" })).toBeVisible();
+        await expect(await within(document.body).findByRole("radiogroup", { name: "Untimed" })).toBeVisible();
         await settled(context.canvasElement, element);
     },
 };

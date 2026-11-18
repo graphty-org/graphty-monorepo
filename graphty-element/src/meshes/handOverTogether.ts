@@ -1,4 +1,5 @@
-import type { Node as SceneNode, Scene } from "@babylonjs/core";
+import type { Node as SceneNode } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /**
  * Run a step per item, each of which swaps scene nodes -- disposes one mesh or anchor and builds

@@ -1,80 +1,63 @@
 /**
- * Every numeric constant the package and the WGSL prelude share (spec 3.1, 3.5, 5.2, 7.8, 7.14, 7.17;
- * contract 3.2). The prelude (src/kernel/prelude.ts, P1-T3) interpolates these values and never retypes them
- * as literals (the literal grep of spec 3.5 enforces it); the planners read them; test/device/constants.test.ts
+ * Every numeric constant the package and the WGSL prelude share. The prelude (src/kernel/prelude.ts) interpolates
+ * these values and never retypes them as literals (a literal grep in the tests enforces it); the planners read them; test/device/constants.test.ts
  * pins them. graph-format's INVALID_INDEX is imported by the prelude directly and is deliberately not copied.
  */
 
-/** Workgroup size of every 1D kernel; `WG = min(WORKGROUP_SIZE, caps.limits.maxComputeInvocationsPerWorkgroup)` at runtime (spec 5.1). */
+/** Workgroup size of every 1D kernel; `WG = min(WORKGROUP_SIZE, caps.limits.maxComputeInvocationsPerWorkgroup)` at runtime. */
 export const WORKGROUP_SIZE = 256;
-/** The spec minimum of maxComputeWorkgroupsPerDimension; asserted equal to the device limit at create() (spec 2.2, 5.2). */
+/** The spec minimum of maxComputeWorkgroupsPerDimension; asserted equal to the device limit at create(). */
 export const MAX_WORKGROUPS_PER_DIM = 65535;
-/** Items a 1D dispatch of WORKGROUP_SIZE covers: 65535 x 256 = 16,776,960, NOT 2^24 (design 10.6). */
+/** Items a 1D dispatch of WORKGROUP_SIZE covers: 65535 x 256 = 16,776,960, NOT 2^24. */
 export const MAX_1D_ITEMS = MAX_WORKGROUPS_PER_DIM * WORKGROUP_SIZE;
-/** The largest u32 (the `min` identity of the u32 reduce); interpolated into the prelude as `U32_MAX` so no body types the literal (contract 4.1). */
+/** The largest u32 (the `min` identity of the u32 reduce); interpolated into the prelude as `U32_MAX` so no body types the literal. */
 export const U32_MAX = 0xffffffff;
-/** The bins of one radix-sort pass, 2^8 (spec 6 row 6; P4 PD-5: 8 bits per pass); interpolated into the prelude as `RADIX_BINS` and `RADIX_DIGIT_MASK` (= bins - 1) so no body types the literal. */
+/** The bins of one radix-sort pass, 2^8 (8 bits per pass); interpolated into the prelude as `RADIX_BINS` and `RADIX_DIGIT_MASK` (= bins - 1) so no body types the literal. */
 export const RADIX_BINS = 256;
-/** Arc-window boundaries are multiples of 64 arcs = 256 bytes (design 10.6). */
+/** Arc-window boundaries are multiples of 64 arcs = 256 bytes. */
 export const ARC_WINDOW_ALIGN = 64;
-/** Storage-binding offset alignment the package always honours (spec 2.6): the graph-format arena is 256-aligned. */
+/** Storage-binding offset alignment the package always honours: the graph-format arena is 256-aligned. */
 export const STORAGE_ALIGN = 256;
-/** Stride of one UniformRing slot: minUniformBufferOffsetAlignment is 256 on every runtime the package targets (spec 5.3). */
+/** Stride of one UniformRing slot: minUniformBufferOffsetAlignment is 256 on every runtime the package targets. */
 export const UNIFORM_SLOT_BYTES = 256;
 /**
- * Exact-tier crossover default, re-fixed at G4 by the spec 7.8 rule in full (spec Q-6; docs/decisions/G3.md section 3
- * for the budget clause, docs/decisions/G4.md section 7 for the re-check): the largest rung of the T-4 ladder (1k / 4k /
- * 8k / 16k / 32k / 65k, E = 10n, 2D) with <= 4 ms per iteration AND not slower than the grid tier at the same n (the
- * `layout-grid` 2D rows: the shared rungs 32k / 65k and the re-check rungs 1k / 4k / 8k / 16k the group runs so every
- * exact rung has a grid row), rounded down to a power of two. Measured on the RTX 4070 SUPER under Dawn-node:
- * benchmarks/results/nvidia-lovelace-driver580.json, session 2026-09-21T06:15:17.027Z, the "ms/iteration (profiler)"
- * rows of layout-exact and the "grid ms/iteration (profiler) ... 2D" rows of layout-grid (the GPU time of the
- * iteration's passes at the card's working clock), exact / grid ms per iteration: 1k 0.102 / 0.290, 4k 0.262 / 0.188,
- * 8k 0.484 / 0.211, 16k 1.064 / 0.225, 32k 2.579 / 0.298, 65k 8.450 / 0.409. The grid tier's cost is a near-constant
- * ~0.19-0.3 ms floor (its sort, scan and pyramid passes) up to 32k, so the exact tier wins only at 1k and the rule's
- * answer is 1024 (32768 under the budget clause alone, the G3 value; 16384 was the P4-T14 draft's value, which only
- * evaluated the grid clause at 32k / 65k and was not a measurement). calibrateLayout's finer probe on the same card
- * (tmp/p4/t14-review/calibrate-defaults.log: exact 0.150 vs grid 0.190 ms at 2048) puts the true crossover between
- * 2k and 4k; the ladder has no 2k rung, and the design's basis (cosmos switches at 4,096) is within 0.07 ms per
- * iteration of the rule's value, so the choice among 1k / 2k / 4k is an accuracy preference (the exact tier is the
- * oracle), not a speed one. OWNER DECISION G4-D1 (docs/decisions/G4.md section 7, rows G4-D1 / G4-F9): the constant
- * KEEPS the G3 value 32768 while the accuracy work G4-F1 leaves is open -- G4-F1 (the grid tier's exact-vs-grid RMS
- * on the clumpy and degenerate fixtures) closed on 2026-09-21 by the owner's asserted / printed split, G4-F2 (the
- * unbiasedness item) the same day by its re-scope to the whole-field ratio, and the far field's accuracy on those
- * fixtures is the follow-up -- because "auto" is the default every consumer sees and the exact tier is the accurate
- * one; the rule's answer on the dev box (1024) is recorded, not shipped, until that work closes and the value is
- * re-fixed. Re-measured on 2026-10-02 after the grid tier's hub-cell centroid became a direct dispatch (issue #732):
- * the rule still answers 1024 (exact 0.26 against grid 0.18 ms per iteration at 4,096 nodes), because the indirect
- * dispatch's cost was Dawn's validation pass, which the profiler's per-pass times never included. A
- * consumer whose GPU differs (integrated, Apple, T4) passes its own value through
- * createAccelerator(ctx, { layout: { exactMaxNodes } }); calibrateLayout(ctx) measures it.
+ * The default `exactMaxNodes`: with `repulsion: "auto"`, a layout runs the exact repulsion tier up to this many nodes
+ * and the grid tier above it. The speed crossover is much lower: on an RTX 4070 SUPER under Dawn-node, exact / grid ms
+ * per iteration (2D, 10 edges per node, profiler GPU time) measured 1k 0.102 / 0.290, 4k 0.262 / 0.188, 8k 0.484 /
+ * 0.211, 16k 1.064 / 0.225, 32k 2.579 / 0.298, 65k 8.450 / 0.409, so the grid tier's near-constant ~0.2-0.3 ms floor
+ * beats the exact tier from somewhere between 2k and 4k nodes (re-measured 2026-10-02, issue #732: still 1024 by the
+ * rule calibrateLayout applies). The default stays at 32768, the largest size the exact tier runs within 4 ms per
+ * iteration, because "auto" is what every consumer gets, the exact tier is the accurate one, and the grid tier's
+ * far-field accuracy on clumpy and degenerate graphs is still being improved. A consumer whose GPU differs
+ * (integrated, Apple, T4) or who prefers speed passes its own value through
+ * createAccelerator(ctx, { layout: { exactMaxNodes } }); calibrateLayout(ctx) measures one for the device.
  */
 export const EXACT_MAX_NODES = 32768;
-/** Default number of MAP_READ staging buffers in the Readback ring (spec 4.4). */
+/** Default number of MAP_READ staging buffers in the Readback ring. */
 export const DEFAULT_STAGING_SLOTS = 3;
-/** Timestamp query-set size of the Profiler (spec 5.5: "a query set of 256 slots"; 2 slots per pass). */
+/** Timestamp query-set size of the Profiler: 256 slots, 2 per pass. */
 export const PROFILER_QUERY_SLOTS = 256;
-/** Byte size above which createBuffer runs inside an "out-of-memory" error scope (spec 5.7). */
+/** Byte size above which createBuffer runs inside an "out-of-memory" error scope. */
 export const OOM_SCOPE_THRESHOLD_BYTES = 16 * 1024 * 1024;
-/** Idle buffers kept per (size class, usage) by the BufferPool (spec 4.4). */
+/** Idle buffers kept per (size class, usage) by the BufferPool. */
 export const POOL_MAX_IDLE_PER_CLASS = 4;
-/** Smallest power-of-two pool class (spec 4.4). */
+/** Smallest power-of-two pool class. */
 export const POOL_MIN_CLASS_BYTES = 4 * 1024;
-/** Largest power-of-two pool class; above it the classes grow linearly (spec 4.4). */
+/** Largest power-of-two pool class; above it the classes grow linearly. */
 export const POOL_MAX_POW2_CLASS_BYTES = 64 * 1024 * 1024;
-/** The linear step of the pool classes above the largest power of two (spec 4.4). */
+/** The linear step of the pool classes above the largest power of two. */
 export const POOL_LINEAR_STEP_BYTES = 16 * 1024 * 1024;
-/** Default `warnUnreleasedSnapshots` (spec 2.2, 4.1). */
+/** Default `warnUnreleasedSnapshots`. */
 export const DEFAULT_WARN_UNRELEASED_SNAPSHOTS = 2;
-/** CONTRACT DECISION: the largest `iterations` a single step() records (the trace region and the uniform ring are sized by it); larger values are E_INVALID_ARGUMENT. */
+/** The largest `iterations` a single step() records (the trace region and the uniform ring are sized by it); larger values are E_INVALID_ARGUMENT. */
 export const MAX_ITERATIONS_PER_STEP = 256;
-/** Bytes of one Fa2Trace record (spec 7.3: 32-byte records). */
+/** Bytes of one Fa2Trace record. */
 export const TRACE_RECORD_BYTES = 32;
-/** CONTRACT DECISION: the state header is padded to 256 bytes so the trace region that follows it in the same buffer starts at a legal 256-aligned binding offset (spec 7.3 says "128 + k x 32"; 128 is not a legal storage offset). */
+/** The state header is padded to 256 bytes so the trace region that follows it in the same buffer starts at a legal 256-aligned binding offset (128, the header's own size, is not a legal storage offset). */
 export const STATE_HEADER_BYTES = 256;
-/** Bytes of one per-workgroup partials record (spec 7.3: exactly 64 B). */
+/** Bytes of one per-workgroup partials record. */
 export const PARTIAL_BYTES = 64;
-/** ForceAtlas2 defaults (spec 7.14, 7.17, 7.19). */
+/** ForceAtlas2 defaults. */
 export const FA2_DEFAULTS: Readonly<{
     maxIter: 100;
     jitterTolerance: 1;
@@ -106,7 +89,7 @@ export const FA2_DEFAULTS: Readonly<{
     iterationsPerStep: 1,
     maxInFlight: 2,
 });
-/** GPU-only layout tuning defaults (spec 7.14): repulsion "auto", exactMaxNodes EXACT_MAX_NODES, nearMax 64, deterministic true, gridMax2D 512, gridMax3D 128, extentFactor 6, compat "paper". */
+/** GPU-only layout tuning defaults: repulsion "auto", exactMaxNodes EXACT_MAX_NODES, nearMax 64, deterministic true, gridMax2D 512, gridMax3D 128, extentFactor 6, compat "paper". */
 export const LAYOUT_TUNING_DEFAULTS: Readonly<{
     repulsion: "auto";
     exactMaxNodes: number;
@@ -126,11 +109,11 @@ export const LAYOUT_TUNING_DEFAULTS: Readonly<{
     extentFactor: 6,
     compat: "paper",
 });
-/** The distance floor `max(d, 0.01)` of spec 7.2; interpolated into the prelude (contract 4.1). */
+/** The distance floor `max(d, 0.01)`; interpolated into the prelude. */
 export const FA2_DISTANCE_FLOOR = 0.01;
 /** The square of FA2_DISTANCE_FLOOR. */
 export const FA2_DISTANCE_FLOOR_SQ = 0.0001;
-/** The coincident threshold `d^2 < 1e-8` of spec 7.2. */
+/** The coincident threshold `d^2 < 1e-8`. */
 export const FA2_COINCIDENT_SQ = 1e-8;
 /**
  * The most WG-node tiles one K3 (`fa2-repulsion-exact`) dispatch sums per invocation (issue #87). llvmpipe runs at
@@ -139,13 +122,13 @@ export const FA2_COINCIDENT_SQ = 1e-8;
  * j = 65,027. 128 tiles is 33,024 iterations, half the budget; a larger exact run records ceil(tiles / 128) passes.
  */
 export const EXACT_TILES_PER_PASS = 128;
-/** Bits of Fa2Params.flags (contract 4.4). */
+/** Bits of Fa2Params.flags. */
 export const FA2_FLAG_FIRST = 1;
 /** Fa2Params.flags bit: the Fruchterman-Reingold temperature is the adaptive one in the state block, not the uniform's (the `cooling: "adaptive"` option). */
 export const FA2_FLAG_ADAPTIVE = 2;
-/** The Fruchterman-Reingold loop's starting temperature (spec 7.20; `layout/src/simulation/fruchterman-reingold.ts:30`). */
+/** The Fruchterman-Reingold loop's starting temperature (the CPU simulation's, in `@graphty/layout`). */
 export const FR_START_TEMPERATURE = 0.1;
-/** The reheat point of spec 7.20: the temperature index a reheat restarts at, as a fraction of `iterations`. */
+/** The reheat point: the temperature index a reheat restarts at, as a fraction of `iterations`. */
 export const FR_REHEAT_FRACTION = 0.7;
 /** Adaptive cooling (Yifan Hu 2005, section 3.2): the temperature is multiplied by this when the force energy rose, divided by it after FR_COOLING_PATIENCE consecutive falls. */
 export const FR_COOLING_STEP = 0.9;
@@ -153,7 +136,7 @@ export const FR_COOLING_STEP = 0.9;
 export const FR_COOLING_PATIENCE = 5;
 /** Adaptive cooling: the iteration budget when `iterations` is not given (the schedule no longer needs one; this is the cap on a run that never settles). */
 export const FR_ADAPTIVE_MAX_ITERATIONS = 10_000;
-/** Fruchterman-Reingold defaults (spec 7.20, 9.3; the CPU simulation's, `layout/src/simulation/fruchterman-reingold.ts:32`): `k` null = `1 / sqrt(n)`. */
+/** Fruchterman-Reingold defaults (the CPU simulation's, in `@graphty/layout`): `k` null = `1 / sqrt(n)`. */
 export const FR_DEFAULTS: Readonly<{
     k: null;
     iterations: 50;
@@ -185,7 +168,7 @@ export const FR_DEFAULTS: Readonly<{
  * kinetic energy still at the clamp; a uniform 1/1000 factor settled in 1,000 with the energy decayed 25x).
  */
 export const SE_SCALE_REFERENCE_NODES = 300;
-/** Spring-electrical defaults: ngraph.forcelayout 3.3.1's (`lib/createPhysicsSimulator.js:29,34,40,54,59`; spec 7.20), plus the shared simulation defaults. `gravity` is ngraph's Coulomb constant: negative repels. */
+/** Spring-electrical defaults: ngraph.forcelayout 3.3.1's (`lib/createPhysicsSimulator.js`), plus the shared simulation defaults. `gravity` is ngraph's Coulomb constant: negative repels. */
 export const SE_DEFAULTS: Readonly<{
     springLength: 10;
     springCoefficient: 0.8;
@@ -212,7 +195,7 @@ export const SE_DEFAULTS: Readonly<{
     maxInFlight: 2,
 });
 /**
- * The absolute settle floor of the shared settle rule (spec 7.17; issue #97): an iteration counts toward `settled` only
+ * The absolute settle floor of the shared settle rule (issue #97): an iteration counts toward `settled` only
  * when its mean displacement is at most `settleThreshold x rmsRadius` AND at most this fraction of the model's length
  * unit -- `springLength` for spring-electrical (scaled by node count, see SETTLE_FLOOR_REFERENCE_NODES), `k` for
  * Fruchterman-Reingold. The relative rule alone reported a spring
@@ -239,17 +222,17 @@ export const SETTLE_FLOOR_FRACTION: Readonly<{ springElectrical: number; fruchte
 export const SETTLE_FLOOR_REFERENCE_NODES = 2000;
 /** The settle floor that never binds: the largest finite f32, 0x1.fffffep+127 (ForceAtlas2's `settleFloor`, issue #97). */
 export const SETTLE_FLOOR_UNBOUNDED = 2 ** 128 - 2 ** 104;
-/** The smallest finest grid side `G` (spec 7.7 geometry table: `clamp(nextPow2(2 n^(1/dim)), 8, gridMax)`; P4 PD-9). */
+/** The smallest finest grid side `G` (geometry table: `clamp(nextPow2(2 n^(1/dim)), 8, gridMax)`). */
 export const GRID_MIN_SIDE = 8;
-/** The coarsest pyramid level's side (spec 7.7: "levels (coarsest 4 per axis)", `levels = log2(G / 4) + 1`). */
+/** The coarsest pyramid level's side (coarsest 4 per axis, `levels = log2(G / 4) + 1`). */
 export const GRID_COARSEST_SIDE = 4;
-/** A cell with more than this many entries is summed by a workgroup (G4b) instead of the thread-per-cell loop of G4 (spec 7.7 G4: `count > 1024`). */
+/** A cell with more than this many entries is summed by a whole workgroup instead of one thread per cell. */
 export const GRID_HUB_CELL = 1024;
-/** The extent floor of spec 7.7: `cellSize = max(extent, 1e-6) / G`, so an all-coincident load never divides by zero. */
+/** The extent floor: `cellSize = max(extent, 1e-6) / G`, so an all-coincident load never divides by zero. */
 export const GRID_EXTENT_FLOOR = 1e-6;
-/** The bbox margin of spec 7.7: `bboxExtent` is the largest axis of `state.min / max` "with a 1% margin". */
+/** The bbox margin: `bboxExtent` is the largest axis of `state.min / max` "with a 1% margin". */
 export const GRID_BBOX_MARGIN = 1.01;
-/** The key width the grid always sorts with (P4 PD-5): three 8-bit passes cover the 19-bit 2D keys at G = 512 and the 22-bit 3D keys at G = 128, and an odd pass count leaves `sortedIdx` in the scratch pair. */
+/** The key width the grid always sorts with: three 8-bit passes cover the 19-bit 2D keys at G = 512 and the 22-bit 3D keys at G = 128, and an odd pass count leaves `sortedIdx` in the scratch pair. */
 export const GRID_SORT_BITS = 24;
 /** The value of `ClusterOptions.communities` for a row in no community: the twin of layout's NO_CLUSTER. */
 export const NO_CLUSTER = 0xffffffff;
@@ -259,12 +242,12 @@ export const COLLIDE_CELL_MAX = 256;
 export const COLLIDE_MAX_BUCKETS = 2 ** 22;
 /** The collision sweeps of a settling simulation's last batch: the GPU twin of layout's COLLISION_FINAL_SWEEPS. */
 export const COLLIDE_FINAL_SWEEPS = 256;
-/** Design 8.4 (P8 PD-7): traversal levels recorded per submit -- one four-byte readback per 32 BFS levels, SSSP rounds or closeness levels. */
+/** Traversal levels recorded per submit -- one four-byte readback per 32 BFS levels, SSSP rounds or closeness levels. */
 export const MAX_LEVELS_PER_SUBMIT = 32;
-/** Design 8.4 and 6 row 8 (P8): a frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */
+/** A frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */
 export const FUSED_FRONTIER_MAX = 4096;
 /**
- * Beamer's alpha for the GPU BFS (issue #1358; it replaced PD-21's `max(1, floor(arcCount / n))`): switch to bottom-up
+ * Beamer's alpha for the GPU BFS (issue #1358; it replaced `max(1, floor(arcCount / n))`): switch to bottom-up
  * once the frontier's out-arcs exceed `max(unvisitedCount, unvisitedInArcs / BEAMER_ALPHA)`. Measured on 10,000-node
  * power-law and small-world graphs, a bottom-up sweep read 15-52 % of the unvisited in-arcs at the levels where it
  * paid (Beamer's 14 assumes about 7 %), so 2; the average degree it replaced (8 and 16 there) switched the small-world
@@ -272,16 +255,16 @@ export const FUSED_FRONTIER_MAX = 4096;
  */
 export const BEAMER_ALPHA = 2;
 
-/** Design 8.4 (P8 PD-21): Beamer's beta -- switch back to top-down when `frontierCount * BEAMER_BETA < unvisitedCount` and the frontier is shrinking. */
+/** Beamer's beta -- switch back to top-down when `frontierCount * BEAMER_BETA < unvisitedCount` and the frontier is shrinking. */
 export const BEAMER_BETA = 24;
-/** Design 8.4 (P8 PD-22): the near-far split `delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree`, computed on the host from the weight vector the run uses. */
+/** The near-far split `delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree`, computed on the host from the weight vector the run uses. */
 export const SSSP_DELTA_FACTOR = 32;
-/** The bit pattern of +Infinity, the unreached sentinel of `dist` (P8 PD-9); interpolated into the prelude as `F32_INF_BITS` so no body types the literal. */
+/** The bit pattern of +Infinity, the unreached sentinel of `dist`; interpolated into the prelude as `F32_INF_BITS` so no body types the literal. */
 export const F32_INF_BITS = 0x7f800000;
-/** Design 8.4 "k planned from maxBufferSize and a 25% budget": the share of `maxBufferSize` one betweenness source batch may hold. WebGPU exposes no device memory size, so this is a fraction of the largest buffer, not a memory measurement. */
+/** The share of `maxBufferSize` one betweenness source batch may hold. WebGPU exposes no device memory size, so this is a fraction of the largest buffer, not a memory measurement. */
 export const BC_BATCH_BUDGET_FRACTION = 0.25;
 /**
- * The most sources one betweenness batch runs together. 256 rather than design 10.1's 64 (issue #733): a batch's
+ * The most sources one betweenness batch runs together. 256 rather than 64 (issue #733): a batch's
  * cost is dominated by its per-level submits and readbacks, not by its width, so a quarter of the batches runs an
  * exact call on random graphs of 1k / 2k / 4k nodes (4 edges per node, RTX 4070 SUPER) 2.8x / 2.5x / 1.8x faster
  * with the frontier forward form and 1.9x / 1.6x / 1.5x with the per-batch choice, with bit-identical vertex and
@@ -290,8 +273,20 @@ export const BC_BATCH_BUDGET_FRACTION = 0.25;
  * stay at `MAX_LEVELS_PER_SUBMIT`: the parameter ring is sized for it.
  */
 export const BC_MAX_BATCH = 256;
-/** Design 8.4 (McLaughlin-Bader): a betweenness batch runs the edge-parallel forward pass when the previous batch's level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)`. The design names the rule and no value; 2 is unmeasured and a benchmark run re-fixes it. */
+/**
+ * McLaughlin-Bader: a betweenness batch runs the edge-parallel forward pass when the previous batch's
+ * level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)` -- and only on a graph `BC_EDGE_PARALLEL_MIN_NODES` and
+ * `BC_EDGE_PARALLEL_MAX_SKEW` admit (issue #776). Measured 2026-11-10 (768 sources in batches of 256, RTX 4070 SUPER,
+ * median of 5, edge time / frontier time): the depth test alone separates nothing that matters -- every shallow
+ * graph had levels / log2(n) between 0.42 and 0.8 and every deep one (grids, paths) 6 or more, where the edge form is
+ * 5.6-12x slower, so any gamma between 1 and 6 is the same rule -- while size and degree skew decide the shallow ones:
+ * G(n, 4n) 1k-24k 3.3x-1.5x slower, 32k-128k 0.6x-0.8x (faster); R-MAT x8 2^10-2^18 1.4x-2.3x slower at every size.
+ */
 export const BC_EDGE_PARALLEL_GAMMA = 2;
+/** Issue #776: the edge-parallel forward form is never chosen below this many nodes (G(n, 4n): 24k nodes 1.48x slower than the frontier form, 32k 0.72x). See `BC_EDGE_PARALLEL_GAMMA`. */
+export const BC_EDGE_PARALLEL_MIN_NODES = 28_000;
+/** Issue #776: the edge-parallel forward form is never chosen when the largest degree exceeds this multiple of the mean (R-MAT x8 measured 65-1857 and lost at every size; G(n, m) 1.7-2.6 and won from 32k nodes). See `BC_EDGE_PARALLEL_GAMMA`. */
+export const BC_EDGE_PARALLEL_MAX_SKEW = 32;
 /**
  * Betweenness path counts that wrapped u32 are recounted as f32, rescaled per depth by a power of two (`bc-count`):
  * when the largest count at one depth has a binary exponent above this cap, the next depth's counts are scaled down so
@@ -306,7 +301,7 @@ export const BC_COUNT_MAX_GROUPS = 256;
 /** Backward-pass levels recorded per submit: each level is one dispatch with its own parameter record, so this bounds the uniform ring. */
 export const BC_BACKWARD_LEVELS_PER_SUBMIT = 64;
 /**
- * Design 8.7: all-pairs shortest paths is a blocked Floyd-Warshall over `APSP_TILE x APSP_TILE` tiles. One tile of
+ * All-pairs shortest paths is a blocked Floyd-Warshall over `APSP_TILE x APSP_TILE` tiles. One tile of
  * f32 is 4 KiB of workgroup memory and a workgroup stages at most two (8 KiB), inside the 16 KiB
  * `maxComputeWorkgroupStorageSize` every WebGPU device reports. Interpolated into the prelude as `APSP_TILE`.
  */
@@ -320,7 +315,7 @@ export const APSP_TILE = 32;
  */
 export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;
 /**
- * Label propagation (design 8.6): passes recorded per submit, with ONE readback of the per-pass changed counts at the
+ * Label propagation: passes recorded per submit, with ONE readback of the per-pass changed counts at the
  * end of the submit. A readback costs about 2 ms in Chromium whatever it carries, so at one readback per pass a
  * 10,000-node call spends more on synchronisation than the CPU spends on the whole algorithm
  * (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md: 101 passes x 2 ms, 0.79x); eight passes per
@@ -329,7 +324,7 @@ export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;
  */
 export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
 /**
- * Boruvka's minimum spanning tree (design 8.5): rounds recorded per submit, with one readback of the counters block
+ * Boruvka's minimum spanning tree: rounds recorded per submit, with one readback of the counters block
  * per submit. Each readback is a device-to-host synchronisation that costs about 2 ms in Chromium, and at one per
  * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortise them over O(log n) rounds, moving
  * the Chromium crossover from 6,000 to 4,600 nodes (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
@@ -338,10 +333,10 @@ export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
 export const BORUVKA_ROUNDS_PER_SUBMIT = 4;
 /**
  * The sign bit of an f32 bit pattern; interpolated into the prelude as `F32_SIGN_BIT` for `order_key`, the
- * order-preserving u32 key of an f32 that Boruvka's `atomicMin` over edge weights runs on (P11 PD-6).
+ * order-preserving u32 key of an f32 that Boruvka's `atomicMin` over edge weights runs on.
  */
 export const F32_SIGN_BIT = 0x80000000;
-/** The per-row group-by-key (design 8.6): a row of at most this many arcs is grouped by one thread in registers; a longer row by a workgroup over a global open-addressing region. */
+/** The per-row group-by-key: a row of at most this many arcs is grouped by one thread in registers; a longer row by a workgroup over a global open-addressing region. */
 export const GROUP_ROW_THREAD_MAX = 32;
 /** The largest row the thread tier accepts when a caller forces the tier: its pairwise scan is about d^2 / 2 loop steps, and llvmpipe stops every loop of an invocation after 65,535 steps in total. */
 export const GROUP_ROW_THREAD_LIMIT = 128;
@@ -351,7 +346,7 @@ export const GROUP_ROW_THREAD_LIMIT = 128;
  * then quietly returns a short sum; a weighted build whose pair repeats more often is refused on every adapter.
  */
 export const PARALLEL_MERGE_LIMIT = 65_000;
-/** The per-row group-by-key (design 8.6): the global open-addressing region of a workgroup-tier row holds this many slots per arc. */
+/** The per-row group-by-key: the global open-addressing region of a workgroup-tier row holds this many slots per arc. */
 export const GROUP_HASH_LOAD_FACTOR = 2;
-/** Triangle counting (design 8.5): intersect two oriented rows by merge, but binary-search each element of the shorter row into the longer when their lengths differ by more than this factor. */
+/** Triangle counting: intersect two oriented rows by merge, but binary-search each element of the shorter row into the longer when their lengths differ by more than this factor. */
 export const TRIANGLE_BINARY_SEARCH_RATIO = 32;

@@ -15,7 +15,6 @@
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
 import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
-import type { StyleTool } from "@graphty/graph-io/styles";
 import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import type { z } from "zod";
 
@@ -63,8 +62,10 @@ import type {
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
+import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { LayoutRecommendation } from "./layout";
@@ -114,12 +115,20 @@ import type {
     SourceRefreshReport,
     SourceSettings,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
+import type {
+    ElementPaint,
+    SessionStylesApi,
+    StyleBatchChange,
+    StyleChange,
+    StyleRefusal,
+    StyleRepaintFailure,
+    StylesApi,
+} from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { EdgeAgeFade } from "./time/ageFade";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
-import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
+import type { HiddenNotDrawn, SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
  * What `session.capabilities` reports: acceleration and XR, and the limits a load is refused above
@@ -153,6 +162,31 @@ export interface NodeRecord {
     readonly [attribute: string]: unknown;
 }
 
+/**
+ * What a node is called, as facts the reader's wording is built from: `session.data.nodeName`.
+ * An app chooses the words, such as "Ohio" or "Ohio (71)".
+ */
+export interface NodeName {
+    /** The node's id, as the graph holds it (as passed, for a node the graph does not hold). */
+    readonly id: NodeId;
+    /**
+     * Its label column's value (`data.knownFields.nodeLabelPath`) as text, else its id as text:
+     * never empty; the text {@link SessionDataApi.name} gives. Untrusted text from the data: render
+     * it as text, never as markup.
+     */
+    readonly name: string;
+    /** Whether `name` came from the label column and differs from the id's text. */
+    readonly labeled: boolean;
+}
+
+/** What an edge is called: its two ends' names, `session.data.edgeName`. */
+export interface EdgeName {
+    /** The end the edge leaves. */
+    readonly source: NodeName;
+    /** The end the edge enters. */
+    readonly target: NodeName;
+}
+
 /** An edge as a consumer reads it: its endpoints, and whatever attributes its record carried. */
 export interface EdgeRecord {
     /** The element-assigned edge id. */
@@ -163,6 +197,14 @@ export interface EdgeRecord {
     readonly target: NodeId;
     /** Every other key the record carried. */
     readonly [attribute: string]: unknown;
+}
+
+/** How {@link SessionDataApi.mergeNodes} merges. */
+export interface MergeNodesOptions {
+    /** The node the others merge into; it may be one of the ids or another node. Default: the first id. */
+    readonly into?: NodeId;
+    /** Values the kept node takes, patched onto its record. Default: it keeps its record as it is. */
+    readonly values?: Readonly<Record<string, unknown>>;
 }
 
 /** The attribute bag one record arrived with, as the session reads it. */
@@ -257,7 +299,10 @@ export interface RecordPageOptions {
     readonly offset?: number;
     /** The most records the page holds; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
-    /** Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`. */
+    /**
+     * Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`, or
+     * `"visible"` while the session's `workingGraph` option is on.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent, records come in the graph's own order: the order they were added, which
@@ -382,8 +427,9 @@ export interface FindOptions {
     /** What to list. Default `["node", "edge"]`. */
     readonly kinds?: readonly FindKind[];
     /**
-     * Where to search. Default the whole graph: a hit the visibility filter hides is still
-     * listed, and carries `excludedBy`.
+     * Where to search. Default `"visible"`, what is shown, while the session's `workingGraph`
+     * option is on (the default); name `"graph"` to find hidden items too. Over the whole graph a
+     * hit the visibility filter hides is still listed, and carries `excludedBy`.
      */
     readonly scope?: ScopeInput;
     /**
@@ -606,7 +652,10 @@ export interface NeighborOptions {
      * weight the graph was loaded with, read as a strength; counts when it was loaded with none.
      */
     readonly weight?: WeightMeaning | null;
-    /** Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`. */
+    /**
+     * Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`, or
+     * `"visible"` while the session's `workingGraph` option is on.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent: strongest first when the page has a weight (largest first for a
@@ -748,17 +797,18 @@ export interface GraphStatistics {
     /** Edges in the snapshot, self-loops and repeats included. */
     readonly edgeCount: number;
     /**
-     * Edges as a fraction of the pairs that could carry one, self-loops excluded from both
-     * halves. Zero for a graph with fewer than two nodes.
+     * Pairs of nodes joined by an edge as a fraction of the pairs that could be, so never above 1:
+     * self-loops are excluded and repeated edges between the same pair count once. Zero for a
+     * graph with fewer than two nodes.
      */
     readonly density: number;
     /**
      * Whether the graph is directed, as a fact about the graph rather than a guess per edge.
      *
      * `"unknown"` is the honest answer for an empty graph the element was never told about:
-     * under `data.directed: "auto"` nothing has settled the question yet. `"mixed"` is in the
-     * union because a format can report it; the element does not produce it today, because a
-     * snapshot carries one flag for the whole graph.
+     * under `data.directed: "auto"` nothing has settled the question yet. `"mixed"` is a graph
+     * whose edges carry their own direction (graph-format's role-`"directed"` edge column) and
+     * do not all agree.
      */
     readonly directedness: "directed" | "undirected" | "mixed" | "unknown";
     /** Where {@link GraphStatistics.directedness} came from, so a reader can qualify the claim. */
@@ -843,6 +893,95 @@ export interface ValueCounts {
 }
 
 /**
+ * One value that occurs in a group more often than chance: one row of a group's
+ * {@link OverRepresentedGroup.values}.
+ */
+export interface OverRepresentedValue {
+    /** The column tested, such as `data.team`. */
+    readonly path: Path;
+    /** The value; each item of a list value is tested as a value of its own. */
+    readonly value: string | number | boolean;
+    /** How many of the group's members carry the value. */
+    readonly count: number;
+    /** How many would carry it by chance: the group's carriers of the column times the value's share of all carriers. */
+    readonly expected: number;
+    /** The hypergeometric chance of `count` or more by chance alone, uncorrected. */
+    readonly p: number;
+    /** `p` corrected for every test performed, by the method {@link OverRepresentedValues.correction} names. */
+    readonly adjustedP: number;
+}
+
+/** One group's over-represented values. */
+export interface OverRepresentedGroup {
+    /** The group's value at the path the test grouped by. */
+    readonly group: string | number | boolean;
+    /** How many nodes the group holds. */
+    readonly size: number;
+    /** The values more frequent in the group than expected, lowest adjusted p first. */
+    readonly values: readonly OverRepresentedValue[];
+}
+
+/** The multiple-testing correction applied to an {@link OverRepresentedValues} table. */
+export type MultipleTestingCorrection = "benjamini-hochberg";
+
+/**
+ * What `session.data.overRepresented(groupBy)` returns: per group, the values of the node's
+ * categorical and list columns that occur in the group more often than chance.
+ */
+export interface OverRepresentedValues {
+    /** The path the nodes were grouped by. */
+    readonly groupBy: Path;
+    /** How every `adjustedP` was corrected. */
+    readonly correction: MultipleTestingCorrection;
+    /**
+     * How many tests the correction covered: one per group and value a member carries, including
+     * the values that came out under-represented and are not listed.
+     */
+    readonly testCount: number;
+    /** Every group, largest first. */
+    readonly groups: readonly OverRepresentedGroup[];
+}
+
+/**
+ * One summary of a numeric column over a group's members, as {@link GroupTableOptions.summaries}
+ * names it. Every figure but `count` is over the members carrying a finite number; `count` is how
+ * many do. `median` is the lower median, a value one member holds.
+ *
+ * OPEN UNION: summaries may be added in a minor release; handle unknown ones.
+ */
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+/** What `session.data.groupTable(groupBy, options)` summarizes per group. */
+export interface GroupTableOptions {
+    /**
+     * The summaries to write per group, by the node path they read: `{ "data.age": ["mean", "max"] }`
+     * writes the columns `data.age.mean` and `data.age.max`. Only the group and its size when absent.
+     */
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+/**
+ * One row of a {@link GroupTable}: a cell per {@link GroupTable.columns} key. A summary over a
+ * group with no measured member is null.
+ */
+export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+/**
+ * What `session.data.groupTable(groupBy)` returns: one row per group of the nodes, keyed by neutral
+ * column keys -- `group` (the group's value), `label` (its name from `setValueLabel`, null when
+ * unnamed; present only when the path has a named value), `size` (how many nodes it holds) and one
+ * `<path>.<summary>` per summary asked for.
+ */
+export interface GroupTable {
+    /** The path the nodes were grouped by. */
+    readonly groupBy: Path;
+    /** The column keys, in order. */
+    readonly columns: readonly string[];
+    /** One row per group, largest first. */
+    readonly rows: readonly GroupTableRow[];
+}
+
+/**
  * What a column's values are read as: what `session.data.setType(column, type)` converts them to.
  *
  * - `"text"`: strings, free text.
@@ -871,6 +1010,46 @@ export interface TypeChangePreview {
      * Up to five values and what each becomes, the ones that fail first (`converted: null`).
      */
     readonly examples: readonly { readonly value: unknown; readonly converted: unknown }[];
+}
+
+/**
+ * One computed column: a data column whose values an expression reads, what
+ * `session.data.derivedColumns()` lists. Its values are read at `data.<name>` like any column's.
+ */
+export interface DerivedColumn {
+    /** Whether nodes or edges carry it. */
+    readonly kind: "node" | "edge";
+    /** The column's name. */
+    readonly name: string;
+    /**
+     * The expression its values are read with, such as `data.nickname || data.name`. For a score
+     * ({@link SessionDataApi.deriveScore}) it is the weighted sum of the raw values, before each
+     * is rescaled; the values are worked out from `score`.
+     */
+    readonly expression: Query;
+    /**
+     * The terms of a score made by {@link SessionDataApi.deriveScore}; absent for a column made
+     * by {@link SessionDataApi.derive}.
+     * @since 3.57.0
+     */
+    readonly score?: readonly ScoreTerm[];
+}
+
+/**
+ * One term of a score ({@link SessionDataApi.deriveScore}): a numeric column, and how much it counts.
+ * @since 3.57.0
+ */
+export interface ScoreTerm {
+    /** The column's path, such as `resultPath(run.id, "value")` or `data.age`. */
+    readonly path: Path;
+    /** How much the term counts; any finite number, negative to count against. Default 1. */
+    readonly weight?: number;
+}
+
+/** Options for `session.data.derive`. */
+export interface DeriveOptions {
+    /** Whether nodes or edges carry the column. Default `"node"`. */
+    readonly kind?: "node" | "edge";
 }
 
 /**
@@ -1050,12 +1229,39 @@ export interface SessionDataApi {
      * data: render it as text, never as markup.
      *
      * ```ts
-     * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"
+     * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"; nodeName never needs the ??
      * ```
      * @param id - the node id; an integer id may be written either way, as {@link node} takes it
      * @returns the name, or undefined when the graph has no such node
      */
     name(id: NodeId): string | undefined;
+    /**
+     * What a node is called, never undefined: its label (the value {@link name} gives), else its
+     * id, with the id beside it so a caller can show both.
+     *
+     * ```ts
+     * const { name, id, labeled } = session.data.nodeName(71); // "Ohio", 71, true
+     * const words = labeled ? `${name} (${String(id)})` : name; // "Ohio (71)"
+     * ```
+     * @param id - the node id; an integer id may be written either way, as {@link node} takes it
+     * @returns the name; for a node the graph does not hold, its id as the name
+     */
+    nodeName(id: NodeId): NodeName;
+    /**
+     * What an edge is called: its two ends' {@link nodeName}s. The caller joins them with its own
+     * words, as `FindOptions.edgeNameJoiner` does for Find ("Ava -> Kofi").
+     * @param edge - the two ends' node ids, such as an `EdgeRecord`
+     * @param edge.source - the end the edge leaves
+     * @param edge.target - the end the edge enters
+     * @returns the two names
+     */
+    edgeName(edge: { readonly source: NodeId; readonly target: NodeId }): EdgeName;
+    /**
+     * What an edge is called, by its element-assigned id: its two ends' {@link nodeName}s.
+     * @param edge - the edge id; the number it spells finds it too, as {@link SessionDataApi.edge} takes it
+     * @returns the two names, or undefined when the graph has no such edge
+     */
+    edgeName(edge: EdgeId): EdgeName | undefined;
     /**
      * One edge, by the element-assigned edge id.
      * @param id - the edge id; the number it spells finds it too, `17` for `"17"`
@@ -1066,15 +1272,37 @@ export interface SessionDataApi {
     /**
      * Every node, in the graph's order: the records {@link node} reads one at a time. Walks the
      * whole graph on every call, so read it when the graph changes, not every frame.
+     * @param options - Which nodes.
+     * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"` for
+     *     every node; absent, the working graph (what the filters show, the time window aside)
+     *     while the session's `workingGraph` is on, every node while it is off.
      * @returns the records, deep-frozen
      */
-    nodes(): readonly NodeRecord[];
+    nodes(options?: { readonly scope?: "graph" | "visible" }): readonly NodeRecord[];
     /**
      * Every edge, in the graph's order: the records {@link edge} reads one at a time. Walks the
      * whole graph on every call, so read it when the graph changes, not every frame.
+     * @param options - Which edges.
+     * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"` for
+     *     every edge; absent, the working graph (what the filters show, the time window aside)
+     *     while the session's `workingGraph` is on, every edge while it is off.
      * @returns the records, deep-frozen
      */
-    edges(): readonly EdgeRecord[];
+    edges(options?: { readonly scope?: "graph" | "visible" }): readonly EdgeRecord[];
+    /**
+     * How many nodes and edges the graph holds, read without building a record: what a
+     * "1,234 nodes" label reads instead of `nodes().length`.
+     *
+     * ```ts
+     * const { nodes, edges } = session.data.count();
+     * ```
+     * @param options - What to count.
+     * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"`
+     *     for the whole graph; absent, the working graph (what the filters show, the time window
+     *     aside) while the session's `workingGraph` is on (the default), the whole graph while it is off.
+     * @returns the node count and the edge count
+     */
+    count(options?: { readonly scope?: "graph" | "visible" }): { readonly nodes: number; readonly edges: number };
     /**
      * One page of node records, without reading the rest: what a table showing a few rows of a
      * large graph reads. The order is computed once per revision, scope and sort and then reused,
@@ -1277,7 +1505,8 @@ export interface SessionDataApi {
     /**
      * Take one load out of the graph, as one undoable step: the nodes and edges only it supplied
      * go, with the edges attached to a node that goes, and the load leaves `sources()`. A node or
-     * edge another load also supplied stays, as does anything no load recorded.
+     * edge another load also supplied stays, as does anything no load recorded. Removing a joined
+     * table takes its join back: the values it wrote go and the values it overwrote come back.
      *
      * ```ts
      * const removed = await session.data.removeSource("s2");
@@ -1343,6 +1572,50 @@ export interface SessionDataApi {
      */
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     /**
+     * Change which columns play which role -- the node id, an edge's source or target, the label,
+     * the weight -- after a load, as one undoable step. The rows the load read are read again
+     * under the new mapping, with no file picked or URL fetched: a new id column makes the nodes
+     * anew and the edges find their ends among them, and everything else (style layers, runs,
+     * filters, the load's key) stays, as {@link SessionDataApi.reloadSource} keeps it. A run whose
+     * numbers came from the old graph reads as stale (`run.stale`); nothing is run again. One undo
+     * brings back the old mapping and the old graph.
+     *
+     * ```ts
+     * await session.data.remap({ mapping: { tables: { nodes: { key: "email" } } } });
+     * ```
+     * @param options - The mapping, as a load takes it, laid over the one the load was read with,
+     *     and which load (the only one when absent).
+     * @returns What was added, removed and changed, and what no longer matches anything.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` (`details.reason`:
+     *     `"no-mapping"`, `"which-source"` with `details.known` when the graph holds more than one
+     *     load and none is named, or a role the table's rows cannot have), `E_UNKNOWN_ATTRIBUTE`
+     *     for a column the table does not have, `E_EDGE_ENDPOINTS_UNRESOLVED` for an edge table
+     *     left without an end, `E_SOURCE_UNKNOWN` for a key `sources()` does not list, and
+     *     `E_UNSUPPORTED` (`details.reason: "not-reloadable"`) for a load this session did not
+     *     read itself (`LoadedSource.reloadable`), such as one in a project opened from a file.
+     * @since 3.54.0
+     */
+    remap(options: RemapOptions): Promise<ReplaceReport>;
+    /**
+     * What this session read a load from, as `import` and `prepare` took it (the file itself, or
+     * the text), so an application can read the load again into a draft, such as to show its rows
+     * and change its roles. Only a load this session read itself has one
+     * (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     *
+     * ```ts
+     * const [first] = session.data.sources();
+     * const input = session.data.sourceInput(first.key);
+     * if (input !== undefined) {
+     *     const draft = await session.data.prepare(input);
+     *     draft.tables[0].columns; // the load's columns, as it read them
+     * }
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @returns What the load was read from, or undefined for a load this session did not read.
+     * @since 3.47.0
+     */
+    sourceInput(key: SourceKey): DataSourceInput | undefined;
+    /**
      * The load whose rows carry the same columns as a file's header (in any order), newest
      * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
      * @param source - The file, as `import` takes it.
@@ -1399,12 +1672,17 @@ export interface SessionDataApi {
      * One node's structure value, as a column of a table reads it.
      * @param id - The node.
      * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @param options - Where to measure.
+     * @param options.scope - `"visible"` measures among what the filter and the time window leave
+     *     shown, where a hidden node has no value; `"graph"` the whole graph. Default `"graph"`, or the
+     *     working graph (what the filters leave shown, the time window aside) while the session's
+     *     `workingGraph` option is on (since 3.40.0).
      * @returns The value, or undefined for an unknown node or a path that is no structure value.
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      * @example
      * const degree = session.data.structureValue("Valjean", "graphty.degree");
      */
-    structureValue(id: NodeId, path: Path): number | undefined;
+    structureValue(id: NodeId, path: Path, options?: { readonly scope?: "graph" | "visible" }): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
@@ -1445,11 +1723,36 @@ export interface SessionDataApi {
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
      *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
      *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
-     *     `key`, `source`, `target` or `edgeId` on rows already loaded, and `E_FEATURE_OFF` for
-     *     `time` with the `timeline` experiment off.
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
      * @since 3.30.0
      */
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    /**
+     * The column the element would read a role from, when one is obvious: what to offer before
+     * a reader picks one for {@link SessionDataApi.setRole}. Changes nothing. Only a column with
+     * no role yet, not hidden and not made by a run or a formula is offered.
+     *
+     * - `time`: the column whose values read as time best (`session.time.candidates()`).
+     * - `label`: the first of `label`, `Label`, `name`, `Name`, `title` and `Title` holding text,
+     *   as a load names its nodes.
+     * - `weight`, for edges: as a load reads one -- a number column named `confidence`, `score`
+     *   or `strength`, else the only number column that does not read as time; null when there
+     *   are several. Nodes: null, as a load reads no node weight.
+     * - Any other role (`key`, `source`, `target`, `edgeId`, `kind` and the location kinds, which
+     *   `session.layout.locationColumns()` detects): null.
+     *
+     * ```ts
+     * const column = session.data.roleCandidate("edge", "time"); // "released"
+     * if (column !== null) {
+     *     await session.data.setRole({ kind: "edge", name: column }, "time");
+     * }
+     * ```
+     * @param kind - nodes or edges
+     * @param role - the role
+     * @returns the column's name, or null when no column is obvious
+     * @since 3.40.0
+     */
+    roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     /**
      * What converting a column to a type would do: how many values convert and how many become
      * blank, with examples. Changes nothing.
@@ -1492,6 +1795,61 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     renameColumn(column: ColumnRef, name: string): Promise<void>;
+    /**
+     * Add a computed column, as one undoable step: every node (or edge) gets the value an
+     * expression reads, in the expression language of selectors and filters, from its other
+     * columns and from finished runs' results. The values follow their inputs: an edit, a load, a
+     * run finishing or a run removed brings them up to date in that same step. The project saves
+     * the expression, not the values, and works them out again on open. Undo takes the column away.
+     *
+     * ```ts
+     * await session.data.derive("display", "data.nickname || data.name");
+     * session.data.node("ada")?.display; // the nickname, or the name when there is none
+     * ```
+     * Deriving a computed column's name again replaces its expression.
+     * @param name - the column's name; not a name one of the kind's other columns has
+     * @param expression - what each value is, such as `data.age >= \`18\``
+     * @param options - nodes or edges; nodes by default
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_SELECTOR` for an expression that does not parse,
+     *     `E_UNKNOWN_ATTRIBUTE` (`details.paths`) for one that reads a value nothing answers, and
+     *     `E_BAD_COMMAND` (`details.reason` `"empty-name"`, `"name-taken"` or `"reads-itself"`) for
+     *     a name it cannot take.
+     */
+    derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
+    /**
+     * Add a score: a computed column that combines numeric columns, such as two runs' results,
+     * into one number per node (or edge). Each term's values are rescaled to 0..1 (the smallest
+     * value becomes 0, the largest 1; a column whose values are all the same counts 0) and the
+     * score is the sum of each rescaled value times its weight. A node missing a number for any
+     * term scores `null`. Like {@link SessionDataApi.derive} it is one undoable step, the values
+     * follow their inputs (a run run again rescales), and it reads at `data.<name>`, so a style
+     * layer, a filter or a table shows it like any column.
+     *
+     * ```ts
+     * const degree = await session.runs.run("degree");
+     * const between = await session.runs.run("betweenness");
+     * await session.data.deriveScore("importance", [
+     *     { path: resultPath(degree.id, "value"), weight: 0.4 },
+     *     { path: resultPath(between.id, "value"), weight: 0.6 },
+     * ]);
+     * ```
+     * Deriving a computed column's name again replaces it.
+     * @param name - the column's name; not a name one of the kind's other columns has
+     * @param terms - the columns and their weights; at least one
+     * @param options - nodes or edges; nodes by default
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (`details.paths`) for a path nothing
+     *     answers, and `E_BAD_COMMAND` (`details.reason` `"empty-name"`, `"name-taken"`,
+     *     `"reads-itself"`, `"no-terms"` or `"bad-weight"`) for a name or terms it cannot take.
+     * @since 3.57.0
+     */
+    deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
+    /**
+     * Every computed column, in the order {@link SessionDataApi.derive} added them.
+     * @returns the columns
+     */
+    derivedColumns(): readonly DerivedColumn[];
     /**
      * Hide columns, or show them again, as one undoable step saved with the project. A hidden
      * column keeps its values and reads `hidden: true` in {@link SessionDataApi.attributes}; what a
@@ -1558,12 +1916,19 @@ export interface SessionDataApi {
      * ```
      * @param column - the column; an attribute descriptor can be passed as it is
      * @param options - `bins`: how many bars, or how many values a categorical column lists (20
-     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it
+     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it;
+     *     `scope`: `"visible"` counts only what the filter and the time window leave shown,
+     *     `"graph"` every element -- default `"graph"`, or the working graph (what the filters
+     *     leave shown, the time window aside) while the session's `workingGraph` option is on
+     *     (since 3.40.0)
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
      */
-    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    histogram(
+        column: ColumnRef,
+        options?: HistogramOptions & { readonly scope?: "graph" | "visible" },
+    ): ColumnHistogram;
     /**
      * How many elements carry each value of a readable path, for a checklist of values with their
      * counts: a data column, a run's field (`results.<run>.group`) or a node value read at an
@@ -1578,15 +1943,60 @@ export interface SessionDataApi {
      * @param options - What to count.
      * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
+     * @param options.scope - `"visible"` counts only what the filter and the time window leave
+     *     shown (`total` included), `"graph"` every element. Default `"graph"`, or the working graph
+     *     (what the filters leave shown, the time window aside) while the session's `workingGraph`
+     *     option is on (since 3.40.0).
      * @returns The counts, most elements first.
      * @since 3.37.0
      */
-    valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
+    valueCounts(
+        path: Path,
+        options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" },
+    ): ValueCounts;
+    /**
+     * Per group, the values of the nodes' categorical and list columns that occur in the group
+     * more often than chance: count in the group against the expected count, with the
+     * hypergeometric p and that p corrected (Benjamini-Hochberg) over every group, column and
+     * value tested. Group by a community run's `group` field or any node path. Reads what is shown
+     * while `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
+     *
+     * ```ts
+     * const profile = session.data.overRepresented(session.results.path("louvain", "group"));
+     * const strong = profile.groups[0].values.filter((row) => row.adjustedP < 0.05);
+     * ```
+     * @param groupBy - The path holding each node's group; a node with no value there is left out.
+     * @param options - What to test.
+     * @param options.columns - The node columns to test, by path; by default every categorical
+     *     node column except `groupBy` and a column that holds the node ids.
+     * @returns Every group, largest first, with its over-represented values.
+     */
+    overRepresented(groupBy: Path, options?: { readonly columns?: readonly Path[] }): OverRepresentedValues;
+    /**
+     * One row per group of the nodes -- a community run's `group`, a component, any node path --
+     * with its size and the summaries of numeric columns the caller asks for. Write it as a file
+     * with `exportGraph("csv" | "json", { groupTable: { groupBy } })`. Reads what is shown while
+     * `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
+     *
+     * ```ts
+     * const table = session.data.groupTable("results.louvain.group", {
+     *     summaries: { "data.age": ["mean", "max"] },
+     * });
+     * table.rows[0]; // { group: 3, size: 14, "data.age.mean": 31.5, "data.age.max": 60 }
+     * ```
+     * @param groupBy - The path holding each node's group; a node with no value there is left out.
+     * @param options - The summaries; see {@link GroupTableOptions}.
+     * @returns The table, largest group first.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a summary not in {@link GroupSummary}.
+     */
+    groupTable(groupBy: Path, options?: GroupTableOptions): GroupTable;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @param options - What to measure.
      * @param options.scope - `"visible"` measures only what the filters and the time window leave
-     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`.
+     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`, or the
+     *     working graph (what the filters leave shown, the time window aside) while the session's
+     *     `workingGraph` option is on.
      * @returns the statistics
      */
     statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
@@ -1610,6 +2020,25 @@ export interface SessionDataApi {
      * @returns Settles once the edges are in the graph and drawn.
      */
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
+    /**
+     * Load a graph from column arrays, as one undoable step: the advanced path beside `addNodes`
+     * and `addEdges`, for a graph already held as arrays. Nodes are rows `0` to `nodeCount - 1`;
+     * edge `i` runs from row `sources[i]` to row `targets[i]`. The graph made is the one the record
+     * doors make from the same rows, under the same ceilings, report and undo.
+     *
+     * ```ts
+     * await session.data.importColumns({
+     *     sources: [0, 1, 2],
+     *     targets: [1, 2, 0],
+     *     nodeCount: 3,
+     *     ids: ["a", "b", "c"],
+     * });
+     * ```
+     * @param columns - The columns; see {@link ImportColumnsInput}.
+     * @returns The load's report (as `lastImport()` then answers), once the rows are in the graph and drawn.
+     * @throws `E_BAD_COMMAND` when the columns do not line up; nothing is added.
+     */
+    importColumns(columns: ImportColumnsInput): Promise<LoadReport>;
     /**
      * Change some attributes of existing nodes, as one undoable step. Keys not named are kept; an
      * id the graph does not hold is skipped.
@@ -1636,6 +2065,22 @@ export interface SessionDataApi {
      * @returns Settles once they are gone from the graph and the picture.
      */
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
+    /**
+     * Merge nodes into one, as one undoable step. Every edge of a merged node moves to the kept
+     * node, with its record and weight (an edge between two merged nodes becomes a loop on the
+     * kept node, and the moved edges get new edge ids); the kept node keeps its record, patched by
+     * `options.values`; the other nodes are removed. Undo puts back every node and edge as it was.
+     * @example
+     * ```ts
+     * // "Ann" and "Ann B." are one person: keep "ann", give it the full name.
+     * await session.data.mergeNodes(["ann", "ann-b"], { into: "ann", values: { name: "Ann Baker" } });
+     * ```
+     * @param ids - The nodes to merge; an integer id may be written either way, `34` or `"34"`.
+     * @param options - Which node is kept, and the values it takes.
+     * @returns Settles once the merge is drawn; at once, with no step, when fewer than two nodes are named.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when an id is not a node the graph holds.
+     */
+    mergeNodes(ids: readonly NodeId[], options?: MergeNodesOptions): Promise<void>;
     /**
      * Remove every node, edge, record and graph-level value, as one undoable step.
      * @returns Settles once the graph and the picture are empty.
@@ -1886,22 +2331,36 @@ export interface SessionDataApi {
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     /**
      * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     *
+     * The element names no download host of its own: `baseUrl` says where graph-samples' dataset
+     * files are published. graph-samples exports the address of its own copy:
+     *
+     * ```ts
+     * import { DEFAULT_DATASET_BASE_URL } from "@graphty/graph-samples";
+     * await session.data.loadDataset("karate", { baseUrl: DEFAULT_DATASET_BASE_URL });
+     * ```
      * @param name - The dataset's name, e.g. `"karate"`.
-     * @param options - Whether to replace the graph (the default) or add to it, where to download
-     *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
-     *     that abandons the download. Loads land in the order they were asked for, so a load
-     *     asked for after this one waits until this download finishes or fails; aborting the
-     *     signal, even once the download has finished, stops it and lets the next load through.
-     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
-     *     catalogue does not list (unless `baseUrl` is given) and `E_FETCH_FAILED` when the
-     *     download fails; nothing is recorded then.
+     * @param options - Where to download from (`baseUrl`, required), whether to replace the graph
+     *     (the default) or add to it, and a signal that abandons the download. Loads land in the
+     *     order they were asked for, so a load asked for after this one waits until this download
+     *     finishes or fails; aborting the signal, even once the download has finished, stops it and
+     *     lets the next load through.
+     * @returns Settles once the graph is loaded. Rejects with `E_OPTION_RANGE` (`details.option`
+     *     `"baseUrl"`) when no `baseUrl` is given, `E_UNKNOWN_DATASET` for a name that is not one,
+     *     `E_FETCH_FAILED` when the download fails (`recoverable: false` for a client error other
+     *     than 408 and 429, `details.status` when the server answered), `E_PARSE_FAILED` when the
+     *     file came back but could not be read, and with the signal's own reason when it is
+     *     aborted; nothing is recorded then.
      */
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
 }
 
 /** What `data.loadDataset` takes besides the name. */
 export interface DatasetLoadOptions extends ImportOptions {
-    /** Where the dataset files are published; graphty.app's copy when absent. */
+    /**
+     * Where the dataset files are published, ending in `/`. Required: without it the load rejects
+     * with `E_OPTION_RANGE`. graph-samples' own copy is its `DEFAULT_DATASET_BASE_URL`.
+     */
     readonly baseUrl?: string;
     /** Abandons the download. */
     readonly signal?: AbortSignal;
@@ -1909,7 +2368,6 @@ export interface DatasetLoadOptions extends ImportOptions {
 
 /**
  * A column of a {@link LoadDraft} that looks like time.
- * @experimental timeline
  * @beta
  */
 export interface TimeFound extends CodedFact<"time.found"> {
@@ -1946,8 +2404,7 @@ export interface LoadDraft {
     readonly mapping: LoadMappingRead;
     /**
      * What the element noticed in the file and applied nowhere: one {@link TimeFound} for each
-     * column that {@link DraftColumn.looksLike} time. Empty with the timeline experiment off.
-     * @experimental timeline
+     * column that {@link DraftColumn.looksLike} time.
      * @beta
      */
     readonly findings: readonly TimeFound[];
@@ -2017,6 +2474,14 @@ export interface LoadDraft {
      * @since 3.30.0
      */
     joinReport(choices: JoinChoices): JoinReport;
+    /**
+     * The table read as a mapping table for a join's `via`, held apart from the graph: its rows
+     * never become nodes or edges. Any draft answers, prepared onto the graph or not.
+     * @returns The table: its name, columns and rows.
+     * @throws `E_DISPOSED` once the draft has been loaded or disposed.
+     * @since 3.38.0
+     */
+    lookup(): JoinLookup;
     /** Let go of the held rows. */
     dispose(): void;
     /**
@@ -2028,7 +2493,7 @@ export interface LoadDraft {
 }
 
 /**
- * How many rules a file's styles hold, and the program whose defaults fill in the rest.
+ * How many rules a file's styles hold.
  * @experimental file-styles
  */
 export interface FileStyleSummary {
@@ -2036,18 +2501,7 @@ export interface FileStyleSummary {
     readonly nodeRules: number;
     /** The rules for edges. */
     readonly edgeRules: number;
-    /**
-     * The program that wrote the file, whose defaults fill in what it leaves unset (`gephi`,
-     * `cytoscape`, `graphviz`, ...), or null when it is not known. Open union.
-     */
-    readonly tool: FileStyleTool | null;
 }
-
-/**
- * The program whose defaults a file's styles take: graph-io's tool ids. Open union.
- * @experimental file-styles
- */
-export type FileStyleTool = StyleTool;
 
 /** One table of a draft. */
 export interface DraftTable {
@@ -2062,7 +2516,7 @@ export interface DraftTable {
     readonly rowCount: number;
     /**
      * True when the format sets the roles (every format but CSV). A mapping for it is refused with
-     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit` with the timeline experiment on.
+     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit`.
      */
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
@@ -2090,11 +2544,9 @@ export interface DraftColumn extends Pick<
     /** The role the element gives it by itself; absent when it is a plain attribute. */
     readonly suggested?: ColumnRole;
     /**
-     * Set when the column has no role and its values look like time, with the timeline experiment
-     * on: every sampled value is a strict date, or the name speaks of time and every number fits an
+     * Set when the column has no role and its values look like time: every sampled value is a strict date, or the name speaks of time and every number fits an
      * epoch or a calendar year. It applies nothing: a load designates the column only when the
      * mapping gives it the `time` role. {@link LoadDraft.findings} holds its span.
-     * @experimental timeline
      * @beta
      */
     readonly looksLike?: "time";
@@ -2123,7 +2575,40 @@ export interface DraftRow {
      * Present only on the rows `only: "unmatched"` reads.
      */
     readonly missingEnds?: readonly EdgeEnd[];
+    /**
+     * Why the row was rejected or left unmatched, as a code and its facts. Present on the rows
+     * `only: "rejected"` and `only: "unmatched"` read, and on every row of `LoadReport.rows`.
+     */
+    readonly reason?: RowReason;
 }
+
+/**
+ * Why a row of an import made no node or edge, or named a node no node row held: a neutral fact a
+ * reader words from `code` and `params`.
+ *
+ * - `"refused-row"` (the code `LoadReport.errors` gives the same row): the row's id, or an edge
+ *   row's end, cannot be a node id -- absent, null, blank, or not a string or a finite number.
+ *   `params.rowsAre` is `"nodes"` or `"edges"`; for an edge row `params.ends` lists the unusable
+ *   ends (`"source"`, `"target"`).
+ * - `"unknown-end"` (the code `data.issues()` gives these edges): an edge row names a node no node
+ *   row (nor, for a merge, the graph) holds. `params.ends` lists those ends and `params.ids` the
+ *   ids they name, in the same order.
+ * @since 3.40.0
+ */
+export interface RowReason {
+    /** The kind of problem. */
+    readonly code: RowReasonCode;
+    /** The facts the code names. */
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The codes a {@link RowReason} gives.
+ *
+ * OPEN UNION: codes may be added in a minor release; handle unknown codes.
+ * @since 3.40.0
+ */
+export type RowReasonCode = "refused-row" | "unknown-end";
 
 /** One end of an edge: the node it leaves, or the node it enters. */
 export type EdgeEnd = "source" | "target";
@@ -2187,7 +2672,6 @@ export interface TableMapping {
      * calendar years (`"year"`) or plain ordered numbers (`"ordinal"`, such as steps); left out,
      * the values decide when the column is designated. Written to
      * `data.knownFields.nodeTimeUnit` or `edgeTimeUnit`.
-     * @experimental timeline
      * @beta
      */
     readonly timeUnit?: TimeUnit | null;
@@ -2477,11 +2961,89 @@ export interface LoadedSource extends DataSourceDescriptor {
  *   lacks becomes a new node.
  * - `"rows"`: rows of the same kind the graph already holds, added as a plain merge.
  * - `"replace"`: a newer copy of a loaded source (decided by the reader; never suggested here).
+ * - `"merge"`: one row per node, merged into the node its key names (on any graph value, not
+ *   only the id): its values fused in as for `"node-values"`; a row naming no node becomes a new
+ *   node (`JoinChoices.unmatchedFrom`). Removing the join splits them back. Never suggested.
+ * - `"link"`: one row per node, matched by a key; nodes whose rows share a value in
+ *   `JoinChoices.link.columns` are linked. Never suggested as the shape; a values suggestion
+ *   names the columns that fit in `JoinSuggestion.link`.
  *
  * OPEN UNION: shapes may be added in a minor release.
  * @since 3.30.0
  */
-export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
+
+/**
+ * How many rows become one value ({@link JoinChoices.aggregate}): `"count"` the rows with a value,
+ * `"sum"`, `"min"`, `"max"` and `"mean"` of the numbers (`"min"` and `"max"` compare text when a
+ * value is not a number), `"first"` and `"last"` value in table order, `"list"` every value in
+ * table order. Blank values are skipped.
+ *
+ * OPEN UNION: reductions may be added in a minor release.
+ * @since 3.38.0
+ */
+export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
+
+/**
+ * Linking nodes whose rows share a value ({@link JoinChoices.link}, shape `"link"`).
+ * @since 3.38.0
+ */
+export interface JoinLink {
+    /** The columns whose values link nodes: a phone, a device, an email. */
+    readonly columns: readonly string[];
+    /**
+     * `"edges"` (the default): one edge per linked pair, its `shared` attribute the number of
+     * values the pair shares. `"nodes"`: one node per shared value, id `<column>:<value>`, its
+     * `kind` the column and the value under the column's name, with an edge from each holder.
+     */
+    readonly as?: "edges" | "nodes";
+    /** A value more nodes than this hold links none of them (a hub). Default 10. */
+    readonly maxShared?: number;
+    /** For `"edges"`: the values a pair must share to be linked. Default 1. */
+    readonly minShared?: number;
+    /** The `kind` the new edges, and with `"nodes"` the new nodes, carry. */
+    readonly kind?: string;
+}
+
+/**
+ * How a mapping table is read ({@link JoinChoices.mapping}).
+ * @since 3.38.0
+ */
+export interface JoinMapping {
+    /** The mapping table's column holding the incoming keys, then its column holding the graph's. */
+    readonly columns?: readonly [from: string, to: string];
+    /** What a key mapped to several values matches: the `"first"` (the default), or every one. */
+    readonly many?: "first" | "list";
+}
+
+/**
+ * A node's region when a join compares two graphs ({@link JoinChoices.compare}): the value
+ * written to its membership column. `"from"` is the data being joined in and `"onto"` the graph
+ * already loaded: `"both"` (a node in both), `"only-from"` (a node only the joined data holds) or
+ * `"only-onto"` (a node only the loaded graph holds). These values are saved in projects.
+ * @since 3.38.0
+ */
+export type JoinRegion = "both" | "only-from" | "only-onto";
+
+/**
+ * A mapping table held apart from the graph ({@link JoinChoices.lookup}): `LoadDraft.lookup()` reads
+ * one from any file, or write the rows yourself. Its rows never become nodes or edges.
+ *
+ * ```ts
+ * const crosswalk = await session.data.prepare({ url: "symbol-to-ensembl.csv" });
+ * const via = crosswalk.lookup();
+ * crosswalk.dispose();
+ * ```
+ * @since 3.38.0
+ */
+export interface JoinLookup {
+    /** Its name, as a source's. */
+    readonly name?: string;
+    /** Its columns; by default every column a row holds. */
+    readonly columns?: readonly string[];
+    /** Its rows, by column. */
+    readonly rows: readonly Readonly<Record<string, unknown>>[];
+}
 
 /**
  * One pair of a join's key: a column of the incoming table and the graph value it matches.
@@ -2508,6 +3070,14 @@ export interface JoinSuggestion {
     readonly keys: readonly JoinKey[];
     /** Whether most of the key's values match the graph; ask the reader when false. */
     readonly confident: boolean;
+    /**
+     * For a values join onto nodes: the columns whose values a few of the matched nodes share (a
+     * phone, a device), so a join of `shape: "link"` on them would link those nodes. Absent when no
+     * column fits. The shape stays the values join; linking is the reader's choice:
+     * `{ ...suggestion, shape: "link" }`.
+     * @since 3.38.0
+     */
+    readonly link?: JoinLink;
     /**
      * For `"edges"`: `"both"` when rows naming the same source and target say different things, so
      * each is its own event. Absent otherwise. @since 3.38.0
@@ -2548,10 +3118,54 @@ export interface JoinChoices {
      */
     readonly ignore?: readonly JoinWarning[];
     /**
-     * A mapping table: a joined table (`sources()` key) with one column holding the incoming
-     * keys and one holding the graph's, through which incoming keys are translated first.
+     * A mapping table with one column holding the incoming keys and one holding the graph's,
+     * through which incoming keys are translated first; an incoming key the table lacks is matched
+     * as it is ({@link JoinReport.unmapped} counts them). A load already in the graph (`sources()`
+     * key): a joined table is read as its rows; any other load as its records: its edges (`source`,
+     * `target` and their values) when it read a table of edges, otherwise its nodes (`id` and
+     * their values). For a mapping table held apart from the graph, use {@link JoinChoices.lookup}.
      */
     readonly via?: SourceKey;
+    /**
+     * A mapping table held apart from the graph (`LoadDraft.lookup()`), read as `via` reads one:
+     * its rows never become nodes or edges, and it is saved with the join. Giving both `lookup` and
+     * `via` is refused (`E_BAD_COMMAND`, `details.reason` `"via-and-lookup"`).
+     * @since 3.38.0
+     */
+    readonly lookup?: JoinLookup;
+    /**
+     * How the mapping table (`via` or `lookup`) is read: `columns` its column holding the incoming keys and
+     * its column holding the graph's (by default the columns whose values meet the incoming keys
+     * and the graph's most); `many` what a key mapped to several values matches: the `"first"`
+     * (the default) or every one (`"list"`).
+     * @since 3.38.0
+     */
+    readonly mapping?: JoinMapping;
+    /**
+     * For `"edges"`: the `kind` the nodes the join makes take, by end. A node the graph holds is
+     * left as it is.
+     * @since 3.38.0
+     */
+    readonly endKinds?: { readonly source?: string; readonly target?: string };
+    /**
+     * For `"edges"` with `endKinds`: `"shared"` (the default) matches an end to a node of any kind;
+     * `"scoped"` matches it only to a node of its end's kind, and an end it makes whose id a node
+     * of another kind holds becomes `<kind>:<value>`, as `LoadChoices.kindIds` does.
+     * @since 3.38.0
+     */
+    readonly kindIds?: "shared" | "scoped";
+    /**
+     * For `"merge"`: compare the table, read as a second graph's nodes, with the graph, writing
+     * each node's region ({@link JoinRegion}) to the `membership` column: `"both"` (a row merged
+     * into it), `"only-from"` (a node the table alone holds) or `"only-onto"` (a node no row
+     * names). Every node is kept: a filter on the membership column keeps the union, the
+     * intersection (`"both"`) or a difference. A clashing column of the table is always written as
+     * `<column> (<table name>)`, so the two graphs' values sit side by side.
+     * @since 3.38.0
+     */
+    readonly compare?: boolean;
+    /** For `compare`: the column the regions are written to. Default `"membership"`. @since 3.38.0 */
+    readonly membership?: string;
     /**
      * For `"edges"`: a row with an end the graph lacks either `"add"`s that end as a new node
      * (the default) or is `"leave-out"`, left out of the join.
@@ -2559,7 +3173,31 @@ export interface JoinChoices {
      */
     readonly unknownEnds?: "add" | "leave-out";
     /**
-     * For `"node-values"` on one key with no `via`: a row matching no node is `"leave-out"`, left
+     * Reduce the rows of one key (for `"edges"`, of one source and target pair) to one value per
+     * column instead of keeping one row: the reduction for each column named, written under the
+     * column's name, or several, each written as `<column> (<reduction>)`. A column may be a key
+     * column (count the rows). A brought column named here takes its first value. When present,
+     * `repeated` is ignored and every row of a key counts; for `"edges"`, one edge per pair.
+     * @since 3.38.0
+     */
+    readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
+    /** For `"link"`: what links nodes. Required for `"link"`. @since 3.38.0 */
+    readonly link?: JoinLink;
+    /**
+     * For `"merge"`: a row naming no node is kept as a new node (`"keep"`, the default), its id
+     * the key's value, or `"drop"`ped.
+     * @since 3.38.0
+     */
+    readonly unmatchedFrom?: "keep" | "drop";
+    /**
+     * The names to write in place of the ones the join derives, by the derived name: a reduction's
+     * `<column> (<reduction>)`, a clashing column's `<column> (<table name>)`, a link edge's
+     * `shared`. `{ "amount (count)": "orders", shared: "overlap" }`.
+     * @since 3.38.0
+     */
+    readonly names?: Readonly<Record<string, string>>;
+    /**
+     * For `"node-values"` on one key with no `via` or `lookup`: a row matching no node is `"leave-out"`, left
      * out of the join (the default), or `"add"`ed as a new node named by its key. Undone, edited
      * and removed with the join.
      * @since 3.38.0
@@ -2575,13 +3213,19 @@ export interface JoinChoices {
  * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node; or
  *   (`"node-values"` with `unmatchedRows: "add"`) it matches no node and becomes a new one.
  * - `"repeat"`: its key repeats another row's and `repeated` keeps the other one.
- * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, or (for
- *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph.
+ * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, (for
+ *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph, (for `"merge"` with
+ *   `unmatchedFrom: "drop"`) it names no node, or (for `"link"`) no value of it is shared.
+ * - `"merged"`: (`"merge"`) it merges into the node its key names; a row naming no node and kept
+ *   is `"new-end"`.
+ * - `"linked"`: (`"link"`) a value of it links its node to another.
+ * - `"over-cap"`: (`"link"`) it links nothing because each value it shares is held by more
+ *   nodes than `link.maxShared`.
  *
  * OPEN UNION: fates may be added in a minor release.
  * @since 3.33.0
  */
-export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out" | "merged" | "linked" | "over-cap";
 
 /**
  * A {@link JoinReport} count a reader can choose to ignore (`JoinChoices.ignore`).
@@ -2637,6 +3281,31 @@ export interface JoinReport {
      * @since 3.33.0
      */
     readonly rowFates: readonly JoinRowFate[];
+    /** Rows whose key matches more than one element. @since 3.38.0 */
+    readonly fanOut: number;
+    /** For `"merge"`: the nodes rows merge into. 0 otherwise. @since 3.38.0 */
+    readonly merged: number;
+    /** For `"merge"`: the keys only the table holds, kept or dropped. 0 otherwise. @since 3.38.0 */
+    readonly onlyFrom: number;
+    /** For `"merge"`: the nodes no row merges into. 0 otherwise. @since 3.38.0 */
+    readonly onlyOnto: number;
+    /** For `"link"`: the node pairs linked. 0 otherwise. @since 3.38.0 */
+    readonly pairsLinked: number;
+    /** For `"link"`: the shared values left unused because more than `maxShared` nodes hold them. @since 3.38.0 */
+    readonly valuesOverCap: number;
+    /** For `"link"`: the pairs sharing fewer values than `minShared`, so not linked. @since 3.38.0 */
+    readonly pairsBelowMin: number;
+    /** With `via`: the distinct incoming keys the mapping table lacks. 0 otherwise. @since 3.38.0 */
+    readonly unmapped: number;
+    /** With `via`: the distinct incoming keys the mapping table maps to more than one value. @since 3.38.0 */
+    readonly mappedToMany: number;
+    /**
+     * With `compare`: the nodes in each region ({@link JoinRegion}). Absent otherwise.
+     * @since 3.38.0
+     */
+    readonly regions?: {
+        readonly nodes: Readonly<Record<JoinRegion, number>>;
+    };
     /**
      * Rows of the file its reader could not read (a line with too many or too few fields), so the
      * join never saw them.
@@ -2678,6 +3347,14 @@ export interface JoinRecord {
      * it did not have, so editing the join can put them back.
      */
     readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+    /**
+     * For a join that adds elements (edges, a merge, a link): the nodes it made, which the graph
+     * did not hold when it ran. Removing or editing the join takes only these of its nodes; the
+     * nodes it named that the graph already held stay. Absent on a join recorded before 3.40.0,
+     * which takes every node it named that no other load supplied.
+     * @since 3.40.0
+     */
+    readonly made?: readonly NodeId[];
 }
 
 /**
@@ -2730,6 +3407,14 @@ export interface ReplaceCounts {
     readonly changed: number;
 }
 
+/** What `data.remap` takes. @since 3.54.0 */
+export interface RemapOptions {
+    /** The column roles to change, as `LoadChoices.mapping` names them; a role left out stays as it is. */
+    readonly mapping: LoadMapping;
+    /** The load to re-map, from {@link SessionDataApi.sources}; the only load when absent. */
+    readonly source?: SourceKey;
+}
+
 /**
  * What `session.data.replaceSource(key, source)` did.
  * @since 3.30.0
@@ -2767,6 +3452,33 @@ export type NodeRecordInput = Readonly<Record<string, unknown>>;
 
 /** An edge record to add: its endpoints are read through the edge id paths; its id is assigned. */
 export type EdgeRecordInput = Readonly<Record<string, unknown>>;
+
+/**
+ * A graph as column arrays, for `session.data.importColumns`. Every array may be a plain array or
+ * a typed array.
+ */
+export interface ImportColumnsInput {
+    /** Each edge's source, as a node row number from 0 to `nodeCount - 1`. */
+    readonly sources: ArrayLike<number>;
+    /** Each edge's target, as a node row number; as long as `sources`. */
+    readonly targets: ArrayLike<number>;
+    /** How many nodes there are. */
+    readonly nodeCount: number;
+    /** Each node's id, one per node. Default: the row number. */
+    readonly ids?: ArrayLike<string | number>;
+    /**
+     * Each edge's weight, one per edge, stored as the record's `weight`. Default: read from the edge
+     * attributes as `addEdges` reads it, else 1.
+     */
+    readonly weights?: ArrayLike<number>;
+    /** Each node's starting position as x, y, z, three numbers per node. Default: placed by the layout. */
+    readonly positions?: ArrayLike<number>;
+    /** Further values by column name: one per node, or one per edge. */
+    readonly attributes?: {
+        readonly nodes?: Readonly<Record<string, ArrayLike<unknown>>>;
+        readonly edges?: Readonly<Record<string, ArrayLike<unknown>>>;
+    };
+}
 
 /** New values for some attributes of one existing row; keys not named are left as they are. */
 export interface RowUpdate<Id> {
@@ -2818,11 +3530,12 @@ export interface ProjectConfig {
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
      * What a pinned node's halo looks like, in the shape of {@link ProjectConfig.selectionStyle}
-     * (only `color`, `scale` and `opacity` are read). Absent by default. Set while
-     * {@link ProjectConfig.startingRows} is on, the starting rows gain a fifth, Pinned (nodes in
-     * the state `"pinned"`, pinned to the top directly below Selected, drawing this halo); cleared,
-     * the row is taken away. The look is the consumer's choice, so nothing is drawn for a pinned
-     * node until it is set.
+     * (only `color`, `scale` and `opacity` are read). Absent by default. Set when
+     * {@link ProjectConfig.startingRows} turns on (in the same `config.set` or before), the default
+     * rows gain a Pinned row (nodes in the state `"pinned"`, pinned to the top directly below
+     * Selected, drawing this halo). The row is ordinary data from then on: changing or clearing
+     * this setting later leaves it as it is. The look is the consumer's choice, so nothing is drawn
+     * for a pinned node until it is set.
      *
      * ```ts
      * await session.config.set({ startingRows: true, pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
@@ -2831,15 +3544,18 @@ export interface ProjectConfig {
      */
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     /**
-     * Whether the style tree starts with its three starting rows: Everything (pinned to the
-     * bottom, writing nothing), Selected (pinned to the top, drawing a solid near-black node halo
-     * with a white glow and a near-black edge band, at the selection settings' sizes, which
-     * reads on the default background and every default palette color) and Hovered (pinned to the top, writing nothing). False by default.
-     * Turned on, the rows are added in the same step, and the selection settings
-     * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
-     * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits
-     * directly below Selected: it paints the elements outside the time window grey at low opacity
-     * when the timeline draws them (`session.time.setSettings({ outside: "ghost" })`).
+     * Whether the project draws with its default rows: Everything (pinned to the bottom, writing
+     * nothing), Selected (pinned to the top, drawing a solid node halo and edge band in the selection
+     * settings' colors and sizes, a blue ring and band by default) and Hovered (pinned to the
+     * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
+     * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
+     * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too. A Timeline Hidden row
+     * (the elements outside the time window, the state `"outsideWindow"`, hidden or ghosted as
+     * {@link ProjectConfig.timelineHiddenLook} says) comes only with the timeline: the first time
+     * the project has a time field (`session.time.setField`, or turning this on while it has one),
+     * once, recorded in {@link ProjectConfig.timelineHiddenAdded}. The rows
+     * are ordinary data: a reader may delete or change any of them, and no later setting adds,
+     * removes or rewrites one.
      * @since 3.26.0
      */
     readonly startingRows: boolean;
@@ -2847,13 +3563,39 @@ export interface ProjectConfig {
      * Whether the element's base look (every node and edge value it draws before any layer says
      * otherwise) is held by the Everything starting row as ordinary values a reader can edit or
      * remove, instead of by the element's two locked base layers. False by default. With it on, the
-     * locked base layers paint nothing, the Everything row is added (or restored) holding the base
-     * values when {@link ProjectConfig.startingRows} is on, and an element that no shown layer
+     * locked base layers paint nothing, the Everything row is written holding the base values when
+     * {@link ProjectConfig.startingRows} turns on (in the same `config.set` or after), and an element that no shown layer
      * paints is not drawn: hiding the Everything row hides every element no other shown layer
      * paints, and an element a shown layer paints stays drawn in that layer's look.
      * @since 3.26.0
      */
     readonly editableBase: boolean;
+    /**
+     * How the Timeline Hidden starting row starts: `"hidden"` (the default) sets `visible: false`,
+     * so what lies outside the time window is not drawn at all; `"ghost"` draws it grey at low
+     * opacity. Read only when the row is written: the first time a project with
+     * {@link ProjectConfig.startingRows} on has a time field. Changing it never rewrites a row
+     * already there.
+     *
+     * ```ts
+     * await session.config.set({ startingRows: true, timelineHiddenLook: "ghost" });
+     * await session.time.setField({ edges: { start: "year" } }); // adds the Timeline Hidden row
+     * ```
+     * @since 3.40.0
+     */
+    readonly timelineHiddenLook: "hidden" | "ghost";
+    /**
+     * Whether the project has had its Timeline Hidden starting row written: false until the first
+     * time a project with {@link ProjectConfig.startingRows} on has a time field, when the row is
+     * written and this turns true in the same step. Saved with the project, so the row is written
+     * once: turning the timeline off and on, or deleting the row, never adds it again. Setting it
+     * true before the timeline turns on means the row is never written. Setting it false asks for
+     * the row again: it is written the next time a project with the starting rows has a time field
+     * (at once when it already has one), beside any copy already there, since a row is the reader's
+     * and is never looked for by name.
+     * @since 3.57.0
+     */
+    readonly timelineHiddenAdded: boolean;
     /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
@@ -2914,6 +3656,20 @@ export interface ProjectConfig {
      * @since 3.38.0
      */
     readonly framing?: GraphFraming;
+    /**
+     * The smallest a node and an edge are drawn, so no mark vanishes on screen or in print: `node`
+     * in the units of the `node.size` channel, `edge` in the units of `edge.width`. A node or edge
+     * whose layers paint it smaller, a size or width of 0 included, is drawn at the minimum; what
+     * the layers wrote, and every reading of it (`styles.explain()`, the legend), is unchanged.
+     * Absent (the default), or 0, every mark is drawn at the size its layers paint, and an edge
+     * of width 0 draws no line.
+     *
+     * ```ts
+     * await session.config.set({ minMarkSize: { node: 0.5, edge: 1 } });
+     * ```
+     * @since 3.40.0
+     */
+    readonly minMarkSize?: { readonly node?: number; readonly edge?: number };
 }
 
 /** How the element frames the graph: see {@link ProjectConfig.framing}. */
@@ -2947,6 +3703,10 @@ export interface ProjectConfigPatch {
     readonly startingRows?: boolean;
     /** See {@link ProjectConfig.editableBase}. */
     readonly editableBase?: boolean;
+    /** See {@link ProjectConfig.timelineHiddenLook}. */
+    readonly timelineHiddenLook?: "hidden" | "ghost";
+    /** See {@link ProjectConfig.timelineHiddenAdded}. */
+    readonly timelineHiddenAdded?: boolean;
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
@@ -2956,6 +3716,8 @@ export interface ProjectConfigPatch {
     readonly viewRotation?: number;
     /** See {@link ProjectConfig.framing}; `undefined` returns to the element's own framing. */
     readonly framing?: GraphFraming;
+    /** See {@link ProjectConfig.minMarkSize}; replaced whole, and `undefined` draws every mark as painted. */
+    readonly minMarkSize?: ProjectConfig["minMarkSize"];
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
@@ -3013,7 +3775,7 @@ export interface SessionConfig extends ProjectConfig {
 export type GraphSettingKey =
     | "background"
     | "lighting"
-    | "node.depthIndependentSize"
+    | "node.sizeSpace"
     | "node.outlineWidth"
     | "labels.declutter"
     | "labels.avoidNodesAndEdges";
@@ -3051,6 +3813,28 @@ export interface GroupOutlineClick {
 }
 
 /**
+ * Where the hovered node was drawn in the frame the pointer's hover was read from, in CSS pixels
+ * from the canvas's top-left corner (the pixels `Graph.worldToScreen` returns and a pointer's
+ * `offsetX` / `offsetY` use).
+ *
+ * Hover can answer a frame or two after the frame it read: on WebGPU the node under the pointer
+ * is read back from the GPU. A running layout may have moved the node by then, so where it stands
+ * now (`Graph.nodeScreenPosition`) is not where the pointer found it. This is.
+ * @since 3.40.0
+ */
+export interface HoverDrawn {
+    /** The node's center, from the left edge. */
+    readonly x: number;
+    /** The node's center, from the top edge. */
+    readonly y: number;
+    /**
+     * The radius hover picks the node within: the radius it is drawn at, but never under 1.5
+     * device pixels, so a node drawn smaller than a pixel can still be pointed at.
+     */
+    readonly radius: number;
+}
+
+/**
  * What a session publishes to whoever is watching it.
  *
  * A map rather than a bare handler, so that the events arriving with the layout, the camera and
@@ -3082,9 +3866,17 @@ export interface SessionEventMap {
      *
      * A `{ match: "state", state: "hovered" }` layer's `styles.counts` moves with it, so a host
      * showing such a count reads it again here; nothing else publishes the hover.
+     *
+     * `drawn` says where `after` was drawn in the frame the pointer found it in (see
+     * {@link HoverDrawn}); it is present when the pointer moved onto a node in a graph that draws,
+     * and absent for `selection.hover(id)` and when no node is hovered.
      * @since 3.34.0
      */
-    "selection:hover-changed": { readonly before: NodeId | null; readonly after: NodeId | null };
+    "selection:hover-changed": {
+        readonly before: NodeId | null;
+        readonly after: NodeId | null;
+        readonly drawn?: HoverDrawn;
+    };
     /**
      * A click landed on empty canvas: no node and no edge under it.
      *
@@ -3112,49 +3904,67 @@ export interface SessionEventMap {
      * @since 3.36.0
      */
     "canvas:group-outline-click": GroupOutlineClick;
+    /**
+     * The layout's motion changed: it started or restarted (`running`), was paused part-way
+     * (`paused`), or came to rest (`settled`). `layout.motion` is `motion` when it arrives. Only a
+     * change is published. A session with no renderer publishes it while `layout.play()`,
+     * `tick()` or `settle()` runs its layout. The payload also names the layout (`id`, `engine`,
+     * `kind`) and the steps its run has taken (`step`, see {@link SessionLayout.step}); those
+     * four fields arrived in 3.55.0.
+     * @since 3.53.0
+     */
+    "layout:motion-changed": {
+        readonly motion: LayoutMotion;
+        readonly id: LayoutId;
+        readonly engine: string;
+        readonly kind: "live" | "batch";
+        readonly step: number;
+    };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
+     * What `visibility.notDrawn` lists changed: something asked to be drawn outside what is
+     * shown is, or is no longer, kept from drawing by the `workingGraph` option (the option
+     * toggled, `showContext` set, a branches view's hold started or ended, time ghosts asked for).
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.40.0
+     * @beta
+     */
+    "visibility:not-drawn-changed": { readonly notDrawn: readonly HiddenNotDrawn[] };
+    /**
      * The time window moved through `session.time`: where it is now and what entered and left.
-     * @experimental timeline
      * @beta
      */
     "time:step": TimeStepEvent;
     /**
      * Playback started, from this window (null when it opens one).
-     * @experimental timeline
      * @beta
      */
     "time:play": { readonly window: TimeWindow | null };
     /**
      * Playback stopped at this window.
-     * @experimental timeline
      * @beta
      */
     "time:pause": { readonly window: TimeWindow | null };
     /**
      * Playback reached the end of the data; `time:pause` follows.
-     * @experimental timeline
      * @beta
      */
     "time:end": { readonly window: TimeWindow | null };
     /**
      * The designated time field changed through `session.time.setField`, or a load designated the
      * time field its file declares (a dynamic GEXF graph, an XGMML graph with `start` and `end`).
-     * @experimental timeline
      * @beta
      */
     "time:field": { readonly field: TimeField | null };
     /**
      * The designated time field was indexed, so `time.extent()` and `time.bins()` answer.
-     * @experimental timeline
      * @beta
      */
     "time:ready": { readonly field: TimeField | null };
     /**
      * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
      * error's code and details.
-     * @experimental timeline
      * @beta
      */
     "time:rerun-failed": { readonly run: RunId; readonly error: CodedFact };
@@ -3204,6 +4014,14 @@ export interface SessionEventMap {
      */
     "style:problem": StyleProblem;
     /**
+     * A repaint the element started on its own failed -- one following the selection, the
+     * pointer, a peek, a set's members or a branches view -- or a pass found a layer it could not
+     * paint at all. The picture on screen is stale until the next repaint. Carries a code, never
+     * words; a repaint stopped because the session ended is not reported.
+     * @since 3.52.0
+     */
+    "style:repaint-failed": StyleRepaintFailure;
+    /**
      * Every acceleration transition, and every change to what VR and AR can do: the probe
      * settling, a WebXR device change, entering or leaving a session (including the headset
      * ending it), an XR configuration change. The document is the one `capabilities` returns.
@@ -3248,6 +4066,17 @@ export interface SessionEventMap {
      * committed. A write that was refused, or that changed nothing, publishes nothing.
      */
     "note:changed": NoteChange;
+    /**
+     * The graph's data changed: nodes or edges were added or removed, or their attributes were
+     * edited -- by a load, an add, a removal, an attribute edit, or an undo, redo or restore of
+     * one. One event per change, published synchronously after `project:changed`, so `data.node()`
+     * already reads the new values. A change that touched no node or edge publishes nothing.
+     *
+     * Load progress is `progress:changed` with `task: "load"`, which a session with no view
+     * publishes too; the load's `data:changed` follows when it commits.
+     * @since 3.40.0
+     */
+    "data:changed": DataChange;
     /** A command finished and the journal appended its entry: one event per entry. */
     "journal:appended": { readonly entry: JournalEntry };
     /**
@@ -3371,6 +4200,32 @@ export type ProjectSlice =
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
+/** Node and edge ids, by kind. */
+export interface DataChangeIds {
+    /** Node ids. */
+    readonly nodes: readonly NodeId[];
+    /** Edge ids, as `data.edges()` gives them. */
+    readonly edges: readonly EdgeId[];
+}
+
+/**
+ * What one change did to the graph's data, published as `data:changed`. Netted over the change: a
+ * node added and removed again in one change is in neither list. Frozen.
+ * @since 3.40.0
+ */
+export interface DataChange {
+    /** The nodes and edges the change added. */
+    readonly added: DataChangeIds;
+    /** The nodes and edges it removed (a node's edges go with it). */
+    readonly removed: DataChangeIds;
+    /** The nodes and edges that were there before and after it whose record or weight it wrote. */
+    readonly updated: DataChangeIds;
+    /** The attribute keys whose values it changed on the updated nodes and edges. */
+    readonly fields: { readonly nodes: readonly string[]; readonly edges: readonly string[] };
+    /** What made the change: a command, an undo, a redo, or a restore (a jump in the history). */
+    readonly cause: HistoryCause;
+}
+
 /** The id of one step in `session.history.steps`. */
 export type HistoryStepId = string & { readonly __brand: "HistoryStepId" };
 
@@ -3385,6 +4240,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | --- | --- |
  * | `algo.run`, `algo.legacy` | `algorithm`: the algorithm's key |
  * | `algo.remove`, `algo.move` | `run`: the run's id; `algorithm`: its algorithm, or null when unknown |
+ * | `algo.rename` | `run`, `algorithm` as above; `name`: the new name, or null when the reader's name was taken away |
  * | `algo.batch` | `label`: the name `runs.batch` was given, or null; `count`: how many runs |
  * | `algo.template` | none: the runs a style template asks for |
  * | `batch` | `label`: the batch's own `label`, or null; `steps`: how many commands |
@@ -3395,6 +4251,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.ignore-issues` | `issues`: the issues' ids; `ignored`: true when ignored, false when listed again |
  * | `data.issues` | none: the issue state a project file restored |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
+ * | `data.merge-nodes` | `count`: how many nodes became one |
+ * | `groups.collapse`, `groups.expand` | `groupBy`: the path grouped by; `group`: the group's value; `size`: how many members (experimental) |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
  * | `data.expand` | `node`: the id expanded |
@@ -3412,7 +4270,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.rename-column` | `kind`; `column`: the old name; `name`: the new name |
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
- * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
+ * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
@@ -3428,7 +4286,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
  * | `style.lock-row` | `row`: its name, or its id; `locked` |
  * | `style.hide-row` | `row`: its name, or its id; `hidden` |
- * | `style.restore-starting-rows` | none |
+ * | `style.add-default-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
@@ -3437,6 +4295,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.condition-edit` | `id`; `effect`: its effect after the edit; `previousEffect`: its effect before |
  * | `visibility.steps` | none: several steps or conditions changed at once, or a reorder |
  * | `visibility.playback` | none: how `session.time` moves windows changed |
+ * | `visibility.hide-nodes`, `visibility.show-nodes` | `count`: how many nodes were named |
  * | `time.field` | `column`: the column designated as the time field |
  * | `time.clear-field` | none |
  * | `set.create` | `name`: the set's name, or null |
@@ -3445,12 +4304,15 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `note.add`, `note.update`, `note.remove` | none |
  * | `note.merge` | `source`: the merged document's name, or null |
  * | `view.save`, `view.remove` | `names`: the views |
+ * | `annotations.set` | `count`: how many annotations are kept |
+ * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
  * | `view.immersive` | `mode`: `"vr"` or `"ar"` (a switch to 3D on the way in) |
  * | `config.set` | `keys`: the setting paths changed |
  * | `positions.set`, `positions.pin`, `positions.release` | `count`: how many nodes |
  * | `node.drag` | `node`: the id dragged |
  * | `layout.set` | `layout`: the layout's id |
+ * | `layout.rerun` | `layout`: the id of the layout run again |
  * | `layout.behavior` | `layout`: the layout's id |
  * | `layout.scope`, `layout.whole-graph` | none |
  * | `project.open` | `name`: the project's name, or null |
@@ -3464,6 +4326,7 @@ export type HistoryCode =
     | "algo.legacy"
     | "algo.remove"
     | "algo.move"
+    | "algo.rename"
     | "algo.batch"
     | "algo.template"
     | "batch"
@@ -3480,6 +4343,9 @@ export type HistoryCode =
     | "data.set"
     | "data.replace-nodes"
     | "data.replace-edges"
+    | "data.merge-nodes"
+    | "groups.collapse"
+    | "groups.expand"
     | "data.import"
     | "data.import-source"
     | "data.expand"
@@ -3498,7 +4364,9 @@ export type HistoryCode =
     | "data.hide-columns"
     | "data.show-columns"
     | "data.columns"
-    | "data.set-file-styles"
+    | "data.derive"
+    | "annotations.set"
+    | "annotations.patch"
     | "style.add-layer"
     | "style.update-layer"
     | "style.remove-layer"
@@ -3516,7 +4384,7 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
-    | "style.restore-starting-rows"
+    | "style.add-default-rows"
     | "shader.add"
     | "shader.replace"
     | "shader.remove"
@@ -3538,6 +4406,8 @@ export type HistoryCode =
     | "visibility.condition-remove"
     | "visibility.steps"
     | "visibility.playback"
+    | "visibility.hide-nodes"
+    | "visibility.show-nodes"
     | "time.field"
     | "time.clear-field"
     | "set.create"
@@ -3560,6 +4430,7 @@ export type HistoryCode =
     | "positions.release"
     | "node.drag"
     | "layout.set"
+    | "layout.rerun"
     | "layout.behavior"
     | "layout.scope"
     | "layout.whole-graph"
@@ -3571,12 +4442,6 @@ export type HistoryCode =
 export interface HistoryStep {
     /** Stable for the life of the step. */
     readonly id: HistoryStepId;
-    /**
-     * What a history list shows, such as "Changed colour of Hubs".
-     * @deprecated English written by the element. Word {@link HistoryStep.fact} instead; removed in
-     * the next major release.
-     */
-    readonly label: string;
     /**
      * What the step did, as a code and its values, for the application to word. A step merged
      * from several (a drag, a transaction) carries the fact of the whole.
@@ -3598,12 +4463,6 @@ export interface HistoryStep {
 export interface PendingStep {
     /** Pass it to `history.cancel`. */
     readonly id: PendingId;
-    /**
-     * The label the step will have.
-     * @deprecated English written by the element. Word {@link PendingStep.fact} instead; removed in
-     * the next major release.
-     */
-    readonly label: string;
     /** The fact the step will have: see {@link HistoryStep.fact}. */
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
@@ -3731,6 +4590,8 @@ export interface CommandOutcomeMap {
     "algo.remove": Promise<RunRemoval>;
     /** Settles once the run's layers have moved, as one step. */
     "algo.move": Promise<void>;
+    /** Settles once the run's new name is recorded, as one step. */
+    "algo.rename": Promise<void>;
     /** Settles once every member is recorded as one step and the pass that draws it has run. */
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */
@@ -3755,8 +4616,8 @@ export interface CommandOutcomeMap {
     "data.label": Promise<void>;
     /** Settles once the column settings are recorded. */
     "data.columns": Promise<void>;
-    /** Settles once the style values are recorded. */
-    "data.setFileStyles": Promise<void>;
+    /** Settles once the computed columns and their values are recorded. */
+    "data.derive": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -3781,6 +4642,8 @@ export interface CommandOutcomeMap {
     "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;
+    /** Settles once the hidden list is recorded and the pass that draws it has run. */
+    "visibility.hide": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */
@@ -3803,6 +4666,10 @@ export interface CommandOutcomeMap {
     "note.merge": Promise<void>;
     /** Settles once the views are recorded. */
     "view.save": Promise<void>;
+    /** Settles once the annotations are recorded. */
+    "annotations.set": Promise<void>;
+    /** Settles once the change is recorded. */
+    "annotations.patch": Promise<void>;
     /** Settles once the removal is recorded. */
     "view.remove": Promise<void>;
     /** Settles once the camera has arrived. */
@@ -3815,6 +4682,8 @@ export interface CommandOutcomeMap {
     "positions.pin": Promise<void>;
     /** Settles once the choice is recorded and the layout has spent its pre-steps. */
     "layout.set": Promise<void>;
+    /** Settles once the re-run is recorded and the layout has spent its pre-steps. */
+    "layout.rerun": Promise<void>;
     /** Settles once the scope is recorded. */
     "layout.scope": Promise<void>;
     /** Settles once the switch is recorded and the layout has been rebuilt for it. */
@@ -3915,6 +4784,81 @@ export interface SessionPositions extends ReadonlyElementPositions {
      *     not hold, in `details.ids`; nothing is released then.
      */
     unpin(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Where one node is now. An integer id may be written either way, as {@link SessionPositions.pin}.
+     * @param id - The node.
+     * @returns Its coordinates in scene units, or undefined for a node the graph does not hold or
+     *     that nothing has placed yet.
+     * @since 3.55.0
+     */
+    get(id: NodeId): { readonly x: number; readonly y: number; readonly z: number } | undefined;
+    /**
+     * Which nodes are pinned, one byte per dense node index (1 pinned, 0 not): a copy, cheap to
+     * test and to send to a worker.
+     * @returns The mask, as long as the node count.
+     * @since 3.55.0
+     */
+    pinnedMask(): Uint8Array;
+    /**
+     * Every node's coordinates now, as a copy: the ids in dense index order and x, y, z per node
+     * (NaN for a node nothing has placed). Hand it to {@link SessionPositions.restore}, on this
+     * session or another holding the same nodes.
+     *
+     * ```ts
+     * const saved = session.positions.snapshot();
+     * await session.layout.set("circular");
+     * await session.positions.restore(saved); // one undoable step
+     * ```
+     * @returns The ids and coordinates.
+     * @since 3.55.0
+     */
+    snapshot(): { readonly order: readonly NodeId[]; readonly xyz: Float32Array };
+    /**
+     * Put nodes back where a {@link SessionPositions.snapshot} found them. One step, as
+     * {@link SessionPositions.set}. A node the snapshot found unplaced is left as it is.
+     * @param saved - A snapshot, from this session or another.
+     * @param saved.order - Its ids, in the order of `xyz`.
+     * @param saved.xyz - x, y, z per id.
+     * @returns Settles once the step is recorded and the layout has taken the coordinates.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when `xyz` does not hold three
+     *     numbers per id, or for a node the graph does not hold; nothing is placed then.
+     * @since 3.55.0
+     */
+    restore(saved: { readonly order: readonly NodeId[]; readonly xyz: Float32Array }): Promise<void>;
+}
+
+/**
+ * Nodes hidden from the drawing only: each stays in the data, its results, the table, layout,
+ * counts and exports, and is simply not drawn, with every edge that touches it. Unlike a filter
+ * (`session.visibility.set`), which takes elements out of everything, this changes nothing but the
+ * picture. Hiding and showing are undoable steps, and a project file saves the list.
+ *
+ * ```ts
+ * await session.hidden.add(["n7"]); // n7 and its edges leave the canvas
+ * session.hidden.ids.has("n7"); // true
+ * await session.hidden.remove(["n7"]); // drawn again
+ * ```
+ */
+export interface SessionHidden {
+    /**
+     * The hidden node ids, as they were given. `has` takes an integer id written either way. An
+     * id the graph does not hold hides nothing; it is kept, and a project file saves only those
+     * the graph holds.
+     */
+    readonly ids: ReadonlySet<NodeId>;
+    /**
+     * Hide nodes, and the edges that touch them, from the drawing. One step; an id already hidden
+     * is left as it is.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the pass that draws it has run.
+     */
+    add(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Draw hidden nodes again. One step; an id that is not hidden is left as it is.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the pass that draws it has run.
+     */
+    remove(ids: readonly NodeId[]): Promise<void>;
 }
 
 /**
@@ -3961,6 +4905,90 @@ export interface SessionLayout {
      */
     setDimension(dimension: "2d" | "3d"): Promise<void>;
     /**
+     * Run the current layout again from the start, with the same engine, options and scope, as
+     * choosing it again would. One step, recorded as `layout.rerun` (not `layout.set`), so undo
+     * and a history list name a re-run; undo puts the arrangement back.
+     *
+     * ```ts
+     * await session.layout.rerun();
+     * session.history.steps.at(-1)?.fact; // { code: "layout.rerun", params: { layout: "force" } }
+     * ```
+     * @returns Settles once the step is recorded and the layout has taken its pre-steps.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNSUPPORTED` in a session that draws
+     *     nothing, where there is no layout to run.
+     * @since 3.53.0
+     */
+    rerun(): Promise<void>;
+    /**
+     * Whether the layout is moving now: `running` while it steps, `paused` when it was stopped
+     * before it came to rest (`element.setRunning(false)`), `settled` once it has come to rest
+     * or when nothing runs (a session with no renderer reads `settled` until `play`, `tick` or
+     * `settle` runs its layout). Not project
+     * state and not undoable. `layout:motion-changed` publishes each change.
+     *
+     * ```ts
+     * const show = (motion: LayoutMotion) => (chip.textContent = motion);
+     * show(session.layout.motion);
+     * session.on("layout:motion-changed", ({ motion }) => show(motion));
+     * ```
+     * @since 3.53.0
+     */
+    readonly motion: LayoutMotion;
+    /**
+     * The steps the current layout has taken since it was chosen, in a session with no renderer:
+     * simulation iterations for a live engine, one for a one-shot arrangement. A renderer steps
+     * its layout every frame without counting here, so a drawn session reads 0.
+     * @since 3.55.0
+     */
+    readonly step: number;
+    /**
+     * Let the layout move until it comes to rest. In a session with no renderer this runs the
+     * chosen layout with `@graphty/layout` over the session's graph, holding pinned nodes still:
+     * `forceatlas2` and `spring` step their simulations, the `force` layout's `ngraph` and `d3`
+     * engines step as ForceAtlas2 with the choice's `seed`, and a one-shot engine (`circular`,
+     * `grid`, `kamada-kawai` and the rest) is computed at once. Choosing a layout there only
+     * records it; nothing moves until this, `tick` or `settle` asks. Not a step.
+     * @returns Settles once the layout has been told.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNSUPPORTED` for an engine that runs only
+     *     on a renderer (`fixed`, `location-map`, Graphviz, `spring-electrical`), in a session with
+     *     no renderer.
+     * @since 3.55.0
+     */
+    play(): Promise<void>;
+    /**
+     * Stop the layout before it comes to rest; `motion` then reads `paused`. Not a step: where the
+     * nodes stopped is sealed into the step on top.
+     * @returns Settles once the layout has been told.
+     * @since 3.55.0
+     */
+    pause(): Promise<void>;
+    /**
+     * Take steps now, without leaving the layout running: for a test or a tool that drives the
+     * layout itself. Only in a session with no renderer, which steps nothing on its own.
+     * @param count - How many; 1 when absent.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` in a session drawn by a renderer, or for an
+     *     engine that runs only on one; `E_BAD_COMMAND` for a count that is not a whole number
+     *     of at least one.
+     * @since 3.55.0
+     */
+    tick(count?: number): void;
+    /**
+     * Run the layout to rest: {@link SessionLayout.play}, then wait until it stops moving.
+     *
+     * ```ts
+     * const session = createGraphSession();
+     * await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+     * await session.data.addEdges([{ src: "a", dst: "b" }]);
+     * await session.layout.set("force", { options: { seed: 1 } });
+     * await session.layout.settle();
+     * session.positions.get("a"); // { x, y, z }
+     * ```
+     * @returns True once it came to rest; false when it was paused or the session was disposed first.
+     * @throws As {@link SessionLayout.play}.
+     * @since 3.55.0
+     */
+    settle(): Promise<boolean>;
+    /**
      * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
      * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
      * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
@@ -3988,6 +5016,12 @@ export interface SessionLayout {
      */
     locationColumns(): LocationColumns;
 }
+
+/**
+ * Whether the layout is moving: see {@link SessionLayout.motion}.
+ * @since 3.53.0
+ */
+export type LayoutMotion = "running" | "paused" | "settled";
 
 /** Where the location map layout reads locations: one column of whole locations, or a pair. @since 3.37.0 */
 export interface LocationColumns {
@@ -4044,6 +5078,53 @@ export interface LocationUnused {
 }
 
 /**
+ * The annotations drawn beside the graph: shapes, texts, arrows and pictures, in the graph's own
+ * convention (y up). Every change is one undoable step, and a project file saves them. A load
+ * that reads a file's annotations writes them through these same steps.
+ *
+ * ```ts
+ * await session.annotations.add({ id: "note-1", kind: "text", layer: "foreground", z: 0, ... });
+ * session.annotations.list(); // [{ id: "note-1", kind: "text", ... }]
+ * ```
+ */
+export interface SessionAnnotations {
+    /** Scene units per annotation unit: 1 unless whatever wrote the annotations said otherwise. */
+    readonly scale: number;
+    /**
+     * Every annotation, in drawing order.
+     * @returns The annotations; empty when there are none.
+     */
+    list(): readonly DrawnAnnotation[];
+    /**
+     * Add an annotation, drawn over the others. One step.
+     * @param annotation - The annotation; its `id` must be one no other annotation holds.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a malformed annotation or a repeated id.
+     */
+    add(annotation: DrawnAnnotation): Promise<void>;
+    /**
+     * Change an annotation, one key deep; its `id` and `kind` stay. One step.
+     * @param id - The annotation's id.
+     * @param patch - The keys to change.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when no annotation has that id.
+     */
+    update(id: string, patch: Readonly<Record<string, unknown>>): Promise<void>;
+    /**
+     * Remove an annotation. One step.
+     * @param id - The annotation's id.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when no annotation has that id.
+     */
+    remove(id: string): Promise<void>;
+    /**
+     * Remove every annotation. One step.
+     * @returns Settles once the step is recorded.
+     */
+    clear(): Promise<void>;
+}
+
+/**
  * The saved camera views, read as a map from name to camera state.
  *
  * A saved view is a fixed position, not a rule: it does not recompute itself for a different
@@ -4092,8 +5173,8 @@ export interface StyleProblem {
  * and the measured capabilities of the machine. A renderer binds to one; a Node test uses one on
  * its own; two synchronised views of one dataset share one.
  *
- * What is deliberately NOT here yet: the layout transport. It waits on work that has not
- * landed, and is absent rather than stubbed.
+ * With no renderer it still runs layouts: `layout.play()`, `tick()` and `settle()` move the
+ * nodes, and `positions` reads and places them.
  */
 export interface GraphSession {
     /** Reading the graph. */
@@ -4136,6 +5217,12 @@ export interface GraphSession {
      */
     readonly network: NetworkApi;
     /**
+     * Collapsing a group of nodes (a community, a component, the nodes sharing a value) to one
+     * node, and expanding it again: each call one undoable step, saved with the project. Experimental.
+     * @beta
+     */
+    readonly groups: GroupsApi;
+    /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command
      * wrote. Undo does not read it; `history` is the undo record.
@@ -4158,9 +5245,7 @@ export interface GraphSession {
     readonly visibility: VisibilityApi;
     /**
      * The timeline: designate a time field, read its extent and histogram, and move the time
-     * window along it -- set it, step it, seek it, or play it. It needs `features="timeline"`, and
-     * refuses with `E_FEATURE_OFF` otherwise.
-     * @experimental timeline
+     * window along it -- set it, step it, seek it, or play it.
      * @beta
      */
     readonly time: TimeApi;
@@ -4190,6 +5275,8 @@ export interface GraphSession {
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
     readonly views: SessionViews;
+    /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
+    readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
     readonly layout: SessionLayout;
     /**
@@ -4202,6 +5289,11 @@ export interface GraphSession {
      * step.
      */
     readonly positions: SessionPositions;
+    /**
+     * Nodes hidden from the drawing only, with their edges, while they stay in the data, results,
+     * layout and exports; hiding and showing are undoable steps.
+     */
+    readonly hidden: SessionHidden;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
@@ -4238,6 +5330,27 @@ export interface GraphSession {
      * the new policy, and `capabilities:changed` reports where that left the hardware.
      */
     acceleration: AccelerationPolicy;
+    /**
+     * Whether readers read the working graph: the part of the graph the filters leave shown. A
+     * filter means the subset you work with, so layouts, counts, styles, framing and algorithms read
+     * it. The time window is not part of it: a window step hides elements by drawing and never
+     * moves the layout. The graph itself is unchanged -- edits, undo and the project file act on all
+     * of it, and hidden nodes keep their positions, styles and results -- and a reader that names
+     * the whole graph (`scope: "graph"`) still reads all of it.
+     *
+     * On, nothing a filter hides is drawn: `visibility.showContext`, and a `styles.showBranches`
+     * view's `hold` and `base: "full"`, are kept but draw no hidden node, and `visibility.notDrawn`
+     * lists each one as a `W_HIDDEN_NOT_DRAWN` fact (`visibility:not-drawn-changed` tells each
+     * change). Time ghosts (`outside: "ghost"`) are drawn either way. Off, everything draws as
+     * before.
+     *
+     * On by default. Off keeps every reader on the whole graph, as before 3.40.0. Settable; a session
+     * setting that records no undo step and is not saved in a project file. Set it when creating the
+     * session with `createGraphSession({ workingGraph: false })`, or on the element with
+     * `working-graph="false"`.
+     * @since 3.40.0
+     */
+    workingGraph: boolean;
     /**
      * Attach an accelerator the caller built, or detach the current one with `null`.
      *
@@ -4440,6 +5553,12 @@ export interface ElementSession extends GraphSession {
      */
     groupOutlineClick(target: GroupOutlineClick): void;
     /**
+     * Record the layout's motion and publish `layout:motion-changed` when it changed; the
+     * renderer calls it whenever its layout starts, pauses or comes to rest.
+     * @param motion - The motion now.
+     */
+    layoutMotion(motion: LayoutMotion): void;
+    /**
      * What the renderer fades edges by age with (`time.settings.ageFade`): each edge's start and
      * the window, normalized over the data's extent. Null while the setting draws no fade.
      */
@@ -4489,6 +5608,13 @@ export interface CreateGraphSessionOptions {
      * `setDefaultFeatures`. Unknown ids are listed in `features.unknown`, never thrown.
      */
     readonly features?: readonly string[];
+    /**
+     * Start with the working graph on: readers that name no scope read what the filters leave
+     * shown (never the time window). Default true; false keeps them on the whole graph. See
+     * `GraphSession.workingGraph`.
+     * @since 3.40.0
+     */
+    readonly workingGraph?: boolean;
 }
 
 /**

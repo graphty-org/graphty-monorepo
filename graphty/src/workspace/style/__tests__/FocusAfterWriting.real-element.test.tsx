@@ -16,12 +16,17 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { colorName } from "../words";
 import { showKind } from "./kindTab";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with the starting rows.
@@ -216,7 +221,7 @@ describe("focus after a style line is written or removed", () => {
         }
         await userEvent.keyboard("red{Enter}");
         await waitFor(() => {
-            assert.isNotNull(document.querySelector('.ws-row[data-line="node.color"]:not(:has([data-first-value]))'));
+            assert.isNotNull(document.querySelector('.ws-row[data-line="node.color"]:not(:has([data-notes]))'));
             assert.include(
                 document.querySelector<HTMLInputElement>('.ws-row[data-line="node.color"] input')?.value ?? "",
                 "FF0000",
@@ -260,32 +265,6 @@ describe("focus after a style line is written or removed", () => {
             `focus is after the width box, not on ${focusName()}`,
         );
         assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
-    });
-
-    it("Tab out of a selection's first color moves on, not to the Style tab", async () => {
-        const session = await openScene();
-        const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);
-        await act(async () => {
-            await session.selection.apply({ nodes: [valjean] });
-        });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await screen.findByTestId("style-tab");
-        await showKind("node");
-        const before = session.styles.list().length;
-        await addLine("node", "fill", "Color", "node.color");
-        await userEvent.keyboard("purple{Tab}");
-
-        await waitFor(() => {
-            assert.isAbove(session.styles.list().length, before, "the selection's layer is made");
-        });
-        await drawn(session);
-        const box = within(await lineOf("node.color")).getByRole("textbox", { name: /^Node color(,|$)/ });
-        const active = document.activeElement;
-        assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
-        assert.isTrue(
-            active !== null && (box.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-            `focus is after the color box, not on ${focusName()}`,
-        );
     });
 
     it.each(["Paint", "Everything"])(

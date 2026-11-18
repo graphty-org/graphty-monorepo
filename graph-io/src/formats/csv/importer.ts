@@ -10,7 +10,10 @@
  *   weight (when `weightFrom` is not null), then `column4`... as attributes.
  * - Endpoint and node ids are text cells coerced by ONE rule per import call (`ids`, default
  *   "canonical": `"1"` becomes the number 1, `"01"` stays a string) over the node table and the
- *   edge table alike, so they agree across the two files.
+ *   edge table alike, so they agree across the two files. Spaces and tabs around an unquoted id
+ *   cell are trimmed (CSVW's trim), so `a, b` names `a` and `b`; a quoted cell is kept as written.
+ *   A blank endpoint, quoted (`""`) or not, is a missing endpoint; in a node table or an adjacency
+ *   row a quoted `""` is the empty-string id.
  * - Direction is per row in the Gephi dialect (`Type` = Directed / Undirected / Mutual, blank =
  *   `defaultDirected`) and `defaultDirected` (true) otherwise; the first edge row sets the sink's
  *   direction and later rows that differ go through `onMixedDirection` (expansion by default).
@@ -76,6 +79,7 @@ import {
     findColumn,
     headerNames,
     ID_NAMES,
+    idCandidates,
     LABEL_NAMES,
     looksLikeHeader,
     positionalNames,
@@ -153,8 +157,11 @@ export interface CsvImportOptions extends CommonImportOptions {
      */
     typeColumn?: CsvColumnRef | null | undefined;
     /**
-     * The id column of a node table, by name or position. The default is the column the header
-     * names `id` (or `node`, `name`, `key`).
+     * The id column of a node table, by name or position. The default is the first of these whose
+     * values are all present and distinct: the column named `id`, a column whose name ends in `id`
+     * (`person_id`, `personId`), then `node`, `key`, `name`. When none is, the nodes are numbered
+     * by row (W_CSV_NO_UNIQUE_ID). A node table passed as `nodes` beside an edge table is keyed by
+     * the column named `id` (or `node`, `name`, `key`), since the edges name its nodes by it.
      * @defaultValue from the header
      */
     idColumn?: CsvColumnRef | undefined;
@@ -284,7 +291,8 @@ export const SINGLE_COLUMN_CODE = "W_CSV_SINGLE_COLUMN";
  */
 export const AMBIGUOUS_COLUMN_CODE = "W_CSV_AMBIGUOUS_COLUMN";
 /**
- * An unquoted id with leading or trailing whitespace (kept, RFC 4180), distinct from the bare id.
+ * An unquoted id starts or ends in whitespace other than spaces and tabs (a no-break space, a
+ * U+FEFF), which is kept, so it is a different id from the trimmed text. Spaces and tabs are trimmed.
  * @category Issue and loss codes
  */
 export const PADDED_ID_CODE = "W_CSV_PADDED_ID";
@@ -299,10 +307,24 @@ export const COMMENT_LIKE_RECORD_CODE = "W_CSV_COMMENT_LIKE_RECORD";
  */
 export const TRAILING_DELIMITER_CODE = "W_CSV_TRAILING_DELIMITER";
 /**
+ * The first row was read as data, but it could be a header: every cell is a word of three or more characters that no other row
+ * repeats (`from_node,to_node` over rows of names). Pass `header: true` if it is one.
+ * @category Issue and loss codes
+ */
+export const POSSIBLE_HEADER_CODE = "W_CSV_POSSIBLE_HEADER";
+/**
  * A headerless three-column table's third column holds text, so it is an attribute, not the weight.
  * @category Issue and loss codes
  */
 export const WEIGHT_AS_ATTRIBUTE_CODE = "W_CSV_WEIGHT_AS_ATTRIBUTE";
+/**
+ * A node table's header has id-like columns (`id`, `person_id`, `node`, `key`, `name`), but each
+ * of them repeats a value or leaves one blank, so the nodes are numbered by row instead (0 for the
+ * first data row). Details: `columns`, the candidate column names. Pass `idColumn` to key the
+ * table by one of them anyway.
+ * @category Issue and loss codes
+ */
+export const NO_UNIQUE_ID_CODE = "W_CSV_NO_UNIQUE_ID";
 
 const TABLE_MODES: ReadonlySet<string> = new Set(["edges", "nodes", "adjacency", "auto"]);
 
@@ -446,13 +468,46 @@ function directionName(directed: boolean): string {
 }
 
 /**
- * Whether an unquoted id cell has leading or trailing whitespace (kept as written, RFC 4180).
- * @param text - the cell text
+ * Whether an unquoted id cell, after idCell() trimmed its spaces and tabs, still starts or ends
+ * in whitespace (a no-break space, a U+FEFF), which is kept as written.
+ * @param text - the trimmed cell text
  * @param quoted - whether the cell was quoted
  * @returns true when padded
  */
 function isPadded(text: string, quoted: boolean | undefined): boolean {
     return quoted !== true && text.trim().length !== text.length;
+}
+
+/**
+ * The id an id cell names: an unquoted cell without the spaces and tabs around it (CSVW's trim,
+ * so `a, b` names `a` and `b`); a quoted cell as written.
+ * @param text - the cell text
+ * @param quoted - whether the cell was quoted
+ * @returns the id text
+ */
+function idCell(text: string, quoted: boolean | undefined): string {
+    if (quoted === true) {
+        return text;
+    }
+    // index scans, not a regex: a trailing-run pattern backtracks quadratically on a long run of spaces
+    let start = 0;
+    let end = text.length;
+    while (start < end && isSpaceOrTab(text[start])) {
+        start++;
+    }
+    while (end > start && isSpaceOrTab(text[end - 1])) {
+        end--;
+    }
+    return start === 0 && end === text.length ? text : text.slice(start, end);
+}
+
+/**
+ * Whether a character is a space or a tab.
+ * @param char - the character
+ * @returns true for U+0020 and U+0009
+ */
+function isSpaceOrTab(char: string): boolean {
+    return char === " " || char === "\t";
 }
 
 /**
@@ -601,6 +656,17 @@ function isUnset(text: string, quoted: boolean | undefined): boolean {
 }
 
 /**
+ * Whether an endpoint cell names no node: unset, or the quoted empty string (`""`), which an edge
+ * row reads as blank (csv-spectrum's empty.csv); a quoted `" "` is a set id.
+ * @param text - the cell text
+ * @param quoted - whether the cell was quoted
+ * @returns true when the endpoint is missing
+ */
+function isMissingEndpoint(text: string, quoted: boolean | undefined): boolean {
+    return isUnset(text, quoted) || idCell(text, quoted).length === 0;
+}
+
+/**
  * The number of set neighbor cells of an adjacency row (every cell after the first).
  * @param row - the cells
  * @param quoted - whether each cell was quoted
@@ -642,6 +708,27 @@ function uniqueNames(names: readonly string[], report: ImportReportBuilder, line
         }
         return unique;
     });
+}
+
+/**
+ * Whether a column holds a distinct, set value on every row (a row too short counts as unset).
+ * @param rows - the data rows
+ * @param column - the column index
+ * @returns true when the column can key the rows
+ */
+function isKey(rows: readonly PendingRow[], column: number): boolean {
+    const seen = new Set<string>();
+    for (const { row, quoted } of rows) {
+        if (column >= row.length) {
+            return false;
+        }
+        const text = row[column];
+        if (isUnset(text, quoted[column]) || seen.has(text)) {
+            return false;
+        }
+        seen.add(text);
+    }
+    return true;
 }
 
 /**
@@ -712,10 +799,14 @@ function parseKind(text: string): EdgeKind | null | undefined {
  * weight when it is a number, nothing when it is empty (`a:1:` is the id `a:1`, unweighted, the
  * form the exporter writes for an id containing a colon), and part of the id otherwise.
  * @param text - the cell text
+ * @param report - the import report; when given, a weight beyond the double range is reported
  * @returns the id text and the weight (undefined when the cell has none)
  * @category Plugin helpers
  */
-export function splitNeighbour(text: string): { readonly id: string; readonly weight: number | undefined } {
+export function splitNeighbour(
+    text: string,
+    report?: ImportReportBuilder,
+): { readonly id: string; readonly weight: number | undefined } {
     const colon = text.lastIndexOf(":");
     if (colon < 0) {
         return { id: text, weight: undefined };
@@ -724,18 +815,19 @@ export function splitNeighbour(text: string): { readonly id: string; readonly we
     if (suffix.length === 0) {
         return { id: text.slice(0, colon), weight: undefined };
     }
-    const weight = numberOrNull(suffix);
+    const weight = numberOrNull(suffix, report);
     return weight === null ? { id: text, weight: undefined } : { id: text.slice(0, colon), weight };
 }
 
 /**
  * A weight suffix as a number, or null when the text is not one.
  * @param text - the suffix
+ * @param report - the import report, or undefined
  * @returns the number, or null
  */
-function numberOrNull(text: string): number | null {
+function numberOrNull(text: string, report?: ImportReportBuilder): number | null {
     try {
-        return parseWeightText(text) ?? null;
+        return parseWeightText(text, report) ?? null;
     } catch {
         // not a number: the colon belongs to the id
         return null;
@@ -769,7 +861,16 @@ class TableReader {
 
     private dataRows = 0;
 
+    /** The cells of a first row read as data that could be a header, until a later row repeats one of them. */
+    private possibleHeader: { cells: ReadonlySet<string>; line: number } | null = null;
+
     private nodeOrdinal = 0;
+
+    /** Every row of the table, read before its plan to guess the id column by its values; else null. */
+    private drained: readonly PendingRow[] | null = null;
+
+    /** Whether no guessed id column was distinct, so the node table is numbered by row. */
+    private unkeyed = false;
     /** Whether a field-count error has already suggested `table: "adjacency"`. */
     private adjacencyHinted = false;
 
@@ -857,6 +958,9 @@ class TableReader {
         const names = header ? uniqueNames(headerNames(firstRow), report, firstLine) : positionalNames(firstRow.length);
         const last = firstRow.length - 1;
         const optionalLast = header && last > 0 && isUnset(firstRow[last], firstQuoted[last]);
+        if (this.guessesNodeId(names, header)) {
+            await this.drain(iterator, pending);
+        }
         this.applyCommentDirection();
         this.plan = this.resolvePlan(
             names,
@@ -889,7 +993,21 @@ class TableReader {
                 line: firstLine,
             });
         }
+        this.reportPossibleHeader();
         this.reportReaderFindings();
+    }
+
+    /** Warn when a first row read as data could be a header and no later row repeated any of its cells. */
+    private reportPossibleHeader(): void {
+        if (this.possibleHeader === null) {
+            return;
+        }
+        this.state.report.warning(
+            "validation-error",
+            POSSIBLE_HEADER_CODE,
+            "the first row is read as data, but no other row repeats its cells, so it may be a header; pass header: true if it is",
+            { line: this.possibleHeader.line },
+        );
     }
 
     /**
@@ -920,6 +1038,9 @@ class TableReader {
         }
         if (!header) {
             pending.push(first);
+            if (mode === "auto" && second !== null && couldBeHeader(first.row)) {
+                this.possibleHeader = { cells: new Set(first.row.map((c) => c.trim())), line: first.line };
+            }
         }
         if (second !== null) {
             pending.push(second);
@@ -950,6 +1071,61 @@ class TableReader {
             return true;
         }
         return mode;
+    }
+
+    /**
+     * Whether this table is a node table whose id column is guessed from its header, so its values
+     * decide which candidate keys it (the first whose values are all present and distinct).
+     * @param names - the column names
+     * @param header - whether the file has a header row
+     * @returns true when the rows must be read before the plan
+     */
+    private guessesNodeId(names: readonly string[], header: boolean): boolean {
+        const { csv, common } = this.state;
+        if (!header || csv.idColumn !== null || common.nodeIdFrom === "index" || common.nodeIdFrom === "label") {
+            return false;
+        }
+        if (this.kind === "nodes") {
+            // a node table paired with edges keeps the header-name choice: the edges name its nodes
+            return csv.nodes === null;
+        }
+        return (
+            this.kind === "auto" &&
+            csv.sourceColumn === null &&
+            csv.targetColumn === null &&
+            csv.nodes === null &&
+            idCandidates(names).length > 0 &&
+            findColumn(names, SOURCE_NAMES) < 0 &&
+            findColumn(names, TARGET_NAMES) < 0
+        );
+    }
+
+    /**
+     * Read every remaining row into the queue.
+     * ponytail: holds the whole node table in memory to check id uniqueness; a two-pass read would
+     * avoid that for huge node tables.
+     * @param iterator - the record iterator
+     * @param pending - receives the rows
+     */
+    private async drain(iterator: AsyncGenerator<string[], void, undefined>, pending: PendingRow[]): Promise<void> {
+        const { signal } = this.state.common;
+        let sinceCheck = 0;
+        for (;;) {
+            const next = await iterator.next();
+            if (next.done) {
+                break;
+            }
+            pending.push({
+                row: next.value,
+                quoted: this.reader.quoted.slice(0, next.value.length),
+                line: this.reader.line,
+            });
+            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
+                sinceCheck = 0;
+                throwIfAborted(signal);
+            }
+        }
+        this.drained = pending;
     }
 
     /**
@@ -1197,7 +1373,11 @@ class TableReader {
                 { columns: [...names] },
             );
         }
-        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : names.length >= 1;
+        // an id, node, name or key column makes a table without endpoints a node table, and so does
+        // a column ending in id that keys the rows with values no other column holds: an edge list
+        // headed user_id,friend_id names the same ids in both columns, and must fail rather than
+        // lose its edges as a node table
+        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 || this.ownKey(names) : names.length >= 1;
         if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
@@ -1206,6 +1386,26 @@ class TableReader {
                 { columns: [...names] },
             );
         }
+    }
+
+    /**
+     * Whether the rows read ahead have an id-like column that keys them with values no other
+     * column holds (door_entries.csv's entry_id), rather than ids an edge list names in two columns.
+     * @param names - the column names
+     * @returns true when such a column exists
+     */
+    private ownKey(names: readonly string[]): boolean {
+        const rows = this.drained;
+        if (rows === null) {
+            return false;
+        }
+        return idCandidates(names).some((column) => {
+            if (!isKey(rows, column)) {
+                return false;
+            }
+            const own = new Set(rows.map(({ row }) => row[column]));
+            return rows.every(({ row }) => row.every((cell, i) => i === column || !own.has(cell)));
+        });
     }
 
     /**
@@ -1438,7 +1638,7 @@ class TableReader {
     private nodePlan(names: readonly string[], header: boolean, line: number, optionalLast: boolean): NodePlan {
         const { common } = this.state;
         const claimed = new Set<number>();
-        const idColumn = this.idColumnOf(names, header);
+        const idColumn = this.idColumnOf(names, header, line);
         const label = this.labelOf(names, header, new Set(idColumn >= 0 ? [idColumn] : []));
         const id = this.nodeIdColumn(names, idColumn, label, line);
         if (id >= 0) {
@@ -1458,21 +1658,47 @@ class TableReader {
     }
 
     /**
-     * The id column of a node table: the idColumn option, else a header column with an id name,
-     * else the first column of a headerless table.
+     * The id column of a node table: the idColumn option; else, for a table read whole (an unpaired
+     * node table), the first header candidate (idCandidates) whose values are all present and
+     * distinct, or row numbers (NO_UNIQUE_ID_CODE) when none is; else a header column named `id`,
+     * `node`, `name` or `key` (a node table paired with edges, which name its nodes by it); else the
+     * first column of a headerless table.
      * @param names - the column names
      * @param header - whether the file has a header row
-     * @returns the column index, or -1
+     * @param line - the header line
+     * @returns the column index, or -1 (row numbers)
      */
-    private idColumnOf(names: readonly string[], header: boolean): number {
+    private idColumnOf(names: readonly string[], header: boolean, line: number): number {
         const { idColumn } = this.state.csv;
         if (idColumn !== null) {
             return resolveColumnRef(names, idColumn, "idColumn");
         }
-        if (header) {
-            return findColumn(names, ID_NAMES);
+        if (!header) {
+            return names.length >= 1 ? 0 : -1;
         }
-        return names.length >= 1 ? 0 : -1;
+        const candidates = idCandidates(names);
+        const rows = this.drained;
+        // null: no candidate keys every row
+        const chosen =
+            rows === null || candidates.length === 0
+                ? findColumn(names, ID_NAMES)
+                : (candidates.find((column) => isKey(rows, column)) ?? null);
+        if (chosen !== null) {
+            if (chosen >= 0) {
+                this.state.report.resolve("idColumn", names[chosen]);
+            }
+            return chosen;
+        }
+        const columns = candidates.map((c) => names[c]);
+        this.state.report.warning(
+            "merged",
+            NO_UNIQUE_ID_CODE,
+            `no id column has a distinct value on every row (${columns.map((c) => JSON.stringify(c)).join(", ")}); the nodes are numbered by row`,
+            { line },
+            { columns },
+        );
+        this.unkeyed = true;
+        return -1;
     }
 
     /**
@@ -1501,7 +1727,7 @@ class TableReader {
             }
             return label;
         }
-        if (idColumn < 0 && !this.rowNumbers) {
+        if (idColumn < 0 && !this.rowNumbers && !this.unkeyed) {
             report.fail(
                 NO_ID_COLUMN_CODE,
                 `no id column in the node table header (${shown})`,
@@ -1570,6 +1796,10 @@ class TableReader {
     private processRow(row: string[], quoted: readonly boolean[], line: number): void {
         const plan = this.requirePlan();
         this.dataRows++;
+        const possible = this.possibleHeader;
+        if (possible !== null && line !== possible.line && row.some((cell) => possible.cells.has(cell.trim()))) {
+            this.possibleHeader = null;
+        }
         if (this.state.csv.decimalComma) {
             for (let i = 0; i < row.length; i++) {
                 if (DECIMAL_COMMA.test(row[i])) {
@@ -1599,6 +1829,7 @@ class TableReader {
         where.line = line;
         where.element = null;
         const neighbors = setNeighborCells(row, quoted);
+        const node = idCell(row[0], quoted[0]);
         if (isUnset(row[0], quoted[0])) {
             report.error("missing-value", MISSING_ID_CODE, `blank node cell`, { line });
             counts.skippedNodes++;
@@ -1612,8 +1843,9 @@ class TableReader {
         }
         let source: NodeId;
         try {
-            where.element = row[0];
-            source = this.coerce(row[0]);
+            where.element = node;
+            this.checkPadded(node, quoted[0], line);
+            source = this.coerce(node);
             if (sink.indexOf(source) === INVALID_INDEX) {
                 counts.nodes++;
             }
@@ -1628,9 +1860,10 @@ class TableReader {
             if (isUnset(row[k], quoted[k])) {
                 continue;
             }
-            where.element = row[k];
+            const text = idCell(row[k], quoted[k]);
+            where.element = text;
             try {
-                const cell = splitNeighbour(row[k]);
+                const cell = splitNeighbour(text, report);
                 const target = this.coerce(cell.id);
                 const targetNew = sink.indexOf(target) === INVALID_INDEX;
                 const before = sink.edgeCount;
@@ -1660,10 +1893,11 @@ class TableReader {
             counts.skippedEdges++;
             return;
         }
-        const sourceText = row[plan.source];
-        const targetText = row[plan.target];
-        const sourceMissing = isUnset(sourceText, quoted[plan.source]);
-        if (sourceMissing || isUnset(targetText, quoted[plan.target])) {
+        // a quoted empty endpoint names no node either: the empty-string id lives only in a node table
+        const sourceText = idCell(row[plan.source], quoted[plan.source]);
+        const targetText = idCell(row[plan.target], quoted[plan.target]);
+        const sourceMissing = isMissingEndpoint(row[plan.source], quoted[plan.source]);
+        if (sourceMissing || isMissingEndpoint(row[plan.target], quoted[plan.target])) {
             report.error("missing-value", MISSING_ENDPOINT_CODE, `blank ${sourceMissing ? "source" : "target"} cell`, {
                 line,
             });
@@ -1828,8 +2062,8 @@ class TableReader {
             counts.skippedNodes++;
             return;
         }
-        const idText = plan.id >= 0 ? row[plan.id] : String(ordinal);
-        if (plan.id >= 0 && isUnset(idText, quoted[plan.id])) {
+        const idText = plan.id >= 0 ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
+        if (plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id])) {
             report.error("missing-value", MISSING_ID_CODE, `blank id cell`, { line });
             counts.skippedNodes++;
             return;
@@ -1866,9 +2100,9 @@ class TableReader {
     }
 
     /**
-     * Warn once per import about an unquoted id cell with leading or trailing whitespace, which is
-     * a different id from the bare text (RFC 4180 keeps spaces).
-     * @param text - the cell text
+     * Warn once per import about an unquoted id cell that, with its spaces and tabs trimmed, still
+     * starts or ends in whitespace (a no-break space, a U+FEFF), kept as a different id from the bare text.
+     * @param text - the trimmed cell text
      * @param quoted - whether the cell was quoted
      * @param line - the row's line
      */
@@ -1877,7 +2111,7 @@ class TableReader {
             this.state.report.warnOnce(
                 "validation-error",
                 PADDED_ID_CODE,
-                `id ${JSON.stringify(text)} has leading or trailing whitespace and is kept as written, a different id from the trimmed text`,
+                `id ${JSON.stringify(text)} starts or ends in whitespace other than spaces and tabs and is kept as written, a different id from the trimmed text`,
                 { line, element: text },
             );
         }
@@ -1962,6 +2196,22 @@ class TableReader {
             }
         }
     }
+}
+
+/**
+ * A column-name-like word: three or more characters, a letter or underscore first, then letters, digits, `_`, `.`,
+ * `:` or `-` (short ids such as `a`, `b1` or `u` are left alone).
+ */
+const NAME_LIKE = /^[A-Za-z_][\w.:-]{2,}$/;
+
+/**
+ * Whether a first row could be a header of unknown column names: two or more distinct name-like cells.
+ * @param row - the first row
+ * @returns true when it could be a header
+ */
+function couldBeHeader(row: readonly string[]): boolean {
+    const cells = row.map((c) => c.trim());
+    return cells.length >= 2 && new Set(cells).size === cells.length && cells.every((c) => NAME_LIKE.test(c));
 }
 
 /**

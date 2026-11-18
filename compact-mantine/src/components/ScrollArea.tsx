@@ -41,4 +41,8 @@ function CompactScrollArea({
     );
 }
 
+/**
+ * Mantine's ScrollArea, themed, with an opt-in keyboard stop on its viewport
+ * (`focusableViewport`). `ScrollArea.Autosize` is Mantine's.
+ */
 export const ScrollArea = Object.assign(CompactScrollArea, { Autosize: MantineScrollArea.Autosize });

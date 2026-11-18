@@ -299,6 +299,8 @@ export function stall({ state, publishHold, now }) {
         "waiting-for-screenshots": `waiting for the owner's screenshot review of ${state.offered?.sha?.slice(0, 7) ?? "the offered candidate"}`,
         "resume-due": "an approved candidate waits for its resume run (release.yml mode promote-nightly)",
         rejected: "the owner rejected the candidate's screenshots: fix forward",
+        refused:
+            "the promotion gate refused the approved candidate: fix the cause on master and dispatch promote-nightly again (the hold issue has the command)",
         promotable: "the verdict is green-clean but nothing promoted it: read the newest release.yml run",
         unjudged: `${canary} has no verdict yet: no full run judged it`,
         held: heldBlock(state),
@@ -361,6 +363,12 @@ function verdictCause(f) {
     const what = f.what || "see the run";
     if (f.state === "red") return { cause: `red lane on ${sha}: ${what}` + (f.issue ? ` (#${f.issue})` : "") };
     if (f.state === "owner-item") return { cause: `owner item on ${sha}: ${what}` };
+    // the store did not answer the hold read (#5597): the verdict could not hold, replace or promote anything
+    if (f.hold === "unknown")
+        return {
+            cause: `the store did not say what is held: the ${f.state} verdict on ${sha} decided nothing`,
+            detail: "Its Verdict job failed on the read; release-rerun.yml re-runs that job once.",
+        };
     if (f.state === "green-images") return imagesCause(f, sha);
     if (f.promote === "true") return { cause: `the promotion of ${sha} failed before it landed` };
     return { cause: `${sha} is green-clean but did not promote: ${f.why || "see the run"}` };
@@ -754,9 +762,17 @@ function channelJsonMain(env) {
 
 function releaseOf(tag) {
     try {
-        return JSON.parse(gh("api", `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${tag}`));
-    } catch {
-        return null; // 404: none (a draft is not listed here either)
+        return JSON.parse(
+            execFileSync("gh", ["api", `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${tag}`], {
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "pipe"],
+            }),
+        );
+    } catch (e) {
+        // Only a 404 means none (a draft is not listed here either); a 5xx or rate limit is not "create" (#7275).
+        if (/HTTP 404/.test(String(e.stderr))) return null;
+        process.stderr.write(String(e.stderr ?? ""));
+        throw e;
     }
 }
 

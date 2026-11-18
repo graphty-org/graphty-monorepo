@@ -95,7 +95,6 @@ import {
     toColorValue,
 } from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
-import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -174,13 +173,6 @@ export interface Layer {
      * when the row is shown. Absent while the row is shown.
      */
     readonly hidden?: true;
-    /**
-     * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
-     * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
-     * bag is never shared with them. Never used to paint.
-     * @experimental file-styles
-     */
-    readonly fileStyle?: FileStyleOrigin;
 }
 
 /**
@@ -226,6 +218,12 @@ export interface LayerProblem {
      * @since 3.36.0
      */
     readonly fact?: ShaderProblem;
+    /**
+     * The selector that makes the layer acceptable, when the remedy is to scope it: for
+     * `E_UNSCOPED_RUN_ENCODING`, `{ match: "has", path }` on the run path the encoding reads.
+     * @since 3.40.0
+     */
+    readonly scope?: Selector;
 }
 
 /**
@@ -327,9 +325,8 @@ export interface LayerCheckOptions {
      */
     readonly admitRule?: (rule: unknown) => unknown;
     /**
-     * Whether the layer may write no channel: an edit asked to keep a layer whose last value it
-     * takes away, which then stays in place painting nothing, as a starting row that writes
-     * nothing does.
+     * No longer read: every layer may write no channel (issue #5905). Kept until its callers in
+     * StylesApi.ts stop passing it.
      */
     readonly mayBeEmpty?: boolean;
     /**
@@ -1111,6 +1108,7 @@ function checkBinding(
                 "with a value for a missing result, which would paint elements the run never measured. Scope it to " +
                 `the elements that carry the result with { match: "has", path: "${binding.by}" }, or drop missing.`,
             path: "selector",
+            scope: { match: "has", path: binding.by },
         });
     }
 }
@@ -1245,13 +1243,12 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
 }
 
 /**
- * Check the parts of a specification that are neither channels nor a selector.
+ * Check the parts of a specification that are neither channels nor a selector. Any layer may write
+ * no channel: it paints nothing until a value is written into it, whoever made it.
  * @param spec - The specification.
- * @param channels - The channels it writes.
  * @param log - Where problems are collected.
- * @param mayBeEmpty - Whether it may write no channel.
  */
-function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLog, mayBeEmpty = false): void {
+function checkShape(spec: LayerSpec, log: ProblemLog): void {
     if (typeof spec.name !== "string" || spec.name.trim() === "") {
         report(log, {
             code: "E_BAD_LAYER",
@@ -1266,17 +1263,6 @@ function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLo
             message: `"${spec.kind}" is not a layer kind.`,
             path: "kind",
             candidates: ["base", "encoding", "highlight", "custom"],
-        });
-    }
-
-    // A starting row (Everything, Hovered) is there to be written into, so it may start empty, and
-    // so may a part of a row, which a row write adds empty when it changes what the row paints.
-    const starting = spec.source?.by === "template" && spec.source.templateId.startsWith("graphty:starting-");
-    if (channels.length === 0 && !starting && spec.row === undefined && !mayBeEmpty) {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: "A layer with neither a set nor an encode writes no channel and would paint nothing.",
-            path: "set",
         });
     }
 
@@ -1794,7 +1780,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
     const channels = channelsWritten(spec);
     const target = resolveTarget(spec, channels, log);
 
-    checkShape(spec, channels, log, options.mayBeEmpty === true);
+    checkShape(spec, log);
 
     const universal =
         typeof spec.selector === "object" && spec.selector !== null && spec.selector.match === "everything";
@@ -1882,7 +1868,6 @@ function buildLayer(
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
         ...(spec.row === undefined ? {} : { row: spec.row }),
-        ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1906,6 +1891,5 @@ export function specOf(layer: Layer): LayerSpec {
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
         ...(layer.row === undefined ? {} : { row: layer.row }),
-        ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
     };
 }

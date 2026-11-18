@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 const USER_AGENT = "graphty-graph-samples-build-hosted";
 
@@ -57,13 +58,13 @@ export async function publishedCopy(url, sha256, fetchImpl = fetch) {
  */
 export const SOURCES = {
     roadNyArcs: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz", // NOSONAR(S5332): the DIMACS host serves only http; every download is checked against the sha256 below
+        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz", // eslint-disable-line sonarjs/no-clear-text-protocols -- the DIMACS host serves only http; every download is checked against the sha256 below
         sha256: "7b2446c7ffe6179efbc42af6812448e8cb782f12968ca2bb1d50d979343056d4",
         file: "USA-road-d.NY.gr.gz",
         redistribute: true,
     },
     roadNyCoordinates: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz", // NOSONAR(S5332): the DIMACS host serves only http; every download is checked against the sha256 below
+        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz", // eslint-disable-line sonarjs/no-clear-text-protocols -- the DIMACS host serves only http; every download is checked against the sha256 below
         sha256: "02547a628742164e02bd73f59e33a65d23dfac8fc54c09275c8b9169c38eafdf",
         file: "USA-road-d.NY.co.gz",
         redistribute: true,
@@ -111,6 +112,31 @@ export const SOURCES = {
  */
 export function sourceUrls(source, { fromOriginalHost = false } = {}) {
     return fromOriginalHost || !source.redistribute ? [source.url] : [sourceReleaseUrl(source), source.url];
+}
+
+/**
+ * The hosted datasets whose built metadata (counts, columns, prose, bytes, sha256) is not what the
+ * committed src/datasets/hosted.ts records, including one built but not recorded and one recorded but
+ * not built. The deploy fails on any of them, so the files graphty.app serves never drift from the
+ * npm package's hosted.ts.
+ * @param {object[]} built - the metadata of the files just built or reused
+ * @param {readonly object[]} recorded - HOSTED_DATASETS of the commit being deployed
+ * @returns {string[]} the names that differ, in build order, then the recorded ones not built
+ */
+export function hostedDrift(built, recorded) {
+    const drifted = built
+        .filter(
+            (meta) =>
+                !isDeepStrictEqual(
+                    meta,
+                    recorded.find((other) => other.name === meta.name),
+                ),
+        )
+        .map((meta) => meta.name);
+    const missing = recorded
+        .filter((meta) => !built.some((other) => other.name === meta.name))
+        .map((meta) => meta.name);
+    return [...drifted, ...missing];
 }
 
 /** The hex SHA-256 of some bytes. */

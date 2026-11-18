@@ -3,32 +3,31 @@ import "./style.css";
 import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantine";
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-element/session";
-import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import { Box, Checkbox, Stack, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
-import { GLYPHS } from "../glyphs";
-import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
-import { isPanelEscape } from "../keys/keys";
+import { cosmographOn, fileStylesOn, nodeModelsOn } from "../features";
+import { findTreeRow, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
-import type { WorkspaceState, WorkspaceStore } from "../state/store";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type CardField, isBlankRow, selectionName, writeKind } from "./cards";
+import { type CardField, isBlankRow, writeKind } from "./cards";
+import { ControlLabel } from "./ControlLabel";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
+import { PartsPanel } from "./parts/PartsPanel";
+import { ruleLine } from "./parts/ruleLine";
 import type { RowContext } from "./PropertyRow";
 import {
     beneathOf,
     EVERYTHING_LAYER,
     everythingRow,
+    hiddenByOf,
     type NewLayer,
-    paintedOverOf,
     rowLayers,
-    selectionLayer,
-    selectionRow,
+    selectedLayerRow,
     sourceName,
-    startingAdds,
     type Target,
     wholeGraphRow,
 } from "./row";
@@ -37,7 +36,7 @@ import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { firstStyleWords, madeWords, sectionsFor } from "./words";
+import { sectionsFor } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -179,6 +178,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 rows={[rowId]}
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
+                {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
                 {...elsewhere}
             />
         ),
@@ -193,32 +193,28 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
  * @param props.rowId - the row
  * @returns The panel
  */
-function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowId: string }>): React.JSX.Element {
+function TreeRowPanel({
+    session,
+    rowId,
+}: Readonly<{ session: GraphSession; rowId: string }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const found = findTreeRow(session.styles.tree(), rowId);
     if (found === undefined) {
-        return <StateLine>This row is gone</StateLine>;
+        return null;
     }
     const row = treeRowLayers(session, rowId);
     // Every layer says which elements it paints, whoever made it: provenance never changes what a
     // layer offers. Keyed by the row, not its layers, so a change of kind keeps the editor open.
     return (
-        <>
-            {isHidden(found) && (
-                <StateLine icon={<GLYPHS.hide size={14} aria-hidden />}>
-                    Hidden: changes will not show until it is shown
-                </StateLine>
-            )}
-            <LockedGroup locked={isLocked(found)}>
-                <RowStyle
-                    key={rowId}
-                    session={session}
-                    row={row}
-                    below={rowId}
-                    kinds={row.length > 0 ? rowKinds(session, store, rowId) : undefined}
-                />
-            </LockedGroup>
-        </>
+        <LockedGroup locked={isLocked(found)}>
+            <RowStyle
+                key={rowId}
+                session={session}
+                row={row}
+                below={rowId}
+                kinds={row.length > 0 ? rowKinds(session, store, rowId) : undefined}
+            />
+        </LockedGroup>
     );
 }
 
@@ -307,11 +303,8 @@ function LockedGroup({
     };
     return (
         <>
-            {locked && (
-                <StateLine icon={<GLYPHS.lock size={14} aria-hidden />} id={reasonId}>
-                    This layer is locked
-                </StateLine>
-            )}
+            {/* Heard as each control's description; the Style sidebar draws no note (#8739). */}
+            {locked && <VisuallyHidden id={reasonId}>This layer is locked</VisuallyHidden>}
             <div
                 ref={box}
                 className={locked ? "ws-row-locked" : undefined}
@@ -330,27 +323,6 @@ function LockedGroup({
                 {children}
             </div>
         </>
-    );
-}
-
-/**
- * A line at the top of a panel saying the state of what it shows, at the panel's text size.
- * @param props - Component props
- * @param props.children - the words
- * @param props.icon - a glyph before the words (a lock, a closed eye)
- * @param props.id - an id, for controls the line describes
- * @returns The line
- */
-export function StateLine({
-    children,
-    icon,
-    id,
-}: Readonly<{ children: React.ReactNode; icon?: React.ReactNode; id?: string }>): React.JSX.Element {
-    return (
-        <Group gap={6} px="md" py={4} wrap="nowrap" id={id}>
-            {icon}
-            <Text size="sm">{children}</Text>
-        </Group>
     );
 }
 
@@ -379,31 +351,16 @@ interface Elsewhere {
 }
 
 /** A kind's tab label and its noun. */
-const KIND_WORDS: Readonly<Record<Target, { tab: string; many: string; title: string }>> = {
-    node: { tab: "Node", many: "nodes", title: "Nodes" },
-    edge: { tab: "Edge", many: "edges", title: "Edges" },
+const KIND_WORDS: Readonly<Record<Target, { tab: string; many: string }>> = {
+    node: { tab: "Node", many: "nodes" },
+    edge: { tab: "Edge", many: "edges" },
 };
 
 /**
- * How many properties a kind's layers set, for the other kind's line: "2 styles".
- * @param layers - the kind's layers.
- * @returns the words.
- */
-function stylesWords(layers: readonly Layer[]): string {
-    const channels = new Set(
-        layers.flatMap((layer) => [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]),
-    );
-    if (channels.size === 0) {
-        return "nothing set";
-    }
-    return channels.size === 1 ? "1 style" : `${String(channels.size)} styles`;
-}
-
-/**
- * One row's Style tab (V7, the owner's choice of 2026-10-16): Node and Edge tabs; each tab names the
- * other kind in one line, then the kind's switch and its Which picker (a tree row), then its
- * sections. One tab state for the panel: kept while the next row styles that kind, else the kind
- * the row styles, Node on a tie.
+ * One row's Style tab (V7, the owner's choice of 2026-10-16): Node and Edge tabs; each tab holds
+ * the kind's switch and its Style Nodes... or Style Edges... line (a tree row), then its sections.
+ * One tab state for the panel: kept while the next row styles that kind, else the kind the row
+ * styles, Node on a tie.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.row - the row's layers
@@ -444,12 +401,6 @@ export function RowStyle({
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];
     const styled = (side: Target): boolean => (kinds === undefined ? sides.includes(side) : kinds.state(side).on > 0);
-    // Whether the row paints the kind, as its header says it ("Edge layer"): a part with no look and
-    // no condition while the other part has one reads as not styled, as a layer with no part of the
-    // kind does, however the layer was made. A row with neither yet reads as the kinds it is on.
-    const painted = below === undefined ? undefined : paintedTarget(session, below);
-    const paints = (side: Target): boolean =>
-        styled(side) && (painted === undefined || painted === "both" || painted === side);
     const [tab, setTab] = useState<Target>(() => {
         // A new layer (nothing set, nothing picked) opens on its first kind, whichever tab was last open.
         if (below !== undefined && isBlankRow(session, below) && styled("node")) {
@@ -474,7 +425,7 @@ export function RowStyle({
     // A selection's row not written yet paints the selection: read beneath over it.
     const fresher = fresh !== undefined && fresh.selector.match !== "everything";
     const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
-    const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
+    const hiddenBy = treeRow === undefined || many !== undefined ? undefined : hiddenByOf(session, treeRow, row);
     const colors = documentColors(session);
     const sectionsOf = (side: Target): React.JSX.Element => {
         const ctx: RowContext = {
@@ -484,10 +435,14 @@ export function RowStyle({
             layers: rowLayers(session, row, side),
             fresh,
             beneath,
-            paintedOver,
+            hiddenBy,
             documentColors: colors,
             ...many?.(side),
         };
+        // The file-styles experiment draws both tabs by part of the drawing.
+        if (fileStylesOn(session)) {
+            return <PartsPanel ctx={ctx} />;
+        }
         return (
             <section className="ws-style-group" data-group={side}>
                 {sectionsFor(side, { cosmograph: cosmographOn(session), nodeModels: nodeModelsOn(session) }).map(
@@ -535,18 +490,7 @@ export function RowStyle({
         },
     });
     return (
-        <Stack
-            ref={scope}
-            gap={0}
-            data-testid="style-tab"
-            className="ws-style-panel"
-            onKeyDown={(event) => {
-                if (below !== undefined && isPanelEscape(event.nativeEvent) && cancelMade(session, store, below)) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-            }}
-        >
+        <Stack ref={scope} gap={0} data-testid="style-tab" className="ws-style-panel">
             <Tabs
                 value={tab}
                 onChange={(value) => {
@@ -559,18 +503,7 @@ export function RowStyle({
             >
                 <Tabs.List aria-label="Style for">
                     {tabs.map((side) => (
-                        <Tabs.Tab
-                            key={side}
-                            value={side}
-                            rightSection={
-                                paints(side) || selectionWorkspaceOn(session) ? undefined : (
-                                    // The words the kind's own line uses: the layer styles none of this kind.
-                                    <Text span size="xs" c="var(--cm-text-secondary)">
-                                        not styled
-                                    </Text>
-                                )
-                            }
-                        >
+                        <Tabs.Tab key={side} value={side}>
                             {KIND_WORDS[side].tab}
                         </Tabs.Tab>
                     ))}
@@ -595,80 +528,11 @@ export function RowStyle({
                                         : null}
                                 </>
                             )}
-                            {/* The other kind last: the tab opens on its own kind's lines. */}
-                            <OtherLine
-                                session={session}
-                                row={row}
-                                side={other}
-                                kinds={kinds}
-                                styled={styled(other)}
-                                painted={paints(other)}
-                                onEdit={() => {
-                                    show(other);
-                                }}
-                            />
                         </Tabs.Panel>
                     );
                 })}
             </Tabs>
         </Stack>
-    );
-}
-
-/**
- * The other kind in one line, so the whole layer reads from either tab, in one wording whatever
- * its state: "Edges: 2 styles", "Edges: not styled", then "Edit edges", which opens the kind's
- * tab (where its switch turns it on). One Tab stop.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.row - the row
- * @param props.side - nodes or edges
- * @param props.kinds - the kinds' switches, when the rows have them
- * @param props.styled - whether the kind is styled
- * @param props.painted - whether the row paints the kind (a part that writes nothing beside one
- *   that writes reads as not styled)
- * @param props.onEdit - goes to the kind's tab
- * @returns The line
- */
-function OtherLine({
-    session,
-    row,
-    side,
-    kinds,
-    styled,
-    painted,
-    onEdit,
-}: Readonly<{
-    session: GraphSession;
-    row: readonly LayerId[];
-    side: Target;
-    kinds: KindControl | undefined;
-    styled: boolean;
-    painted: boolean;
-    onEdit: () => void;
-}>): React.JSX.Element | null {
-    const words = KIND_WORDS[side];
-    if (!styled && kinds === undefined) {
-        // A kind this row can never style has no tab to edit.
-        return null;
-    }
-    const state = kinds?.state(side);
-    let what = "not styled";
-    if (styled && painted) {
-        what =
-            state !== undefined && state.of > 1
-                ? `on in ${String(state.on)} of ${String(state.of)} layers`
-                : stylesWords(rowLayers(session, row, side));
-    }
-    return (
-        <Group gap={6} wrap="nowrap" className="ws-other-line" data-other={side}>
-            <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }} truncate>
-                {`${words.title}: ${what}`}
-            </Text>
-            <Button size="compact-xs" variant="subtle" onClick={onEdit}>
-                Edit {words.many}
-            </Button>
-        </Group>
     );
 }
 
@@ -728,136 +592,21 @@ function KindSwitch({
 }
 
 /**
- * The Style tab of a node, an edge or several selected: the selection's own row, a reader layer
- * whose selector names exactly what is selected. The first edit adds it above the topmost row,
- * named after the selection, and selects it, so later edits land on it.
+ * The Style tab of a node, an edge or several selected: the selected layer's (owner, 2026-10-21),
+ * the style tree row the reader last opened, else the row that paints every element. An edit
+ * goes to a layer the reader chose, never to a new layer for what is selected; the tree's Layer
+ * from selection makes one of those.
  * @returns The tab, or nothing before the element has come up
  */
 export function SelectionRowStyle(): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     useStyleVersion(session, element);
+    const styleRow = useWorkspaceState((state) => state.styleRow);
     if (session === null) {
         return null;
     }
-    const { nodes, edges } = session.selection;
-    // Keyed by what is selected, so whether the row already existed is read afresh per selection.
-    return <SelectionRow key={JSON.stringify([nodes, edges])} session={session} />;
-}
-
-/**
- * The selection's row, once the element has come up.
- * @param props - Component props
- * @param props.session - the element's session
- * @returns The tab
- */
-function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const row = selectionRow(session);
-    const [had] = useState(row.length > 0);
-    const added = had ? undefined : row.at(-1);
-    const { nodes, edges } = session.selection;
-    useEffect(() => {
-        const layer = added === undefined ? undefined : session.styles.get(added);
-        if (layer === undefined) {
-            return;
-        }
-        // The first edit made a layer: said, and opened. Made by a "+" with a starting value,
-        // Escape before any other change takes it back (`cancelMade`).
-        const next = session.history.nextUndo;
-        const starting = startingAdds.delete(session);
-        made.delete(session);
-        if (starting) {
-            made.set(session, {
-                row: layer.row ?? layer.id,
-                step: next?.kind === "undo" ? next.step.id : undefined,
-                look: lookOf(session, layer.row ?? layer.id),
-                back: store.get().inspected,
-            });
-        }
-        store.set({
-            inspected: { kind: "layer-row", id: layer.id },
-            notice: { message: madeWords(layer.name, nodes.length, edges.length) },
-        });
-    }, [added, session, store, nodes.length, edges.length]);
-    const sides: Target[] = [
-        ...(nodes.length > 0 ? ["node" as const] : []),
-        ...(edges.length > 0 ? ["edge" as const] : []),
-    ];
-    // No layer yet: the first style set makes it, which the panel says before anything is set.
-    // The line comes and goes before the tab, which keeps its place (and its state).
-    return (
-        <>
-            {row.length === 0 && (
-                <Text size="xs" c="dimmed" px={16} pt={8} data-testid="selection-first-style">
-                    {firstStyleWords(nodes.length, edges.length)}
-                </Text>
-            )}
-            <RowStyle
-                key={row.join(" ")}
-                session={session}
-                row={row}
-                sides={sides}
-                fresh={selectionLayer(session, selectionName(session))}
-                panel={`selection ${JSON.stringify([nodes, edges])}`}
-            />
-        </>
-    );
-}
-
-/** The layer a selection's first edit just made, per session, until another change. */
-const made = new WeakMap<
-    GraphSession,
-    {
-        readonly row: string;
-        readonly step: HistoryStepId | undefined;
-        /** What the layer set when it was made, so a later edit keeps it. */
-        readonly look: string;
-        /** What the inspector showed before the layer opened. */
-        readonly back: WorkspaceState["inspected"];
-    }
->();
-
-/**
- * What a tree row's layers set and pick, for telling whether the reader changed it since.
- * @param session - the element's session.
- * @param rowId - the tree row.
- * @returns the layers' writes and selectors, as text.
- */
-function lookOf(session: GraphSession, rowId: string): string {
-    return JSON.stringify(
-        treeRowLayers(session, rowId).map((id) => {
-            const layer = session.styles.get(id);
-            return [layer?.set, layer?.encode, layer?.selector];
-        }),
-    );
-}
-
-/**
- * Escape right after a selection's first edit made a layer, with nothing changed since: the
- * layer goes (the edit's undo step) and the inspector goes back to what it showed.
- * @param session - the element's session.
- * @param store - the workspace store.
- * @param rowId - the tree row Escape was pressed in.
- * @returns whether the layer was taken back.
- */
-function cancelMade(session: GraphSession, store: WorkspaceStore, rowId: string): boolean {
-    const was = made.get(session);
-    const next = session.history.nextUndo;
-    made.delete(session);
-    if (
-        was?.row !== rowId ||
-        was.step === undefined ||
-        next?.kind !== "undo" ||
-        next.step.id !== was.step ||
-        lookOf(session, rowId) !== was.look
-    ) {
-        return false;
-    }
-    const name = findTreeRow(session.styles.tree(), rowId)?.row.name ?? "The layer";
-    void session.undo().then(() => {
-        store.set({ inspected: was.back, notice: { message: `Layer ${name} not made` } });
-    });
-    return true;
+    const row = selectedLayerRow(session, styleRow);
+    return row === undefined ? <StylePanel /> : <StylePanel rowId={row} />;
 }
 
 /** The element's selection highlight, as `session.config.selectionStyle` reads. */
@@ -901,16 +650,16 @@ export function SelectionStyle(): React.JSX.Element | null {
         <Stack gap={8} p={8} data-testid="selection-style" role="group" aria-label="Highlight">
             {HIGHLIGHT_PARTS.map((part) => (
                 <Stack key={part.title} gap={2} role="group" aria-label={part.title}>
-                    <Text size="xs" fw={600} pl={4}>
+                    <ControlLabel size="xs" fw={600} pl={4}>
                         {part.title}
-                    </Text>
-                    <div // NOSONAR(S6819): an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
+                    </ControlLabel>
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
                         role="group"
                         aria-label="Color"
                     >
-                        <Text size="xs" aria-hidden>
+                        <ControlLabel size="xs" aria-hidden>
                             Color
-                        </Text>
+                        </ControlLabel>
                         <CompactColorInput
                             color={hex(current[part.color])}
                             defaultColor={hex(DEFAULT_SELECTION_STYLE[part.color])}
@@ -925,9 +674,9 @@ export function SelectionStyle(): React.JSX.Element | null {
                         />
                     </div>
                     <FieldRow>
-                        <Text size="xs" truncate>
+                        <ControlLabel size="xs" truncate>
                             Size
-                        </Text>
+                        </ControlLabel>
                         <ComboInput
                             label="Size"
                             width="100%"
@@ -1003,11 +752,7 @@ export function GroupStyle({
         if (own !== undefined) {
             return <StylePanel rowId={own.row ?? own.id} />;
         }
-        return (
-            <Text size="xs" c="dimmed" p="md">
-                This run paints nothing by group
-            </Text>
-        );
+        return null;
     }
     const source = sourceName(session, { by: found.path }) ?? found.path;
     return (

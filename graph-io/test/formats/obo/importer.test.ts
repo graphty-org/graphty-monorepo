@@ -5,6 +5,7 @@ import { OBO_ISSUE, oboImporter, type OboImportOptions } from "../../../src/form
 import { importGraph } from "../../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../../src/types.js";
 import { corpusFiles, inputShapes, malformedFiles, readCorpusBytes, readMalformedBytes } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 
 type Options = OboImportOptions & CommonImportOptions;
 
@@ -19,13 +20,7 @@ async function load(
 }
 
 async function fails(input: ImportInput, options?: Options): Promise<ImportError> {
-    try {
-        await load(input, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected the import to throw ImportError");
+    return expectImportError(() => load(input, options), { format: "obo" });
 }
 
 function codes(report: ImportReport): string[] {
@@ -684,16 +679,30 @@ describe("oboImporter: the corpus", () => {
 });
 
 describe("oboImporter: the malformed corpus", () => {
-    const fatal = new Set(["empty.obo", "invalid-utf16.obo"]);
+    const fatal: Partial<Record<string, string>> = {
+        "empty.obo": OBO_ISSUE.EMPTY_INPUT,
+        "invalid-utf16.obo": OBO_ISSUE.INVALID_ENCODING,
+    };
+    const recoverable: Partial<Record<string, string>> = {
+        "bad-boolean.obo": OBO_ISSUE.BAD_VALUE,
+        "missing-id.obo": OBO_ISSUE.MISSING_ID,
+        "relationship-three-values.obo": OBO_ISSUE.BAD_VALUE,
+    };
+
+    it("covers every malformed file", () => {
+        expect([...malformedFiles("obo")]).toEqual([...Object.keys(fatal), ...Object.keys(recoverable)].sort());
+    });
+
     for (const name of malformedFiles("obo")) {
-        it(`${name}: ${fatal.has(name) ? "fails" : "imports with issues"}, never crashes`, async () => {
+        const fatalCode = fatal[name];
+        it(`${name}: ${fatalCode === undefined ? "imports with issues" : "fails"}, never crashes`, async () => {
             const bytes = readMalformedBytes("obo", name);
-            if (fatal.has(name)) {
-                await fails(bytes);
+            if (fatalCode !== undefined) {
+                await expectImportError(() => load(bytes), { format: "obo", code: fatalCode });
                 return;
             }
             const { report } = await load(bytes);
-            expect(report.issues.length, name).toBeGreaterThan(0);
+            expect(codes(report), name).toEqual([recoverable[name]]);
             expect(report.truncated).toBe(false);
         });
     }

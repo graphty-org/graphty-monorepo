@@ -34,12 +34,6 @@ function notReady(meshes: readonly AbstractMesh[]): string[] {
         .map((mesh) => mesh.name);
 }
 
-/** The update manager's settlement flags, read to find the frame that would be called final. */
-interface Settlement {
-    stateIsFinished: boolean;
-    drawnFrameIsFinished: boolean;
-}
-
 /**
  * Make `material` answer "not ready" while `blocked()` is true, as a shader still compiling does.
  * @param material - The material to wrap.
@@ -79,7 +73,7 @@ describe("node.texture and the stable frame", () => {
         // Force the race: the first frame that would be called final with the picture on draws
         // while the textured material's shader is "not ready", and is ready again before the
         // frame ends. Inserted first, so it runs before the update manager samples readiness.
-        const settlement = (element.graph as unknown as { updateManager: Settlement }).updateManager;
+        const updates = element.graph.getUpdateManager();
         const wrapped = new Set<Material>();
         let blockedFrames = 0;
         let blocking = false;
@@ -96,8 +90,7 @@ describe("node.texture and the stable frame", () => {
                     material === undefined ||
                     material === null ||
                     textured !== true ||
-                    !settlement.stateIsFinished ||
-                    settlement.drawnFrameIsFinished
+                    !updates.finalFrameIsNext
                 ) {
                     return;
                 }

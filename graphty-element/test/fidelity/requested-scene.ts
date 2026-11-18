@@ -13,6 +13,7 @@
  */
 import { canCarry } from "../../../graph-io/test/fidelity/routes";
 import {
+    type ArrowClass,
     PROPERTIES,
     type Property,
     type Scene,
@@ -24,7 +25,7 @@ import type { GraphSession } from "../../session";
 import type { NodeStyleConfig } from "../../src/config/NodeStyle";
 import { labelFitExtent } from "../../src/meshes/labelFit";
 import { labelLetterHeight, SCENE_PER_UNIT } from "../../src/session/styles/fileStyles/translate";
-import { arrowClassOf, colorOf, labelPositionOf, lineStyleOf, shapeClassOf } from "./extract-scene";
+import { arrowClassOf, askedShapeClass, colorOf, comparerEdgeIds, labelPositionOf, lineStyleOf } from "./extract-scene";
 
 /** The properties a requested scene can judge. */
 export const REQUESTED_PROPERTIES: readonly Property[] = [
@@ -57,6 +58,43 @@ export const REQUESTED_PROPERTIES: readonly Property[] = [
  */
 function channel(merged: Readonly<Record<string, unknown>>, name: string): unknown {
     return merged[name] ?? channelDescriptor(name)?.default;
+}
+
+type LabelPlace = NonNullable<SceneNode["label"]>["position"];
+
+/**
+ * Where a centered label sits once its offset moves it: outside the node's box when its center leaves it, on the side
+ * it went furthest, as the drawn scene reads a label from its box (extract-scene.ts labelPlace; an icon node's label,
+ * centered a fixed distance below it, vis-network's)
+ * @param place - the class its location gives
+ * @param dx - the label style's `offsetX`, in scene units
+ * @param dy - the label style's `offsetY`, in scene units, down
+ * @param w - the node's width, in scene units
+ * @param h - the node's height, in scene units
+ * @returns the class
+ */
+function offsetPlace(place: LabelPlace, dx: number, dy: number, w: number, h: number): LabelPlace {
+    if (place !== "inside" || (Math.abs(dx) <= w / 2 && Math.abs(dy) <= h / 2)) {
+        return place;
+    }
+    if (Math.abs(dy) >= Math.abs(dx)) {
+        return dy < 0 ? "above" : "below";
+    }
+    return dx < 0 ? "left" : "right";
+}
+
+/**
+ * The arrow class an edge end asks for: an open triangle with an inside color (`edge.arrowHeadFillColor`) is drawn
+ * filled, so it reads as the reference's filled triangle, as the browser tier reads it (oracle/drawn-primitives.ts)
+ * @param merged - the edge's merged style
+ * @param end - which end
+ * @returns the class
+ */
+function requestedArrowClass(merged: Readonly<Record<string, unknown>>, end: "Head" | "Tail"): ArrowClass | "none" {
+    const named = arrowClassOf(channel(merged, `edge.arrow${end}`));
+    return named === "open-triangle" && colorOf(merged[`edge.arrow${end}FillColor`]) !== null
+        ? "filled-triangle"
+        : named;
 }
 
 const num = (value: unknown, fallback: number): number =>
@@ -155,13 +193,15 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
         const text = merged["node.label"];
         const sizePx = num(labelStyle.sizePx ?? channel(merged, "node.labelSize"), 12);
         const fitted = fittedExtent(merged, size, text, sizePx);
+        const w = (fitted?.width ?? num(merged["node.width"], size)) * SCENE_PER_UNIT.node;
+        const h = (fitted?.height ?? num(merged["node.height"], size)) * SCENE_PER_UNIT.node;
         return {
             id,
             x: placed && Number.isFinite(at.x) ? at.x * scale : 0,
             y: placed && Number.isFinite(at.y) ? -at.y * scale : 0,
-            w: (fitted?.width ?? num(merged["node.width"], size)) * SCENE_PER_UNIT.node,
-            h: (fitted?.height ?? num(merged["node.height"], size)) * SCENE_PER_UNIT.node,
-            shape: shapeClassOf(channel(merged, "node.shape")),
+            w,
+            h,
+            shape: askedShapeClass(channel(merged, "node.shape"), merged["node.shapePoints"]),
             fill: fill?.hex ?? null,
             fillOpacity: bodiless ? 0 : num(channel(merged, "node.opacity"), 1) * (fill?.alpha ?? 1),
             border: {
@@ -179,7 +219,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
                           text,
                           fontSize: sizePx,
                           color: colorOf(labelStyle.color ?? channel(merged, "node.labelColor"))?.hex ?? "#000000",
-                          position: labelPositionOf(labelStyle.location),
+                          // a label is where its offset takes it (an icon node's, vis-network's; cx-ddram's, #8152)
+                          position: offsetPlace(
+                              labelPositionOf(labelStyle.location),
+                              num(labelStyle.offsetX, 0),
+                              num(labelStyle.offsetY, 0),
+                              w,
+                              h,
+                          ),
                           visible: labelStyle.enabled !== false,
                       }
                     : null,
@@ -187,12 +234,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             z: num(merged["node.zIndex"], 0),
         };
     });
-    const edges: SceneEdge[] = session.data.edges().map((record) => {
+    const edgeRecords = session.data.edges();
+    const edgeIds = comparerEdgeIds(edgeRecords);
+    const edges: SceneEdge[] = edgeRecords.map((record) => {
         const merged = styleOf({ edge: record.id });
         const color = colorOf(channel(merged, "edge.color"));
         const label = merged["edge.label"];
         return {
-            id: record.id,
+            id: edgeIds.get(record.id) ?? record.id,
             source: String(record.source),
             target: String(record.target),
             points: [],
@@ -206,8 +255,8 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             width: num(channel(merged, "edge.width"), 1) * SCENE_PER_UNIT.edge,
             style: lineStyleOf(channel(merged, "edge.style")),
             arrow: {
-                source: arrowClassOf(channel(merged, "edge.arrowTail")),
-                target: arrowClassOf(channel(merged, "edge.arrowHead")),
+                source: requestedArrowClass(merged, "Tail"),
+                target: requestedArrowClass(merged, "Head"),
             },
             label: typeof label === "string" && label !== "" ? label : null,
         };

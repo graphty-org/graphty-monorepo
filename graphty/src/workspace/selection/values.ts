@@ -22,7 +22,7 @@ import {
     type UnionStep,
 } from "@graphty/graphty-element/session";
 
-import { groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
+import { ALGORITHM_DESCRIPTIONS, groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { ranOverWords } from "../runWords";
 import {
@@ -59,7 +59,8 @@ export const STATE_WORDS: Readonly<Record<ElementState, string>> = {
     selected: "Selected",
     hovered: "Hovered",
     pinned: "Pinned",
-    ghosted: "Outside the time window",
+    ghosted: "Held out by the condition being edited",
+    outsideWindow: "Outside the time window",
 };
 
 /** The hosts a selection is edited in: a style layer's selector, or an import filter card. */
@@ -339,6 +340,7 @@ export function pickSections(
                             field.name !== "percentile",
                     );
                     const method = wordsFor(each).name;
+                    const tip = ALGORITHM_DESCRIPTIONS[each.descriptionId ?? ""];
                     // The catalog's own words find it too: its keywords and its technical name.
                     const aliases = [...(each.keywords ?? []), each.technicalName];
                     // One entry per algorithm (the workspace's cards): its card chooses the field.
@@ -347,7 +349,7 @@ export function pickSections(
                         key: `alg:${each.key}:${field.name}`,
                         name: fields.length === 1 || perAlgorithm ? method : `${method}: ${field.plainName}`,
                         glyph: GLYPHS.analyze,
-                        ...(each.description === undefined || each.description === "" ? {} : { tip: each.description }),
+                        ...(tip === undefined ? {} : { tip }),
                         // Its field's name finds it too: "Label propagation: comm".
                         aliases: [...aliases, field.plainName],
                         onPick: () => {
@@ -396,7 +398,8 @@ export function pickSections(
                   item("self-loop", "Self-loops", GLYPHS.edge, { kind: "self-loop" }),
                   item("repeated", "Repeated edges", GLYPHS.edge, { kind: "repeated-edge" }),
               ];
-    const directed = session.data.statistics().directedness === "directed";
+    // Some edge has a direction to follow: a directed graph, or one mixing both kinds.
+    const directed = session.data.statistics().directedness !== "undirected";
     const relative =
         side === "node"
             ? [
@@ -447,7 +450,7 @@ function stateItems(
     item: (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree) => ExtraItem,
 ): ExtraItem[] {
     const states: readonly ElementState[] =
-        side === "node" ? ["selected", "hovered", "pinned", "ghosted"] : ["selected", "ghosted"];
+        side === "node" ? ["selected", "hovered", "pinned", "outsideWindow"] : ["selected", "outsideWindow"];
     return states.map((state) => item(state, STATE_WORDS[state], GLYPHS.selection, { kind: "state", state }));
 }
 

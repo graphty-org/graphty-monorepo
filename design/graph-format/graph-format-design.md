@@ -566,6 +566,16 @@ the primary half only, so nothing is duplicated and a column declared
 edges expand the same way with an additional `graphty.mutual` bool role
 column so the exporter re-emits one `mutual` edge.
 
+Per-edge direction (owner decision, 2026-10-06, issue #309): `directed` is
+the DEFAULT direction of a snapshot's edges, and a set row of the bool edge
+column with role `directed` overrides it for that edge. A snapshot without
+the column, or a row left unset, takes the default, so every snapshot and
+wire form written before the decision means what it meant. The cell records
+the edge's direction in the data; the arcs follow `directed` (an importer
+stores an undirected edge of a directed snapshot as the two halves above).
+`edgeIsDirected(snapshot, e)` reads one edge and `directedness(snapshot)`
+answers `"directed"`, `"undirected"` or `"mixed"` (some of each).
+
 Importer option `onMixedDirection: "expand" | "directed" | "undirected" |
 "error"`, default `"expand"`: `"directed"` treats every edge as directed
 (drops the distinction with a report entry), `"undirected"` treats every
@@ -1390,7 +1400,8 @@ raw typed arrays `remapArray(data, remap, newLength, fill, components)`,
 indexMap, components)` (`out[indexMap[i]] = values[i]`: writes results or
 positions computed on a derived graph back into the parent's index space
 through `nodeOrigin` / `edgeOrigin`); plus `withComponents`,
-`paddedU32View`, `foldArcs`, `expandEdges`, `renumberPartition`.
+`paddedU32View`, `foldArcs`, `expandEdges`, `renumberPartition`,
+`edgeIsDirected`, `directedness` (section 3.6).
 
 ---
 
@@ -3169,6 +3180,9 @@ export function foldArcs<T extends NumericVector>(
     out?: T,
 ): T;
 export function expandEdges<T extends NumericVector>(snapshot: GraphSnapshot, perEdge: T, out?: T): T;
+export type Directedness = "directed" | "undirected" | "mixed";
+export function edgeIsDirected(snapshot: GraphSnapshot, edge: number): boolean; // role "directed" cell when set, else snapshot.directed (section 3.6)
+export function directedness(snapshot: GraphSnapshot): Directedness; // "mixed" when edges differ (section 3.6)
 export function renumberPartition(labels: U32, out?: U32): { readonly labels: U32; readonly count: number }; // dense 0..k-1 in first-seen order
 
 // ============================================================ masks (packed bitmaps; helper type, not a snapshot contract)

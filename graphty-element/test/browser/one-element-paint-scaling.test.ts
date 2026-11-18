@@ -5,20 +5,22 @@
  * the elements it visits (Map, Set and Array iterator steps and array scans, see `visitsDuring`)
  * may grow at most 2x, never 4x (issue #2894). Counted, never timed (issue #1643).
  *
- * A call that still does more work than its reach is an expected failure naming the issue that
- * records what is left, so the fix turns it red and it becomes a normal test.
+ * A call that still does more work than its reach names the issue that records what is left: its
+ * test asserts the growth still exceeds the bound (every correctness check still has to pass), so
+ * the fix turns it red and it becomes a normal test.
  *
  * The render loop is stopped, so no frame runs while a call is counted, and strict state is off,
  * as it is for a consumer (see `data-path-scaling.test.ts`).
  */
 import "../../src/graphty-element";
 
-import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 
 /** The two graph sizes: big enough that a cost per call that grows with the graph is 4x. */
 const SIZES = [100, 400] as const;
@@ -30,15 +32,7 @@ const SIZES = [100, 400] as const;
  * @returns The element.
  */
 async function mount(size: number): Promise<Graphty> {
-    const element = document.createElement("graphty-element");
-    element.style.width = "400px";
-    element.style.height = "300px";
-    element.style.display = "block";
-    document.body.appendChild(element);
-    await element.updateComplete;
-    await vi.waitFor(() => {
-        assert.isTrue(element.graph.initialized, "the element initialised its graph");
-    });
+    const element = await mountElement();
     const { graph } = element;
     graph.engine.stopRenderLoop();
     await graph.setLayout("random");
@@ -66,8 +60,8 @@ interface Case {
     /** The method, as the cost-coverage registry spells it. */
     readonly method: string;
     /**
-     * The issue recording that the call still walks the scene. Its test is expected to fail until
-     * that issue is fixed, and its method stays out of the registry.
+     * The issue recording that the call still walks the scene. Its test asserts the growth still
+     * exceeds the bound until that issue is fixed, and its method stays out of the registry.
      */
     readonly superlinear?: number;
     /**
@@ -169,9 +163,9 @@ describe("repainting or disposing one node or edge costs the same at any graph s
 
     for (const { method, superlinear, prepare } of CASES) {
         const name = `${method}: about the same at any size`;
-        // A call with an open issue is expected to fail, so the fix turns it red.
-        const test = superlinear === undefined ? it : it.fails;
-        test(superlinear === undefined ? name : `${name} (not yet: #${String(superlinear)})`, async () => {
+        // A call with an open superlinear issue must still exceed the bound (so its fix turns the test
+        // red) and must still pass its check: only the growth assertion is inverted.
+        it(superlinear === undefined ? name : `${name} (not yet: #${String(superlinear)})`, async () => {
             await assertScalesLinearly(
                 async (size) => {
                     const element = await mount(size);
@@ -181,10 +175,10 @@ describe("repainting or disposing one node or edge costs the same at any graph s
                         check();
                         return visits;
                     } finally {
-                        element.remove();
+                        unmountElements();
                     }
                 },
-                { sizes: SIZES, growth: "constant", counter: `elements visited by ${method}` },
+                { sizes: SIZES, growth: "constant", counter: `elements visited by ${method}`, superlinear },
             );
         });
     }

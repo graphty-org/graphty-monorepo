@@ -24,9 +24,6 @@ import { letterOf } from "./words";
  * @param props.rule - the selection being edited
  * @param props.title - the selection's title, which a lone group goes by
  * @param props.branch - the group a count chip narrowed it to, or null for every match
- * @param props.modal - drawn in the full-screen workspace (the `selection-workspace` experiment): rows
- *     tinted by group, only the columns the steps test, a click marking the row here only. Off, a
- *     Group column, every column, and a click selecting in the graph.
  * @returns The strip
  */
 export function MatchesStrip({
@@ -34,13 +31,11 @@ export function MatchesStrip({
     rule,
     title,
     branch = null,
-    modal = false,
 }: Readonly<{
     session: GraphSession;
     rule: UnionLeaf;
     title: string;
     branch?: string | null;
-    modal?: boolean;
 }>): React.JSX.Element {
     const reading = useEditedSelection(session, rule);
     const { ref, height } = useBoxSize();
@@ -49,11 +44,9 @@ export function MatchesStrip({
     // The table reads its page as the search allows: a keystroke is drawn at once.
     const typed = useDeferredValue(text.trim());
     const kind: RecordKind = rule.side === "nodes" ? "node" : "edge";
-    // Rows are tinted by group: in the workspace always, a single card's rows in its color too (the
-    // owner, 2026-11-04); in the outline editor only when there are two groups to tell apart.
-    const fewest = modal ? 1 : 2;
+    // Rows are tinted by group, a single card's rows in its color too (the owner, 2026-11-04).
     const groupOf =
-        reading === null || reading.rule.branches.length < fewest
+        reading === null || reading.rule.branches.length === 0
             ? undefined
             : (id: NodeId | EdgeId): { name: string; color: string } | null => {
                   const branchId = reading.branchOf(id);
@@ -84,15 +77,14 @@ export function MatchesStrip({
     const columns = columnChoices(session, kind).filter(
         (choice) =>
             choice.hidden !== true &&
-            (!modal ||
-                choice.group === "key" ||
+            (choice.group === "key" ||
                 choice.role === "label" ||
                 (choice.attribute !== undefined && reads(choice.attribute)) ||
                 (choice.run !== undefined && runs.has(choice.run))),
     );
     // A card on the graph's structure (Degree) shows it too: it is no attribute, so no choice above.
     const structure =
-        !modal || kind !== "node"
+        kind !== "node"
             ? []
             : session.data
                   .structureValues()
@@ -105,7 +97,7 @@ export function MatchesStrip({
                       attribute: value.path,
                       structure: true,
                   }));
-    if (modal && reading !== null && reading.total.count === 0) {
+    if (reading !== null && reading.total.count === 0) {
         return (
             <section className="sel-ws-strip" aria-label="Matches" data-empty="">
                 <Text size="sm" c="dimmed">
@@ -136,8 +128,10 @@ export function MatchesStrip({
                         onSortChange={setSort}
                         height={height}
                         matching={typed === "" ? undefined : typed}
-                        localSelection={modal}
-                        groupColumn={!modal}
+                        localSelection
+                        // A selection on the full graph (a filter's own) tests degree there, so
+                        // its matches show that degree, not the degree among what is shown.
+                        wholeGraph={rule.within === "graph"}
                     />
                 )}
             </div>

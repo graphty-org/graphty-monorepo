@@ -1,9 +1,9 @@
+import { GraphBuilder } from "@graphty/graph-format";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config";
 import type { Graph } from "../../src/Graph";
 import { type DataManager, dataManagerInternals } from "../../src/managers/DataManager";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -393,6 +393,51 @@ describe("DataManager", () => {
         });
     });
 
+    // Issue #8169: on the batched path `getNodes()` built a Node for every unbuilt row, and at a
+    // million rows that crashed the page. Now the array builds an element's Node when it is read.
+    describe("getNodes on the batched path", () => {
+        beforeEach(() => {
+            graph.setRenderPath("batched");
+            dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        });
+
+        it("builds no Node for the call, its length or the ids", () => {
+            const before = dataManagerInternals.nodesBuilt(dataManager);
+            assert.isBelow(before, 3, "the batched path leaves rows unbuilt");
+
+            const nodes = graph.getNodes();
+            assert.equal(nodes.length, 3);
+            assert.deepEqual(graph.getNodeIds(), ["a", "b", "c"]);
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), before);
+        });
+
+        it("builds one Node per element read, the graph's own, and keeps it", () => {
+            const before = dataManagerInternals.nodesBuilt(dataManager);
+            const nodes = graph.getNodes();
+
+            const last = nodes[2];
+            assert.strictEqual(last, graph.getNode("c"));
+            assert.strictEqual(nodes[2], last);
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), Math.min(3, before + 1));
+            assert.isTrue(Array.isArray(nodes));
+            assert.isUndefined(nodes[3]);
+        });
+
+        it("walks in the order the node map does, through iteration and array methods", () => {
+            const expected = [...dataManager.nodes.values()].map((node) => node.id);
+            const nodes = graph.getNodes();
+            assert.deepEqual(
+                nodes.map((node) => node.id),
+                expected,
+            );
+            assert.deepEqual(
+                [...graph.getNodes()].map((node) => node.id),
+                expected,
+            );
+            assert.deepEqual(graph.getNodeIds(), expected);
+        });
+    });
+
     // The count the lazy-edge stage of design/rendering/row-renderer.md drives toward zero under
     // "batched". Under "objects", the default, every edge a load stores is built once, when both ends are.
     describe("edges built", () => {
@@ -571,7 +616,7 @@ describe("DataManager", () => {
         // The frame's own walks of the edges (the masks, the incident edges of a resized node,
         // the screen-scale retrim, the rows a freeze renumbered) visit the built Edges only.
         it("runs frames without building one", () => {
-            const { updateManager } = graph as unknown as { updateManager: UpdateManager };
+            const updateManager = graph.getUpdateManager();
             updateManager.update();
             dataManager.removeEdge("0");
             dataManager.getSnapshot();
@@ -611,6 +656,21 @@ describe("DataManager", () => {
                 dataManagerInternals.unbuiltEdgeRows(dataManager).map((r) => r.key),
                 ["0", "1"],
             );
+        });
+
+        it("reads each row's end rows from the store's edge, looking up no end id", () => {
+            const lookups = vi.spyOn(GraphBuilder.prototype, "indexOf");
+            try {
+                assert.deepEqual(dataManagerInternals.unbuiltEdgeEnds(dataManager, 0), [0, 1]);
+                assert.deepEqual(dataManagerInternals.unbuiltEdgeEnds(dataManager, 1), [1, 2]);
+                assert.isUndefined(dataManagerInternals.unbuiltEdgeEnds(dataManager, 2));
+                assert.equal(lookups.mock.calls.length, 0, "no id lookup per painted row");
+            } finally {
+                lookups.mockRestore();
+            }
+
+            dataManager.removeEdge("0");
+            assert.isUndefined(dataManagerInternals.unbuiltEdgeEnds(dataManager, 0));
         });
 
         it("takes a row back when its edge is removed or cleared, and hands a built Edge the row's place", () => {

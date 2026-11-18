@@ -1,9 +1,36 @@
 import { readFileSync } from "fs";
 import { assert, describe, it } from "vitest";
 
+import { classMembers, docOf } from "./class-members";
+
+/**
+ * The tags on the doc comments attached to a member's own declarations (a getter and its setter,
+ * or a method's overloads), read by the TypeScript parser so no other member's comment counts.
+ * @param members - the class's members
+ * @param name - the member
+ * @returns whether it has a commented declaration, and the tags those comments carry
+ */
+function documentation(
+    members: ReturnType<typeof classMembers>,
+    name: string,
+): { documented: boolean; tags: Set<string> } {
+    const declarations = members.get(name) ?? [];
+    assert.isNotEmpty(declarations, `the class declares no ${name}`);
+    assert.isTrue(
+        declarations.some((member) => member.isPublic),
+        `${name} is not public`,
+    );
+    const docs = declarations.map((member) => docOf(member.node));
+
+    return {
+        documented: docs.some((doc) => doc.text.length > 0),
+        tags: new Set(docs.flatMap((doc) => [...doc.tags])),
+    };
+}
+
 describe("JSDoc Coverage", () => {
     describe("Graph.ts public methods", () => {
-        const content = readFileSync("src/Graph.ts", "utf8");
+        const members = classMembers("src/Graph.ts", "Graph");
 
         const publicMethods = [
             "addNodes",
@@ -18,53 +45,29 @@ describe("JSDoc Coverage", () => {
 
         for (const method of publicMethods) {
             it(`${method} has JSDoc with @example`, () => {
-                // Look for JSDoc comment immediately preceding the method
-                // The regex looks for:
-                // 1. A JSDoc comment block (/** ... */)
-                // 2. That contains @example
-                // 3. Followed by (optional whitespace, async keyword, and) the method name
-                const regex = new RegExp(
-                    `/\\*\\*[\\s\\S]*?@example[\\s\\S]*?\\*/\\s*(async\\s+)?${method}\\s*\\(`,
-                    "m",
+                assert.isTrue(
+                    documentation(members, method).tags.has("example"),
+                    `${method} should have JSDoc with @example`,
                 );
-                assert.match(content, regex, `${method} should have JSDoc with @example`);
             });
 
             it(`${method} has @since tag`, () => {
-                // Look for @since tag in the JSDoc preceding the method
-                const regex = new RegExp(`/\\*\\*[\\s\\S]*?@since[\\s\\S]*?\\*/\\s*(async\\s+)?${method}\\s*\\(`, "m");
-                assert.match(content, regex, `${method} should have @since tag`);
+                assert.isTrue(documentation(members, method).tags.has("since"), `${method} should have @since tag`);
             });
         }
     });
 
     describe("graphty-element.ts properties", () => {
-        const content = readFileSync("src/graphty-element.ts", "utf8");
+        const members = classMembers("src/graphty-element.ts", "Graphty");
 
-        it("has @example blocks", () => {
-            assert.include(content, "@example", "Should have @example blocks");
-        });
-
-        it("has @since tags", () => {
-            assert.include(content, "@since", "Should have @since tags");
-        });
-
-        // Check specific properties have JSDoc
         const properties = ["nodeData", "edgeData", "layout", "viewMode", "background", "startingCameraDistance"];
 
         for (const prop of properties) {
-            it(`${prop} property has JSDoc`, () => {
-                // Look for JSDoc block before property getter/setter or @property decorator
-                const hasJSDoc =
-                    content.includes("@property") &&
-                    // Check for JSDoc preceding the getter
-                    (new RegExp(`/\\*\\*[\\s\\S]*?\\*/\\s*(?:@property[^]*?)?get\\s+${prop}\\s*\\(`).test(content) ||
-                        // Or JSDoc in the format used in the file
-                        new RegExp("/\\*\\*[\\s\\S]*?\\*/\\s*@property").test(content));
-                assert.isTrue(
-                    hasJSDoc || content.includes(`get ${prop}`),
-                    `${prop} property should have JSDoc documentation`,
-                );
+            it(`${prop} property has JSDoc with @example and @since`, () => {
+                const { documented, tags } = documentation(members, prop);
+                assert.isTrue(documented, `${prop} property should have JSDoc documentation`);
+                assert.isTrue(tags.has("example"), `${prop} property should have an @example`);
+                assert.isTrue(tags.has("since"), `${prop} property should have a @since tag`);
             });
         }
     });

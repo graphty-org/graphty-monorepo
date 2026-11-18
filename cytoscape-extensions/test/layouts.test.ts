@@ -157,6 +157,32 @@ describe("static layouts", () => {
         expectPlaced(cy);
     });
 
+    it("graphty-multipartite orders string layers alphabetically and leaves out nodes without the field", async () => {
+        const cy = makeCy();
+        const tiers = ["b", "a", "c"];
+        cy.nodes().forEach((n, i) => {
+            n.data("tier", i === 11 ? undefined : tiers[i % 3]);
+        });
+        await run(cy, { name: "graphty-multipartite", subsets: "tier" });
+        const x = (t: string): number[] => cy.nodes(`[tier = "${t}"]`).map((n) => n.position().x);
+        expect(new Set(x("a").map((v) => v.toFixed(3))).size).toBe(1);
+        expect(Math.max(...x("a"))).toBeLessThan(Math.min(...x("b")));
+        expect(Math.max(...x("b"))).toBeLessThan(Math.min(...x("c")));
+    });
+
+    it("take a bounding box given by its corners, as { x1, y1, x2, y2 }", async () => {
+        const cy = makeCy();
+        const corners = { x1: 100, y1: 50, x2: 300, y2: 150 };
+        await run(cy, { name: "graphty-circular", boundingBox: corners });
+        for (const p of positions(cy).values()) {
+            expect(p.x).toBeGreaterThanOrEqual(corners.x1 - 1e-6);
+            expect(p.x).toBeLessThanOrEqual(corners.x2 + 1e-6);
+            expect(p.y).toBeGreaterThanOrEqual(corners.y1 - 1e-6);
+            expect(p.y).toBeLessThanOrEqual(corners.y2 + 1e-6);
+        }
+        expectPlaced(cy);
+    });
+
     it("graphty-spectral brings a grid's columns and rows back", async () => {
         // the 3 x 4 grid's two smallest nonzero Laplacian eigenvectors run along its 4 columns and its 3 rows, so
         // each column shares one x and each row one y, and no two columns or rows share it
@@ -355,7 +381,76 @@ describe("simulations", () => {
         };
     }
 
+    it("an accelerator without the layout's simulation runs it on the CPU and says so", async () => {
+        const cy = makeCy();
+        const partial: LayoutAccelerator = { kind: "partial", forceAtlas2: asyncAccelerator().forceAtlas2 };
+        const layout = cy.layout({
+            name: "graphty-fruchterman-reingold",
+            boundingBox: BOX,
+            accelerator: partial,
+        } as unknown as LayoutOptions);
+        const stop = layout.promiseOn("layoutstop");
+        layout.run();
+        await stop;
+        expect((layout as unknown as { backend?: unknown }).backend).toEqual({
+            ran: "cpu",
+            reason: "the accelerator has no fruchtermanReingold simulation",
+            device: null,
+        });
+        expectPlaced(cy);
+    });
+
+    it("spring-electrical on an accelerator without springElectrical reports layouterror, never a throw", async () => {
+        const cy = makeCy();
+        const layout = cy.layout({
+            name: "graphty-spring-electrical",
+            boundingBox: BOX,
+            accelerator: asyncAccelerator(),
+        } as unknown as LayoutOptions);
+        const errors: unknown[] = [];
+        layout.on("layouterror", (_e: EventObject, error: unknown) => errors.push(error));
+        const stop = layout.promiseOn("layoutstop");
+        expect(() => layout.run()).not.toThrow();
+        await stop;
+        expect((errors[0] as Error).message).toMatch(/no CPU simulation.*no springElectrical simulation/);
+        expect((layout as unknown as { backend?: unknown }).backend).toBeUndefined();
+    });
+
     for (const animate of [false, true]) {
+        it(`a simulation whose load throws is disposed and reported, animate ${String(animate)}`, async () => {
+            const cy = makeCy();
+            let disposed = 0;
+            const accelerator: LayoutAccelerator = {
+                kind: "test-lost",
+                forceAtlas2: (options): LayoutSimulation => {
+                    const sim = asyncAccelerator().forceAtlas2?.(options) as LayoutSimulation;
+                    return {
+                        ...sim,
+                        load: () => {
+                            throw new Error("device lost");
+                        },
+                        dispose: () => {
+                            disposed++;
+                        },
+                    };
+                },
+            };
+            const layout = cy.layout({
+                name: "graphty-forceatlas2",
+                boundingBox: BOX,
+                accelerator,
+                animate,
+            } as unknown as LayoutOptions);
+            const seen: string[] = [];
+            layout.on("layouterror", () => seen.push("layouterror"));
+            const stop = layout.promiseOn("layoutstop").then(() => seen.push("layoutstop"));
+            expect(() => layout.run()).not.toThrow();
+            await stop;
+            expect(seen).toEqual(["layouterror", "layoutstop"]);
+            expect(disposed).toBe(1);
+            expect((layout as unknown as { backend?: unknown }).backend).toBeUndefined();
+        });
+
         it(`run an asynchronous (GPU-style) simulation, animate ${String(animate)}`, async () => {
             const cy = makeCy();
             const events = await run(cy, { name: "graphty-forceatlas2", accelerator: asyncAccelerator(), animate });

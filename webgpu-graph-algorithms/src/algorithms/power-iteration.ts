@@ -1,6 +1,5 @@
 /**
- * The power-iteration driver HITS, eigenvector centrality and Katz centrality share (spec 8.2 lines 2603-2605; M8b
- * plan PD-10): per iteration `pr-scale` at NORM_MODE 1 | 2 | 4 folds the norm term (and the L1 delta) into the
+ * The power-iteration driver HITS, eigenvector centrality and Katz centrality share: per iteration `pr-scale` at NORM_MODE 1 | 2 | 4 folds the norm term (and the L1 delta) into the
  * per-workgroup partials, `pr-finalize` folds them into the header at `partials[0]` (the square root for L2) and
  * records `firstConverged`, `pr-scale` at NORM_MODE 3 writes `xNorm[u] = x[u] / partials[0].norm` (skipped at
  * mode 4, the identity, where the first scale pass already wrote `xNorm[u] = x[u]`), and `spmv-pull` writes the
@@ -8,12 +7,12 @@
  * normaliser the host cannot supply without a readback is exactly what stays on the device, so these three batch
  * eight iterations per submit like PageRank does.
  *
- * The ping-pong is TWO buffers alternated through two cached bind groups (PD-7 / DEP-M8B-G), and `rankPrev` is the
+ * The ping-pong is TWO buffers alternated through two cached bind groups, and `rankPrev` is the
  * buffer this iteration overwrites: it still holds x(i-2) when `pr-scale` reads it, because the scale runs before
- * the pull in the same pass (PD-9). With an `alternate` adjacency (HITS, spec 8.2: "alternates two pulls") the
+ * the pull in the same pass. With an `alternate` adjacency (HITS alternates two pulls) the
  * iterations pull over `adjacency` and `alternate` in turn, and the ring is THREE buffers so the buffer being
  * overwritten holds x(i-3) -- the previous iterate of the same kind -- and the delta stays meaningful. The batch
- * loop duplicates src/algorithms/pagerank.ts, which its own task owns.
+ * loop duplicates src/algorithms/pagerank.ts.
  */
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
@@ -31,14 +30,14 @@ import { assertDeviceComputes } from "../primitives/verify.js";
 import { type Binding } from "../types/memory.js";
 import { algorithmScope } from "./scope.js";
 
-/** Iterations per submit (spec 8.2: k = 8). */
+/** Iterations per submit. */
 const BATCH = 8;
-/** Params slots of one batch: four blocks per iteration times the batch, plus a margin (the plan's `4 * 8 + 8`) that also holds the last batch's convergence check. */
+/** Params slots of one batch: four blocks per iteration times the batch, plus a margin (`4 * 8 + 8` in all) that also holds the last batch's convergence check. */
 const RING_SLOTS = 4 * BATCH + 8;
 
 /**
  * What one power iteration run needs. `adjacency` is the CoreBinding the pull walks -- the forward core for hubs
- * and eigenvector, coreOfView(view(s, "reverse")) for authorities and Katz (spec 8.2 lines 2603-2606). Exported
+ * and eigenvector, coreOfView(view(s, "reverse")) for authorities and Katz. Exported
  * for runPowerIteration's signature, not imported by name.
  * @public
  */
@@ -59,6 +58,13 @@ export interface PowerIterationConfig {
     readonly alpha: number;
     readonly beta: number;
     readonly uniformP: number;
+    /**
+     * True: `beta` multiplies the iterate itself, so each pull is `(A + beta I) x` (eigenvector's identity shift);
+     * false or undefined: `beta` multiplies `uniformP`.
+     */
+    readonly betaTimesIterate?: boolean | undefined;
+    /** x(0); undefined is 1 / n for every node. */
+    readonly seed?: F32 | undefined;
     readonly maxIterations: number;
     readonly tolerance: number;
     /** undefined takes the adjacency's weights, null runs UNWEIGHTED on a weighted snapshot (T4 Step 4). */
@@ -76,6 +82,22 @@ export interface PowerIterationRun {
     readonly iterations: number;
     readonly converged: boolean;
     readonly iterationsRun: number;
+}
+
+/**
+ * Refuses a convergence tolerance that is not a finite number >= 0: NaN or a negative value never converges, so
+ * the run would spend every iteration and report converged: false instead of rejecting the input.
+ * @param tolerance - the resolved option
+ * @param algorithm - the caller's name, for the message
+ */
+export function checkTolerance(tolerance: number, algorithm: string): void {
+    if (!Number.isFinite(tolerance) || tolerance < 0) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: tolerance must be a finite number >= 0`, {
+            argument: "tolerance",
+            value: tolerance,
+            expected: "a finite number >= 0",
+        });
+    }
 }
 
 /**
@@ -104,8 +126,8 @@ export function checkDest(dest: Float32Array | Uint32Array | undefined, n: numbe
 }
 
 /**
- * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (spec 3.8, 3.12;
- * DEP-P4-B: only degree and segmentedReduce execute windows).
+ * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (only degree and
+ * segmentedReduce execute windows).
  * @param ctx - the context
  * @param s - the snapshot
  * @param algorithm - the caller's name
@@ -118,7 +140,7 @@ export function coreOf(ctx: GpuContext, s: GraphSnapshot, algorithm: string): Co
 }
 
 /**
- * The reverse adjacency as the CoreBinding the pull walks (the forward buffers on an undirected snapshot, PD-13).
+ * The reverse adjacency as the CoreBinding the pull walks (the forward buffers on an undirected snapshot).
  * @param ctx - the context
  * @param s - the snapshot (n > 0)
  * @returns the reverse core
@@ -202,12 +224,12 @@ function runIfDone(
 }
 
 /**
- * Runs the power iteration of `config` over `n` nodes from x(0) = 1 / n, in batches of eight iterations with ONE
+ * Runs the power iteration of `config` over `n` nodes from x(0) = `config.seed` (1 / n by default), in batches of eight iterations with ONE
  * readback per batch (the header and the iterate together), stopping at the first batch whose header records a
  * converged iteration or at `maxIterations`. The returned iterate is RAW: the last `spmv-pull` output, which the
  * caller normalises once on the host. The iterate travels with the header in EVERY batch, not once after the loop:
  * whether a batch terminates the run is known only from its header, and a second readback for the iterate would
- * be a second mapAsync (the plan's case 8 counts exactly one). The cost is 4n bytes (8n on an alternating run) of
+ * be a second mapAsync (the run expects exactly one). The cost is 4n bytes (8n on an alternating run) of
  * staging per batch of 8 that the loop then discards when it continues -- 40 MB per 8 iterations at 10M nodes;
  * pagerank.ts pays the same.
  * @param ctx - the context
@@ -235,7 +257,13 @@ export async function runPowerIteration(
         const partialsBuffer = scope.scratch(partialsBytes, "partials");
         const partials = whole(partialsBuffer, partialsBytes);
         await ctx.allocator.check();
-        const pullOptions = { personalization: false, dangling: false, weights: config.weights, tiers: null };
+        // the personalization slot binds xNorm itself when it is null (spmv.ts), which is the identity shift
+        const pullOptions = {
+            personalization: config.betaTimesIterate === true,
+            dangling: false,
+            weights: config.weights,
+            tiers: null,
+        };
         const pulls = [{ core: config.adjacency, pull: await prepareSpmvPull(scope, config.adjacency, pullOptions) }];
         if (config.alternate !== null) {
             pulls.push({ core: config.alternate, pull: await prepareSpmvPull(scope, config.alternate, pullOptions) });
@@ -246,7 +274,7 @@ export async function runPowerIteration(
         const finalize = await ctx.pipelines.kernel(kernelSpec("pr-finalize", { NORM_MODE: config.normMode }));
         const finalizePlan = plan1d(1, ctx.workgroupSize, ctx.caps);
         const { queue } = ctx.device;
-        queue.writeBuffer(ring[0].buffer, 0, new Float32Array(n).fill(1 / n));
+        queue.writeBuffer(ring[0].buffer, 0, config.seed ?? new Float32Array(n).fill(1 / n));
         for (const slot of ring.slice(1)) {
             queue.writeBuffer(slot.buffer, 0, new Float32Array(n));
         }
@@ -259,7 +287,7 @@ export async function runPowerIteration(
             const k = Math.min(BATCH, config.maxIterations - iterationsRun);
             const batch = new CommandBatch(ctx, config.label);
             const pass = batch.pass("iterations");
-            // the scale + finalize of iteration i measures the error of iteration i - 1 (PD-9), so the last batch
+            // the scale + finalize of iteration i measures the error of iteration i - 1, so the last batch
             // runs them once more, with no apply and no pull, to measure the error of iteration maxIterations itself
             const last = iterationsRun + k === config.maxIterations;
             const measure = (i: number): MeasuredIteration => {
@@ -269,10 +297,12 @@ export async function runPowerIteration(
                     groups,
                     iteration,
                     trackConvergence: 1,
-                    convergeThreshold: config.tolerance * n,
+                    // every mode holds the change to the tolerance relative to the iterate: pr-finalize scales this
+                    // by the folded L1 size, so the stop does not loosen with the node count (issue #1182)
+                    convergeThreshold: config.tolerance,
                 });
                 const rankIn = ring[(iteration - 1) % ring.length];
-                // the slot the pull overwrites still holds x(iteration - ring.length): that is rankPrev (PD-9)
+                // the slot the pull overwrites still holds x(iteration - ring.length): that is rankPrev
                 const rankOut = ring[iteration % ring.length];
                 const { core, pull } = pulls[(iteration - 1) % pulls.length];
                 // outWeightSum takes rankIn as its dummy: storage-ro, read only under NORM_MODE 0, never compiled here

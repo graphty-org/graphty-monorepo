@@ -15,6 +15,7 @@ import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -218,6 +219,33 @@ async function openForm(): Promise<HTMLElement> {
 }
 
 /**
+ * Where the app serves a fixture, on this page's own origin.
+ * @param name - its file name.
+ * @returns the absolute address.
+ */
+function fixtureUrl(name: string): string {
+    const sample = PROTOTYPE_SAMPLES.find((each) => sampleName(each) === name);
+    if (sample === undefined) {
+        throw new Error(`no fixture ${name}`);
+    }
+    return new URL(sampleUrl(sample), location.href).href;
+}
+
+/**
+ * Loads a graph file by address through the form's Load from URL.
+ * @param url - the address.
+ */
+async function loadFromUrl(url: string): Promise<void> {
+    const form = await openForm();
+    await pick(form, "Kind", "Load from URL");
+    await userEvent.type(await within(form).findByRole("textbox", { name: "URL" }), url);
+    await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+    });
+}
+
+/**
  * Renders the workspace on the Data place with a project open and waits for the element.
  * @returns the element and its session.
  */
@@ -395,6 +423,7 @@ describe("server sources on the real element", () => {
     it("opens Network data... from an open project, on NDEx, the first listed", async () => {
         await openDataPlace();
         const form = await openForm();
+        assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }), "never the start page's chooser");
         await waitFor(() => {
             assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, "NDEx");
         });
@@ -407,9 +436,7 @@ describe("server sources on the real element", () => {
     it("tests, loads with a limit, loads more, expands, collapses and refreshes", async () => {
         const { element, session } = await openDataPlace();
 
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-        const form = await screen.findByRole("form", { name: "Network data" });
+        const form = await openForm();
         await pick(form, "Kind", "People server");
         // A server with a Start shows it; Query is its first, with the query box.
         assert.isNotNull(within(form).getByRole("radio", { name: "Query" }));
@@ -460,7 +487,10 @@ describe("server sources on the real element", () => {
             assert.isDefined(session.data.node("p0-friend0"));
         });
         await userEvent.click(element, { button: "right", position: await pointOn(element, "p0") });
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Collapse" }));
+        const collapse = await screen.findByRole("menuitem", { name: "Collapse" });
+        // The server sent every neighbor, so the node offers no second Expand... (#7057).
+        assert.isNull(screen.queryByRole("menuitem", { name: /Expand/ }));
+        await userEvent.click(collapse);
         await waitFor(() => {
             assert.isUndefined(session.data.node("p0-friend0"));
         });
@@ -520,9 +550,7 @@ describe("server sources on the real element", () => {
 
     it("offers no Sign in, Start or Expand rows a source cannot use", async () => {
         await openDataPlace();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-        const form = await screen.findByRole("form", { name: "Network data" });
+        const form = await openForm();
         await pick(form, "Kind", "OpenAlex");
         assert.isNull(within(form).queryByRole("radio", { name: "Query" }), "OpenAlex has no Start");
         assert.isNull(within(form).queryByLabelText("Password"));
@@ -585,6 +613,88 @@ describe("server sources on the real element", () => {
         } finally {
             busy.mockRestore();
         }
+    });
+
+    it("words a file at an address it could not read, naming the format and the line", async () => {
+        const realFetch = globalThis.fetch;
+        const address = "https://files.example/friends.csv";
+        // An edge list headed by two id columns naming the same ids: not a table graph-io can read.
+        const files = vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation((input, init) =>
+                new URL(input instanceof Request ? input.url : input, location.href).href === address
+                    ? Promise.resolve(new Response("user_id,friend_id\nu1,u2\nu2,u3\n", { status: 200 }))
+                    : realFetch(input, init),
+            );
+        try {
+            await openDataPlace();
+            const form = await openForm();
+            await pick(form, "Kind", "Load from URL");
+            await userEvent.type(within(form).getByRole("textbox", { name: "URL" }), address);
+            await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+            const chip = await waitFor(() => {
+                const found = form.querySelector('[data-code="E_PARSE_FAILED"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.strictEqual(chip?.textContent, "unreadable file: CSV, line 1");
+        } finally {
+            files.mockRestore();
+        }
+    });
+
+    it("lists every kind of network this browser can reach, and Load from URL", async () => {
+        await openDataPlace();
+        const form = await openForm();
+        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
+        await screen.findByRole("option", { name: "NDEx" });
+        const options = screen.getAllByRole("option").map((option) => option.textContent);
+        for (const kind of [
+            "NDEx",
+            "Cypher database",
+            "Neo4j",
+            "Web API",
+            "OpenAlex",
+            "SPARQL endpoint",
+            "Load from URL",
+        ]) {
+            assert.include(options, kind);
+        }
+        assert.notInclude(options, "Amazon Neptune", "graph-io marks Neptune unsupported in a browser");
+    });
+
+    it("tests and loads a graph file by address, with no Endpoint row", async () => {
+        const { session } = await openDataPlace();
+        const form = await openForm();
+        await pick(form, "Kind", "Load from URL");
+        assert.isNull(within(form).queryByRole("textbox", { name: "Endpoint" }));
+        const loadButton = within(form).getByRole<HTMLButtonElement>("button", { name: "Load" });
+        assert.isTrue(loadButton.disabled, "no address, no Load");
+        await userEvent.type(within(form).getByRole("textbox", { name: "URL" }), fixtureUrl("suppliers.csv"));
+        assert.isFalse(loadButton.disabled);
+        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        await within(form).findByRole("group", { name: "Preview" });
+        assert.isNull(form.querySelector("[data-error]"));
+
+        await userEvent.click(loadButton);
+        await screen.findByRole("listitem", { name: /^suppliers\.csv/ });
+        assert.isAbove(session.data.nodes().length, 0);
+    });
+
+    it("takes a second file by address into a graph that holds data to the join screen, as Paste does", async () => {
+        const { session } = await openDataPlace();
+        await loadFromUrl(fixtureUrl("suppliers.csv"));
+        await waitFor(() => {
+            assert.deepEqual(
+                session.data.sources().map((source) => source.name),
+                ["suppliers.csv"],
+            );
+        });
+        const nodes = session.data.nodes().length;
+        await loadFromUrl(fixtureUrl("ships-to-2024-09.csv"));
+        await screen.findByRole("region", { name: /^Join / });
+        assert.lengthOf(session.data.sources(), 1, "nothing added before the reader chooses");
+        assert.strictEqual(session.data.nodes().length, nodes);
     });
 
     it("keeps focus on Test while it reads", async () => {

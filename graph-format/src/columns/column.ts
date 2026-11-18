@@ -611,7 +611,7 @@ function coordinateField<T>(
  * @param fallbackDims - the dims when none is declared
  * @returns the resolved, frozen coordinate system
  */
-export function resolveCoordinateSystem(input: CoordinateSystemInput, fallbackDims: 2 | 3): CoordinateSystem {
+function resolveCoordinateSystem(input: CoordinateSystemInput, fallbackDims: 2 | 3): CoordinateSystem {
     if (!isPlainObject(input)) {
         throw typeError("coordinates", "coordinates must be a plain object");
     }

@@ -20,7 +20,12 @@ import {
     type ShaderTextDraft,
     splitShaderText,
 } from "@graphty/graphty-element/catalog";
-import { type GraphSession, GraphtyError, type ShaderAddResult } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    GraphtyError,
+    type ShaderAddResult,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
 import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -30,8 +35,8 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import type { ShaderCodeEditor, ShaderCodeEditorHandle, ShaderCodeMark } from "./ShaderCodeEditor";
 import { PlaceDiagram } from "./ShaderGallery";
 import { shaderAddedNotice } from "./shaderNotice";
-import { GEAR_FIELDS, NumberTextField, ShaderParamRows } from "./ShaderParamRows";
-import { pickedShader } from "./shaderSlots";
+import { NumberTextField, ShaderParamRows } from "./ShaderParamRows";
+import { GEAR_FIELDS, pickedShader } from "./shaderSlots";
 import {
     DIALOG_PLACES,
     dialogPlaceWords,
@@ -432,7 +437,7 @@ interface ShaderEditorDialogProps {
      * the background), through the scope given, so the add and the write are one undo step. Used
      * only while the switch is on that list's tab; absent from the menu.
      */
-    readonly put?: (scope: GraphSession, id: string, params: ShaderParams) => Promise<void>;
+    readonly put?: (scope: TransactionScope, id: string, params: ShaderParams) => Promise<void>;
     readonly init: PasteInit;
     readonly onClose: () => void;
 }
@@ -821,8 +826,7 @@ export function ShaderEditorDialog({
             const step = history.steps[history.position - 1]?.id;
             await session.transaction(
                 `Add the shader ${id}`,
-                // The writes reach only the parts a transaction scope has, never its history.
-                (tx) => put(tx as GraphSession, id, {}),
+                (tx) => put(tx, id, {}),
                 step === undefined ? undefined : { after: step },
             );
             store.set({ announcement: `${added.descriptor.plainName} added` });
@@ -1068,14 +1072,14 @@ export function ShaderEditorDialog({
                     />
                 )}
                 {problems.length > 0 && (
-                    <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
+                    <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
                         role="list"
                         aria-label={EDITOR_WORDS.problems}
                         className="ws-paste-problems"
                         id={problemsId}
                     >
                         {sited.map(({ problem, site }, index) => (
-                            <div // NOSONAR(S6819): an item of the ARIA list above, which is a div for the same reason
+                            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an item of the ARIA list above, which is a div for the same reason
                                 role="listitem"
                                 key={`${problem.code}:${String(index)}`}
                             >

@@ -1,17 +1,14 @@
-import {
-    Color3,
-    Constants,
-    Effect,
-    type IShaderMaterialOptions,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    ShaderMaterial,
-    StandardMaterial,
-    Vector2,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import type { IShaderMaterialOptions } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import {
     EDGE_JOIN_FRAGMENT_SHADER,
@@ -20,6 +17,7 @@ import {
     EDGE_STATIC_ATTRIBUTES,
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
+    NEAR_TRIM_GLSL,
 } from "./edgeJoinShader";
 import type { EdgeAgeState } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
@@ -62,6 +60,16 @@ export interface EdgeFade {
     readonly opacity: number;
 }
 
+/**
+ * The pattern each element shape a joined line draws in its fragment shader is, by the number the shader reads
+ * (`pattern.y` in `EDGE_JOIN_FRAGMENT_SHADER`): a dash or a box is a run of the line's full width, a dot a disc, a
+ * diamond and a star the shapes `PatternedLineRenderer` draws, each as wide as the line.
+ */
+export const JOINED_PATTERN_KINDS = { dash: 1, box: 1, dot: 2, diamond: 3, star: 4 } as const;
+
+/** A line type a joined line draws as its own pattern, one slot per piece of its route whatever its length. */
+export type JoinedPatternKind = keyof typeof JOINED_PATTERN_KINDS;
+
 /** How a joined line mesh looks; see {@link CustomLineRenderer.createJoinedLineMesh}. */
 export interface JoinedLineOptions {
     /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
@@ -81,8 +89,13 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A dashed or dotted line: its element's length along the line (world units), its kind, count and gap. */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
+    /** A patterned line: its element's length along the line (world units), its kind, count and gap. */
+    pattern?: {
+        kind: JoinedPatternKind;
+        elementLength: number;
+        count?: number | undefined;
+        gap?: number | undefined;
+    };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
      * plain line leaves it out and draws exactly as before.
@@ -114,8 +127,32 @@ export interface JoinedLineOptions {
     pulled?: boolean;
     /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
     pulledCurve?: boolean;
-    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
-    pulledLean?: boolean;
+    /**
+     * With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`);
+     * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
+     */
+    pulledLean?: boolean | "smooth";
+}
+
+/**
+ * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
+ * rectangle with shader-smoothed edges. A 3D line (its width not in world units) also drops the
+ * outer half of its smoothed fringe and its near-invisible fragments (`EDGE_LINE_AA_CUT`), which
+ * would write depth and cut a hole in a farther line it crosses; the 2D view has no such hole and
+ * keeps the whole fringe.
+ * @param options - The line's options.
+ * @returns The defines.
+ */
+function leanDefines(options: JoinedLineOptions): string[] {
+    if (options.pulledLean === "smooth") {
+        return [
+            "#define EDGE_PULLED_LEAN",
+            "#define EDGE_LINE_AA",
+            ...(options.worldWidth === true ? [] : ["#define EDGE_LINE_AA_CUT"]),
+        ];
+    }
+
+    return options.pulledLean === true ? ["#define EDGE_PULLED_LEAN"] : [];
 }
 
 /**
@@ -133,9 +170,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
-        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
-            ? ["#define EDGE_PULLED_LEAN"]
-            : []),
+        ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
 }
@@ -212,7 +247,8 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
         return [];
     }
 
-    return options.pulledCurve === true ? ["rowPosition", "edgeRows", "edgeRoutes"] : ["rowPosition", "edgeRows"];
+    const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
+    return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
 }
 
 interface LineGeometry {
@@ -316,21 +352,11 @@ export class CustomLineRenderer {
             return;
         }
 
-        // CRITICAL FIX: Register shaders in BOTH shader stores
-        // When running in Storybook, there are TWO instances of BabylonJS:
-        // 1. The global BABYLON loaded via <script> tag
-        // 2. The ES module import from @babylonjs/core
-        // We need to register in both because ShaderMaterial might use either one
-        // `unknown` first: babylonjs-gltf2interface (a dependency of @babylonjs/loaders) declares a
-        // global `BABYLON` namespace of glTF types, which this shape does not overlap.
-        const globalShaderStore = (globalThis as unknown as { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect
-            .ShadersStore;
         const moduleShaderStore = Effect.ShadersStore;
 
-        // Vertex Shader: Screen-space width expansion
-        // This matches the formula we learned from GreasedLine and dot arrowhead work
-        // Updated to support instancing (required for BabylonJS mesh caching)
-        // FIXED: Uses segmentStart/segmentEnd for consistent perpendicular calculation
+        // Vertex Shader: Screen-space width expansion. Supports instancing (Babylon.js mesh caching
+        // needs it), and both vertices of a segment take their perpendicular from
+        // segmentStart/segmentEnd, so the two ends of the quad agree.
         const vertexShaderCode = `
 precision highp float;
 
@@ -357,6 +383,7 @@ varying float vCoverage;  // How much of the one pixel a sub-pixel line is widen
 
 // Instance support - BabylonJS include provides finalWorld matrix
 #include<instancesDeclaration>
+${NEAR_TRIM_GLSL}
 
 void main() {
     // Compute finalWorld matrix (handles both instanced and non-instanced meshes)
@@ -365,10 +392,22 @@ void main() {
     // Transform vertex to clip space using finalWorld (supports instancing)
     vec4 vertexClip = viewProjection * finalWorld * vec4(position, 1.0);
 
-    // FIXED: Calculate screen-space direction using segment start/end
-    // This ensures both start and end vertices use the SAME perpendicular direction
+    // Screen-space direction from the segment's start and end, so both vertices of the segment
+    // use the same perpendicular
     vec4 segmentStartClip = viewProjection * finalWorld * vec4(segmentStart, 1.0);
     vec4 segmentEndClip = viewProjection * finalWorld * vec4(segmentEnd, 1.0);
+
+    // An end behind the camera is trimmed to the near plane first, so it is never divided by a w
+    // of 0 or less (issue #7126); a segment wholly behind the camera draws nothing.
+    if (nearBehind(segmentStartClip) && nearBehind(segmentEndClip)) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+    vec4 startTrimmed = nearTrim(segmentStartClip, segmentEndClip);
+    vec4 endTrimmed = nearTrim(segmentEndClip, segmentStartClip);
+    vertexClip = position == segmentStart ? startTrimmed : endTrimmed;
+    segmentStartClip = startTrimmed;
+    segmentEndClip = endTrimmed;
 
     // Calculate line direction in screen space (after perspective divide)
     vec2 startScreen = segmentStartClip.xy / segmentStartClip.w;
@@ -408,8 +447,8 @@ void main() {
     vec2 offset = perpendicular * width * 0.5 * side * grow;
 
     // Apply screen-space sizing with perspective tapering
-    // NOTE: Removed * vertexClip.w to enable perspective tapering
-    // GPU will apply perspective divide (/= w), making distant lines smaller
+    // The offset is not multiplied by vertexClip.w, so the GPU's perspective divide (/= w)
+    // makes distant lines thinner (perspective tapering)
     // Divide by resolution to convert from pixels to NDC (-1 to +1)
     offset /= resolution;
 
@@ -434,14 +473,10 @@ void main() {
     vDistance = lineDistance;
 }
 `;
-        // Register in both stores
         moduleShaderStore.customLineVertexShader = vertexShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.customLineVertexShader = vertexShaderCode;
-        }
 
         // Fragment Shader: Pattern rendering
-        // Updated to support 7 pattern types:
+        // Seven pattern types:
         // 0=solid, 1=dash, 2=dash-dot, 3=equal-dash, 4=sinewave, 5=zigzag, 6=dots
         const fragmentShaderCode = `
 precision highp float;
@@ -464,11 +499,7 @@ void main() {
     gl_FragColor = vec4(color, opacity * vCoverage);
 }
 `;
-        // Register in both stores
         moduleShaderStore.customLineFragmentShader = fragmentShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.customLineFragmentShader = fragmentShaderCode;
-        }
 
         // Point Sprite Vertex Shader for circular dots
         const circularDotVertexShaderCode = `
@@ -487,11 +518,7 @@ void main(void) {
     gl_PointSize = pointSize;
 }
 `;
-        // Register in both stores
         moduleShaderStore.circularDotVertexShader = circularDotVertexShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.circularDotVertexShader = circularDotVertexShaderCode;
-        }
 
         // Point Sprite Fragment Shader with perfect circles
         const circularDotFragmentShaderCode = `
@@ -518,18 +545,10 @@ void main(void) {
     gl_FragColor = vec4(color, opacity * alpha);
 }
 `;
-        // Register in both stores
         moduleShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
-        }
 
         moduleShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
         moduleShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
-        if (globalShaderStore) {
-            globalShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
-            globalShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
-        }
 
         this.shadersRegistered = true;
     }
@@ -549,7 +568,10 @@ void main(void) {
         const mesh = new Mesh("joined-line", scene);
         const vertexData = new VertexData();
         vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
-        vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        // a pulled batch draws unindexed (`PulledLineBatch`)
+        if (options.pulled !== true) {
+            vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        }
         vertexData.applyToMesh(mesh);
 
         const { program, fade } = options;
@@ -577,6 +599,7 @@ void main(void) {
                     "color",
                     "opacity",
                     "pattern",
+                    ...(options.pulled === true ? ["edgeOrdered"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),
@@ -624,8 +647,9 @@ void main(void) {
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         const { pattern } = options;
-        // (element length, kind: 0 solid, 1 dash, 2 dot, half the width), read by the fragment shader.
-        const kind = pattern?.kind === "dash" ? 1 : 2;
+        // (element length, kind: 0 solid, 1 dash or box, 2 dot, 3 diamond, 4 star, half the width), read by the
+        // fragment shader.
+        const kind = pattern === undefined ? 0 : JOINED_PATTERN_KINDS[pattern.kind];
         material.setVector3(
             "pattern",
             pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),

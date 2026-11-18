@@ -1,5 +1,8 @@
+import "../../src/graphty-element";
+
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import type { Graphty } from "../../index.js";
 import { Graph } from "../../src/Graph";
 
 describe("Graph - Profiling Integration", () => {
@@ -146,13 +149,78 @@ describe("Graph - Profiling Integration", () => {
         // Cleanup
         consoleGroupSpy.mockRestore();
     });
+});
 
-    // This test will be updated once we implement config-based profiling
-    it.skip("should enable profiling via config option", () => {
-        // Once we modify Graph constructor to accept GraphContextConfig
-        // this test will verify that passing { enableDetailedProfiling: true }
-        // automatically enables profiling
-        // For now, this test is skipped because Graph constructor doesn't
-        // yet accept a config parameter
+describe("graphty-element - enableDetailedProfiling", () => {
+    let element: Graphty | undefined;
+
+    afterEach(() => {
+        element?.remove();
+        element = undefined;
+    });
+
+    /**
+     * Mounts an element, with the profiling attribute in its markup unless told otherwise, and
+     * waits for it to come up.
+     * @param withAttribute - Whether the markup carries `enable-detailed-profiling`.
+     * @returns The mounted element.
+     */
+    async function mountProfiled(withAttribute = true): Promise<Graphty> {
+        const mounted = document.createElement("graphty-element");
+        if (withAttribute) {
+            mounted.setAttribute("enable-detailed-profiling", "");
+        }
+        mounted.style.display = "block";
+        mounted.style.width = "800px";
+        mounted.style.height = "600px";
+        document.body.appendChild(mounted);
+        element = mounted;
+
+        await mounted.updateComplete;
+        await vi.waitFor(() => {
+            assert.isTrue(mounted.graph.initialized, "the element initialised its graph");
+        });
+        await mounted.waitForSettled();
+        return mounted;
+    }
+
+    it("collects CPU measurements when the element is mounted with the attribute", async () => {
+        const mounted = await mountProfiled();
+        assert.isTrue(mounted.enableDetailedProfiling);
+
+        const statsManager = mounted.graph.getStatsManager();
+        statsManager.measure("element-operation", () => 42);
+
+        const labels = statsManager.getSnapshot().cpu.map((m) => m.label);
+        assert.include(labels, "element-operation");
+    });
+
+    it("starts collecting when the property is set after the element initialized", async () => {
+        const mounted = await mountProfiled(false);
+        const statsManager = mounted.graph.getStatsManager();
+        statsManager.measure("before", () => 1);
+        assert.lengthOf(statsManager.getSnapshot().cpu, 0);
+
+        mounted.enableDetailedProfiling = true;
+        statsManager.measure("after", () => 1);
+
+        const labels = statsManager.getSnapshot().cpu.map((m) => m.label);
+        assert.deepEqual(labels, ["after"]);
+    });
+
+    it("stops collecting and clears measurements when the property is set back to false", async () => {
+        const mounted = await mountProfiled();
+        const statsManager = mounted.graph.getStatsManager();
+        statsManager.measure("while-on", () => 1);
+        assert.include(
+            statsManager.getSnapshot().cpu.map((m) => m.label),
+            "while-on",
+        );
+
+        mounted.enableDetailedProfiling = false;
+        assert.lengthOf(statsManager.getSnapshot().cpu, 0);
+
+        statsManager.measure("while-off", () => 1);
+        assert.lengthOf(statsManager.getSnapshot().cpu, 0);
     });
 });

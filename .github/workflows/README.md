@@ -52,6 +52,7 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `release-watch.yml`                                             | Announces on the `Release status` issue a Release run that ended badly without announcing itself                                                                                                                                                                                                   |
 | `bisect.yml`                                                    | Finds the merge that turned a full run red (`tools/bisect-core.mjs`, `tools/bisect-ci.mjs`)                                                                                                                                                                                                        |
 | `base-check.yml`                                                | Runs one test file on master's code at a pull request's base, so a failure the pull request did not cause is known                                                                                                                                                                                 |
+| `refresh-inherited-prs.yml`                                     | When a master break's issue closes, merges master into the open pull requests that failed on its test, so their checks run on the fix                                                                                                                                                              |
 | `nightly-abandon.yml`                                           | Ends the held nightly candidate without promoting it (`-f reason="<why>"`); anyone, no approval, its own concurrency group, never the release train's                                                                                                                                              |
 | `promote.yml`                                                   | Production promotion (graphty.app, npm `latest`) and nightly rollback; owner only (`tools/channel/promote.mjs`)                                                                                                                                                                                    |
 | `master-guard.yml`                                              | A red master build: a revert pull request and a `priority:critical` issue (none for a failure that looks external); a failed canary deploy: one issue                                                                                                                                              |
@@ -115,14 +116,18 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
 **The held nightly candidate.** A run that is not green-clean after its re-run holds its commit: branch
 `channel/candidate`, the store's hold and a "Nightly held on <sha12>" issue (`tools/channel/hold.mjs`). Master
 keeps merging, and nothing promotes past the held commit, except that a newer commit's green-clean or green-images
-run replaces a held head judged red, owner-item or rejected (`hold.mjs replace`): the red hold ends, and the newer
-commit promotes or is held for review in its place. A held green-images head awaiting review is never replaced. Fix it forward from the candidate's head, never
+run replaces a held head judged red, owner-item, rejected, refused or green-images (`hold.mjs replace`): that hold
+ends, and the newer commit promotes or is held for review in its place, so nightly never waits behind an older
+screenshot review (#6604); only an approved head, or one whose approval is already on master, is never replaced
+(its promotion is due). Fix it forward from the candidate's head, never
 from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`,
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `rejected`, comments the
-gate's reason on the "Nightly held on" issue (opening one when the store names none) and fails the run. The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `refused` (never the
+owner's `rejected`, #6783), comments the gate's reason and the retry command on the "Nightly held on" issue (opening
+one when the store names none) and fails the run; once the cause is fixed on master, dispatching promote-nightly for
+the same candidate and approval tries again (a full slot's catch-up does not). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
 nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
@@ -183,8 +188,9 @@ The shards, their commands, groups and measured durations are in `tools/ci-test-
 only the selected test files where `test-select-rules.json` allows file-level selection; the full run runs all
 of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
-resolved dependencies changed. `graphty-element-lifecycle` and `graphty-element-fidelity-1` to `-4` (the style
-fidelity gate over every oracle, in four slices) run only in the full run.
+resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
+fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-1` to `-12` (the browser and
+interaction tests on the batched render path) run only in the full run.
 
 ## Visual review
 

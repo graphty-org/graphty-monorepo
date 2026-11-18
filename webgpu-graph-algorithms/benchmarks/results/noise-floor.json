@@ -1,5 +1,5 @@
 {
-    "recordedAt": "2026-10-12T01:22:02.079Z",
+    "recordedAt": "2026-11-13T07:51:58.090Z",
     "adapters": [
         {
             "class": "mesa-software-node",
@@ -1638,50 +1638,6 @@
             "samples": 12000
         },
         {
-            "id": "grid-exact.rms.cross",
-            "kernel": "grid-exact",
-            "fixture": "se-random20k-rms",
-            "comparison": "cross-adapter",
-            "a": "mesa-software-node",
-            "b": "nvidia-lovelace-node",
-            "maxRelError": 0.0000043008455376310335,
-            "maxAbsError": 380.00000762939453,
-            "samples": 12000
-        },
-        {
-            "id": "grid-exact.rms.oracle-f64",
-            "kernel": "grid-exact",
-            "fixture": "se-random20k-rms",
-            "comparison": "oracle-f64",
-            "a": "nvidia-lovelace-node",
-            "b": "oracle-f64",
-            "maxRelError": 0.03541852697296436,
-            "maxAbsError": 1939608.5,
-            "samples": 12000
-        },
-        {
-            "id": "grid-exact.p99.cross",
-            "kernel": "grid-exact",
-            "fixture": "se-random20k-p99",
-            "comparison": "cross-adapter",
-            "a": "mesa-software-node",
-            "b": "nvidia-lovelace-node",
-            "maxRelError": 0.00001545006929478469,
-            "maxAbsError": 380.00000762939453,
-            "samples": 12000
-        },
-        {
-            "id": "grid-exact.p99.oracle-f64",
-            "kernel": "grid-exact",
-            "fixture": "se-random20k-p99",
-            "comparison": "oracle-f64",
-            "a": "mesa-software-node",
-            "b": "oracle-f64",
-            "maxRelError": 0.11359343585228383,
-            "maxAbsError": 1939608.4999970198,
-            "samples": 12000
-        },
-        {
             "id": "grid-expansion.cross",
             "kernel": "grid-expansion",
             "fixture": "random20k-spread200",
@@ -1790,6 +1746,94 @@
             "maxRelError": 0,
             "maxAbsError": 0,
             "samples": 156
+        },
+        {
+            "id": "grid-exact.rms.cross",
+            "kernel": "grid-exact",
+            "fixture": "random20k-rms",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 2.081743524758502e-7,
+            "maxAbsError": 2,
+            "samples": 12000
+        },
+        {
+            "id": "grid-exact.rms.oracle-f64",
+            "kernel": "grid-exact",
+            "fixture": "random20k-rms",
+            "comparison": "oracle-f64",
+            "a": "nvidia-lovelace-node",
+            "b": "oracle-f64",
+            "maxRelError": 0.002424665208224705,
+            "maxAbsError": 13706,
+            "samples": 12000
+        },
+        {
+            "id": "grid-exact.p99.cross",
+            "kernel": "grid-exact",
+            "fixture": "random20k-p99",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 5.079400719981649e-7,
+            "maxAbsError": 2,
+            "samples": 12000
+        },
+        {
+            "id": "grid-exact.p99.oracle-f64",
+            "kernel": "grid-exact",
+            "fixture": "random20k-p99",
+            "comparison": "oracle-f64",
+            "a": "nvidia-lovelace-node",
+            "b": "oracle-f64",
+            "maxRelError": 0.007714816989651304,
+            "maxAbsError": 13706,
+            "samples": 12000
+        },
+        {
+            "id": "grid-law.rms.cross",
+            "kernel": "grid-exact",
+            "fixture": "se-random20k-rms",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0.0000043008455376310335,
+            "maxAbsError": 380.00000762939453,
+            "samples": 12000
+        },
+        {
+            "id": "grid-law.rms.oracle-f64",
+            "kernel": "grid-exact",
+            "fixture": "se-random20k-rms",
+            "comparison": "oracle-f64",
+            "a": "nvidia-lovelace-node",
+            "b": "oracle-f64",
+            "maxRelError": 0.03541852697296436,
+            "maxAbsError": 1939608.5,
+            "samples": 12000
+        },
+        {
+            "id": "grid-law.p99.cross",
+            "kernel": "grid-exact",
+            "fixture": "se-random20k-p99",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0.00001545006929478469,
+            "maxAbsError": 380.00000762939453,
+            "samples": 12000
+        },
+        {
+            "id": "grid-law.p99.oracle-f64",
+            "kernel": "grid-exact",
+            "fixture": "se-random20k-p99",
+            "comparison": "oracle-f64",
+            "a": "mesa-software-node",
+            "b": "oracle-f64",
+            "maxRelError": 0.11359343585228383,
+            "maxAbsError": 1939608.4999970198,
+            "samples": 12000
         }
     ],
     "tolerances": {
@@ -2314,24 +2358,24 @@
             "factor": 10
         },
         "grid-exact.rms": {
-            "value": 0.05,
+            "value": 0.02424665208224705,
             "basis": "grid-exact.rms.oracle-f64",
-            "factor": 1.4116905550071566
-        },
-        "grid-exact.rms.cross": {
-            "value": 0.000043008455376310335,
-            "basis": "grid-exact.rms.cross",
             "factor": 10
         },
+        "grid-exact.rms.cross": {
+            "value": 0.0000020817435247585017,
+            "basis": "grid-exact.rms.cross",
+            "factor": 9.999999999999998
+        },
         "grid-exact.p99": {
-            "value": 0.25,
+            "value": 0.07714816989651303,
             "basis": "grid-exact.p99.oracle-f64",
-            "factor": 2.2008313959716683
+            "factor": 10
         },
         "grid-exact.p99.cross": {
-            "value": 0.0001,
+            "value": 0.000005079400719981649,
             "basis": "grid-exact.p99.cross",
-            "factor": 6.472462879746171
+            "factor": 10
         },
         "grid-expansion": {
             "value": 0.1342038019540488,
@@ -2377,6 +2421,26 @@
             "value": 0.06823033837801776,
             "basis": "fa2-layout-oracle.cross",
             "factor": 10.000000000000002
+        },
+        "grid-law.rms": {
+            "value": 0.05,
+            "basis": "grid-law.rms.oracle-f64",
+            "factor": 1.4116905550071566
+        },
+        "grid-law.rms.cross": {
+            "value": 0.000043008455376310335,
+            "basis": "grid-law.rms.cross",
+            "factor": 10
+        },
+        "grid-law.p99": {
+            "value": 0.25,
+            "basis": "grid-law.p99.oracle-f64",
+            "factor": 2.2008313959716683
+        },
+        "grid-law.p99.cross": {
+            "value": 0.0001,
+            "basis": "grid-law.p99.cross",
+            "factor": 6.472462879746171
         }
     }
 }

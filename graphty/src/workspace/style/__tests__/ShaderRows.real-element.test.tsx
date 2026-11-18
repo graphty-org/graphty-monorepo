@@ -11,6 +11,7 @@
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { dragTo } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { hiddenByWords } from "../words";
@@ -26,6 +27,11 @@ import {
     shaderRows,
     usesOn,
 } from "./shaderHarness";
+import { tooltipOf } from "./tooltip";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 afterEach(removeElement);
 
@@ -54,7 +60,8 @@ describe("the Shaders section", () => {
         const [row] = shaderRows();
         assert.isDefined(row, "a Glass row");
         assert.include(row.textContent, "Glass");
-        assert.include(row.textContent, "On the node");
+        // Its place is in its settings button's tooltip, never a line in the sidebar (#8739).
+        assert.include(await tooltipOf(within(row).getByRole("button", { name: "Glass settings" })), "On the node");
         assert.isNull(within(row).queryByLabelText(/^Place of/), "one allowed place is a static label, not a dropdown");
         await waitFor(() => {
             assert.isTrue(row.contains(document.activeElement), "focus is on the new row");
@@ -78,7 +85,11 @@ describe("the Shaders section", () => {
         });
         const [row] = shaderRows();
         assert.isDefined(row, "a Sticker row");
-        assert.include(row.textContent, "Instead of the node", "its own place, as words");
+        assert.include(
+            await tooltipOf(within(row).getByRole("button", { name: "Sticker settings" })),
+            "Instead of the node",
+            "its own place, as words",
+        );
         assert.isNull(within(row).queryByLabelText(/^Place of/), "no Place dropdown");
         assert.isNull(within(row).queryByRole("combobox"), "no place choice on the row");
         await waitFor(() => {
@@ -87,7 +98,10 @@ describe("the Shaders section", () => {
         // The shader draws instead of the node: the Shape row says so, and the shape is kept.
         await waitFor(() => {
             const shapeRow = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.shape"]');
-            assert.include(shapeRow?.textContent, hiddenByWords("Sticker"));
+            assert.include(
+                shapeRow?.querySelector("[data-notes]")?.getAttribute("data-notes"),
+                hiddenByWords("Sticker"),
+            );
         });
         assert.equal(mounted.session.styles.get(layer)?.set?.["node.shape"], "box", "the shape is unchanged");
     });
@@ -203,7 +217,7 @@ vec4 shade(NodeInput n) {
             return rows;
         });
         assert.include(row.textContent, "Ring");
-        assert.include(row.textContent, "Around");
+        assert.include(await tooltipOf(within(row).getByRole("button", { name: "Ring settings" })), "Around");
         assert.isNull(within(row).queryByLabelText(/^Place of/), "no Place dropdown, as on a built-in");
 
         await userEvent.click(within(row).getByRole("button", { name: "Ring settings" }));

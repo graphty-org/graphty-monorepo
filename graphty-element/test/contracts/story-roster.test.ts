@@ -16,7 +16,7 @@
  *
  * Every one of those is blind to an ABSENCE by construction, and an absence is the whole failure.
  * The commit that carried the deletions is `ff12a515`, whose subject is "test(graphty-element):
- * drive a dummy extension through everything a built-in does" -- `tools/commit-changes.sh` sorts
+ * drive a dummy extension through everything a built-in does" -- `tools/commit-changes.sh` (since deleted) sorted
  * `graphty-element/stories` into the `[tests]` bucket, so nothing in the message mentions a story.
  *
  * WHAT THIS TEST MAKES IMPOSSIBLE. Not "deleting a story" -- a story whose subject has no public

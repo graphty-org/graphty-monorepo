@@ -596,7 +596,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "pull-requests.automerge_green_stuck": {
         name: "Green but not merging",
         short: "green but not merging",
-        def: "PRs that are green with auto-merge on and still unmerged 2 h later.",
+        def: "PRs that are green with auto-merge on, not in conflict with master, and still unmerged 2 h later.",
         red: "2 or more: merging itself is broken (branch rules or GitHub). The PRs are named in this row; an agent checks why they do not merge.",
     },
     "pull-requests.automerge_armed_long": {
@@ -676,6 +676,12 @@ export const MEMBER: Record<MemberId, MemberText> = {
         short: "full-run shards over budget",
         def: "Full-run test shards whose 7-day median time is over their own time budget. Shard times below shows each shard's median against its budget (the line in its bar). While CI test results sends too little, this row says NO DATA rather than count from data that may be missing.",
         red: "3 or more: full runs are slowing down and may hit their timeouts. Agents speed up or split the shards listed over budget in Shard times.",
+    },
+    "ci.group_deadline": {
+        name: "Test group near its deadline",
+        short: "test group near its deadline",
+        def: "A full run's test group runs its members one after another in one step, stopped at a deadline. This is the slowest group's newest full run: its members' times added up (with 10 s between members) as a % of that deadline. Test groups in Shard times below lists every group and the members slower than their measured time in tools/ci-test-matrix.mjs.",
+        red: "Over 90%: the next slow runner cancels the group before its last members run. Agents move a member out of the group or speed it up; a member marked slower than its entry gets its GROUP_MEMBER_SECONDS remeasured.",
     },
     "ci.runner_minutes": {
         name: "Runner-minutes per merge",
@@ -1190,6 +1196,7 @@ const S: Record<string, (p: P) => string> = {
             .join(" "),
     "note.queued_run": (p) => [`run ${runLink(num(p, "run"))}`, ...(p.workflow ? [str(p, "workflow")] : [])].join(", "),
     "note.hung_jobs": (p) => and(arr(p, "jobs").map(esc)),
+    "note.flaky_no_issue": (p) => and(arr(p, "tests").map((t) => esc(t))),
     "ci.longest_queued.note": () => "a master build run, no job yet",
     "flaky.flake_rate.note": (p) => `results since ${at(p, "since")}`,
     "flaky.net_new.note": (p) => `${fmtN(num(p, "added"))} new, ${fmtN(num(p, "resolved"))} resolved`,
@@ -1308,6 +1315,8 @@ const S: Record<string, (p: P) => string> = {
     "runners.macos": (p) => `(${fmtN(num(p, "jobs"))} on macOS)`,
     "runners.queued_runs": (p) =>
         `Also queued: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} runs (${event(String(p.event ?? ""))}) with no job created yet, the oldest since ${at(p, "since")}.`,
+    "runners.stuck_runs": (p) =>
+        `Stuck at GitHub: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} runs (${event(String(p.event ?? ""))}) of pull requests no longer open, queued since ${at(p, "since")}; not counted as queued.`,
     "runners.one_repo": (p) =>
         `All in ${str(p, "repo")}; no other graphty-org repository ran a job in ${fmtN(num(p, "h"))} h.`,
 

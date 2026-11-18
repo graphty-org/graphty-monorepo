@@ -22,7 +22,34 @@
 
 export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles } from "./autoApply";
 export { createAutoApplyPolicy } from "./autoApply";
-export type { ColorWrite, StyleColor } from "./colors";
+export type {
+    ColorWrite,
+    StyleColor,
+    StyleGrayCollision,
+    StyleGrayCollisionOptions,
+    StyleGrayColor,
+    StyleGrayUse,
+} from "./colors";
+export type {
+    Condition,
+    ConditionField,
+    ConditionFieldKind,
+    ConditionTextMode,
+    ListedConditionField,
+} from "./conditions";
+export {
+    CONDITION_SOURCE_PATH,
+    conditionFields,
+    conditionKey,
+    conditionLeaf,
+    conditionOf,
+    conditionSelector,
+    edgeConditions,
+    isConditionFinished,
+    newCondition,
+    nodeConditionLeaves,
+    nodeConditions,
+} from "./conditions";
 export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
 export type {
@@ -93,6 +120,7 @@ export type {
     AgreementOptions,
     BranchesView,
     DefaultPalettes,
+    DrawnValue,
     ElementLayerSpec,
     HighlightSpec,
     LayerPatch,
@@ -103,6 +131,8 @@ export type {
     StyleChange,
     StyleFileDocument,
     StyleRefusal,
+    StyleRepaintCause,
+    StyleRepaintFailure,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,

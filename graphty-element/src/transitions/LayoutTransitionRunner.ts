@@ -64,6 +64,8 @@ export interface TransitionHost {
     edges(): Iterable<Pick<Edge, "srcNode" | "dstNode">>;
     /** The selected nodes. */
     selected(): readonly TransitionSubject[];
+    /** Whether the graph reduces motion, which draws a new layout in one frame. */
+    reducedMotion?(): boolean;
     /** Whether the layout is still running. */
     layoutRunning(): boolean;
 }
@@ -335,8 +337,8 @@ function travelOf(mover: Mover, t: number): number {
  * The scale a node is drawn at this frame under a particle transition. The node gives way to its
  * cloud: gone at the height of the burst, whole where it left and where it lands.
  *
- * ponytail: `layoutBehavior.node.depthIndependentSize` rescales every node after the move and so
- * keeps them whole; a scale both multiply into, if that pairing is ever wanted.
+ * ponytail: the view scale (`node.sizeSpace`) is written after the pass and so keeps a view-sized
+ * node whole; a scale both multiply into, if that pairing is ever wanted.
  * @param mover - The move.
  * @returns The scale.
  */
@@ -383,7 +385,7 @@ export class LayoutTransitionRunner {
      */
     snapshot(): TransitionSnapshot | null {
         const config = this.host.config();
-        if (config === undefined || this.host.quality().motion === "still") {
+        if (config === undefined || this.host.quality().motion === "still" || this.host.reducedMotion?.() === true) {
             return null;
         }
 

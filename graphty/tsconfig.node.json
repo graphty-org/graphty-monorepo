@@ -18,7 +18,9 @@
         "vitest.config.ts",
         "vite.aliases.ts",
         "vite.build-stamp.ts",
+        "vite.boot-files.ts",
         "vite.sample-data.ts",
-        "test/**/*.ts"
+        "test/**/*.ts",
+        "bench/**/*.ts"
     ]
 }

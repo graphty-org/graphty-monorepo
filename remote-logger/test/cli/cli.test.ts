@@ -57,6 +57,11 @@ describe("CLI", () => {
             expect(result.options.logFile).toBe("./logs.jsonl");
         });
 
+        test("should parse --proxy-allow-private flag", () => {
+            const result = parseArgs(["--proxy-allow-private"]);
+            expect(result.options.proxyAllowPrivate).toBe(true);
+        });
+
         test("should parse --quiet flag", () => {
             const result = parseArgs(["--quiet"]);
             expect(result.options.quiet).toBe(true);

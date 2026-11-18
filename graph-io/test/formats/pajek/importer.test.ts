@@ -13,6 +13,7 @@ import {
     readCorpusText,
     readMalformedText,
 } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 import { expectSameSnapshot } from "../../helpers/roundtrip.js";
 
 type Options = PajekImportOptions & CommonImportOptions;
@@ -28,13 +29,7 @@ async function load(
 }
 
 async function fails(input: ImportInput, options?: Options): Promise<ImportError> {
-    try {
-        await load(input, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected the import to throw ImportError");
+    return expectImportError(() => load(input, options), { format: "pajek" });
 }
 
 function codes(report: ImportReport): string[] {
@@ -402,6 +397,12 @@ describe("pajekImporter: vertex lines", () => {
         expect(snapshot.edgeCount).toBe(1);
         expect(snapshot.directed).toBe(true);
         expect(snapshot.edgeList().weights?.[0]).toBe(3);
+    });
+
+    it("reads an infinite line value (as the exporter writes it) as the weight", async () => {
+        const { snapshot, report } = await load("*Vertices 2\n*Arcs\n1 2 Infinity\n2 1 -INF\n");
+        expect(report.issues).toEqual([]);
+        expect(Array.from(snapshot.edgeList().weights ?? [])).toEqual([Infinity, -Infinity]);
     });
 });
 
@@ -777,41 +778,56 @@ describe("pajekImporter: the malformed corpus", () => {
      * warning (the node count per file); every other case is an error.
      */
     const recoverable = new Map([
-        ["missing-edges-section.net", 3],
-        ["wrong-vertex-count.net", 10],
+        ["missing-edges-section.net", { nodes: 3, code: PAJEK_ISSUE.NO_LINES }],
+        ["wrong-vertex-count.net", { nodes: 10, code: PAJEK_ISSUE.VERTEX_COUNT }],
     ]);
+    /** The first error of each failing file, which stops it under errorLimit 0. */
+    const failing: Partial<Record<string, string>> = {
+        "empty-file.net": PAJEK_ISSUE.EMPTY_INPUT,
+        "garbage-content.net": PAJEK_ISSUE.OUTSIDE_SECTION,
+        "invalid-edge-reference.net": PAJEK_ISSUE.UNKNOWN_NODE,
+        "malformed-edge.net": PAJEK_ISSUE.LINE,
+        "malformed-vertex.net": PAJEK_ISSUE.VERTEX_LINE,
+        "no-vertices-header.net": PAJEK_ISSUE.OUTSIDE_SECTION,
+    };
+
+    it("covers every malformed file", () => {
+        expect([...malformedFiles("pajek")]).toEqual([...Object.keys(failing), ...recoverable.keys()].sort());
+    });
 
     for (const name of malformedFiles("pajek")) {
-        const nodes = recoverable.get(name);
-        if (nodes !== undefined) {
+        const expected = recoverable.get(name);
+        if (expected !== undefined) {
             it(`${name}: imports with a warning`, async () => {
                 const { report, snapshot } = await load(readMalformedText("pajek", name), { errorLimit: 0 });
-                expect(report.errorCount).toBe(0);
-                expect(report.warningCount).toBe(1);
-                expect(snapshot.nodeCount).toBe(nodes);
+                expect(codes(report)).toEqual([expected.code]);
+                expect(report.issues[0].severity).toBe("warning");
+                expect(snapshot.nodeCount).toBe(expected.nodes);
             });
             continue;
         }
         it(`${name}: throws ImportError with the partial report under errorLimit 0`, async () => {
             const err = await fails(readMalformedText("pajek", name), { errorLimit: 0 });
-            expect(err.code).toBe("E_IMPORT");
             expect(err.name).toBe("ImportError");
-            expect(err.report.format).toBe("pajek");
-            expect(err.report.errorCount).toBeGreaterThan(0);
-            expect(err.report.issues.length).toBeGreaterThan(0);
+            expect(codes(err.report)).toEqual([failing[name]]);
             expect(err.report.issues[0].severity).toBe("error");
         });
     }
 
     it("under the default limit the recoverable cases import with issues and the structural ones throw", async () => {
-        const structural = ["empty-file.net", "garbage-content.net", "no-vertices-header.net"];
+        const structural: Partial<Record<string, string>> = {
+            "empty-file.net": PAJEK_ISSUE.EMPTY_INPUT,
+            "garbage-content.net": PAJEK_ISSUE.NO_VERTICES,
+            "no-vertices-header.net": PAJEK_ISSUE.NO_VERTICES,
+        };
         for (const name of malformedFiles("pajek")) {
-            if (structural.includes(name)) {
-                await fails(readMalformedText("pajek", name));
+            const code = structural[name];
+            if (code !== undefined) {
+                await expectImportError(() => load(readMalformedText("pajek", name)), { format: "pajek", code });
             } else {
                 const { report } = await load(readMalformedText("pajek", name));
                 expect(report.truncated, name).toBe(false);
-                expect(report.issues.length, name).toBe(1);
+                expect(codes(report), name).toEqual([recoverable.get(name)?.code ?? failing[name]]);
             }
         }
     });
@@ -954,12 +970,12 @@ describe("pajekImporter: the manual's line forms", () => {
         expect(label(snapshot, 2)).toBe("a&#99999999;");
     });
 
-    it("reads shape keywords in any case, including house, man and woman", async () => {
+    it("reads shape keywords in any case, as written, including house, man and woman", async () => {
         const text = "*Vertices 4\n1 a 0 0 Ellipse ic Red\n2 b house\n3 c MAN\n4 d woman\n*Edges\n1 2\n";
         const { snapshot, report } = await load(text);
         expect(report.issues).toEqual([]);
         const shape = snapshot.nodes.require("shape");
-        expect([0, 1, 2, 3].map((i) => shape.value(i))).toEqual(["ellipse", "house", "man", "woman"]);
+        expect([0, 1, 2, 3].map((i) => shape.value(i))).toEqual(["Ellipse", "house", "MAN", "woman"]);
         expect(snapshot.nodes.require("ic").value(0)).toBe("Red");
     });
 

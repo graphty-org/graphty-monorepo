@@ -22,9 +22,10 @@ import {
 } from "../../config/GraphStyle";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { CONFIG_KEYS } from "../configKeys";
-import type { UndoableDefinition } from "../project/Dispatcher";
+import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
+import type { TimelineHiddenLook } from "../styles/rows";
 import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
 import { dropUnusedShaderCopies, namedShaders, settleShaderCopies, shaderIdsIn } from "./shaderCopies";
 
@@ -85,7 +86,18 @@ function configLeaves(values: ProjectConfigPatch): [string, unknown][] {
         const key = CONFIG_KEYS.get(path);
         if (key !== undefined) {
             if (value !== undefined) {
-                const parsed = key.schema.safeParse(value);
+                // A transform can throw rather than refuse (a color it cannot parse): refused all the same.
+                let parsed: ReturnType<typeof key.schema.safeParse>;
+                try {
+                    parsed = key.schema.safeParse(value);
+                } catch (cause) {
+                    throw badPatch(
+                        `${JSON.stringify(value)} is not a value the setting "${path}" takes.`,
+                        { key: path, value },
+                        cause,
+                    );
+                }
+
                 if (!parsed.success) {
                     throw badPatch(
                         `${JSON.stringify(value)} is not a value the setting "${path}" takes: ${parsed.error.issues[0]?.message ?? "refused"}.`,
@@ -164,7 +176,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
         const effective = ctx.services.config?.();
         const named = namedShaders(ctx.state);
         settleShaderCopies(shaderIdsIn(command.values), ctx.draft, ctx.services);
-        let restore = false;
+        let addDefaultRows = false;
         for (const [path, value] of configLeaves(command.values)) {
             // What the key reads as now, and whether this write changes it.
             const current = effective === undefined ? undefined : readPath(effective, path);
@@ -182,38 +194,50 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 ctx.draft.config.set(path, value);
             }
 
-            restore ||= restoresStartingRows(path, value, same, ctx.services.timeline?.() !== false);
+            // Turning `startingRows` on writes the default rows; writing the value already in effect
+            // (a project opened over the same settings) writes none.
+            addDefaultRows ||= path === "startingRows" && value === true && !same;
         }
 
         dropUnusedShaderCopies(named, ctx.state, ctx.draft, ctx.services);
 
-        // The starting rows arrive with the setting, in its step: undo takes both back. Added once
-        // every key is written, so an Everything row added with `editableBase` holds the base look.
-        if (restore && ctx.state.config.get("startingRows") === true) {
-            ctx.services.styles?.execute({ op: "style.patch", action: "restoreStartingRows" }, ctx.draft);
+        // The default rows arrive with the setting, in its step: undo takes both back. Written once
+        // every key is, so they take the `editableBase`, `pinnedStyle` and selection look written
+        // with it. They are plain data from then on: no later setting adds, removes or rewrites one.
+        if (addDefaultRows) {
+            ctx.services.styles?.execute({ op: "style.patch", action: "addDefaultRows" }, ctx.draft);
         }
+
+        addTimelineRowOnce(ctx);
     },
 };
 
 /**
- * Whether writing a config key asks for the starting rows to be restored.
- * @param path - The key.
- * @param value - The value written (undefined to clear it).
- * @param same - Whether the write leaves the value the key already reads as.
- * @param timeline - Whether the timeline experiment is on: off, a time field brings no Ghost row.
- * @returns True when the starting rows are to be restored.
+ * The timeline's row arrives the first time a project with the starting rows has a time field,
+ * once: `timelineHiddenAdded` records that it came, in the same step, so turning the timeline off
+ * and on again, or deleting the row, never brings it back. Written after the other default rows,
+ * it lands at the bottom of the top-pinned rows, beneath Selected.
+ * @param ctx - The `config.set` being executed, its keys already written.
  */
-function restoresStartingRows(path: string, value: unknown, same: boolean, timeline: boolean): boolean {
-    if ((path === "startingRows" || path === "editableBase") && value === true) {
-        return true;
+function addTimelineRowOnce(ctx: UndoableContext): void {
+    const after = ctx.services.config?.();
+    const known = after?.data.knownFields;
+    const timed = (known?.nodeTimePath ?? known?.edgeTimePath ?? null) !== null;
+    if (after?.startingRows !== true || after.timelineHiddenAdded || !timed) {
+        return;
     }
 
-    // Designating or clearing a time field adds or takes away the Ghost row, and setting or
-    // clearing the pinned look the Pinned row. Only a change does: writing the value already
-    // in effect (a project opened over the same settings) adds nothing, so a project read
-    // into a cleared tree gets exactly the rows it saved.
-    const timeField = path === "data.knownFields.nodeTimePath" || path === "data.knownFields.edgeTimePath";
-    return !same && ((timeField && timeline) || path === "pinnedStyle");
+    ctx.draft.config.set("timelineHiddenAdded", true);
+    ctx.services.styles?.execute({ op: "style.patch", action: "addDefaultRows", timelineHidden: true }, ctx.draft);
+}
+
+/**
+ * An object's keys whose values are set, so an unset setting is absent rather than `undefined`.
+ * @param values - The values.
+ * @returns The same object less its `undefined` keys.
+ */
+function definedOnly<T extends object>(values: T): Partial<T> {
+    return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as Partial<T>;
 }
 
 /**
@@ -244,6 +268,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
     const viewRotation = read("viewRotation") as number | undefined;
     const framing = read("framing") as GraphFraming | undefined;
+    const minMarkSize = read("minMarkSize") as ProjectConfig["minMarkSize"];
     const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
@@ -253,15 +278,15 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         ...(pinned === undefined ? {} : { pinnedStyle: pinned }),
         startingRows: read("startingRows") as boolean,
         editableBase: read("editableBase") as boolean,
+        timelineHiddenLook: read("timelineHiddenLook") as TimelineHiddenLook,
+        timelineHiddenAdded: read("timelineHiddenAdded") as boolean,
         runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,
             minDelta: read("layoutBehavior.minDelta") as number,
         }),
-        ...(layoutTransition === undefined ? {} : { layoutTransition }),
-        ...(viewRotation === undefined ? {} : { viewRotation }),
-        ...(framing === undefined ? {} : { framing }),
+        ...definedOnly({ layoutTransition, viewRotation, framing, minMarkSize }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

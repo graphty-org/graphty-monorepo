@@ -1,11 +1,12 @@
 /**
- * The pure upload planner of spec 4.2: from a snapshot's shape, the device limits and the core arrays a kernel
+ * The pure upload planner: from a snapshot's shape, the device limits and the core arrays a kernel
  * needs, choose the one-buffer arena upload (the hot prefix, or the full arena when a cold segment is needed and
  * fits), one buffer per array, or arc windows over the arc-indexed arrays. No GPU object is touched here:
- * GraphResidency (./residency.ts) executes arena and perArray plans and P4 executes windowed plans (P1-P3 only
- * plan them). Every byte length comes from counts and flags, so an identity permutation is never materialised
- * (spec 4.1), and every arithmetic step uses `%` and Math.floor, never a bitwise operator: arc indices and byte
- * offsets exceed 2^31 at the 10M / 100M tier (graph-format invariant I3, spec 4.2).
+ * GraphResidency (./residency.ts) executes every plan, the windowed one
+ * included. Every byte length comes from counts and flags, so an identity permutation is never materialised, and every arithmetic step uses `%` and Math.floor, never a bitwise operator: arc indices and byte
+ * offsets exceed 2^31 at the 10M / 100M tier (graph-format invariant I3).
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "4.2 Upload planner: arena hot prefix, per array, windowed".
  */
 
 import { type CoreArrayName, type GraphSnapshot } from "@graphty/graph-format";
@@ -23,8 +24,7 @@ const ARC_INDEXED: ReadonlySet<CoreArrayName> = new Set<CoreArrayName>(["colIdx"
 
 /**
  * Where one core array's bytes go: one or more buffers (split at window boundaries only when the array exceeds
- * maxBufferSize). Exported with the plan union (contract 3.8): P4's windowed execution reads it; nothing at P1
- * imports it by name.
+ * maxBufferSize). Exported with the plan union; the windowed execution reads it.
  * @public
  */
 export interface PlannedArray {
@@ -35,7 +35,7 @@ export interface PlannedArray {
 
 /**
  * The arena path: ONE buffer of `bytes`, one writeBuffer, per-segment bindings at `segment.byteOffset - arena.byteOffset`.
- * A member of the exported UploadPlan union (contract 3.8 exports the three plan shapes by name); nothing imports it
+ * A member of the exported UploadPlan union (the three plan shapes are exported by name); nothing imports it
  * by name, which knip 5.77 reports.
  * @public
  */
@@ -48,7 +48,7 @@ export interface ArenaPlan {
 
 /**
  * The per-array path: one buffer per needed array, whole-buffer bindings.
- * A member of the exported UploadPlan union (contract 3.8 exports the three plan shapes by name); nothing imports it
+ * A member of the exported UploadPlan union (the three plan shapes are exported by name); nothing imports it
  * by name, which knip 5.77 reports.
  * @public
  */
@@ -58,8 +58,8 @@ export interface PerArrayPlan {
 }
 
 /**
- * The windowed path: per-array buffers plus the arc windows kernels iterate (P4 executes; P1-P3 only plan).
- * A member of the exported UploadPlan union (contract 3.8 exports the three plan shapes by name); nothing imports it
+ * The windowed path: per-array buffers plus the arc windows kernels iterate.
+ * A member of the exported UploadPlan union (the three plan shapes are exported by name); nothing imports it
  * by name, which knip 5.77 reports.
  * @public
  */
@@ -81,7 +81,7 @@ interface BufferRange {
 
 /**
  * Byte length of every core array from the counts and flags alone; 0 means absent (unweighted, an identity
- * permutation, or zero length: spec 5.6 never binds a zero-length array). No array is read.
+ * permutation, or zero length: a zero-length array is never bound). No array is read.
  * @param s - the snapshot
  * @returns the byte lengths keyed by core array name
  */
@@ -122,7 +122,7 @@ function alignDown(value: number): number {
 }
 
 /**
- * The E_TOO_LARGE error of spec 5.7 for a plan that cannot exist.
+ * The E_TOO_LARGE error for a plan that cannot exist.
  * @param needed - the bytes that do not fit
  * @param limit - the limit they exceed
  * @param path - "rowPtr" (no window can hold rowPtr) or "binding" (an edge-indexed array cannot be windowed)
@@ -222,7 +222,7 @@ export function planArcWindows(rowPtr: Uint32Array, arcCount: number, arcsPerWin
 }
 
 /**
- * Groups consecutive windows into buffers of at most `bufferLimit` bytes (spec 4.2: an array above maxBufferSize is
+ * Groups consecutive windows into buffers of at most `bufferLimit` bytes (an array above maxBufferSize is
  * split across buffers at window boundaries) and re-places every window with its buffer index and offset.
  * @param windows - the windows of planArcWindows
  * @param arcBytes - the byte length of one arc-indexed array
@@ -265,7 +265,7 @@ function placeWindows(
 }
 
 /**
- * The pure planner of spec 4.2: arena (hot prefix unless `need` names a cold segment and the full arena fits) ->
+ * The pure planner: arena (hot prefix unless `need` names a cold segment and the full arena fits) ->
  * perArray -> windowed, in that order. `need` always contains "rowPtr" (it is added when absent); absent arrays
  * (unweighted `weights`, identity permutations, zero-length arrays) are dropped; a snapshot with arcCount === 0
  * plans rowPtr only. The arena path needs `bytes <= maxBufferSize` and every needed segment within both limits;
@@ -335,16 +335,39 @@ export function planUpload(s: GraphSnapshot, caps: PlanCaps, need: readonly Core
     if (names.includes("edgeToArc") && !fits(lengths.edgeToArc)) {
         throw tooLarge(lengths.edgeToArc, violated(lengths.edgeToArc), "binding");
     }
-    const arcsPerWindow = Math.min(arcsPerWindowFor(limits), alignDown(Math.floor(bufferLimit / 4)));
-    if (arcsPerWindow < ARC_WINDOW_ALIGN) {
-        throw tooLarge(4 * ARC_WINDOW_ALIGN, binding, "binding");
-    }
-    const windows = planArcWindows(s.rowPtr, s.arcCount, arcsPerWindow);
-    const { buffers, placed } = placeWindows(windows, 4 * s.arcCount, bufferLimit);
+    const { buffers, windows, arcsPerWindow } = planWindowLayout(s.rowPtr, s.arcCount, limits);
     const arrays: PlannedArray[] = names.map((name) =>
         ARC_INDEXED.has(name)
             ? { name, byteLength: lengths[name], buffers }
             : { name, byteLength: lengths[name], buffers: [{ byteOffset: 0, byteLength: lengths[name] }] },
     );
-    return { kind: "windowed", arrays, windows: placed, arcsPerWindow };
+    return { kind: "windowed", arrays, windows, arcsPerWindow };
+}
+
+/**
+ * The windows of one CSR adjacency and the buffer ranges its arc-indexed arrays are split into (pure): the windowed
+ * tail of planUpload, shared with the residency's windowed reverse adjacency (issue #471), whose rowPtr is the
+ * reverse's own.
+ * @param rowPtr - nodeCount + 1 row offsets (rowPtr[nodeCount] === arcCount)
+ * @param arcCount - the arc count
+ * @param limits - the device limits
+ * @returns the buffer ranges, the placed windows and the arcs per window; E_TOO_LARGE when a binding holds fewer than
+ *   ARC_WINDOW_ALIGN arcs
+ */
+export function planWindowLayout(
+    rowPtr: Uint32Array,
+    arcCount: number,
+    limits: PlanLimits,
+): { readonly buffers: BufferRange[]; readonly windows: ArcWindow[]; readonly arcsPerWindow: number } {
+    const bufferLimit = limits.maxBufferSize;
+    const arcsPerWindow = Math.min(arcsPerWindowFor(limits), alignDown(Math.floor(bufferLimit / 4)));
+    if (arcsPerWindow < ARC_WINDOW_ALIGN) {
+        throw tooLarge(4 * ARC_WINDOW_ALIGN, limits.maxStorageBufferBindingSize, "binding");
+    }
+    const { buffers, placed } = placeWindows(
+        planArcWindows(rowPtr, arcCount, arcsPerWindow),
+        4 * arcCount,
+        bufferLimit,
+    );
+    return { buffers, windows: placed, arcsPerWindow };
 }

@@ -100,6 +100,7 @@ export type GraphEvent =
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
+    | ReducedMotionChangedEvent
     | XRSessionStartedEvent
     | XRSessionEndedEvent
     | InputPointerEvent
@@ -597,6 +598,18 @@ export interface StatsUpdateEvent {
     totalUpdates: number;
     /** The counters as they stand now. */
     stats: ReturnType<StatsManager["getStats"]>;
+}
+
+/**
+ * Emitted when whether motion is reduced changes: `setReducedMotion` was called with a different
+ * answer, or, under `"auto"`, the platform's `prefers-reduced-motion` changed. Read
+ * `isMotionReduced()` for the answer at any time.
+ * @since 3.58.0
+ */
+export interface ReducedMotionChangedEvent {
+    type: "reduced-motion-changed";
+    /** Whether motion is reduced now. */
+    reduced: boolean;
 }
 
 /** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */

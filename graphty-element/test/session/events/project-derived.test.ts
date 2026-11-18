@@ -95,6 +95,8 @@ describe("project:derived", () => {
             styles: true,
             visibility: true,
             views: true,
+            // Written by the views verbs and derived as the views slice, so its own hook never runs.
+            viewOrder: true,
         };
         let seq = 0;
         const finished: { slice: string; at: number }[] = [];

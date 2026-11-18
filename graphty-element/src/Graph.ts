@@ -92,8 +92,16 @@ const MAP_CLEARANCE = 1e-4;
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
+import { cameraRefusal, stateProblem } from "./camera/mode.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
-import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
+import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
+import {
+    type CameraViewContext,
+    cameraViewIds,
+    cameraViewModes,
+    isCameraViewName,
+    resolveCameraView,
+} from "./camera/resolve.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
@@ -147,6 +155,7 @@ import {
     EventOfType,
     EventType,
     type LimitsWarningEvent,
+    type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
     type XRSessionEndedEvent,
@@ -265,7 +274,6 @@ import {
 } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
-import { assertViewName } from "./session/commands/view";
 import {
     addSetsUsers,
     dispatcherOf,
@@ -294,6 +302,7 @@ import { reportCaught, strictStateEnabled, strictViolation } from "./session/pro
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { shadersControllerOf } from "./session/shaders";
+import type { CodedFact } from "./session/shared";
 import { PROVENANCE_VALUE } from "./session/sources/provenance";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
@@ -1504,6 +1513,13 @@ export class Graph implements GraphContext {
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
+            current: () => {
+                const immersive = this.#immersiveProblem();
+                if (immersive !== null) {
+                    throw cameraRefusal(immersive);
+                }
+                return this.getCameraState();
+            },
             move: (command) =>
                 this.setCameraState(
                     command.preset === undefined
@@ -5806,7 +5822,7 @@ export class Graph implements GraphContext {
                 const duration = pointerEventTime(pointerInfo.event) - clickStartTime;
                 const dx = this.scene.pointerX - clickStartPos.x;
                 const dy = this.scene.pointerY - clickStartPos.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                const distance = Math.hypot(dx, dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     this.handleBackgroundClick(pointerInfo.event);
@@ -6436,12 +6452,33 @@ export class Graph implements GraphContext {
         return this.#motionReduced() ? 0 : this.#cameraTransitionMs;
     }
 
+    /**
+     * Whether motion is reduced now: `setReducedMotion`'s setting, with `"auto"` resolved against
+     * the platform's `prefers-reduced-motion`. `reduced-motion-changed` fires when the answer
+     * changes.
+     * @returns True when camera moves jump, auto-rotate is stopped and layouts are shown settled.
+     * @since 3.58.0
+     */
+    isMotionReduced(): boolean {
+        return this.#motionReduced();
+    }
+
+    /** The answer `reduced-motion-changed` last reported; false before any. */
+    #motionWasReduced = false;
+
     /** Tell the camera, the layout and the frame loop whether motion is reduced. */
     #applyMotion(): void {
         const reduced = this.#motionReduced();
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
         this.layoutManager.reducedMotion = reduced;
         this.updateManager.reducedMotion = reduced;
+        if (reduced !== this.#motionWasReduced) {
+            this.#motionWasReduced = reduced;
+            this.eventManager.emit("reduced-motion-changed", { reduced } satisfies Omit<
+                ReducedMotionChangedEvent,
+                "type"
+            >);
+        }
     }
 
     /**
@@ -7284,14 +7321,14 @@ export class Graph implements GraphContext {
 
         const state = this.getCameraState();
         if (state.pan) {
-            await this.setCameraState({ pan: { x: state.pan.x + shift.x, y: state.pan.y + shift.y } }, options);
+            await this.#placeCamera({ pan: { x: state.pan.x + shift.x, y: state.pan.y + shift.y } }, options);
         } else if (state.position && state.target) {
             const move = (p: { x: number; y: number; z: number }): { x: number; y: number; z: number } => ({
                 x: p.x + shift.x,
                 y: p.y + shift.y,
                 z: p.z + shift.z,
             });
-            await this.setCameraState({ position: move(state.position), target: move(state.target) }, options);
+            await this.#placeCamera({ position: move(state.position), target: move(state.target) }, options);
         }
     }
 
@@ -8180,18 +8217,19 @@ export class Graph implements GraphContext {
             import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
         )[],
     ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
-        const flat = this.getViewMode() === "2d";
+        const mode = this.#immersiveProblem()?.mode ?? this.dimension();
         return path.map((stop, index) => {
             const view = "view" in stop ? stop.view : { position: stop.position, target: stop.target };
-            const state = orbitAnglesToPosition(typeof view === "string" ? this.resolveCameraPreset(view) : view);
-            if (flat ? state.zoom === undefined && !state.pan : !state.position || !state.target) {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: `tour stop ${index} has no ${flat ? "2D zoom or pan" : "camera position and target"} to fly to`,
-                    source: "view",
-                    details: { stop: index, ...(typeof view === "string" ? { view } : {}), mode: flat ? "2d" : "3d" },
-                });
+            const named = typeof view === "string" ? view : undefined;
+            const resolved = typeof view === "string" ? this.resolveCameraPreset(view) : view;
+            const problem = stateProblem(resolved, mode, {
+                ...(named === undefined ? {} : { name: named }),
+                stop: index,
+            });
+            if (problem !== null) {
+                throw cameraRefusal(problem);
             }
+            const state = orbitAnglesToPosition(resolved);
             return { state, duration: Math.max(0, stop.duration ?? 0), hold: Math.max(0, stop.hold ?? 0) };
         });
     }
@@ -8223,7 +8261,7 @@ export class Graph implements GraphContext {
                 if (tour.ended) {
                     return;
                 }
-                await this.setCameraState(state, { animate: duration > 0, duration, easing: easing ?? "easeInOut" });
+                await this.#placeCamera(state, { animate: duration > 0, duration, easing: easing ?? "easeInOut" });
                 await this.holdTourStop(hold, tour);
             }
         } finally {
@@ -8472,6 +8510,7 @@ export class Graph implements GraphContext {
             }
 
             state.cameraDistance = orbitController.cameraDistance;
+            state.mode = "3d";
         } else if (controller instanceof TwoDCameraController) {
             // TwoDCameraController - get zoom and pan
             const twoDController = controller;
@@ -8488,6 +8527,7 @@ export class Graph implements GraphContext {
                 y: twoDController.camera.position.y,
             };
             state.rotation = controller.rotation;
+            state.mode = "2d";
         } else if ("position" in camera) {
             // Fallback for other camera types
             state.position = {
@@ -8510,12 +8550,55 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set the camera state (Phase 4: with animation support)
+     * Put the camera in a state, or at a named view.
+     *
+     * The state must fit the drawing mode: one with a `mode` applies only in that mode, and one
+     * without applies in each mode it holds a member of (2D reads `zoom`, `pan` and `rotation`; 3D
+     * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
+     * `fov`). `{}` fits both and changes nothing. A named view resolves first and is judged as the
+     * state it resolves to.
      * @param state - Camera state or preset name to apply
      * @param options - Optional animation configuration
+     * @returns Settles once the camera has arrived.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` `{ reason: "mode", name?, modes, mode }` for a
+     *     state that does not fit the drawing mode, or `{ reason: "xr", mode }` while immersive.
      */
     async setCameraState(
         state: import("./screenshot/types.js").CameraState | { preset: string },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+
+        const name = "preset" in state ? state.preset : undefined;
+        const resolved = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
+        const problem = stateProblem(resolved, this.dimension(), name === undefined ? {} : { name });
+        if (problem !== null) {
+            throw cameraRefusal(problem);
+        }
+
+        return this.#placeCamera(resolved, options);
+    }
+
+    /**
+     * Why no camera can be placed now: the element is drawing into a headset or a phone's AR view.
+     * @returns The refusal's params, or null when the camera can be placed.
+     */
+    #immersiveProblem(): { reason: "xr"; mode: "ar" | "vr" } | null {
+        const mode = this.getViewMode();
+        return mode === "ar" || mode === "vr" ? { reason: "xr", mode } : null;
+    }
+
+    /**
+     * Place the camera with no check of the drawing mode: for states the element built for the
+     * mode it is in (a reset, a zoom step, a pan, a tour stop already judged).
+     * @param state - The camera state.
+     * @param options - Optional animation configuration.
+     */
+    async #placeCamera(
+        state: import("./screenshot/types.js").CameraState,
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         const camera = this.scene.activeCamera;
@@ -8523,8 +8606,7 @@ export class Graph implements GraphContext {
             return;
         }
 
-        // Resolve preset if needed
-        const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
+        const resolvedState = orbitAnglesToPosition(state);
 
         // An explicit placement of where the camera stands or how far it is answers any framing
         // the element still owes on its own initiative (a data load, a new layout, the first
@@ -8677,7 +8759,7 @@ export class Graph implements GraphContext {
             const dx = state.position.x - state.target.x;
             const dy = state.position.y - state.target.y;
             const dz = state.position.z - state.target.z;
-            orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
+            orbitController.cameraDistance = orbitController.clampDistance(Math.hypot(dx, dy, dz));
         }
 
         // Update the pivot's world matrix and camera position
@@ -8978,7 +9060,7 @@ export class Graph implements GraphContext {
             const dx = targetState.position.x - targetState.target.x;
             const dy = targetState.position.y - targetState.target.y;
             const dz = targetState.position.z - targetState.target.z;
-            const calculatedDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const calculatedDistance = Math.hypot(dx, dy, dz);
             distanceAnimation = this.animateCameraDistance(
                 orbitController,
                 calculatedDistance,
@@ -9377,7 +9459,7 @@ export class Graph implements GraphContext {
     async resetCamera(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
         // Get default camera state from current controller
         const defaultState = this.getDefaultCameraState();
-        return this.setCameraState(defaultState, options);
+        return this.#placeCamera(defaultState, options);
     }
 
     /**
@@ -9402,11 +9484,11 @@ export class Graph implements GraphContext {
         const factor = direction === "in" ? 1 / ZOOM_STEP_FACTOR : ZOOM_STEP_FACTOR;
         const state = this.getCameraState();
         if (state.zoom !== undefined) {
-            return this.setCameraZoom(state.zoom / factor, options);
+            return this.#placeCamera({ zoom: state.zoom / factor }, options);
         }
 
         if (state.cameraDistance !== undefined) {
-            return this.setCameraState({ cameraDistance: state.cameraDistance * factor }, options);
+            return this.#placeCamera({ cameraDistance: state.cameraDistance * factor }, options);
         }
 
         return undefined;
@@ -9764,6 +9846,72 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether a view name can be applied now, without moving anything: the same answer
+     * `applyCameraView(name)` would give.
+     *
+     * A name is a camera view when one answers to it, and a saved view only otherwise, so a camera
+     * view registered later takes the name. `{ saved: true }` judges the saved view itself, for a
+     * list of saved views: a saved view whose name a camera view took cannot be reached by name
+     * until it is renamed.
+     * @param name - A camera view's id or a saved view's name.
+     * @param options - What to judge.
+     * @param options.saved - Judge the saved view under the name, not whatever the name resolves to.
+     * @returns Null when it can be applied now; otherwise one coded fact, as the refusal's `code`
+     *     and `details`: `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive,
+     *     `E_UNSUPPORTED` `{ reason: "mode", name, modes, mode }` when it does not work in the
+     *     drawing mode, `E_UNKNOWN_CAMERA` `{ name, available }` when nothing answers to the name,
+     *     `E_PROTECTED` `{ name }` for `{ saved: true }` when a camera view holds the name, and
+     *     `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name.
+     * @since 3.58.0
+     */
+    viewProblem(name: string, options?: { saved?: boolean }): CodedFact | null {
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            return { code: "E_UNSUPPORTED", params: immersive };
+        }
+
+        if (typeof name !== "string" || name.trim() === "") {
+            return { code: "E_BAD_COMMAND", params: { reason: "empty-name" } };
+        }
+
+        const mode = this.dimension();
+        const modes = cameraViewModes(name);
+        if (modes !== undefined) {
+            if (options?.saved === true) {
+                return { code: "E_PROTECTED", params: { name } };
+            }
+            return modes.includes(mode)
+                ? null
+                : { code: "E_UNSUPPORTED", params: { reason: "mode", name, modes: [...modes], mode } };
+        }
+
+        const saved = this.session.views.get(name);
+        if (saved === undefined) {
+            const available = options?.saved === true ? [] : [...cameraViewIds()];
+            return {
+                code: "E_UNKNOWN_CAMERA",
+                params: { name, available: [...available, ...this.session.views.keys()] },
+            };
+        }
+
+        const problem = stateProblem(saved, mode, { name });
+        return problem === null ? null : { code: "E_UNSUPPORTED", params: problem };
+    }
+
+    /**
+     * How big the drawing surface is: its pixel size and the device pixel ratio it is drawn at.
+     * @returns The canvas's width and height in device pixels, and the ratio of device pixels to
+     *     CSS pixels.
+     * @since 3.58.0
+     */
+    getCanvasSize(): { width: number; height: number; devicePixelRatio: number } {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        const css = this.canvas.clientWidth;
+        return { width, height, devicePixelRatio: css > 0 ? width / css : 1 };
+    }
+
+    /**
      * Put the viewer where a named camera view says they should stand.
      *
      * This is the route that can frame a SUBSET. The element measures the box over whatever the
@@ -9780,7 +9928,10 @@ export class Graph implements GraphContext {
      *   and `"centers"` when `scope` names a subset.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
-     * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does.
+     * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does; `E_UNSUPPORTED`
+     * `{ reason: "mode", name, modes, mode }` for a saved view that does not fit the drawing
+     * mode, and `{ reason: "xr", mode }` while immersive. `viewProblem(id)` answers the same
+     * question without moving anything.
      */
     async applyCameraView(
         id: string,
@@ -9790,6 +9941,11 @@ export class Graph implements GraphContext {
             extent?: CameraViewExtent;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+
         const scope = options?.scope;
         const resolver = scopeResolverOfSession(this.getSession());
         // Read from the scope's node bitmap, so framing a subset never builds an id Set. An inline
@@ -9806,8 +9962,13 @@ export class Graph implements GraphContext {
             ...(options?.params === undefined ? {} : { params: options.params }),
             ...(options?.extent === undefined ? {} : { extent: options.extent }),
         });
+        // A saved view is judged by the predicate; a camera view was judged by its declared modes.
+        const problem = stateProblem(state, this.dimension(), { name: id });
+        if (problem !== null) {
+            throw cameraRefusal(problem);
+        }
 
-        return this.setCameraState(state, options);
+        return this.#placeCamera(state, options);
     }
 
     /**
@@ -9818,15 +9979,13 @@ export class Graph implements GraphContext {
      * or a registered one -- is refused rather than shadowed.
      * @param name - The name to save it under.
      * @param camera - The camera state to save instead of where the camera is now.
-     * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view already
+     *     answers to the name, as `session.views.save` refuses.
+     * @deprecated Use `session.views.save([{ name, camera }])`.
      */
-    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
-        assertViewName(name);
-        // Checked above, so the immediate lane records it before this returns; a refusal from
-        // here on would be a defect, reported as `graph-error`.
-        this.reportUnawaited(this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]), {
-            op: "views.save",
-        });
+    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): Promise<void> {
+        return this.session.views.save([{ name, ...(camera === undefined ? {} : { camera }) }]);
     }
 
     /**
@@ -9853,6 +10012,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the step is recorded.
      * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when nothing is saved under
      *     the name.
+     * @deprecated Use `session.views.remove([name])`.
      */
     removeCameraPreset(name: string): Promise<void> {
         return this.session.views.remove([name]);
@@ -9863,6 +10023,8 @@ export class Graph implements GraphContext {
      * @param name - Name of the preset to load
      * @param options - Optional animation configuration
      * @returns Promise that resolves when camera state is applied
+     * @throws A `GraphtyError` as `setCameraState` refuses.
+     * @deprecated Use `applyCameraView(name, options)`.
      */
     async loadCameraPreset(
         name: string,
@@ -9881,32 +10043,20 @@ export class Graph implements GraphContext {
      * everybody else's. What each view is called in plain words, and which drawing modes it works
      * in, is in `session.catalog.cameras()`.
      * @returns Every name, mapped to the snapshot it holds or to the computed-view marker.
+     * @deprecated Read `session.catalog.cameras()` for the camera views and `session.views` for
+     *     the saved ones.
      */
     getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
-        const presets: Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> = {};
-
-        for (const name of cameraViewIds()) {
-            presets[name] = { builtin: true };
-        }
-
-        // User-defined presets
-        for (const [name, state] of this.session.views) {
-            presets[name] = state;
-        }
-
-        return presets;
+        return presetsOf(this.session.views);
     }
 
     /**
      * Export user-defined presets as JSON
      * @returns Object mapping preset names to camera states
+     * @deprecated Read `session.views`, a map in project order.
      */
     exportCameraPresets(): Record<string, import("./screenshot/types.js").CameraState> {
-        const exported: Record<string, import("./screenshot/types.js").CameraState> = {};
-        for (const [name, state] of this.session.views) {
-            exported[name] = state;
-        }
-        return exported;
+        return Object.fromEntries(this.session.views);
     }
 
     /**
@@ -9968,27 +10118,20 @@ export class Graph implements GraphContext {
     /**
      * Import user-defined presets from JSON, as one undoable step.
      * @param presets - Object mapping preset names to camera states
+     * @returns The entries left out, each with the code `session.views.save` would refuse it with:
+     *     `E_PROTECTED` for a camera view's name, `E_BAD_COMMAND` for an empty one.
+     * @deprecated Use `session.views.save`.
      */
-    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
-        const views: { name: string; camera: import("./screenshot/types.js").CameraState }[] = [];
-        for (const [name, camera] of Object.entries(presets)) {
-            // A registered view is skipped for the same reason a built-in one is: the imported
-            // entry is a fixed position, and overwriting a view with it would quietly turn a rule
-            // that recomputes itself for the graph on screen into one that does not.
-            if (isCameraViewName(name)) {
-                graphLogger.warn(
-                    `Skipping import of camera preset "${name}": a camera view already answers to that name`,
-                );
-                continue;
-            }
-
-            views.push({ name, camera });
-        }
-
+    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): {
+        skipped: SkippedPreset[];
+    } {
+        const { views, skipped } = splitPresetImport(presets);
         if (views.length > 0) {
-            // A name the views refuse rejects; nobody holds this promise, so it is reported.
+            // Every name was checked above; a refusal from here on would be a defect, reported.
             this.reportUnawaited(this.session.views.save(views), { op: "views.save" });
         }
+
+        return { skipped };
     }
 
     /**

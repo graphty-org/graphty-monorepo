@@ -13,6 +13,7 @@ import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess.j
 import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
+import { cameraOptionName, cameraRefusal, stateProblem } from "../camera/mode.js";
 import type { ViewInsets } from "../camera/types.js";
 import { colorToHex } from "../config/common.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
@@ -277,6 +278,12 @@ export class ScreenshotCapture {
         options: ScreenshotOptions,
         camera: NonNullable<ScreenshotOptions["camera"]>,
     ): Promise<CameraOverride> {
+        // While immersive the headset owns the camera: refused before anything is changed.
+        const immersive = stateProblem({}, this.graph.getViewMode());
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+
         // Temporarily disable zoom-to-fit to prevent camera from being reset
         const updateManager = this.graph.getUpdateManager();
         const zoomToFitWasEnabled = updateManager.isZoomToFitEnabled();
@@ -289,7 +296,7 @@ export class ScreenshotCapture {
             // A named view frames the graph for the picture, and the picture has none of the
             // screen's chrome in it: the only thing over it is the key this capture draws, so that
             // is the one margin the framing keeps clear.
-            insets: "preset" in camera ? this.graph.getViewInsets() : undefined,
+            insets: cameraOptionName(camera) === undefined ? undefined : this.graph.getViewInsets(),
             // The capture's camera is there for a moment, not placed by the reader, so the
             // element's own framing goes on as before once the capture puts the camera back.
             restorePlacement: this.graph.saveCameraPlacement(),
@@ -297,8 +304,18 @@ export class ScreenshotCapture {
         };
 
         try {
-            const cameraState = "preset" in camera ? this.captureView(options, camera) : camera;
-            await this.graph.setCameraState(cameraState);
+            if ("view" in camera || "preset" in camera) {
+                const name = "view" in camera ? camera.view : camera.preset;
+                const state = this.captureView(options, name, camera.params);
+                // A saved view is judged by the drawing mode as applyCameraView judges it, by name.
+                const problem = stateProblem(state, this.graph.getViewMode(), { name });
+                if (problem !== null) {
+                    throw cameraRefusal(problem);
+                }
+                await this.graph.setCameraState(state);
+            } else {
+                await this.graph.setCameraState(camera);
+            }
             await this.waitForRender();
         } catch (error: unknown) {
             await this.restoreCamera(override);
@@ -311,16 +328,17 @@ export class ScreenshotCapture {
     /**
      * Swap the screen's margins for the capture's key and resolve the named view inside them.
      * @param options - Screenshot configuration options.
-     * @param camera - The named view the capture asked for.
+     * @param name - The named view the capture asked for.
+     * @param params - The view's own options.
      * @returns Where the camera stands for the picture.
      */
     private captureView(
         options: ScreenshotOptions,
-        camera: Extract<NonNullable<ScreenshotOptions["camera"]>, { preset: string }>,
+        name: string,
+        params: Readonly<Record<string, unknown>> | undefined,
     ): CameraState {
         this.graph.setViewInsets(this.legend.sections.length > 0 ? this.reserveLegend() : {});
-        const { params } = camera;
-        return this.graph.resolveCameraPreset(camera.preset, params === undefined ? undefined : { params });
+        return this.graph.resolveCameraPreset(name, params === undefined ? undefined : { params });
     }
 
     /**

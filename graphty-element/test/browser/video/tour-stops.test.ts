@@ -112,8 +112,8 @@ for (const mode of ["3d", "2d"] as const) {
             graph = await createTestGraph();
             await configureGraph(graph, { viewMode: mode, layout: "fixed" });
             await graph.waitForSettled();
-            graph.saveCameraPreset("tour-a", viewA);
-            graph.saveCameraPreset("tour-b", viewB);
+            await graph.saveCameraPreset("tour-a", viewA);
+            await graph.saveCameraPreset("tour-b", viewB);
         });
 
         afterEach(() => {

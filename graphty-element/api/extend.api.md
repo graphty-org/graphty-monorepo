@@ -448,6 +448,7 @@ export interface CameraState {
     cameraDistance?: number;
     // (undocumented)
     fov?: number;
+    mode?: DrawingMode;
     // (undocumented)
     orthoBottom?: number;
     // (undocumented)

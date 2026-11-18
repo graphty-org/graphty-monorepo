@@ -1,6 +1,10 @@
 /**
  * @file The saved-view ops: `view.save` keeps camera states under names, `view.remove` forgets
- * them, and `view.camera` moves the camera.
+ * them, `view.rename` and `view.move` rename and reorder them, and `view.camera` moves the camera.
+ *
+ * The views are kept in project order (the `viewOrder` value, reported as the `views` slice):
+ * a save appends, a removal takes out, a rename keeps the place and a move rewrites it, and each
+ * undo puts the whole order back.
  *
  * Saved views are the `views` slice of project state, so saving and removing them are undoable
  * steps on the immediate lane. Where the camera is looking is view state, not saved in a project
@@ -8,7 +12,7 @@
  * design/undo/undo-design.md sections 3.1, 3.2, 10.5 and 11.4.
  */
 
-import { cameraViewIds, isCameraViewName } from "../../camera/resolve";
+import { isCameraViewName } from "../../camera/resolve";
 import type { CameraState, Vec3 } from "../../camera/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableDefinition } from "../project/Dispatcher";
@@ -42,8 +46,23 @@ interface ViewCameraCommand {
     readonly animate?: boolean;
 }
 
+/** `view.rename`: give a saved view a new name, keeping its place in the order. */
+interface ViewRenameCommand {
+    readonly op: "view.rename";
+    readonly from: string;
+    readonly to: string;
+}
+
+/** `view.move`: put a saved view at a place in the order. */
+interface ViewMoveCommand {
+    readonly op: "view.move";
+    readonly name: string;
+    /** The 0-based place, clamped to the order. */
+    readonly index: number;
+}
+
 /** Every view op. */
-export type ViewCommand = ViewSaveCommand | ViewRemoveCommand | ViewCameraCommand;
+export type ViewCommand = ViewSaveCommand | ViewRemoveCommand | ViewCameraCommand | ViewRenameCommand | ViewMoveCommand;
 
 /** The renderer's camera, as `view.camera` reaches it. */
 export interface CameraService {
@@ -53,6 +72,27 @@ export interface CameraService {
      * @returns Settles once the camera has arrived.
      */
     move(command: ViewCameraCommand): Promise<void>;
+    /**
+     * Where the camera stands now, for a view saved with no camera of its own.
+     * @returns The state.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive.
+     */
+    current(): CameraState;
+}
+
+/**
+ * The refusal for a saved view name nothing is saved under.
+ * @param missing - The names not saved.
+ * @param available - The saved names.
+ * @returns The error.
+ */
+function unknownView(missing: readonly string[], available: readonly string[]): GraphtyError {
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        message: `No view is saved as "${missing[0]}".`,
+        source: "view",
+        details: { missing: [...missing], available: [...available] },
+    });
 }
 
 /**
@@ -67,7 +107,7 @@ export function assertViewName(name: string): void {
             code: "E_BAD_COMMAND",
             message: "A saved view needs a name, because the name is what a person finds it by.",
             source: "view",
-            details: { name },
+            details: { reason: "empty-name" },
         });
     }
 
@@ -78,7 +118,7 @@ export function assertViewName(name: string): void {
                 `"${name}" is a camera view, and a view recomputes itself for whatever is on screen. ` +
                 "Saving a fixed position under the same name would silently replace a rule with a snapshot.",
             source: "view",
-            details: { name, available: cameraViewIds() },
+            details: { name },
         });
     }
 }
@@ -87,7 +127,7 @@ const viewSave: UndoableDefinition<ViewSaveCommand> = {
     op: "view.save",
     moves: false,
     lane: { kind: "immediate" },
-    keys: (command) => command.views.map((view) => `views/${view.name}`),
+    keys: (command) => [...command.views.map((view) => `views/${view.name}`), "viewOrder"],
     undo: {
         kind: "undoable",
         label: (command) =>
@@ -101,8 +141,15 @@ const viewSave: UndoableDefinition<ViewSaveCommand> = {
             assertViewName(view.name);
         }
 
+        const order = [...ctx.state.viewOrder];
         for (const view of command.views) {
+            if (!ctx.state.views.has(view.name) && !order.includes(view.name)) {
+                order.push(view.name);
+            }
             ctx.draft.views.set(view.name, view.camera);
+        }
+        if (order.length !== ctx.state.viewOrder.length) {
+            ctx.draft.viewOrder = order;
         }
     },
 };
@@ -111,7 +158,7 @@ const viewRemove: UndoableDefinition<ViewRemoveCommand> = {
     op: "view.remove",
     moves: false,
     lane: { kind: "immediate" },
-    keys: (command) => command.names.map((name) => `views/${name}`),
+    keys: (command) => [...command.names.map((name) => `views/${name}`), "viewOrder"],
     undo: {
         kind: "undoable",
         label: (command) =>
@@ -123,17 +170,77 @@ const viewRemove: UndoableDefinition<ViewRemoveCommand> = {
     execute: (command, ctx) => {
         const missing = command.names.filter((name) => !ctx.state.views.has(name));
         if (missing.length > 0) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `No view is saved as "${missing[0]}", so there is nothing to remove.`,
-                source: "view",
-                details: { missing, available: [...ctx.state.views.keys()] },
-            });
+            throw unknownView(missing, ctx.state.viewOrder);
         }
 
         for (const name of command.names) {
             ctx.draft.views.delete(name);
         }
+        ctx.draft.viewOrder = ctx.state.viewOrder.filter((name) => !command.names.includes(name));
+    },
+};
+
+const viewRename: UndoableDefinition<ViewRenameCommand> = {
+    op: "view.rename",
+    moves: false,
+    lane: { kind: "immediate" },
+    keys: (command) => [`views/${command.from}`, `views/${command.to}`, "viewOrder"],
+    undo: {
+        kind: "undoable",
+        label: () => "view.rename",
+        fact: (command) => ({ code: "view.rename", params: { from: command.from, to: command.to } }),
+    },
+    execute: (command, ctx) => {
+        const camera = ctx.state.views.get(command.from);
+        if (camera === undefined) {
+            throw unknownView([command.from], ctx.state.viewOrder);
+        }
+        if (command.to === command.from) {
+            return;
+        }
+        assertViewName(command.to);
+        if (ctx.state.views.has(command.to)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `A view is already saved as "${command.to}".`,
+                source: "view",
+                details: { reason: "name-taken", name: command.to },
+            });
+        }
+
+        const order = ctx.state.viewOrder.map((name) => (name === command.from ? command.to : name));
+        ctx.draft.views.delete(command.from);
+        ctx.draft.views.set(command.to, camera);
+        ctx.draft.viewOrder = order;
+    },
+};
+
+const viewMove: UndoableDefinition<ViewMoveCommand> = {
+    op: "view.move",
+    moves: false,
+    lane: { kind: "immediate" },
+    keys: () => ["viewOrder"],
+    undo: {
+        kind: "undoable",
+        label: () => "view.move",
+        fact: (command) => ({ code: "view.move", params: { name: command.name, index: command.index } }),
+    },
+    execute: (command, ctx) => {
+        if (!ctx.state.views.has(command.name)) {
+            throw unknownView([command.name], ctx.state.viewOrder);
+        }
+        if (!Number.isInteger(command.index)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: "A view's place is a whole number.",
+                source: "view",
+                details: { option: "index" },
+            });
+        }
+
+        const order = ctx.state.viewOrder.filter((name) => name !== command.name);
+        order.splice(Math.max(0, Math.min(order.length, command.index)), 0, command.name);
+        ctx.draft.viewOrder = order;
     },
 };
 
@@ -158,4 +265,4 @@ const viewCamera: ExemptDefinition<ViewCameraCommand> = {
 };
 
 /** The view ops' definitions. */
-export const VIEW_DEFINITIONS = [viewSave, viewRemove, viewCamera] as const;
+export const VIEW_DEFINITIONS = [viewSave, viewRemove, viewRename, viewMove, viewCamera] as const;

@@ -2,6 +2,7 @@
  * @file `linkCameras`: two or more `<graphty-element>` views that pan, zoom and turn together.
  */
 
+import { stateProblem } from "../camera/mode";
 import type { CameraState } from "../camera/types";
 
 /** What `linkCameras` needs from a view: the public camera calls and the `overview-changed` event. */
@@ -47,7 +48,8 @@ function sameState(a: unknown, b: unknown): boolean {
  *
  * The views share world coordinates, so a node at the same position in both graphs shows at the
  * same place on both canvases. A linked view stops framing its own data on load, since the camera
- * is now placed for it. Linking does not move any view until one of them moves; to start them
+ * is now placed for it. A view drawing in another mode (one in 2D, one in 3D) is skipped: a state
+ * only fits the mode it was read in. Linking does not move any view until one of them moves; to start them
  * aligned, copy one state across with `setCameraState(a.getCameraState())`.
  * @param views - the elements to link, two or more
  * @returns a function that unlinks them again; each view keeps where its camera is
@@ -73,10 +75,19 @@ export function linkCameras(...views: LinkedCameraView[]): () => void {
             }
 
             for (const view of views) {
-                known.set(view, state);
-                if (view !== source) {
-                    void view.setCameraState(state);
+                if (view === source) {
+                    known.set(view, state);
+                    continue;
                 }
+                // A peer drawing in another mode cannot take this state: skipped for this frame.
+                const { mode } = view.getCameraState();
+                if (mode !== undefined && stateProblem(state, mode) !== null) {
+                    continue;
+                }
+                known.set(view, state);
+                view.setCameraState(state).catch(() => {
+                    // A peer that refuses the state (immersive, or switching mode) is skipped.
+                });
             }
         };
         source.addEventListener("overview-changed", listener);

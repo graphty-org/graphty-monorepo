@@ -1936,7 +1936,17 @@ function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
 }
 
 function viewsOf(dispatcher: Dispatcher): SessionViews {
-    const held = dispatcher.state.views;
+    const { state } = dispatcher;
+    const held = state.views;
+    /**
+     * The views as entries, in project order.
+     * @returns The entries.
+     */
+    const ordered = (): [string, CameraState][] =>
+        state.viewOrder.flatMap((name) => {
+            const camera = held.get(name);
+            return camera === undefined ? [] : [[name, camera] as [string, CameraState]];
+        });
     const views: SessionViews = Object.freeze({
         get size() {
             return held.size;
@@ -1947,23 +1957,57 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
             visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void,
             self?: unknown,
         ) => {
-            held.forEach((camera, name) => {
+            for (const [name, camera] of ordered()) {
                 visit.call(self, camera, name, views);
-            });
+            }
         },
-        entries: () => held.entries(),
-        keys: () => held.keys(),
-        values: () => held.values(),
-        [Symbol.iterator]: () => held.entries(),
-        save: async (saved: readonly { readonly name: string; readonly camera: CameraState }[]) => {
-            await dispatcher.dispatch({ op: "view.save", views: saved });
+        entries: () => ordered()[Symbol.iterator](),
+        keys: () =>
+            ordered()
+                .map(([name]) => name)
+                [Symbol.iterator](),
+        values: () =>
+            ordered()
+                .map(([, camera]) => camera)
+                [Symbol.iterator](),
+        [Symbol.iterator]: () => ordered()[Symbol.iterator](),
+        save: async (saved: readonly { readonly name: string; readonly camera?: CameraState }[]) => {
+            // The camera is read once, here, so redo and replay never read the live camera again.
+            const resolved = saved.map(({ name, camera }) => ({ name, camera: camera ?? currentCamera(dispatcher) }));
+            await dispatcher.dispatch({ op: "view.save", views: resolved });
         },
         remove: async (names: readonly string[]) => {
             await dispatcher.dispatch({ op: "view.remove", names });
         },
+        rename: async (from: string, to: string) => {
+            await dispatcher.dispatch({ op: "view.rename", from, to });
+        },
+        move: async (name: string, index: number) => {
+            await dispatcher.dispatch({ op: "view.move", name, index });
+        },
     });
 
     return views;
+}
+
+/**
+ * Where the renderer's camera stands now, for a view saved with no camera.
+ * @param dispatcher - The dispatcher, whose services hold the renderer's camera.
+ * @returns The state.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` when the session draws nothing, as `view.camera`
+ *     refuses, or `{ reason: "xr", mode }` while immersive.
+ */
+function currentCamera(dispatcher: Dispatcher): CameraState {
+    const { camera } = dispatcher.services;
+    if (camera === undefined) {
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: "This session draws nothing, so it has no camera to save.",
+            source: "view",
+        });
+    }
+
+    return camera.current();
 }
 
 /**

@@ -30,9 +30,16 @@ describe("the state digest", () => {
                 ["far", { zoom: 4 }],
                 ["home", { zoom: 1 }],
             ]),
+            // The views' order is project state of its own (`viewOrder`), not the map's.
+            viewOrder: ["home", "far"],
         });
 
         assert.strictEqual(stateDigest(one), stateDigest(two));
+        assert.notStrictEqual(
+            stateDigest(one),
+            stateDigest(createProjectState({ ...two, viewOrder: ["far", "home"] })),
+            "the views' order is part of the project",
+        );
     });
 
     it("changes when a value changes, and comes back when the change is undone", () => {

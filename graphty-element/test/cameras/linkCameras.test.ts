@@ -61,4 +61,26 @@ describe("linkCameras", () => {
         a.dispatchEvent(new Event("overview-changed"));
         assert.strictEqual(b.sets, 1);
     });
+
+    it("skips a peer drawing in the other mode, and a peer that refuses, raising nothing", async () => {
+        const deep = new FakeView();
+        deep.state = { ...deep.state, mode: "3d" };
+        const flat = new FakeView();
+        flat.state = { mode: "2d", zoom: 1, pan: { x: 0, y: 0 } };
+        const refusing = new FakeView();
+        let refused: Promise<void> | undefined;
+        refusing.setCameraState = (): Promise<void> => {
+            refusing.sets++;
+            refused = Promise.reject(new Error("immersive"));
+            return refused;
+        };
+        linkCameras(deep, flat, refusing);
+
+        deep.move(5);
+        assert.strictEqual(flat.sets, 0, "a 3D state is not handed to a 2D view");
+        assert.deepStrictEqual(flat.state, { mode: "2d", zoom: 1, pan: { x: 0, y: 0 } });
+        assert.strictEqual(refusing.sets, 1);
+        // The refusal is caught by the link: awaiting it here would throw, the link's catch would not.
+        await refused?.catch(() => undefined);
+    });
 });

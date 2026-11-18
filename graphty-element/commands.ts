@@ -78,6 +78,8 @@ export const COMMANDS = Object.freeze({
     "annotations.set": { undo: "undoable" },
     "annotations.patch": { undo: "undoable" },
     "view.remove": { undo: "undoable" },
+    "view.rename": { undo: "undoable" },
+    "view.move": { undo: "undoable" },
     "view.camera": {
         undo: "exempt",
         reason: "Where the camera is looking is view state, not saved in a project file.",

@@ -1699,6 +1699,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getXRConfig: READ,
             exitXR: XR,
             resolveCameraPreset: READ,
+            viewProblem: READ,
+            getCanvasSize: READ,
+            isMotionReduced: READ,
             applyCameraView: CAMERA,
             setInputEnabled: INPUT,
             shutdown: LIFECYCLE,
@@ -2015,6 +2018,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             zoomToSelection: CAMERA,
             zoomToNodes: CAMERA,
             resolveCameraPreset: READ,
+            viewProblem: READ,
+            getCanvasSize: READ,
+            isMotionReduced: READ,
             applyCameraView: CAMERA,
             saveCameraPreset: calls(
                 ["door view", { zoom: 2 }],
@@ -3842,6 +3848,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
             ),
             remove: calls([["door view"]], [{ op: "view.remove", names: ["door view"] }]),
+            rename: calls(
+                ["door view", "door renamed"],
+                [{ op: "view.rename", from: "door view", to: "door renamed" }],
+            ),
+            move: calls(["door view", 0], [{ op: "view.move", name: "door view", index: 0 }]),
         },
     },
     {

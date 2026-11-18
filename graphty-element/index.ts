@@ -345,6 +345,7 @@ export type {
     NodeHoverEvent,
     OperationCancelledEvent,
     OverviewChangedEvent,
+    ReducedMotionChangedEvent,
     RenderLostEvent,
     RenderRestoredEvent,
     StatsUpdateEvent,
@@ -427,7 +428,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * modes each view works in, and both include the views a third party registered, which a fixed
  * array of five cannot.
  */
-export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { BUILTIN_PRESETS, type SkippedPreset } from "./src/camera/presets";
 export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================

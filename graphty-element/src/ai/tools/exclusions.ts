@@ -165,6 +165,18 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { op: "style.template", reason: "whole-document", kind: BY_DESIGN },
     { op: "note.merge", reason: "whole-document", kind: BY_DESIGN },
     { op: "layout.transport", reason: "in-flight", kind: BY_DESIGN },
+    // Where a saved view sits in the list is how a panel arranges them; nothing a reader asks for.
+    { op: "view.move", reason: "panel-state", kind: BY_DESIGN },
+    { root: "SessionViews", members: ["move"], reason: "panel-state", kind: BY_DESIGN },
+    // Renaming a saved view: its view.rename action is owed (design/ui/camera-views-tours-and-capture.md
+    // section 4.8), and the always-loaded tools have no room for it until that step makes some.
+    ...[{ op: "view.rename" }, { root: "SessionViews", members: ["rename"] }].map((row): Exclusion => ({
+        ...row,
+        reason: "panel-state",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
 
     // What the door list already calls render bookkeeping: a decision made once, in `doors.ts`.
     ...DOOR_ROOTS.flatMap((root): Exclusion[] =>

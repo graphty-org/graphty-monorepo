@@ -186,6 +186,11 @@ export interface ProjectState {
     readonly sets: ReadonlyMap<SetId, ElementSet>;
     /** Saved camera views, by name. */
     readonly views: ReadonlyMap<string, CameraState>;
+    /**
+     * The saved views' names in project order: one whole value, so undoing a removal puts the view
+     * back where it was rather than at the end. Reported as the `views` slice.
+     */
+    readonly viewOrder: readonly string[];
     /** The notes, by id. */
     readonly notes: ReadonlyMap<NoteId, NoteEntry>;
     /** What columns were declared to measure, by `<kind>:<name>`. */
@@ -243,6 +248,7 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
             Object.freeze({ filter: null, window: null, showContext: false, conditions: Object.freeze([]) }),
         sets: new Map(init.sets),
         views: new Map(init.views),
+        viewOrder: init.viewOrder ?? Object.freeze([...(init.views?.keys() ?? [])]),
         notes: new Map(init.notes),
         attributes: new Map(init.attributes),
         valueLabels: new Map(init.valueLabels),

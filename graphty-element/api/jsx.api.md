@@ -260,6 +260,7 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
     // (undocumented)
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;

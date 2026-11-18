@@ -149,6 +149,12 @@ export const COMMANDS: Readonly<{
     readonly "view.remove": {
         readonly undo: "undoable";
     };
+    readonly "view.rename": {
+        readonly undo: "undoable";
+    };
+    readonly "view.move": {
+        readonly undo: "undoable";
+    };
     readonly "view.camera": {
         readonly undo: "exempt";
         readonly reason: "Where the camera is looking is view state, not saved in a project file.";

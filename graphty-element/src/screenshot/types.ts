@@ -83,11 +83,16 @@ export interface ScreenshotOptions {
     downloadFilename?: string;
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
     /**
-     * The camera to capture from, restored afterwards: a state, or a named view with its own
-     * options, e.g. `{ preset: "fitToGraph", params: { keepAngle: true } }` to frame every node
-     * from the angle on screen.
+     * The camera to capture from, restored afterwards: a state, or a named view (a camera view's
+     * id or a saved view's name) with its own options, e.g.
+     * `{ view: "fitToGraph", params: { keepAngle: true } }` to frame every node from the angle on
+     * screen. `preset` is the older spelling of `view`. A state or saved view that does not fit
+     * the drawing mode, or any camera while immersive, is refused as `setCameraState` refuses it.
      */
-    camera?: CameraState | { preset: string; params?: Readonly<Record<string, unknown>> };
+    camera?:
+        | CameraState
+        | { view: string; params?: Readonly<Record<string, unknown>> }
+        | { preset: string; params?: Readonly<Record<string, unknown>> };
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;

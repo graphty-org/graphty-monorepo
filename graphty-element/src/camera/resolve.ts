@@ -96,6 +96,15 @@ function lookup(
 }
 
 /**
+ * The drawing modes a camera view declares it works in.
+ * @param id - The view name.
+ * @returns The modes, or undefined when no camera view answers to the name.
+ */
+export function cameraViewModes(id: string): readonly DrawingMode[] | undefined {
+    return lookup(id)?.descriptor.modes;
+}
+
+/**
  * Ask a named view where the viewer should stand.
  * @param id - The view name a consumer typed or a saved document recorded.
  * @param context - What the element measured: the box, the drawing mode, the viewport and where
@@ -127,12 +136,7 @@ export function resolveCameraView(id: string, context: CameraViewContext): Camer
                 `the camera view "${id}" cannot be computed while the element is drawing in ` +
                 `${context.mode}: it declares ${descriptor.modes.join(" and ")}`,
             source: "view",
-            details: {
-                name: id,
-                reason: `the "${id}" view is not available in ${context.mode}`,
-                mode: context.mode,
-                modes: [...descriptor.modes],
-            },
+            details: { reason: "mode", name: id, modes: [...descriptor.modes], mode: context.mode },
         });
     }
 

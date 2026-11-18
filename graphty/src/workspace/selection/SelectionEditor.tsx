@@ -24,15 +24,16 @@ import {
     TargetTooltip,
     ToggleIconButton,
 } from "@graphty/compact-mantine";
-import type {
-    GraphSession,
-    RuleTree,
-    ScopeEdit,
-    StepReading,
-    StepsReading,
-    UnionBranch,
-    UnionLeaf,
-    UnionStep,
+import {
+    type GraphSession,
+    isGraphtyError,
+    type RuleTree,
+    type ScopeEdit,
+    type StepReading,
+    type StepsReading,
+    type UnionBranch,
+    type UnionLeaf,
+    type UnionStep,
 } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -196,6 +197,17 @@ function afterPaint(work: () => void): void {
             setTimeout(work, 0);
         });
     });
+}
+
+/**
+ * Leave the camera where it is when the element refuses a move: the drawing mode changed (2D and
+ * 3D, or a headset) since the move was asked for. Anything else is a real failure.
+ * @param error - Why the move was rejected.
+ */
+function cameraRefused(error: unknown): void {
+    if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
+        throw error;
+    }
 }
 
 /**
@@ -1633,11 +1645,13 @@ export function SelectionEditor({
             icon: "maximize",
             group: "edit",
             onRun: () => {
-                void element?.applyCameraView("fitToGraph", {
-                    scope: reading.result,
-                    params: { keepAngle: true },
-                    animate: true,
-                });
+                void element
+                    ?.applyCameraView("fitToGraph", {
+                        scope: reading.result,
+                        params: { keepAngle: true },
+                        animate: true,
+                    })
+                    .catch(cameraRefused);
             },
         },
         {
@@ -2160,7 +2174,8 @@ export function SelectionEditor({
                     requestAnimationFrame(fit);
                 });
             } else if (camera !== undefined) {
-                void element?.setCameraState(camera);
+                // Switched to 2D or 3D, or into a headset, while open: the old camera no longer fits.
+                void element?.setCameraState(camera).catch(cameraRefused);
             }
         };
         // The canvas is placed once per opening; its observer follows the cell from there.

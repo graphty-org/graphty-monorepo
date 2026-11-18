@@ -747,7 +747,8 @@ function opLogKeys(keys: readonly SliceKey[]): SliceKey[] {
 function slicesOf(patch: Patch): readonly Slice[] {
     return [
         ...new Set<Slice>([
-            ...patch.entries.map((entry) => entry.slice),
+            // The view order is part of the `views` slice to every reader.
+            ...patch.entries.map((entry) => (entry.slice === "viewOrder" ? "views" : entry.slice)),
             ...patch.log.map((entry) => entry.slice),
             ...(patch.rows === null ? [] : ["arrangement" as const]),
         ]),
@@ -947,7 +948,8 @@ export class Dispatcher {
         }
 
         this.store = createProjectStore(options.state ?? createProjectState(), (slice, key) => {
-            this.lane.touch(slice, key);
+            // The view order is derived and reported with the `views` slice.
+            this.lane.touch(slice === "viewOrder" ? "views" : slice, key);
         });
         this.lane = new DerivationLane(this.store.state);
         const state = this.store.state as { graph: ProjectState["graph"] };

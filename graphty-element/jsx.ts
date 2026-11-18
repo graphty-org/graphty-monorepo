@@ -753,6 +753,10 @@ export interface GraphtyElementJSXProps {
      * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
      */
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
+    /**
+     * Emitted when whether motion is reduced changes: `setReducedMotion` was called with a different answer, or, under `"auto"`, the platform's `prefers-reduced-motion` changed. Read `isMotionReduced()` for the answer at any time.
+     */
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     /**
      * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.

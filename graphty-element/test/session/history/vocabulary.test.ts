@@ -130,6 +130,7 @@ describe("the vocabulary", () => {
                 carried.push(command);
                 return Promise.resolve();
             },
+            current: () => ({}),
         };
         dispatcher.services.layout = {
             apply: () => Promise.resolve(),

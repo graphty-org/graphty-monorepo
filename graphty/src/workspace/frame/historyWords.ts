@@ -235,6 +235,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "note.merge": () => "merging notes",
     "view.save": () => "saving a view",
     "view.remove": () => "deleting a view",
+    "view.rename": (p) => `renaming ${text(p, "from", "a view")} to ${text(p, "to", "a new name")}`,
+    "view.move": (p) => `moving ${text(p, "name", "a view")}`,
     "view.dimension": (p) => `switching to ${p.dimension === "2d" ? "2D" : "3D"}`,
     "view.immersive": (p) => `entering ${p.mode === "ar" ? "AR" : "VR"}`,
     "config.set": (p) => settingsWords(p),

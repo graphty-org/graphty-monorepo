@@ -328,6 +328,8 @@ export class AnimationCancelledError extends Error {
 // @public
 export interface AnimationOptions {
     camera?: CameraState | {
+        view: string;
+    } | {
         preset: string;
     };
     cameraMode: "stationary" | "animated";
@@ -589,6 +591,7 @@ export interface CameraState {
     cameraDistance?: number;
     // (undocumented)
     fov?: number;
+    mode?: DrawingMode;
     // (undocumented)
     orthoBottom?: number;
     // (undocumented)
@@ -2938,6 +2941,7 @@ export class Graph implements GraphContext {
     // @internal
     expectRenderer(): void;
     exportAiConversation(id: string): Promise<string | null>;
+    // @deprecated
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
@@ -2958,11 +2962,17 @@ export class Graph implements GraphContext {
     getApiKeyManager(): ApiKeyManager | null;
     getAutoFrame(): boolean;
     getCameraController(): CameraController | null;
+    // @deprecated
     getCameraPresets(): Record<string, CameraState | {
         builtin: true;
     }>;
     getCameraState(): CameraState;
     getCameraTransitionDuration(): number | undefined;
+    getCanvasSize(): {
+        width: number;
+        height: number;
+        devicePixelRatio: number;
+    };
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
     // @internal
@@ -3014,7 +3024,10 @@ export class Graph implements GraphContext {
         x: number;
         y: number;
     }): GroupOutlineAtResult | null;
-    importCameraPresets(presets: Record<string, CameraState>): void;
+    // @deprecated
+    importCameraPresets(presets: Record<string, CameraState>): {
+        skipped: SkippedPreset[];
+    };
     init(): Promise<void>;
     // (undocumented)
     initialized: boolean;
@@ -3029,6 +3042,7 @@ export class Graph implements GraphContext {
     get isFrameStable(): boolean;
     // @beta
     get isGraphDrawn(): boolean;
+    isMotionReduced(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isRunning(): boolean;
     isVoiceActive(): boolean;
@@ -3041,6 +3055,7 @@ export class Graph implements GraphContext {
         readonly allKeys?: boolean;
     }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
+    // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
         format?: string;
@@ -3096,6 +3111,7 @@ export class Graph implements GraphContext {
         easing?: CameraAnimationOptions["easing"];
     }): Promise<void>;
     readonly preserveDrawingBuffer: boolean;
+    // @deprecated
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -3125,7 +3141,8 @@ export class Graph implements GraphContext {
     set runAlgorithmsOnLoad(value: boolean);
     // @internal
     saveCameraPlacement(): () => void;
-    saveCameraPreset(name: string, camera?: CameraState): void;
+    // @deprecated
+    saveCameraPreset(name: string, camera?: CameraState): Promise<void>;
     // (undocumented)
     scene: Scene;
     screenToWorld(screenPos: {
@@ -3210,6 +3227,9 @@ export class Graph implements GraphContext {
         id: string | number;
         [key: string]: unknown;
     }[], options?: QueueableOptions): Promise<void>;
+    viewProblem(name: string, options?: {
+        saved?: boolean;
+    }): CodedFact | null;
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
@@ -3365,7 +3385,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -3543,6 +3563,7 @@ export class Graphty extends LitElement {
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
     exportAiConversation(id: string): Promise<string | null>;
+    // @deprecated
     exportCameraPresets(): Record<string, CameraState>;
     exportFigure(options?: FigureOptions): Promise<FigureResult>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
@@ -3560,10 +3581,16 @@ export class Graphty extends LitElement {
     getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getCameraController(): CameraController | null;
+    // @deprecated
     getCameraPresets(): Record<string, CameraState | {
         builtin: true;
     }>;
     getCameraState(): CameraState;
+    getCanvasSize(): {
+        width: number;
+        height: number;
+        devicePixelRatio: number;
+    };
     getDataManager(): DataManager;
     getEdgeCount(): number;
     getEdges(): Edge[];
@@ -3598,7 +3625,10 @@ export class Graphty extends LitElement {
     }): GroupOutlineAtResult | null;
     get historyKeys(): boolean;
     set historyKeys(value: boolean);
-    importCameraPresets(presets: Record<string, CameraState>): void;
+    // @deprecated
+    importCameraPresets(presets: Record<string, CameraState>): {
+        skipped: SkippedPreset[];
+    };
     is2D(): boolean;
     isAiEnabled(): boolean;
     isAiTalking(): boolean;
@@ -3607,6 +3637,7 @@ export class Graphty extends LitElement {
     get isFrameStable(): boolean;
     // @beta
     get isGraphDrawn(): boolean;
+    isMotionReduced(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isPinned(id: string | number): boolean;
     isRunning(): boolean;
@@ -3640,6 +3671,7 @@ export class Graphty extends LitElement {
         readonly allKeys?: boolean;
     }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
+    // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
         format?: string;
@@ -3724,6 +3756,7 @@ export class Graphty extends LitElement {
     get reducedMotion(): boolean | "auto";
     set reducedMotion(value: boolean | "auto");
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
+    // @deprecated
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
@@ -3757,7 +3790,8 @@ export class Graphty extends LitElement {
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
     get runAlgorithmsOnLoad(): boolean | undefined;
     set runAlgorithmsOnLoad(value: boolean | undefined);
-    saveCameraPreset(name: string, camera?: CameraState): void;
+    // @deprecated
+    saveCameraPreset(name: string, camera?: CameraState): Promise<void>;
     screenToWorld(screenPos: {
         x: number;
         y: number;
@@ -3833,6 +3867,9 @@ export class Graphty extends LitElement {
     set viewInsets(value: ViewInsets | undefined);
     get viewMode(): ViewMode | undefined;
     set viewMode(value: ViewMode | undefined);
+    viewProblem(name: string, options?: {
+        saved?: boolean;
+    }): CodedFact | null;
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
@@ -7681,6 +7718,13 @@ export { recordingFrom }
 export const RED_BLUE_COLORS: readonly ["#67001f", "#b2182b", "#d6604d", "#f4a582", "#fddbc7", "#f7f7f7", "#d1e5f0", "#92c5de", "#4393c3", "#2166ac"];
 
 // @public
+export interface ReducedMotionChangedEvent {
+    reduced: boolean;
+    // (undocumented)
+    type: "reduced-motion-changed";
+}
+
+// @public
 export function registerCameraView(registration: CameraViewRegistration, options?: RegisterOptions): void;
 
 // @public
@@ -8115,6 +8159,9 @@ export interface ScreenshotLegendSection {
 export interface ScreenshotOptions {
     backgroundColor?: string;
     camera?: CameraState | {
+        view: string;
+        params?: Readonly<Record<string, unknown>>;
+    } | {
         preset: string;
         params?: Readonly<Record<string, unknown>>;
     };
@@ -8245,6 +8292,14 @@ export abstract class SimpleLayoutEngine extends StaticLayoutEngine {
 
 // @public (undocumented)
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
+
+// @public
+export interface SkippedPreset {
+    // (undocumented)
+    code: "E_PROTECTED" | "E_BAD_COMMAND";
+    // (undocumented)
+    name: string;
+}
 
 // @public
 export type SnapshotLayoutAnswer = F32 | Promise<F32>;

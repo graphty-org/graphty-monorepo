@@ -124,7 +124,7 @@ const CASES: readonly Case[] = [
         methods: ["Graph.removeCameraPreset"],
         growth: "constant",
         prepare: async (element) => {
-            element.graph.saveCameraPreset("Saved", CAMERA);
+            await element.graph.saveCameraPreset("Saved", CAMERA);
             await settled(element);
             return () => element.graph.removeCameraPreset("Saved");
         },
@@ -136,7 +136,7 @@ const CASES: readonly Case[] = [
         methods: ["Graphty.removeCameraPreset"],
         growth: "constant",
         prepare: async (element) => {
-            element.saveCameraPreset("Saved", CAMERA);
+            await element.saveCameraPreset("Saved", CAMERA);
             await settled(element);
             return () => element.removeCameraPreset("Saved");
         },

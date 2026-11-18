@@ -873,6 +873,25 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SessionViews.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([{ name: "Saved", camera: VIEW }]);
+            return () => session.views.rename("Saved", "Renamed");
+        },
+    },
+    {
+        method: "SessionViews.move",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([
+                { name: "Saved", camera: VIEW },
+                { name: "Second", camera: VIEW },
+            ]);
+            return () => session.views.move("Second", 0);
+        },
+    },
+    {
         method: "SessionAnnotations.add",
         growth: "constant",
         prepare: (session) => Promise.resolve(() => session.annotations.add(NOTE)),

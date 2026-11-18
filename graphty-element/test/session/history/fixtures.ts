@@ -875,6 +875,22 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "view.remove", names: ["Fixture view"] },
     },
     {
+        name: "view.rename",
+        tags: ["session"],
+        before: (session) => session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]),
+        command: { op: "view.rename", from: "Fixture view", to: "Renamed view" },
+    },
+    {
+        name: "view.move",
+        tags: ["session"],
+        before: (session) =>
+            session.views.save([
+                { name: "Fixture view", camera: { zoom: 2 } },
+                { name: "Second view", camera: { zoom: 3 } },
+            ]),
+        command: { op: "view.move", name: "Second view", index: 0 },
+    },
+    {
         name: "config.set a data-config leaf",
         variant: "data",
         tags: BOTH,

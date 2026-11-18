@@ -45,6 +45,7 @@ type ValueSlice =
     | "visibility"
     | "sets"
     | "views"
+    | "viewOrder"
     | "notes"
     | "attributes"
     | "valueLabels"
@@ -53,7 +54,7 @@ type ValueSlice =
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
     readonly slice: ValueSlice;
-    /** The key within the slice; "" for the whole-value slices `styles` and `layout`. */
+    /** The key within the slice; "" for the whole-value slices `styles`, `layout` and `viewOrder`. */
     readonly key: string;
     readonly prior: unknown;
     readonly next: unknown;
@@ -325,6 +326,8 @@ interface KeyedWriter<K extends string, V> {
 export interface Draft {
     styles: readonly CompiledLayer[];
     layout: LayoutChoice | null;
+    /** The saved views' names in project order, written whole. */
+    viewOrder: readonly string[];
     readonly config: KeyedWriter<string, unknown>;
     readonly runs: KeyedWriter<RunId, RunEntry>;
     readonly sets: KeyedWriter<SetId, ElementSet>;
@@ -454,6 +457,8 @@ export function createProjectStore(
                 return state.styles;
             case "layout":
                 return state.layout;
+            case "viewOrder":
+                return state.viewOrder;
             case "visibility":
                 return state.visibility[key as keyof VisibilityState];
             default:
@@ -469,6 +474,9 @@ export function createProjectStore(
                 return;
             case "layout":
                 state.layout = value as LayoutChoice | null;
+                return;
+            case "viewOrder":
+                state.viewOrder = value as readonly string[];
                 return;
             case "visibility":
                 state.visibility = Object.freeze({ ...state.visibility, [key]: value });
@@ -595,6 +603,12 @@ export function createProjectStore(
                 },
                 set layout(next) {
                     write(draft, "layout", "", next);
+                },
+                get viewOrder() {
+                    return state.viewOrder;
+                },
+                set viewOrder(next) {
+                    write(draft, "viewOrder", "", Object.freeze([...next]));
                 },
                 config: keyed(draft, "config"),
                 runs: keyed(draft, "runs"),

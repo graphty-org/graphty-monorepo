@@ -15,6 +15,7 @@ import type {
     AutosaveStatus,
 } from "./autosave/types";
 import type { GraphOverview, OverviewOptions } from "./camera/overview";
+import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -4761,10 +4762,17 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set camera state (supports both 2D and 3D)
+     * Set camera state (supports both 2D and 3D).
+     *
+     * The state must fit the drawing mode: one with a `mode` applies only in that mode, and one
+     * without applies in each mode it holds a member of (2D reads `zoom`, `pan` and `rotation`; 3D
+     * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
+     * `fov`). To jump to a named view, use `applyCameraView`.
      * @param state - Camera state to apply or preset name
      * @param options - Animation options
      * @returns Promise that resolves when the camera state is applied (or animation completes)
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` `{ reason: "mode", name?, modes, mode }` for a
+     *     state that does not fit the drawing mode, or `{ reason: "xr", mode }` while immersive.
      */
     async setCameraState(
         state: import("./screenshot/types.js").CameraState | { preset: string },
@@ -4904,10 +4912,13 @@ export class Graphty extends LitElement {
      * Save the current camera state as a named preset. One undoable step.
      * @param name - Name for the preset
      * @param camera - The camera state to save instead of where the camera is now
-     * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view already
+     *     answers to the name.
+     * @deprecated Use `session.views.save([{ name, camera }])`.
      */
-    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
-        this.#graph.saveCameraPreset(name, camera);
+    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): Promise<void> {
+        return this.session.views.save([{ name, ...(camera === undefined ? {} : { camera }) }]);
     }
 
     /**
@@ -4915,9 +4926,10 @@ export class Graphty extends LitElement {
      * @param name - The name it was saved under
      * @returns Settles once the step is recorded; rejects with `E_BAD_COMMAND` when nothing is
      *   saved under the name
+     * @deprecated Use `session.views.remove([name])`.
      */
     removeCameraPreset(name: string): Promise<void> {
-        return this.#graph.removeCameraPreset(name);
+        return this.session.views.remove([name]);
     }
 
     /**
@@ -4926,38 +4938,110 @@ export class Graphty extends LitElement {
      * @param name - Name of the preset to load
      * @param options - Animation options
      * @returns Promise that resolves when preset is loaded
+     * @deprecated Use `applyCameraView(name, options)`.
      */
     async loadCameraPreset(
         name: string,
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
-        return this.#graph.loadCameraPreset(name, options);
+        return this.#graph.setCameraState({ preset: name }, options);
     }
 
     /**
      * Get all camera presets (built-in + user-defined).
      * Available from Phase 5 onwards.
      * @returns Record of preset names to their state (built-in presets are marked)
+     * @deprecated Read `session.catalog.cameras()` for the camera views and `session.views` for
+     *     the saved ones.
      */
     getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
-        return this.#graph.getCameraPresets();
+        return presetsOf(this.session.views);
     }
 
     /**
      * Export user-defined presets as JSON
      * Available from Phase 5 onwards
      * @returns Record of user-defined preset names to their state
+     * @deprecated Read `session.views`, a map in project order.
      */
     exportCameraPresets(): Record<string, import("./screenshot/types.js").CameraState> {
-        return this.#graph.exportCameraPresets();
+        return Object.fromEntries(this.session.views);
     }
 
     /**
      * Import user-defined presets from JSON, as one undoable step
      * @param presets - Record of preset names to their state
+     * @returns The entries left out, each with the code `session.views.save` would refuse it with:
+     *     `E_PROTECTED` for a camera view's name, `E_BAD_COMMAND` for an empty one.
+     * @deprecated Use `session.views.save`.
      */
-    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
-        this.#graph.importCameraPresets(presets);
+    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): {
+        skipped: SkippedPreset[];
+    } {
+        const { views, skipped } = splitPresetImport(presets);
+        if (views.length > 0) {
+            // Every name was checked above; a refusal from here on would be a defect, reported.
+            void this.session.views.save(views).catch((error: unknown) => {
+                elementLogger.error("the imported camera presets were refused.", asError(error));
+            });
+        }
+
+        return { skipped };
+    }
+
+    /**
+     * Whether a view name can be applied now, without moving anything: the answer
+     * `applyCameraView(name)` would give. A name is a camera view when one answers to it, and a
+     * saved view only otherwise. `{ saved: true }` judges the saved view under the name itself, for
+     * a list of saved views.
+     * @param name - A camera view's id or a saved view's name.
+     * @param options - What to judge.
+     * @param options.saved - Judge the saved view under the name, not whatever the name resolves to.
+     * @returns Null when it can be applied now; otherwise one coded fact whose `params` equal the
+     *     refusal's `details`: `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive,
+     *     `E_UNSUPPORTED` `{ reason: "mode", name, modes, mode }` in a drawing mode it does not
+     *     work in, `E_UNKNOWN_CAMERA` `{ name, available }` when nothing answers to the name,
+     *     `E_PROTECTED` `{ name }` for `{ saved: true }` when a camera view holds the name, and
+     *     `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name.
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * const problem = element.viewProblem("topView");
+     * button.disabled = problem !== null; // the app words problem.code
+     * ```
+     */
+    viewProblem(name: string, options?: { saved?: boolean }): import("./session/shared.js").CodedFact | null {
+        return this.#graph.viewProblem(name, options);
+    }
+
+    /**
+     * How big the drawing surface is.
+     * @returns The canvas's width and height in device pixels, and the ratio of device pixels to
+     *     CSS pixels it is drawn at.
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * const { width, height } = element.getCanvasSize();
+     * label.textContent = `${width * 2} x ${height * 2}`;
+     * ```
+     */
+    getCanvasSize(): { width: number; height: number; devicePixelRatio: number } {
+        return this.#graph.getCanvasSize();
+    }
+
+    /**
+     * Whether motion is reduced now: `reducedMotion`, with `"auto"` resolved against the
+     * platform's `prefers-reduced-motion`. `reduced-motion-changed` fires when the answer changes.
+     * @returns True when camera moves jump, auto-rotate is stopped and layouts are shown settled.
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * element.reducedMotion = "auto";
+     * element.addEventListener("reduced-motion-changed", () => render(element.isMotionReduced()));
+     * ```
+     */
+    isMotionReduced(): boolean {
+        return this.#graph.isMotionReduced();
     }
 
     /**

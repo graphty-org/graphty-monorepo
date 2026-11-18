@@ -1,3 +1,4 @@
+import { cameraRefusal, stateProblem } from "../camera/mode.js";
 import type { Graph } from "../Graph.js";
 import { captureError } from "../screenshot/captureError.js";
 import { VIDEO_CONSTANTS } from "../screenshot/constants.js";
@@ -454,6 +455,11 @@ export async function holdCameraForCapture(
     graph: Graph,
     camera: NonNullable<AnimationOptions["camera"]>,
 ): Promise<() => Promise<void>> {
+    // While immersive the headset owns the camera: refused before anything is changed.
+    const immersive = stateProblem({}, graph.getViewMode());
+    if (immersive !== null) {
+        throw cameraRefusal(immersive);
+    }
     const updateManager = graph.getUpdateManager();
     const zoomToFitWasEnabled = updateManager.isZoomToFitEnabled();
     if (zoomToFitWasEnabled) {
@@ -469,7 +475,7 @@ export async function holdCameraForCapture(
         }
     };
     try {
-        await graph.setCameraState(camera);
+        await graph.setCameraState("view" in camera ? { preset: camera.view } : camera);
     } catch (error: unknown) {
         await restore();
         throw error;

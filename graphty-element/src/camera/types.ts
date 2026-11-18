@@ -69,6 +69,13 @@ export interface GraphBounds {
  * the members its `type` calls for and leaves the rest alone.
  */
 export interface CameraState {
+    /**
+     * The drawing mode this state belongs to. `getCameraState()` writes it in 2D and 3D. A state
+     * with it applies only in that mode; one without it applies in each mode it holds a member
+     * of (2D reads `zoom`, `pan` and `rotation`; 3D reads `position`, `target`, `alpha`, `beta`,
+     * `radius`, `pivotRotation`, `cameraDistance` and `fov`).
+     */
+    mode?: DrawingMode;
     type?: "arcRotate" | "free" | "universal" | "orthographic";
 
     // 3D Camera Properties

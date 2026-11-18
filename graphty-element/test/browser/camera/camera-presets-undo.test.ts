@@ -42,7 +42,7 @@ describe("saved camera views under undo", () => {
         const session = graph.getSession();
         const steps = session.history.steps.length;
 
-        graph.saveCameraPreset("mine", { position: { x: 5, y: 6, z: 7 }, target: { x: 0, y: 0, z: 0 } });
+        await graph.saveCameraPreset("mine", { position: { x: 5, y: 6, z: 7 }, target: { x: 0, y: 0, z: 0 } });
         const saved = graph.getCameraPresets().mine;
 
         assert.lengthOf(session.history.steps, steps + 1);
@@ -58,7 +58,7 @@ describe("saved camera views under undo", () => {
 
     test("removing a saved view is one step, and undo puts it back", async () => {
         const session = graph.getSession();
-        graph.saveCameraPreset("mine", { zoom: 2 });
+        await graph.saveCameraPreset("mine", { zoom: 2 });
 
         await graph.removeCameraPreset("mine");
         assert.isUndefined(graph.getCameraPresets().mine);
@@ -86,7 +86,7 @@ describe("saved camera views under undo", () => {
 
     test("moving the camera to a saved view, a camera view or a position changes no project state", async () => {
         const session = graph.getSession();
-        graph.saveCameraPreset("mine", { position: { x: 30, y: 20, z: 10 }, target: { x: 0, y: 0, z: 0 } });
+        await graph.saveCameraPreset("mine", { position: { x: 30, y: 20, z: 10 }, target: { x: 0, y: 0, z: 0 } });
         const before = digest();
         const steps = session.history.steps.length;
 
@@ -100,9 +100,11 @@ describe("saved camera views under undo", () => {
         assert.lengthOf(session.history.steps, steps, "no step was recorded");
     });
 
-    test("refuses to save a fixed position under a camera view's name", () => {
-        assert.throws(() => {
-            graph.saveCameraPreset("isometric");
-        }, /camera view/);
+    test("refuses to save a fixed position under a camera view's name", async () => {
+        const refused = await graph.saveCameraPreset("isometric").then(
+            () => null,
+            (error: unknown) => (error as { code?: string }).code,
+        );
+        assert.strictEqual(refused, "E_PROTECTED");
     });
 });

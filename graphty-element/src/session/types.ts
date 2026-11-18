@@ -4304,6 +4304,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `note.add`, `note.update`, `note.remove` | none |
  * | `note.merge` | `source`: the merged document's name, or null |
  * | `view.save`, `view.remove` | `names`: the views |
+ * | `view.rename` | `from`: the view's name before; `to`: its new name |
+ * | `view.move` | `name`: the view moved; `index`: its new 0-based place |
  * | `annotations.set` | `count`: how many annotations are kept |
  * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
@@ -4422,6 +4424,8 @@ export type HistoryCode =
     | "note.merge"
     | "view.save"
     | "view.remove"
+    | "view.rename"
+    | "view.move"
     | "view.dimension"
     | "view.immersive"
     | "config.set"
@@ -4672,6 +4676,10 @@ export interface CommandOutcomeMap {
     "annotations.patch": Promise<void>;
     /** Settles once the removal is recorded. */
     "view.remove": Promise<void>;
+    /** Settles once the rename is recorded. */
+    "view.rename": Promise<void>;
+    /** Settles once the new order is recorded. */
+    "view.move": Promise<void>;
     /** Settles once the camera has arrived. */
     "view.camera": Promise<void>;
     /** Settles once the settings are recorded and the picture has caught up. */
@@ -5125,20 +5133,43 @@ export interface SessionAnnotations {
 }
 
 /**
- * The saved camera views, read as a map from name to camera state.
+ * The saved camera views, read as a map from name to camera state, iterated in project order.
  *
  * A saved view is a fixed position, not a rule: it does not recompute itself for a different
  * graph the way a camera view does, which is why a name a camera view answers to is refused.
+ * A new view goes at the end of the order; `move` changes it.
  */
 export interface SessionViews extends ReadonlyMap<string, CameraState> {
     /**
      * Keep camera states under names, replacing any view already saved under one. One step.
-     * @param views - The names and the camera states.
+     * @param views - The names, and the camera state of each. A view with no `camera` keeps
+     *     where the camera stands now, read once, so redo puts back the same state.
      * @returns Settles once the step is recorded.
-     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view answers to
-     *     a name, or `E_BAD_COMMAND` for an empty name; nothing is saved then.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` `{ name }` when a camera view
+     *     answers to a name, `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name, and,
+     *     for a view with no `camera`, `E_UNSUPPORTED` when the session draws nothing or
+     *     `{ reason: "xr", mode }` while immersive; nothing is saved then.
      */
-    save(views: readonly { readonly name: string; readonly camera: CameraState }[]): Promise<void>;
+    save(views: readonly { readonly name: string; readonly camera?: CameraState }[]): Promise<void>;
+    /**
+     * Give a saved view a new name, keeping its place in the order. One step.
+     * @param from - Its name now.
+     * @param to - The new name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `from`, `E_BAD_COMMAND` `{ reason: "name-taken", name }` when `to`
+     *     is saved already, or `E_PROTECTED` `{ name }` when a camera view answers to `to`.
+     */
+    rename(from: string, to: string): Promise<void>;
+    /**
+     * Put a saved view at a place in the order. One step.
+     * @param name - The view.
+     * @param index - Its new 0-based place, clamped to the order.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`.
+     */
+    move(name: string, index: number): Promise<void>;
     /**
      * Forget saved views. One step.
      * @param names - The names.

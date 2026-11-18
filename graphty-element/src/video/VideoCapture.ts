@@ -98,10 +98,12 @@ export interface AnimationOptions {
     cameraMode: "stationary" | "animated";
     /**
      * Stationary mode: where the camera stands while recording -- a camera state, or a named view
-     * (`catalog.cameras()` ids or views saved in `session.views`). The camera is put back afterwards.
+     * (`{ view }`: `catalog.cameras()` ids or views saved in `session.views`; `preset` is the older
+     * spelling). The camera is put back afterwards. A state or saved view that does not fit the
+     * drawing mode is refused as `setCameraState` refuses it.
      * @default the camera as it is
      */
-    camera?: CameraState | { preset: string };
+    camera?: CameraState | { view: string } | { preset: string };
     /**
      * Waypoints for camera animation path (animated mode), flown with the same camera moves as
      * `playTour`; see {@link ViewWaypoint}. Two or more, unless a stop has a `view` or a `hold`. The

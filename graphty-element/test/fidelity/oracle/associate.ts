@@ -4429,19 +4429,26 @@ export function associate(
                 twin.box = { x0: twin.box.x0 - d, y0: twin.box.y0 - d, x1: twin.box.x1 + d, y1: twin.box.y1 + d };
             }
             twin.fill ??= p.fill;
+            // a ring painted as a fill round a group (yEd Live's tab and frame) is its band, not its outline, where the
+            // program strokes the outline over the same box too (yed-live-graphml-specimen-groups-p3)
+            if (twin.stroke?.painted === true && p.stroke !== null && p.stroke.painted !== true) {
+                twin.stroke = p.stroke;
+            }
             twin.stroke ??= p.stroke;
             twin.panel ??= p.panel;
             continue;
         }
         // inside the outline itself, not only its box: a wide edge drawn as a filled band has a box over the nodes it
-        // passes, but holds none of them
-        const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
+        // passes, but holds none of them. An outline painted as a filled ring holds what is inside its hole (yEd's
+        // DemoGroup, a frame with an open inside, yed-graphml-specimen-groups).
+        const ring = p.tag === PAINTED_OUTLINE;
+        const holds = (q: Pt): boolean => inside(q, p.box) && (ring || p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
             (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         // each of graphty's boxes stands for one box of the program's
         const guided = members.length === 1 ? guideBoxes.findIndex((b) => boxIoU(b, p.box) >= 0.5) : -1;
-        if ((members.length >= 2 || guided >= 0) && polygonArea(p.points) >= 0.5 * area(p.box)) {
+        if ((members.length >= 2 || guided >= 0) && (ring || polygonArea(p.points) >= 0.5 * area(p.box))) {
             if (guided >= 0) {
                 guideBoxes.splice(guided, 1);
             }

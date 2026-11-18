@@ -6,10 +6,9 @@
  * the rows it crossed, not the graph.
  */
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { assert, beforeAll, describe, it, vi } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
@@ -18,12 +17,8 @@ import type { TimeField } from "../../../src/session/time/TimeApi";
 import { timeIndexCounters } from "../../../src/session/time/timeIndex";
 import { slideCounters } from "../../../src/session/visibility/slide";
 import { assertScalesLinearly } from "../../helpers/cost";
+import { windowCount, windowEdges, windowNodes } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const SPAN = 1000;
 
@@ -150,7 +145,7 @@ function bruteForce(
  */
 function masks(harness: Harness): { nodes: number[]; edges: number[] } {
     const { visibility } = harness.session;
-    return { nodes: [...visibility.nodeMask()], edges: [...visibility.edgeMask()] };
+    return { nodes: [...windowNodes(visibility)], edges: [...windowEdges(visibility)] };
 }
 
 /**
@@ -312,7 +307,7 @@ describe("the window's rule", () => {
         await time.setField({ edges: { start: "t" } });
         await visibility.setSteps([{ id: "s", on: true, rule: { kind: "edges", where: "heavy == `true`" } }]);
         await time.window({ from: 0, to: 10 });
-        assert.deepEqual([...visibility.nodeMask()], [1, 1, 0], "c's only edge is filtered out");
+        assert.deepEqual([...windowNodes(visibility)], [1, 1, 0], "c's only edge is filtered out");
         harness.session.dispose();
     });
 
@@ -335,11 +330,11 @@ describe("the window's rule", () => {
         await time.setField({ nodes: { start: "t" } });
         await time.window({ from: 0, to: 20, step: 20, nodes: "ends" });
         await time.stepBy(1);
-        assert.deepEqual([...visibility.nodeMask()], [0, 0, 0, 1, 1], "stepped: c has no edge");
+        assert.deepEqual([...windowNodes(visibility)], [0, 0, 0, 1, 1], "stepped: c has no edge");
         await time.window({ from: 20, to: 40, step: 20, nodes: "ends" });
-        assert.deepEqual([...visibility.nodeMask()], [0, 0, 0, 1, 1], "set directly");
+        assert.deepEqual([...windowNodes(visibility)], [0, 0, 0, 1, 1], "set directly");
         await time.seek(0, { commit: false });
-        assert.deepEqual([...visibility.nodeMask()], [1, 1, 0, 0, 0], "slid back");
+        assert.deepEqual([...windowNodes(visibility)], [1, 1, 0, 0, 0], "slid back");
         harness.session.dispose();
     });
 
@@ -355,9 +350,9 @@ describe("the window's rule", () => {
         const { time, visibility } = harness.session;
         await time.setField({ nodes: { start: "t" } });
         await time.window({ from: 0, to: 10, step: 10, nodes: "ends", missing: "outside" });
-        assert.deepEqual([...visibility.nodeMask()], [0, 0]);
+        assert.deepEqual([...windowNodes(visibility)], [0, 0]);
         await time.window({ from: 0, to: 10, step: 10, nodes: "ends", missing: "inside" });
-        assert.deepEqual([...visibility.nodeMask()], [1, 1]);
+        assert.deepEqual([...windowNodes(visibility)], [1, 1]);
         harness.session.dispose();
     });
 
@@ -377,7 +372,7 @@ describe("the window's rule", () => {
         await time.stepBy(-1);
         await config.set({ data: { knownFields: { edgeTimeUnit: "s" } } });
         await time.window({ from: 0, to: 10_000, step: 10_000, nodes: "all" });
-        assert.deepEqual([...visibility.edgeMask()], [1, 0], "5 s is inside, 50 s is not");
+        assert.deepEqual([...windowEdges(visibility)], [1, 0], "5 s is inside, 50 s is not");
         harness.session.dispose();
     });
 
@@ -386,7 +381,7 @@ describe("the window's rule", () => {
         ["a window", (time: GraphSession["time"]) => time.window({ from: 30, to: 50, step: 20, nodes: "all" })],
     ] as const) {
         it(`names what ${name} changed by the graph it moved on, when a removal lands as it records`, async () => {
-            const session = createGraphSession({ features: ["timeline"] });
+            const session = createGraphSession();
             await session.data.addNodes(["a", "b", "c", "d", "e"].map((id, at) => ({ id, t: at * 10 })));
             await session.data.addEdges([
                 { source: "a", target: "b" },
@@ -396,8 +391,8 @@ describe("the window's rule", () => {
             await session.time.window({ from: 0, to: 20, step: 20, nodes: "all" });
             const graph = session.snapshot();
             const read = (): { nodes: number[]; edges: number[] } => ({
-                nodes: [...session.visibility.nodeMask()],
-                edges: [...session.visibility.edgeMask()],
+                nodes: [...windowNodes(session.visibility)],
+                edges: [...windowEdges(session.visibility)],
             });
             const was = read();
             const moved = move(session.time);
@@ -427,16 +422,16 @@ describe("the window's rule", () => {
         const { time, visibility } = harness.session;
         await time.setField({ edges: { start: "t", unit: "ms" } });
         await visibility.setWindow({ attribute: "data.t", from: 0, to: 5000 });
-        assert.deepEqual([...visibility.nodeMask()], [1, 1, 0, 0], "a node's own record still counts");
-        assert.deepEqual([...visibility.edgeMask()], [1, 0, 0]);
+        assert.deepEqual([...windowNodes(visibility)], [1, 1, 0, 0], "a node's own record still counts");
+        assert.deepEqual([...windowEdges(visibility)], [1, 0, 0]);
 
         const { jumps } = slideCounters;
         const { full } = slideCounters;
         await time.window({ from: 5000, to: 10_000, step: 1000, nodes: "all" });
         await time.stepBy(-1);
         await time.stepBy(1);
-        assert.deepEqual([...visibility.nodeMask()], [0, 0, 1, 1], "the same rule as a move");
-        assert.deepEqual([...visibility.edgeMask()], [0, 0, 1]);
+        assert.deepEqual([...windowNodes(visibility)], [0, 0, 1, 1], "the same rule as a move");
+        assert.deepEqual([...windowEdges(visibility)], [0, 0, 1]);
         assert.isAbove(slideCounters.full, full + 2, "every move reads the records in a full pass");
         assert.strictEqual(slideCounters.jumps, jumps);
         harness.session.dispose();
@@ -455,13 +450,13 @@ describe("the window's rule", () => {
         await time.setField({ edges: { start: "t" } });
         await time.window({ from: 0, to: 10 });
         await visibility.setWindow({ attribute: "data.other", from: 0, to: 10 });
-        assert.deepEqual([...visibility.edgeMask()], [0, 1]);
-        assert.deepEqual([...visibility.nodeMask()], [1, 1, 1], "`nodes` was not asked for");
+        assert.deepEqual([...windowEdges(visibility)], [0, 1]);
+        assert.deepEqual([...windowNodes(visibility)], [1, 1, 1], "`nodes` was not asked for");
         await visibility.setWindow({ attribute: "data.t", from: 0, to: 10 });
-        assert.deepEqual([...visibility.edgeMask()], [1, 0]);
+        assert.deepEqual([...windowEdges(visibility)], [1, 0]);
         await time.stepBy(1);
         await visibility.setWindow(null);
-        assert.deepEqual([...visibility.edgeMask()], [1, 1]);
+        assert.deepEqual([...windowEdges(visibility)], [1, 1]);
         harness.session.dispose();
     });
 
@@ -478,7 +473,7 @@ describe("the window's rule", () => {
         const { time, visibility } = session;
         await time.setField({ edges: { start: "t" } });
         await time.window({ from: 0, to: 10, step: 10 });
-        const recorded = [...visibility.edgeMask()];
+        const recorded = [...windowEdges(visibility)];
         assert.deepEqual(recorded, [1, 0]);
 
         const refusal = new Error("refused");
@@ -491,7 +486,7 @@ describe("the window's rule", () => {
             );
             assert.include(String(failed), "refused");
             assert.strictEqual(visibility.window?.from, 0);
-            assert.deepEqual([...visibility.edgeMask()], recorded);
+            assert.deepEqual([...windowEdges(visibility)], recorded);
         }
 
         dispatch.mockRestore();
@@ -512,7 +507,8 @@ describe("the window's rule", () => {
         await time.setField({ nodes: { start: "t" } });
         await visibility.set({ kind: "range", attribute: "data.w", min: 0, max: 2 });
         const gap = await time.window({ from: 15, to: 25, step: 10 });
-        assert.deepEqual(gap.unresolvedPaths, ["data.w"], "no edge got past its ends");
+        // The window narrows nothing visible, so the filter reads the edge whatever the window says.
+        assert.deepEqual(gap.unresolvedPaths, []);
 
         const adopted = await time.window({ from: 0, to: 10, step: 10 });
         assert.strictEqual(adopted.visible.edges, 1);
@@ -557,8 +553,8 @@ describe("what a slide's masks are compared against", () => {
     function shows(harness: Harness, nodes: string, edges: number[]): void {
         const { visibility } = harness.session;
         const letters = "abcdefgh".split("");
-        assert.strictEqual(letters.filter((_, row) => visibility.nodeMask()[row] === 1).join(""), nodes);
-        assert.deepEqual([...visibility.edgeMask()], edges);
+        assert.strictEqual(letters.filter((_, row) => windowNodes(visibility)[row] === 1).join(""), nodes);
+        assert.deepEqual([...windowEdges(visibility)], edges);
     }
 
     it("adopts the window it slid to", async () => {
@@ -647,12 +643,12 @@ describe("a slide whose filter's inputs change", () => {
         await visibility.set({ kind: "member", of: { set } });
         await time.window({ from: 100, to: 110, step: 10, nodes: "ends" });
         await time.stepBy(1);
-        assert.strictEqual(visibility.summary.visibleNodes, 0);
+        assert.strictEqual(windowCount(visibility).nodes, 0);
 
         session.sets.redefine(set, { kind: "fixed", nodes: ["b", "c"], reading: "induced" });
         await time.seek(10);
-        assert.deepEqual([...visibility.nodeMask()], [0, 1, 1]);
-        assert.deepEqual([...visibility.edgeMask()], [0, 1]);
+        assert.deepEqual([...windowNodes(visibility)], [0, 1, 1]);
+        assert.deepEqual([...windowEdges(visibility)], [0, 1]);
         session.dispose();
     });
 
@@ -678,12 +674,12 @@ describe("a slide whose filter's inputs change", () => {
         await visibility.set({ kind: "expression", where: "results.score.value > `1`" });
         await time.window({ from: 50, to: 60, step: 10 });
         await time.stepBy(1);
-        assert.strictEqual(visibility.summary.visibleNodes, 0);
+        assert.strictEqual(windowCount(visibility).nodes, 0);
 
         scores = new Map();
         await session.runs.get("score")?.rerun();
         await time.seek(100);
-        assert.deepEqual([...visibility.nodeMask()], [0, 0, 0, 0]);
+        assert.deepEqual([...windowNodes(visibility)], [0, 0, 0, 0]);
         session.dispose();
     });
 });
@@ -726,7 +722,6 @@ describe("a window over a graph that changes between moves", () => {
             const pick = (count: number): number => Math.floor(next() * count);
             let scores = new Map<string, number>();
             const session = createGraphSession({
-                features: ["timeline"],
                 runs: { execute: (context) => Promise.resolve(scored(context, session.snapshot(), scores)) },
             });
             const nodes = new Map(Array.from({ length: 30 }, (_, at) => [`n${String(at)}`, pick(SPAN)]));
@@ -760,8 +755,8 @@ describe("a window over a graph that changes between moves", () => {
                 const ends = new Set([...edges].flatMap(([key, t]) => (inside(t) ? key.split(">") : [])));
                 const shows = (id: string): boolean =>
                     (scores.get(id) ?? 0) > 1 && inside(nodes.get(id)) && ends.has(id);
-                const nodeMask = session.visibility.nodeMask();
-                const edgeMask = session.visibility.edgeMask();
+                const nodeMask = windowNodes(session.visibility);
+                const edgeMask = windowEdges(session.visibility);
                 assert.strictEqual(graph.nodeCount, nodes.size, what);
                 assert.strictEqual(graph.edgeCount, edges.size, what);
                 for (let row = 0; row < graph.nodeCount; row++) {
@@ -900,7 +895,7 @@ describe("the work of a move", () => {
         await harness.session.time.seek(500);
         assert.strictEqual(slideCounters.full, full);
         assert.strictEqual(slideCounters.jumps, jumps + 1);
-        assert.strictEqual(harness.session.visibility.summary.visibleEdges, 40);
+        assert.strictEqual(windowCount(harness.session.visibility).edges, 40);
         harness.session.dispose();
     });
 
@@ -922,13 +917,13 @@ describe("the work of a move", () => {
         await time.setField({ nodes: { start: "t" }, edges: { start: "t" } });
         await time.window({ from: 0, to: 500, step: 1 });
         await time.stepBy(1);
-        assert.strictEqual(visibility.summary.visibleEdges, 1, "a to b, both inside");
+        assert.strictEqual(windowCount(visibility).edges, 1, "a to b, both inside");
 
         const { full, jumps } = slideCounters;
         await time.seek(40);
         assert.strictEqual(slideCounters.full, full);
         assert.strictEqual(slideCounters.jumps, jumps + 1);
-        assert.strictEqual(visibility.summary.visibleEdges, 60, "b left, and its edge with it");
+        assert.strictEqual(windowCount(visibility).edges, 60, "b left, and its edge with it");
         harness.session.dispose();
     });
 
@@ -947,7 +942,7 @@ describe("the work of a move", () => {
         const { jumps } = slideCounters;
         await time.stepBy(-1);
         assert.strictEqual(slideCounters.jumps, jumps + 1, "one node crossed, 200 edges to test");
-        assert.strictEqual(visibility.summary.visibleNodes, 1);
+        assert.strictEqual(windowCount(visibility).nodes, 1);
         harness.session.dispose();
     });
 
@@ -966,14 +961,14 @@ describe("the work of a move", () => {
         const { time, visibility } = harness.session;
         await time.setField({ nodes: { start: "t" }, edges: { start: "t" } });
         await time.window({ from: 10, to: 30, step: 10, nodes: "all", missing: "outside" });
-        assert.strictEqual(visibility.summary.visibleEdges, 4, "the hub's three, and one between leaves");
+        assert.strictEqual(windowCount(visibility).edges, 4, "the hub's three, and one between leaves");
 
         const { scans, jumps } = slideCounters;
         await time.stepBy(1);
         assert.strictEqual(slideCounters.scans, scans + 1);
         assert.strictEqual(slideCounters.jumps, jumps);
-        assert.strictEqual(visibility.summary.visibleNodes, 3);
-        assert.strictEqual(visibility.summary.visibleEdges, 1, "the hub's edges went with it");
+        assert.strictEqual(windowCount(visibility).nodes, 3);
+        assert.strictEqual(windowCount(visibility).edges, 1, "the hub's edges went with it");
         harness.session.dispose();
     });
 
@@ -981,7 +976,7 @@ describe("the work of a move", () => {
         const harness = await ring(400);
         const { session } = harness;
         const { time } = session;
-        const start = [...session.visibility.edgeMask()];
+        const start = [...windowEdges(session.visibility)];
         const { position } = session.history;
         let plays = 0;
         const ended = new Promise<void>((resolve) => {
@@ -998,7 +993,7 @@ describe("the work of a move", () => {
         assert.strictEqual(session.history.position, position + 1);
         await session.undo();
         assert.strictEqual(session.visibility.window?.from, 0);
-        assert.deepEqual([...session.visibility.edgeMask()], start);
+        assert.deepEqual([...windowEdges(session.visibility)], start);
         session.dispose();
     });
 });

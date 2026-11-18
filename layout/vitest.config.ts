@@ -29,11 +29,6 @@ const config = defineConfig({
             tsconfig: "./tsconfig.types.json",
         },
     },
-    resolve: {
-        alias: {
-            "@": "/src",
-        },
-    },
 });
 
 // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).

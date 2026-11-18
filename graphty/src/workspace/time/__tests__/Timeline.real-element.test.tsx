@@ -14,8 +14,7 @@ import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
-import { siteFeatures } from "../../../test/siteFeatures";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { tooltipOf } from "../../../test/tooltip";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -28,6 +27,23 @@ const PRE_STEPS = 1000;
 const OFFICE_EMAIL = `${import.meta.env.BASE_URL}samples/office-email.json`;
 /** The paper citations sample: 159 papers, each with its `year`. */
 const PAPERS = `${import.meta.env.BASE_URL}samples/paper-citations.json`;
+/** The Marvel films sample: 210 films and people, each edge with its film's `released` date. */
+const MARVEL = `${import.meta.env.BASE_URL}samples/marvel-films.json`;
+
+/**
+ * Where every node is, as text to compare.
+ * @param session - the element's session.
+ * @returns each row's position.
+ */
+function positions(session: GraphSession): string {
+    const out = { x: 0, y: 0, z: 0 };
+    const all: number[] = [];
+    for (let i = 0; i < session.data.statistics().nodeCount; i++) {
+        session.positions.read(i, out);
+        all.push(out.x, out.y, out.z);
+    }
+    return JSON.stringify(all);
+}
 
 /**
  * Renders the workspace on a place and loads a sample.
@@ -61,7 +77,7 @@ async function open(
  * The Data place.
  * @returns queries inside it.
  */
-function dataPlace(): ReturnType<typeof within> {
+function dataPlace(): Within {
     return within(screen.getByRole("region", { name: "Data place" }));
 }
 
@@ -76,45 +92,26 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
         name: `Add to ${row === "Edge time" ? "edge" : "node"} attributes`,
     });
     const entry = dataPlace().queryByRole("combobox", { name: row });
+    // A column that does not fit names how many of its values will not convert after its name.
+    const name = new RegExp(String.raw`^${column}(\s*[\d,]+ will not convert)?$`);
     if (entry === null) {
         await userEvent.click(plus);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name }));
     } else {
         await userEvent.click(entry);
+        await userEvent.click(await screen.findByRole("option", { name }));
     }
-    // A column that does not fit names how many of its values will not convert after its name.
-    await userEvent.click(
-        await screen.findByRole("option", { name: new RegExp(String.raw`^${column}(\s*[\d,]+ will not convert)?$`) }),
-    );
 }
 
 /**
- * Opens the time window's card: from its Filters card, or, with none, by adding "Time window" from
- * the Filters "+", then turning the window back off when it was off, so the window is as it was.
- * @returns queries inside the card.
+ * Opens the timeline's settings from the dock's settings button, opening the dock first.
+ * @returns queries inside the settings.
  */
-async function timeCard(): Promise<ReturnType<typeof within>> {
+async function timeCard(): Promise<Within> {
     if (screen.queryByTestId("time-card") === null) {
-        const item = dataPlace().queryByRole("group", { name: /^Time window/ });
-        if (item === null) {
-            const wasOff = document.querySelector("graphty-element")?.session?.time.current === null;
-            await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
-            // The new card opens in the selection workspace: its Value list holds the Time window.
-            await userEvent.click(await screen.findByRole("button", { name: "Value" }));
-            await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
-            const box = await dataPlace().findByRole("checkbox", { name: "Apply Time window" });
-            await waitFor(() => {
-                assert.isTrue((box as HTMLInputElement).checked);
-            });
-            if (wasOff) {
-                await userEvent.click(box);
-                await waitFor(() => {
-                    assert.isFalse((box as HTMLInputElement).checked);
-                });
-            }
-        } else {
-            await userEvent.click(within(item).getByRole("button", { name: "Time window" }));
-        }
+        const dock = await openDock();
+        await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
     }
     return within(await screen.findByTestId("time-card"));
 }
@@ -165,7 +162,6 @@ function readout(dock: HTMLElement): string {
 
 describe("the timeline on the real element", () => {
     beforeAll(async () => {
-        await siteFeatures(["timeline"]);
         await page.viewport(1366, 768);
     });
 
@@ -318,13 +314,11 @@ describe("the timeline on the real element", () => {
         });
     });
 
-    it("keeps Results, Mode and Step through Show all time", async () => {
+    it("keeps the results rule, Mode and Step through Show all time", async () => {
         const { session } = await open();
         const dock = await designateSent(session);
-        await pickIn("Results", "Keep");
-        await userEvent.click(
-            within((await timeCard()).getByRole("radiogroup", { name: "Mode" })).getByText("Cumulative"),
-        );
+        await pickIn("When window moves", "Keep");
+        await userEvent.click(within((await timeCard()).getByRole("radiogroup", { name: "Mode" })).getByText("Grow"));
         await pickIn("Step", "Week");
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
         await waitFor(() => {
@@ -337,7 +331,7 @@ describe("the timeline on the real element", () => {
         });
         assert.deepInclude(session.time.settings, { results: "keep", mode: "cumulative", step: "week" });
         const card = await timeCard();
-        assert.equal(card.getByRole("combobox", { name: "Results" }).getAttribute("value"), "Keep");
+        assert.equal(card.getByRole("combobox", { name: "When window moves" }).getAttribute("value"), "Keep");
         assert.equal(card.getByRole("combobox", { name: "Step" }).getAttribute("value"), "Week");
     });
 
@@ -379,17 +373,15 @@ describe("the timeline on the real element", () => {
         await pickIn("Step", "Week");
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
 
-        // Filters lists the window as a card.
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
-        await dataPlace().findByRole("group", { name: /^Time window / });
         const chip = await screen.findByRole("button", { name: /^Time: / });
         await userEvent.click(chip);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Window start");
-        // The window's two icon controls say their names on hover, whatever the window's state.
-        const apply = dataPlace().getByRole("checkbox", { name: "Apply Time window" });
-        assert.equal(await tooltipOf(apply), "Apply Time window");
+        // The dock's icon controls say their names on hover, whatever the window's state.
+        const settings = within(dock).getByRole("button", { name: "Timeline settings" });
+        assert.equal(await tooltipOf(settings), "Timeline settings");
         const clear = screen.getByRole("button", { name: "Clear the time window" });
         assert.equal(await tooltipOf(clear), "Clear the time window");
         await userEvent.click(clear);
@@ -435,7 +427,7 @@ describe("the timeline on the real element", () => {
             place.getByRole("combobox", { name: "Time field" }),
             place.getByRole("combobox", { name: "Step" }),
             place.getByRole("radiogroup", { name: "Mode" }),
-            place.getByRole("combobox", { name: "Results" }),
+            place.getByRole("combobox", { name: "When window moves" }),
         ].map((control) => control.getBoundingClientRect().right);
         // One edge, to the subpixel a segmented track's border rounds to.
         assert.isBelow(Math.max(...rights) - Math.min(...rights), 1.5, `right edges ${rights.join(", ")}`);
@@ -521,7 +513,7 @@ describe("the timeline on the real element", () => {
 });
 
 describe("the Overview and the import of time", () => {
-    it("offers the column that reads as time as a door to Fields, and reads the visible graph while a window is on", async () => {
+    it("offers the column that reads as time as a door to Fields, and reads the whole graph while a window is on", async () => {
         const { session } = await open(OFFICE_EMAIL, "graph");
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
@@ -537,8 +529,10 @@ describe("the Overview and the import of time", () => {
             await session.time.setSettings({ step: "week" });
             await session.time.stepBy(1);
         });
-        const edges = await inspector.findByRole("group", { name: "Edges showing" });
-        assert.include(edges.textContent, `${session.visibility.summary.visibleEdges.toLocaleString()} of 2,102`);
+        // The window narrows only the drawing: the Overview counts no "showing" subset.
+        assert.isNotNull(session.time.current);
+        await inspector.findByText("Direction");
+        assert.isNull(inspector.queryByRole("group", { name: "Edges showing" }));
     });
 
     it("reads a year column as years, steps a year at a time, and reads it as numbers on request", async () => {
@@ -599,7 +593,7 @@ describe("the Overview and the import of time", () => {
 
         // Feb 15 is inside the first edge's span and after the second one ended.
         await live.time.window({ from: Date.UTC(2025, 1, 15), to: Date.UTC(2025, 1, 16) });
-        assert.deepEqual([...live.visibility.edgeMask()], [1, 0]);
+        assert.strictEqual(live.time.inside?.edges, 1);
     });
 
     it("keeps the Unit picked when the End row changes", async () => {
@@ -662,7 +656,7 @@ describe("the Overview and the import of time", () => {
         });
     });
 
-    it("draws the elements outside the window as ghosts with Outside: Ghost, and moves them as the window moves", async () => {
+    it("hides the elements outside the window through the Timeline Hidden row, which follows the window", async () => {
         const { session } = await open(PAPERS);
         await session.config.set({ startingRows: true });
         await pickField("year", "Node time");
@@ -670,44 +664,88 @@ describe("the Overview and the import of time", () => {
         await waitFor(() => {
             assert.include(
                 session.styles.list().map((layer) => layer.name),
-                "Ghost",
+                "Timeline Hidden",
             );
         });
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
-        const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
+        // How what lies outside draws is the row's style, edited like any other row: the Time card
+        // has no control of its own for it.
+        assert.isNull((await timeCard()).queryByRole("radiogroup", { name: "Outside" }));
+        await userEvent.click(screen.getByRole("button", { name: "Close Timeline settings" }));
         const graph = session.data.snapshot();
-        const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
+        const ghostLayer = session.styles
+            .list()
+            .find((layer) => layer.name === "Timeline Hidden" && layer.target === "node");
         assert.isDefined(ghostLayer);
-        // Ghosts lie outside what is visible, so counting them names the whole graph. The time window
-        // is not part of the working graph the app reads, so they are drawn with it on.
+        // What the Timeline Hidden layer selects: every node outside the window.
         const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "", { scope: "graph" }).matched;
-        assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
-
-        await userEvent.click(within(outside).getByText("Ghost"));
+        // What lies outside the window: the window narrows only the drawing, never the visible count.
+        const outsideCount = (): number => graph.nodeCount - (session.time.inside?.nodes ?? graph.nodeCount);
+        // Hidden by default: the layer selects what lies outside and leaves it undrawn.
+        assert.equal(session.time.settings.outside, "hide");
+        assert.isFalse(ghostLayer?.set?.["node.visible"], "hidden, not ghosted, by default");
         await waitFor(() => {
-            assert.equal(session.time.settings.outside, "ghost");
             assert.isAbove(ghosts(), 0);
-            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+            assert.equal(ghosts(), outsideCount());
         });
+        // The window narrows nothing visible: every node stays in the visible count.
+        assert.equal(session.visibility.summary.visibleNodes, graph.nodeCount);
         assert.deepEqual(session.visibility.notDrawn, [], "nothing asked for is kept from drawing");
-        // Ghosts are drawn but not visible: the counts are the window's.
-        const visibleBefore = [...session.visibility.nodes].sort();
 
-        // Scrub: step forward, and the ghosts follow the window.
+        // Scrub: step forward, and what the row selects follows the window.
         const first = Number(session.time.current?.from);
         await userEvent.keyboard(".");
         await waitFor(() => {
             assert.isAbove(Number(session.time.current?.from), first);
-            assert.notDeepEqual([...session.visibility.nodes].sort(), visibleBefore);
-            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+            assert.equal(ghosts(), outsideCount());
         });
+    });
 
-        await userEvent.click(within(outside).getByText("Hide"));
+    it("plays the Marvel films with no layout running: no node and no camera moves, and the Timeline Hidden row holds the rest", async () => {
+        const { session } = await open(MARVEL, "graph");
+        await session.config.set({ startingRows: true });
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
         await waitFor(() => {
-            assert.equal(ghosts(), 0);
+            assert.deepEqual(session.time.field, { edges: { start: "released" } });
+        });
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        await element?.waitForSettled();
+        const before = positions(session);
+        const camera = JSON.stringify(element?.getCameraState());
+        const dock = await openDock();
+
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await waitFor(() => {
+            assert.isNotNull(session.time.current);
+        });
+        const first = Number(session.time.current?.from);
+        // Two steps on, the window has moved twice.
+        await waitFor(() => {
+            assert.isAbove(Number(session.time.current?.from), first);
+        });
+        const second = Number(session.time.current?.from);
+        await waitFor(() => {
+            assert.isAbove(Number(session.time.current?.from), second);
+        });
+        if (session.time.playing) {
+            await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        }
+        await element?.waitForSettled();
+        assert.isBelow(session.time.inside?.nodes ?? Infinity, session.data.statistics().nodeCount);
+        assert.equal(positions(session), before, "no node moved");
+        assert.equal(JSON.stringify(element?.getCameraState()), camera, "the camera stayed");
+
+        // The Timeline Hidden layer selects what lies outside the window, and counts it.
+        const ghostLayer = session.styles
+            .list()
+            .find((layer) => layer.name === "Timeline Hidden" && layer.target === "node");
+        await waitFor(() => {
+            assert.isAbove(session.styles.counts(ghostLayer?.id ?? "").matched, 0);
         });
     });
 
@@ -725,61 +763,43 @@ describe("the Overview and the import of time", () => {
             config: { data: "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,\n" },
         });
         await pickField("sent");
-        const untimed = await (await timeCard()).findByRole("radiogroup", { name: "Untimed" });
         await userEvent.click((await openDock()).querySelector("[aria-label='Step forward']") as Element);
-        const shown = live.visibility.summary.visibleEdges;
+        const shown = live.time.inside?.edges ?? 0;
+        const untimed = await (await timeCard()).findByRole("radiogroup", { name: "Untimed" });
         await userEvent.click(within(untimed).getByText("Hide"));
         await waitFor(() => {
-            assert.equal(live.visibility.summary.visibleEdges, shown - 1);
+            assert.equal(live.time.inside?.edges, shown - 1);
         });
     });
 
-    it("adds a Time window card from the Filters +: count, an on box and remove, no Select / Hide", async () => {
+    it("opens the timeline's settings from the dock, and Filters offers no Time window", async () => {
         const { session } = await open();
         await pickField("sent");
         await waitFor(() => {
             assert.isNotNull(session.time.field);
         });
-        assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }), "no card until asked");
-        await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
-        // The new card opens in the selection workspace: its Value list holds the Time window.
-        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
+        const card = await timeCard();
+        card.getByRole("radiogroup", { name: "Zone" });
+        // How a play moves the window has a section of its own, and says what each mode does.
+        const animation = card.getByRole("group", { name: "Animation", description: /^Slide moves .* Grow keeps/ });
+        const settings = card.getByRole("group", { name: "Time" });
+        // So does what a window move does to algorithm results.
+        const results = card.getByRole("group", { name: "Algorithm results", description: /^When window moves: / });
+        within(results).getByRole("combobox", { name: "When window moves" });
+        assert.isNull(within(settings).queryByRole("radiogroup", { name: "Mode" }), "Mode is not a Time setting");
+        within(animation).getByRole("button", { name: "About Animation" });
+        await userEvent.click(within(within(animation).getByRole("radiogroup", { name: "Mode" })).getByText("Grow"));
+        await waitFor(() => {
+            assert.equal(session.time.settings.mode, "cumulative");
+        });
 
-        await waitFor(() => {
-            assert.isNotNull(session.visibility.window, "the window is on");
-        });
-        assert.isBelow(session.visibility.summary.visibleEdges, 2102);
-        assert.isNull(screen.queryByRole("region", { name: "Timeline" }), "adding the card leaves the dock shut");
-        // The Filters list holds it as a card, and its settings open in the inspector, by one name.
-        const card = within(await dataPlace().findByRole("group", { name: /^Time window/ }));
-        await screen.findByTestId("time-card");
-        assert.isNull(screen.queryByText("Filter step"));
-        await waitFor(() => {
-            card.getByText(/ of 2,102$/);
-        });
-        assert.isNull(card.queryByRole("radiogroup"), "no Select / Hide");
-        const box = card.getByRole("checkbox", { name: "Apply Time window" });
-        await userEvent.click(box);
-        await waitFor(() => {
-            assert.isNull(session.time.current);
-        });
-        // Off, the card stays, and "+" does not offer a second one.
-        await dataPlace().findByRole("group", { name: /^Time window/ });
+        assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }), "no Filters card");
         await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
-        // The new card opens in the selection workspace: its Value list holds the Time window.
+        // The new card opens in the selection workspace: its Value list holds the filterable values.
         await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("option", { name: "Largest component" });
         assert.isNull(screen.queryByRole("option", { name: "Time window" }));
         await userEvent.keyboard("{Escape}");
-
-        // Remove takes the card away, the window off, and focus goes to "+".
-        await userEvent.click(card.getByRole("button", { name: "Remove Time window" }));
-        await waitFor(() => {
-            assert.isNull(dataPlace().queryByRole("group", { name: /^Time window/ }));
-        });
-        assert.isNull(session.time.current);
-        assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
     });
 
     it("drags the whole window from between its two handles, the graph following, as one step", async () => {

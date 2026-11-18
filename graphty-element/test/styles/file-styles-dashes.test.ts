@@ -81,3 +81,41 @@ describe("a file's dash patterns", () => {
         }
     });
 });
+
+describe("a file's own dash lengths", () => {
+    it("draws vis-network's dash arrays and Cytoscape.js's dots in the lengths the file gives, in widths", async () => {
+        const vis = JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+            // round caps: [10, 5] at width 2 draws dashes 12 long with gaps of 3
+            edges: [
+                { from: "a", to: "b", width: 2, dashes: [10, 5] },
+                { from: "c", to: "d" },
+            ],
+        });
+        const visSession = await load("json", new TextEncoder().encode(vis));
+        try {
+            assert.deepEqual(dashOf(visSession, "a", "b"), [6, 1.5]);
+            assert.deepEqual(dashOf(visSession, "c", "d"), [undefined, undefined]);
+        } finally {
+            visSession.dispose();
+        }
+        // Cytoscape.js draws dotted 1 px on and 1 off (its own pattern): drawn so at width 1, and a wider line's
+        // dots, which would merge, in the element's own spacing
+        const cyjs = JSON.stringify({
+            elements: {
+                nodes: ["a", "b", "c", "d"].map((id) => ({ data: { id } })),
+                edges: [
+                    { data: { id: "e0", source: "a", target: "b" }, style: { "line-style": "dotted", width: 1 } },
+                    { data: { id: "e1", source: "c", target: "d" }, style: { "line-style": "dotted", width: 3 } },
+                ],
+            },
+        });
+        const cyjsSession = await load("json", new TextEncoder().encode(cyjs));
+        try {
+            assert.deepEqual(dashOf(cyjsSession, "a", "b"), [1, 1]);
+            assert.deepEqual(dashOf(cyjsSession, "c", "d"), [undefined, undefined]);
+        } finally {
+            cyjsSession.dispose();
+        }
+    });
+});

@@ -1,10 +1,10 @@
 /**
- * The `coo-emit` kernel body (design 6 row 10, 8.6; the first step of the simple symmetric graph build): position `i`
+ * The `coo-emit` kernel body (the first step of the simple symmetric graph build): position `i`
  * takes arc `a` -- `i` itself, or `order[i]` under INDEXED, which is how a sorted permutation is materialised -- and
  * writes that arc's source, target and weight. Arc `2e` is logical edge `e` as declared and arc `2e + 1` its reverse,
  * so every edge lands in both directions and the result is symmetric whatever the snapshot's directedness. A
  * self-loop is dropped: both of its arcs are written as `INVALID_INDEX`, which sorts after every node index and which
- * `run-flags` never marks. Weights are 1 without WEIGHTED. Body only (spec 3.5, D9); normative text.
+ * `run-flags` never marks. Weights are 1 without WEIGHTED. Body only; normative text.
  */
 export const cooEmitWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)

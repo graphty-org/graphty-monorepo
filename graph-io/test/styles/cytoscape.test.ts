@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { hashCreationOrder } from "../../src/formats/cx/styles.js";
 import { createRegistry, importGraph } from "../../src/registry.js";
+import { cytoscapeElementProperties } from "../../src/styles/cytoscape/emit.js";
 import { dropMismatchedKeys } from "../../src/styles/cytoscape/mappings.js";
 import { edgeEnds, fileCreationOrder } from "../../src/styles/cytoscape/resolve.js";
 import {
@@ -921,23 +922,25 @@ describe("whole-number visual properties", () => {
         });
         style.node.mappings.set("NODE_LABEL_FONT_SIZE", ramp("10", "40"));
         style.node.mappings.set("NODE_TRANSPARENCY", ramp("0", "100"));
-        style.node.mappings.set("NODE_BORDER_WIDTH", ramp("10", "40"));
+        // under an opaque fill, apart from the translucent one: a border shows half its width there
+        const bordered = emptyCytoscapeStyle();
+        bordered.node.mappings.set("NODE_BORDER_WIDTH", ramp("10", "40"));
         const values = [1, 2, 3];
-        const want = {
-            labelSize: [12, 14, 15],
-            fillOpacity: [6 / 255, 12 / 255, 18 / 255].map((x) => Number(x.toPrecision(6))),
-            // a double property keeps its fraction
-            borderWidth: [11.7647, 13.5294, 15.2941],
-        };
-        const oracle = resolveCytoscape("node", style, elements(values));
+        const want: [CytoscapeStyle, string, number[]][] = [
+            [style, "labelSize", [12, 14, 15]],
+            [style, "fillOpacity", [6 / 255, 12 / 255, 18 / 255].map((x) => Number(x.toPrecision(6)))],
+            // a double property keeps its fraction (a border's visible half: 10 to 40 shows as 5 to 20)
+            [bordered, "borderWidth", [5.88235, 6.76471, 7.64706]],
+        ];
         const b = new GraphBuilder({ directed: true });
         const c = b.declareNodeColumn({ name: "c", dtype: "f64" });
         for (const x of values) {
             b.setNodeValue(c, b.addNode(`n${String(x)}`), x);
         }
         const s = b.freeze();
-        const ex = extracted(s, cytoscapeRules("node", style, elements(values)).rules);
-        for (const [property, expected] of Object.entries(want)) {
+        for (const [st, property, expected] of want) {
+            const oracle = resolveCytoscape("node", st, elements(values));
+            const ex = extracted(s, cytoscapeRules("node", st, elements(values)).rules);
             expect([property, oracle[property]]).toEqual([property, expected]);
             expect([property, resolveStyles(ex, "node", property as never, s)]).toEqual([property, expected]);
         }
@@ -1128,6 +1131,34 @@ describe("whole-number visual properties", () => {
             expect([format, resolveStyles(back.styles as ExtractedStyles, "node", "labelSize", back.snapshot)]).toEqual(
                 [format, sizes],
             );
+        }
+    });
+});
+
+describe("node borders under desktop's fill", () => {
+    it("reads the half an opaque fill leaves showing, the whole of a patterned or invisible border or one under a translucent fill, and writes the stroke back", () => {
+        // Cytoscape desktop paints the fill over the inner half of a plain stroke (cx-ndex-90f78bcd's oracle SVG)
+        const style = emptyCytoscapeStyle();
+        style.node.defaults.set("NODE_BORDER_WIDTH", "20");
+        const bypasses: CytoscapeBypass[] = [
+            null,
+            new Map([["NODE_BORDER_LINE_TYPE", "ZIGZAG"]]),
+            new Map([["NODE_TRANSPARENCY", "128"]]),
+            new Map([["NODE_BORDER_LINE_TYPE", "EQUAL_DASH"]]),
+            new Map([["NODE_BORDER_TRANSPARENCY", "0"]]),
+        ];
+        const read = resolveCytoscape("node", style, elements([1, 2, 3, 4, 5], "c", bypasses));
+        expect(read.borderWidth).toEqual([10, 20, 20, 10, 20]);
+        for (const dialect of ["desktop", "cx2"] as const) {
+            const written = read.borderWidth?.map((_, i) =>
+                cytoscapeElementProperties(
+                    "node",
+                    (p) => read[p]?.[i] ?? null,
+                    dialect,
+                    () => undefined,
+                ).get("NODE_BORDER_WIDTH"),
+            );
+            expect(written?.map(Number)).toEqual([20, 20, 20, 20, 20]);
         }
     });
 });

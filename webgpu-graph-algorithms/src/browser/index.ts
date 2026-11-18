@@ -1,6 +1,6 @@
 /// <reference types="@webgpu/types" preserve="true" />
 /**
- * The ./browser entry (spec 2.1, 2.3, 3.4; contract 3.6): the only directory of the package allowed to read
+ * The ./browser entry: the only directory of the package allowed to read
  * navigator.gpu. probeBrowserWebGpu never throws; requestGpuContext tags the context runtime "browser".
  */
 
@@ -20,7 +20,7 @@ export type {
     ManagedAccelerator,
 } from "../types/managed.js";
 
-/** Options of the browser helpers (spec 3.4); a type alias, not an empty `extends` interface, which strictTypeChecked's no-empty-object-type (allowInterfaces "never") reports. */
+/** Options of the browser helpers; a type alias, not an empty `extends` interface, which strictTypeChecked's no-empty-object-type (allowInterfaces "never") reports. */
 export type BrowserGpuOptions = Omit<GpuContextOptions, "gpu" | "device" | "runtime">;
 
 /**

@@ -149,7 +149,8 @@ of its `taken` marker), so every issue shows the same history.
 
 Before its first label edit in a session, either skill creates the label if it is missing:
 `gh label list -R graphty-org/graphty-monorepo --search in-progress --json name --jq '.[].name' | grep -qx in-progress || gh label create in-progress -R graphty-org/graphty-monorepo --color FBCA04 --description "A session is working on this; other sessions skip it"`.
-Marking an issue always means both: `gh issue edit <n> --add-label in-progress` and the `taken` marker.
+Marking an issue always means both: `gh issue edit <n> --add-label in-progress` and the `taken` marker
+(issue-round does both with `node tools/issue-queue.mjs taken`, which refuses a job with no `files`).
 
 - `pipeline-round: taken by session <session id>, branch <b>, worktree <path>[, group #a #b #c] -- <reason>[; files <path> ...]`
   (issue-round names the files the job will touch, for its collision check)
@@ -236,7 +237,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > never one per pull request in a loop, and on a 403 rate limit stop and say so; act as graphty-agent only and never
 > read the owner's credentials; commits are signed and conventional with no attribution trailers; never touch
 > visual-baselines/, and never change parameters.chromatic, visual-review/trusted/, visual-review/passkeys.json or
-> the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; a breaking API change lands as an ordinary feat/fix commit with no `!`, its message saying what changed for callers; a one-way decision: commit
+> the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; when you file several issues from one investigation, give them one `family:<topic>` label (create it if missing), so issue-round fixes them as one job; a breaking API change lands as an ordinary feat/fix commit with no `!`, its message saying what changed for callers; a one-way decision: commit
 > nothing, comment the question on the issue with the `needs-decision` label, and stop. Before your final tests:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
 > keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or
@@ -365,7 +366,10 @@ A red pull request whose failure master already has gets no fix job: it waits fo
 - Write `pipeline-round: inherited <check> > <test> -- waits on #<issue>[, fix #<pr>]` once on the pull request and on
   its issue. Start no fix job. A pull request red on an inherited break and on something of its own gets a fix job
   for its own failure only, and the prompt names the inherited one to leave alone.
-- **When the fix merges** (the issue closed, or its fix pull request merged): the next round that finds that pull
+- **When the fix merges**: closing the master-break issue as completed runs `refresh-inherited-prs.yml`, which
+  merges master into every open pull request whose failed check is annotated on a test file the issue names (each
+  `[FAIL]` and `[NEW-FLAKY]` test's file is annotated). So name the test file in the issue. A pull request it
+  missed (the issue named no file, or the run predates the annotations): the next round that finds that pull
   request red with an `inherited` marker brings it up to date with master,
   `gh api -X PUT repos/graphty-org/graphty-monorepo/pulls/<n>/update-branch`, and starts its checks on the new merge.
   Never a re-run: a re-run keeps the stale merge commit and fails again. Red again on the same test after that: the

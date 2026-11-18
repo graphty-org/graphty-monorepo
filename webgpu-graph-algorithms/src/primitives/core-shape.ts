@@ -1,8 +1,8 @@
 /**
- * The shape helpers every core-walking primitive shares (spec 4.1): the row count and the arc count a CoreBinding
- * implies, the per-window binding of a windowed core (P4-T7, PD-8), the windowed rejections the pull and the
- * whole-core drivers keep (DEP-P4-B), and the ViewBinding -> CoreBinding adapter the P7 pull kernels need.
- * Moved out of segmented-reduce.ts by M8b-T4 so spmv.ts can use them without duplicating them; the `primitive`
+ * The shape helpers every core-walking primitive shares: the row count and the arc count a CoreBinding
+ * implies, the per-window binding of a windowed core, the windowed rejections the pull and the
+ * whole-core drivers keep, and the ViewBinding -> CoreBinding adapter the pull kernels need.
+ * Moved out of segmented-reduce.ts so spmv.ts can use them without duplicating them; the `primitive`
  * argument keeps each caller's error details byte-identical to what they were when the helpers were private.
  */
 
@@ -10,7 +10,7 @@ import { WebGpuGraphError } from "../errors.js";
 import { type CoreBinding, type ViewBinding } from "../memory/residency.js";
 import { type ArcWindow, type Binding } from "../types/memory.js";
 
-/** The lanes one TIER 1 (mid-degree) row is folded by, in segmentedReduce and spmvPull alike (PD-6: bitwise the same on every subgroup size). */
+/** The lanes one TIER 1 (mid-degree) row is folded by, in segmentedReduce and spmvPull alike (bitwise the same on every subgroup size). */
 export const MID_TIER_LANES = 32;
 
 /**
@@ -98,7 +98,7 @@ export function arcCountOf(core: CoreBinding): number {
 }
 
 /**
- * The binding of one arc window of a windowed core's arc-indexed array (spec 4.2): the buffer the window was placed
+ * The binding of one arc window of a windowed core's arc-indexed array: the buffer the window was placed
  * in, at the window's offset, over its arcs; the kernel reads `array[arc - P.arcBase]` with `arcBase = w.start`.
  * @param core - a windowed core (arcBuffers non-null)
  * @param name - the arc-indexed array
@@ -117,7 +117,7 @@ export function windowBinding(core: CoreBinding, name: "colIdx" | "weights" | "a
     return { buffer, offset: w.offset, size: 4 * (w.end - w.start), window: w };
 }
 
-/** One dispatch of a frontier-walking kernel over a core (P8-T12): the arc range it owns and the core with its arc-indexed arrays bound to that window (the core itself, over every arc, when it is not windowed). */
+/** One dispatch of a frontier-walking kernel over a core: the arc range it owns and the core with its arc-indexed arrays bound to that window (the core itself, over every arc, when it is not windowed). */
 export interface CoreWindow {
     readonly arcBase: number;
     readonly arcEnd: number;
@@ -125,10 +125,10 @@ export interface CoreWindow {
 }
 
 /**
- * The per-window dispatches of a kernel that walks rows named by a FRONTIER rather than by a row range (P8-T12:
+ * The per-window dispatches of a kernel that walks rows named by a FRONTIER rather than by a row range (
  * `advance-expand`, `bfs-fused`, `bfs-bottom-up`, `sssp-pred`): every window sees every frontier entry and clips
- * each row to `[arcBase, arcEnd)`, so the ranges must PARTITION `[0, arcCount)` or a row is expanded twice. P4's
- * windows do not: `planArcWindows` opens a window at the previous window's end aligned DOWN to 64 arcs, so two
+ * each row to `[arcBase, arcEnd)`, so the ranges must PARTITION `[0, arcCount)` or a row is expanded twice. The upload
+ * plan's windows do not: `planArcWindows` opens a window at the previous window's end aligned DOWN to 64 arcs, so two
  * consecutive windows overlap by up to 63 arcs at an unaligned row boundary (the overlap belongs to the earlier
  * window's rows, which a row-range dispatch such as `degree` never revisits). Here a window owns `[start, next
  * window's start)` -- the last one `[start, end)` -- which is inside its binding (`next.start <= end`) and
@@ -152,7 +152,7 @@ export function coreWindows(core: CoreBinding): readonly CoreWindow[] {
 }
 
 /**
- * Rejects a windowed core: the pull cannot accumulate its affine epilogue across windows (DEP-P4-B).
+ * Rejects a windowed core: the pull cannot accumulate its affine epilogue across windows.
  * @param core - the core
  * @param primitive - the caller's name, used in the message and the feature detail
  */
@@ -165,9 +165,9 @@ export function assertNotWindowed(core: CoreBinding, primitive: string): void {
 }
 
 /**
- * Rejects a windowed core for a driver that walks the whole core (DEP-P4-B: pageRank, the power iterations and
- * connectedComponents): `E_TOO_LARGE { needed, limit, path: "windowed", algorithm }` (spec 3.8 / 3.12), the refusal
- * GraphResidency.core() itself issued before P4-T7 executed windows for degree and segmentedReduce.
+ * Rejects a windowed core for a driver that walks the whole core (pageRank, the power iterations and
+ * connectedComponents): `E_TOO_LARGE { needed, limit, path: "windowed", algorithm }`, the refusal
+ * GraphResidency.core() itself issued before windows were executed for degree and segmentedReduce.
  * @param core - the core
  * @param arcCount - the snapshot's arc count (4 bytes per arc of each arc-indexed array)
  * @param limit - the device's maxStorageBufferBindingSize
@@ -177,7 +177,7 @@ export function assertWholeCore(core: CoreBinding, arcCount: number, limit: numb
     if (core.plan === "windowed") {
         throw new WebGpuGraphError(
             "E_TOO_LARGE",
-            `${algorithm}: the arc arrays need a windowed upload (${core.windows?.length ?? 0} windows), which ${algorithm} does not execute (DEP-P4-B)`,
+            `${algorithm}: the arc arrays need a windowed upload (${core.windows?.length ?? 0} windows), which ${algorithm} does not execute`,
             { needed: 4 * arcCount, limit, path: "windowed", algorithm },
         );
     }
@@ -193,15 +193,15 @@ function nonEmpty(b: Binding | null): Binding | null {
 }
 
 /**
- * The CoreBinding shape of a residency VIEW (spec 4.3). residency.view() returns a ViewBinding -- a name -> Binding
+ * The CoreBinding shape of a residency VIEW. residency.view() returns a ViewBinding -- a name -> Binding
  * record -- while graphBindings / graphOverrides and every core-walking primitive read rowPtr / colIdx / weights as
  * top-level fields (src/kernels.ts graphBindings / graphOverrides). This is the only adapter between the two in the
- * package. `plan` is "perArray" because views always upload per array (spec 4.3 lines 1182-1186) and `windows` is
+ * package. `plan` is "perArray" because views always upload per array and `windows` is
  * null because a view is never windowed, which is what makes assertNotWindowed pass for a view. `serial` is -1: a
  * view is not a core and no caller of this function reads serial (nothing in src/primitives or src/algorithms
  * reads CoreBinding.serial). A zero-size `colIdx` or `weights` binding (the reverse view of an arc-less directed
  * snapshot uploads zero-byte arc arrays) becomes null, the core's own spelling of "no arcs", so `graphBindings` binds
- * the dummy instead of a zero-length range (P8-T8: the one-node directed fixture of the BFS suite).
+ * the dummy instead of a zero-length range (the one-node directed fixture of the BFS suite).
  * @param v - the view binding, from residency.view(s, "reverse") or view(s, "edgeList")
  * @param arcCount - the arc count of the view, from v.scalars.arcCount[0]; it must agree with the colIdx binding,
  * which is what record() derives the arc window from (E_INVALID_ARGUMENT { argument: "arcCount" } otherwise)
@@ -217,7 +217,7 @@ export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding {
         });
     }
     // an arc-less DIRECTED snapshot's reverse view uploads zero-byte arc arrays; the core spells "no arcs" as null
-    // (graphBindings then binds the rowPtr dummy), and a zero-size binding is never bound (spec 3.6)
+    // (graphBindings then binds the rowPtr dummy), and a zero-size binding is never bound
     const colIdx = nonEmpty(viewBinding(v, "colIdx"));
     const weights = nonEmpty(viewBinding(v, "weights"));
     const bound = colIdx === null ? 0 : colIdx.size / 4;

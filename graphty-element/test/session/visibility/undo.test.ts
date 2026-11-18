@@ -136,8 +136,8 @@ describe("a visibility edit in the history", () => {
         await session.visibility.set(HOSTS);
 
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ["Filtered (categories)"],
+            session.history.steps.map((step) => step.fact),
+            [{ code: "visibility.filter", params: { kind: "categories" } }],
         );
         assert.deepEqual(session.history.steps[0]?.slices, ["visibility"]);
         assert.deepEqual(visible(session), ["n0", "n2", "n4"]);

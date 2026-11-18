@@ -184,6 +184,19 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         expires: "2027-01-11",
     },
 
+    // An annotation is a union of shapes (shape, text, arrow, picture) no tool schema offers yet; the
+    // assistant reaches the annotations only through a load that writes a file's own.
+    ...[
+        { op: "annotations.patch" },
+        { root: "SessionAnnotations", members: ["list", "scale", "add", "update", "remove", "clear"] },
+    ].map((row): Exclusion => ({
+        ...row,
+        reason: "unoffered-type",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
+
     // The surface added beside the tools: each member is reached, or left out here for its reason.
     ...[
         "location-map/map",
@@ -196,7 +209,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
         {
             root,
-            members: ["assets", "network", "time", "shaders", "features", "groups"],
+            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations"],
             reason: "namespace",
             kind: BY_DESIGN,
         },
@@ -210,13 +223,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
-        { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
+        { root, members: ["nodeThumbnail", "modelThumbnail", "modelPreview"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
         // A tour is a run of camera moves; the assistant makes each with view.camera.
         { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
     // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
     { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },
+    // The live handle modelPreview returns: it draws in a canvas of its own, which no tool can show.
+    { root: "ModelPreview", reason: "internal-handle", kind: BY_DESIGN },
     {
         root: "Graph",
         members: [
@@ -400,7 +415,17 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionVisibilityApi", members: ["restoreConditions"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "SessionVisibilityApi",
-        members: ["drawnMasks", "keptMasks", "ghosted", "ghosts"],
+        members: [
+            "drawnMasks",
+            "keptMasks",
+            "ghosted",
+            "ghosts",
+            "outsideWindow",
+            "outsideWindowBytes",
+            "windowMasks",
+            "windowCounts",
+            "insideMasks",
+        ],
         reason: "raw-data",
         kind: BY_DESIGN,
     },
@@ -423,13 +448,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionVisibilityApi", members: ["filterBytes", "passingBytes"], reason: "raw-data", kind: BY_DESIGN },
     { root: "SessionVisibilityApi", members: ["hold"], reason: "panel-state", kind: BY_DESIGN },
-    {
-        root: "SessionVisibilityApi",
-        members: ["holdsInstants"],
-        reason: "covered-by",
-        by: "time.status",
-        kind: BY_DESIGN,
-    },
     { root: "TimeApi", members: ["commit"], reason: "in-flight", kind: BY_DESIGN },
     {
         root: "TimeApi",
@@ -572,7 +590,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "ElementSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     {
         root: "Run",
-        members: ["label", "distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
+        members: ["distinguishedBy", "siblingsDifferBy", "determinate", "engine", "record", "journalId"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
@@ -619,6 +637,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
+    // The column a role would pick: `columns.list` gives each column's facts to choose from.
+    {
+        root: "SessionDataApi",
+        members: ["roleCandidate"],
+        reason: "covered-by",
+        by: "columns.list",
+        kind: BY_DESIGN,
+    },
     {
         root: "SessionDataApi",
         members: ["structureValue"],

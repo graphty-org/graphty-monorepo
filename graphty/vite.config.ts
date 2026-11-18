@@ -120,10 +120,16 @@ export default defineConfig(({ mode }) => {
             // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
             ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
-        // graphty-element's credential store loads encrypt-storage on its first use. Found that late,
-        // the dev server optimizes it then and reloads the page under the reader; listed here, it
-        // is optimized at startup. Dev server only.
-        optimizeDeps: { include: ["encrypt-storage"] },
+        // A dependency the dev server first meets after the page is up -- graphty-element's
+        // credential store loading encrypt-storage, or the model loaders, fflate and the PBR material
+        // loaded with the first model -- is optimized then, and the page reloads under the reader:
+        // a chosen model file seemed to do nothing. graphty-element is reached through an import
+        // the scan does not follow, so its entry points and babylonjs-models are scanned too, and
+        // everything they can load is optimized at startup. Dev server only.
+        optimizeDeps: {
+            entries: ["index.html", "../graphty-element/src/**/*.ts", "!**/*.d.ts", "!**/*.test.ts"],
+            include: ["encrypt-storage"],
+        },
         server: {
             host: true,
             fs: {
@@ -136,26 +142,26 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: "dist",
             sourcemap: true,
-            rollupOptions: {
+            rolldownOptions: {
                 output: {
                     // Babylon.js in a chunk of its own. In one entry chunk with the app it made an
                     // 11 MB chunk whose 44 MB sourcemap took the build past Node's default heap
                     // (#2563). graphty-element (bundled from source, see vite.aliases.ts) is not
                     // named here: the app loads its renderer with a dynamic import
-                    // (src/elementLoader.ts), so Rollup puts it in a chunk of its own, and the
-                    // Node-safe entries the start page imports (session types, schema, catalog)
-                    // stay with the app instead of pulling Babylon.js into the first load.
-                    manualChunks(id) {
-                        // Vite's dynamic-import helper in a chunk of its own: left to Rollup it
-                        // lands in the Babylon.js chunk, and the first load then fetches all of
-                        // Babylon.js to get one small function.
-                        if (id.includes("vite/preload-helper")) {
-                            return "preload-helper";
-                        }
-                        if (id.includes("/node_modules/@babylonjs/")) {
-                            return "babylon";
-                        }
-                        return undefined;
+                    // (src/elementLoader.ts), so it gets a chunk of its own, and the Node-safe
+                    // entries the start page imports (session types, schema, catalog) stay with
+                    // the app instead of pulling Babylon.js into the first load.
+                    //
+                    // Vite's dynamic-import helper gets a chunk of its own, listed first so it
+                    // wins: left to the bundler it lands in the Babylon.js chunk, and every
+                    // import() in the first load then fetches all of Babylon.js before the start
+                    // page shows (issue #8225). Rolldown never passes the helper to a
+                    // `manualChunks` function, so this is a `codeSplitting` group.
+                    codeSplitting: {
+                        groups: [
+                            { name: "preload-helper", test: /vite\/preload-helper/, priority: 2 },
+                            { name: "babylon", test: /\/node_modules\/@babylonjs\//, priority: 1 },
+                        ],
                     },
                 },
             },

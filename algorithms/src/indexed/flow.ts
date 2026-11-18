@@ -28,8 +28,7 @@ export interface MaxFlowOptions {
      */
     readonly algorithm?: "edmonds-karp" | "ford-fulkerson" | undefined;
     /**
-     * Per-arc capacity override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`
-     * for exact f64 capacities. Without it the snapshot's arc weights are the capacities, and an
+     * Per-arc capacity override, arcCount long; f64 capacities here are used exactly. Without it the snapshot's arc weights are the capacities, and an
      * unweighted snapshot gives every edge capacity 1.
      */
     readonly weights?: NumericVector | undefined;

@@ -10,6 +10,8 @@
         "erasableSyntaxOnly": true,
         "skipLibCheck": true,
         "resolveJsonModule": true,
+        // src/handlers/results.ts imports the results service's failure signatures (tools/results-service, plain JS)
+        "allowJs": true,
         "types": ["node"],
         // vitest.config.ts imports the monorepo's shared vitest.base.mjs, whose types name
         // "vitest/node". Resolved from the repository root, that is the root workspace's Vitest, a

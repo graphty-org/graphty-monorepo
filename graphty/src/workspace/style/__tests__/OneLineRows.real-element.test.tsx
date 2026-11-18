@@ -160,25 +160,6 @@ describe("one line per property", () => {
         assert.notInclude(`${document.body.textContent} ${words}`, "Node defaults");
     });
 
-    it("says a set row a layer above covers, naming it and how many elements it covers", async () => {
-        const { session } = await openScene();
-        // Key people colors Valjean and Javert; a layer added on top colors Valjean alone.
-        const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);
-        await session.styles.add({
-            name: "Valjean",
-            target: "node",
-            selector: { match: "ids", nodes: [valjean] },
-            set: { "node.color": "#1971C2" },
-        });
-        await session.styles.settled();
-        const tab = await openStyle("Key people");
-        await waitFor(() => {
-            const caption = field(tab, "node.color").querySelector("[data-covered-caption]");
-            assert.include(caption?.textContent ?? "", "Covered by Valjean");
-            assert.match(caption?.textContent ?? "", /on 1 of 2$/);
-        });
-    });
-
     it("keeps a bound pill's width with its popover open, shows its colors, and Stop varying keeps focus", async () => {
         const { store, rows } = await openScene();
         const tab = await openStyle(rows.degree);

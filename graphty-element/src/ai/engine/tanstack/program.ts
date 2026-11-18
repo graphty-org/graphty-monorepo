@@ -35,6 +35,53 @@ const IDENTIFIER = /^[A-Za-z_]\w*$/;
 /** The longest delay setTimeout keeps (about 24.8 days); a longer one fires at once. */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
+/** The bytes in use in QuickJS's own report: "memory used  <count> <bytes>". */
+const MEMORY_USED = /memory used\s+\d+\s+(\d+)/;
+
+/** The part of the driver's private QuickJS context this file reads (driver 0.3.2, QuickJS 0.31.0). */
+interface DriverInternals {
+    vm?: {
+        runtime: {
+            interruptHandler?: (runtime: unknown) => boolean;
+            setInterruptHandler(cb: (runtime: unknown) => boolean): void;
+            dumpMemoryUsage(): string;
+        };
+    };
+}
+
+/**
+ * Hold the program to its memory, which QuickJS itself does not: its WebAssembly build has no
+ * `malloc_usable_size`, so its limit charges every allocation 8 bytes whatever its size, and a
+ * program of large arrays held about 1 GB under a 4 MB limit (#8399). Each time the engine polls
+ * for interrupts (every few thousand operations), the heap QuickJS reports is measured and the
+ * program is interrupted, for good, once it passes `limitBytes`. The driver's own handler (its
+ * timeout) still runs. It holds to within what the program allocates between two polls.
+ * ponytail: the measure walks the whole heap, so a program near a 16 MB limit runs up to about 5x
+ * slower; skip polls in proportion to the heap if that matters, at the cost of a looser bound.
+ * @param context - The driver's context.
+ * @param limitBytes - The limit.
+ * @returns Whether the program was stopped for its memory.
+ */
+function boundMemory(context: Context, limitBytes: number): () => boolean {
+    const runtime = (context as unknown as DriverInternals).vm?.runtime;
+    const driverHandler = runtime?.interruptHandler;
+    if (runtime === undefined || driverHandler === undefined) {
+        throw new Error("the QuickJS driver no longer exposes its runtime: the memory limit cannot hold");
+    }
+
+    let over = false;
+    runtime.setInterruptHandler((rt) => {
+        if (!over) {
+            const used = MEMORY_USED.exec(runtime.dumpMemoryUsage());
+            // An unreadable report stops the program: a limit that cannot be measured does not hold.
+            over = used === null || Number(used[1]) > limitBytes;
+        }
+
+        return over || driverHandler(rt);
+    });
+    return () => over;
+}
+
 /**
  * Whether this runs in Node (a test harness, a server): there QuickJS reads its WebAssembly from
  * its own package's file, and a page URL such as a dev server's would not open.
@@ -209,6 +256,7 @@ export async function runProgram(
     });
     open += 1;
     try {
+        const overMemory = boundMemory(context, limits.memoryMb * 1024 * 1024);
         const outcome = await Promise.race([
             context.execute(`${prelude(names, limits.maxLogChars)}\n{\n${js}\n}`),
             aborted,
@@ -224,6 +272,10 @@ export async function runProgram(
 
         if (overLimit) {
             return failed("program-call-limit", logs);
+        }
+
+        if (overMemory()) {
+            return failed("program-memory", logs);
         }
 
         if (!outcome.success) {

@@ -3,11 +3,11 @@
  * a rejected import, and build GraphML / GEXF documents around a few elements.
  */
 
-import { type GraphSnapshot } from "@graphty/graph-format";
 import { expect } from "vitest";
 
 import { importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/registry.js";
-import { ImportError, type ImportInput, type ImportIssue, type ImportReport } from "../../src/types.js";
+import { type ImportError, type ImportInput, type ImportIssue, type ImportReport } from "../../src/types.js";
+import { importFailure } from "./helpers.js";
 
 /** The two XML formats the shared tokenizer serves. */
 export type XmlFormat = "graphml" | "gexf";
@@ -37,20 +37,12 @@ export async function load(
  * @param options - import options
  * @returns the error
  */
-export async function rejection(
+export async function loadFailure(
     format: XmlFormat,
     input: ImportInput,
     options: Omit<ImportGraphOptions, "format"> = {},
 ): Promise<ImportError> {
-    try {
-        await importGraph(input, { ...options, format });
-    } catch (err) {
-        if (err instanceof ImportError) {
-            return err;
-        }
-        throw err;
-    }
-    throw new Error("the import was expected to be rejected");
+    return importFailure(load(format, input, options));
 }
 
 /**
@@ -64,15 +56,6 @@ export function fatal(err: ImportError, code: string): ImportIssue {
     expect(issue.code, issue.message).toBe(code);
     expect(issue.severity).toBe("error");
     return issue;
-}
-
-/**
- * The codes of a report's issues, in order.
- * @param report - the report
- * @returns the codes
- */
-export function codes(report: ImportReport): string[] {
-    return report.issues.map((issue) => issue.code);
 }
 
 /**
@@ -173,17 +156,4 @@ export function textStream(chunks: readonly string[]): AsyncIterable<string> {
             }
         },
     };
-}
-
-/**
- * The node ids of a snapshot, in index order.
- * @param result - an import result (or anything holding its snapshot)
- * @returns the ids
- */
-export function ids(result: { readonly snapshot: GraphSnapshot }): unknown[] {
-    const out: unknown[] = [];
-    for (let i = 0; i < result.snapshot.nodeCount; i++) {
-        out.push(result.snapshot.ids.idOf(i));
-    }
-    return out;
 }

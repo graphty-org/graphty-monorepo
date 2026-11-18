@@ -15,8 +15,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import {
     click,
@@ -681,7 +680,7 @@ async function hold(
     const { canvas } = element.graph;
     const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
     assert.isDefined(input);
-    const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+    const renderManager = renderManagerOf(element.graph);
     const update = input.update.bind(input);
     let held = false;
     let all = 0;
@@ -769,7 +768,7 @@ describe("the keyboard", () => {
             // loop is held from the key-down until the key-up arrives: the keys are real input,
             // only the clock is stopped, as `hold` stops it.
             const { canvas } = element.graph;
-            const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+            const renderManager = renderManagerOf(element.graph);
             let releaseFrames = (): void => undefined;
             const down = (): void => {
                 releaseFrames = renderManager.holdFrames();

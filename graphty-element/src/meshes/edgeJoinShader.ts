@@ -57,7 +57,7 @@
  * COLOR AND OPACITY PER PIECE (`EDGE_SLOT_COLOR`, `edgeColor`). A plain batch -- not widened, not
  * pulled -- reads its color and opacity from one more instanced vec4 per piece instead of from the
  * `color` and `opacity` uniforms, so edges that differ only in color share one batch and a restyle
- * between two such looks (a time window's Ghost row) writes four floats in place rather than moving
+ * between two such looks (a time window's ghost look) writes four floats in place rather than moving
  * the edge to another batch (issue #6026). A widened batch has no varying row left for it and keeps
  * the uniforms.
  *
@@ -132,11 +132,37 @@ export const LEAN_TEMPLATE_OF: readonly number[] = [1, 2, 7, 6];
 export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
 
 /**
+ * A pulled piece's draw slot and the piece it draws (`PulledLineBatch`): the draw is unindexed, so
+ * `gl_VertexID / corners` is the slot. While pieces of two widths interleave, `edgeOrder` names the
+ * piece each slot draws, four slots to a texel, so they draw in the object path's order; otherwise
+ * (`edgeOrdered` 0) a slot draws the piece of its own number and the table is never read.
+ */
+export const PULLED_ORDER_GLSL = `
+uniform float edgeOrdered;
+uniform highp sampler2D edgeOrder;
+
+int pulledPiece(int slot) {
+    if (edgeOrdered < 0.5) {
+        return slot;
+    }
+    vec4 order = texelFetch(edgeOrder, ivec2((slot >> 2) & 1023, slot >> 12), 0);
+    return int(dot(order, vec4(equal(ivec4(0, 1, 2, 3), ivec4(slot & 3)))) + 0.5);
+}
+`;
+
+/**
+ * The join template vertex each of a lean piece's six corners draws: `LEAN_TEMPLATE_INDICES` read
+ * through `LEAN_TEMPLATE_OF`.
+ */
+const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
+
+/**
  * PULLED EDGES (`EDGE_PULLED`): a piece's six points are not attributes but read at the top of the
  * vertex stage. `edgeRows` holds two row numbers per piece (a texel holds two pieces), and
  * `rowPosition` (`render/RowTable.ts`) holds each row's place and its w; so moving a node uploads
- * its row and no edge byte. The draw is one indexed, non-instanced draw: index `piece * 14 + k`,
- * so `gl_VertexID` names both the piece and its template vertex. A straight piece between node
+ * its row and no edge byte. The draw is one unindexed, non-instanced draw of 30 corners a piece:
+ * `gl_VertexID / 30` is the draw slot (`pulledPiece` names its piece) and the rest names the corner,
+ * which `JOIN_TEMPLATE_INDICES` turns into its template vertex (#6389). A straight piece between node
  * centres is all this reads, written as `EdgeLineBatch.place` writes it: its neighbours are its
  * own ends and its run is zero. A free piece (rows below 0), a piece flagged in `edgeHidden` (a byte a
  * piece, four to a texel) and a piece with a row of w = 0 (hidden or not placed) get every point at
@@ -149,10 +175,13 @@ export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
  * would hold.
  *
  * The LEAN program (`EDGE_PULLED_LEAN`, straight pieces only) draws each piece from
- * `LEAN_TEMPLATE_OF`'s four vertices and six indices, `piece * 4 + k`, instead of the join template's
- * 14 and 30: the same rectangle and the same vertex shader after this, at fewer vertex
+ * `LEAN_TEMPLATE_OF`'s four vertices as six corners, instead of the join template's 30: the same rectangle and the same vertex shader after this, at fewer vertex
  * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
  * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
+ * With `EDGE_LINE_AA` (antialias "shader", on a canvas with no multisampling) the lean rectangle is
+ * half a pixel wider at each side, and the fragment stage multiplies the alpha by the share of the
+ * pixel the line covers, a smoothstep of its distance from the centre line: the smooth edge with no
+ * multisampling and no discard. Its ends stay square at the node centres, under the nodes.
  *
  * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
  * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
@@ -180,11 +209,13 @@ vec4 pulledRow(int r) {
     return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
 }
 
+${PULLED_ORDER_GLSL}
 #ifdef EDGE_PULLED_LEAN
-const int PIECE_VERTICES = ${String(LEAN_TEMPLATE_OF.length)};
-const int LEAN_OF[PIECE_VERTICES] = int[PIECE_VERTICES](${LEAN_TEMPLATE_OF.join(", ")});
+const int PIECE_CORNERS = ${String(LEAN_CORNERS.length)};
+const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${LEAN_CORNERS.join(", ")});
 #else
-const int PIECE_VERTICES = ${String(JOIN_TEMPLATE_VERTICES)};
+const int PIECE_CORNERS = ${String(JOIN_TEMPLATE_INDICES.length)};
+const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${JOIN_TEMPLATE_INDICES.join(", ")});
 #endif
 
 #ifdef EDGE_PULLED_CURVE
@@ -196,12 +227,9 @@ const int PIECE_TEXELS = 2;
 #endif
 
 void pullEdge() {
-    int piece = gl_VertexID / PIECE_VERTICES;
-#ifdef EDGE_PULLED_LEAN
-    position = JOIN_TEMPLATE[LEAN_OF[gl_VertexID - piece * PIECE_VERTICES]];
-#else
-    position = JOIN_TEMPLATE[gl_VertexID - piece * PIECE_VERTICES];
-#endif
+    int slot = gl_VertexID / PIECE_CORNERS;
+    position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
+    int piece = pulledPiece(slot);
     int texel = piece * PIECE_TEXELS;
     vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
     vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);
@@ -341,6 +369,11 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+// The pixel's signed distance from the centre line and the line's drawn half width there, both in
+// pixels and times w, then w: divided by the interpolated w they are linear on screen.
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 attribute float runTotal;
@@ -592,7 +625,13 @@ void main() {
     float raw = atB ? rawB : rawA;
     bool joined = atB ? joinedB : joinedA;
 
+#ifdef EDGE_LINE_AA
+    // Half a pixel more on each side: the smoothed edge falls off from hw - 0.5 to hw + 0.5.
+    float across = side * (hw + 0.5);
+    vec2 off = n * across;
+#else
     vec2 off = side * n * hw;
+#endif
     bool onMiterLine = atB ? miterB : miterA;
     if (lenOwn <= EPS) {
         off = vec2(0.0);
@@ -670,6 +709,9 @@ void main() {
 
     vec2 here = sP + off;
     vScreen = vec4(here * cP.w, cP.w, hw);
+#ifdef EDGE_LINE_AA
+    vAcross = vec3(lenOwn > EPS ? across * cP.w : 0.0, hw * cP.w, cP.w);
+#endif
 
     float worldOwn = length(pB - pA);
     vOwn = vec4(sA, d);
@@ -728,6 +770,9 @@ varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
+#ifdef EDGE_LINE_AA
+varying vec3 vAcross;
+#endif
 
 #ifdef EDGE_WIDENED
 varying vec4 vEdgeColorA;
@@ -955,6 +1000,22 @@ void main() {
 #else
 #ifdef EDGE_PULLED
     gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);
+#ifdef EDGE_LINE_AA
+    // The share of the pixel the line covers, from its distance to the centre line: a smoothstep
+    // across one pixel at each side (antialias "shader", no multisampling). A line under a pixel
+    // wide is drawn a pixel wide and fainter (vWidth.z), so its whole profile still sums to its width.
+    float hwAA = vAcross.y / vAcross.z;
+    float acrossAA = abs(vAcross.x / vAcross.z);
+    gl_FragColor.a *= 1.0 - smoothstep(hwAA - 0.5, hwAA + 0.5, acrossAA);
+#ifdef EDGE_LINE_AA_CUT
+    // In 3D a fragment writes depth however faint it is, and a farther line drawn after it fails
+    // the depth test there: drop the outer half of the fringe (coverage under about 0.16) and any
+    // fragment fainter than four levels in 255, so a faint or thin line cuts no hole in a farther one.
+    if (acrossAA > hwAA + 0.25 || gl_FragColor.a < 4.0 / 255.0) {
+        discard;
+    }
+#endif
+#endif
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);
 #endif

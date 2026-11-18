@@ -15,18 +15,17 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../test/features";
 import { openSampleFromStart } from "../../test/open";
-import { siteFeatures } from "../../test/siteFeatures";
 import { findValuePicker, render, screen, waitFor, within } from "../../test/test-utils";
 import { tooltipOf } from "../../test/tooltip";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { colorName, FIND_ATTRIBUTE } from "../style/words";
 import { Workspace } from "../Workspace";
 
-// The timeline is an experiment: this file's workspaces switch it on.
-beforeAll(async () => {
-    await siteFeatures(["timeline"]);
-});
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** Three kinds of node, a few of each. */
 const KINDS = ["agency", "company", "person"] as const;

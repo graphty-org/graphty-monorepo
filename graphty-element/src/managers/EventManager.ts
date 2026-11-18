@@ -1,4 +1,4 @@
-import { Observable } from "@babylonjs/core";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../catalog/types";
@@ -72,18 +72,9 @@ export class EventManager implements Manager {
         return this.graphObservable as Observable<GraphErrorEvent>;
     }
 
-    // Track observers for cleanup
-    // Using any here is required due to BabylonJS Observable/Observer type limitations
-    private readonly observers = new Map<
-        symbol,
-        {
-            type: "graph" | "node" | "edge";
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            observable: any;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            observer: any;
-        }
-    >();
+    // Each listener's removal, keyed by the id addListener returned; the closure keeps the
+    // observer paired with the observable it was added to.
+    private readonly observers = new Map<symbol, () => void>();
 
     // Error handling configuration
     private readonly errorRetryCount = 3;
@@ -103,8 +94,8 @@ export class EventManager implements Manager {
      */
     dispose(): void {
         // Clear all observers
-        for (const { observable, observer } of this.observers.values()) {
-            observable.remove(observer);
+        for (const remove of this.observers.values()) {
+            remove();
         }
         this.observers.clear();
 
@@ -409,6 +400,7 @@ export class EventManager implements Manager {
      * @param report - What the load did, including which endpoint spelling resolved
      * @param loadId - Which load this is, when it is one
      */
+    // eslint-disable-next-line max-params -- public API (api/index.api.md): grouping these parameters is a breaking change
     emitDataLoadingComplete(
         format: string,
         nodesLoaded: number,
@@ -506,6 +498,7 @@ export class EventManager implements Manager {
             case "lifecycle-initialized":
             case "lifecycle-disposed":
             case "skybox-loaded":
+            case "skybox-failed":
             case "operation-queue-active":
             case "operation-queue-idle":
             case "operation-batch-complete":
@@ -534,9 +527,12 @@ export class EventManager implements Manager {
             case "layout-warning":
             case "limits-warning":
             case "basemap-status":
+            case "render-lost":
+            case "render-restored":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
+            case "overview-changed":
             case "xr-session-started":
             case "xr-session-ended":
             case "input:pointer-down":
@@ -582,11 +578,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "graph",
-                    observable: this.graphObservable,
-                    observer,
-                });
+                this.observers.set(id, () => this.graphObservable.remove(observer));
                 break;
             }
 
@@ -602,11 +594,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "node",
-                    observable: this.nodeObservable,
-                    observer,
-                });
+                this.observers.set(id, () => this.nodeObservable.remove(observer));
                 break;
             }
 
@@ -618,11 +606,7 @@ export class EventManager implements Manager {
                         callback(event);
                     }
                 });
-                this.observers.set(id, {
-                    type: "edge",
-                    observable: this.edgeObservable,
-                    observer,
-                });
+                this.observers.set(id, () => this.edgeObservable.remove(observer));
                 break;
             }
 
@@ -642,12 +626,12 @@ export class EventManager implements Manager {
      * @returns True if listener was removed, false if not found
      */
     removeListener(id: symbol): boolean {
-        const entry = this.observers.get(id);
-        if (!entry) {
+        const remove = this.observers.get(id);
+        if (!remove) {
             return false;
         }
 
-        entry.observable.remove(entry.observer);
+        remove();
         this.observers.delete(id);
         return true;
     }

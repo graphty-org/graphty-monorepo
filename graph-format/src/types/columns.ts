@@ -148,6 +148,9 @@ export type GpuEligibility = "direct" | "packed" | "convert" | "none";
  * The format-neutral roles the package and its importers recognise (design section 5.5): what a
  * column means, independent of its name, so consumers find "the position column" without per-format
  * knowledge and exporters map roles back to reserved fields. At most one column per role per table.
+ * `position` is a numeric multi-component column whose `meta.coordinates` says what its values are
+ * (read it with coordinateSystemOf()); `fixed` is a node `bool` column, true where the source pins
+ * the node's position (Graphviz `pos="x,y!"`, a locked node) so a layout keeps it where it is.
  */
 export type KnownColumnRole =
     | "id"
@@ -216,6 +219,46 @@ export interface ColumnOrigin {
 export type ColumnOriginInput = Loose<ColumnOrigin>;
 
 /**
+ * What kind of coordinates a position column holds (design section 5.2): "cartesian" drawing
+ * coordinates (x, y, z) or "geographic" ones (longitude, latitude, altitude).
+ */
+export type CoordinateKind = "cartesian" | "geographic";
+
+/**
+ * The unit of a position column's values: "file" (the source's own drawing units), "scene" (the
+ * renderer's units) or "degrees" (geographic longitude and latitude; altitude in meters).
+ */
+export type CoordinateUnits = "file" | "scene" | "degrees";
+
+/**
+ * The coordinate system of a position column (design section 5.2), so a consumer reads it without
+ * knowing the source format. Every field is present; null where it does not apply.
+ */
+export interface CoordinateSystem {
+    /** Cartesian drawing coordinates or geographic longitude / latitude / altitude. */
+    readonly kind: CoordinateKind;
+    /** How many components the source stored per node: 2, or 3 when it had a z or an altitude. */
+    readonly dims: 2 | 3;
+    /** "file" or "scene" for cartesian, always "degrees" for geographic. */
+    readonly units: CoordinateUnits;
+    /** Cartesian only: which way y grows ("up" is math order, "down" screen order); null for geographic. */
+    readonly yAxis: "up" | "down" | null;
+    /** Geographic only: the reference datum, "WGS84" unless declared; null for cartesian. */
+    readonly datum: string | null;
+    /** Geographic only: the coordinate reference system's name when known (Neo4j "wgs-84-3d"); null otherwise. */
+    readonly crs: string | null;
+    /** What each component means, in storage order: x, y, z or longitude, latitude, altitude. */
+    readonly order: readonly ["x", "y", "z"] | readonly ["longitude", "latitude", "altitude"];
+}
+
+/**
+ * Input form of CoordinateSystem: every field optional. Defaults: kind "cartesian", dims from
+ * `extra.sourceDims` or 3, units "file" (cartesian) or "degrees" (geographic), yAxis "up"
+ * (cartesian), datum "WGS84" (geographic), crs null. `order` follows from `kind`.
+ */
+export type CoordinateSystemInput = Loose<Omit<CoordinateSystem, "order">>;
+
+/**
  * Input shape for declaring a column through declareNodeColumn / declareEdgeColumn / set() (design
  * section 5.5). Optional fields take their documented defaults; ColumnMeta is the resolved output.
  */
@@ -252,6 +295,8 @@ export interface ColumnDecl {
     dynamic?: boolean | undefined;
     /** Anything an importer wants to survive; must be JSON-serialisable. */
     extra?: Readonly<Record<string, unknown>> | undefined;
+    /** What kind of coordinates the column holds (design section 5.2); numeric columns with 2+ components only. */
+    coordinates?: CoordinateSystemInput | undefined;
 }
 
 /** Patch form of ColumnDecl: every field, including name and dtype, optional. */
@@ -296,6 +341,8 @@ export interface ColumnMeta {
     readonly dynamic: boolean;
     /** Importer-owned JSON-serialisable extras; an empty object when none. */
     readonly extra: Readonly<Record<string, unknown>>;
+    /** The declared coordinate system, or null; coordinateSystemOf() reads it with the defaults. */
+    readonly coordinates: CoordinateSystem | null;
 }
 
 /**

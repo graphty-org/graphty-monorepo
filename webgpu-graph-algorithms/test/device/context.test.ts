@@ -24,6 +24,7 @@ import { isWebGpuGraphError, WebGpuGraphError, type WebGpuGraphErrorCode } from 
 import { type PassTiming, Profiler } from "../../src/kernel/profiler.js";
 import type { GpuCaps, PlanLimits, RaisableLimit } from "../../src/types/context.js";
 import type { GpuRunOptions } from "../../src/types/run.js";
+import { noSubgroupsPass } from "../setup/env.js";
 import {
     acquire,
     acquireNullBackend,
@@ -621,7 +622,7 @@ describe("GpuContext.create / from", () => {
         // them only when the adapter offers them AND the run did not opt out.
         const full = await acquire();
         const summary = nonNull((await GpuContext.probe({ gpu })).summary);
-        const wantSubgroups = summary.features.includes("subgroups") && process.env.GRAPHTY_GPU_NO_SUBGROUPS !== "1";
+        const wantSubgroups = summary.features.includes("subgroups") && !noSubgroupsPass();
         expect(full.caps.features.has("subgroups")).toBe(wantSubgroups);
         if (wantSubgroups) {
             expect(full.caps.subgroupMinSize).toBe(summary.subgroupMinSize);

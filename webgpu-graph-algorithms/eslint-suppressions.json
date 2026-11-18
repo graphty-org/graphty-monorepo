@@ -1,0 +1,133 @@
+{
+  "benchmarks/layout-exact.bench.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "benchmarks/layout-run.ts": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "benchmarks/run.ts": {
+    "unicorn/prefer-top-level-await": {
+      "count": 1
+    }
+  },
+  "scripts/bench-ab.js": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "scripts/bench-append-session.js": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "scripts/bench-compare.js": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "scripts/bench-readme-tables.js": {
+    "unicorn/no-array-callback-reference": {
+      "count": 1
+    }
+  },
+  "scripts/gpu-policy.js": {
+    "unicorn/prefer-default-parameters": {
+      "count": 1
+    }
+  },
+  "scripts/gpu-report.js": {
+    "unicorn/prefer-at": {
+      "count": 2
+    }
+  },
+  "scripts/grid-memory.mjs": {
+    "eslint-comments/require-description": {
+      "count": 1
+    }
+  },
+  "scripts/runner-class.js": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 1
+    }
+  },
+  "src/algorithms/pagerank.ts": {
+    "sonarjs/no-inverted-boolean-check": {
+      "count": 1
+    }
+  },
+  "src/context.ts": {
+    "sonarjs/no-async-constructor": {
+      "count": 1
+    }
+  },
+  "src/device/acquire.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    }
+  },
+  "src/device/error-scope.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    }
+  },
+  "src/kernel/pipeline-cache.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    },
+    "unicorn/prefer-code-point": {
+      "count": 1
+    }
+  },
+  "src/kernel/struct-block.ts": {
+    "unicorn/prefer-default-parameters": {
+      "count": 1
+    }
+  },
+  "src/kernel/wgsl.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 5
+    }
+  },
+  "src/layouts/force-simulation.ts": {
+    "sonarjs/no-alphabetical-sort": {
+      "count": 1
+    }
+  },
+  "src/layouts/model-common.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 3
+    }
+  },
+  "src/memory/readback.ts": {
+    "unicorn/no-array-method-this-argument": {
+      "count": 1
+    }
+  },
+  "src/memory/residency.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "sonarjs/use-type-alias": {
+      "count": 1
+    }
+  },
+  "src/primitives/scan.ts": {
+    "unicorn/prefer-at": {
+      "count": 1
+    }
+  },
+  "src/primitives/segmented-reduce.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 2
+    }
+  },
+  "vitest.config.ts": {
+    "unicorn/prefer-string-replace-all": {
+      "count": 2
+    }
+  }
+}

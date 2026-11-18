@@ -4,20 +4,9 @@ import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results/types";
 import { isGraphtyError } from "../../../src/errors";
-import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
+import { asNumber, createMockGraph, getNodeResult, type MockGraph } from "../../helpers/mockGraph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createMockGraph;
 
 describe("EigenvectorCentralityAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -44,8 +33,8 @@ describe("EigenvectorCentralityAlgorithm", () => {
                 assert.isDefined(getNodeResult(algo, node.id, "graphty", "eigenvector", "scorePct"));
 
                 assert.isNumber(getNodeResult(algo, node.id, "graphty", "eigenvector", "score"));
-                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "eigenvector", "scorePct"), 0);
-                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "eigenvector", "scorePct"), 1);
+                assert.isAtLeast(asNumber(getNodeResult(algo, node.id, "graphty", "eigenvector", "scorePct")), 0);
+                assert.isAtMost(asNumber(getNodeResult(algo, node.id, "graphty", "eigenvector", "scorePct")), 1);
             }
         });
 
@@ -74,7 +63,7 @@ describe("EigenvectorCentralityAlgorithm", () => {
          * A 30x30 grid, which power iteration needs several hundred passes for (networkx too).
          * @returns the mock graph
          */
-        async function grid(): Promise<any> {
+        async function grid(): Promise<MockGraph> {
             const nodes = [];
             const edges = [];
             for (let row = 0; row < 30; row++) {
@@ -136,7 +125,7 @@ describe("EigenvectorCentralityAlgorithm", () => {
 
     describe("direction on a directed graph", () => {
         /** a -> b -> c -> a, and d -> a: nothing points at d, and d points at a. */
-        async function directed(): Promise<any> {
+        async function directed(): Promise<MockGraph> {
             const nodes = ["a", "b", "c", "d"].map((id) => ({ id }));
             const edges = [
                 ["a", "b"],
@@ -152,7 +141,7 @@ describe("EigenvectorCentralityAlgorithm", () => {
             const algo = new EigenvectorCentralityAlgorithm(graph, { mode, normalized: false });
             const result = await algo.publishResult(detachedRunContext(), `eigen_${mode}`);
             return {
-                d: getNodeResult(algo, "d", "graphty", "eigenvector", "score"),
+                d: asNumber(getNodeResult(algo, "d", "graphty", "eigenvector", "score")),
                 direction: result?.summary().caveats.direction ?? "",
             };
         }

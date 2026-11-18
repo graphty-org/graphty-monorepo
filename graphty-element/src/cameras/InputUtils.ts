@@ -101,3 +101,32 @@ export function thumbstickDeltas(left: { x: number; y: number }, right: { x: num
         pan: Math.abs(rightX) > EPSILON ? rightX * XR_PAN_SPEED : 0,
     };
 }
+
+/** What one mouse wheel notch reports, by `deltaMode`: 100 pixels, 3 lines (Firefox), or 1 page. */
+const NOTCH_DELTA = [100, 3, 1];
+
+/**
+ * How much one wheel event scales the view: the factor the camera's distance (3D) or the view's
+ * size (2D) is multiplied by, above 1 to zoom out.
+ *
+ * A mouse notch zooms by `notchFactor`, and a trackpad's many small deltas add up to the same
+ * for the same distance scrolled; a larger delta still zooms one notch, so a line- or page-mode
+ * event cannot jump the camera. A trackpad pinch arrives as a wheel event with `ctrlKey`, and
+ * Chrome and Firefox set its `deltaY` to -100 times the log of how far the fingers spread, so the
+ * view follows the fingers; a Ctrl+wheel notch still zooms one notch.
+ * @param event - The wheel event.
+ * @param notchFactor - The factor one notch zooms out by, above 1.
+ * @returns The factor.
+ */
+export function wheelZoomFactor(
+    event: Pick<WheelEvent, "deltaY" | "deltaMode" | "ctrlKey">,
+    notchFactor: number,
+): number {
+    if (event.ctrlKey) {
+        const step = Math.log(notchFactor);
+        return Math.exp(Math.max(-step, Math.min(step, event.deltaY / 100)));
+    }
+
+    const notches = event.deltaY / (NOTCH_DELTA[event.deltaMode] ?? NOTCH_DELTA[0]);
+    return notchFactor ** Math.max(-1, Math.min(1, notches));
+}

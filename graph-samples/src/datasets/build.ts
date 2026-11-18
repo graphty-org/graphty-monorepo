@@ -32,13 +32,13 @@ export interface DatasetMeta {
     readonly showcases: readonly string[];
     /**
      * Where the graph data lives. Every dataset is "remote": published on graphty.app and loaded with
-     * `fetchDataset(name)`. "bundled" (the data inside the package) is no longer used.
+     * `fetchDataset(name)`.
      */
-    readonly hosting?: "bundled" | "remote";
+    readonly hosting: "remote";
     /** The download size: the bytes of its `.gsnp.gz` file. */
-    readonly bytes?: number;
+    readonly bytes: number;
     /** The checksum: the SHA-256 of its `.gsnp.gz` file, lowercase hex. */
-    readonly sha256?: string;
+    readonly sha256: string;
     /**
      * A small picture of the graph (a 480 x 300 WebP with a transparent background, drawn by
      * graphty-element): its file name beside the dataset's file, so its address is the dataset base

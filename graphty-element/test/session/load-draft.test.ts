@@ -152,6 +152,7 @@ describe("session.data.prepare", () => {
             line: 4,
             values: { source: "c", target: "z", weight: 1 },
             missingEnds: ["target"],
+            reason: { code: "unknown-end", params: { ends: ["target"], ids: ["z"] } },
         });
 
         const report = await draft.report({ unmatched: "leave-out" });

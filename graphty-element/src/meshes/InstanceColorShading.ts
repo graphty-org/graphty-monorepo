@@ -1,4 +1,6 @@
-import { MaterialPluginBase, ShaderLanguage, type StandardMaterial } from "@babylonjs/core";
+import { MaterialPluginBase } from "@babylonjs/core/Materials/materialPluginBase.js";
+import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage.js";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 
 /**
  * @file Make a node's per-instance colour shade like a colour the material carries itself.
@@ -167,5 +169,5 @@ export function shadeInstanceColors(material: StandardMaterial): void {
 
     // Constructed for its side effect on the material, which is how every Babylon material plugin
     // is attached; the instance itself is reached back through `material.pluginManager`.
-    new InstanceColorShading(material); // NOSONAR(S1848): a Babylon material plugin attaches itself in its constructor
+    new InstanceColorShading(material); // eslint-disable-line sonarjs/constructor-for-side-effects -- a Babylon material plugin attaches itself in its constructor
 }

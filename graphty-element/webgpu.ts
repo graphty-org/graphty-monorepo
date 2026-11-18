@@ -62,15 +62,85 @@
  * there is a real failure and is reported as one.
  */
 
-import { EXACT_MAX_NODES, type GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
-import {
-    type AcceleratorDeclined,
-    acquireAccelerator,
-    summarizeAdapter,
-} from "@graphty/webgpu-graph-algorithms/browser";
+import type { GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
+import type { AcceleratorDeclined } from "@graphty/webgpu-graph-algorithms/browser";
 
 import { type AcceleratorFactoryOptions, type GraphAccelerator, registerAccelerator } from "./src/acceleration";
 import { GraphtyError } from "./src/errors";
+import { GraphtyLogger } from "./src/logging/GraphtyLogger";
+
+/**
+ * The device the accelerator got and each step of its work: adapter, limits, uncaptured errors and
+ * the GPU package's trace. Silent unless a consumer turns on the `acceleration` module.
+ */
+const gpuLog = GraphtyLogger.getLogger(["graphty", "acceleration", "gpu"]);
+
+/** The device limits the GPU kernels plan against, logged as granted. */
+const LOGGED_LIMITS = [
+    "maxBufferSize",
+    "maxStorageBufferBindingSize",
+    "maxStorageBuffersPerShaderStage",
+    "maxComputeWorkgroupsPerDimension",
+    "maxComputeInvocationsPerWorkgroup",
+    "maxComputeWorkgroupSizeX",
+    "maxComputeWorkgroupStorageSize",
+    "maxUniformBufferBindingSize",
+] as const;
+
+/**
+ * Logs the device an accelerator got, and routes its trace and its uncaptured errors to the log.
+ * @param accelerator - The accelerator just acquired.
+ * @returns Stops listening; called when the accelerator is released.
+ */
+function watchDevice(accelerator: GpuAccelerator): () => void {
+    const { ctx } = accelerator;
+    const { caps, device } = ctx;
+    gpuLog.info("device", {
+        vendor: caps.vendor,
+        architecture: caps.architecture,
+        device: caps.device,
+        description: caps.description,
+        software: caps.software,
+        runtime: caps.runtime,
+        features: [...caps.features],
+        limits: Object.fromEntries(LOGGED_LIMITS.map((name) => [name, caps.limits[name]])),
+    });
+    ctx.trace = (event, facts): void => {
+        gpuLog.info(event, { ...facts });
+    };
+    const onError = (event: Event): void => {
+        const { error } = event as GPUUncapturedErrorEvent;
+        gpuLog.error("uncaptured error", undefined, { type: error.constructor.name, message: error.message });
+    };
+    device.addEventListener("uncapturederror", onError);
+    return (): void => {
+        ctx.trace = null;
+        device.removeEventListener("uncapturederror", onError);
+    };
+}
+
+/**
+ * The peer, loaded on first use rather than with this entry point (issue #6389): importing this
+ * file registers the accelerator, and the peer's 1 MB of kernels arrives while the first frame is
+ * being set up instead of before it. Both modules are fetched at most once.
+ */
+let peer:
+    | Promise<
+          [typeof import("@graphty/webgpu-graph-algorithms"), typeof import("@graphty/webgpu-graph-algorithms/browser")]
+      >
+    | undefined;
+
+/**
+ * Loads the peer's root and browser entry points, once.
+ * @returns Both modules.
+ */
+function loadPeer(): NonNullable<typeof peer> {
+    peer ??= Promise.all([
+        import("@graphty/webgpu-graph-algorithms"),
+        import("@graphty/webgpu-graph-algorithms/browser"),
+    ]);
+    return peer;
+}
 
 /** The name the WebGPU accelerator is registered and reported under. */
 const WEBGPU_ACCELERATOR_NAME = "webgpu-graph-algorithms";
@@ -229,6 +299,7 @@ function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): G
  * `capabilities.acceleration`.
  */
 async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Promise<GraphAccelerator | null> {
+    const [{ EXACT_MAX_NODES }, { acquireAccelerator }] = await loadPeer();
     const { exactMaxNodes } = options ?? {};
     if (exactMaxNodes !== undefined && exactMaxNodes > EXACT_MAX_NODES) {
         throw new GraphtyError({
@@ -249,7 +320,9 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
         throw declineFailure(result);
     }
 
+    const unwatch = watchDevice(result.accelerator);
     return toGraphAccelerator(result.accelerator, () => {
+        unwatch();
         gpu.dispose();
     });
 }
@@ -259,5 +332,8 @@ registerAccelerator({
     backend: "webgpu",
     factory: createWebGpuAccelerator,
     // A software adapter draws a frame slower with the layout on the same device than beside it.
-    sharesDevice: (adapter) => !summarizeAdapter(adapter as GPUAdapter).software,
+    sharesDevice: async (adapter) => {
+        const [, { summarizeAdapter }] = await loadPeer();
+        return !summarizeAdapter(adapter as GPUAdapter).software;
+    },
 });

@@ -137,8 +137,9 @@ describe("Graph.loadFromUrl", () => {
             await graph.loadFromUrl("https://example.com/missing.txt");
         } catch (error) {
             errorThrown = true;
-            assert.match((error as Error).message, /Failed to fetch URL/);
-            assert.match((error as Error).message, /404/);
+            assert.isTrue(isGraphtyError(error));
+            assert.strictEqual((error as GraphtyError).code, "E_FETCH_FAILED");
+            assert.strictEqual((error as GraphtyError).details.status, 404);
         }
 
         assert.isTrue(errorThrown, "Should throw error for HTTP failure");

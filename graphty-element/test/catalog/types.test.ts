@@ -154,7 +154,7 @@ describe("catalogue descriptors", () => {
             plainName: "Bridging",
             technicalName: "Betweenness centrality",
             available: false,
-            reason: "This graph has 2.1 million edges, above the exact computation cap.",
+            refusal: { code: "algorithm.needs-connected", params: { algorithm: "betweenness", pieces: 2 } },
             costClass: "cubic",
             estimateSeconds: 900,
             hasRun: false,

@@ -1,6 +1,6 @@
 # githerd: design
 
-> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md, which is itself history now. Kept for history; do not follow it. Today every change reaches master through its own pull request (CLAUDE.md, "Shipping a change"; .github/workflows/README.md).
 > githerd is retired: its daemon is not run and its MCP tools are gone, so none of this describes live behavior.
 
 githerd keeps the graphty-org/graphty-monorepo pipeline moving. It notices a red master and gets

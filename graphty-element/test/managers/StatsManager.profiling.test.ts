@@ -725,7 +725,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify GPU metrics group was created
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "GPU Metrics (BabylonJS EngineInstrumentation)");
             assert.include(groupCalls, "GPU Frame Time (ms)");
             assert.include(groupCalls, "Shader Compilation (ms)");
@@ -821,7 +821,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify Scene metrics group was created
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "Scene Metrics (BabylonJS SceneInstrumentation)");
             assert.include(groupCalls, "Frame Time");
             assert.include(groupCalls, "Render Time");
@@ -849,7 +849,7 @@ describe("StatsManager - Profiling", () => {
 
             statsManager.reportDetailed();
 
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.notInclude(groupCalls, "GPU Metrics (BabylonJS EngineInstrumentation)");
             assert.notInclude(groupCalls, "Scene Metrics (BabylonJS SceneInstrumentation)");
 
@@ -1136,7 +1136,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify blocking correlation section exists
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "Blocking Correlation Analysis");
 
             // Verify table was generated
@@ -1340,8 +1340,9 @@ describe("StatsManager - Profiling", () => {
                 // Verify derived metrics are calculated
                 assert.isDefined(tableData);
 
-                const hitsRow = tableData.find((row: any) => row.Label === "cache.hits");
-                assert.equal(hitsRow.Value, 90);
+                const rows = tableData as { Label?: unknown; Value?: unknown }[];
+                const hitsRow = rows.find((row) => row.Label === "cache.hits");
+                assert.equal(hitsRow?.Value, 90);
 
                 tableSpy.mockRestore();
             });

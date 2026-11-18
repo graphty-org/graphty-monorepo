@@ -384,6 +384,9 @@ describe("SelectionManager", () => {
                     this.hovered = id;
                     told.push(id);
                 },
+                hoverAt(id: string | number | null): void {
+                    this.hover(id);
+                },
                 clear(): void {
                     this.hovered = null;
                 },

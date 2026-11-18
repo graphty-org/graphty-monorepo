@@ -16,10 +16,17 @@ used_by_workflows:
     - W12
     - W15
     - W17
+    - W20
+    - W21
+    - W22
+    - W23
+    - W24
 implemented_by_components:
     - color-picker
     - legend-panel
     - visual-encoding-panel
+    - gradient-editor
+    - node-chart-overlay
 requirements:
     - Map categorical attribute to color palette with maximum 7 distinct colors
     - Use ColorBrewer qualitative palette as default categorical color scheme

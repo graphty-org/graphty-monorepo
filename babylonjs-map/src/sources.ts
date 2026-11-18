@@ -77,14 +77,10 @@ export const mapSources: Readonly<Record<MapSourceId, MapSource>> = {
     "natural-earth": {
         image: NATURAL_EARTH,
         projection: "equirectangular",
-        attribution: "Natural Earth",
-        attributionUrl: "https://www.naturalearthdata.com/",
     },
     "natural-earth-gray": {
         image: NATURAL_EARTH,
         projection: "equirectangular",
-        attribution: "Natural Earth",
-        attributionUrl: "https://www.naturalearthdata.com/",
         tone: "gray",
     },
     openstreetmap: {

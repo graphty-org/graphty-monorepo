@@ -10,11 +10,9 @@
 import type { GraphSession, Layer, UnionLeaf } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import type { Side } from "../style/cards";
 import { useStepWriter } from "../style/useStepWriter";
 import { SelectionEditor } from "./SelectionEditor";
-import { SelectionEditorInline } from "./SelectionEditorInline";
 import { layerSelection } from "./values";
 
 /**
@@ -25,6 +23,7 @@ import { layerSelection } from "./values";
  * @param props.name - the layer's row name, for the undo step's words
  * @param props.side - nodes or edges
  * @param props.autoFocus - takes focus on arrival
+ * @param props.onWriting - told whether an edit is still on its way to the layer
  * @returns The editor
  */
 export function StyleSelection({
@@ -33,33 +32,38 @@ export function StyleSelection({
     name,
     side,
     autoFocus = false,
+    onWriting,
 }: Readonly<{
     session: GraphSession;
     layer: Layer;
     name: string;
     side: Side;
     autoFocus?: boolean;
+    onWriting?: (on: boolean) => void;
 }>): React.JSX.Element | null {
     // The rule as last edited, until the element holds it: typing is never undone by a write on its way.
     const [local, setLocal] = useState<UnionLeaf | null>(null);
     const busy = useRef<() => boolean>(() => false);
-    const writer = useStepWriter(session, `changing the conditions on ${name}`, () => {
-        // Called just before the write counts as done: look once it has.
-        queueMicrotask(() => {
-            if (!busy.current()) {
-                setLocal(null);
-            }
-        });
-    });
+    const writer = useStepWriter(
+        session,
+        `changing the conditions on ${name}`,
+        () => {
+            // Called just before the write counts as done: look once it has.
+            queueMicrotask(() => {
+                if (!busy.current()) {
+                    setLocal(null);
+                }
+            });
+        },
+        onWriting,
+    );
     busy.current = writer.busy;
     const held = layerSelection(session, layer.selector, side);
     if (held === null) {
         return null;
     }
-    // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
-    const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
     return (
-        <Editor
+        <SelectionEditor
             session={session}
             rule={local ?? held}
             host="selector"

@@ -10,9 +10,14 @@ import { freshStore } from "../../stories/freshStore";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { sampleTile } from "../../test/sample-tile";
 import { siteFeatures } from "../../test/siteFeatures";
+import { PATH_ALGORITHM } from "../analyze/PathForm";
+import { startAlgorithm } from "../analyze/run";
+import { wordsFor } from "../analyze/words";
 import { Workspace } from "../Workspace";
 import policeUrl from "./__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "./__fixtures__/car-kit/Textures/colormap.png?url";
+import damagedPlyUrl from "./__fixtures__/variants/damaged.ply?url";
+import pointsPlyUrl from "./__fixtures__/variants/points.ply?url";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
@@ -20,7 +25,7 @@ type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 interface Scene {
     readonly element: GraphtyElement;
     readonly session: GraphSession;
-    /** The layer name of each run's first layer, by algorithm. */
+    /** The layer name of each run's first layer, by algorithm; for Louvain, its folder's name. */
     readonly runs: Readonly<Record<"degree" | "louvain" | "edge-betweenness" | "shortest-path", string>>;
 }
 
@@ -53,8 +58,8 @@ async function panelsPlaced(): Promise<void> {
  * Opens Les Miserables (77 characters) from the start screen, as a reader does, so the app gives
  * it the starting rows (Everything, Selected, Hovered) itself. Lays it on a circle, so every
  * capture draws the same picture, and builds the rest of the rows a reader would have by now: an
- * Annotations folder holding Key people; a route from Myriel to Marius on top; Louvain with
- * community 3 given its own color; Edge betweenness; Degree.
+ * Annotations folder holding Key people; a route from Myriel to Marius on top; Louvain's folder of
+ * group layers; Edge betweenness; Degree. Each run starts as the app's Analyze starts it.
  * Each story then reaches its own state by real input.
  * @param canvasElement - the story's root.
  * @returns the scene.
@@ -97,9 +102,24 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     });
     await session.styles.moveRow(key.id, { parent: folder.id, index: 0 });
 
+    // Each run starts as the app starts it (analyze/run.ts): Analyze's Run for the measures and
+    // Louvain, whose groups become a folder of layers, and the Path form's start for the route.
     const run = async (algorithm: keyof Scene["runs"], params: Record<string, unknown> = {}): Promise<string> => {
-        const { runId } = await session.runs.start(algorithm, params);
+        const descriptor = session.catalog.algorithms().find((d) => d.key === algorithm);
+        if (descriptor === undefined) {
+            throw new Error(`graphty-element has no ${algorithm}`);
+        }
+        const { name } = wordsFor(descriptor);
+        const { runId } = await (algorithm === PATH_ALGORITHM
+            ? session.runs.start(algorithm, params, { style: { name } })
+            : startAlgorithm(session, descriptor, params));
         await session.styles.settled();
+        if (algorithm === "louvain") {
+            await within(page().getByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
+                name: new RegExp(`^${name}, folder, `),
+            });
+            return name;
+        }
         const layer = session.runs
             .bindings(runId)
             .map((id) => session.styles.get(id))
@@ -113,18 +133,6 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     const degree = await run("degree");
     const betweenness = await run("edge-betweenness");
     const louvain = await run("louvain");
-    const louvainLayer = session.styles.list().find((l) => l.name === louvain && l.encode?.["node.color"]);
-    const three =
-        louvainLayer && session.styles.categories(louvainLayer.id, "node.color").find((c) => String(c.value) === "3");
-    if (louvainLayer === undefined || three === undefined) {
-        throw new Error("Louvain drew no community 3");
-    }
-    await session.styles.setValueEntry(
-        louvainLayer.id,
-        "node.color",
-        three.value as string | number | boolean,
-        "#00AA00",
-    );
     const route = await run("shortest-path", { source: idOf("Myriel"), target: idOf("Marius") });
     await session.styles.settled();
     await element.waitForStableFrame();
@@ -286,10 +294,11 @@ export const EverythingHidden: Story = sceneStory(async () => {
     await openStyle("Everything");
 });
 
-/** The Annotations folder: the Style panel acting on its rows, under its scope line. */
+/** The Annotations folder: the Style panel acting on its rows, under the folder's name. */
 export const FolderPanel: Story = sceneStory(async () => {
     await clickRow("Annotations");
-    await page().findByText(/ in Annotations\b/, {});
+    await page().findByRole("heading", { level: 2, name: "Annotations" });
+    await page().findByTestId("style-tab", {});
 });
 
 /** Key people and Degree selected together: one panel for both, Mixed with who sets it where one sets a property. */
@@ -306,7 +315,7 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
 
 /**
  * Runs Leiden from Analyze, as a reader does, and selects the folder of group layers it makes: the
- * Style panel then acts on every group layer, under its scope line, with Fill showing each one's color.
+ * Style panel then acts on every group layer, under the folder's name, with Fill showing each one's color.
  * @returns the Style tab.
  */
 async function openLeidenFolder(): Promise<HTMLElement> {
@@ -314,11 +323,39 @@ async function openLeidenFolder(): Promise<HTMLElement> {
     await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
     await userEvent.type(await page().findByRole("combobox", { name: "Filter analyses" }), "Leiden");
     await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }));
+    // Leiden is unseeded by default: a fixed seed gives every render the same groups and colors. With
+    // the selection workspace experiment on, the settings sit behind the chosen row's settings button
+    // and the box is named "Seed" (OptionsForm.tsx, ONE_NAME).
+    const settings = page().queryByRole("button", { name: /^Settings for Leiden/ });
+    if (settings !== null) {
+        await userEvent.click(settings);
+    }
+    const seed = await page().findByRole("textbox", { name: /^(Random seed|Seed)(,|$)/ });
+    if (settings !== null) {
+        // The pop-out takes focus a task after it opens (PopoutPanel's open effect); typing before
+        // that lands sends the keys after it to the panel, so Leiden would run on a different seed.
+        await waitFor(() => {
+            expect(seed.closest("[data-popout-id]")?.contains(document.activeElement)).toBe(true);
+        });
+    }
+    // A number box applies what is typed only on Enter, Tab or blur, and Escape takes typing back:
+    // Enter commits 42 first, or the Escape below would discard it and Leiden would run unseeded.
+    await userEvent.type(seed, "42{Enter}");
+    expect(seed).toHaveValue("42");
+    if (settings !== null) {
+        // Escape closes only the settings popover; Analyze stays open on Leiden.
+        await userEvent.keyboard("{Escape}");
+    }
     await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }));
+    // The run must carry the seed, or every capture draws its own groups.
+    const element = document.querySelector("graphty-element");
+    expect(element?.session.runs.list().find((r) => r.algorithm === "leiden")?.params).toMatchObject({
+        randomSeed: 42,
+    });
     const tree = await page().findByRole("tree", { name: "Style layers" });
     const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / });
     await userEvent.click(folder);
-    await page().findByText(/ layers in Leiden\b/, {});
+    await page().findByRole("heading", { level: 2, name: "Leiden" });
     return page().findByTestId("style-tab", {});
 }
 
@@ -335,7 +372,7 @@ async function fillRow(tab: HTMLElement): Promise<HTMLElement> {
     });
 }
 
-/** Leiden's folder of group layers selected: the scope line, and Fill showing each group layer's own color in list order. */
+/** Leiden's folder of group layers selected: Fill showing each group layer's own color in list order. */
 export const BulkFolder: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
@@ -412,20 +449,53 @@ export const DegreeRamp: Story = sceneStory(async ({ runs }) => {
     await openColorBinding(tab);
 });
 
-/** Louvain's category rows with community 3 recolored, and its menu open on "New layer for 3". */
-export const LouvainCategories: Story = sceneStory(async ({ runs }) => {
-    const tab = await openStyle(runs.louvain);
+/**
+ * Builds a layer that colors every node by its Louvain community, the way a reader does: a blank
+ * layer on nodes whose Fill is bound to Louvain's result (the binding the element proposes, as the
+ * value picker writes it), with community 3 given its own color. Analyze's Run never makes this
+ * one layer of per-group values -- it makes the Louvain folder of group layers -- so the stories
+ * showing a binding's group rows build it.
+ * @param session - the element's session.
+ * @returns the layer's name.
+ */
+async function communitiesLayer(session: GraphSession): Promise<string> {
+    const louvain = session.runs.list().find((r) => r.algorithm === "louvain");
+    if (louvain === undefined) {
+        throw new Error("the scene has no Louvain run");
+    }
+    const proposal = session.styles.proposeEncoding({ run: louvain.id, channel: "node.color" });
+    if (!proposal.ok) {
+        throw new Error("graphty-element proposes no color binding for Louvain");
+    }
+    const layer = await session.styles.add({
+        name: "Communities",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.color": proposal.binding },
+    });
+    const three = session.styles.categories(layer.id, "node.color").find((c) => String(c.value) === "3");
+    if (three === undefined) {
+        throw new Error("Louvain drew no community 3");
+    }
+    await session.styles.setValueEntry(layer.id, "node.color", three.value as string | number | boolean, "#00AA00");
+    await session.styles.settled();
+    return layer.name;
+}
+
+/** A layer colored by Louvain's community: its category rows with community 3 recolored, and its menu open on "New layer for 3". */
+export const LouvainCategories: Story = sceneStory(async ({ session }) => {
+    const tab = await openStyle(await communitiesLayer(session));
     const popover = await openColorBinding(tab);
     await userEvent.click(within(popover).getByRole("button", { name: /Group 3 actions$/ }));
     await within(popover).findByRole("menuitem", { name: "New layer for Group 3" });
 });
 
 /**
- * A Louvain group's detail, opened by a click on its row: Name, its color, and a shape set for it
+ * A Louvain group's detail on the layer colored by community, opened by a click on its row: Name, its color, and a shape set for it
  * alone through "+ Set another property" (any property per group, not only color).
  */
-export const LouvainGroupDetail: Story = sceneStory(async ({ runs }) => {
-    const tab = await openStyle(runs.louvain);
+export const LouvainGroupDetail: Story = sceneStory(async ({ session }) => {
+    const tab = await openStyle(await communitiesLayer(session));
     const popover = await openColorBinding(tab);
     const name = popover.querySelector<HTMLElement>("[data-group-name]");
     if (name === null) {
@@ -445,11 +515,11 @@ export const LouvainGroupDetail: Story = sceneStory(async ({ runs }) => {
 });
 
 /**
- * Louvain's Shape row after one group was given a box: the one shape every other group keeps,
+ * The Shape row of the layer colored by Louvain's community after one group was given a box: the one shape every other group keeps,
  * and a second line naming the group that differs.
  */
-export const LouvainShapeForOneGroup: Story = sceneStory(async ({ runs, session }) => {
-    const tab = await openStyle(runs.louvain);
+export const LouvainShapeForOneGroup: Story = sceneStory(async ({ session }) => {
+    const tab = await openStyle(await communitiesLayer(session));
     const popover = await openColorBinding(tab);
     const name = popover.querySelector<HTMLElement>("[data-group-name]");
     if (name === null) {
@@ -613,21 +683,34 @@ export const Parts: Story = nodeModelsStory(
  */
 async function openCustomModel(): Promise<HTMLElement> {
     const { models } = await openModels();
-    await userEvent.click(within(models).getByRole("button", { name: "Custom model..." }));
+    await userEvent.click(within(models).getByRole("button", { name: "Add custom model..." }));
     return page().findByRole("dialog", { name: "Load custom model" });
 }
 
 /**
- * Chooses files in the dialog's Choose files input, as the button opens it.
+ * Drops files on a target as the browser delivers a drag from the desktop: dragenter, dragover and
+ * drop, each carrying the files. A page cannot start a drag of a file from the operating system,
+ * so a story drops them this way; the file picker a button opens has no page to answer it here.
+ * @param target - where they are dropped.
+ * @param files - the files.
+ */
+function dropFiles(target: Element, files: File[]): void {
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    for (const type of ["dragenter", "dragover", "drop"]) {
+        target.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
+}
+
+/**
+ * Loads files in the Load custom model dialog by dropping them on it.
  * @param dialog - the dialog.
  * @param files - the files.
  */
 async function chooseInDialog(dialog: HTMLElement, files: File[]): Promise<void> {
-    const chooser = dialog.querySelector<HTMLInputElement>("input[type=file]:not([data-folder])");
-    if (chooser === null) {
-        throw new Error("no file input");
-    }
-    await userEvent.upload(chooser, files);
+    dropFiles(await within(dialog).findByTestId("custom-model"), files);
 }
 
 /**
@@ -645,7 +728,7 @@ async function carKit(picture?: string): Promise<File[]> {
     return files;
 }
 
-/** The Load custom model dialog, empty: the address field, the file choosers and the drop zone. */
+/** The Load custom model dialog, empty: the file loader row (address, Choose file, Choose folder) left, the preview blank right. */
 export const CustomModelEmpty: Story = nodeModelsStory(
     sceneStory(async () => {
         await openCustomModel();
@@ -653,23 +736,27 @@ export const CustomModelEmpty: Story = nodeModelsStory(
     "Custom model, empty",
 );
 
-/** The dialog with police.glb and its picture loaded: the preview graphty-element draws, Name and Color. */
+/** The dialog with police.glb and its picture loaded: Color and Files left, the live preview graphty-element draws right (drag to turn it) with Reset view in its corner, Name under it, its rotate buttons and Details. */
 export const CustomModelLoaded: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
     }),
     "Custom model, loaded",
 );
 
-/** The dialog with police.glb whose picture is named paint.png: Files open on the missing part and Use file. */
+/**
+ * The dialog with police.glb whose picture is named paint.png: Files lists the missing part first
+ * with Use file, and the preview draws police with a plain stand-in for the picture.
+ */
 export const CustomModelMissingParts: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("paint.png"));
         const files = await within(dialog).findByTestId("model-files");
         await within(files).findByRole("combobox", { name: "File for colormap.png" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
     }),
     "Custom model, missing parts",
 );
@@ -680,33 +767,114 @@ export const CustomModelUrlError: Story = nodeModelsStory(
         const dialog = await openCustomModel();
         const address = within(dialog).getByRole("textbox", { name: "Model address" });
         await userEvent.type(address, "https://example.invalid/no-such-model/police.glb{Enter}");
+        // While it loads the dialog takes its two-column layout, so the field it comes back to is a new one.
         await waitFor(() => {
-            expect(address.getAttribute("aria-invalid")).toBe("true");
+            const field = within(dialog).getByRole("textbox", { name: "Model address" });
+            expect(field.getAttribute("aria-invalid")).toBe("true");
         });
     }),
     "Custom model, address error",
 );
 
-/** The dialog with police loaded and Advanced open: Up, Turn, Fit, Center and the model's details. */
-export const CustomModelAdvanced: Story = nodeModelsStory(
+/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides, Light and Wireframe. */
+export const CustomModelMoreOptions: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Advanced" }));
-        await within(dialog).findByTestId("model-details");
-        // However tall the dialog grows, Add model stays in view: the body scrolls, the footer stays.
+        await within(dialog).findByRole("img", { name: /^police preview/ });
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        await within(dialog).findByRole("combobox", { name: /^Up, / });
+        // However tall the settings grow, Add model stays in view: the left column scrolls, the footer stays.
         const add = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
         expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
     }),
-    "Custom model, advanced",
+    "Custom model, more options",
 );
 
-/** The Main menu open on Custom model..., which opens the dialog with no layer to write to. */
+/** The dialog with police loaded: the model's facts as a table under the preview, in a list that scrolls on its own. */
+export const CustomModelDetails: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: /^police preview/ });
+        await within(await within(dialog).findByTestId("model-details")).findByRole("group", { name: "Format" });
+    }),
+    "Custom model, details",
+);
+
+/** The address police.glb is "downloaded" from in the loading story: a server that sends its first part and waits. */
+const SLOW_MODEL = "https://models.example.com/slow/police.glb";
+
+/**
+ * Answers SLOW_MODEL with the first quarter of police.glb and then nothing more, the size known,
+ * so the dialog shows a load a quarter of the way.
+ */
+async function serveSlowly(): Promise<void> {
+    const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    const original = globalThis.fetch.bind(globalThis);
+    globalThis.fetch = (input, init) => {
+        const to = input instanceof Request ? input.url : String(input);
+        if (to !== SLOW_MODEL) {
+            return original(input, init);
+        }
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(police.subarray(0, Math.floor(police.byteLength / 4)));
+            },
+        });
+        return Promise.resolve(
+            new Response(stream, { status: 200, headers: { "content-length": String(police.byteLength) } }),
+        );
+    };
+}
+
+/** The dialog while an address loads: the file loader with Downloading, the bytes, Cancel load and the bar. */
+export const CustomModelLoading: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await serveSlowly();
+        const dialog = await openCustomModel();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${SLOW_MODEL}{Enter}`);
+        await within(dialog).findByText(/ of /);
+    }),
+    "Custom model, loading",
+);
+
+/**
+ * A fixture as a file, from the story server.
+ * @param url - its URL.
+ * @param name - the file's name.
+ * @returns the file.
+ */
+async function fixtureFile(url: string, name: string): Promise<File> {
+    return new File([await (await fetch(url)).arrayBuffer()], name);
+}
+
+/** The dialog with a binary PLY point cloud: its variant under the preview, and Guessed and Approximated on Details. */
+export const CustomModelPointCloud: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, [await fixtureFile(pointsPlyUrl, "points.ply")]);
+        await within(dialog).findByRole("img", { name: /^points preview/ });
+        await within(dialog).findByText("Approximated");
+    }),
+    "Custom model, point cloud",
+);
+
+/** The dialog with a PLY whose data is damaged past its header: accepted, but graphty-element cannot draw it. */
+export const CustomModelDrawFailed: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, [await fixtureFile(damagedPlyUrl, "cube.ply")]);
+        await within(await within(dialog).findByTestId("model-preview")).findByText("Not loaded");
+    }),
+    "Custom model, draw failed",
+);
+
+/** The Main menu open on Add custom model..., which opens the dialog with no layer to write to. */
 export const CustomModelMainMenu: Story = nodeModelsStory(
     sceneStory(async () => {
         await userEvent.click(page().getByRole("button", { name: "Main menu" }));
-        await page().findByRole("menuitem", { name: "Custom model..." });
+        await page().findByRole("menuitem", { name: "Add custom model..." });
     }),
     "Custom model, main menu",
 );
@@ -715,19 +883,39 @@ export const CustomModelMainMenu: Story = nodeModelsStory(
 export const CustomModelProjectTile: Story = nodeModelsStory(
     sceneStory(async () => {
         await userEvent.click(page().getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await page().findByRole("menuitem", { name: "Custom model..." }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Add custom model..." }));
         const dialog = await page().findByRole("dialog", { name: "Load custom model" });
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
         await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
         await waitFor(() => {
             expect(page().queryByRole("dialog", { name: "Load custom model" })).toBeNull();
+        });
+        // "police added to the project" leaves after 6 s of real time, so the picture held it or
+        // not by how long the rest took (#7905): dismissed by real input, it is never in the picture.
+        await userEvent.click(await page().findByRole("button", { name: "Dismiss" }));
+        await waitFor(() => {
+            expect(page().queryByText("police added to the project")).toBeNull();
         });
         const { models } = await openModels();
         const own = within(models).getByRole("group", { name: "In this project" });
         const tile = within(own).getByRole("button", { name: "police" });
         await waitFor(() => {
             expect(tile.querySelector("img")).not.toBeNull();
+        });
+        // The pop-over focuses Box as it opens, before the tile pictures arrive, and a picture drawn
+        // after the focus outline left one pixel of the outline's corner drawn either way. Once every
+        // picture is decoded, the arrow keys take focus off Box and back, so the outline is drawn
+        // last, the same on every run.
+        await Promise.all([...models.querySelectorAll("img")].map(async (picture) => picture.decode()));
+        const box = within(models).getByRole("button", { name: "Box" });
+        await userEvent.keyboard("{ArrowRight}");
+        await waitFor(() => {
+            expect(document.activeElement).not.toBe(box);
+        });
+        await userEvent.keyboard("{ArrowLeft}");
+        await waitFor(() => {
+            expect(document.activeElement).toBe(box);
         });
     }),
     "Custom model, project tile",
@@ -743,12 +931,10 @@ export const Picture: Story = nodeModelsStory(
         // Key people sets its color: Fill's "+" has only Picture left, and adds it at once.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         const picture: HTMLElement = await page().findByRole("dialog", { name: "Picture" });
-        const chooser = picture.querySelector<HTMLInputElement>("input[type=file]");
-        if (chooser === null) {
-            throw new Error("no file input");
-        }
         const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
-        await userEvent.upload(chooser, new File([colormap], "colormap.png", { type: "image/png" }));
+        dropFiles(within(picture).getByRole("button", { name: "Choose picture" }), [
+            new File([colormap], "colormap.png", { type: "image/png" }),
+        ]);
         await within(tab).findByRole("textbox", { name: "Node picture, colormap" });
         await waitFor(() => {
             expect(session.assets.list().some((r) => r.kind === "image" && r.state === "accepted")).toBe(true);
@@ -766,9 +952,9 @@ export const DegreeValues: Story = sceneStory(async ({ runs }) => {
     await page().findByTestId("values-spread", {});
 });
 
-/** Louvain's Values: its groups, largest first. */
-export const LouvainValues: Story = sceneStory(async ({ runs }) => {
-    await clickRow(runs.louvain);
+/** Values of the layer colored by Louvain's community: its groups, largest first. */
+export const LouvainValues: Story = sceneStory(async ({ session }) => {
+    await clickRow(await communitiesLayer(session));
     await clickTab("Values");
     await page().findByText("Groups, largest first", {});
 });
@@ -780,11 +966,11 @@ export const RouteValues: Story = sceneStory(async ({ runs }) => {
     await page().findByRole("group", { name: "Nodes in order" });
 });
 
-/** Graph settings: lighting, label rules and the highlight color. */
+/** Graph settings in 2D: the label rules and the highlight color. */
 export const GraphSettings: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
-    // Lighting shows only in 3D; Outline width shows in every view.
-    await page().findByRole("spinbutton", { name: /^Outline width/ });
+    // The scene is 2D, where Lighting and the Canvas section hide; the Labels rows show in every view.
+    await page().findByRole("switch", { name: "Hide overlapping labels" });
 });
 
 // College football: a number column that names groups, painted one color per value.

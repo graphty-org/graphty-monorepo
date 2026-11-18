@@ -241,6 +241,9 @@ describe("text is drawn over the edges of the graph", () => {
                 // covered the whole ring. One leaves the ring showing on both sides of it.
                 set: { "node.label": "W", "node.labelStyle": { ...LABEL_STYLE, location: "center", onTop } },
             });
+            // The ring this reads is told apart by its gold, which no label, node or edge here
+            // carries; the default ring is blue (#811), so the gold is set.
+            graph.setSelectionStyle({ color: "#FFD700", opacity: 0.4 });
             await graph.select({ nodes: ["alpha"] });
 
             const pixels = await readFrame();

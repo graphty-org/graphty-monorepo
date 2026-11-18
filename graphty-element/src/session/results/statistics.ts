@@ -132,6 +132,8 @@ interface ColumnStatistics {
     readonly max: number;
     /** The average measured value, or NaN when nothing was measured. */
     readonly mean: number;
+    /** The compensated sum of the measured values, 0 when nothing was measured. */
+    readonly sum: number;
     /** The middle measured value, or NaN when nothing was measured. */
     readonly median: number;
     /**
@@ -164,6 +166,7 @@ const EMPTY_STATISTICS: Omit<ColumnStatistics, "length"> = Object.freeze({
     min: Number.NaN,
     max: Number.NaN,
     mean: Number.NaN,
+    sum: 0,
     median: Number.NaN,
     tiedAtMin: 0,
     smallestPositive: null,
@@ -234,6 +237,7 @@ export function computeColumnStatistics(column: NumericColumnSource): ColumnStat
         min,
         max,
         mean: sum / measured,
+        sum,
         median,
         tiedAtMin,
         smallestPositive: Number.isFinite(smallestPositive) ? smallestPositive : null,

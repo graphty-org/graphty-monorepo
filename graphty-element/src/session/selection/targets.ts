@@ -55,9 +55,6 @@ import { readInstant } from "../time/parse";
 /** How far a neighbourhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
 
-/** The deepest a neighbourhood target may reach. */
-const MAX_NEIGHBOR_DEPTH = 3;
-
 /** Which way a neighbourhood target walks when it does not say. */
 const DEFAULT_DIRECTION = "all";
 
@@ -108,8 +105,11 @@ export interface ElementIdTarget {
 export interface NeighborhoodTarget {
     /** The nodes to walk out from; the current node selection when absent. */
     readonly neighborsOf?: readonly NodeId[];
-    /** How many steps to walk, counting the seeds as step zero. One when absent. */
-    readonly depth?: 1 | 2 | 3;
+    /**
+     * How many steps to walk, counting the seeds as step zero: any whole number from 1. One when
+     * absent. A depth past the farthest node reached simply selects everything connected.
+     */
+    readonly depth?: number;
     /** Which way to follow an edge. Both ways when absent. */
     readonly direction?: SelectionDirection;
     /** Follow only the edges whose time falls inside this window. Every edge when absent. */
@@ -260,6 +260,20 @@ export interface TargetContext {
     readonly selectedEdges: ElementMask<EdgeId>;
     /** Resolves a scope. Absent refuses a `scope` target. */
     readonly scope?: ScopeResolver;
+    /**
+     * The scope a `where` or `text` target that names none is narrowed to: what is shown while the
+     * session's working graph is on. Absent, or answering undefined, the whole graph.
+     * @returns The scope, or undefined for the whole graph.
+     */
+    readonly defaultScope?: () => ScopeInput | undefined;
+    /**
+     * What the visibility filter keeps, one byte per row of `graph` (null for a half it keeps
+     * whole), while a filter drops what it hides from the selection (the working graph, owner
+     * decision B): every target is narrowed to it, so no target selects a node a filter hides. A
+     * node the time window alone hides is kept. Absent, or answering null, nothing is narrowed.
+     * @returns The bytes, or null.
+     */
+    readonly filterKeeps?: () => { readonly nodes: Uint8Array | null; readonly edges: Uint8Array | null } | null;
     /** Reads finished runs. Absent refuses a `top`, `above` or `range` target. */
     readonly results?: ResultsApi;
     /**
@@ -424,6 +438,23 @@ function narrowToScope(
 }
 
 /**
+ * The nodes a scope holds, as a mask over the context's graph.
+ * @param context - What the resolution reads.
+ * @param scope - The scope, or undefined for the whole graph.
+ * @returns The mask, or null for the whole graph.
+ */
+function scopeMask(context: TargetContext, scope: ScopeInput | undefined): ElementMask<NodeId> | null {
+    if (scope === undefined) {
+        return null;
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    nodes.fill();
+    narrowToScope(context, scope, nodes, edges);
+    return nodes;
+}
+
+/**
  * A selection target's scope as a write door takes it: session edge ids to stable members, set
  * ids checked as issued, validated.
  * @param resolver - The scope resolver.
@@ -556,18 +587,18 @@ function addPastedId(raw: NodeId, nodes: ElementMask<NodeId>, edges: ElementMask
 }
 
 /**
- * Check a neighbourhood target's depth, which the type says is one, two or three.
+ * Check a neighbourhood target's depth: a whole number of steps from 1.
  * @param depth - What was passed.
  * @returns The depth to walk.
- * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not 1, 2 or 3.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not a whole number from 1.
  */
 function neighborDepth(depth: number | undefined): number {
     if (depth === undefined) {
         return DEFAULT_NEIGHBOR_DEPTH;
     }
 
-    if (!Number.isInteger(depth) || depth < 1 || depth > MAX_NEIGHBOR_DEPTH) {
-        throw badOption("depth", depth, `a whole number of steps from 1 to ${String(MAX_NEIGHBOR_DEPTH)}`);
+    if (!Number.isInteger(depth) || depth < 1) {
+        throw badOption("depth", depth, "a whole number of steps from 1");
     }
 
     return depth;
@@ -584,6 +615,7 @@ function neighborDepth(depth: number | undefined): number {
  * @param depth - How many steps to take.
  * @param direction - Which way to follow an edge.
  * @param follows - Whether an edge, by row, may be followed.
+ * @param allowed - The nodes the walk may reach (what is shown), or null for every node.
  */
 function walkNeighborhood(
     nodes: ElementMask<NodeId>,
@@ -592,6 +624,7 @@ function walkNeighborhood(
     depth: number,
     direction: SelectionDirection,
     follows: (edge: number) => boolean,
+    allowed: ElementMask<NodeId> | null,
 ): void {
     let frontier = seeds;
 
@@ -600,7 +633,7 @@ function walkNeighborhood(
 
         for (const node of frontier) {
             eachAdjacentArc(graph, node, direction, (other, edge) => {
-                if (follows(edge) && nodes.add(other)) {
+                if (follows(edge) && (allowed === null || allowed.has(other)) && nodes.add(other)) {
                     next.push(other);
                 }
             });
@@ -664,7 +697,7 @@ function edgeFilter(window: NeighborhoodWindow | undefined, context: TargetConte
  * @param target - The target.
  * @param context - What the resolution reads.
  * @returns The two masks.
- * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is outside 1 to 3 or a window
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the depth is not a whole number from 1 or a window
  *   bound names no instant.
  */
 function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext): TargetMembers {
@@ -672,24 +705,32 @@ function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext)
     const depth = neighborDepth(target.depth);
     const follows = edgeFilter(target.window, context);
     const seeds: number[] = [];
+    // The walk stays inside what the default scope shows (the working graph), so it neither
+    // reaches a hidden neighbor nor passes through one.
+    const allowed = scopeMask(context, context.defaultScope?.());
+    const seed = (index: number): void => {
+        if ((allowed === null || allowed.has(index)) && nodes.add(index)) {
+            seeds.push(index);
+        }
+    };
 
     if (target.neighborsOf === undefined) {
         for (let index = 0; index < context.selectedNodes.count; index++) {
-            if (context.selectedNodes.has(index) && nodes.add(index)) {
-                seeds.push(index);
+            if (context.selectedNodes.has(index)) {
+                seed(index);
             }
         }
     } else {
         for (const id of target.neighborsOf) {
             const index = nodes.indexOf(id);
 
-            if (index !== INVALID_INDEX && nodes.add(index)) {
-                seeds.push(index);
+            if (index !== INVALID_INDEX) {
+                seed(index);
             }
         }
     }
 
-    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION, follows);
+    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION, follows, allowed);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }
@@ -835,7 +876,7 @@ function resolveWhere(target: Extract<SelectionTarget, { where: unknown }>, cont
     const matched = context.match(target.where);
     addIds(nodes, matched.nodes ?? []);
     addIds(edges, matched.edges ?? []);
-    narrowToScope(context, target.scope, nodes, edges);
+    narrowToScope(context, target.scope ?? context.defaultScope?.(), nodes, edges);
 
     return {
         nodes,
@@ -895,7 +936,7 @@ function resolveText(target: Extract<SelectionTarget, { text: unknown }>, contex
         addSearchHit(hit, nodes, edges);
     }
 
-    narrowToScope(context, target.scope, nodes, edges);
+    narrowToScope(context, target.scope ?? context.defaultScope?.(), nodes, edges);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }
@@ -1056,8 +1097,10 @@ function resolveInvert(target: Extract<SelectionTarget, { invert: unknown }>, co
 
     const { nodes, edges } = emptyMasks(context);
     nodes.fill();
-    nodes.subtract(context.selectedNodes);
     edges.fill();
+    // Everything else that the default scope shows (the working graph), never what it hides.
+    narrowToScope(context, context.defaultScope?.(), nodes, edges);
+    nodes.subtract(context.selectedNodes);
     edges.subtract(context.selectedEdges);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
@@ -1138,6 +1181,45 @@ function resolveRegion(polygon: readonly RegionPoint[], context: TargetContext):
  *   outside the permitted range.
  */
 export function resolveTarget(target: SelectionTarget, context: TargetContext): TargetMembers {
+    const members = resolveArm(target, context);
+    const keeps = context.filterKeeps?.() ?? null;
+    if (keeps !== null) {
+        dropUnkept(members.nodes, keeps.nodes);
+        dropUnkept(members.edges, keeps.edges);
+    }
+
+    return members;
+}
+
+/**
+ * Drop from a mask every row a filter does not keep.
+ * @param mask - The mask.
+ * @param keeps - One byte per row, 1 where the filter keeps it; null keeps every row.
+ */
+function dropUnkept<TId>(mask: ElementMask<TId>, keeps: Uint8Array | null): void {
+    if (keeps === null || mask.size === 0) {
+        return;
+    }
+
+    const drop: number[] = [];
+    mask.forEachMember((index) => {
+        if (keeps[index] !== 1) {
+            drop.push(index);
+        }
+    });
+    for (const index of drop) {
+        mask.delete(index);
+    }
+}
+
+/**
+ * The elements one target names, before any filter narrows them. See {@link resolveTarget}.
+ * @param target - What to select.
+ * @param context - What the resolution reads.
+ * @returns The members.
+ * @throws A `GraphtyError` as {@link resolveTarget} documents.
+ */
+function resolveArm(target: SelectionTarget, context: TargetContext): TargetMembers {
     if (typeof target !== "object" || target === null) {
         throw notATarget(target);
     }

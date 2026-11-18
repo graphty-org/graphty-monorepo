@@ -47,7 +47,15 @@
             "options": {
                 "command": "npm run lint",
                 "cwd": "graph-io"
-            }
+            },
+            "inputs": [
+                "default",
+                "^production",
+                { "input": "default", "projects": ["graphty-element"] },
+                "{workspaceRoot}/eslint.config.js",
+                "{workspaceRoot}/tools/eslint-rules/**/*",
+                "{workspaceRoot}/compact-mantine/eslint/**/*"
+            ]
         },
         "typecheck": {
             "executor": "nx:run-commands",

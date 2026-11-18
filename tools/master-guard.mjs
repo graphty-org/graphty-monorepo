@@ -4,9 +4,10 @@
 // - CI red on a master commit: open a revert of the commit when its parent was green, and open a
 //   priority:critical issue -- or, when a red-master issue is already open (one cause, such as an audit
 //   advisory, turns several commits red), add the commit to that issue instead.
-//   When the failure looks external (outsideCause: an outside service's error, a lost runner, or the same
-//   job failing on an earlier commit), it does not revert: it re-runs the failed jobs once and
-//   files the issue with the evidence.
+//   When a failed job has failed on every master commit since an earlier one (blame), that earlier commit
+//   introduced it, so the revert is of that commit. When the failure looks external (outsideCause: an outside
+//   service's error, a lost runner, or the same job failing on an earlier commit with a pass in between), it
+//   does not revert: it re-runs the failed jobs once and files the issue with the evidence.
 // - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
 //   timeout-minutes ends the run `cancelled`): the same red-master issue, with no revert, since no
 //   failed step names a culprit. Not when a newer master push replaced it (superseded): ci.yml lets a newer push
@@ -241,11 +242,46 @@ export function outsideCause(jobs, logs, earlier) {
 }
 
 /**
+ * Which earlier master commit a red run's failed jobs point at. A job that failed on every master commit back
+ * to one, and passed on the commit before that, has failed since that commit: the commit introduced it (the
+ * culprit). A job that failed on an earlier commit but passed in between comes and goes, so that earlier failure
+ * is only evidence of an outside cause (`earlier`), within the window.
+ * @param failed - The red run's failed job names.
+ * @param history - Earlier completed master runs, newest first: sha, url, created_at, and jobs (job name to
+ *   conclusion; null for a green run, where every job passed).
+ * @param since - The window's start (ms): an earlier failure before it is not evidence.
+ * @returns earlier (job name to commit), and the culprit ({ sha, url }), or null when none is earlier than the run.
+ */
+export function blame(failed, history, since) {
+    const earlier = {};
+    let culprit = null;
+    for (const name of failed) {
+        const outcome = (h) => (h.jobs ? h.jobs[name] : "success");
+        const passed = history.findIndex((h) => outcome(h) === "success");
+        // the oldest failure of this job in the unbroken stretch since it last passed
+        const streak = passed >= 0 && history.slice(0, passed).findLast((h) => FAILED.has(outcome(h)));
+        if (streak) {
+            // ponytail: jobs with different culprits blame the oldest; revert each if that ever happens
+            if (!culprit || history.indexOf(streak) > history.indexOf(culprit)) {
+                culprit = streak;
+            }
+            continue;
+        }
+        const red = history.find((h) => FAILED.has(outcome(h)) && Date.parse(h.created_at) >= since);
+        if (red) {
+            earlier[name] = red.sha;
+        }
+    }
+    return { earlier, culprit: culprit && { sha: culprit.sha, url: culprit.url } };
+}
+
+/**
  * Read what outsideCause needs about a red CI run: its jobs, the failed jobs' logs, and the jobs that failed on
  * master in the hours before it.
  * @param gh - Calls the repository's REST API: gh(path, init); a log comes back as text.
  * @param run - The workflow_run payload's run.
- * @returns The failed jobs' names, and the evidence that the failure is external (null when it may not be).
+ * @returns The failed jobs' names, the evidence that the failure is external (null when it may not be), and the
+ *   earlier commit that introduced the failure (blame's culprit; null when it is not an earlier commit).
  */
 export async function examineRed(gh, run) {
     const { jobs } = await gh(`/actions/runs/${run.id}/attempts/${run.run_attempt ?? 1}/jobs?per_page=100`);
@@ -254,26 +290,30 @@ export async function examineRed(gh, run) {
     for (const j of failed) {
         logs[j.id] = await gh(`/actions/jobs/${j.id}/logs`).catch(() => "");
     }
-    const earlier = {};
-    const since = Date.parse(run.created_at) - WINDOW_MS;
     const { workflow_runs: runs } = await gh(
         "/actions/workflows/ci.yml/runs?branch=master&event=push&status=completed&per_page=20",
     );
-    const reds = runs.filter(
-        (r) =>
-            r.head_sha !== run.head_sha &&
-            FAILED.has(r.conclusion) &&
-            Date.parse(r.created_at) < Date.parse(run.created_at) &&
-            Date.parse(r.created_at) >= since,
-    );
-    for (const r of reds) {
-        for (const j of (await gh(`/actions/runs/${r.id}/jobs?per_page=100`)).jobs) {
-            if (FAILED.has(j.conclusion)) {
-                earlier[j.name] ??= r.head_sha;
-            }
+    const history = [];
+    for (const r of runs) {
+        if (r.head_sha === run.head_sha || Date.parse(r.created_at) >= Date.parse(run.created_at)) {
+            continue;
+        }
+        if (r.conclusion === "success") {
+            history.push({ sha: r.head_sha, url: r.html_url, created_at: r.created_at, jobs: null });
+        } else if (FAILED.has(r.conclusion)) {
+            const rjobs = (await gh(`/actions/runs/${r.id}/jobs?per_page=100`)).jobs;
+            const byName = Object.fromEntries(rjobs.map((j) => [j.name, j.conclusion]));
+            history.push({ sha: r.head_sha, url: r.html_url, created_at: r.created_at, jobs: byName });
         }
     }
-    return { failed: failed.map((j) => j.name), outside: outsideCause(jobs, logs, earlier) };
+    const { earlier, culprit } = blame(
+        failed.map((j) => j.name),
+        history,
+        Date.parse(run.created_at) - WINDOW_MS,
+    );
+    // a failure every master commit since the culprit repeats is the culprit's own, never external
+    const outside = culprit ? null : outsideCause(jobs, logs, earlier);
+    return { failed: failed.map((j) => j.name), outside, culprit };
 }
 
 // A revert pull request's body names the reverted commit first and the jobs that failed last (revertBody and
@@ -481,7 +521,21 @@ async function main() {
                         ].join("\n"),
                     };
                 }
-                const commit = await gh(`/commits/${sha}`);
+                // a failure an earlier commit introduced, and every commit since repeats, is that commit's to revert
+                const culprit = examined?.culprit;
+                const target = culprit?.sha ?? sha;
+                const targetShort = target.slice(0, 7);
+                const since = culprit
+                    ? `The failure first appeared at ${target} (${culprit.url}) and repeats on every master commit since, so that commit introduced it. `
+                    : "";
+                if (culprit) {
+                    const owner = repo.split("/")[0];
+                    const [open] = await gh(`/pulls?state=open&head=${owner}:revert/${targetShort}&per_page=1`);
+                    if (open) {
+                        return { note: `${since}Revert: #${open.number} (branch \`revert/${targetShort}\`).` };
+                    }
+                }
+                const commit = await gh(`/commits/${target}`);
                 // The nearest first-parent ancestor CI ran on: a release commit carries [skip ci] and has no run.
                 let parent = commit.parents[0].sha;
                 for (let i = 0; i < 5; i++) {
@@ -496,43 +550,43 @@ async function main() {
                 const parentCi = parentRun?.conclusion ?? parentRun?.status ?? "no run";
                 if (parentCi !== "success") {
                     return {
-                        note: `Its parent ${parent} has CI \`${parentCi}\`, so the culprit is not certain and no revert was made.`,
+                        note: `${since}Its parent ${parent} has CI \`${parentCi}\`, so the culprit is not certain and no revert was made.`,
                     };
                 }
                 const prs = mergedPrs(commit.commit.message);
-                const branch = `revert/${short}`;
+                const branch = `revert/${targetShort}`;
                 const mainline = commit.parents.length > 1 ? ["-m", "1"] : [];
                 const git = (...args) => execFileSync("git", args, { stdio: "inherit" });
                 git("config", "user.name", "github-actions[bot]");
                 git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com");
-                git("fetch", "origin", "master", sha);
+                git("fetch", "origin", "master", target);
                 git("switch", "-c", branch, "origin/master");
-                const by = ["git revert", ...mainline, sha].join(" ");
-                const manual = `git fetch origin && git switch -c ${branch} origin/master && ${by} && git push -u origin HEAD && gh pr create --title "${revertTitle(sha, prs)}" --label priority:critical --body "Reverts ${sha}."`;
+                const by = ["git revert", ...mainline, target].join(" ");
+                const manual = `git fetch origin && git switch -c ${branch} origin/master && ${by} && git push -u origin HEAD && gh pr create --title "${revertTitle(target, prs)}" --label priority:critical --body "Reverts ${target}."`;
                 try {
-                    git("revert", ...mainline, "--no-edit", sha);
+                    git("revert", ...mainline, "--no-edit", target);
                     git("push", "origin", `HEAD:refs/heads/${branch}`);
                 } catch {
-                    return { note: `The revert did not apply or push cleanly. By hand:\n\n    ${manual}` };
+                    return { note: `${since}The revert did not apply or push cleanly. By hand:\n\n    ${manual}` };
                 }
                 const failedJobs = JSON.stringify(examined?.failed ?? []);
-                const body = `${revertBody(sha, run.html_url, prs)}\n\n<!-- master-guard failed jobs: ${failedJobs} -->`;
+                const body = `${revertBody(target, culprit?.url ?? run.html_url, prs)}\n\n<!-- master-guard failed jobs: ${failedJobs} -->`;
                 const token = process.env.PR_TOKEN || process.env.GITHUB_TOKEN;
                 try {
                     const opened = await gh(
                         "/pulls",
-                        json("POST", { title: revertTitle(sha, prs), head: branch, base: "master", body }),
+                        json("POST", { title: revertTitle(target, prs), head: branch, base: "master", body }),
                         token,
                     );
                     await gh(`/issues/${opened.number}/labels`, json("POST", { labels: ["priority:critical"] }), token);
                     const ci = process.env.PR_TOKEN
                         ? ""
                         : " It was opened with the workflow token, so its checks do not start by themselves: close and reopen it to start them.";
-                    return { note: `Revert: #${opened.number} (branch \`${branch}\`).${ci}` };
+                    return { note: `${since}Revert: #${opened.number} (branch \`${branch}\`).${ci}` };
                 } catch (e) {
                     console.log(`::warning::could not open the revert pull request: ${e.message}`);
                     return {
-                        note: `The revert is pushed to \`${branch}\`, but the pull request could not be opened. Open it:\n\n    gh pr create --head ${branch} --title "${revertTitle(sha, prs)}" --label priority:critical --body "Reverts ${sha}."`,
+                        note: `${since}The revert is pushed to \`${branch}\`, but the pull request could not be opened. Open it:\n\n    gh pr create --head ${branch} --title "${revertTitle(target, prs)}" --label priority:critical --body "Reverts ${target}."`,
                     };
                 }
             });

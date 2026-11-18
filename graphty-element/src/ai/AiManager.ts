@@ -4,7 +4,7 @@
  * @module ai/AiManager
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { XRInputHandler } from "../cameras/XRInputHandler";
 import {
@@ -332,6 +332,11 @@ export interface AiManagerConfig {
      * approval). Absent, the assistant imports only URLs that appear in the reader's own message.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /**
+     * Where the assistant's `load_dataset` downloads graph-samples' datasets from (the
+     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `AI_ARG_OUT_OF_RANGE`.
+     */
+    datasetBaseUrl?: string;
     /** Optional custom provider instance (e.g., pre-initialized WebLlmProvider) */
     providerInstance?: LlmProvider;
     /** Key persistence configuration for encrypted storage */
@@ -640,6 +645,7 @@ export class AiManager {
             ...(toolset === "generated" ? { toolProfile } : {}),
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
+            ...(config.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: config.datasetBaseUrl }),
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
             ...(config.questions === undefined ? {} : { questions: config.questions }),
             ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),
@@ -718,7 +724,7 @@ export class AiManager {
                 };
             },
         });
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /** Leave the immersive session: unbind, close a held microphone without sending, stop speaking. */
@@ -1102,7 +1108,7 @@ export class AiManager {
      * @param act - What to do with it.
      */
     private withVoice(act: (session: VoiceSession) => void): void {
-        void this.voiceSession?.then(act); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSession?.then(act); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
@@ -1271,7 +1277,7 @@ export class AiManager {
         }
 
         // A key can make provider transcription or speech usable.
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /**

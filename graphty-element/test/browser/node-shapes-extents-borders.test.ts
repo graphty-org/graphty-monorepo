@@ -650,3 +650,36 @@ describe("one extent for every shape (#2495)", () => {
         assert.isAtMost(spread(rasterised), 2, `rasterised: ${JSON.stringify(Object.fromEntries(rasterised))}`);
     });
 });
+
+// Issue #7566: a polygon's border drawn in from its outline draws its fill in on every side of its box, so at a
+// slanted side the fill lies less than the border's width inside the outline along a line. The line still ends on
+// the outline, as Cytoscape desktop ends it, not the border's width past the fill.
+describe("an edge leaving a polygon whose border is drawn inside its outline (#7566)", () => {
+    it.each(["inside", "center"] as const)("ends on a triangle's outline under a border drawn %s", async (position) => {
+        const width = 0.2;
+        const element = await mounted(
+            "2d",
+            [
+                { id: "a", position: { x: 0, y: 0, z: 0 } },
+                { id: "b", position: { x: 6, y: 0, z: 0 } },
+            ],
+            [{ src: "a", dst: "b" }],
+            [
+                layerFor(["a"], {
+                    "node.shape": "triangle",
+                    "node.borderWidth": width,
+                    "node.borderPosition": position,
+                    "node.borderColor": "#0000ff",
+                }),
+            ],
+        );
+        const { srcPoint } = edgeOf(element, "a", "b").getInterceptPoints();
+
+        assert.isNotNull(srcPoint);
+        // at the triangle's middle its outline is a quarter of its width out; a centered border reaches half its
+        // width past the outline, an inside one nothing
+        const outline = rightmostCrossing(flatShapeOutline("triangle", NODE_EXTENT_PER_SIZE, NODE_EXTENT_PER_SIZE));
+        const past = position === "center" ? (width / 2) * NODE_EXTENT_PER_SIZE : 0;
+        assert.approximately(srcPoint.x, outline + past, 0.02);
+    });
+});

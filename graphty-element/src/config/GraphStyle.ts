@@ -76,8 +76,16 @@ export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
  * `E_PROTECTED`, a consumer could not reach it by adding a layer either. This is the door.
  */
 const GraphSelectionStyle = z.strictObject({
-    /** The halo's colour. Any colour the element understands; normalised to hex on parse. */
-    color: ColorStyle.default("#FFD700"),
+    /**
+     * The halo's colour. Any colour the element understands; normalised to hex on parse.
+     *
+     * The default is the selected edge's blue, so one colour marks the selection on nodes and
+     * edges alike. Drawn solid, it stands 4.4:1 off the light default background and 3.9:1 off a
+     * near-black one (#121212), past the 3:1 WCAG 1.4.11 asks of a state indicator
+     * (`test/catalog/default-palette-quality.test.ts`). It replaced a gold halo at 0.4 opacity,
+     * which stood 1.3:1 off the default background.
+     */
+    color: ColorStyle.default("#0077BB"),
     /**
      * How much of the node's own size the halo is drawn at.
      *
@@ -86,8 +94,11 @@ const GraphSelectionStyle = z.strictObject({
      * number and the default stands a little clear of the node.
      */
     scale: z.number().positive().default(1.45),
-    /** How solid the halo is, in `[0, 1]`. Low enough to read as a highlight rather than a node. */
-    opacity: z.number().min(0).max(1).default(0.4),
+    /**
+     * How solid the halo is, in `[0, 1]`. Solid by default: a see-through halo takes on the
+     * background's colour and loses the contrast its own colour has. 0 draws no halo.
+     */
+    opacity: z.number().min(0).max(1).default(1),
     /**
      * The colour of the band a selected EDGE is drawn with. Any colour the element understands;
      * normalised to hex on parse.

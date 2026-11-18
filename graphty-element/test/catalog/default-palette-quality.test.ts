@@ -354,6 +354,28 @@ describe("the element's own highlight colour among the group colours", () => {
     });
 });
 
+/** The dark backgrounds the element's own settings offer (`session/commands/doors.ts`). */
+const DARK_CANVASES = ["#101010", "#202020"];
+
+describe("the selection mark on nodes and edges (WCAG 1.4.11)", () => {
+    const { color, opacity, edgeColor, edgeOpacity } = DEFAULT_SELECTION_STYLE;
+
+    it("is drawn solid, so the colour measured is the colour drawn", () => {
+        assert.strictEqual(opacity, 1);
+        assert.strictEqual(edgeOpacity, 1);
+    });
+
+    for (const [canvas, on] of [
+        ["the light default canvas", background] as const,
+        ...DARK_CANVASES.map((dark) => [`the dark canvas ${dark}`, dark] as const),
+    ]) {
+        it(`stands 3:1 or more off ${canvas} on nodes and edges`, () => {
+            assert.isAtLeast(contrast(color, on), 3, `node halo ${color} on ${on}`);
+            assert.isAtLeast(contrast(edgeColor, on), 3, `edge band ${edgeColor} on ${on}`);
+        });
+    }
+});
+
 describe("the band a selected edge is drawn with", () => {
     const { edgeColor } = DEFAULT_SELECTION_STYLE;
     const edgeGrey = defaultEdgeStyle.line?.color;

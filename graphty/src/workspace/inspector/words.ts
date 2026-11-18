@@ -15,8 +15,6 @@ import type {
     StaleNote,
     SummaryGroup,
     TimeUnit,
-    XrCapability,
-    XrUnavailableReason,
 } from "@graphty/graphty-element/session";
 
 import { formatCount, formatNumber } from "../settings/numberFormat";
@@ -55,7 +53,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Time window",
+    "filter-step": "Filter",
     source: "Source",
 };
 
@@ -71,11 +69,16 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model",
     "node.modelTurn": "Model",
     "node.modelTint": "Model",
+    "node.modelDoubleSided": "Model",
+    "node.modelAnimation": "Model",
+    "node.modelAnimationSpeed": "Model",
+    "node.modelAnimationOffset": "Model",
     "node.modelFit": "Model",
     "node.modelCenter": "Model",
     "node.texture": "Texture",
@@ -89,6 +92,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapWidth": "Label",
     "node.labelLetterSize": "Label",
     "node.labelWrapTrailingSpace": "Label",
+    "node.labelWrapSkipEndSpace": "Label",
     "node.labelMinScreenSize": "Label",
     "node.labelOnTop": "Label",
     "node.labelDeclutter": "Label",
@@ -97,6 +101,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
     "node.halo": "Halo",
@@ -190,12 +195,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapWidth": "Label",
     "edge.labelLetterSize": "Label",
     "edge.labelWrapTrailingSpace": "Label",
+    "edge.labelWrapSkipEndSpace": "Label",
     "edge.labelMinScreenSize": "Label",
     "edge.labelOnTop": "Label",
     "edge.labelRotation": "Label",
     "node.labelWrapEllipsis": "Label",
     "node.labelWrapAnywhere": "Label",
     "node.labelWrapSpaceCount": "Label",
+    "node.labelMaxLines": "Label",
+    "node.labelMaxLinesEllipsis": "Label",
     "node.labelRunAlign": "Label",
     "node.labelOutline": "Label",
     "node.labelOutlineWidth": "Label",
@@ -208,6 +216,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPadding": "Label",
     "node.labelCornerRadius": "Label",
     "node.labelLineHeight": "Label",
+    "node.labelLineBox": "Label",
+    "node.labelBorderAlign": "Label",
+    "node.labelBackgroundShape": "Label",
     "node.labelOffsetX": "Label",
     "node.labelOffsetY": "Label",
     "node.labelShiftX": "Label",
@@ -269,6 +280,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",
@@ -404,6 +416,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapEllipsis": "Label",
     "edge.labelWrapAnywhere": "Label",
     "edge.labelWrapSpaceCount": "Label",
+    "edge.labelMaxLines": "Label",
+    "edge.labelMaxLinesEllipsis": "Label",
     "edge.labelRunAlign": "Label",
     "edge.labelOutline": "Label",
     "edge.labelOutlineWidth": "Label",
@@ -417,6 +431,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
+    "edge.labelLineBox": "Label",
+    "edge.labelBorderAlign": "Label",
+    "edge.labelBackgroundShape": "Label",
     "edge.labelOffsetX": "Label",
     "edge.labelOffsetY": "Label",
     "edge.labelShiftX": "Label",
@@ -509,26 +526,26 @@ export function directionNote(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
- * directed graph, "Ava -- Kofi" otherwise.
+ * An edge by its two ends' names (the element's `data.edgeName`): "Ava -> Kofi" on a directed
+ * graph, "Ava -- Kofi" otherwise.
  * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    const { source, target } = session.data.edgeName(edge);
+    return `${source.name}${edgeJoiner(session)}${target.name}`;
 }
 
 /**
  * What the status line calls one selected node: the label graphty-element gives it
- * (`session.data.name`, the label column's value), else its id.
+ * (`session.data.nodeName`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.
  * @returns such as "Nebraska", or "74" when the graph has no label column.
  */
 export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**
@@ -567,6 +584,18 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 
 /** What a node's Degree row does: it changes the selection. */
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
+
+/**
+ * What a degree is called where it is read: among what is shown while a filter or the time window
+ * hides something ("Degree showing", as "Nodes showing"), else plain "Degree".
+ * @param session - the element's session.
+ * @param name - the degree's name ("Degree", "In-degree").
+ * @returns the label.
+ */
+export function degreeLabel(session: GraphSession, name = "Degree"): string {
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    return visibleNodes < totalNodes ? `${name} showing` : name;
+}
 
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";
@@ -862,48 +891,8 @@ export function rankedName(group: SummaryGroup | undefined): string {
     return group?.rank === undefined ? "" : `Group ${String(group.rank)}`;
 }
 
-/** An immersive mode, or both of them in one row. */
-type XrRowMode = "vr" | "ar" | "both";
-
-const XR_MODE_WORDS: Readonly<Record<XrRowMode, string>> = { vr: "VR", ar: "AR", both: "VR or AR" };
-
-/** The words for each reason a mode cannot be entered; a reason the element adds fails to compile. */
-const XR_REASON_WORDS: Readonly<Record<XrUnavailableReason, (mode: XrRowMode) => string>> = {
-    "no-webxr": (mode) => `This browser has no ${XR_MODE_WORDS[mode]}`,
-    "insecure-context": () => "Needs a secure (https) page",
-    unsupported: (mode) =>
-        ({ vr: "No VR headset found", ar: "This device has no AR", both: "This device has no VR or AR" })[mode],
-    "webgpu-renderer": () => "Not available with the WebGPU renderer",
-    disabled: () => "Turned off for this graph",
-    probing: () => "Checking...",
-};
-
-/**
- * Why VR, AR or both cannot be entered, in the app's words, from the element's reason code.
- * @param reason - the element's reason.
- * @param mode - the row the reason is for.
- * @returns the words; never the code itself.
- */
-export function xrReasonWords(reason: XrUnavailableReason, mode: XrRowMode): string {
-    return XR_REASON_WORDS[reason](mode);
-}
-
-/**
- * The XR rows the Mode menu draws: one "VR / AR" row when neither mode can be entered for the
- * same reason, otherwise one row per mode, each with its reason or null.
- * @param xr - the element's XR facts.
- * @returns the rows, top to bottom.
- */
-export function xrRows(xr: XrCapability): { mode: XrRowMode; reason: string | null }[] {
-    const { vr, ar } = xr.reasons;
-    if (vr !== null && vr === ar) {
-        return [{ mode: "both", reason: xrReasonWords(vr, "both") }];
-    }
-    return (["vr", "ar"] as const).map((mode) => {
-        const reason = xr.reasons[mode];
-        return { mode, reason: reason === null ? null : xrReasonWords(reason, mode) };
-    });
-}
+/** The words for VR and AR in a notice. */
+const XR_MODE_WORDS: Readonly<Record<"vr" | "ar", string>> = { vr: "VR", ar: "AR" };
 
 /**
  * The notice for an immersive session the browser would not start.

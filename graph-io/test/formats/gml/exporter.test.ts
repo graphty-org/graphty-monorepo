@@ -301,6 +301,36 @@ graph [
     });
 });
 
+describe("gmlExporter: OGDF clusters", () => {
+    it("writes the group nodes read from a rootcluster back as nested clusters with their label and box", async () => {
+        const box = (fill: string): string =>
+            `graphics [ x 10 y 20 width 100 height 60 fill "${fill}" color "#0000FF" stipple "Dash" style "rectangle" ]`;
+        const snapshot = await importGml(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                'node [ id 0 label "a" graphics [ x 30 y 40 w 18 h 18 ] ]',
+                'node [ id 1 label "b" graphics [ x 60 y 40 w 18 h 18 ] ]',
+                "edge [ source 0 target 1 ]",
+                "]",
+                'rootcluster [ vertex "0"',
+                `  cluster [ id 1 label "Outer" ${box("#F5F5F5")}`,
+                `    cluster [ id 2 label "Inner" ${box("#E0E0FF")} vertex "1" ] ]`,
+                "]",
+            ].join("\n"),
+        );
+        expect(snapshot.ids.toArray()).toEqual([0, 1, "cluster1", "cluster2"]);
+        // the graphics records' numbers are the one note: GML records cannot tell 18 from 18.0
+        expect(codes(gmlExporter.check(snapshot))).toEqual(["W_GML_RECORD_NUMBER_TYPE"]);
+        const { text, snapshot: back } = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expectSameSnapshot(snapshot, back, { tolerance: 1e-9 });
+        expect(lines(text)).toEqual(
+            expect.arrayContaining(["rootcluster [", "cluster [", "id 1", 'label "Outer"', "id 2", 'vertex "1"']),
+        );
+        expect(text).not.toContain("cluster1");
+    });
+});
+
 describe("gmlExporter: texts equal to NetworkX's list markers", () => {
     it("escapes a text cell and a list item equal to a marker so they read back as text (#7649)", async () => {
         const builder = new GraphBuilder({ directed: false });
@@ -352,14 +382,16 @@ describe("gmlExporter: graphics and positions", () => {
         const two = builder.freeze();
         // graphics x / y read back as an f64 column named position: the f32 values and the name change
         expect(codes(gmlExporter.check(two))).toEqual([LOSS.DTYPE, LOSS.COLUMN_NAME_CHANGED]);
-        expect(await gmlExporter.exportToString(two)).toContain("graphics [\n      x 1.0\n      y 2.0\n    ]");
+        // a column that declares no spelling is y up; GML's grows downward, so y is written flipped
+        expect(await gmlExporter.exportToString(two)).toContain("graphics [\n      x 1.0\n      y -2.0\n    ]");
         const wide = new GraphBuilder({ directed: false });
         wide.declareNodeColumn({ name: "pos", dtype: "f64", components: 4, role: "position" });
         wide.setNodeValue("pos", wide.addNode(1), [1, 2, 3, 4]);
         const four = wide.freeze();
         expect(codes(gmlExporter.check(four))).toEqual([POSITION_COMPONENTS_CODE, LOSS.COLUMN_NAME_CHANGED]);
+        // with a real z the flip turns the drawing about x, so z flips too
         expect(await gmlExporter.exportToString(four)).toContain(
-            "graphics [\n      x 1.0\n      y 2.0\n      z 3.0\n    ]",
+            "graphics [\n      x 1.0\n      y -2.0\n      z -3.0\n    ]",
         );
     });
 
@@ -384,20 +416,24 @@ describe("gmlExporter: graphics and positions", () => {
         only.setNodeValue("position", c, [1, 2, 3]);
         only.setNodeValue("graphics", c, { x: 9, w: 1 });
         const text = await gmlExporter.exportToString(only.freeze());
-        expect(text).toContain("graphics [\n      x 1.0\n      y 2.0\n      z 3.0\n      w 1\n    ]");
+        expect(text).toContain("graphics [\n      x 1.0\n      y -2.0\n      z -3.0\n      w 1\n    ]");
     });
 });
 
 describe("gmlExporter: ids", () => {
-    it("refuses non-integer ids by default and mangles them with the original kept", async () => {
+    it("mangles non-integer ids by default with the original kept, and refuses them under sanitizeIds error", async () => {
         const builder = new GraphBuilder({ directed: true });
         builder.addEdge("Little Rock, AR", 1.5);
         builder.addEdge(1.5, 7);
         const snapshot = builder.freeze();
-        expect(codes(gmlExporter.check(snapshot))).toEqual([LOSS.ID_CHARSET]);
-        await expectExportError(snapshot, undefined, "E_INVALID_ID");
-        const notes = gmlExporter.check(snapshot, { sanitizeIds: "mangle" });
-        expect(notes).toEqual([expect.objectContaining({ code: LOSS.ID_MANGLED, count: 2 })]);
+        expect(codes(gmlExporter.check(snapshot, { sanitizeIds: "error" }))).toEqual([LOSS.ID_CHARSET]);
+        await expectExportError(snapshot, { sanitizeIds: "error" }, "E_INVALID_ID");
+        for (const options of [undefined, { sanitizeIds: "mangle" } as const]) {
+            const notes = gmlExporter.check(snapshot, options);
+            expect(notes).toEqual([expect.objectContaining({ code: LOSS.ID_MANGLED, count: 2 })]);
+        }
+        const plain = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expectSameSnapshot(snapshot, plain.snapshot, { allowExtraColumns: false });
         const rt = await roundTrip(snapshot, gmlExporter, gmlImporter, { exportOptions: { sanitizeIds: "mangle" } });
         expect(rt.text).toContain(`id 0\n    ${ORIGINAL_ID_KEY} "Little Rock, AR"`);
         expect(rt.text).toContain(`id 1\n    ${ORIGINAL_ID_KEY} 1.5`);

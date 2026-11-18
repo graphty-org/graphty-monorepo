@@ -1,7 +1,7 @@
 /**
  * Pictures on nodes (`node.texture`) with the node models experiment on (issue #3396), in the Style
  * tab and on the canvas, on the real graphty-element, by real input: Fill's "+" adds a Picture line
- * whose pop-over takes a chosen picture; a model chosen there is offered as the layer's model, and
+ * whose pop-over takes a picture chosen, dropped or typed as an address; a model chosen there is offered as the layer's model, and
  * let go when it is not taken; a picture a layer names as its model moves to node.texture in one
  * undo step; Escape takes back an empty new Picture line and Delete removes a set one. Every assertion reads what the element
  * reports: its layers and assets.
@@ -13,11 +13,16 @@ import "@graphty/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { fileInput, openShapes, written } from "./modelHarness";
+import { choose, dropOn, openShapes, written } from "./modelHarness";
 import { quadGlb } from "./quadGlb";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * A fixture as a file, from the test server.
@@ -58,7 +63,7 @@ async function chooseColormap(
     picture: HTMLElement,
     session: Awaited<ReturnType<typeof openShapes>>["session"],
 ): Promise<unknown> {
-    await userEvent.upload(fileInput(picture), [await colormap()]);
+    await choose(picture, "Choose picture", [await colormap()]);
     await waitFor(() => {
         assert.match(String(written(session, "node.texture")), /^asset:/);
     });
@@ -82,6 +87,36 @@ describe("pictures on nodes, on the real element", () => {
         });
     });
 
+    it("puts a picture dropped on the Picture pop-over on the layer", async () => {
+        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const picture = await addPicture(tab);
+        dropOn(within(picture).getByRole("button", { name: "Choose picture" }), [await colormap()]);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.texture")), /^asset:/);
+        });
+        assert.isNotNull(await within(tab).findByLabelText("Node picture, colormap"));
+    });
+
+    it("puts a picture typed as an address in the Picture pop-over on the layer", async () => {
+        const url = "https://pictures.example.com/paint/colormap.png";
+        const bytes = await (await colormap()).arrayBuffer();
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            return to === url
+                ? Promise.resolve(new Response(bytes, { status: 200, headers: { "content-type": "image/png" } }))
+                : original(input, init);
+        });
+        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        const picture = await addPicture(tab);
+        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${url}{Enter}`);
+        // An address is written as the address, so the layer names where the picture lives.
+        await waitFor(() => {
+            assert.equal(written(session, "node.texture"), url);
+        });
+        assert.equal(session.assets.find(url)?.kind, "image", "the element holds the fetched picture");
+    });
+
     it("offers a model chosen in the Picture pop-over as the layer's model", async () => {
         const { session, tab } = await openShapes(["node-models"], { "node.model": "asset:sample/box" });
         const texture = await chooseColormap(await addPicture(tab), session);
@@ -92,7 +127,7 @@ describe("pictures on nodes, on the real element", () => {
         await userEvent.click(await within(tab).findByLabelText("Node picture, colormap"));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
         assert.isNotNull(within(picture).getByRole("button", { name: "colormap" }));
-        await userEvent.upload(fileInput(picture), [new File([quadGlb()], "quad.glb")]);
+        await choose(picture, "Choose picture", [new File([quadGlb()], "quad.glb")]);
         const use = await within(picture).findByRole("button", { name: "Use quad as model" });
         assert.isNotNull(within(picture).getByText("Not a picture"));
         await userEvent.click(use);
@@ -153,7 +188,7 @@ describe("pictures on nodes, on the real element", () => {
     it("lets go of a model chosen in the Picture pop-over and not taken as the model", async () => {
         const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
         const picture = await addPicture(tab);
-        await userEvent.upload(fileInput(picture), [await fixture(policeUrl, "police.glb")]);
+        await choose(picture, "Choose picture", [await fixture(policeUrl, "police.glb")]);
         assert.isNotNull(await within(picture).findByRole("button", { name: "Use police as model" }));
         assert.lengthOf(session.assets.waiting(), 1);
         await userEvent.keyboard("{Escape}");
@@ -191,7 +226,7 @@ describe("pictures on nodes, on the real element", () => {
         await userEvent.click(field);
         let picture = await screen.findByRole("dialog", { name: "Picture" });
         await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), url);
-        await userEvent.click(within(picture).getByRole("button", { name: "Add picture address" }));
+        await userEvent.click(within(picture).getByRole("button", { name: "Add" }));
         await waitFor(() => {
             assert.include(asked, url);
         });
@@ -201,13 +236,11 @@ describe("pictures on nodes, on the real element", () => {
         });
 
         answer(new Response(police, { status: 200 }));
-        // Open again: once the add has finished, its button is no longer loading.
+        // Open again: once the add has finished, nothing is loading.
         await userEvent.click(field);
         picture = await screen.findByRole("dialog", { name: "Picture" });
         await waitFor(() => {
-            assert.isNull(
-                within(picture).getByRole("button", { name: "Add picture address" }).getAttribute("data-loading"),
-            );
+            assert.isNull(within(picture).queryByRole("progressbar"));
         });
         assert.lengthOf(session.assets.waiting(), 0, "nothing the reader closed on waits for parts");
         assert.isNull(within(picture).queryByRole("button", { name: "Use police as model" }));

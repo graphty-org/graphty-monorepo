@@ -117,7 +117,7 @@ describe("JSON corpus facts: sigma-format.json (graphology serialisation)", () =
         expect(doc.nodes.map((n) => n.attributes.x)).toEqual([0, 1, 2, 1.5, 0.5]);
     });
 
-    it("imports the graphology dialect: directed, keys as edge ids, weights with an f64 shadow, x widened to f64", async () => {
+    it("imports the graphology dialect: directed, keys as edge ids, weights with an f64 shadow, x / y as the position", async () => {
         const { snapshot, freeze } = await load("sigma-format.json");
         expect(dialectOf(snapshot)).toBe("graphology");
         expect(snapshot.directed).toBe(true);
@@ -129,16 +129,17 @@ describe("JSON corpus facts: sigma-format.json (graphology serialisation)", () =
         expect(weight?.dtype).toBe("f64");
         expect([0, 1, 2, 3, 4].map((e) => weight?.value(e))).toEqual([1, 2, 1.5, 1, 0.8]);
         expect(snapshot.edgeList().weights?.[4]).toBe(Math.fround(0.8));
+        const position = snapshot.nodes.byRole("position");
+        expect(position?.dtype).toBe("f64");
         for (let i = 0; i < 5; i++) {
             const attrs = doc.nodes[i].attributes;
             expect(snapshot.nodes.value("label", i)).toBe(attrs.label);
-            expect(snapshot.nodes.value("x", i)).toBe(attrs.x);
-            expect(snapshot.nodes.value("y", i)).toBe(attrs.y);
+            expect(Array.from(position?.value(i) as ArrayLike<number>)).toEqual([attrs.x, attrs.y, 0]);
             expect(snapshot.nodes.value("size", i)).toBe(attrs.size);
         }
-        expect(snapshot.nodes.get("x")?.dtype).toBe("f64");
-        expect(snapshot.nodes.get("y")?.dtype).toBe("i32");
-        expect(freeze.widened).toEqual([{ column: "x", domain: "node", from: "i32", to: "f64" }]);
+        expect(snapshot.nodes.get("x")).toBeNull();
+        expect(snapshot.nodes.get("y")).toBeNull();
+        expect(freeze.widened).toEqual([]);
     });
 });
 

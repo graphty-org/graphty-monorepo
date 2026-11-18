@@ -2,7 +2,7 @@ import "./toolbar.css";
 
 import { MenuCheckItem, MenuItemDescription, MenuShortcut, Toolbar, ToolButton } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Menu, Popover } from "@mantine/core";
+import { Menu, Popover, Text } from "@mantine/core";
 import React, { forwardRef, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
@@ -10,14 +10,13 @@ import { tabStops } from "../frame/focus";
 import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { focusPathValuesNext } from "../inspector/reads";
-import { xrRows } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { immersiveMode, reducedMotion } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** Props for CommandTool. */
 interface CommandToolProps {
@@ -128,12 +127,12 @@ function focusGoesWithClose(): boolean {
 /** The mode words, as the Mode tool's name and its menu rows say them. */
 const MODE_WORDS = { "2d": "2D", "3d": "3D", vr: "VR", ar: "AR" } as const;
 
-/** The Mode tool's face: the icon of the mode the canvas is in. */
-const MODE_GLYPHS = { "2d": GLYPHS.mode2d, "3d": GLYPHS.mode3d, vr: GLYPHS.modeVr, ar: GLYPHS.modeAr } as const;
+/** The Mode tool's face in VR and AR: the mode's icon. 2D and 3D show their words instead. */
+const MODE_GLYPHS = { vr: GLYPHS.modeVr, ar: GLYPHS.modeAr } as const;
 
 /**
- * The Mode menu: Exit VR or AR while immersive; then the modes (2D, 3D, then one "VR / AR" row
- * when neither can be entered for the same reason, else a row each).
+ * The Mode menu: Exit VR or AR while immersive; then the modes, 2D, 3D, VR and AR, a row each. A
+ * mode that cannot be entered is disabled and says only "Not available".
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -142,11 +141,6 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
     const dimension = session?.layout.dimension ?? "3d";
     const active = immersiveMode(session);
     const exit = useCommand("view.exit-xr");
-    const xr = session?.capabilities.xr;
-    const rows =
-        xr === undefined
-            ? []
-            : xrRows(xr).map((row) => ({ ...row, checked: row.mode !== "both" && row.mode === active }));
     // The Switch between 2D and 3D command's key, shown on the row it would switch to; that
     // command has no button, so these rows are where its key is seen.
     const toggleKey = useCommand("view.toggle-dimension")?.command.keys?.[0];
@@ -176,35 +170,69 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
                 checked={active === null && dimension === "3d"}
                 shortcut={keyOn("3d")}
             />
-            {rows.map((row) =>
-                row.mode === "both" ? (
-                    <MenuCheckItem
-                        key="both"
-                        radio
-                        checked={false}
-                        closeMenuOnClick={false}
-                        aria-disabled
-                        data-disabled
-                    >
-                        VR / AR
-                        <MenuItemDescription>{row.reason}</MenuItemDescription>
-                    </MenuCheckItem>
-                ) : (
-                    <CheckItem
-                        key={row.mode}
-                        command={`view.enter-${row.mode}`}
-                        label={MODE_WORDS[row.mode]}
-                        checked={row.checked}
-                    />
-                ),
-            )}
+            {session === null
+                ? null
+                : (["vr", "ar"] as const).map((mode) => (
+                      <CheckItem
+                          key={mode}
+                          command={`view.enter-${mode}`}
+                          label={MODE_WORDS[mode]}
+                          checked={active === mode}
+                      />
+                  ))}
+        </>
+    );
+}
+
+/**
+ * The reader's saved views on the Camera menu: a row each that moves the camera there, then a
+ * Remove view submenu naming them. Nothing while none is saved.
+ * @param props - Component props
+ * @param props.session - The element's session
+ * @returns The rows
+ */
+function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
+    const names = [...session.views.keys()];
+    if (names.length === 0) {
+        return null;
+    }
+    return (
+        <>
+            {names.map((name) => (
+                <Menu.Item
+                    key={name}
+                    onClick={() => {
+                        void session.execute({ op: "view.camera", preset: name, animate: true });
+                    }}
+                >
+                    {name}
+                </Menu.Item>
+            ))}
+            <Menu.Sub>
+                <Menu.Sub.Target>
+                    <Menu.Sub.Item>Remove view</Menu.Sub.Item>
+                </Menu.Sub.Target>
+                <Menu.Sub.Dropdown>
+                    {names.map((name) => (
+                        <Menu.Item
+                            key={name}
+                            onClick={() => {
+                                void session.views.remove([name]);
+                            }}
+                        >
+                            {name}
+                        </Menu.Item>
+                    ))}
+                </Menu.Sub.Dropdown>
+            </Menu.Sub>
         </>
     );
 }
 
 /**
  * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
- * 2D; zoom in and out in 2D; then the Auto-rotate switch.
+ * 2D; the saved views and Save view; zoom in and out in 2D; the Auto-rotate and Follow selection
+ * switches; then Export image and Record video, which reads Stop recording while it records.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -212,33 +240,63 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
 function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const flat = session?.layout.dimension === "2d";
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
+    const followSelection = useWorkspaceState((state) => state.followSelection);
+    const recording = useWorkspaceState((state) => state.recording);
+    const record = useCommand("view.record-video");
     return (
         <>
             <Sections
                 sections={[
                     ["view.fit", "view.frame-selection"],
                     ["view.front", "view.side", "view.top", "view.isometric"],
-                    ...(flat ? [["view.zoom-in", "view.zoom-out"]] : []),
                 ]}
             />
+            <Menu.Divider />
+            {session === null ? null : <SavedViewRows session={session} />}
+            <Sections sections={[["view.save"], ...(flat ? [["view.zoom-in", "view.zoom-out"]] : [])]} />
             <Menu.Divider />
             <CheckItem
                 command="view.auto-rotate"
                 label="Auto-rotate"
                 checked={autoRotate && !reducedMotion()}
+                shortcut="9"
                 radio={false}
             />
+            <CheckItem
+                command="view.follow-selection"
+                label="Follow selection"
+                checked={followSelection}
+                radio={false}
+            />
+            <Menu.Divider />
+            <Sections sections={[["view.export-image"]]} />
+            {record === null ? null : (
+                <CommandMenuItem
+                    label={recording ? "Stop recording" : record.command.label}
+                    shortcut={record.command.keys?.[0]}
+                    reason={record.disabledReason}
+                    onRun={record.run}
+                />
+            )}
         </>
     );
 }
 
 /**
- * The Mode tool's face: the icon of the mode the canvas is in, named for tests by `data-mode`.
+ * The Mode tool's face, named for tests by `data-mode`: the words "2D" or "3D" (an icon for 2D read
+ * as a plain rectangle), or the VR or AR icon, in the same 20px box as the other tools' glyphs.
  * @param props - Component props
  * @param props.mode - The mode
- * @returns The icon
+ * @returns The face
  */
 function ModeGlyph({ mode }: Readonly<{ mode: keyof typeof MODE_WORDS }>): React.JSX.Element {
+    if (mode === "2d" || mode === "3d") {
+        return (
+            <Text span fz={13} fw={700} lh="20px" w={20} ta="center" data-mode={mode}>
+                {MODE_WORDS[mode]}
+            </Text>
+        );
+    }
     const Glyph = MODE_GLYPHS[mode];
     return <Glyph size={20} data-mode={mode} />;
 }
@@ -264,7 +322,7 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
  */
 export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, TOOLBAR_EVENTS);
     const dialog = useWorkspaceState((state) => state.dialog);
     // Pressed while a key is drawn, or while the reader asked for one over nothing (the card then
     // says nothing is styled yet); a switch that is on by default over nothing reads as off.
@@ -324,6 +382,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     }
                     delete openers.path;
                     delete openers.analyze;
+                    store.set({ analyzeOn: null, analyzeValues: null });
                 }}
                 closeOnEscape={false}
                 width={380}
@@ -336,6 +395,8 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         <AnalyzePopover
                             session={session}
                             path={dialog === "path"}
+                            initialPick={dialog === "analyze" ? (store.get().analyzeOn ?? undefined) : undefined}
+                            initialValues={dialog === "analyze" ? (store.get().analyzeValues ?? undefined) : undefined}
                             onClose={close}
                             onTab={(back) => {
                                 const opener = openers.path ?? openers.analyze ?? anchors.current.analyze;

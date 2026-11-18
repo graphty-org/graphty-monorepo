@@ -18,6 +18,7 @@ const IMPLEMENTED = [
     "algorithms",
     "cameras",
     "channels",
+    "channelValues",
     "datasets",
     "formats",
     "generators",

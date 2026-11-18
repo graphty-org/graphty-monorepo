@@ -10,6 +10,8 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { nonEmpty } from "../../styles/columns.js";
+import { exactFromBlock } from "../../styles/cytoscape/exact.js";
 import {
     type CytoscapeMapping,
     type CytoscapeStyle,
@@ -30,12 +32,10 @@ import { StyleNotes } from "../../styles/notes.js";
 import { dataCell } from "../../styles/plan/resolve.js";
 import type { ImporterStyles, ReaderOutput, StyleReadContext, StyleTarget } from "../../styles/types.js";
 import {
-    exactFromBlock,
     graphicsBypasses,
     graphStyleOf,
     hiddenToVisible,
     hideWhatCytoscapeHides,
-    nonEmpty,
     readXgmmlStyles,
 } from "../xgmml/styles.js";
 import { HIDDEN_COLUMN } from "./constants.js";

@@ -21,6 +21,7 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editJsonNodeFill, replaceJsonBlock } from "../../styles/formats/json.js";
 
@@ -83,7 +84,9 @@ function rulesOf(ex: ExtractedStyles): unknown {
         }
         return v;
     };
-    return sort(JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[]);
+    // the rules as planned, before values are settled for drawing (which depends on the program, so not the same
+    // after a file graphty wrote is read back)
+    return sort(JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[]);
 }
 
 describe("JSON files graph-io read wrongly before", () => {
@@ -172,7 +175,7 @@ describe("JSON files graph-io read wrongly before", () => {
         expect(values(r, "edge", "color")).toEqual(["#010203"]);
         expect(values(r, "edge", "width")).toEqual([0.5]);
         expect(r.snapshot.nodes.value("label#data", 0)).toBe("Column");
-        expect(r.snapshot.nodes.value("x", 0)).toBe(0);
+        expect(Array.from(r.snapshot.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([0, 0, 0]);
         expect(r.snapshot.edges.value("color#data", 0)).toBe("rgb(255,0,0)");
     });
 });
@@ -269,8 +272,9 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "label")).toEqual([null]);
         expect(values(r, "node", "label")).toEqual(["A", "B"]);
         expect(values(r, "node", "labelPosition")).toEqual(["right", "right"]);
-        // sigma keeps one label per 100 px cell of its first framing (labelGridCellSize) and avoids no overlap
-        expect(values(r, "node", "labelGridCellSize")).toEqual([100, 100]);
+        // sigma keeps one label per 100 px cell of its first framing, settled per node only when the canvas is known
+        // (the viewport option), and avoids no overlap
+        expect(values(r, "node", "labelGridCellSize")).toEqual([null, null]);
         expect(values(r, "node", "labelAvoidOverlap")).toEqual([null, null]);
         // sigma.js draws its labels after every node and edge
         expect(values(r, "node", "labelOnTop")).toEqual([true, true]);
@@ -319,7 +323,7 @@ describe("JSON styles: reading", () => {
             expect(values(r, "edge", "label")).toEqual(["between labels", null, null]);
             // DEFAULT_EDGE_DISPLAY_DATA's labelColor, DEFAULT_EDGE_LABEL_SIZE, at the line's middle
             expect(values(r, "edge", "labelColor")).toEqual(["#666666", "#666666", "#666666"]);
-            expect(values(r, "edge", "labelSize")).toEqual([12, 12, 12]);
+            expect(values(r, "edge", "labelScreenSize")).toEqual([12, 12, 12]);
             expect(values(r, "edge", "labelPosition")).toEqual(["center", "center", "center"]);
         });
 
@@ -401,7 +405,8 @@ describe("JSON styles: reading", () => {
         // an edge without a color of its own takes its source node's border (its target's under inherit "to")
         expect(values(r, "edge", "color")).toEqual(["#cc0000", "#0000ff", "#2b7ce9"]);
         expect(values(r, "edge", "width")).toEqual([2, 2, 2]);
-        const { rules } = r.styles.styles;
+        // the rules as planned, before values are settled for drawing
+        const { rules } = unsettledStyles(r.styles).styles;
         expect(rules.find((x) => x.facts?.reason === "SOURCE_NODE_COLOR")).toMatchObject({ origin: "tool" });
         expect(rules.filter((x) => x.role === "group" && x.target === "node").map((x) => x.origin)).toEqual([
             "declared",
@@ -471,6 +476,9 @@ describe("JSON styles: reading", () => {
                 },
                 { id: "d", shape: "image", image: "d.png", opacity: 0.4 },
                 { id: "e", shape: "triangleDown" },
+                { id: "f", shape: "triangle" },
+                { id: "g", shape: "image", image: "g.png" },
+                { id: "h", shape: "circularImage", image: "h.png" },
             ],
             edges: [{ from: "a", to: "e" }],
         });
@@ -480,9 +488,28 @@ describe("JSON styles: reading", () => {
         // offsets y down, from the node's center
         expect(values(r, "node", "imageOffsetX").slice(0, 3)).toEqual([0, -5, 10]);
         expect(values(r, "node", "imageOffsetY").slice(0, 3)).toEqual([0, -2, 10]);
-        expect(values(r, "node", "imageOpacity")).toEqual([null, null, null, 0.4, null]);
-        expect(values(r, "node", "shape")[4]).toBe("polygon");
-        expect(values(r, "node", "shapePoints")[4]).toBe("-1,1 0,-1 1,1");
+        expect(values(r, "node", "imageOpacity")).toEqual([null, null, null, 0.4, null, null, null, null]);
+        // vis-network's triangles are equilateral, 1.15 times their size across, a little lower than their 2 * size square
+        expect(values(r, "node", "shape").slice(4, 6)).toEqual(["polygon", "polygon"]);
+        expect(values(r, "node", "shapePoints").slice(4, 6)).toEqual([
+            "0,-1.0117 1.15,0.9802 -1.15,0.9802",
+            "0,1.0117 1.15,-0.9802 -1.15,-0.9802",
+        ]);
+        expect(values(r, "node", "shapePointsStretch").slice(4, 6)).toEqual([false, false]);
+        // an image node takes its picture's proportions; a padded or circular one does not
+        expect(values(r, "node", "imageAspect")).toEqual([null, null, true, true, null, null, true, null]);
+    });
+
+    it("fades a vis.js edge by color.opacity only where its color is hex or rgb(), as vis-network does", async () => {
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }],
+            edges: [
+                { from: "a", to: "b", color: { color: "#0000ff", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "blue", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "rgb(0,0,255)", opacity: 0.4 } },
+            ],
+        });
+        expect(values(r, "edge", "opacity")).toEqual([0.4, null, 0.4]);
     });
 
     it("draws a vis.js icon node's code as its glyph, in vis-network's FontAwesome, 50 px and blue unless given", async () => {
@@ -503,6 +530,20 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "glyphSize")).toEqual([30, 50, null]);
         expect(values(r, "node", "glyphColor")).toEqual(["#d62728", "#2b7ce9", null]);
         expect(values(r, "node", "glyphWeight")).toEqual(["bold", "normal", null]);
+    });
+
+    it("centers a vis.js icon node's label half its icon and margins plus 5 below its center", async () => {
+        // vis-network 9.1.9 Icon.draw: y + (icon.size + margin.top + margin.bottom) / 2 + 5, on a "middle" baseline
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "icon", label: "a", icon: { code: "A", size: 40 } },
+                { id: "b", shape: "icon", label: "b", icon: { code: "B" }, margin: { top: 2, bottom: 10 } },
+                { id: "c", shape: "icon", label: "c", icon: { code: "C", size: 40 }, font: { vadjust: 3 } },
+            ],
+            edges: [{ from: "a", to: "b" }],
+        });
+        expect(values(r, "node", "labelPosition")).toEqual(["center", "center", "center"]);
+        expect(values(r, "node", "labelOffsetY")).toEqual([30, 36, 33]);
     });
 
     it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {
@@ -540,8 +581,8 @@ describe("JSON styles: reading", () => {
             ],
         });
         expect(values(r, "edge", "midTargetArrow")).toEqual(["tee", null, null, "triangle"]);
-        expect(values(r, "edge", "targetArrow")[1]).toBe("other:curve");
-        expect(values(r, "edge", "sourceArrow")[2]).toBe("other:inv-curve");
+        expect(values(r, "edge", "targetArrow")[1]).toBe("curve");
+        expect(values(r, "edge", "sourceArrow")[2]).toBe("open-half-circle");
         // the band under the line, its outline beyond the line's own width; none under a straight edge
         expect(values(r, "edge", "outlineWidth")).toEqual([null, null, 7, 0]);
         expect(values(r, "edge", "outlineColor")[2]).toBe("#ffd700");
@@ -629,7 +670,7 @@ describe("JSON styles: reading", () => {
                 },
             ],
         });
-        expect(values(r, "edge", "targetArrow")[0]).toBe("other:image");
+        expect(values(r, "edge", "targetArrow")[0]).toBe("image");
         expect(values(r, "edge", "targetArrowImage")).toEqual([src, null]);
         expect(values(r, "edge", "targetArrowImageWidth")).toEqual([28, null]);
         expect(values(r, "edge", "targetArrowImageHeight")).toEqual([12, null]);

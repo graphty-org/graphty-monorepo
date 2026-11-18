@@ -17,6 +17,7 @@
 
 import type { CSVVariant } from "../data/CSVDataSource";
 import { registeredFormatDescriptors } from "./formatRegistry";
+import { withDescriptionIds, withEachDescriptionIds } from "./options";
 import {
     type FormatDescriptor,
     type FormatExportVariant,
@@ -427,7 +428,7 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
  * The options of a Neo4j admin-import export, `csv` with `{ variant: "neo4j" }`: graph-io's Neo4j
  * writer takes its own set, not the plain CSV writer's.
  */
-export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
+export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = withDescriptionIds("format.csv.write", [
     writerOptions.csv[0],
     {
         name: "part",
@@ -472,7 +473,7 @@ export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     { name: "idColumn", plainName: "Id Property", technicalName: "idColumn", type: "string", advanced: true },
     ...writerOptions.csv.filter((option) => option.name === "neutraliseFormulas"),
     ...COMMON_WRITER_OPTIONS,
-];
+]);
 
 /**
  * The options `exportGraph` accepts for a built-in format.
@@ -480,7 +481,7 @@ export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
  * @returns Its writer options, the common ones included.
  */
 function writerOptionsOf(id: string): readonly OptionDescriptor[] {
-    return withCommonWriterOptions(writerOptions[id]);
+    return withDescriptionIds(`format.${id}.write`, withCommonWriterOptions(writerOptions[id]));
 }
 
 /**
@@ -531,8 +532,8 @@ const CSV_VARIANTS: readonly FormatExportVariant[] = [
     },
 ];
 
-/** Every file format the element can read or write. */
-export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
+/** As written; {@link FORMAT_DESCRIPTORS} adds each described option's `descriptionId`. */
+const SHIPPED_FORMATS: readonly FormatDescriptor[] = [
     {
         id: "json",
         plainName: "JSON",
@@ -687,6 +688,13 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
             "read back by session.project.open, not by session.data.import.",
     },
 ];
+
+/** Every file format the element can read or write. */
+export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = withEachDescriptionIds(
+    "format",
+    SHIPPED_FORMATS,
+    (format) => format.id,
+);
 
 /**
  * The built-in format names no registered data source reads. Listed rather than omitted, so a

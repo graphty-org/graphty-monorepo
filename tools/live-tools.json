@@ -7,22 +7,17 @@
     "gate": {
         "worktree": ".worktrees/gate-live",
         "servers": [],
-        "test": "pnpm run test:ci-workflows && pnpm run test:sonar-gate"
+        "test": "pnpm run test:ci-workflows && pnpm run test:push-base"
     },
     "land": {
         "worktree": ".worktrees/land-live",
         "servers": [],
         "test": "node tools/branch-tracking.test.mjs"
     },
-    "sonar-baseline": {
-        "worktree": ".worktrees/sonar-baseline-runner",
-        "servers": ["sonar-baseline"],
-        "test": "node tools/sonar/sonar-baseline.test.mjs"
-    },
     "worktree-cleanup": {
         "worktree": ".worktrees/worktree-cleanup-live",
         "servers": ["worktree-cleanup"],
-        "test": "node tools/worktree-cleanup.test.mjs"
+        "test": "node tools/worktree-cleanup.test.mjs && node tools/idle-servers.test.mjs"
     },
     "pipeline-health-local": {
         "worktree": ".worktrees/pipeline-health-local-live",

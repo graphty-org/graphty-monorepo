@@ -8,6 +8,11 @@ implements_capabilities:
     - export-image
 used_in_workflows:
     - W15
+    - W20
+    - W21
+    - W22
+    - W24
+    - W25
 dependencies:
     - select
     - slider

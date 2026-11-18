@@ -171,6 +171,13 @@ export interface RepaintSources {
      */
     readonly hideUnpainted?: () => boolean;
     /**
+     * The elements drawn hidden (`visible: false`) whatever the layers paint: the nodes
+     * `session.hidden` holds and the edges touching them. Read after the layers in every pass.
+     * @param target - Nodes or edges.
+     * @returns One byte per element, 1 to hide, or null while none is.
+     */
+    readonly hidden?: (target: "node" | "edge") => Uint8Array | null;
+    /**
      * Whether a pass may fill the mesh keys of a dirty set in one go when every mesh-keying
      * channel is absent or the same over it, interning one sequence instead of one per element.
      * Read at the start of every interning; absent is off. The element turns it on under
@@ -1717,7 +1724,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         });
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw context.signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         const back = now();
@@ -1996,6 +2003,27 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
+     * Hide every dirty element the hidden rows name, over whatever the layers painted.
+     * @param store - The store.
+     */
+    const hideHidden = (store: TargetStore): void => {
+        const rows = sources.hidden?.(store.target) ?? null;
+        if (rows === null) {
+            return;
+        }
+
+        const channel: Channel = `${store.target}.visible`;
+        const column = columnFor(store, channel);
+        store.meshWritten = store.meshWritten || meshChannelsFor(store.target).includes(channel);
+        for (let at = 0; at < store.dirtyCount; at++) {
+            const index = store.dirty[at];
+            if (rows[index] === 1) {
+                writeColumn(column, index, false, false);
+            }
+        }
+    };
+
+    /**
      * Repaint one kind of element.
      * @param store - The store.
      * @param stack - The stack as it will stand, bottom first.
@@ -2047,6 +2075,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         }
 
         hideUnreached(store, reached);
+        hideHidden(store);
 
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
         // mesh, which is the ordinary case: a colour encoding moves no element to another mesh.
@@ -2079,7 +2108,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         problems = [];
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw context.signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         const { node: nodes, edge: edges } = stores;

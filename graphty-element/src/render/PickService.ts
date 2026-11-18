@@ -13,25 +13,23 @@
 // test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
 
-import {
-    type AbstractMesh,
-    Matrix,
-    type PickingInfo,
-    Ray,
-    type Scene,
-    type TransformNode,
-    Vector3,
-} from "@babylonjs/core";
+import type { PickingInfo } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.core.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { EdgeId } from "../catalog/types";
 import type { Edge } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
+import { convexRayHit } from "../meshes/convexHit";
 import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
 import { pickAtLayout, transitionUnderWay } from "../transitions/LayoutTransitionRunner";
 import type { EdgeIdTarget } from "./EdgeIdTarget";
-import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "./NodeIdTarget";
+import { ID_NONE, ID_OBJECT, type IdDrawn, type IdPick, type NodeIdTarget } from "./NodeIdTarget";
 
 /**
  * Picks that walk every mesh or every row, counted so a test can show a pointer move makes none:
@@ -326,7 +324,13 @@ export class RowScan {
      */
     rowRayHitOn(row: number, ray: Ray): Vector3 | null {
         const root = this.root?.computeWorldMatrix() ?? this.identity;
-        return this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null;
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, as a node's own mesh is
+        const node = this.nodeAt(row);
+        const convex =
+            node?.drawnByRowScan === true ? convexRayHit(node.drawnSourceMesh, ray, this.rowWorld(row, root)) : null;
+        return convex === undefined
+            ? (this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null)
+            : convex;
     }
 
     /**
@@ -548,9 +552,27 @@ export class RowScan {
             return null;
         }
 
+        return node.drawnSourceMesh.intersects(
+            rayFor(this.rowWorld(row, root)),
+            false,
+            undefined,
+            false,
+            this.world,
+            false,
+        );
+    }
+
+    /**
+     * Where a row's node is drawn in the world: its bound's center and its scaling, under graph-root.
+     * @param row - The row.
+     * @param root - {@link RowScan.rootMatrix}.
+     * @returns The matrix, which the next call overwrites.
+     */
+    private rowWorld(row: number, root: Matrix): Matrix {
+        const node = this.nodeAt(row);
         const { rowBounds: bounds } = this.table;
         const at = row * 4;
-        const { x, y, z } = node.drawnScaling;
+        const { x, y, z } = node?.drawnScaling ?? { x: 1, y: 1, z: 1 };
         Matrix.FromValuesToRef(
             x,
             0,
@@ -571,7 +593,7 @@ export class RowScan {
             this.local,
         );
         this.local.multiplyToRef(root, this.world);
-        return node.drawnSourceMesh.intersects(rayFor(this.world), false, undefined, false, this.world, false);
+        return this.world;
     }
 }
 
@@ -680,9 +702,17 @@ export function useNodeIdTarget(scene: Scene, reader: NodeIdReader | null): void
     }
 }
 
+/** A hover's answer: the node under the pointer, and where the node ID target drew it. */
+export interface HoverPick {
+    readonly id: NodeIdType | undefined;
+    /** Where the target drew the node in the frame it was read from; absent when it does not say. */
+    readonly drawn?: IdDrawn;
+}
+
 /**
  * The node a hover at a canvas point is over. On the `"batched"` path it is read from the node ID
- * target with no walk over nodes, at once on WebGL and once read back on WebGPU; a pixel of a mesh that is not a batched row
+ * target with no walk over nodes, at once on WebGL and once read back on WebGPU, where the answer
+ * also says where the node was drawn in the frame it was read from; a pixel of a mesh that is not a batched row
  * (or of nothing, while some row is drawn only by a shader surface), a layout transition, a target not ready yet, or no target, asks {@link pickNodeId} at once.
  *
  * A pixel where two rows of the same depth overlap names the one drawn last, which a press,
@@ -690,27 +720,24 @@ export function useNodeIdTarget(scene: Scene, reader: NodeIdReader | null): void
  * @param scene - The scene.
  * @param x - X in CSS pixels.
  * @param y - Y in CSS pixels.
- * @returns The node's id or `undefined`, now or once read.
+ * @returns The node and where it was drawn, now or once read.
  */
-export function hoverNodeId(
-    scene: Scene,
-    x: number,
-    y: number,
-): NodeIdType | undefined | Promise<NodeIdType | undefined> {
+export function hoverNodeId(scene: Scene, x: number, y: number): HoverPick | Promise<HoverPick> {
     const ids = nodeIdTargets.get(scene);
-    const read = ids === undefined || transitionUnderWay(scene) ? null : ids.target.read(x, y);
+    const read = ids === undefined || transitionUnderWay(scene) ? null : ids.target.pick(x, y);
     if (ids === undefined || read === null) {
-        return pickNodeId(scene, x, y);
+        return { id: pickNodeId(scene, x, y) };
     }
 
-    const answer = (texel: number): NodeIdType | undefined => {
+    const answer = ({ texel, drawn }: IdPick): HoverPick => {
         if (texel === ID_OBJECT || (texel === ID_NONE && ids.hiddenRows())) {
-            return pickNodeId(scene, x, y);
+            return { id: pickNodeId(scene, x, y) };
         }
 
-        return texel === ID_NONE ? undefined : ids.nodeIdAt(texel);
+        const id = texel === ID_NONE ? undefined : ids.nodeIdAt(texel);
+        return id === undefined || drawn === undefined ? { id } : { id, drawn };
     };
-    return typeof read === "number" ? answer(read) : read.then(answer);
+    return read instanceof Promise ? read.then(answer) : answer(read);
 }
 
 /**

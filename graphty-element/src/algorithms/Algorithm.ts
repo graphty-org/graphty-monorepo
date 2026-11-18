@@ -1,5 +1,5 @@
 import { accelerated, type AcceleratedAlgorithms } from "@graphty/algorithms";
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { edgeIsDirected, type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 
 import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
@@ -7,9 +7,11 @@ import { type RegisterOptions, SharedImplementationMap } from "../catalog/plugin
 import { noteDescribedAlgorithm, noteUndescribedAlgorithm, publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
+import { writableLane } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
+import { algorithmLog } from "../logging/algorithmLog";
 import type { RunResult } from "../session/results";
 import type { Caveats } from "../session/runs/types";
 import { type InputColumns, sessionColumns } from "./input/columns";
@@ -341,6 +343,15 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     static readonly weightMeaning: WeightReads | null = null;
 
+    /**
+     * Whether a run whose `weight` option is absent reads the weight the graph was loaded with
+     * (true, the default) or no weight at all (false). False is for a class whose weighted form
+     * came after its unweighted one, so a run that names no weight computes exactly as it always
+     * did. The catalogue publishes false as the `weight` option's `default: null`.
+     * @internal
+     */
+    static readonly loadedWeightByDefault: boolean = true;
+
     protected graph: Graph;
 
     /** The `weight` option as passed, before any schema dropped it. */
@@ -393,13 +404,53 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @internal
      */
     protected weightReading(): WeightReading {
+        const cls = this.constructor as typeof Algorithm;
+        if (this.#weightAsked === undefined && !cls.loadedWeightByDefault) {
+            // Reads no weight, over the same input as before the class had a weighted form.
+            this.#weightReading ??= { weight: null, input: undefined };
+        }
+
         this.#weightReading ??= resolveRunWeight(
-            (this.constructor as typeof Algorithm).weightMeaning,
+            cls.weightMeaning,
             this.#weightAsked,
             loadedWeightOf(this.graph),
             this.graph.getDataManager().lastImport?.weights.attribute ?? null,
         );
         return this.#weightReading;
+    }
+
+    /**
+     * How this run's input merges a group of parallel edges: the class's
+     * {@link Algorithm.parallelEdges} unless a subclass reads a repeat differently per run (a
+     * weighted distance takes the cheapest edge of the group, an unweighted run the class's own).
+     * @returns The policy, or undefined for `"sum"`.
+     * @internal
+     */
+    parallelEdgePolicy(): SimplifyPolicy | undefined {
+        return (this.constructor as typeof Algorithm).parallelEdges;
+    }
+
+    /**
+     * The direction this run reads every edge with, when its input mixes directed and undirected
+     * edges: the graph's one default, since an algorithm does not read an edge's own.
+     * @returns True when every edge is read as directed, false when as undirected; null when the
+     *     run's input does not mix the two.
+     * @internal
+     */
+    mixedDirection(): boolean | null {
+        const { graph, edges } = this.input("declared");
+        let directed = false;
+        let undirected = false;
+        for (let edge = 0; edge < graph.edgeCount && !(directed && undirected); edge++) {
+            if (maskTest(edges, edge)) {
+                if (edgeIsDirected(graph, edge)) {
+                    directed = true;
+                } else {
+                    undirected = true;
+                }
+            }
+        }
+        return directed && undirected ? graph.directed : null;
     }
 
     /**
@@ -437,7 +488,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @internal
      */
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput {
-        const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
+        const simplify = options?.simplify ?? this.parallelEdgePolicy();
         // The weight this run reads, unless the caller asked its input for one itself.
         const weight = options?.weight === undefined ? this.weightReading().input : options.weight;
         const merged = {
@@ -446,7 +497,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             ...(weight === undefined ? {} : { weight }),
         };
 
-        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this), this.columns());
+        const data = this.graph.getDataManager();
+        // The store's snapshot lends the lane by reference, so a layout's owed publish
+        // (design/rendering/row-renderer.md 4.5) is written before the run reads its positions.
+        writableLane(data)?.settle();
+        return createScopedInput(data, orientation, merged, runInputOf(this), this.columns());
     }
 
     /**
@@ -551,6 +606,16 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                 ? {}
                 : { sourceEdges: Math.min(options.sources, snapshot.nodeCount) * snapshot.edgeCount }),
         };
+        const placed = (placement: "gpu" | "cpu", why: Record<string, unknown>): void => {
+            algorithmLog.info("placement", {
+                capability,
+                nodes: work.nodeCount,
+                edges: work.edgeCount,
+                sourceEdges: work.sourceEdges ?? null,
+                placement,
+                ...why,
+            });
+        };
 
         return {
             snapshot,
@@ -566,16 +631,19 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                     // eigenvector centrality over a graph whose iteration the device kernel cannot
                     // match, say -- so the precision follows whether a member was actually reached.
                     let reached = false;
-                    const outcome = await controller.run(work, (accelerator) =>
-                        fn(
+                    const outcome = await controller.run(work, (accelerator) => {
+                        // Logged before the device work starts, so a run that never comes back
+                        // still says where it went.
+                        placed("gpu", { accelerator: accelerator.name });
+                        return fn(
                             accelerated(
                                 narrowAlgorithms(accelerator, () => {
                                     reached = true;
                                 }),
                             ),
                             snapshot,
-                        ),
-                    );
+                        );
+                    });
 
                     if (outcome.accelerated) {
                         if (reached) {
@@ -597,6 +665,10 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 
                         return { value: outcome.value, precision: CPU_PRECISION };
                     }
+
+                    placed("cpu", { reason: outcome.reason, code: outcome.code ?? null });
+                } else {
+                    placed("cpu", { reason: "not forwarded to an accelerator" });
                 }
 
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one

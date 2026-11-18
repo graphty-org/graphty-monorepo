@@ -26,7 +26,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { assertPlaced } from "../helpers/placed-position";
 import { nextFrame } from "../helpers/real-input";
-import { isDisposed, styleEveryEdge, styleEveryNode, type TestGraph } from "../helpers/testSetup";
+import { isDisposed, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
 const TEST_NODES = [
@@ -192,7 +192,7 @@ describe("Property Order Independence", () => {
      * This ensures edges were properly rendered.
      */
     function verifyEdgeMeshesExist(): void {
-        for (const edge of (graph as unknown as TestGraph).dataManager.edges.values()) {
+        for (const edge of graph.getDataManager().edges.values()) {
             assert.isDefined(edge.mesh, "Edge should have a mesh");
             // PatternedLineMesh doesn't have isDisposed method the same way
             if ("isDisposed" in edge.mesh && typeof edge.mesh.isDisposed === "function") {
@@ -206,7 +206,7 @@ describe("Property Order Independence", () => {
      * This ensures the rendering pipeline correctly synced positions from layout to meshes.
      */
     function verifyNodePositionsMatchLayout(): void {
-        const { layoutManager } = graph as unknown as TestGraph;
+        const layoutManager = graph.getLayoutManager();
         const { layoutEngine } = layoutManager;
 
         // Verify layout engine exists
@@ -339,7 +339,7 @@ describe("Property Order Independence", () => {
      * This ensures setLayout() actually configured the correct layout engine.
      */
     function verifyLayoutEngineType(expectedType: string): void {
-        const { layoutManager } = graph as unknown as TestGraph;
+        const layoutManager = graph.getLayoutManager();
         const { layoutEngine } = layoutManager;
 
         assert.isDefined(layoutEngine, "Layout engine should exist");

@@ -7,7 +7,7 @@ import {
 } from "@graphty/graphty-element/catalog";
 import { type Channel, type LabelStyle, labelTemplateLine } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Stack, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -127,9 +127,23 @@ function channelsOf(kind: TextKindSpec): Channel[] {
  * value. Nothing from the layers beneath is drawn.
  * @param props - Component props
  * @param props.ctx - the row and side
+ * @param props.configured - whether the row writes text, drawn as a dot after the title
+ * @param props.actions - more header buttons, before its "+"
+ * @param props.loose - more text properties drawn as their own lines when the row sets them and no
+ *   entry of this section draws them (a file's label size with no label words)
  * @returns The section
  */
-export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+export function LabelSection({
+    ctx,
+    configured,
+    actions,
+    loose = [],
+}: Readonly<{
+    ctx: RowContext;
+    configured?: boolean;
+    actions?: React.ReactNode;
+    loose?: readonly Channel[];
+}>): React.JSX.Element {
     const { store } = useWorkspace();
     // The kind picked from "+" whose source list is open, and the kind whose fixed words are being typed.
     const [picking, setPicking] = useState<string | null>(null);
@@ -262,15 +276,29 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     }, [asked, askedHas, store]);
     const shown = kinds.filter((kind) => hasEntry(kind) || picking === kind.id || typing === kind.id);
     const partial = kinds.filter((kind) => !shown.includes(kind) && partlySet(ctx, kind.words, kind.style));
+    // No value is invisible: a text property the row sets that no entry draws gets a line of its own.
+    const drawn = new Set(shown.flatMap(channelsOf));
+    const looseLines = loose.flatMap((channel) => {
+        const held =
+            !drawn.has(channel) && (lineIn(ctx, channel) !== undefined || partlySet(ctx, channel) !== undefined);
+        const descriptor = held ? shownChannel(session, target, channel, true) : undefined;
+        return descriptor?.renderable === true ? [descriptor] : [];
+    });
 
     return (
         <div ref={list} data-section={`${target}-text`} className="ws-section">
             <ControlSection
                 label="Text"
                 headingLevel={3}
-                empty={shown.length === 0 && partial.length === 0}
+                empty={shown.length === 0 && partial.length === 0 && looseLines.length === 0}
+                hasConfiguredValues={configured}
                 collapsible={false}
-                actions={<AddButton kind={target} title="Text" options={options} onAdd={onAdd} />}
+                actions={
+                    <>
+                        {actions}
+                        <AddButton kind={target} title="Text" options={options} onAdd={onAdd} />
+                    </>
+                }
             >
                 {kinds.map((kind) => {
                     if (picking === kind.id) {
@@ -359,10 +387,19 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                                 })}
                                 <span className="ws-field-name">{KIND_WORDS[kind.id] ?? kind.name}</span>
                             </span>
-                            <Text size="xs" style={{ flex: 1 }}>
-                                {some.set < some.of ? `Set on ${String(some.set)} of ${String(some.of)}` : "Mixed"}
-                            </Text>
-                            <Tooltip label={`Remove ${noun} from every row`}>
+                            <span style={{ flex: 1 }} />
+                            <Tooltip
+                                label={
+                                    <>
+                                        {`Remove ${noun} from every row`}
+                                        <div>
+                                            {some.set < some.of
+                                                ? `Set on ${String(some.set)} of ${String(some.of)}`
+                                                : "Mixed"}
+                                        </div>
+                                    </>
+                                }
+                            >
                                 <ActionIcon
                                     variant="subtle"
                                     size="sm"
@@ -377,6 +414,9 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                         </Group>
                     );
                 })}
+                {looseLines.map((descriptor) => (
+                    <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
+                ))}
             </ControlSection>
         </div>
     );
@@ -826,7 +866,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <span className="ws-slot" />
                 </div>
             ) : null}
-            <UndrawnNote session={session} line={words} channel={kind.words} />
             {/* The look, the size and the position on the panel's field column, each with Clear. */}
             <StyleLine
                 word="Look"
@@ -868,39 +907,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 />
             </StyleLine>
         </Stack>
-    );
-}
-
-/**
- * Why an end label draws nothing, worded from the element's `caption.noArrow` fact: an end label
- * hangs from that end's arrowhead, and these edges draw none.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.line - the layer line that writes the words, if any
- * @param props.channel - the words' channel
- * @returns The note, or nothing while the element reports no undrawn text on this channel
- */
-function UndrawnNote({
-    session,
-    line,
-    channel,
-}: Readonly<{ session: GraphSession; line: Line | undefined; channel: Channel }>): React.JSX.Element | null {
-    if (line === undefined) {
-        return null;
-    }
-    const fact = session.styles
-        .counts(line.layer.id)
-        ?.undrawn.find((f) => f.code === "caption.noArrow" && f.params.channel === channel);
-    if (fact === undefined) {
-        return null;
-    }
-    const end = fact.params.arrow === "edge.arrowTail" ? "source" : "target";
-    const count = Number(fact.params.count);
-    const edges = count === 1 ? "1 edge" : `${String(count)} edges`;
-    return (
-        <Text size="xs" c="dimmed" pl={4}>
-            {`Not drawn on ${edges}: it shows beside a ${end} arrowhead, and they have none. Add one under Arrowheads.`}
-        </Text>
     );
 }
 

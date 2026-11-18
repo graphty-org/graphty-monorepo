@@ -3,7 +3,7 @@
  * driven by real clicks (the owner's review, 2026-11-07): the tabs come first; Sources holds the
  * sources with Filters directly under Data sources, and Calculated the results, with no "Runs"
  * heading; the tab chosen is kept; a result's row has no filled tags, only quiet marks (what uses it, a scope other than what is showing), and
- * its "..." holds Apply style, greyed once it is styled, and Remove result; a filter's row says its
+ * its "..." holds Apply style, greyed once it is styled, Run again with changes..., Combine into a score..., the Copy items and Remove result; a filter's row says its
  * steps in one structured line.
  */
 
@@ -22,8 +22,8 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { sourceName } from "../words";
 
-// The tabs belong to the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * Les Miserables in the workspace, on the Data place.
@@ -155,8 +155,23 @@ describe("the Data place's Sources and Calculated tabs", () => {
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
-            items.map((item) => /^(Apply style|Remove result)/u.exec(item.textContent ?? "")?.[1]),
-            ["Apply style", "Remove result"],
+            items.map(
+                (item) =>
+                    /^(Apply style|Run again with changes\.\.\.|Combine into a score\.\.\.|Copy [a-zA-Z ]+?|Remove result)(?=Not finished|Already styled|$)/u.exec(
+                        item.textContent ?? "",
+                    )?.[1],
+            ),
+            [
+                "Apply style",
+                "Run again with changes...",
+                "Combine into a score...",
+                "Copy as JSON",
+                "Copy as command",
+                "Copy methods text",
+                "Copy as TSV",
+                "Copy member ids",
+                "Remove result",
+            ],
         );
         assert.include(items[0].textContent ?? "", "Already styled");
         assert.isTrue(items[0].hasAttribute("data-disabled") || items[0].hasAttribute("disabled"), "greyed");
@@ -206,6 +221,28 @@ describe("the Data place's Sources and Calculated tabs", () => {
         await waitFor(() => {
             assert.deepEqual(store.get().inspected, { kind: "measure-row", id });
         });
+    });
+
+    it("opens a result with no style in the inspector with no Style tab, and Apply style brings the tab", async () => {
+        const { session } = await openData();
+        await session.runs.start("pagerank", {});
+        const id = session.runs.list().find((run) => run.algorithm === "pagerank")?.id ?? "";
+        for (const layer of session.runs.bindings(id)) {
+            await session.styles.remove(layer);
+        }
+        const row = await calculatedRow();
+        await waitFor(() => {
+            assert.isNull(within(row).queryByRole("img", { name: /^Styles/ }), "nothing styles it");
+        });
+        await userEvent.click(row.querySelector<HTMLElement>(".dp-run-main") ?? row);
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        const values = await inspector.findByRole("tab", { name: "Values" });
+        assert.strictEqual(values.getAttribute("aria-selected"), "true");
+        assert.isNull(inspector.queryByRole("tab", { name: "Style" }), "no empty Style tab");
+
+        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Apply style/ }));
+        await inspector.findByRole("tab", { name: "Style" });
     });
 
     it("a filter's row is one group named by its words, its controls by short names, Edit showing Enter", async () => {

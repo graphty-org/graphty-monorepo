@@ -48,13 +48,11 @@ export class FileGuard {
     }
 
     /**
-     * A file started. A measurement carries no guard (tools/test-wait-guard.mjs).
+     * A file started. A measurement (a `bench*` project) is held to the same limit (#8032).
      * @param testModule - vitest's TestModule
      */
     onTestModuleQueued(testModule) {
-        if (!testModule.project.name.startsWith("bench")) {
-            this.running.set(testModule.id, { testModule, since: this.now() });
-        }
+        this.running.set(testModule.id, { testModule, since: this.now() });
     }
 
     /**

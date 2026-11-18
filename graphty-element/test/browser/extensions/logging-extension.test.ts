@@ -54,7 +54,6 @@ import {
 import { Graph } from "../../../index.js";
 import { GraphtyLogger, lazy, LogLevel, type LogRecord, type Sink } from "../../../logging";
 import { createGraphSession } from "../../../session";
-import { operationQueueOf } from "../../../src/Graph";
 
 // ---------------------------------------------------------------------------------------------
 // The dummy extension
@@ -367,7 +366,7 @@ describe("a third party's log destination", () => {
         await graph.init();
         await graph.addNodes([{ id: "a" }, { id: "b" }]);
         await graph.addEdges([{ src: "a", dst: "b" }]);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const categories = new Set(collector.kept.map((entry) => entry.record.category.join(".")));
 

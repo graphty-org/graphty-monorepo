@@ -161,9 +161,10 @@ function watchStatus(element: Graphty): AccelerationStatus[] {
  * Sets a layout and waits for the element to report the arrangement at rest.
  * @param element - The element to lay out.
  * @param layout - The registered layout name.
+ * @param options - The layout's options.
  * @returns How long the settle took, in milliseconds.
  */
-async function settle(element: Graphty, layout: string): Promise<number> {
+async function settle(element: Graphty, layout: string, options: object = {}): Promise<number> {
     let settled = false;
     const onSettled = (): void => {
         settled = true;
@@ -172,7 +173,7 @@ async function settle(element: Graphty, layout: string): Promise<number> {
     element.addEventListener("graph-settled", onSettled, { once: true });
 
     const started = performance.now();
-    await element.setLayout(layout);
+    await element.setLayout(layout, options);
     await until(() => settled, `"${layout}" to settle`);
     const took = performance.now() - started;
 
@@ -613,6 +614,65 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
             );
         }
     });
+});
+
+/**
+ * How far the arrangement reaches along z: the standard deviation of every node's z.
+ * @param element - The element whose positions to measure.
+ * @returns The spread, in scene units; 0 for a flat arrangement.
+ */
+function zSpread(element: Graphty): number {
+    const data = element.graph.getDataManager();
+    const read = { x: 0, y: 0, z: 0 };
+    const zs: number[] = [];
+
+    for (const { id } of GRAPH.nodes) {
+        const node = data.getNode(id);
+
+        if (node === undefined) {
+            throw new Error(`the graph lost ${id} between load and measurement`);
+        }
+
+        data.positions.read(node.index, read);
+        zs.push(read.z);
+    }
+
+    const mean = zs.reduce((sum, z) => sum + z, 0) / zs.length;
+
+    return Math.sqrt(zs.reduce((sum, z) => sum + (z - mean) ** 2, 0) / zs.length);
+}
+
+describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: a 3D force layout", () => {
+    for (const layout of ["forceatlas2", "force"]) {
+        it(`spreads "${layout}" with dim 3 along z on the device as the CPU does, from a flat arrangement`, async () => {
+            const options = { dim: 3, seed: 7 };
+
+            // FROM A FLAT START: a 2D arrangement first, so every node begins the 3D run at z = 0.
+            await settle(gpu, layout, { dim: 2, seed: 7 });
+            await settle(cpuReference(), layout, { dim: 2, seed: 7 });
+            assert.equal(zSpread(gpu), 0, "the 2D arrangement is flat");
+
+            await settle(gpu, layout, options);
+            assert.isTrue(
+                (gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated,
+                "the layout ran on the accelerator",
+            );
+            const accelerated = zSpread(gpu);
+
+            await settle(cpuReference(), layout, options);
+            const onCpu = zSpread(cpuReference());
+
+            console.log(`[webgpu-layout] adapter=${ADAPTER} layout=${layout} zSpread gpu=${accelerated} cpu=${onCpu}`);
+
+            assert.isAbove(onCpu, 0, "the CPU reference laid the graph out in 3D, or the case proves nothing");
+            assert.isAbove(
+                accelerated / onCpu,
+                0.5,
+                `the device's z spread ${accelerated.toFixed(3)} against the CPU's ${onCpu.toFixed(3)}`,
+            );
+            assert.isBelow(accelerated / onCpu, 2, "and no more than twice it");
+        });
+    }
 });
 
 describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the policy accepts", () => {

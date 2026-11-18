@@ -2,20 +2,9 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
-import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
+import { asNumber, createMockGraph, getNodeResult } from "../../helpers/mockGraph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createMockGraph;
 
 describe("DFSAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -53,7 +42,7 @@ describe("DFSAlgorithm", () => {
             for (const node of fakeGraph.nodes.values()) {
                 const discoveryTime = getNodeResult(algo, node.id, "graphty", "dfs", "discoveryTime");
                 if (discoveryTime !== undefined) {
-                    assert.isAtLeast(discoveryTime, 0);
+                    assert.isAtLeast(asNumber(discoveryTime), 0);
                 }
             }
         });
@@ -67,7 +56,7 @@ describe("DFSAlgorithm", () => {
             for (const node of fakeGraph.nodes.values()) {
                 const finishTime = getNodeResult(algo, node.id, "graphty", "dfs", "finishTime");
                 if (finishTime !== undefined) {
-                    assert.isAtLeast(finishTime, 0);
+                    assert.isAtLeast(asNumber(finishTime), 0);
                 }
             }
         });
@@ -82,7 +71,7 @@ describe("DFSAlgorithm", () => {
                 const discoveryTime = getNodeResult(algo, node.id, "graphty", "dfs", "discoveryTime");
                 const finishTime = getNodeResult(algo, node.id, "graphty", "dfs", "finishTime");
                 if (discoveryTime !== undefined && finishTime !== undefined) {
-                    assert.isAbove(finishTime, discoveryTime);
+                    assert.isAbove(asNumber(finishTime), asNumber(discoveryTime));
                 }
             }
         });
@@ -96,8 +85,8 @@ describe("DFSAlgorithm", () => {
             for (const node of fakeGraph.nodes.values()) {
                 const discoveryTimePct = getNodeResult(algo, node.id, "graphty", "dfs", "discoveryTimePct");
                 if (discoveryTimePct !== undefined) {
-                    assert.isAtLeast(discoveryTimePct, 0);
-                    assert.isAtMost(discoveryTimePct, 1);
+                    assert.isAtLeast(asNumber(discoveryTimePct), 0);
+                    assert.isAtMost(asNumber(discoveryTimePct), 1);
                 }
             }
         });

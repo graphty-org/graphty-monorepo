@@ -11,6 +11,21 @@ import { RichTextStyle } from "./RichTextStyle";
  */
 export const NodeSizeModes = z.enum(["scale", "diameter", "uniform"]);
 
+/**
+ * How a node's drawn size follows the camera (`shape.sizeSpace`, the `node.sizeSpace` channel):
+ * - "scene" (the default): plain perspective, a nearer node looks bigger and zooming in grows it.
+ * - "pivot": drawn as if it stood at the depth of the point the camera turns about, so near and
+ *   far nodes compare as their sizes; zooming still scales it. Only a 3D perspective view with the
+ *   orbit camera; elsewhere it is drawn as "scene".
+ * - "screen": a node of size `s` covers `s / L` of the view's height at any depth and zoom, where
+ *   `L` is the running layout's `nodeScreenReference` (50 when the layout supplies none).
+ * An XR session draws every node at its scene size, whatever this says.
+ */
+export const NodeSizeSpaces = z.enum(["scene", "pivot", "screen"]);
+
+/** How a node's drawn size follows the camera: see {@link NodeSizeSpaces}. */
+export type NodeSizeSpace = z.infer<typeof NodeSizeSpaces>;
+
 /** The axis that points up in a model's file, or "detected" to read it from the format. */
 export const NodeModelUpAxes = z.enum(["detected", "y", "z", "-y", "-z", "x", "-x"]);
 
@@ -242,6 +257,9 @@ export const NodeStyle = z.strictObject({
             //   default icosphere's, 1.5 units per unit of size, as a graph file's node size means.
             //   Styles read from another program's file use it.
             sizeMode: NodeSizeModes.optional(),
+            // How the drawn size follows the camera: see `NodeSizeSpaces`. Unset, the graph-wide
+            // `layoutBehavior.node.sizeSpace`, and "scene" when that is unset too.
+            sizeSpace: NodeSizeSpaces.optional(),
             detail: NodeMeshDetails.or(z.number().int().min(1)).optional(),
             type: NodeShapes.optional(),
             // The drawn extent along x, y and z, in the units of `size`. Each one left unset keeps
@@ -336,6 +354,11 @@ export const NodeStyle = z.strictObject({
             // read. Unset, the picture does not size the node.
             labelFitImage: z.number().nonnegative().optional(),
             labelFitImagePadding: z.number().nonnegative().optional(),
+            // The node takes its picture's (`image.src`) proportions: its box grows the longer way until the picture,
+            // at its own proportions, covers its `width` and `height` (else `size`), as vis-network sizes an image
+            // node. The node is fitted again once the picture's size is read; until then, and for a picture that
+            // cannot be read, it keeps its own box. `labelFit` sizes the node instead when it is set.
+            imageAspect: z.boolean().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).
@@ -344,8 +367,18 @@ export const NodeStyle = z.strictObject({
             modelSourceUp: NodeModelUpAxes.optional(),
             // A turn about the up axis after `modelSourceUp`, in degrees.
             modelTurn: z.number().min(-360).max(360).optional(),
-            // true multiplies the model's base color by the node color; "replace" paints it flat.
-            modelTint: z.union([z.boolean(), z.literal("replace")]).optional(),
+            // true multiplies the model's base color by the node color; "replace" paints it flat;
+            // "untextured" paints flat only the parts with no picture and no vertex colors. A part
+            // the file gives no material takes the node color whatever this says.
+            modelTint: z.union([z.boolean(), z.literal("replace"), z.literal("untextured")]).optional(),
+            // The clip the model plays, by its name in the file; "" (or unset) draws it still.
+            modelAnimation: z.string().optional(),
+            // How fast the clip plays: 1 is the file's speed, 0 holds the frame at modelAnimationOffset.
+            modelAnimationSpeed: z.number().min(0).max(16).optional(),
+            // Seconds into the clip the node starts at (with speed 0, the pose it holds).
+            modelAnimationOffset: z.number().min(0).optional(),
+            // Draw both faces of every triangle (true), only the front (false), or as the file says ("file").
+            modelDoubleSided: z.union([z.boolean(), z.literal("file")]).optional(),
             // "contain" keeps proportions; "stretch" fills width, height and depth separately.
             modelFit: NodeModelFits.optional(),
             // "bounds" centers the bounding box on the node; "origin" keeps the file's pivot.
@@ -380,10 +413,12 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             outline: z
                 .strictObject({
-                    // COLOUR ONLY. The outline is a ring around the node whose width is a fixed
-                    // share of the node's size (NodeEffects.applyOutlineEffect), so a declared
-                    // `width` would be accepted and ignored.
+                    // The ring around the node (NodeEffects.applyOutlineEffect). A width alone,
+                    // with no colour, draws nothing, as a glow strength alone draws nothing.
                     color: ColorStyle.optional(),
+                    // How wide the ring's band is drawn, as a multiple of its own width (1).
+                    // Unset, the graph's `layoutBehavior.node.outlineWidth`, else 1.
+                    width: z.number().nonnegative().max(10).optional(),
                 })
                 .optional(),
             // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any

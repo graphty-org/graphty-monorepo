@@ -47,7 +47,7 @@ const STYLE_PATCH_ACTIONS = Object.freeze([
     "lockRow",
     "hideRow",
     "deleteRow",
-    "restoreStartingRows",
+    "addDefaultRows",
 ] as const);
 
 /** `style.patch`: one change to the stack, said the way the styles verb that made it says it. */
@@ -110,8 +110,11 @@ export type StylePatchCommand =
           /** Where it goes; the top of the unpinned top-level rows when absent. */
           readonly at?: StyleRowPlace;
       }
-    /** Add back whichever of the starting rows (Everything, Selected, Hovered) the stack lacks. */
-    | { readonly op: "style.patch"; readonly action: "restoreStartingRows" }
+    /**
+     * Write the default rows once, as plain data (the project setting `startingRows` turning on);
+     * with `timelineHidden`, only the timeline's Timeline Hidden row (the timeline turning on).
+     */
+    | { readonly op: "style.patch"; readonly action: "addDefaultRows"; readonly timelineHidden?: true }
     | { readonly op: "style.patch"; readonly action: "renameRow"; readonly id: StyleRowId; readonly name: string }
     | { readonly op: "style.patch"; readonly action: "moveRow"; readonly id: StyleRowId; readonly to: StyleRowPlace }
     | { readonly op: "style.patch"; readonly action: "pinRow"; readonly id: StyleRowId; readonly pin: StyleRowPin }
@@ -243,8 +246,8 @@ function patchFact(command: StylePatchCommand, state: ProjectState): CodedFact<H
             return { code: "style.move-row", params: { row: rowOf(state, command.id) } };
         case "deleteRow":
             return { code: "style.delete-row", params: { row: rowOf(state, command.id) } };
-        case "restoreStartingRows":
-            return { code: "style.restore-starting-rows", params: {} };
+        case "addDefaultRows":
+            return { code: "style.add-default-rows", params: {} };
         case "pinRow":
             return { code: "style.pin-row", params: { row: rowOf(state, command.id), pin: command.pin } };
         case "lockRow":
@@ -331,8 +334,8 @@ function patchLabel(command: StylePatchCommand, state: ProjectState): string {
             return `${command.hidden ? "Hid" : "Showed"} "${rowOf(state, command.id)}"`;
         case "deleteRow":
             return `Deleted "${rowOf(state, command.id)}"`;
-        case "restoreStartingRows":
-            return "Restored the starting layers";
+        case "addDefaultRows":
+            return "Added the default layers";
         default:
             return "Changed the style layers";
     }

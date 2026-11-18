@@ -19,8 +19,6 @@ const config: KnipConfig = {
         // Root workspace - shared configs and docs
         ".": {
             entry: [
-                "vite.shared.config.ts",
-                "vitest.shared.config.ts",
                 // First setup file of the packages' browser test projects (named in their vitest configs)
                 "vitest.browser-coverage-setup.ts",
                 // Every package's wait guard setup file (named in their vitest configs)
@@ -31,6 +29,8 @@ const config: KnipConfig = {
                 "vitest.babylon-compilers-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
+                // The SonarQube rule set the root eslint.config.js spreads; it loads the sonarjs, unicorn and react plugins
+                "tools/eslint-rules/sonar-way.mjs",
                 "tools/changelog-renderer.cjs",
                 // The release scheduler Worker (deployed by wrangler, not imported) and its tests
                 "tools/release-scheduler/src/worker.js",
@@ -55,8 +55,6 @@ const config: KnipConfig = {
                 // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
                 // checkout; nothing imports it
                 "@graphty/githerd",
-                // SonarQube scanner (run as node_modules/.bin/sonar-scanner-npm by tools/sonar/api.mjs)
-                "@sonar/scan",
             ],
         },
 
@@ -75,11 +73,13 @@ const config: KnipConfig = {
         // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
         // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
-            // the network source subpaths are published entries of their own (@graphty/graph-io/sources/<name>)
+            // the network source list and each source are published entries of their own
+            // (@graphty/graph-io/sources and @graphty/graph-io/sources/<name>)
             entry: [
                 "src/index.ts!",
                 "src/styles/index.ts!",
                 "src/positions/index.ts!",
+                "src/sources/index.ts!",
                 "src/sources/*/index.ts!",
                 // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
                 "src/styles/internal.ts",
@@ -169,6 +169,22 @@ const config: KnipConfig = {
             // two subpaths never load it. `lint:knip:prod` runs --strict and would report it as unlisted; the
             // default run resolves it as a devDependency and hints an ignore as redundant.
             ignoreDependencies: production ? ["@babylonjs/core"] : [],
+        },
+
+        // babylonjs-models package: the root and the Babylon-free "./files" and "./detect" subpaths are entries
+        "babylonjs-models": {
+            entry: [
+                "src/index.ts!",
+                "src/files/index.ts!",
+                "src/detect/index.ts!",
+                "test/**/*.test.ts",
+                "scripts/*.mjs",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/*.mjs"],
+            // `@babylonjs/core` and `@babylonjs/loaders` are optional peers (and devDependencies): only the root entry
+            // imports them. `lint:knip:prod` runs --strict and would report them as unlisted. `three` is a
+            // devDependency only for the Draco decoder files scripts/copy-decoders.mjs copies from its folder.
+            ignoreDependencies: production ? ["@babylonjs/core", "@babylonjs/loaders"] : ["three"],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
@@ -422,13 +438,6 @@ const config: KnipConfig = {
             // The plugin finds nothing else that run reads.
             ...(production ? { vite: false } : {}),
             ignoreDependencies: [
-                // Used in storybook demos
-                "@zag-js/floating-panel",
-                "@zag-js/react",
-                // The engine @storybook/addon-a11y ships (a devDependency here), imported by
-                // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
-                // Declaring it would change pnpm-lock.yaml.
-                "axe-core",
                 // The types of the `react` peer, which the published declaration files (dist/index.d.ts)
                 // import and --production follows into the build
                 ...(production ? ["@types/react"] : []),
@@ -481,11 +490,13 @@ const config: KnipConfig = {
         "wait", // Shell built-in used in npm scripts
         // System tools that scripts and tests run with execFileSync or spawn (knip 6 reads those calls;
         // knip 5 did not): none is an npm package, so none can be listed as a dependency.
+        "convert", // ImageMagick, for the model variant fixtures (babylonjs-models/test/fixtures/variants)
         "dot", // Graphviz
         "fc-list",
         "flock",
         "ionice",
         "jq",
+        "log", // macOS unified log (log stream), for webinspectord's registrations (graphty-element/test/lifecycle)
         "mkfifo",
         "nvidia-smi",
         "pkill",

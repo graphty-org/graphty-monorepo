@@ -1,6 +1,6 @@
 import { defineRegistration } from "../commands/registry";
+import { nothingDrawn } from "../toolbar/disabledReasons";
 import { togglePopover } from "../toolbar/popover";
-import { nothingDrawn } from "../toolbar/useSessionVersion";
 import { randomSeed, takesSeed } from "./methods";
 
 /** The Layout package's commands (tier1-design.md 5.T11). */
@@ -22,10 +22,7 @@ export const registration = defineRegistration({
             group: "Layout",
             disabled: ({ session }) => nothingDrawn(session),
             run: async ({ session }) => {
-                if (session !== null) {
-                    const { id, engine, options } = session.layout;
-                    await session.layout.set(id, { engine, options });
-                }
+                await session?.layout.rerun();
             },
         },
         {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import rates from "../../config/rates.json" with { type: "json" };
-import { collect, type Deps } from "../../src/collector/collect.js";
+import { collect, type Deps, openWithChecks } from "../../src/collector/collect.js";
 import { type Fetch, GitHub } from "../../src/collector/github.js";
-import type { GhJob, GhRun, Rates } from "../../src/collector/parse.js";
+import type { GhJob, GhRun, GqlPr, Rates } from "../../src/collector/parse.js";
 import { quarantineReader, SLICE_STORE_PARAMS } from "../../src/collector/slices.js";
 import { type HoldersSnapshot, SNAPSHOT } from "../../src/collector/snapshots.js";
 import { MIN, type ObservationItem, sourceKey } from "../../src/model/items.js";
@@ -352,7 +352,10 @@ describe("collector with the GitHub App", () => {
 
 type Fake = ReturnType<typeof fakeGitHub>;
 
-/** The open pull requests answer with only as many as `branches`, headed by them (the recorded runs' others closed). */
+/**
+ * The open pull requests answer with as many as `branches`, headed by them: the recorded ones, then copies of the
+ * first (the recorded runs' others closed).
+ */
 function withOpenBranches(fake: Fake, branches: string[]): Fake {
     const recorded = fake.fetch;
     fake.fetch = async (url, init) => {
@@ -360,9 +363,12 @@ function withOpenBranches(fake: Fake, branches: string[]): Fake {
         if (!url.endsWith("/graphql") || !(init?.body as string).includes("pullRequests")) {
             return res;
         }
-        const body = (await res.json()) as { data: { repository: { open: { nodes: { headRefName?: string }[] } } } };
+        const body = (await res.json()) as { data: { repository: { open: { nodes: Record<string, unknown>[] } } } };
         const { open } = body.data.repository;
-        open.nodes = open.nodes.slice(0, branches.length).map((p, i) => ({ ...p, headRefName: branches[i] }));
+        open.nodes = branches.map((headRefName, i) => ({
+            ...(open.nodes[i] ?? { ...open.nodes[0], number: 9000 + i, id: `X_${i}` }),
+            headRefName,
+        }));
         return new Response(JSON.stringify(body), { headers: res.headers });
     };
     return fake;
@@ -440,6 +446,9 @@ describe("runner job counts", () => {
         // Nor does a run of another pull request event: #6729's pull_request_target and pull_request_review runs (#7358).
         expect(await run([], true, "pull_request_target")).toEqual(stuck);
         expect(await run([], true, "pull_request_review")).toEqual(stuck);
+        // 60 open pull requests, more than the 50 one query once read: the list is still complete, so the ghost is
+        // still left out (#7815).
+        expect((await run(Array.from({ length: 60 }, (_, i) => `other/${i}`))).stuck).toEqual(stuck.stuck);
         // While #3940 was open, the same job was a real wait.
         expect(await run(["fix/3938-master-builds-finish"])).toEqual({
             queued: without.queued! + 1,
@@ -708,5 +717,66 @@ describe("a merged pull request's last run", () => {
         await collect(deps(store, fake, NOW + 10 * MIN));
         expect(second.errors["pull requests"]).toBeUndefined();
         expect(lookups).toBe(1);
+    });
+});
+
+describe("open pull requests with their checks (#7815)", () => {
+    const pr = (n: number): GqlPr => ({ id: `PR_${n}`, number: n }) as GqlPr;
+    const page = (nodes: GqlPr[], next: boolean, cursor = "c") => ({
+        nodes,
+        pageInfo: { hasNextPage: next, endCursor: cursor },
+    });
+    /** GitHub answering OPEN_QUERY from `rest` pages and the checks query by id, recording each request. */
+    const github = (rest: ReturnType<typeof page>[], fail?: (ids: string[]) => boolean) => {
+        const asked: { after?: string; ids?: string[] }[] = [];
+        const gh = new GitHub(
+            () => Promise.resolve("ghs_test"),
+            (_url, init) => {
+                const { variables } = JSON.parse(init?.body as string) as {
+                    variables: { after?: string; ids?: string[] };
+                };
+                asked.push(variables);
+                if (variables.ids) {
+                    if (fail?.(variables.ids)) {
+                        return Promise.resolve(new Response("<html>504</html>", { status: 504 }));
+                    }
+                    const nodes = variables.ids.map((id) => ({ id, commits: { nodes: [{ commit: { oid: id } }] } }));
+                    return Promise.resolve(Response.json({ data: { nodes } }));
+                }
+                return Promise.resolve(Response.json({ data: { repository: { open: rest.shift() } } }));
+            },
+        );
+        return { gh, asked };
+    };
+    const range = (from: number, n: number) => Array.from({ length: n }, (_, i) => pr(from + i));
+
+    it("reads every page of the open list and asks for the checks in batches of 10", async () => {
+        const { gh, asked } = github([page(range(100, 45), false)]);
+        const r = await openWithChecks(gh, "o", "n", page(range(0, 100), true, "p1"));
+        expect(r.complete).toBe(true);
+        expect(r.open.map((p) => p.number)).toEqual(range(0, 145).map((p) => p.number));
+        expect(r.open.every((p) => p.commits?.nodes[0].commit.oid === p.id)).toBe(true);
+        expect(asked[0]).toMatchObject({ after: "p1" });
+        const batches = asked.slice(1).map((v) => v.ids?.length);
+        expect(batches).toEqual([...Array<number>(14).fill(10), 5]);
+    });
+
+    it("stops at the cap and says the list is incomplete", async () => {
+        const { gh } = github([page(range(100, 100), true, "p2"), page(range(200, 100), true, "p3")]);
+        const r = await openWithChecks(gh, "o", "n", page(range(0, 100), true, "p1"));
+        expect(r.open).toHaveLength(300);
+        expect(r.complete).toBe(false);
+    });
+
+    it("an open list of exactly one page is complete", async () => {
+        const { gh, asked } = github([]);
+        const r = await openWithChecks(gh, "o", "n", page(range(0, 50), false));
+        expect(r.complete).toBe(true);
+        expect(asked.map((v) => v.ids?.length)).toEqual([10, 10, 10, 10, 10]);
+    });
+
+    it("throws when one batch of checks fails, never returning a partial list", async () => {
+        const { gh } = github([], (ids) => ids.includes("PR_20"));
+        await expect(openWithChecks(gh, "o", "n", page(range(0, 50), false))).rejects.toThrow(/504/);
     });
 });

@@ -79,7 +79,7 @@ const meta: Meta<typeof Workspace> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** First launch: the usage data card at the foot, unanswered (the mock's `#/start-screen/first-run`). */
+/** First launch: the usage data question pinned to the window's foot, unanswered (the mock's `#/start-screen/first-run`). */
 export const FirstRun: Story = {};
 
 /** What is collected, open (`#/start-screen/disclosure`). */
@@ -106,7 +106,7 @@ export const Declined: Story = {
     },
 };
 
-/** A later launch: the card was answered before, so the foot is empty (`#/start-screen/returning`). */
+/** A later launch: the question was answered before, so it is not shown (`#/start-screen/returning`). */
 export const Returning: Story = {
     beforeEach: () => {
         answerUsageData("declined");

@@ -13,7 +13,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { nextFrame } from "../helpers/real-input";
-import { isDisposed, styleEveryNode, type TestGraph } from "../helpers/testSetup";
+import { isDisposed, styleEveryNode } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
 const TEST_NODES = [
@@ -166,7 +166,7 @@ describe("Dependency Ordering", () => {
      * Verify all edge meshes exist and are not disposed.
      */
     function verifyEdgeMeshesExist(): void {
-        for (const edge of (graph as unknown as TestGraph).dataManager.edges.values()) {
+        for (const edge of graph.getDataManager().edges.values()) {
             assert.isDefined(edge.mesh, "Edge should have a mesh");
             if ("isDisposed" in edge.mesh && typeof edge.mesh.isDisposed === "function") {
                 assert.isFalse(edge.mesh.isDisposed(), "Edge mesh should not be disposed");
@@ -179,7 +179,7 @@ describe("Dependency Ordering", () => {
      * This ensures the rendering pipeline correctly synced positions from layout to meshes.
      */
     async function verifyNodePositionsMatchLayout(): Promise<void> {
-        const { layoutManager } = graph as unknown as TestGraph;
+        const layoutManager = graph.getLayoutManager();
         const { layoutEngine } = layoutManager;
 
         // Verify layout engine exists

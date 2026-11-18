@@ -258,6 +258,7 @@ export async function release(element: Element, point: Point, modifiers?: Modifi
  * @param steps - How many moves between them.
  * @param held - Run at `to` with the button still down, before the release.
  * @param modifiers - Modifier keys held throughout.
+ * @param button - The button held.
  */
 export async function drag(
     element: Element,
@@ -266,9 +267,10 @@ export async function drag(
     steps = 8,
     held?: () => Promise<void>,
     modifiers?: Modifiers,
+    button: Button = "left",
 ): Promise<void> {
     await mouseEvent("mouseMoved", element, from, 0, modifiers);
-    await mouseEvent("mousePressed", element, from, 1, modifiers);
+    await mouseEvent("mousePressed", element, from, 1, modifiers, undefined, button);
     for (let i = 1; i <= steps; i++) {
         const t = i / steps;
         await mouseEvent(
@@ -277,13 +279,15 @@ export async function drag(
             { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t },
             1,
             modifiers,
+            undefined,
+            button,
         );
         // One frame between moves, as a hand gives: the element reads the pointer once a frame.
         await nextFrame();
     }
 
     await held?.();
-    await mouseEvent("mouseReleased", element, to, 0, modifiers);
+    await mouseEvent("mouseReleased", element, to, 0, modifiers, undefined, button);
 }
 
 /**
@@ -292,10 +296,24 @@ export async function drag(
  * @param point - Where the pointer is.
  * @param deltaY - How far; positive scrolls down (away from the reader).
  * @param deltaX - How far sideways; positive scrolls right.
+ * @param modifiers - Modifier keys held; Ctrl is how a browser reports a trackpad pinch.
  */
-export async function wheel(element: Element, point: Point, deltaY: number, deltaX = 0): Promise<void> {
+export async function wheel(
+    element: Element,
+    point: Point,
+    deltaY: number,
+    deltaX = 0,
+    modifiers?: Modifiers,
+): Promise<void> {
     const at = toPage(element, point);
-    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX, deltaY });
+    await send()("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x: at.x,
+        y: at.y,
+        deltaX,
+        deltaY,
+        modifiers: modifierBits(modifiers),
+    });
 }
 
 /**

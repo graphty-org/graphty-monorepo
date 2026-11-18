@@ -88,6 +88,28 @@ function heard(element: Graphty): { type: string; code: string; params: unknown 
     return seen;
 }
 
+/**
+ * Every `W_OBJECT_CAP` the element raised, as its params.
+ * @param seen - What {@link heard} collected.
+ * @returns The params, in order.
+ */
+function caps(seen: { code: string; params: unknown }[]): unknown[] {
+    return seen.filter(({ code }) => code === "W_OBJECT_CAP").map(({ params }) => params);
+}
+
+/**
+ * Give every node a border, which no batch draws, so each row wants an object of its own.
+ * @param element - The element.
+ */
+async function ringed(element: Graphty): Promise<void> {
+    await element.session.styles.add({
+        name: "ring",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.borderColor": "#000000", "node.borderWidth": 0.1 },
+    } as never);
+}
+
 describe("the limits option", () => {
     it("leaves the default refusal unchanged, code and text, at 100,001 nodes", async () => {
         const element = await mounted("objects");
@@ -269,6 +291,118 @@ describe("the limits option", () => {
 
         assert.strictEqual(element.rowCounts.objectNodes, 50);
         assert.deepStrictEqual(seen, []);
+    });
+
+    it("empties the rows held plain on a clear, so a reload past the budget reports W_OBJECT_CAP again", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        element.limits = { objectRows: 10 };
+        await ringed(element);
+
+        for (let load = 0; load < 2; load++) {
+            element.graph.clearData();
+            await element.session.data.addNodes(nodes(50));
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.strictEqual(element.rowCounts.objectNodes, 10, `load ${load}`);
+            assert.strictEqual(element.rowCounts.batchedNodes, 40, `load ${load}`);
+        }
+
+        assert.deepStrictEqual(caps(seen), [
+            { of: "nodes", wanted: 50, cap: 10 },
+            { of: "nodes", wanted: 50, cap: 10 },
+        ]);
+    });
+
+    it("repaints the rows held plain when the objectRows budget is raised", async () => {
+        const element = await mounted("batched");
+        element.limits = { objectRows: 10 };
+        await ringed(element);
+        await element.session.data.addNodes(nodes(50));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.strictEqual(element.rowCounts.objectNodes, 10);
+
+        element.limits = { objectRows: 100 };
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.rowCounts.objectNodes, 50);
+        assert.strictEqual(element.rowCounts.batchedNodes, 0);
+    });
+
+    it("counts only the rows still held plain after a removal", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        element.limits = { objectRows: 10 };
+        await ringed(element);
+        await element.session.data.addNodes(nodes(50));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        await element.session.data.removeNodes(
+            nodes(50)
+                .slice(30)
+                .map(({ id }) => id),
+        );
+        await element.session.styles.add({
+            name: "tint",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#3366ff" },
+        } as never);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.rowCounts.batchedNodes, 20);
+        assert.deepStrictEqual(caps(seen), [
+            { of: "nodes", wanted: 50, cap: 10 },
+            { of: "nodes", wanted: 30, cap: 10 },
+        ]);
+    });
+
+    it("draws rows past the budget plain under 3D flat lighting, which batches nothing else", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        element.limits = { objectRows: 10 };
+        await element.setViewMode("3d");
+        element.lighting = "flat";
+        await element.session.data.addNodes(nodes(50));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.rowCounts.objectNodes, 10);
+        assert.strictEqual(element.rowCounts.batchedNodes, 40);
+        assert.deepStrictEqual(caps(seen), [{ of: "nodes", wanted: 50, cap: 10 }]);
+    });
+
+    it("labels a row held plain when label sampling picks it", async () => {
+        const element = await mounted("batched");
+        element.limits = { objectRows: 10 };
+        const { graph } = element;
+        // One cell holds the whole canvas, so one label is built: the lowest id, "a0", a row past the budget.
+        graph.setLayoutBehavior({ labels: { sampleCell: 100_000 } });
+        const ids = [
+            ...Array.from({ length: 10 }, (_, i) => `z${i}`),
+            ...Array.from({ length: 40 }, (_, i) => `a${i}`),
+        ];
+        await element.session.data.addNodes(
+            ids.map((id, i) => ({ id, position: { x: (i % 7) * 0.2 - 0.6, y: Math.floor(i / 7) * 0.2 - 0.6, z: 0 } })),
+        );
+        await graph.setLayout("fixed", { dim: 3 });
+        await graph.setCameraState({ position: { x: 0, y: 0, z: -11 }, target: { x: 0, y: 0, z: 0 } });
+        await element.session.styles.add({
+            name: "labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "LABEL" },
+        } as never);
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        const labelled = ids.filter((id) => graph.getNode(id)?.label !== undefined);
+        assert.deepStrictEqual(labelled, ["a0"]);
+        assert.strictEqual(graph.nodeLabelCounts.hiddenBySampling, 49);
     });
 
     it("refuses a switch to objects above its defaults, and the path stays batched", async () => {

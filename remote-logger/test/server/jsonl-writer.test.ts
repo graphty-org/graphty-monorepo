@@ -302,6 +302,18 @@ describe("JsonlWriter", () => {
         expect(fs.readFileSync(limited.getFilePath("m3"), "utf-8")).toContain("three");
     });
 
+    it("ignores writes after close", async () => {
+        const entry: JsonlEntry = { time: new Date().toISOString(), level: "INFO", message: "before", sessionId: "s" };
+        await writer.write("closed-project", entry);
+        await writer.close();
+
+        await writer.write("closed-project", { ...entry, message: "after" });
+
+        const content = fs.readFileSync(writer.getFilePath("closed-project"), "utf-8");
+        expect(content).toContain("before");
+        expect(content).not.toContain("after");
+    });
+
     describe("cleanupOldFiles", () => {
         it("removes project directories older than retention days", async () => {
             const oldMarker = "old-project";

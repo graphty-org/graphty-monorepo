@@ -151,6 +151,7 @@ export class ScriptedAssistant {
      * @param options.approvals - Which calls the reader is asked about; none when absent.
      * @param options.store - The store conversations are kept in, instead of the one `history` names.
      * @param options.questions - Whether the model may ask the reader.
+     * @param options.datasetBaseUrl - Where `load_dataset` downloads from; a stand-in address when absent.
      */
     constructor(
         readonly session: GraphSession,
@@ -163,6 +164,7 @@ export class ScriptedAssistant {
             approvals?: AiControllerOptions["approvals"];
             store?: ConversationStore;
             questions?: AiControllerOptions["questions"];
+            datasetBaseUrl?: string;
         } = {},
     ) {
         installAssistantTools(this.registry, session);
@@ -179,6 +181,7 @@ export class ScriptedAssistant {
             ...(options.history === undefined ? {} : { history: options.history }),
             ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
             ...(options.questions === undefined ? {} : { questions: options.questions }),
+            datasetBaseUrl: options.datasetBaseUrl ?? "https://datasets.test/",
             [ENGINE_OVERRIDE]: this.engine,
             ...(options.store === undefined ? {} : { [STORE_OVERRIDE]: options.store }),
         } as never);

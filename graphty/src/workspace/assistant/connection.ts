@@ -6,6 +6,7 @@ import { type GraphSession, type GraphtyErrorCode, isGraphtyError } from "@graph
 import { goToComposer } from "../assistant-door/commands";
 import { type AssistantChoice, effortConfig } from "../assistant-door/provider";
 import { fileName, saveBlob } from "../export/choices";
+import { datasetBase } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
 import { isAway, watchWaiting } from "./away";
 import { changeLines, endWords, isChange, MODEL_INSTRUCTIONS, WORDS } from "./words";
@@ -84,6 +85,7 @@ export function link(
             instructions: MODEL_INSTRUCTIONS,
             questions: true,
             voice: { review: true, output: "off" },
+            datasetBaseUrl: datasetBase().baseUrl,
         })
         .then(() => {
             watchWaiting(element, store);

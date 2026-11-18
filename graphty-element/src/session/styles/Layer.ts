@@ -76,7 +76,6 @@ import type {
     Rgba,
     StaticStyle,
 } from "../../catalog/types";
-import { MIN_DRAWN_FONT_SIZE } from "../../config/RichTextStyle";
 import { isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
 import { isPlainObject } from "../../utils/isPlainObject";
@@ -95,7 +94,6 @@ import {
     toColorValue,
 } from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
-import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -174,13 +172,6 @@ export interface Layer {
      * when the row is shown. Absent while the row is shown.
      */
     readonly hidden?: true;
-    /**
-     * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
-     * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
-     * bag is never shared with them. Never used to paint.
-     * @experimental file-styles
-     */
-    readonly fileStyle?: FileStyleOrigin;
 }
 
 /**
@@ -226,6 +217,12 @@ export interface LayerProblem {
      * @since 3.36.0
      */
     readonly fact?: ShaderProblem;
+    /**
+     * The selector that makes the layer acceptable, when the remedy is to scope it: for
+     * `E_UNSCOPED_RUN_ENCODING`, `{ match: "has", path }` on the run path the encoding reads.
+     * @since 3.40.0
+     */
+    readonly scope?: Selector;
 }
 
 /**
@@ -265,9 +262,6 @@ export interface ValidationResult {
      *
      * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
      * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
-     *
-     * `W_TEXT_TOO_SMALL`: a text size under 1 written to a label, tooltip or caption size, which
-     * draws no text. `params.channel`, `params.path` and `params.value`.
      *
      * `W_LABEL_STYLE_BOUND`: a whole label style channel (`node.labelStyle`) bound to a path. No
      * scale produces a whole label style, so the binding paints nothing. `params.channel` is the
@@ -530,35 +524,6 @@ function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[
     }).map((channel) =>
         Object.freeze({ code: "W_ALPHA_IGNORED" as const, params: Object.freeze({ channel, path: `set.${channel}` }) }),
     );
-}
-
-/** The text size channels: each draws no text under {@link MIN_DRAWN_FONT_SIZE}. */
-const TEXT_SIZE_CHANNELS: readonly string[] = [
-    "node.labelSize",
-    "node.tooltipSize",
-    "edge.labelSize",
-    "edge.arrowHeadTextSize",
-    "edge.arrowTailTextSize",
-];
-
-/**
- * The warnings a layer's literal text sizes earn: a size under 1 draws no text.
- * @param spec - The specification.
- * @returns The warnings; none when every literal size draws.
- */
-function textSizeWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
-    return TEXT_SIZE_CHANNELS.flatMap((channel) => {
-        const value = spec.set?.[channel as keyof typeof spec.set];
-
-        return typeof value === "number" && value < MIN_DRAWN_FONT_SIZE
-            ? [
-                  Object.freeze({
-                      code: "W_TEXT_TOO_SMALL" as const,
-                      params: Object.freeze({ channel, path: `set.${channel}`, value }),
-                  }),
-              ]
-            : [];
-    });
 }
 
 /**
@@ -1110,6 +1075,7 @@ function checkBinding(
                 "with a value for a missing result, which would paint elements the run never measured. Scope it to " +
                 `the elements that carry the result with { match: "has", path: "${binding.by}" }, or drop missing.`,
             path: "selector",
+            scope: { match: "has", path: binding.by },
         });
     }
 }
@@ -1814,12 +1780,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
         };
     }
 
-    const warnings = [
-        ...log.warnings,
-        ...selectorWarnings(spec, target, options.elements),
-        ...alphaWarnings(spec),
-        ...textSizeWarnings(spec),
-    ];
+    const warnings = [...log.warnings, ...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
 
     return {
         result: Object.freeze({
@@ -1869,7 +1830,6 @@ function buildLayer(
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
         ...(spec.row === undefined ? {} : { row: spec.row }),
-        ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1893,6 +1853,5 @@ export function specOf(layer: Layer): LayerSpec {
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
         ...(layer.row === undefined ? {} : { row: layer.row }),
-        ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
     };
 }

@@ -27,6 +27,7 @@ import {
     Check,
     ChevronDown,
     ChevronLeft,
+    ChevronRight,
     ChevronsRight,
     Circle,
     CircleAlert,
@@ -99,10 +100,12 @@ import {
     Play,
     Plus,
     RectangleGoggles,
-    RectangleHorizontal,
     Redo2,
     RefreshCw,
+    Rotate3d,
+    RotateCcwSquare,
     RotateCw,
+    RotateCwSquare,
     Route,
     Scan,
     Search,
@@ -113,6 +116,7 @@ import {
     Share2,
     Shuffle,
     Sigma,
+    SlidersHorizontal,
     Spline,
     Square,
     SquareArrowOutUpRight,
@@ -241,10 +245,8 @@ export const GLYPHS = {
     timeline: Clock,
     // The Camera tool: its menu moves the camera (Fit, the standard views, Auto-rotate).
     camera: Camera,
-    // The Mode tool's face is the mode the canvas is in: a flat card for 2D (Square is Stop), a cube for 3D, a headset for VR,
-    // a cube in a frame for AR (the usual marks: Material Symbols, SF Symbols, model-viewer).
-    mode2d: RectangleHorizontal,
-    mode3d: Box,
+    // The Mode tool's face in VR and AR (2D and 3D show the words): a headset for VR, a cube in a
+    // frame for AR (the usual marks: Material Symbols, SF Symbols, model-viewer).
     modeVr: RectangleGoggles,
     modeAr: ViewInAr,
     // The table dock's Maximize toggle.
@@ -261,6 +263,8 @@ export const GLYPHS = {
     open: FolderOpen,
     upload: Upload,
     settings: Settings,
+    // A part's settings page in the Style panel by part.
+    sliders: SlidersHorizontal,
     // A shader's facts in the gallery and its settings: it moves, what it costs, it reacts to light.
     animates: Activity,
     cost: Gauge,
@@ -299,6 +303,8 @@ export const GLYPHS = {
     // Take a property off the value it varies by, keeping one value.
     unlink: Unlink2,
     back: ChevronLeft,
+    // The next one of several, as back is the one before.
+    next: ChevronRight,
     // The current choice in a list.
     check: Check,
     expand: ChevronDown,
@@ -328,6 +334,10 @@ export const GLYPHS = {
     noPicture: Waypoints,
     // A node drawn as a 3D model, and a picture drawn on a node (the node-models experiment).
     model: Box,
+    // The Load custom model dialog's rotate buttons: a quarter turn about the up axis, and a tip.
+    turnLeft: RotateCcwSquare,
+    turnRight: RotateCwSquare,
+    tip: Rotate3d,
     picture: Image,
     gpu: Zap,
     developer: Code,
@@ -378,6 +388,8 @@ export const GLYPHS = {
     wholeTimeline: ZoomOut,
     // The window moved to where the selection is.
     jumpToSelection: LocateFixed,
+    // The model preview's Reset view: back to the first view of the model.
+    resetView: LocateFixed,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

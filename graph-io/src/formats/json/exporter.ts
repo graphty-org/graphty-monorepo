@@ -30,6 +30,7 @@ import { agree, plural } from "../../common/plural.js";
 import { jsonText } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import { neutralPositions } from "../../positions/convert.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -158,9 +159,9 @@ export const JSON_LOSS = Object.freeze({
      * weight, or is not written when the graph has weights of its own.
      */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
-    /** A position column without a slot (every dialect but Cytoscape) is a plain array attribute; the role is lost. */
+    /** A position column without a slot (node-link, d3, JGF) is a plain array attribute; the role is lost. */
     POSITIONS_DROPPED: LOSS.POSITIONS,
-    /** Cytoscape positions are 2D; non-zero z values are dropped. */
+    /** Cytoscape, vis and graphology positions are 2D; non-zero z values are dropped. */
     POSITION_Z_DROPPED: "W_POSITION_Z_DROPPED",
     /** Cytoscape has a single parent; a `parents` list column cannot be written. */
     PARENTS_DROPPED: LOSS.PARENTS,
@@ -273,7 +274,17 @@ interface Counter {
 }
 
 /** How one column is written. */
-type Slot = "attribute" | "element" | "position" | "cytoscapePosition" | "parent" | "classes" | "label" | "relation";
+type Slot =
+    | "attribute"
+    | "element"
+    | "position"
+    | "cytoscapePosition"
+    | "xyUp"
+    | "xyDown"
+    | "parent"
+    | "classes"
+    | "label"
+    | "relation";
 
 /** One column's place in the output. */
 interface ColumnPlan {
@@ -779,7 +790,12 @@ function reservedKeys(snapshot: GraphSnapshot, resolved: Resolved): Readonly<Rec
 function planTable(ctx: PlanContext, table: Iterable<Column>, domain: Domain): ColumnPlan[] {
     const plans: ColumnPlan[] = [];
     const used = new Set<string>();
-    for (const column of table) {
+    const columns = [...table];
+    // a position written as x / y (vis, graphology) takes those keys from any plain column, whatever the order
+    if (domain === "node" && columns.some((column) => xySlotOf(ctx.dialect, column) !== undefined)) {
+        used.add("attribute:x").add("attribute:y");
+    }
+    for (const column of columns) {
         const { role } = column.meta;
         if (role !== null && (STRUCTURAL_ROLES.has(role) || TEMPORAL_ROLES.has(role))) {
             continue;
@@ -924,8 +940,37 @@ function planParentSlot(ctx: PlanContext, column: Column, domain: Domain, role: 
     return SKIPPED;
 }
 
+/** The slot each dialect writes a 2D position into: Cytoscape's `position`, vis-network's (y down) and sigma.js's x / y. */
+const XY_SLOTS: Partial<Record<JsonDialect, Slot>> = {
+    cytoscape: "cytoscapePosition",
+    vis: "xyDown",
+    graphology: "xyUp",
+};
+
 /**
- * The slot of a node position column: Cytoscape's position for a float column of two or more
+ * Whether a position column can be written as x / y: a float column of two or more components.
+ * @param column - the column
+ * @returns true when it can
+ */
+function isPlanar(column: Column): boolean {
+    return (column.dtype === "f32" || column.dtype === "f64") && column.meta.components >= 2;
+}
+
+/**
+ * The vis / graphology x / y slot a node column is written into, if it is a position column it fits.
+ * @param dialect - the dialect
+ * @param column - the column
+ * @returns the slot, or undefined
+ */
+function xySlotOf(dialect: JsonDialect, column: Column): Slot | undefined {
+    const slot = XY_SLOTS[dialect];
+    return (slot === "xyUp" || slot === "xyDown") && column.meta.role === "position" && isPlanar(column)
+        ? slot
+        : undefined;
+}
+
+/**
+ * The slot of a node position column: Cytoscape's position, vis and graphology x / y for a float column of two or more
  * components (a non-zero z is noted), else a plain array attribute with the role lost.
  * @param ctx - the plan context
  * @param column - the node position column
@@ -934,17 +979,18 @@ function planParentSlot(ctx: PlanContext, column: Column, domain: Domain, role: 
 function planPositionSlot(ctx: PlanContext, column: Column): ColumnPlan {
     const { dialect, note } = ctx;
     const { meta } = column;
-    if (dialect === "cytoscape" && (column.dtype === "f32" || column.dtype === "f64") && meta.components >= 2) {
+    const slot = XY_SLOTS[dialect];
+    if (slot !== undefined && isPlanar(column)) {
         const z = countNonZeroZ(column);
         if (z > 0) {
             note(
                 JSON_LOSS.POSITION_Z_DROPPED,
-                `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; Cytoscape positions are 2D`,
+                `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; ${dialect} positions are 2D`,
                 meta.name,
                 z,
             );
         }
-        return { column, key: "position", slot: "cytoscapePosition" };
+        return { column, key: slot === "cytoscapePosition" ? "position" : "x", slot };
     }
     note(
         LOSS.POSITIONS,
@@ -1269,6 +1315,10 @@ function writeSlots(c: Cursor, plans: readonly ColumnPlan[], row: number, slots:
         if (!slots.has(item.slot) || !item.column.isSet(row)) {
             continue;
         }
+        if (item.slot === "xyUp" || item.slot === "xyDown") {
+            writeXY(c, item, row);
+            continue;
+        }
         let text: string;
         switch (item.slot) {
             case "position": {
@@ -1289,7 +1339,21 @@ function writeSlots(c: Cursor, plans: readonly ColumnPlan[], row: number, slots:
     }
 }
 
-const ATTRIBUTE_SLOTS: ReadonlySet<Slot> = new Set(["attribute", "position"]);
+/**
+ * Write a position as `x` / `y` members, y flipped when the column's direction is not the slot's.
+ * @param c - the cursor
+ * @param item - the position column's plan
+ * @param row - the node
+ */
+function writeXY(c: Cursor, item: ColumnPlan, row: number): void {
+    const value = item.column.value(row) as ArrayLike<number>;
+    const f32 = item.column.dtype === "f32";
+    const down = item.column.meta.extra.yAxis === "down";
+    c.w.member("x", numberText(value[0], f32, c.nonfinite));
+    c.w.member("y", numberText(down === (item.slot === "xyDown") ? value[1] : flipY(value[1]), f32, c.nonfinite));
+}
+
+const ATTRIBUTE_SLOTS: ReadonlySet<Slot> = new Set(["attribute", "position", "xyUp", "xyDown"]);
 const ELEMENT_SLOTS: ReadonlySet<Slot> = new Set(["element", "classes"]);
 
 /**
@@ -1784,6 +1848,8 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
     const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
     const { w } = c;
     const parentSlots: ReadonlySet<Slot> = new Set(["parent"]);
+    const position = snapshot.nodes.byRole("position");
+    const neutral = position === null ? null : neutralPositions(snapshot, position);
     w.open("{");
     w.key("elements");
     w.open("{");
@@ -1799,7 +1865,7 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         writeSlots(c, p.nodes, i, parentSlots);
         writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
         w.close("}");
-        writeCytoscapePosition(c, p, i);
+        writeCytoscapePosition(c, p, i, neutral);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1843,16 +1909,18 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
 }
 
 /**
- * Write a Cytoscape.js node's position: stored y-up, written with Cytoscape's y growing downward.
+ * Write a Cytoscape.js node's position: read through the column's spelling into the neutral form (y up), written
+ * with Cytoscape's y growing downward.
  * @param c - the cursor
  * @param p - the plan
  * @param i - the node
+ * @param neutral - the position column's rows in the neutral form, or null without one
  */
-function writeCytoscapePosition(c: Cursor, p: Plan, i: number): void {
+function writeCytoscapePosition(c: Cursor, p: Plan, i: number, neutral: Float64Array | null): void {
     const { w } = c;
     for (const item of p.nodes) {
-        if (item.slot === "cytoscapePosition" && item.column.isSet(i)) {
-            const value = item.column.value(i) as ArrayLike<number>;
+        if (item.slot === "cytoscapePosition" && item.column.isSet(i) && neutral !== null) {
+            const value = neutral.subarray(3 * i, 3 * i + 3);
             const f32 = item.column.dtype === "f32";
             w.key("position");
             w.open("{");

@@ -19,11 +19,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with a degree run and one blank layer "Busy" selected, its Which
@@ -304,7 +309,7 @@ describe("number card", () => {
         });
         await userEvent.click(screen.getByRole("button", { name: "Done" }));
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        assert.include((row.textContent ?? "").replaceAll("\u00a0", " "), `${name}: all ${total}, ${total} nodes`);
+        assert.include(row.getAttribute("aria-label") ?? "", `${name}: all ${total}, ${total} nodes`);
         panelShown();
     });
 
@@ -319,12 +324,22 @@ describe("number card", () => {
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const kept = session.styles.counts(id).matched;
         await waitFor(() => {
-            assert.include(
-                (row.textContent ?? "").replaceAll("\u00a0", " "),
-                `top 10 by ${name}, ${String(kept)} nodes`,
-            );
+            assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
         });
         assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
+    });
+
+    it("ranks a Highest style rule among what is shown, so a filter changes who is on top", async () => {
+        const { session, id, card, name } = await openCard();
+        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
+        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        await waitFor(() => {
+            assert.strictEqual(topOf(session, id), 10);
+        });
+        // graphty-element ranks the whole column unless told otherwise; the app ranks what is drawn.
+        const selector = session.styles.get(id)?.selector;
+        const leaf: RuleTree | undefined = selector?.match === "rule" ? selector.where : undefined;
+        assert.strictEqual(leaf?.kind === "threshold" ? leaf.within : undefined, "visible");
     });
 
     it("says a from above its to was the reason when the card closes on it", async () => {

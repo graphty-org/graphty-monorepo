@@ -1,7 +1,11 @@
 // Installs Mesh.prototype.thinInstanceSetBuffer and its siblings, which this module calls.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { type BaseTexture, Color3, type Mesh, type Scene, type ShaderMaterial } from "@babylonjs/core";
+import type { BaseTexture } from "@babylonjs/core";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { batchUploadFrames } from "./FrameRoster";
 

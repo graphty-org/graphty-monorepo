@@ -2,27 +2,16 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
-import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
+import { createMockGraph, type MockGraph } from "../../helpers/mockGraph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createMockGraph;
 
 /**
  * A small graph for testing Floyd-Warshall, which is O(n^3): A -- B -- C -- D.
  * @returns the mock graph
  */
 
-async function mockSmallGraph(): Promise<any> {
+async function mockSmallGraph(): Promise<MockGraph> {
     return createMockGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
         edges: [
@@ -123,7 +112,7 @@ describe("FloydWarshallAlgorithm", () => {
 
             let hasCentralNode = false;
             for (const node of smallGraph.nodes.values()) {
-                if (result.node(node.id as string)?.value === result.graph.radius) {
+                if (result.node(node.id)?.value === result.graph.radius) {
                     hasCentralNode = true;
                     break;
                 }

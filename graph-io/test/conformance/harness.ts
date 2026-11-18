@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { type Column, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
+import { explicitWeights } from "../../src/common/weights.js";
 import { collectBytes } from "../../src/common/writer.js";
 import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, registry } from "../../src/registry.js";
 import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
@@ -526,13 +527,24 @@ const nonFiniteAsNull = (v: unknown): unknown => {
 };
 
 /**
- * A non-finite number written as null: a cell that reads back as null or unset, or a column of
- * nothing else that reads back absent.
+ * A non-finite number written as null: a cell that reads back as null or unset, a column of
+ * nothing else that reads back absent, or a graph whose every explicit weight was non-finite that
+ * reads back unweighted.
  * @param d - the difference
  * @param first - the snapshot that was exported
  * @returns true when the note explains it
  */
 function nonFiniteWaived(d: SnapshotDiff, first: GraphSnapshot): boolean {
+    if (d.path === "flags.weighted") {
+        // every explicit weight was non-finite: each reads back as no weight, so the graph as unweighted
+        const weights = explicitWeights(first);
+        for (let e = 0; e < first.edgeCount; e++) {
+            if (weights.isExplicit(e) && Number.isFinite(weights.value(e))) {
+                return false;
+            }
+        }
+        return d.actual === false;
+    }
     if (d.actual === "absent") {
         const [table, ...rest] = d.path.split(".");
         const column =

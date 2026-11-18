@@ -30,7 +30,8 @@ export function AutosaveChip(): React.JSX.Element {
         }
         return session.on("project:changed", (change) => {
             if (change.slices.includes("graph")) {
-                const stats = session.data.statistics();
+                // What the project file holds: the whole graph.
+                const stats = session.data.statistics({ scope: "all" });
                 setSaid(dataCountsFact(stats.nodeCount, stats.edgeCount));
             }
         });

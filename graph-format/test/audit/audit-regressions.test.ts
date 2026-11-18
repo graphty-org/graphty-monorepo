@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
+import { GraphFormatError } from "../../src/errors.js";
 import { fromCsr } from "../../src/populate/from-csr.js";
 import { fromEdgeArrays } from "../../src/populate/from-edge-arrays.js";
 import { fromRecords } from "../../src/populate/from-records.js";
@@ -20,20 +20,9 @@ import { foldArcs } from "../../src/snapshot/views.js";
 import { type ViewName, type WireBufferRef, type WireSnapshot } from "../../src/types/index.js";
 import { fromBytes } from "../../src/wire/bytes.js";
 import { fromWire } from "../../src/wire/from-wire.js";
+import { thrownCode } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
 import { richSnapshot } from "../wire/fixture-graph.js";
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
 
 function error(fn: () => unknown): GraphFormatError {
     try {
@@ -88,8 +77,8 @@ describe("enum options are refused, never substituted (design 11.1)", () => {
             expect(err.details.reason, label).toBe("unsupported option");
             expect(typeof err.details.field, label).toBe("string");
         }
-        expect(code(() => new GraphBuilder(undefined as never))).toBe("E_UNSUPPORTED");
-        expect(code(() => new GraphBuilder(null as never))).toBe("E_UNSUPPORTED");
+        expect(thrownCode(() => new GraphBuilder(undefined as never))).toBe("E_UNSUPPORTED");
+        expect(thrownCode(() => new GraphBuilder(null as never))).toBe("E_UNSUPPORTED");
     });
 
     it("the documented values still work", () => {
@@ -116,13 +105,13 @@ describe("addGraph and setDirected expansion", () => {
         expect(b.edgeCount).toBe(1);
         expect(b.mutationCount).toBe(mutations);
         const undirected = new GraphBuilder({ directed: false }).freeze();
-        expect(code(() => new GraphBuilder({ directed: true }).addGraph(undirected))).toBe("E_DIRECTED");
+        expect(thrownCode(() => new GraphBuilder({ directed: true }).addGraph(undirected))).toBe("E_DIRECTED");
     });
 
     it("addGraph refuses a weight the unweighted builder cannot hold before it adds anything", () => {
         const b = new GraphBuilder({ directed: true, weighted: false });
         b.addNode("z");
-        expect(code(() => b.addGraph(small()))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addGraph(small()))).toBe("E_INVALID_WEIGHT");
         expect(b.nodeCount).toBe(1);
         expect(b.edgeCount).toBe(0);
     });
@@ -143,7 +132,7 @@ describe("addGraph and setDirected expansion", () => {
         const b = new GraphBuilder({ directed: false });
         b.addEdge("a", "b");
         b.declareEdgeColumn({ name: "mine", dtype: "u32", role: "pair", refersTo: "edge" });
-        expect(code(() => b.setDirected(true, { expand: true }))).toBe("E_DUPLICATE_ROLE");
+        expect(thrownCode(() => b.setDirected(true, { expand: true }))).toBe("E_DUPLICATE_ROLE");
         expect(b.directed).toBe(false);
         expect(b.edgeColumn("graphty.directed")).toBe(INVALID_INDEX);
         expect(b.edgeCount).toBe(1);
@@ -152,10 +141,10 @@ describe("addGraph and setDirected expansion", () => {
     it("a record with a bad value is not applied at all, even when it would create the node", () => {
         const b = new GraphBuilder({ directed: true });
         b.declareNodeColumn({ name: "n", dtype: "u8" });
-        expect(code(() => b.addNodeRecord("fresh", { n: 300 }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.addNodeRecord("fresh", { n: 300 }))).toBe("E_COLUMN_TYPE");
         expect(b.hasNode("fresh")).toBe(false);
         expect(b.nodeCount).toBe(0);
-        expect(code(() => b.addEdgeRecord("p", "q", { n: 1, bad: 1n }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.addEdgeRecord("p", "q", { n: 1, bad: 1n }))).toBe("E_COLUMN_TYPE");
         expect(b.nodeCount).toBe(0);
         expect(b.edgeCount).toBe(0);
         expect(b.edgeColumn("bad")).toBe(INVALID_INDEX);
@@ -188,7 +177,7 @@ describe("the wire's JSON tags", () => {
         const s = small();
         const wire = structuredClone(s.toWire());
         (wire.manifest.meta as { extra: Record<string, unknown> }).extra = { x: { $esc: 5 } };
-        expect(code(() => fromWire(wire))).toBe("E_BAD_SERIALIZATION");
+        expect(thrownCode(() => fromWire(wire))).toBe("E_BAD_SERIALIZATION");
     });
 });
 
@@ -381,7 +370,7 @@ describe("fromCsr presence flags and buffer classes", () => {
         expect(Array.from(s.edgeList().src)).toEqual([0, 0]);
         expect(s.edges.value("tag", 0)).toBe(10);
         expect(
-            code(() =>
+            thrownCode(() =>
                 fromCsr(
                     {
                         directed: true,
@@ -480,7 +469,7 @@ describe("dictionary fill codes and unique-column codes", () => {
         b.declareEdgeColumn({ name: "id", dtype: "string", role: "id", unique: true });
         b.setEdgeValue("id", 0, "same");
         b.setEdgeValue("id", 1, "same");
-        expect(code(() => b.freeze())).toBe("E_DUPLICATE_EDGE_ID");
+        expect(thrownCode(() => b.freeze())).toBe("E_DUPLICATE_EDGE_ID");
     });
 });
 

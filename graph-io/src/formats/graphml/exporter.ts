@@ -29,9 +29,10 @@ import {
     mangleNmtoken,
     type SanitizedIds,
     sanitizeIds,
+    textCollisions,
 } from "../../common/export.js";
 import { formatF32, formatF64, formatInteger } from "../../common/format.js";
-import { isCanonicalIntegerText } from "../../common/ids.js";
+import { isCanonicalIntegerText, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { setOwn } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
@@ -49,7 +50,6 @@ import {
     type GraphmlMeta,
     LABEL_COLUMN,
     META_KEY,
-    ORIGINAL_ID_ATTRIBUTE,
     PARENT_COLUMN,
     PORT_KEYS_EXTRA,
     RESERVED_EDGE_NAMES,
@@ -408,7 +408,7 @@ function planExport(
     if (edgeIdColumn !== null) {
         planEdgeIds(snapshot, edgeIdColumn, options, note);
     }
-    const unrepresentable = countUnrepresentableNodeIds(snapshot);
+    const unrepresentable = countUnrepresentableNodeIds(snapshot) + textCollisions(snapshot.ids).length;
     const needsOriginalIdKey = unrepresentable > 0 && options.sanitizeIds === "mangle";
     const originalIdKey = needsOriginalIdKey ? keyIds.next(null) : null;
 

@@ -1,4 +1,5 @@
-import type { Camera, Scene } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { pendingWorkOf } from "../managers/PendingWork";
 import { FrameRoster } from "./FrameRoster";

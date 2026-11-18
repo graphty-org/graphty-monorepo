@@ -27,16 +27,14 @@
  * the rest show the end state.
  */
 
-import {
-    type AbstractMesh,
-    Constants,
-    Frustum,
-    type InstancedMesh,
-    type Mesh,
-    type Plane,
-    RawTexture,
-    type Scene,
-} from "@babylonjs/core";
+import type { Plane } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import {
     drawingOf,
@@ -111,8 +109,8 @@ export interface NodeShaderLook {
     readonly drawn: boolean;
     /** The halo the batch draws, or null. */
     readonly halo: { readonly color: string; readonly scale: number; readonly opacity: number } | null;
-    /** The outline ring's color, or null. */
-    readonly ring: string | null;
+    /** The outline ring's color and width (a multiple of the ring's own band), or null. */
+    readonly ring: { readonly color: string; readonly width: number } | null;
     /** The glow, or null. */
     readonly glow: { readonly color: string; readonly strength: number } | null;
 }
@@ -229,7 +227,7 @@ function seedOf(id: string | number): number {
     let hash = 0x811c9dc5;
     const text = String(id);
     for (let i = 0; i < text.length; i++) {
-        hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193); // NOSONAR(S7758): hashes UTF-16 code units; codePointAt would change the seed of ids outside the BMP
+        hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193); // eslint-disable-line unicorn/prefer-code-point -- hashes UTF-16 code units; codePointAt would change the seed of ids outside the BMP
     }
 
     return (hash >>> 0) / 0xffffffff;
@@ -460,15 +458,7 @@ export class NodeShaderDrawing {
                     }
                 }
 
-                const waiting = [...known.waiting];
-                const repaint = REPAINTS.get(this.scene);
-                if (repaint === undefined) {
-                    for (const node of waiting) {
-                        node.refreshShaderPaint();
-                    }
-                } else {
-                    repaint(waiting);
-                }
+                this.redrawNodes([...known.waiting]);
             }
         });
         scene.onDisposeObservable.addOnce(() => {
@@ -656,6 +646,38 @@ export class NodeShaderDrawing {
      */
     arrived(node: ShadedNode): void {
         this.arrivals.set(node, performance.now());
+    }
+
+    /**
+     * The graph's outline width (`layoutBehavior.node.outlineWidth`) changed: draw again every
+     * node whose ring the batch draws, since its look holds the width it was painted with.
+     */
+    outlineWidthChanged(): void {
+        const ringed: ShadedNode[] = [];
+        for (const entry of this.entries.values()) {
+            if (entry.look !== null && entry.look.ring !== null) {
+                ringed.push(entry.node);
+            }
+        }
+
+        if (ringed.length > 0) {
+            this.redrawNodes(ringed);
+        }
+    }
+
+    /**
+     * Draw nodes again from their paints: with the update manager's bulk repaint when it lent one.
+     * @param nodes - The nodes.
+     */
+    private redrawNodes(nodes: readonly ShadedNode[]): void {
+        const repaint = REPAINTS.get(this.scene);
+        if (repaint === undefined) {
+            for (const node of nodes) {
+                node.refreshShaderPaint();
+            }
+        } else {
+            repaint(nodes);
+        }
     }
 
     /**
@@ -1326,8 +1348,8 @@ export class NodeShaderDrawing {
             deco1: effect
                 ? [0, 0, 0, 0]
                 : [
-                      look.ring === null ? 0 : packHex(look.ring),
-                      look.ring === null ? 0 : 1,
+                      look.ring === null ? 0 : packHex(look.ring.color),
+                      look.ring === null ? 0 : look.ring.width,
                       glow === null ? 0 : packHex(glow.color),
                       glow?.strength ?? 0,
                   ],

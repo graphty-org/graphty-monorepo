@@ -21,7 +21,6 @@ import type { ShaderUse } from "../../catalog/shaders";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
-import { NODE_OUTLINE_CAVEAT } from "../../session/styles/channels";
 import type { TransactionScope } from "../../session/types";
 import { CONNECTED_BY_SYNTAX, isMatchAllSelector, nodeScopeOf, normalizeSelector, SELECTOR_SYNTAX } from "./selectors";
 import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
@@ -63,10 +62,11 @@ const NodeStyleParamsSchema = z
         outlineWidth: z
             .number()
             .positive()
+            .max(10)
             .optional()
             .describe(
-                "Outline width. Not drawn: every outline in the scene is stroked at one width, " +
-                    "so asking for this is answered with the reason rather than applied",
+                "Outline width (default 1, a multiple of the ring's own band), per style. It widens an outline " +
+                    "color and draws nothing without one",
             ),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
         shader: z
@@ -119,13 +119,8 @@ const AI_LAYER_SOURCE: LayerSource = { by: "plugin", name: "graphty-ai" };
 /**
  * Turn the simplified node parameters into literal channel values.
  *
- * ONE OF THEM HAS NO CHANNEL, and this says WHY rather than dropping it or refusing it blankly.
- * An outline is drawn as a ring whose width is a fixed share of the node's size, so a width is
- * not a channel the element has. The node style declares no `effect.outline.width` either, so
- * that nothing accepts one and quietly ignores it. The sentence that explains all this is `NODE_OUTLINE_CAVEAT`, which is
- * `node.outline`'s published caveat, so a reader who asks the catalogue and a reader who asks in
- * words get the same answer. The glow's STRENGTH used to be refused beside it and is a channel
- * now, with a caveat of its own, which is what the difference looks like when it can be closed.
+ * Every one of them has a channel now: the glow's strength and the outline's width were both
+ * refused here once, and each is drawn per style.
  * @param params - What was asked for.
  * @returns The channel values to write, and the properties the channel set cannot express.
  */
@@ -134,7 +129,6 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
     unsupported: UnsupportedProperty[];
 } {
     const set: Partial<Record<Channel, ChannelValue>> = {};
-    const unsupported: UnsupportedProperty[] = [];
 
     if (params.color !== undefined) {
         set["node.color"] = params.color;
@@ -181,10 +175,10 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
     }
 
     if (params.outlineWidth !== undefined) {
-        unsupported.push({ property: "outlineWidth", reason: NODE_OUTLINE_CAVEAT });
+        set["node.outlineWidth"] = params.outlineWidth;
     }
 
-    return { set, unsupported };
+    return { set, unsupported: [] };
 }
 
 /**

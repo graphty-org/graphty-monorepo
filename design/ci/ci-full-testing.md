@@ -1,5 +1,7 @@
 # Full testing in CI, a light gate on this machine
 
+> Status: Historical. The switch it describes (`node tools/verify.mjs backend ci`) and the tools in its file table no longer exist: tools/land.mjs, tools/verify.mjs, tools/prepush.sh and tools/prepush-tests.mjs were removed on 2026-11-02 (commit d99cdf5060), and tools/branch-sync.mjs on 2026-10-25 (commit 0c011ef28f). What it adopted lives on in a different form: CI runs the tests (the pull request checks and the 6-hour full run, .github/workflows/README.md) and `pnpm run check:quick` (tools/check-quick.sh) is the light local check. Today every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md).
+
 Status: Built, not yet switched on, 2026-10-23. Issue #3316; decision record
 `design/decisions/2026-10-23-full-tests-in-ci-adopted.md`. It supersedes the parts of
 `design/ci/golden-local.md`, `design/ci/fast-pipeline.md` and `design/ci/minimal-tests.md` that run the

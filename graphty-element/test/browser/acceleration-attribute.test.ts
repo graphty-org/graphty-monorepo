@@ -435,7 +435,7 @@ describe("the acceleration attribute: the capabilities event", () => {
 });
 
 describe("the acceleration attribute: connection lifecycle", () => {
-    test("disconnecting releases the accelerator, and reconnecting rebuilds nothing", async () => {
+    test("disconnecting releases the accelerator, and reconnecting builds a new one", async () => {
         registerFake();
 
         const { element, container, events } = await mount();
@@ -450,16 +450,13 @@ describe("the acceleration attribute: connection lifecycle", () => {
 
         await until(() => fake.disposed === 1, "the accelerator to be released on disconnect");
 
-        // A Graph is built once, in the element's constructor, and never rebuilt: disconnecting
-        // shuts it down, and with it the one controller the element, the Graph and the session
-        // share. So re-attaching must throw nothing and must probe nothing.
+        // Disconnecting shut the graph down, and with it the controller the element, the Graph
+        // and the session share. Re-attaching builds a new graph, whose new controller probes.
         assert.doesNotThrow(() => container.appendChild(element));
 
-        await element.updateComplete;
-        await yieldToEventLoop();
-
-        assert.equal(fake.built, 1, "no second accelerator was built");
-        assert.equal(events.length, seenBeforeRemoval, "and nothing was published from a dead controller");
+        await until(() => fake.built === 2, "a second accelerator for the new graph");
+        await until(() => events.length > seenBeforeRemoval, "the new controller's capabilities event");
+        assert.equal(fake.disposed, 1, "the first accelerator stays released, once");
     });
 
     test("setting the attribute on a removed element starts no probe", async () => {

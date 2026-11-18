@@ -13,6 +13,12 @@ export const PROVENANCE_VALUE = "provenance";
 export interface Supplied {
     readonly nodes: readonly NodeId[];
     readonly edges: readonly EdgeId[];
+    /**
+     * The nodes its rows named that the graph already held when it ran and that no load supplied
+     * (a node `addNodes` made), which taking it out leaves. Absent when there were none, and on a
+     * load recorded before it was kept, which takes every node it named.
+     */
+    readonly held?: readonly NodeId[];
 }
 
 /** The `provenance` graph value: what each load supplied, by its key. */
@@ -89,7 +95,13 @@ export function suppliedBy(
 export function withSupplied(provenance: Provenance | undefined, key: SourceKey, supplied: Supplied): Provenance {
     return Object.freeze({
         ...provenance,
-        [key]: Object.freeze({ nodes: Object.freeze([...supplied.nodes]), edges: Object.freeze([...supplied.edges]) }),
+        [key]: Object.freeze({
+            nodes: Object.freeze([...supplied.nodes]),
+            edges: Object.freeze([...supplied.edges]),
+            ...(supplied.held === undefined || supplied.held.length === 0
+                ? {}
+                : { held: Object.freeze([...supplied.held]) }),
+        }),
     });
 }
 

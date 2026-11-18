@@ -22,10 +22,11 @@
  */
 
 import { registeredCameraById, registeredCameraDescriptors } from "./cameraRegistry";
+import { withEachDescriptionIds } from "./options";
 import type { CameraDescriptor, CameraId, DrawingMode } from "./types";
 
-/** Every camera view the element ships. */
-export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[] = Object.freeze([
+/** As written; {@link CAMERA_DESCRIPTORS} adds each described option's `descriptionId`. */
+const SHIPPED_CAMERAS = Object.freeze([
     {
         id: "fitToGraph",
         plainName: "Fit to graph",
@@ -73,6 +74,11 @@ export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[] = Object.freeze([
         options: [],
     },
 ] satisfies readonly CameraDescriptor[]);
+
+/** Every camera view the element ships. */
+export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[] = Object.freeze(
+    withEachDescriptionIds("camera", SHIPPED_CAMERAS, (camera) => camera.id),
+);
 
 /**
  * Find one camera view by its name.

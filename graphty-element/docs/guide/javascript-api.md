@@ -46,6 +46,16 @@ const graph: Graph | undefined = element?.graph;
 The Web Component handles initialization. Access `.graph` after the element is connected to the DOM, or use the `graph-ready` event.
 :::
 
+### Removing the element and putting it back
+
+Moving the element within one task (a portal, a layout change) keeps everything: the graph, its
+undo history and the camera. An element that stays out of the page past the current task frees
+its engine and GPU resources. Insert it again later and it starts a new graph from what you
+declared on it -- its attributes and the properties you set, such as `nodeData`, `edgeData`,
+`dataSource` and `layout` -- and draws and answers events again. Changes made through `session`
+after that (added layers, edits, undo history) start over unless `autosave` is on, and
+`element.graph` and `element.session` are new objects, so read them again after inserting it.
+
 ## Core Methods
 
 ### Data Management
@@ -122,6 +132,21 @@ await graph.updateNodes([
 ]);
 ```
 
+**Merging Nodes:**
+
+Two nodes that are really one (the same person spelled two ways) merge into one in a single
+undoable step. Every edge of the merged node moves to the kept node, and the kept node can take
+new values at the same time.
+
+```typescript
+await element.session.data.mergeNodes(["ann", "ann-b"], {
+    into: "ann", // the node that stays; the first id when left out
+    values: { name: "Ann Baker" }, // patched onto the kept node's record
+});
+
+await element.session.undo(); // both nodes and all their edges come back
+```
+
 **Accessing Data:**
 
 ```typescript
@@ -130,6 +155,9 @@ const node = graph.getNode("node1");
 
 // Get all nodes
 const allNodes = graph.getNodes();
+
+// Get all edges
+const allEdges = graph.getEdges();
 
 // Get counts
 const nodeCount = graph.getNodeCount();
@@ -255,6 +283,21 @@ columns.find((a) => a.roles?.includes("weight")); // edge weights were read from
 
 The roles are `"key"`, `"label"`, `"weight"`, `"source"`, `"target"`, `"time"` and `"edgeId"`, read
 from `data.knownFields` and the last load, and `roles` is absent on a column that plays none.
+To offer a role before the reader picks a column for it, ask which column the element would read
+it from. `session.data.roleCandidate(kind, role)` names it when one is obvious, and is null
+otherwise:
+
+```typescript
+const column = session.data.roleCandidate("edge", "time"); // "released": its values read as time
+if (column !== null) {
+    await session.data.setRole({ kind: "edge", name: column }, "time");
+}
+```
+
+It offers only a column with no role yet. `time` is the column whose values read as time best; `label` the first of `label`, `name` or `title` holding text; an edge's
+`weight` a number column named `confidence`, `score` or `strength`, else the only number column.
+Every other role, and a node's weight, answers null.
+
 `usedBy` says what reads a column now: each style layer whose selector or bindings read it
 (`{ kind: "layer", id }`), then each finished run that weighed its edges by it
 (`{ kind: "run", id }`). It is absent when nothing does. A table that opens on "the attributes in
@@ -466,8 +509,9 @@ const result = await graph.captureScreenshot({
 await graph.captureScreenshot({ destination: { clipboard: true } });
 
 // Capture video animation
-const video = await graph.captureAnimation({
+const { blob: video } = await graph.captureAnimation({
     duration: 5000,
+    cameraMode: "stationary",
     fps: 30,
 });
 ```
@@ -907,8 +951,7 @@ await session.transaction("Recolor", async (tx) => {
 await session.execute({ op: "visibility.context", show: false });
 ```
 
-Each step's `fact` is a code and its values, for your application to word; `step.label`, an
-English sentence, is deprecated. See [Undo and History](./undo) for the codes, what is and is not
+Each step's `fact` is a code and its values, for your application to word. See [Undo and History](./undo) for the codes, what is and is not
 undoable, transactions, work still running, events and the memory budget.
 
 ## Event Handling

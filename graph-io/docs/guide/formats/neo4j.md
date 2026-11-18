@@ -136,6 +136,22 @@ such as `|`.
 - An unquoted empty cell means "no value"; a quoted empty cell is an empty string.
 - `:IGNORE` columns are skipped, and the report's `lossy` list says how many.
 
+## APOC exports
+
+The same format also reads what the APOC export procedures write, with no option to set; a
+`.json` or `.csv` APOC file is recognized as Neo4j by its content.
+
+- `apoc.export.json`: JSON Lines (the default), one array (`jsonFormat: "ARRAY_JSON"`), a
+  `{nodes, rels}` object (`"JSON"` and `"JSON_ID_AS_KEYS"`) and query exports, whose records hold
+  nodes, relationships and paths. Every node record is a node, by its `id`; every relationship
+  record is an edge from `start.id` to `end.id`. A node or relationship that a query export
+  repeats is read once. `labels` becomes the `labels` list column, a relationship's `label` the
+  edge column `type`, and each property keeps its JSON value (a point is a JSON object).
+- `apoc.export.csv`: one table whose rows are nodes (`_id` set) or relationships (`_start`,
+  `_end`, `_type`). The property columns before `_start` are node properties, the ones after it
+  relationship properties, and `_labels` (`:Person:Admin`) becomes the `labels` list. Every
+  property is text, because the export writes no types.
+
 ## What a saved file keeps and loses
 
 What does not survive:
@@ -220,14 +236,15 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                     | Type                                  | Default                                                        |
-| ------------------------------------------ | ------------------------------------- | -------------------------------------------------------------- |
-| [`part`](#export-part)                     | `"nodes" \| "all" \| "relationships"` | `"all"`                                                        |
-| [`delimiter`](#export-delimiter)           | `string`                              | `","`                                                          |
-| [`arrayDelimiter`](#export-arraydelimiter) | `"," \| ";" \| "\|"`                  | `";"`                                                          |
-| [`quote`](#export-quote)                   | `string`                              | `'"'`                                                          |
-| [`weightColumn`](#export-weightcolumn)     | `null \| string`                      | "weight", or the property a Neo4j import read the weights from |
-| [`idColumn`](#export-idcolumn)             | `null \| string`                      | `null`                                                         |
+| Option                                       | Type                                  | Default                                                        |
+| -------------------------------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| [`part`](#export-part)                       | `"nodes" \| "all" \| "relationships"` | `"all"`                                                        |
+| [`delimiter`](#export-delimiter)             | `string`                              | `","`                                                          |
+| [`arrayDelimiter`](#export-arraydelimiter)   | `"," \| ";" \| "\|"`                  | `";"`                                                          |
+| [`quote`](#export-quote)                     | `string`                              | `'"'`                                                          |
+| [`weightColumn`](#export-weightcolumn)       | `null \| string`                      | "weight", or the property a Neo4j import read the weights from |
+| [`idColumn`](#export-idcolumn)               | `null \| string`                      | `null`                                                         |
+| [`spreadsheetSafe`](#export-spreadsheetsafe) | `boolean`                             | `false`                                                        |
 
 - <a id="export-part"></a>`part`: Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or "relationships".
 - <a id="export-delimiter"></a>`delimiter`: The field delimiter, one character. It must differ from `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
@@ -235,6 +252,7 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 - <a id="export-quote"></a>`quote`: The quote character, one character. Cells that hold the delimiter, the quote character or a line break are quoted with it. Pass the same value as the `quote` import option to read the file back.
 - <a id="export-weightcolumn"></a>`weightColumn`: The relationship property that holds the edge weights, written as `<name>:double`; null writes no weights (checkExport() then returns `W_WEIGHTS_DROPPED`). graph-io reads the "weight" property back as the weight; for any other name, pass the same name as the `weightFrom` import option to read the weights back (`weightColumn: "strength"` with `weightFrom: "strength"`), or they come back as a plain edge attribute. A graph read from Neo4j CSV with `weightFrom` writes its weights back under the property they were read from.
 - <a id="export-idcolumn"></a>`idColumn`: The property name of the `:ID` column (`<name>:ID`) for nodes that have no id property of their own; null writes a bare `:ID`.
+- <a id="export-spreadsheetsafe"></a>`spreadsheetSafe`: Whether to keep spreadsheets from running cells as formulas: a cell or property header starting with `=`, `+`, `-`, `@`, a tab or a CR (other than a plain number such as `-5`) is written with a leading `'`. Turn it on for a file someone may open in Excel or LibreOffice when the graph came from a source you do not trust: a value such as `=HYPERLINK("http://x","click")` otherwise runs as a formula, quoted or not. The prefixed cells read back with the `'`, so the round trip is no longer exact.
 
 ## Import issue codes
 
@@ -247,7 +265,8 @@ The codes this format's import report can hold. They are also exported as `NEO4J
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_CSV_UNCLOSED_QUOTE` (error): A quoted field is never closed. The import stops.
 - `E_CSV_QUOTE` (error): There is text after a closing quote, such as `"a"b`. Inside a quoted field, write a quote as two quotes. The import stops.
-- `E_NEO4J_HEADER` (error): The file has no header, or a header neo4j-admin would refuse. The import stops.
+- `E_NEO4J_HEADER` (error): The file has no header, a header neo4j-admin would refuse, or JSON that is not an apoc.export.json export. The import stops.
+- `E_SYNTAX` (error): A line of an apoc.export.json file is not JSON. The import stops.
 - `E_NEO4J_COLUMN_COUNT` (error): A row with a different field count than the header.
 - `E_MISSING_ID` (error): A node row without an id.
 - `E_MISSING_ENDPOINT` (error): A relationship row without a start or end id.
@@ -285,6 +304,6 @@ The codes `checkExport(snapshot, "neo4j", options)` can return before a save, al
 - `W_NEO4J_DECLARED_TYPE_CHANGED` (warning): An integer-typed column with non-integral values written as double.
 - `W_NEO4J_ARRAY_DELIMITER` (warning): A list item containing the array delimiter, which Neo4j cannot escape.
 
-When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_ID_CHARSET`](../codes.md#E_ID_CHARSET), [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](../codes.md#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](../codes.md#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](../codes.md#W_EDGE_IDS_GENERATED), [`W_EMPTY_COLUMN_DROPPED`](../codes.md#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](../codes.md#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](../codes.md#W_ID_MANGLED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_AS_UNDIRECTED`](../codes.md#W_MUTUAL_AS_UNDIRECTED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](../codes.md#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_ROLE_ASSUMED`](../codes.md#W_ROLE_ASSUMED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_STORAGE_CLASS_CHANGED`](../codes.md#W_STORAGE_CLASS_CHANGED), [`W_TEMPORAL_DROPPED`](../codes.md#W_TEMPORAL_DROPPED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_TEXT_INFERRED`](../codes.md#W_TEXT_INFERRED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED).
+When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_ID_CHARSET`](../codes.md#E_ID_CHARSET), [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](../codes.md#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](../codes.md#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](../codes.md#W_EDGE_IDS_GENERATED), [`W_EMPTY_COLUMN_DROPPED`](../codes.md#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](../codes.md#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](../codes.md#W_ID_MANGLED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_ID_TEXT_RENAMED`](../codes.md#W_ID_TEXT_RENAMED), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_AS_UNDIRECTED`](../codes.md#W_MUTUAL_AS_UNDIRECTED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](../codes.md#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_ROLE_ASSUMED`](../codes.md#W_ROLE_ASSUMED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_STORAGE_CLASS_CHANGED`](../codes.md#W_STORAGE_CLASS_CHANGED), [`W_TEMPORAL_DROPPED`](../codes.md#W_TEMPORAL_DROPPED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_TEXT_INFERRED`](../codes.md#W_TEXT_INFERRED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED).
 
 <!-- generated:end -->

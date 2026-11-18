@@ -4386,8 +4386,7 @@
             "target": 3
           }
         ]
-      },
-      "knownFailure": "a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer) (#7651)"
+      }
     },
     {
       "file": "networkx/nan-inf-attributes.node_link.json",
@@ -4510,8 +4509,7 @@
             "value": "Mr. Hi"
           }
         ]
-      },
-      "knownFailure": "networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape) (#7652)"
+      }
     },
     {
       "file": "networkx/tree.tree_data.json",
@@ -4624,8 +4622,7 @@
             "target": "e"
           }
         ]
-      },
-      "knownFailure": "top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (#7652)"
+      }
     },
     {
       "file": "cytoscape/gal.json",
@@ -4659,8 +4656,7 @@
             "target": "389"
           }
         ]
-      },
-      "knownFailure": "top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (#7652)"
+      }
     },
     {
       "file": "cytoscape/network-compound-nodes.json",
@@ -5027,8 +5023,7 @@
             ]
           }
         ]
-      },
-      "knownFailure": "Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (#7652)"
+      }
     },
     {
       "file": "graphology/mixed-multi.json",
@@ -5136,13 +5131,12 @@
             "role": "position",
             "value": [
               100,
-              50,
+              -50,
               0
             ]
           }
         ]
-      },
-      "knownFailure": "vis x / y not mapped to position (sources.md 8.4 other dialects) (#7652)"
+      }
     },
     {
       "file": "authored/utf16le-bom.json",
@@ -5325,8 +5319,7 @@
             "target": "c"
           }
         ]
-      },
-      "knownFailure": "links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (#7652)"
+      }
     },
     {
       "file": "networkx-generated/node-link-path-0.json",

@@ -41,11 +41,21 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly linlog?: boolean | undefined;
     /** A per-node mass (n values), the name of a numeric node column, the legacy id-keyed record, or null (role-`mass` column, else outDegree + 1). */
     readonly nodeMass?: F32 | string | Readonly<Record<NodeId, number>> | null | undefined;
-    /** Accepted for compatibility with Gephi's options and not used yet: nodes are treated as points. */
+    /**
+     * Prevent overlapping (Gephi's "Adjust Sizes"): each node's radius (n values, the name of a numeric node column, or
+     * the legacy id-keyed record), in the units of the positions (scene units for a simulation). Distances are then
+     * measured between outlines: overlapping nodes push each other apart hard, touching ones neither attract nor
+     * repel, and each move is capped so the layout stays calm. The Barnes-Hut approximation of far nodes still treats
+     * them as points. null or absent: nodes are points. The GPU simulation refuses a nodeSize.
+     */
     readonly nodeSize?: F32 | string | Readonly<Record<NodeId, number>> | null | undefined;
     /** true: the snapshot's weights; a string: a numeric edge column; false / null: unweighted. */
     readonly weight?: boolean | string | null | undefined;
-    /** Accepted for compatibility with Gephi's options and not used yet. */
+    /**
+     * Dissuade hubs: divide each node's attraction by its degree + 1, so hubs are pushed to the edge of the drawing
+     * and the nodes around them hold the centre. Applies on top of `distributedAction`. Default false. The GPU
+     * simulation honors it too.
+     */
     readonly dissuadeHubs?: boolean | undefined;
     /**
      * Approximate the repulsion with a Barnes-Hut tree, as Gephi does: a group of nodes far enough away repels as one

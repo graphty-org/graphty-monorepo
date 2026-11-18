@@ -29,11 +29,11 @@ export function estimateAnimationCapture(
     // - 1080p (1920x1080 = 2,073,600 pixels) at 30fps is usually safe
     // - 4K at 30fps is borderline (acceptable)
 
-    const is4K = pixelCount > 2073600; // More than 1080p
+    const aboveFullHD = pixelCount > 2073600; // More than 1920x1080
     const isHighFps = fps > 30;
 
     // Predict frame drops if both high resolution and high fps
-    const likelyToDropFrames = is4K && isHighFps;
+    const likelyToDropFrames = aboveFullHD && isHighFps;
 
     const result: CaptureEstimate = {
         totalFrames,

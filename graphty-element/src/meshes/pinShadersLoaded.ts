@@ -7,7 +7,8 @@
  * every Storybook failed to load ("Cannot set properties of undefined (setting '.gltf')").
  */
 
-import type { Material, Scene } from "@babylonjs/core";
+import type { Material } from "@babylonjs/core/Materials/material.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /** A Babylon material class, by the prototype its instances share. */
 interface MaterialClass {

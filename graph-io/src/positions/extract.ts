@@ -11,7 +11,7 @@ import { NoteCollector } from "../common/notes.js";
 import { type GraphTool, toolOf } from "../common/units.js";
 import type { GraphImporter, ImportReport } from "../types.js";
 import { POSITION_ISSUE, type PositionNoteCode } from "./codes.js";
-import { median, toNeutral } from "./convert.js";
+import { constantZ, median, toNeutral } from "./convert.js";
 import type {
     ExtractPositionsOptions,
     FilePositionGroup,
@@ -141,7 +141,8 @@ function spellingOf(importer: GraphImporter, snapshot: GraphSnapshot, signal: Ab
         return hook?.unplacedCircle === undefined ? null : circleSpelling(snapshot, hook);
     }
     const extra = { ...extraOf(column.meta.extra), ...extraOf(hook ?? {}) };
-    return { read: vectorReader(column), size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
+    const read = vectorReader(column, hook?.centerOffset);
+    return { read, size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
 }
 
 /**
@@ -206,16 +207,18 @@ function hookFields(hook: ImporterPositions | null): Pick<Spelling, "groups" | "
 /**
  * A reader over a 2- or 3-component column.
  * @param column - the column
+ * @param centerOffset - the hook's offset from a node's stored coordinate to its center, if any
  * @returns the reader
  */
-function vectorReader(column: Column): RowReader {
+function vectorReader(column: Column, centerOffset?: ImporterPositions["centerOffset"]): RowReader {
     return (row, out) => {
         if (!column.isSet(row)) {
             return false;
         }
         const v = column.value(row) as ArrayLike<number>;
-        out[0] = v[0];
-        out[1] = v[1];
+        const offset = centerOffset?.(row) ?? [0, 0];
+        out[0] = v[0] + offset[0];
+        out[1] = v[1] + offset[1];
         out[2] = v.length > 2 ? v[2] : 0;
         return true;
     };
@@ -380,26 +383,6 @@ function dropZeroPile(values: Float64Array): void {
             values.fill(Number.NaN, i, i + 3);
         }
     }
-}
-
-/**
- * Whether every placed row has the same z (Pajek writes z = 0.5 on 2D drawings).
- * @param values - the raw coordinates
- * @returns true when z never differs
- */
-function constantZ(values: Float64Array): boolean {
-    let z = Number.NaN;
-    for (let i = 0; i < values.length; i += 3) {
-        if (Number.isNaN(values[i])) {
-            continue;
-        }
-        if (Number.isNaN(z)) {
-            z = values[i + 2];
-        } else if (values[i + 2] !== z) {
-            return false;
-        }
-    }
-    return true;
 }
 
 // ------------------------------------------------------------ groups

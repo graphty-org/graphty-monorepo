@@ -20,7 +20,7 @@ import type { Channel, ChannelValue, Encoding } from "@graphty/graphty-element/s
 import type { GraphSession, Layer, TransactionScope } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "./PropertyRow";
-import { type DataBinding, EVERYTHING_KEY, lineIn, writeLine } from "./row";
+import { type DataBinding, lineIn, writeLine } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { copyNameWords, SHADER_STEP_WORDS } from "./words";
 
@@ -199,10 +199,6 @@ async function writeRowNow(
     const set = Object.fromEntries([...kept, ...written]) as Partial<Record<Channel, ChannelValue>>;
     const encode = Object.fromEntries(Object.entries(own.encode ?? {}).filter(([key]) => !drop(key))) as Encoding;
     const empty = (record: object): boolean => Object.keys(record).length === 0;
-    if (empty(set) && empty(encode) && own.userData?.[EVERYTHING_KEY] === true) {
-        await session.styles.remove(own.id);
-        return;
-    }
     await session.styles.update(
         own.id,
         { set: empty(set) ? undefined : set, encode: empty(encode) ? undefined : encode },

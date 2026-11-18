@@ -34,6 +34,7 @@ import {
     fitsCheckout,
     groupEntry,
     GRAPHTY_PARTS,
+    GROUP_MEMBER_SECONDS,
     GROUPS,
     MATRIX_CAP,
     matrixLine,
@@ -129,6 +130,21 @@ describe("the test matrix", () => {
         assert.ok(TEST_STEP_LIMIT_MS + 100_000 + 120_000 <= minutes * 60_000);
     });
 
+    // #7848: a full run runs every member of a group one after another; a member added unmeasured
+    // (graphty-element-webgpu) took small-browser to 24 min 58 s of its 26 minute deadline
+    it("fits every group's slowest measured members, with a quarter to spare, inside its test step's deadline", () => {
+        const gapSeconds = 10; // between members: the results wrapper and nx starting the next one
+        for (const [group, members] of Object.entries(GROUPS)) {
+            for (const m of members) assert.ok(GROUP_MEMBER_SECONDS[m] > 0, `${group}: ${m} has no measured time`);
+            const worst = members.reduce((t, m) => t + GROUP_MEMBER_SECONDS[m] + gapSeconds, 0);
+            assert.ok(
+                worst * 1.25 * 1000 <= TEST_STEP_LIMIT_MS,
+                `${group}: ${worst} s measured, x1.25 is over the deadline`,
+            );
+        }
+        assert.deepEqual(Object.keys(GROUP_MEMBER_SECONDS).sort(), Object.values(GROUPS).flat().sort());
+    });
+
     it("runs every shard exactly once on a full run, in one job per shard or group", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
@@ -160,7 +176,7 @@ describe("the test matrix", () => {
             plan(["graphty-element"])
                 .flatMap((e) => e.members ?? [e.shard])
                 .sort(),
-            SHARDS.filter((s) => s.package === "graphty-element")
+            SHARDS.filter((s) => s.package === "graphty-element" || s["affected-by"]?.includes("graphty-element"))
                 .map((s) => s.shard)
                 .sort(),
         );
@@ -208,12 +224,13 @@ describe("the test matrix", () => {
     });
 
     // Vitest runs a project any one --project matches, so the graphty parts name theirs, and a project missing from
-    // the list would silently never run in CI.
+    // the list would silently never run in CI (a "bench*" project runs in the Performance Benchmarks job instead).
     it("runs every graphty project in one shard family: large-graph alone, the stories alone, the rest in the parts", () => {
         const config = readFileSync(new URL("../graphty/vitest.config.ts", import.meta.url), "utf8");
-        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)].map(
-            (m) => m[1] ?? m[2],
-        );
+        // A "bench*" project is a measurement, run by the Performance Benchmarks job, never in a test shard.
+        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)]
+            .map((m) => m[1] ?? m[2])
+            .filter((name) => !name.startsWith("bench"));
         const parts = SHARDS.find((s) => s.shard === "graphty-1")["test-command"];
         const named = [...parts.matchAll(/--project=(\S+)/gu)].map((m) => m[1]);
         assert.deepEqual([...named, "large-graph", "storybook"].sort(), [...declared].sort());
@@ -249,6 +266,32 @@ describe("the test matrix", () => {
         assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
         const bin = { name: "graph-io-storybook-9", shard: "graph-io-storybook-1", command: "true", files: [] };
         assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
+    });
+
+    // graph-io's fidelity stories import graphty-element's source, a dependency graph-io/project.json negates
+    // (#7196): a graphty-element change runs them, and graph-io's own lint, whose typecheck covers them.
+    it("runs graph-io's fidelity stories and lints them when only graphty-element is affected", () => {
+        // only the stories: graph-io's own shards wait for graph-io to be affected
+        const graphIo = plan(["graphty-element"]).filter((e) => e.package.split(" ").includes("graph-io"));
+        assert.deepEqual(
+            graphIo.map((e) => e.shard),
+            ["graph-io-storybook-1", "graph-io-storybook-2"],
+        );
+        const whole = {
+            name: "graph-io-storybook-1",
+            shard: "graph-io-storybook-1",
+            whole: "graph-io",
+            command: "true",
+        };
+        assert.ok(plan(["graphty-element"], undefined, { bins: [whole] }).some((e) => e.shard === whole.name));
+        const lint = parseYaml(workflow("ci.yml")).jobs.lint.steps.find((s) =>
+            s.name?.startsWith("Lint graph-io's fidelity stories"),
+        );
+        assert.match(lint.if, /contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty-element'\)/u);
+        assert.match(lint.run, /nx run graph-io:lint\b/u);
+        // or nx replays master's cached lint, whose hash would not include graphty-element
+        const project = JSON.parse(readFileSync(new URL("../graph-io/project.json", import.meta.url), "utf8"));
+        assert.ok(project.targets.lint.inputs.some((i) => i.projects?.includes("graphty-element")));
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -898,9 +941,49 @@ describe("ci.yml", () => {
     });
 
     it("keeps the benchmarks advisory, outside the verdict and beside the tests", () => {
-        assert.match(job(ci, "performance"), /continue-on-error: true/);
-        assert.doesNotMatch(job(ci, "performance"), /needs: .*test/);
-        assert.doesNotMatch(job(ci, "all-checks"), /needs: .*performance/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /continue-on-error: true/, name);
+            assert.doesNotMatch(job(ci, name), /needs: .*test/, name);
+            assert.doesNotMatch(job(ci, "all-checks"), new RegExp(`needs: .*${name}`));
+        }
+    });
+
+    // A job that reaches its timeout-minutes is cancelled, and continue-on-error does not absorb a cancelled job:
+    // the whole run concludes cancelled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
+    it("ends the benchmarks inside the job's time limit, so a slow one fails a step and never cancels the run", () => {
+        // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it)
+        for (const [name, count] of [
+            ["algorithms-benchmarks", 1],
+            ["performance", 3],
+        ]) {
+            const perf = parseYaml(ci).jobs[name];
+            const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
+            assert.match(perf.steps[0].run, /^echo "DEADLINE=/, "the first step notes the deadline");
+            const benches = perf.steps.filter((s) =>
+                /nx run algorithms:benchmark|vitest run --project=\S*bench/.test(s.run ?? ""),
+            );
+            assert.equal(benches.length, count, name);
+            for (const s of benches) assert.match(s.run, /^\$GITHUB_WORKSPACE\/tools\/before-deadline\.sh /, s.name);
+            const tail = perf.steps.slice(perf.steps.indexOf(benches.at(-1)) + 1);
+            for (const s of tail) assert.ok(s["timeout-minutes"] > 0, `${s.name} has its own time limit`);
+            const tailMinutes = tail.reduce((sum, s) => sum + s["timeout-minutes"], 0);
+            // one minute for before-deadline.sh's --kill-after and the job's own set-up and clean-up
+            assert.ok(
+                deadline + tailMinutes + 1 <= perf["timeout-minutes"],
+                `${deadline} + ${tailMinutes} + 1 > ${perf["timeout-minutes"]}`,
+            );
+        }
+
+        const underDeadline = (deadlineAt, ...cmd) =>
+            spawnSync("bash", [join("tools", "before-deadline.sh"), ...cmd], {
+                env: { ...process.env, DEADLINE: String(deadlineAt) },
+                encoding: "utf8",
+            });
+        const now = Math.floor(Date.now() / 1000);
+        const spent = underDeadline(now - 1, "true");
+        assert.equal(spent.status, 1, "a spent budget fails the step without running it");
+        assert.match(spent.stdout, /::error::the job's time budget was spent/);
+        assert.equal(underDeadline(now + 600, "sh", "-c", "exit 3").status, 3, "otherwise the command's own status");
     });
 
     it("reuses the build of the run reuse_build_run names, on a dispatch and on a call", () => {
@@ -1239,8 +1322,10 @@ describe("ci.yml", () => {
             );
         }
         // the benchmarks need only the build, and a light run (master) skips them
-        assert.match(job(ci, "performance"), /needs: packages\n/);
-        assert.match(job(ci, "performance"), /&& needs.packages.outputs.light != 'true'\n/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /needs: packages\n/, name);
+            assert.match(job(ci, name), /&& needs.packages.outputs.light != 'true'\n/, name);
+        }
         assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true'\n/);
         // the build still runs, every project, with the uploads deploy-pages.yml reads
         assert.match(
@@ -1279,11 +1364,22 @@ describe("ci.yml", () => {
         assert.equal(plan(PACKAGES).length, FULL_RUN_JOBS, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
-        for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
+        for (const name of [
+            "test",
+            "links",
+            "cost-accuracy",
+            "algorithms-benchmarks",
+            "performance",
+            "lint",
+            "checks",
+            "docs",
+        ]) {
             const body = job(ci, name).replace(/\n {8}environment: .*|\n {18}WRITES: .*/g, "");
             assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify &&/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+        }
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
@@ -1380,9 +1476,9 @@ describe("the test matrix limited to named shards (--only, a CI bisect point)", 
                 encoding: "utf8",
             });
         assert.match(run("--only", '["graphty-2"]').stdout, /\ntest-count=1\n/);
-        const bad = run("--only", '["graphty-9"]');
+        const bad = run("--only", '["graphty-99"]');
         assert.notEqual(bad.status, 0);
-        assert.match(bad.stderr, /graphty-9/);
+        assert.match(bad.stderr, /graphty-99/);
     });
 });
 
@@ -1469,7 +1565,9 @@ describe("verification runs of ci.yml", () => {
     });
 
     it("skips the benchmarks on a verification run", () => {
-        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/);
+        for (const name of ["algorithms-benchmarks", "performance"]) {
+            assert.match(job(ci, name), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
+        }
     });
 
     it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {
@@ -2763,6 +2861,56 @@ describe("base-check.yml", () => {
         assert.equal(readFileSync(join(dir, "base/tools/results/cli.mjs"), "utf8"), "old\n");
         rmSync(dir, { recursive: true, force: true });
     });
+
+    it("#8363: re-runs only the asking job, only when master failed the same test, only on the newest head", () => {
+        const job = parseYaml(workflow("base-check.yml")).jobs.check;
+        assert.equal(job.permissions.actions, "write");
+        const step = job.steps.find((s) => s.name?.startsWith("Re-run the pull request's job"));
+        assert.match(step.if, /steps\.file\.outcome == 'failure'/);
+        assert.match(step.if, /inputs\.job != ''/);
+        const file = job.steps.find((s) => s.name === "Run the file");
+        assert.equal(file.id, "file");
+        assert.equal(file.env.RESULTS_FAILED_OUT, step.env.MASTER_FAILED, "the step reads what the run wrote");
+        const dir = mkdtempSync(join(tmpdir(), "base-check-rerun-"));
+        const failed = join(dir, "master-failed.jsonl");
+        // gh: the job's head and the pull request's head, then the re-run, which it logs
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/sh\ncase "$*" in\n  *actions/jobs/*) echo "$RUN_HEAD" ;;\n  *pulls/*) echo "$PR_HEAD" ;;\n  run\\ rerun*) echo "$*" >> "${dir}/calls" ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const sh = (env) =>
+            execFileSync("bash", ["-euo", "pipefail", "-c", step.run], {
+                env: {
+                    ...process.env,
+                    PATH: `${dir}:${process.env.PATH}`,
+                    GITHUB_REPOSITORY: "o/r",
+                    MASTER_FAILED: failed,
+                    JOB: "55",
+                    PR: "7",
+                    FAILED: JSON.stringify(["d > x"]),
+                    RUN_HEAD: "aaa",
+                    PR_HEAD: "aaa",
+                    ...env,
+                },
+                encoding: "utf8",
+            });
+        const calls = () => (existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "");
+        // no failure recorded (a build error, or exit 2: no shard runs the file), or another test's failure
+        sh({});
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > other" })}\n`);
+        sh({});
+        assert.equal(calls(), "", "master did not fail the same test: nothing re-run");
+        writeFileSync(failed, `${JSON.stringify({ file: "a.test.ts", name: "d > x" })}\n`);
+        sh({ RUN_HEAD: "bbb" });
+        assert.equal(calls(), "", "an older head is not re-run");
+        sh({ JOB: "55; x" });
+        sh({ FAILED: "not json" });
+        assert.equal(calls(), "", "a malformed job id or test list is not used");
+        sh({});
+        assert.equal(calls(), "run rerun --job 55 --repo o/r\n", "only the one job, never --failed");
+        rmSync(dir, { recursive: true, force: true });
+    });
 });
 
 describe("pr-title.yml", () => {
@@ -3258,6 +3406,29 @@ describe("actions/cache in the workflows", () => {
         }
         assert.ok(checked >= 10, `found the workflows that restore caches (${checked})`);
     });
+
+    it("fails a stalled git transfer in ci.yml so actions/checkout retries it (#8526)", () => {
+        // git waits forever on an HTTPS transfer that stops delivering bytes; a Test job's checkout sat silent
+        // for its whole 30 minutes and the cancelled job turned the full run's CI lane red (run 43924294024).
+        const env = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).env;
+        assert.ok(Number(env.GIT_HTTP_LOW_SPEED_LIMIT) > 0, "env GIT_HTTP_LOW_SPEED_LIMIT is set");
+        const secs = Number(env.GIT_HTTP_LOW_SPEED_TIME);
+        assert.ok(secs > 0 && secs <= 300, `env GIT_HTTP_LOW_SPEED_TIME is 1-300 s (got ${secs})`);
+    });
+
+    it("bounds the Test jobs' checkout and checks out again when it times out (#8743)", () => {
+        // the low-speed limit did not stop every stall: two Test checkouts still sat 30 minutes (run 44125048943)
+        const jobs = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).jobs;
+        for (const name of ["test", "test-2"]) {
+            const [first, retry] = jobs[name].steps;
+            assert.match(String(first.uses), /^actions\/checkout@/, name);
+            assert.ok(first["timeout-minutes"] <= 10 && first["continue-on-error"] === true, name);
+            assert.match(String(retry.uses), /^actions\/checkout@/, name);
+            assert.equal(retry.if, `steps.${first.id}.outcome == 'failure'`, name);
+            assert.ok(retry["timeout-minutes"] <= 10 && !retry["continue-on-error"], name);
+            assert.deepEqual(retry.with, { ...first.with }, `${name}: the retry checks out the same way`);
+        }
+    });
 });
 
 describe("Playwright's system packages", () => {
@@ -3612,6 +3783,13 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             [...new Set(legged.map((r) => r.project))],
         );
         assert.ok(legged.some((r) => r.project === "graph-io-fidelity"));
+        assert.ok(
+            legged.some((r) => r.project === "graphty"),
+            "graphty re-shoots in legs (#8128)",
+        );
+        // an unsteady project's fix-forward whole re-shoot runs in leg 1 alone, unlegged, so one capture plans it
+        assert.match(text, /WHOLE: .*&& \(!matrix.unsteady \|\| matrix.leg == 1\)/);
+        assert.match(text, /LEG: \$\{\{ matrix.leg && !\(matrix.unsteady && needs.pick.outputs.source_run != ''/);
         assert.match(text, /plan --project "\$PROJECT" --captures "\$RUNNER_TEMP\/first" \$\{LEG:\+--leg "\$LEG"\}/);
         // ci.yml's gate step is untouched: the re-capture is release.yml's own job
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);
@@ -4568,6 +4746,26 @@ describe("release.yml", () => {
         assert.match(llm, /exit "\$status"\n/);
         assert.match(llm, /grep -q '\\\[llm-regression\\\] provider refused the account'/);
         assert.match(llm, /owner_item: \$\{\{ steps.llm.outputs.owner_item \}\}/);
+        // run as GitHub runs it (`bash -e`): a refused account still sets owner_item, so no bisect starts (#8227)
+        const step = parseYaml(release).jobs.llm.steps.find((s) => s.id === "llm");
+        const dir = mkdtempSync(join(tmpdir(), "llm-step-"));
+        writeFileSync(
+            join(dir, "npx"),
+            "#!/bin/sh\necho 'FAILED x: [llm-regression] provider refused the account (HTTP 402)'\nexit 1\n",
+        );
+        chmodSync(join(dir, "npx"), 0o755);
+        const ran = spawnSync("bash", ["-e", "-c", step.run], {
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                GOOGLE_API_KEY: "k",
+                RUNNER_TEMP: dir,
+                GITHUB_OUTPUT: join(dir, "out"),
+            },
+        });
+        assert.equal(ran.status, 1, "fails with vitest's status");
+        assert.match(readFileSync(join(dir, "out"), "utf8"), /^owner_item=Google refused the account/m);
+        rmSync(dir, { recursive: true, force: true });
         const harness = readFileSync(
             new URL("../graphty-element/test/helpers/llm-regression-harness.ts", import.meta.url),
             "utf8",
@@ -6231,10 +6429,6 @@ describe("the commit and push hooks", () => {
         );
     });
 
-    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
-        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
-    });
-
     it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
         inRepo((dir, git) => {
             mkdirSync(join(dir, "visual-baselines"));
@@ -6289,12 +6483,11 @@ describe("the commit and push hooks", () => {
     it("the source-only checks start the commonest failures first and stop at the first failure", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
-        for (const step of [...steps, "SonarQube (changed lines)"]) {
+        for (const step of [...steps, "Duplicate code"]) {
             assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[\\()]/g, "\\$&")}"`), step);
         }
-        // The two commonest failures start first, in the background, before any other check.
+        // The commonest failure starts first, in the background, before any other check.
         const firstRun = checks.indexOf('    run_step "');
-        assert.ok(checks.indexOf('bg_step "SonarQube (changed lines)"') < firstRun, "SonarQube starts first");
         assert.ok(checks.indexOf('bg_step "CI workflow tests"') < firstRun, "the CI workflow tests start first");
         const steps_ = stepFunctions(checks);
         const r = spawnSync("bash", ["-c", `${steps_}\nrun_step one false\nrun_step two "echo SECOND"`], {
@@ -6551,10 +6744,6 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 mode: 0o755,
             });
             writeFileSync(
-                join(dir, "tools/sonar-gate.mjs"),
-                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "sonar\\n");\n`,
-            );
-            writeFileSync(
                 join(dir, "tools/check-committed-images.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
             );
@@ -6595,7 +6784,6 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const first = run();
             assert.match(first.calls, /run format:check/);
             assert.match(first.calls, /links/);
-            assert.match(first.calls, /sonar/);
             assert.match(first.calls, /images/);
             assert.match(first.calls, /release/);
             const second = run();
@@ -6618,15 +6806,15 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
     });
 
     it("run from the gate's live copy, use the copy's scripts and check the checkout in PREPUSH_ROOT", () => {
-        // gate/: the real scripts, a sonar step and a link check that log "gate-...". root/: the checkout
-        // being pushed, with a different tools/ (its own link check, sonar step and a decoy copy of the
+        // gate/: the real scripts, an image check and a link check that log "gate-...". root/: the checkout
+        // being pushed, with a different tools/ (its own link check and a decoy copy of the
         // source checks) and no check:legacy-use script, as a branch from before that check would have.
         const dir = mkdtempSync(join(tmpdir(), "prepush-gate-dir-"));
         try {
             const gate = join(dir, "gate");
             const root = join(dir, "root");
             const log = (name) => `#!/bin/sh\necho "${name} $PWD" >> ${dir}/calls\n`;
-            const sonar = (name) =>
+            const stub = (name) =>
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "${name}\\n");\n`;
             for (const d of [
                 join(gate, "tools"),
@@ -6640,13 +6828,11 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
-            writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
-            writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
-            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
-            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), sonar("gate-saved-format"));
-            writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
+            writeFileSync(join(gate, "tools/check-committed-images.mjs"), stub("gate-images"));
+            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), stub("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), stub("gate-saved-format"));
+            writeFileSync(join(gate, "tools/release-dry-run.mjs"), stub("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
-            writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$* $PWD" >> ${dir}/calls\n`, { mode: 0o755 });
             const scripts = sourceCheckScripts();
@@ -6666,13 +6852,12 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             });
             assert.equal(r.status, 0, r.stdout + r.stderr);
             const calls = readFileSync(join(dir, "calls"), "utf8");
-            assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
             assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
             assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
             assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
-            assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);
+            assert.doesNotMatch(calls, /gate-links|root-copy/);
             assert.doesNotMatch(calls, /check:legacy-use/);
             assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
             assert.equal(readdirSync(join(root, "tmp/prepush-passes/source")).length, 1, "the pass is recorded");
@@ -6686,7 +6871,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
         const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
         assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
-        assert.doesNotMatch(hook, /\.\/tools\/|prepush|sonar-gate|nx /);
+        assert.doesNotMatch(hook, /\.\/tools\/|prepush|nx /);
     });
 });
 
@@ -7996,7 +8181,8 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     // failed with every Test job green (#5537). Such a plan is cut across the test and test-2 jobs.
     it("runs a plan above 256 Test jobs as two matrices, and passes only when both did", () => {
         const dir = mkdtempSync(join(TMP, "matrix-cap-"));
-        const covers = SHARDS.filter((s) => s.shard.startsWith("graphty-element-browser-")).map((s) => s.shard);
+        // a pull request's bins cover the Off parts only (it plans no full-run-only shard)
+        const covers = SHARDS.filter((s) => /^graphty-element-browser-\d+$/.test(s.shard)).map((s) => s.shard);
         const bins = Array.from({ length: 302 }, (_, i) => ({
             name: `graphty-element-browser-bin-${i + 1}`,
             family: "graphty-element-browser",
@@ -8517,7 +8703,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
     });
 
     it("a pull request touching no docs or cost files runs neither", () => {
-        assert.deepEqual(optional(["graph-samples/src/a.ts"], { affected: ["graph-samples"] }), {
+        assert.deepEqual(optional(["graphty/src/a.ts"], { affected: ["graphty"] }), {
             docs: "false",
             "cost-accuracy": "false",
         });
@@ -8528,7 +8714,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
             assert.equal(optional([f]).docs, "true", f);
         }
         assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
-        assert.equal(optional(["graph-format/README.md"], { affected: ["graph-format"] }).docs, "false");
+        assert.equal(optional(["graphty/README.md"], { affected: ["graphty"] }).docs, "false");
     });
 
     it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {

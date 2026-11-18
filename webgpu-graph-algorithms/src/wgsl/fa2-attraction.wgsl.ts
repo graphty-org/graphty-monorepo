@@ -1,18 +1,18 @@
 /**
- * K2 of the ForceAtlas2 iteration, `fa2-attraction` (spec 7.5; contract 4.5): the gather of the attraction force
+ * K2 of the ForceAtlas2 iteration, `fa2-attraction`: the gather of the attraction force
  * over the undirected CSR rows (both arcs present, so the sum is symmetric with no atomics), the linear or linlog
- * law, the optional weights, the distributed-action division by the mass in `pos.w`, written as the FIRST writer of
- * `force` each iteration (or combined into it under `P.accumulate`, the windowed pattern of 4.2). The arcs are read
- * inside the bound window [P.arcBase, P.arcEnd). P4-T5 (PD-6, PD-7) gives it the three degree tiers: TIER 0 is one
+ * law, the optional weights, the distributed-action division by the mass in `pos.w`, the dissuade-hubs division by the degree + 1 (DISSUADE_HUBS), written as the FIRST writer of
+ * `force` each iteration (or combined into it under `P.accumulate`, the windowed pattern). The arcs are read
+ * inside the bound window [P.arcBase, P.arcEnd). It has three degree tiers: TIER 0 is one
  * row per thread over `[P.tierStart, P.tierEnd)`; TIER 1 is 32 lanes per row over `[P.hiEnd, P.midEnd)` with a
  * five-step tree in workgroup memory; TIER 2 is one workgroup per row over `[0, P.hiEnd)` through `wg_reduce_vec4`
- * (hence `needs: ["subgroups"]`); the row is `perm[row]` under USE_PERM. `LAW` (P5, spec 7.20) picks the pair law:
+ * (hence `needs: ["subgroups"]`); the row is `perm[row]` under USE_PERM. `LAW` picks the pair law:
  * 0 = the FA2 text, 1 = Fruchterman-Reingold `d^2 / k` (unfloored), 2 = ngraph's Hooke spring `k_s (d - L)`; under
  * 1 / 2 the models compile `LINLOG = false` and `HAS_WEIGHTS = false`, and the law overwrites `w` so weights are
  * ignored either way.
  *
- * Body only (spec 3.5, D9); normative text (contract 4.5); the K2 sabotage mutations (P3-T5, P5-T7, P4-T5 / T6) are
- * textual edits of it.
+ * Body only; normative text; the K2 sabotage mutations are textual edits of it.
+ * See design/webgpu/webgpu-acceleration-plan.md, "7.5 Attraction over CSR rows".
  *
  * TIER 0 folds its row through `row_force_dense`, a stride-one copy of `row_force`, because the shader compiler
  * emits `row_force(i, 0u, 1u)` as a call and leaves the stride in a parameter: the loop then walks the row with a
@@ -31,7 +31,7 @@
  * loop's only branch on `colIdx`, so the next arcs' loads stay in flight.
  */
 
-/** The K2 body: entry point `attraction`; the tier bodies are functions called under the uniform `TIER` override, so the barriers of `tiered` are reached in uniform control flow and `tier0`'s early return is legal (spec 3.5 rule 1). */
+/** The K2 body: entry point `attraction`; the tier bodies are functions called under the uniform `TIER` override, so the barriers of `tiered` are reached in uniform control flow and `tier0`'s early return is legal. */
 export const fa2AttractionWgsl = /* wgsl */ `fn store_force(i: u32, f: vec3f) {
     force[3u * i] = f.x;
     force[3u * i + 1u] = f.y;
@@ -39,8 +39,8 @@ export const fa2AttractionWgsl = /* wgsl */ `fn store_force(i: u32, f: vec3f) {
 }
 fn load_force(i: u32) -> vec3f { return vec3f(force[3u * i], force[3u * i + 1u], force[3u * i + 2u]); }
 fn row_node(row: u32) -> u32 { return select(row, perm[row], USE_PERM); }
-fn row_force(i: u32, lane: u32, step: u32) -> vec3f {           // the arcs of row i this lane walks inside the bound window [P.arcBase, P.arcEnd) (4.2)
-    let pi = pos[i];                                           // xyz + mass in one load (D23)
+fn row_force(i: u32, lane: u32, step: u32) -> vec3f {           // the arcs of row i this lane walks inside the bound window [P.arcBase, P.arcEnd)
+    let pi = pos[i];                                           // xyz + mass in one load
     let a0 = max(rowPtr[i], P.arcBase);
     let a1 = min(rowPtr[i + 1u], P.arcEnd);
     var f = vec3f(0.0);
@@ -84,10 +84,11 @@ fn row_force_dense(i: u32) -> vec3f {                          // TIER 0's strid
 fn finish(i: u32, f0: vec3f) {
     var f = f0;
     if (DISTRIBUTED && pos[i].w > 0.0) { f = f / pos[i].w; }   // an inert row (mass 0) never moves: left undivided, finite
+    if (DISSUADE_HUBS) { f = f / f32(rowPtr[i + 1u] - rowPtr[i] + 1u); }   // dissuade hubs (Jacomy et al. 2014, 2.4): divided by degree + 1
     if (P.accumulate == 1u) { f = f + load_force(i); }         // the windowed loop of 4.2 (arcBase != 0 dispatches after the first)
     store_force(i, f);                                         // overwrites: attraction is the first writer of force each iteration
 }
-fn tier0(wid: vec3<u32>, lane: u32) {                          // TIER 0: one row per thread over [tierStart, tierEnd); no barrier, so the early return is legal (3.5 rule 1)
+fn tier0(wid: vec3<u32>, lane: u32) {                          // TIER 0: one row per thread over [tierStart, tierEnd); no barrier, so the early return is legal
     let row = linear_id(wid, lane) + P.tierStart;
     if (row >= P.tierEnd) { return; }
     let i = row_node(row);
@@ -96,7 +97,7 @@ fn tier0(wid: vec3<u32>, lane: u32) {                          // TIER 0: one ro
 
 var<workgroup> sh: array<vec3f, WG>;
 
-fn tiered(wid: vec3<u32>, lid: u32) {                          // TIER 1: 32 lanes per row over [hiEnd, midEnd); TIER 2: WG lanes per row over [0, hiEnd) (PD-6, PD-7)
+fn tiered(wid: vec3<u32>, lid: u32) {                          // TIER 1: 32 lanes per row over [hiEnd, midEnd); TIER 2: WG lanes per row over [0, hiEnd)
     let g = group_id(wid);
     var row = g;
     var end = P.hiEnd;

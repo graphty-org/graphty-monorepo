@@ -1,7 +1,7 @@
 /**
  * What the inspector opens, on the REAL graphty-element: a "Why this look" link opens the layer
  * that paints the node, a group's Style is its layer's, a row an undo removed gives way to the
- * selection, a click on the node already selected brings it back, a node a filter hides says so,
+ * selection, a click on the node already selected brings it back, a node a filter hides leaves it,
  * and every column of the node's kind shows, an empty one as "No value".
  */
 
@@ -12,7 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -85,7 +85,7 @@ async function pick(session: GraphSession, id: string): Promise<void> {
  * The inspector region.
  * @returns queries scoped to it.
  */
-const inspector = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Inspector" }));
+const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
 
 /**
  * What the inspector draws now.
@@ -265,7 +265,7 @@ describe("what the inspector opens, on the real element", () => {
         assert.deepEqual([...session.selection.nodes], ["n3"]);
     });
 
-    it("a node a filter hides says so, and every column shows, an empty one as No value", async () => {
+    it("every column shows, an empty one as No value, and a filter that hides the node takes it off the inspector", async () => {
         const { session } = await openRings();
         await pick(session, "n11");
         // Every column of the node's kind, as the table lists them.
@@ -276,9 +276,13 @@ describe("what the inspector opens, on the real element", () => {
         await act(async () => {
             await session.visibility.set({ kind: "categories", attribute: "data.label", values: ["Node 0"] });
         });
+        // The app reads the working graph, so a filter drops a node it hides from the selection
+        // (the owner's decision, 2026-11-06), and the inspector, which shows the selection, lets
+        // it go.
         await waitFor(() => {
             assert.isFalse(session.visibility.isVisible("n11"));
-            assert.isNotNull(inspector().getByText("Node, hidden by a filter"));
+            assert.deepEqual([...session.selection.nodes], []);
+            assert.isNull(inspector().queryByRole("group", { name: "phone" }));
         });
     });
 });

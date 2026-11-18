@@ -1,17 +1,14 @@
-import {
-    Color3,
-    Constants,
-    Effect,
-    type IShaderMaterialOptions,
-    Mesh,
-    MeshBuilder,
-    Scene,
-    ShaderMaterial,
-    StandardMaterial,
-    Vector2,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import type { IShaderMaterialOptions } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import {
     EDGE_JOIN_FRAGMENT_SHADER,
@@ -130,8 +127,32 @@ export interface JoinedLineOptions {
     pulled?: boolean;
     /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
     pulledCurve?: boolean;
-    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
-    pulledLean?: boolean;
+    /**
+     * With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`);
+     * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
+     */
+    pulledLean?: boolean | "smooth";
+}
+
+/**
+ * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
+ * rectangle with shader-smoothed edges. A 3D line (its width not in world units) also drops the
+ * outer half of its smoothed fringe and its near-invisible fragments (`EDGE_LINE_AA_CUT`), which
+ * would write depth and cut a hole in a farther line it crosses; the 2D view has no such hole and
+ * keeps the whole fringe.
+ * @param options - The line's options.
+ * @returns The defines.
+ */
+function leanDefines(options: JoinedLineOptions): string[] {
+    if (options.pulledLean === "smooth") {
+        return [
+            "#define EDGE_PULLED_LEAN",
+            "#define EDGE_LINE_AA",
+            ...(options.worldWidth === true ? [] : ["#define EDGE_LINE_AA_CUT"]),
+        ];
+    }
+
+    return options.pulledLean === true ? ["#define EDGE_PULLED_LEAN"] : [];
 }
 
 /**
@@ -149,9 +170,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
-        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
-            ? ["#define EDGE_PULLED_LEAN"]
-            : []),
+        ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
 }
@@ -228,7 +247,7 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
         return [];
     }
 
-    const tables = ["rowPosition", "edgeRows", "edgeHidden"];
+    const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
     return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
 }
 
@@ -335,10 +354,9 @@ export class CustomLineRenderer {
 
         const moduleShaderStore = Effect.ShadersStore;
 
-        // Vertex Shader: Screen-space width expansion
-        // This matches the formula we learned from GreasedLine and dot arrowhead work
-        // Updated to support instancing (required for BabylonJS mesh caching)
-        // FIXED: Uses segmentStart/segmentEnd for consistent perpendicular calculation
+        // Vertex Shader: Screen-space width expansion. Supports instancing (Babylon.js mesh caching
+        // needs it), and both vertices of a segment take their perpendicular from
+        // segmentStart/segmentEnd, so the two ends of the quad agree.
         const vertexShaderCode = `
 precision highp float;
 
@@ -374,8 +392,8 @@ void main() {
     // Transform vertex to clip space using finalWorld (supports instancing)
     vec4 vertexClip = viewProjection * finalWorld * vec4(position, 1.0);
 
-    // FIXED: Calculate screen-space direction using segment start/end
-    // This ensures both start and end vertices use the SAME perpendicular direction
+    // Screen-space direction from the segment's start and end, so both vertices of the segment
+    // use the same perpendicular
     vec4 segmentStartClip = viewProjection * finalWorld * vec4(segmentStart, 1.0);
     vec4 segmentEndClip = viewProjection * finalWorld * vec4(segmentEnd, 1.0);
 
@@ -429,8 +447,8 @@ void main() {
     vec2 offset = perpendicular * width * 0.5 * side * grow;
 
     // Apply screen-space sizing with perspective tapering
-    // NOTE: Removed * vertexClip.w to enable perspective tapering
-    // GPU will apply perspective divide (/= w), making distant lines smaller
+    // The offset is not multiplied by vertexClip.w, so the GPU's perspective divide (/= w)
+    // makes distant lines thinner (perspective tapering)
     // Divide by resolution to convert from pixels to NDC (-1 to +1)
     offset /= resolution;
 
@@ -458,7 +476,7 @@ void main() {
         moduleShaderStore.customLineVertexShader = vertexShaderCode;
 
         // Fragment Shader: Pattern rendering
-        // Updated to support 7 pattern types:
+        // Seven pattern types:
         // 0=solid, 1=dash, 2=dash-dot, 3=equal-dash, 4=sinewave, 5=zigzag, 6=dots
         const fragmentShaderCode = `
 precision highp float;
@@ -550,7 +568,10 @@ void main(void) {
         const mesh = new Mesh("joined-line", scene);
         const vertexData = new VertexData();
         vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
-        vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        // a pulled batch draws unindexed (`PulledLineBatch`)
+        if (options.pulled !== true) {
+            vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        }
         vertexData.applyToMesh(mesh);
 
         const { program, fade } = options;
@@ -578,6 +599,7 @@ void main(void) {
                     "color",
                     "opacity",
                     "pattern",
+                    ...(options.pulled === true ? ["edgeOrdered"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),

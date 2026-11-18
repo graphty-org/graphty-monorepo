@@ -1082,7 +1082,7 @@ class PajekParser {
         this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
         let shape: string | null = null;
         if (i < tokens.length && isShapeKeyword(tokens[i])) {
-            shape = tokens[i].toLowerCase();
+            shape = tokens[i];
             i++;
         }
         const extras = this.extras(tokens, i, "node", line);
@@ -1778,7 +1778,7 @@ class PajekParser {
                 continue;
             }
             if (domain === "node" && isShapeKeyword(token)) {
-                extras.shape = token.toLowerCase();
+                extras.shape = token;
                 i++;
                 continue;
             }

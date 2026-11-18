@@ -34,7 +34,7 @@ import type {
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
-import type { EncodedValue, PreparedBinding } from "./encoding";
+import { defaultScaleFor, type EncodedValue, type PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 
 /**
@@ -417,8 +417,15 @@ export function valueEntryPatch(
         map[key] = entry;
     }
 
+    // A binding that named no scale read through the default for a binding without a map; naming
+    // that scale keeps an entry from changing how every other value is read.
+    const descriptor = channelDescriptor(channel);
+    const scale =
+        rest.scale === undefined && previous === undefined && descriptor !== undefined
+            ? { scale: defaultScaleFor(descriptor.accepts, rest) }
+            : {};
     return {
-        encode: { ...layer.encode, [channel]: Object.keys(map).length === 0 ? rest : { ...rest, map } },
+        encode: { ...layer.encode, [channel]: Object.keys(map).length === 0 ? rest : { ...rest, ...scale, map } },
     };
 }
 

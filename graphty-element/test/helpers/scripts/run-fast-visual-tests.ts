@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { chromium } from "@playwright/test";
 
+/** What this script reads off the element, which has no graph until it initializes. */
+interface GraphtyLike {
+    graph?: { scene?: { meshes: unknown[]; render: () => void }; engine?: { stopRenderLoop: () => void } };
+}
+
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 /**
@@ -49,17 +54,17 @@ async function runFastVisualTests(): Promise<void> {
 
         // Quick readiness check
         await page.waitForFunction(() => {
-            const el = document.querySelector("graphty-element");
-            return (el as any)?.graph?.scene?.meshes?.length > 0;
+            const el = document.querySelector("graphty-element") as GraphtyLike | null;
+            return (el?.graph?.scene?.meshes.length ?? 0) > 0;
         });
 
         // Render frames in one batch
         await page.evaluate((frameCount: number) => {
-            const el = document.querySelector("graphty-element");
-            if ((el as any)?.graph?.engine) {
-                (el as any).graph.engine.stopRenderLoop();
+            const graph = (document.querySelector("graphty-element") as GraphtyLike | null)?.graph;
+            if (graph?.engine) {
+                graph.engine.stopRenderLoop();
                 for (let i = 0; i < frameCount; i++) {
-                    (el as any).graph.scene.render();
+                    graph.scene?.render();
                 }
             }
         }, test.frames);

@@ -48,7 +48,6 @@ import {
     registerCameraView,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
-import { operationQueueOf } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
 
 /** Three nodes at known coordinates, so every box in this file can be checked by eye. */
@@ -665,9 +664,7 @@ describe("a third party's camera view", () => {
             const travelling = graph.applyCameraView("acme-corner", { animate: true, duration: 4000 });
             await waitFor(() => cameraHasLeft({ x: 1, y: 1, z: 1 }), "the camera animation to take its first step");
 
-            for (const id of operationQueueOf(graph).getActiveOperations()) {
-                operationQueueOf(graph).cancelOperation(id);
-            }
+            assert.isTrue(graph.cancelCameraAnimation(), "a camera move was under way to cancel");
 
             // Cancelling a camera move is not a failure: the element stops the animation where it
             // is and the caller's await finishes. Rejecting would make every cancelled move an

@@ -4,8 +4,6 @@ import type { LayerSpec, StaticStyle } from "../../src/catalog/types";
 import type { AdHocData, EdgeStyleConfig, StyleSchemaV1, ViewMode } from "../../src/config";
 import type { Edge } from "../../src/Edge";
 import { Graph } from "../../src/Graph";
-import type { DataManager } from "../../src/managers/DataManager";
-import type { LayoutManager } from "../../src/managers/LayoutManager";
 import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 
@@ -29,16 +27,6 @@ export function isDisposed(mesh: AbstractMesh | PatternedLineMesh | ArrowCap): b
     }
 
     return false;
-}
-
-/**
- * Type helper to access private Graph members in tests.
- * Uses Omit to remove the private members first, then re-add them as public.
- * This avoids TypeScript's intersection reduction to 'never'.
- */
-export interface TestGraph extends Omit<Graph, "dataManager" | "layoutManager"> {
-    dataManager: DataManager;
-    layoutManager: LayoutManager;
 }
 
 /**

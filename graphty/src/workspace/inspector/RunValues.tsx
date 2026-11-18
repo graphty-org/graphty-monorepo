@@ -12,6 +12,7 @@ import React, { useEffect } from "react";
 
 import { isPathFollow, ranOptionWords, weightRead, wordsFor } from "../analyze/words";
 import { focusInspectorTitle } from "../frame/focus";
+import { drawnYet } from "../options/notYetDrawn";
 import { OptionsForm } from "../options/OptionsForm";
 import { SettingsPopout } from "../options/SettingsPopout";
 import { splitOptions } from "../options/splitOptions";
@@ -195,10 +196,10 @@ function MadeWith({
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
     const date = runTime(run.startedAt);
-    const weighted = (descriptor?.weightMeaning ?? null) !== null;
+    const weighted = (descriptor?.weightMeaning ?? null) !== null && drawnYet(run.algorithm, "weight");
     // The run's nodes (a path's From and To) are facts like Analysis and Ran: rows, in line with
     // them. The weight is one row too, saying what the run read, so it is stated once.
-    const options = descriptor?.options ?? [];
+    const options = (descriptor?.options ?? []).filter((o) => drawnYet(run.algorithm, o.name));
     const rows = options.filter((o) => o.type === "node-id" && o.advanced !== true && o.internal !== true);
     // A path's Follow is a row, like its ends, and only on a directed graph: undirected, it changes nothing.
     const follow = options.find((o) => isPathFollow(run.algorithm, o.name));

@@ -1,16 +1,17 @@
 import { ControlSection, PanelField, Popout, TargetTooltip } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
-import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { DEFAULT_NAME_KEY } from "./cards";
+import { ControlLabel } from "./ControlLabel";
 import { shownChannel } from "./offered";
+import { GradientRow } from "./parts/GradientRow";
 import { Field, type RowContext } from "./PropertyRow";
-import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { carriedOpacity, lineIn, partlySet, removeLine, writeIn } from "./row";
 import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
@@ -94,6 +95,9 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
 }
 
+/** A list section's "+" menu key for one of its items. */
+const ITEM_KEY = "item:";
+
 /** Why an undirected graph's Arrowheads add nothing: its edges have no direction to point. */
 const NO_ARROWHEADS = "Not available: undirected graph";
 
@@ -110,27 +114,6 @@ function notAvailable(ctx: RowContext, spec: SectionSpec): string | null {
 }
 
 /**
- * A section's one help line, or null: on edges, Arrowheads says they are not available on an
- * undirected graph; on nodes, Shape with an outline says where its width is set.
- * @param ctx - the row and kind.
- * @param spec - the section.
- * @param set - the properties the row sets in it.
- * @returns the words, or null.
- */
-function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDescriptor[]): string | null {
-    const blocked = notAvailable(ctx, spec);
-    if (blocked !== null) {
-        return blocked;
-    }
-    if (ctx.side === "node" && spec.id === "shape" && set.some((d) => d.channel === "node.outline")) {
-        return selectionWorkspaceOn(ctx.session)
-            ? "Width: Graph settings"
-            : "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
-    }
-    return null;
-}
-
-/**
  * One section of the Style tab (the owner's design, 2026-10-13, after Figma's sections): its title
  * and a "+" at the header's right end. A section the layer does not write is only its dimmed title
  * and "+". One it writes lists only the properties the layer sets, each with its value and a
@@ -142,10 +125,28 @@ function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDe
  * @param props - Component props
  * @param props.ctx - the row and kind
  * @param props.spec - the section
+ * @param props.actions - more header buttons, before its "+"
+ * @param props.itemActions - more buttons on a list section's item heading, by item id
  * @returns The section
  */
-export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element | null {
-    return spec.shaders === true ? <ShadersSection ctx={ctx} spec={spec} /> : <PropertySection ctx={ctx} spec={spec} />;
+export function Section({ ctx, spec, actions, itemActions }: Readonly<SectionProps>): React.JSX.Element | null {
+    return spec.shaders === true ? (
+        <ShadersSection ctx={ctx} spec={spec} />
+    ) : (
+        <PropertySection ctx={ctx} spec={spec} actions={actions} itemActions={itemActions} />
+    );
+}
+
+/** What {@link Section} takes. */
+interface SectionProps {
+    /** The row and kind. */
+    readonly ctx: RowContext;
+    /** The section. */
+    readonly spec: SectionSpec;
+    /** More buttons on the header, before its "+" (a settings page's button). */
+    readonly actions?: React.ReactNode;
+    /** More buttons on a list section's item heading, by item id. */
+    readonly itemActions?: (item: string) => React.ReactNode;
 }
 
 /**
@@ -153,9 +154,11 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
  * @param props - Component props
  * @param props.ctx - the row and kind
  * @param props.spec - the section
+ * @param props.actions - more header buttons
+ * @param props.itemActions - more buttons on an item heading
  * @returns The section
  */
-function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element | null {
+function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionProps>): React.JSX.Element | null {
     const { store } = useWorkspace();
     // The properties "+" added that the row does not set yet, waiting for a value, so adding one
     // writes nothing until the reader picks one.
@@ -168,15 +171,25 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
         return shown?.renderable === true ? [shown] : [];
     });
     const set = descriptors.filter((d) => isSet(ctx, d));
-    const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
-    const note = sectionNote(ctx, spec, set);
+    // Properties drawn together (both arrow ends): once one is set, the rest wait for a value.
+    const together = spec.together ?? [];
+    const joined = together.some((channel) => set.some((d) => d.channel === channel));
+    const pending = descriptors.filter(
+        (d) => !set.includes(d) && (waiting.includes(d.channel) || (joined && together.includes(d.channel))),
+    );
     // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
     // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
     const folded = new Set(
         set.flatMap((d) => (OPACITY_OF[d.channel] === undefined ? [] : (carriedOpacity(ctx, d.channel) ?? []))),
     );
     const boxed = new Set(Object.values(OPACITY_OF));
-    const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d) && !boxed.has(d.channel));
+    const unset = descriptors.filter(
+        (d) =>
+            !set.includes(d) &&
+            !pending.includes(d) &&
+            !boxed.has(d.channel) &&
+            (spec.offer === undefined || spec.offer.includes(d.channel)),
+    );
     // A line "+" added keeps the place it was added at, below the lines set before it, once its
     // value is written too: drawn in the section's order, it would jump above them under the
     // reader's eyes.
@@ -184,7 +197,11 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     const flat = [
         ...set.filter((d) => !added.includes(d)),
         ...added.filter((d) => set.includes(d) || pending.includes(d)),
+        ...pending.filter((d) => !added.includes(d)),
     ].filter((d) => !folded.has(d.channel));
+    if (joined) {
+        flat.sort((a, b) => descriptors.indexOf(a) - descriptors.indexOf(b));
+    }
     // A style's settings (graphty-element's `modifies`: Halo's size and opacity, Glow's strength)
     // are added from the style's own row and drawn under it, never listed by the section's "+".
     const isSetting = (d: ChannelDescriptor): boolean =>
@@ -195,7 +212,6 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
         .flatMap((d) => [d, ...flat.filter((each) => each.modifies === d.channel && under(each))]);
     const fail = (verb: string) => (error: unknown) => {
         focusLineNext(ctx.session, null);
-        startingAdds.delete(ctx.session);
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };
     const write = (descriptor: ChannelDescriptor, value: boolean): void => {
@@ -216,15 +232,6 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             const every = ctx.many === undefined ? "" : " for every layer";
             store.set({ announcement: `${fieldName(descriptor.channel)} added: pick a value${every}` });
             return;
-        }
-        // Hide or Show is the reader's pick. The first one on a selection makes its layer:
-        // Escape before any other change takes it back.
-        if (
-            ctx.many === undefined &&
-            ctx.layers.length === 0 &&
-            ctx.fresh?.userData?.[DEFAULT_NAME_KEY] !== undefined
-        ) {
-            startingAdds.add(ctx.session);
         }
         write(descriptor, value);
     };
@@ -270,6 +277,41 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             />
         );
     };
+    // A list section's "+" offers its items (a paint, an effect), each one the row has not started.
+    const itemOptions = spec.items?.flatMap((item) => {
+        const started = [...set, ...pending].some((d) => item.channels.includes(d.channel));
+        const offered = unset.some((d) => item.channels.includes(d.channel));
+        return started || !offered ? [] : [{ key: `${ITEM_KEY}${item.id}`, label: item.name }];
+    });
+    // Adding an item adds every property "+" offers of it, waiting for values, in one go.
+    const addItem = (id: string): void => {
+        const item = spec.items?.find((each) => each.id === id);
+        const adds = unset.filter((d) => item?.channels.includes(d.channel) === true).map((d) => d.channel);
+        if (item === undefined || adds.length === 0) {
+            return;
+        }
+        focusLineNext(ctx.session, adds[0]);
+        setWaiting((now) => [...now, ...adds.filter((channel) => !now.includes(channel))]);
+        store.set({ announcement: `${item.name} added: pick its values` });
+    };
+    // A list section's item heading, before the first line of each item the row sets.
+    const headed = new Set<string>();
+    const itemHead = (d: ChannelDescriptor): React.ReactNode => {
+        const item = spec.items?.find((each) => each.channels.includes(d.channel));
+        if (item === undefined || headed.has(item.id)) {
+            return null;
+        }
+        headed.add(item.id);
+        return (
+            <ItemHead
+                key={`item-${item.id}`}
+                ctx={ctx}
+                item={item}
+                actions={itemActions?.(item.id)}
+                onFail={fail("removed")}
+            />
+        );
+    };
     if (descriptors.length === 0) {
         return null;
     }
@@ -281,32 +323,43 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                 label={spec.title}
                 headingLevel={3}
                 empty={set.length + pending.length === 0}
+                hasConfiguredValues={spec.configured}
                 collapsible={false}
                 actions={
-                    <AddButton
-                        kind={ctx.side}
-                        title={spec.title}
-                        options={unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
-                        disabledReason={notAvailable(ctx, spec) ?? undefined}
-                        onAdd={(key) => {
-                            const [channel, pick] = key.split("=");
-                            const descriptor = unset.find((d) => d.channel === channel);
-                            if (descriptor !== undefined) {
-                                add(descriptor, ...(pick === undefined ? [] : [pick === "true"]));
-                            }
-                        }}
-                    />
+                    <>
+                        {actions}
+                        <AddButton
+                            kind={ctx.side}
+                            title={spec.title}
+                            options={itemOptions ?? unset.filter((d) => !isSetting(d)).flatMap((d) => optionsFor(d))}
+                            disabledReason={notAvailable(ctx, spec) ?? undefined}
+                            onAdd={(key) => {
+                                if (key.startsWith(ITEM_KEY)) {
+                                    addItem(key.slice(ITEM_KEY.length));
+                                    return;
+                                }
+                                const [channel, pick] = key.split("=");
+                                const descriptor = unset.find((d) => d.channel === channel);
+                                if (descriptor !== undefined) {
+                                    add(descriptor, ...(pick === undefined ? [] : [pick === "true"]));
+                                }
+                            }}
+                        />
+                    </>
                 }
             >
-                {lines.map((d) =>
-                    d.channel === "node.wireframe" ? (
-                        <WireframeRow key={d.channel} ctx={ctx} />
-                    ) : (
+                {lines.map((d) => [
+                    itemHead(d),
+                    specialLine(ctx, spec, d) ?? (
                         <Field
                             key={d.channel}
                             ctx={ctx}
                             descriptor={d}
-                            word={under(d) && d.modifies !== undefined ? settingWord(d.modifies, d.channel) : undefined}
+                            word={
+                                under(d) && d.modifies !== undefined
+                                    ? settingWord(d.modifies, d.channel)
+                                    : spec.words?.[d.channel]
+                            }
                             setting={under(d)}
                             settings={settingsAdd(d)}
                             pending={pending.includes(d)}
@@ -315,14 +368,105 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                             }}
                         />
                     ),
-                )}
+                ])}
             </ControlSection>
-            {/* Outside the section's body, so it shows while the section sets nothing yet. */}
-            {note !== null && (
-                <Text size="xs" c="dimmed" px={16} pb={4} data-testid={`${ctx.side}-${spec.id}-note`}>
-                    {note}
-                </Text>
-            )}
+        </div>
+    );
+}
+
+/**
+ * A line drawn by its own control rather than a property field: Shape's Wireframe, and in a list
+ * section (the panel by part) the gradient's stops, which stand for its colors and their places.
+ * @param ctx - the row.
+ * @param spec - the section.
+ * @param d - the property.
+ * @returns the line; false to draw no line for it; undefined for an ordinary field.
+ */
+function specialLine(ctx: RowContext, spec: SectionSpec, d: ChannelDescriptor): React.ReactNode {
+    if (d.channel === "node.wireframe") {
+        return <WireframeRow key={d.channel} ctx={ctx} />;
+    }
+    if (spec.items !== undefined && d.channel === "node.gradientColors") {
+        return <GradientRow key={d.channel} ctx={ctx} />;
+    }
+    // The stops row edits the stops too: they keep a line of their own only where a layer sets
+    // them without colors, so that value can be seen and removed.
+    if (
+        spec.items !== undefined &&
+        d.channel === "node.gradientStops" &&
+        (lineIn(ctx, "node.gradientColors") !== undefined || lineIn(ctx, "node.gradientStops") === undefined)
+    ) {
+        return false;
+    }
+    return undefined;
+}
+
+/**
+ * A list section's heading line for one item the row sets (Drop shadow, Gradient): its name, and a
+ * minus that takes every property of the item off the row in one step per layer.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.item - the item
+ * @param props.actions - more buttons before its minus
+ * @param props.onFail - reports a failed removal
+ * @returns The line
+ */
+function ItemHead({
+    ctx,
+    item,
+    actions,
+    onFail,
+}: Readonly<{
+    ctx: RowContext;
+    item: NonNullable<SectionSpec["items"]>[number];
+    actions?: React.ReactNode;
+    onFail: (error: unknown) => void;
+}>): React.JSX.Element {
+    const remove = async (): Promise<void> => {
+        const { many } = ctx;
+        if (many !== undefined) {
+            for (const channel of item.channels) {
+                if (many.count(channel) > 0) {
+                    await many.clear(channel);
+                }
+            }
+            return;
+        }
+        for (const layer of ctx.layers) {
+            const held = item.channels.filter(
+                (channel) => layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined,
+            );
+            if (held.length > 0 && !layer.locked) {
+                await removeLine(ctx.session, layer, ...held);
+            }
+        }
+    };
+    const label = `Remove ${item.name.toLowerCase()}`;
+    return (
+        <div className="ws-row ws-item-head" data-item={item.id}>
+            <div className="ws-field" data-named="">
+                <span className="ws-field-label">
+                    <ControlLabel span size="xs" fw={600} className="ws-field-name">
+                        {item.name}
+                    </ControlLabel>
+                </span>
+                <div className="ws-field-control" />
+                <span className="ws-slot">{actions}</span>
+                <span className="ws-slot">
+                    <Tooltip label={label} position="top">
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label={label}
+                            onClick={() => {
+                                remove().catch(onFail);
+                            }}
+                        >
+                            <GLYPHS.remove size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                </span>
+            </div>
         </div>
     );
 }
@@ -335,7 +479,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
  * @param props.ctx - the row
  * @returns The row
  */
-function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+export function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const { store } = useWorkspace();
     const value = lineIn(ctx, "node.wireframe")?.value;
     const label = channelWord("node.wireframe");
@@ -425,7 +569,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         store.set({ announcement: `${name} added` });
     };
     return (
-        <div // NOSONAR(S6848): only catches the paste shortcut bubbling from the section's own controls
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the paste shortcut bubbling from the section's own controls
             ref={sectionBox}
             data-section={`${ctx.side}-${spec.id}`}
             className="ws-section"
@@ -561,16 +705,22 @@ function pasteKey(event: React.KeyboardEvent, open: (init: PasteInit) => void): 
     );
 }
 
-/** One thing a section's "+" can add: its key and its name in the menu. */
+/**
+ * One thing a section's "+" can add: its key and its name in the menu, or, with `choices`, a
+ * submenu whose items are what is added.
+ */
 export interface AddOption {
     readonly key: string;
     readonly label: string;
+    readonly choices?: readonly AddOption[];
+    /** Words drawn at the item's end, such as how many values will not convert. */
+    readonly detail?: string;
 }
 
 /**
  * A section's "+", named for the kind and the section ("Add to node shape"), so a layer on nodes
  * and edges never has two controls with one name: a menu of what it can still add, or, with one
- * thing left, a button that adds it. With nothing
+ * thing left, a button that adds it. An option with choices opens a submenu of them. With nothing
  * left it stays in place, disabled, saying so in its tooltip on hover, and is no Tab stop: a "+"
  * that adds nothing is a dead stop on a keyboard walk, and the lines it would add are already
  * there, each one a stop of its own.
@@ -624,7 +774,7 @@ export function AddButton({
         return <Tooltip label={reason}>{button}</Tooltip>;
     }
     const [only] = options;
-    if (options.length === 1) {
+    if (options.length === 1 && only.choices === undefined) {
         // A menu of one item is one more click for nothing: the "+" adds it. Its tooltip is its
         // name, so a reader who hovers it and one who hears it meet one name. One that opens a
         // gallery says it opens one, and whether it is open.
@@ -647,16 +797,29 @@ export function AddButton({
                 <TargetTooltip label={name}>{button}</TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
-                {options.map((option) => (
-                    <Menu.Item
-                        key={option.key}
-                        onClick={() => {
-                            onAdd(option.key);
-                        }}
-                    >
-                        {option.label}
-                    </Menu.Item>
-                ))}
+                {options.map((option) => {
+                    const item = (each: AddOption): React.JSX.Element => (
+                        <Menu.Item
+                            key={each.key}
+                            rightSection={each.detail}
+                            onClick={() => {
+                                onAdd(each.key);
+                            }}
+                        >
+                            {each.label}
+                        </Menu.Item>
+                    );
+                    return option.choices === undefined ? (
+                        item(option)
+                    ) : (
+                        <Menu.Sub key={option.key}>
+                            <Menu.Sub.Target>
+                                <Menu.Sub.Item>{option.label}</Menu.Sub.Item>
+                            </Menu.Sub.Target>
+                            <Menu.Sub.Dropdown>{option.choices.map((each) => item(each))}</Menu.Sub.Dropdown>
+                        </Menu.Sub>
+                    );
+                })}
             </Menu.Dropdown>
         </Menu>
     );

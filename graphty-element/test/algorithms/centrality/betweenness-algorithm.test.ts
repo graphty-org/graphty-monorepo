@@ -2,20 +2,9 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
-import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
+import { asNumber, createMockGraph, getNodeResult } from "../../helpers/mockGraph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createMockGraph;
 
 describe("BetweennessCentralityAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -42,8 +31,8 @@ describe("BetweennessCentralityAlgorithm", () => {
                 assert.isDefined(getNodeResult(algo, node.id, "graphty", "betweenness", "scorePct"));
 
                 assert.isNumber(getNodeResult(algo, node.id, "graphty", "betweenness", "score"));
-                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "betweenness", "scorePct"), 0);
-                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "betweenness", "scorePct"), 1);
+                assert.isAtLeast(asNumber(getNodeResult(algo, node.id, "graphty", "betweenness", "scorePct")), 0);
+                assert.isAtMost(asNumber(getNodeResult(algo, node.id, "graphty", "betweenness", "scorePct")), 1);
             }
         });
 

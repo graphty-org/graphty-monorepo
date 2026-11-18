@@ -150,11 +150,11 @@ describe("linear", () => {
         assert.strictEqual(linear(50, over(0, 10)), 1);
     });
 
-    it("answers the near end when every value is the same", () => {
-        // A degenerate domain has no spread to place anything in. The value is at once the
-        // smallest and the largest, and the scale reports the smallest.
-        assert.strictEqual(linear(7, over(7, 7)), 0);
-        assert.strictEqual(linear(7, over(7, 7, { range: [4, 9] })), 4);
+    it("answers the middle when every value is the same", () => {
+        // A degenerate domain has no spread to place anything in. Either end would claim every
+        // value scored the minimum or the maximum; the middle claims neither (issue #118).
+        assert.strictEqual(linear(7, over(7, 7)), 0.5);
+        assert.strictEqual(linear(7, over(7, 7, { range: [4, 9] })), 6.5);
     });
 
     it("misses on a domain that is not numbers at all", () => {
@@ -222,8 +222,8 @@ describe("log", () => {
         assert.isTrue(isScaleMiss(log(5, over(-1, 1000))));
     });
 
-    it("answers the near end when every value is the same", () => {
-        assert.strictEqual(log(10, over(10, 10)), 0);
+    it("answers the middle when every value is the same", () => {
+        assert.strictEqual(log(10, over(10, 10)), 0.5);
     });
 });
 
@@ -294,9 +294,10 @@ describe("bins", () => {
         assert.strictEqual(bins(75, four), 1);
     });
 
-    it("answers the near end when there is one group, or when the domain is a single point", () => {
+    it("answers the near end when there is one group, and the middle when every value is the same", () => {
         assert.strictEqual(bins(5, over(0, 10, { bins: 1 })), 0);
-        assert.strictEqual(bins(7, over(7, 7, { bins: 4 })), 0);
+        assert.strictEqual(bins(7, over(7, 7, { bins: 4 })), 0.5);
+        assert.strictEqual(bins(7, over(7, 7, { bins: 4, range: [2, 6] })), 4);
     });
 
     it("misses on a value or a domain it cannot read", () => {
@@ -321,6 +322,10 @@ describe("quantile", () => {
     it("is one group when nothing computed a cut point, and says so rather than guessing", () => {
         assert.strictEqual(groupCount("quantile", over(0, 100)), 1);
         assert.strictEqual(quantile(42, over(0, 100)), 0);
+    });
+
+    it("answers the middle when every value is the same", () => {
+        assert.strictEqual(quantile(3, over(3, 3, { thresholds: quantileThresholds([3, 3, 3, 3], 4) })), 0.5);
     });
 
     it("misses on a value it cannot read", () => {

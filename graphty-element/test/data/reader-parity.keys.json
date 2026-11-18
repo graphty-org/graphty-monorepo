@@ -2203,7 +2203,7 @@
             "gexfId",
             "graphty.style.edge.directed",
             "graphty.style.edge.end-colors",
-            "graphty.style.edge.gephi-hidden",
+            "graphty.style.edge.hidden",
             "graphty.style.edge.self-loop",
             "graphty.style.edge.weight-width",
             "source",
@@ -2248,7 +2248,7 @@
             "gexfId",
             "graphty.style.edge.directed",
             "graphty.style.edge.end-colors",
-            "graphty.style.edge.gephi-hidden",
+            "graphty.style.edge.hidden",
             "graphty.style.edge.self-loop",
             "graphty.style.edge.weight-width",
             "source",
@@ -2273,7 +2273,7 @@
             "gexfId",
             "graphty.style.edge.directed",
             "graphty.style.edge.end-colors",
-            "graphty.style.edge.gephi-hidden",
+            "graphty.style.edge.hidden",
             "graphty.style.edge.self-loop",
             "graphty.style.edge.weight-width",
             "source",
@@ -2298,7 +2298,7 @@
             "gexfId",
             "graphty.style.edge.directed",
             "graphty.style.edge.end-colors",
-            "graphty.style.edge.gephi-hidden",
+            "graphty.style.edge.hidden",
             "graphty.style.edge.self-loop",
             "graphty.style.edge.weight-width",
             "source",
@@ -2310,7 +2310,7 @@
         "edges": ["gexfId", "source", "target", "weight"]
     },
     "gexf/gexfjs-miserables.gexf": {
-        "nodes": ["Modularity Class", "color", "id", "label", "position", "size"],
+        "nodes": ["Modularity Class", "color", "id", "image", "label", "position", "size", "url"],
         "edges": ["label", "source", "target", "weight"]
     },
     "gexf/glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz": {

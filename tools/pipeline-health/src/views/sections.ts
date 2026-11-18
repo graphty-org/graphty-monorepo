@@ -6,6 +6,7 @@ import type {
     BarsSection,
     Cell,
     Fact,
+    GroupRow,
     JobsSection,
     Member,
     PageId,
@@ -25,6 +26,7 @@ import {
     SNAPSHOT,
     type SupersededSnapshot,
 } from "../collector/snapshots.js";
+import { GROUP_WARN_SHARE, type GroupTimes, groupTimes } from "../model/groups.js";
 import { quantile } from "../model/histogram.js";
 import { type Agg, type Bucket, DAY, floorTo, HOUR, type LoadKind, MIN, STEP_MS } from "../model/items.js";
 import { fileRunKey, hotspotFamily } from "../model/metrics.js";
@@ -218,6 +220,34 @@ function shardRow(shard: string, a: Agg, full: boolean, minRuns: number): ShardR
 }
 
 /**
+ * The test groups' rows of the full-run Shard times (model/groups.ts), in seconds and %.
+ * @param dims - ci.full_group_member_time's dimensions over the range
+ * @returns one row per group, slowest newest run first
+ */
+function groupRows(dims: Map<string, Agg>): GroupRow[] {
+    const s = (ms: number): number => Math.round(ms / 1000);
+    const run = (r: GroupTimes["newest"]): GroupRow["newest"] => ({
+        runId: r.runId,
+        totalS: s(r.totalMs),
+        pct: Math.round(r.share * 1000) / 10,
+    });
+    return groupTimes(dims).map((g) => ({
+        group: g.group,
+        limitS: s(g.limitMs),
+        runs: g.runs,
+        newest: run(g.newest),
+        worst: run(g.worst),
+        warnPct: GROUP_WARN_SHARE * 100,
+        members: g.members.map((m) => ({
+            member: m.member,
+            maxS: s(m.maxMs),
+            tableS: m.tableMs === undefined ? null : s(m.tableMs),
+            stale: m.stale,
+        })),
+    }));
+}
+
+/**
  * Shard times (section 6): full-run shards against their budgets, or pull request bins against 8 minutes.
  * @param reads - the store reads shared by this build
  * @param range - the 7 d or 28 d range
@@ -237,6 +267,7 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
     }
     rows.sort((x, y) => y.medianS / y.budgetS - x.medianS / x.budgetS);
     const rest = rows.slice(SHOWN);
+    const groups = full ? groupRows(await dimsOver(reads, "ci.full_group_member_time", daysOf(range))) : [];
     return {
         kind: "shards",
         id: "shards",
@@ -244,6 +275,7 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
         runKind,
         rows: rows.slice(0, SHOWN),
         ...(rest.length ? { more: { count: rest.length, allWithin: rest.every((r) => r.medianS <= r.budgetS) } } : {}),
+        ...(groups.length ? { groups } : {}),
     };
 }
 

@@ -1,6 +1,6 @@
 import { detExp, type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { exactEdgeWeights } from "./label-propagation.js";
@@ -14,7 +14,9 @@ import { modularity } from "./modularity.js";
 export interface LeidenOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
-    /** Seed of the visit orders; default 42. */
+    /** Seed of the visit orders; an integer, one seed gives one result, bit for bit. Default 42. */
+    readonly seed?: number | undefined;
+    /** The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. */
     readonly randomSeed?: number | undefined;
     /**
      * Cap on whole passes over the original graph, each running as many levels as it needs; default
@@ -646,12 +648,9 @@ export function leiden(s: GraphSnapshot, options: LeidenOptions = {}): LeidenRes
         );
     }
     const resolution = options.resolution ?? 1;
-    const randomSeed = options.randomSeed ?? 42;
+    const randomSeed = seedOption("leiden", options);
     const maxIterations = options.maxIterations ?? 100;
     const threshold = options.threshold ?? 1e-7;
-    if (!Number.isInteger(randomSeed)) {
-        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
-    }
     const n = s.nodeCount;
     const base = levelOf(s, checkedEdgeWeights(s));
     let m2 = 0;

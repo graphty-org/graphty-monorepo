@@ -30,7 +30,6 @@
 // input carries neither.
 
 import { mulberry32 } from "@graphty/algorithms";
-import { type EdgeMask, makeMask, type NodeMask } from "@graphty/graph-format";
 
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
@@ -47,7 +46,7 @@ import {
     requireFunction,
 } from "./definition";
 import { checkViewOptions, expandOptions } from "./options";
-import { type ViewSource, viewSourceOf } from "./source";
+import { viewSourceOf } from "./source";
 import type { GraphView, LayoutContext, LayoutDefinition, NodeId, OptionsShorthand, Point } from "./types";
 import { createGraphView, quoteId, viewWarnings } from "./view";
 
@@ -311,6 +310,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                 plan.options.map((option) => [option.name, given[option.name] ?? option.default]),
             );
             if (plan.random && typeof this.#values.seed !== "number") {
+                // eslint-disable-next-line sonarjs/pseudo-random -- a seeded layout's random starting positions; nothing security-related depends on them
                 this.#values.seed = Math.floor(Math.random() * 2 ** 32);
                 logger.info(`${id}: drew a layout seed`, { layout: id, seed: this.#values.seed });
             }
@@ -448,15 +448,13 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             }
 
             const twoD = graph.getStyles().config.graph.viewMode === "2d";
-            const source = viewSourceOf(session);
-            // A node the layout leaves out (see `LayoutEngine.setLeftOut`) is not in the view `place` reads.
-            const kept = this.keptRows(source.snapshot.nodeCount);
-            const keptEdges = this.keptEdges(source.snapshot);
-            const narrowed =
-                kept === null && keptEdges === null
-                    ? source
-                    : keptSource(source, kept ?? makeMask(source.snapshot.nodeCount, true), keptEdges);
-            const view = createGraphView(narrowed, {
+            // `place` reads the working graph and nothing else: a node or edge it hides is absent.
+            const working = this.workingGraph;
+            if (working === null) {
+                return {};
+            }
+
+            const view = createGraphView(viewSourceOf(session, working.snapshot), {
                 id,
                 directed: false,
                 source: "layout",
@@ -528,32 +526,6 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
 }
 
 /**
- * A view source over only the kept rows and edges of another: their induced subgraph, each value
- * read from the row it came from.
- * @param source - The source over every row.
- * @param kept - The rows to keep.
- * @param keptEdges - The edges to keep, or null for every edge between kept rows.
- * @returns The source over the kept rows.
- */
-function keptSource(source: ViewSource, kept: NodeMask, keptEdges: EdgeMask | null): ViewSource {
-    const filtered = keptEdges === null ? null : source.snapshot.filterEdges(keptEdges);
-    const derived = (filtered?.snapshot ?? source.snapshot).inducedSubgraph({ mask: kept });
-    const { nodeOrigin } = derived;
-    const edgeOrigin = (row: number): number => {
-        const inFiltered = derived.edgeOrigin === null ? row : derived.edgeOrigin[row];
-        return filtered?.edgeOrigin?.[inFiltered] ?? inFiltered;
-    };
-    return {
-        snapshot: derived.snapshot,
-        nodeValue: (row, path) => source.nodeValue(nodeOrigin === null ? row : nodeOrigin[row], path),
-        edgeValue: (row, path) => source.edgeValue(edgeOrigin(row), path),
-        ...(source.attributeNames === undefined
-            ? {}
-            : { attributeNames: (target) => source.attributeNames?.(target) ?? [] }),
-    };
-}
-
-/**
  * The structural inputs a layout's options read, derived from their types.
  * @param options - The declared options.
  * @returns The inputs, in a stable order.
@@ -617,6 +589,7 @@ export function defineLayout<const O extends OptionsShorthand = NoOptions>(
         id,
         plainName: name,
         technicalName: name,
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the element still fills the field it deprecated (#7961)
         description,
         family: "custom",
         kind: "batch",

@@ -197,12 +197,14 @@ export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
 export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
 export type {
     ExportGraphOptions,
+    ExportGroupTable,
     ExportLoss,
     ExportLossCode,
     ExportResult,
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
 
 // ---------------------------------------------------------------------------------------------

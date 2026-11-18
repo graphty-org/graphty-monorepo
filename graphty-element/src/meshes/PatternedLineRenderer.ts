@@ -20,7 +20,10 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) with seamless connection
  */
 
-import { Mesh, type Scene, type Vector3, VertexData } from "@babylonjs/core";
+import type { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ArrowCap } from "./ArrowCapBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
@@ -529,6 +532,16 @@ export class PatternedLineRenderer {
             default:
                 throw new Error(`Unknown connected pattern: ${pattern}`);
         }
+    }
+
+    /**
+     * How far a glyph pattern's element reaches along its line on either side of its center.
+     * @param pattern - The pattern type
+     * @returns The reach in units of the line's width, or undefined for a pattern that is not drawn as glyphs
+     */
+    static glyphReach(pattern: PatternType): number | undefined {
+        const glyph = GLYPHS[this.getDefaultShapeType(pattern)] as readonly GlyphPolygon[] | undefined;
+        return glyph === undefined ? undefined : Math.max(...glyph.flat().map(([x]) => Math.abs(x)));
     }
 
     /**

@@ -145,7 +145,7 @@ describe("the configuration document", () => {
         assert.strictEqual(graph.styles.config.graph.selection?.color, "#00BCD4");
 
         await graph.getSession().undo();
-        assert.strictEqual(graph.styles.config.graph.selection?.color, "#FFD700");
+        assert.strictEqual(graph.styles.config.graph.selection?.color, "#0077BB");
     });
 
     it("takes the layout-behaviour preferences of the view without a step or a change of project state", async () => {

@@ -229,7 +229,7 @@ interface Said {
  * @returns Its name, else its id.
  */
 function nameOf(session: GraphSession, id: string | number): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**

@@ -11,7 +11,13 @@ import { basename, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
-import { type ExtractedStyles, resolveStyles, type StyleRule, type StyleValue } from "../../../src/styles/internal.js";
+import {
+    type ExtractedStyles,
+    resolveStyles,
+    type StyleRule,
+    type StyleValue,
+    unsettledStyles,
+} from "../../../src/styles/internal.js";
 import { importForStyles, styleTruth } from "../../styles/harness.js";
 
 const registry = createRegistry();
@@ -242,7 +248,7 @@ describe("reading CX2 styles", () => {
 
 describe("writing CX2 styles", () => {
     const rules = (x: ExtractedStyles | null | undefined): StyleRule[] =>
-        JSON.parse(JSON.stringify(x?.styles.rules ?? [])) as StyleRule[];
+        JSON.parse(JSON.stringify(x === null || x === undefined ? [] : unsettledStyles(x).styles.rules)) as StyleRule[];
 
     it("writes a Cytoscape style, bypasses and the block that read back as the same rules and values", async () => {
         const first = await load(STYLED);

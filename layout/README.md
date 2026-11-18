@@ -239,6 +239,7 @@ const result = forceAtlas2(s, {
     strongGravity: false,
     distributedAction: false,
     dissuadeHubs: true, // good for scale-free graphs
+    nodeSize: null, // per-node radii to keep nodes from overlapping
     linlog: false, // logarithmic attraction
     weight: null, // true for the snapshot's weights, or an edge column name
     seed: 42,

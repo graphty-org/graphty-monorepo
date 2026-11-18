@@ -16,7 +16,7 @@ const COLLECTED = [
 ];
 
 /**
- * The owner's request and the "What is collected" disclosure, shared by the start screen's usage
+ * The owner's request and the "What is collected" disclosure, shared by the first-visit usage
  * data card and Settings > Privacy so both say the same words.
  * @param props - Component props
  * @param props.headline - Whether to draw the first sentence as the card's headline

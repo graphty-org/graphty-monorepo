@@ -101,8 +101,8 @@ export async function oraclePngUrl(id: string): Promise<string | undefined> {
 /**
  * The reader options a program's drawing was made with that the file cannot carry: the Gephi Preview
  * settings of a GEXF page (`previewProperties`), which graphty-element's GEXF reader takes as
- * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader takes as
- * `sigmaSettings`.
+ * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader hands graph-io
+ * as `importOptions: { sigmaSettings }`.
  * @param meta - the oracle's metadata
  * @param format - graph-io's format name of the sample
  * @returns the options, empty for none
@@ -118,7 +118,7 @@ export function oracleFormatOptions(meta: Record<string, unknown>, format: strin
         typeof meta.settings === "object" &&
         meta.settings !== null
     ) {
-        return { sigmaSettings: meta.settings };
+        return { importOptions: { sigmaSettings: meta.settings } };
     }
     return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
 }
@@ -199,7 +199,19 @@ async function associateOracle(
             meta.svgKind !== "raster" && drawing !== undefined
                 ? nameDrawnNodes(prims, meta.drawn as DrawnNodes)
                 : prims;
-        return associate(named, size.width, size.height, graphty, { ownLayout });
+        return associate(named, size.width, size.height, graphty, {
+            ownLayout,
+            // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders)
+            fillOverStroke: meta.program === "Cytoscape desktop",
+            ...(named === prims
+                ? {}
+                : {
+                      drawn: {
+                          ...(meta.drawn as DrawnNodes),
+                          scale: (meta.observed as { scale?: number } | undefined)?.scale,
+                      },
+                  }),
+        });
     }
     const png = await pngPixels(pngUrl);
     const k = png.width / size.width;
@@ -354,6 +366,17 @@ export async function compareWithOracle(
     });
 }
 
+/**
+ * Whether a program's drawing hides node labels that would overlap others: Gephi's Preview does unless its
+ * `node.label.avoidOverlap` is set false (the specimen pages set it; a plain GEXF file keeps Gephi's default, on).
+ * @param meta - the drawing's metadata
+ * @returns true where the program hid overlapping labels
+ */
+function avoidsLabelOverlap(meta: Record<string, unknown>): boolean {
+    const preview = meta.previewProperties as Record<string, unknown> | undefined;
+    return meta.program === "Gephi Toolkit" && preview?.["node.label.avoidOverlap"] !== "false";
+}
+
 /** The SVG read last, and what was read from it. */
 let lastRead: { svg: string; read: SvgPrimitives } | undefined;
 
@@ -435,6 +458,7 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
                 mirror: drawnBy.mirrored === true,
                 standIn: isStandIn(drawnBy),
                 ownLayouts: inputs.ownLayouts,
+                labelsAvoidOverlap: avoidsLabelOverlap(drawnBy),
                 ...(sheet === undefined ? {} : { judges: judgesFor(sheet, reference) }),
             },
         );

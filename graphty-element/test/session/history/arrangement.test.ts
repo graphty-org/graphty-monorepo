@@ -219,6 +219,30 @@ describe("the arrangement under undo and redo", () => {
         session.dispose();
     });
 
+    it("seals a frame the layout owes the lane, as a landing drawn from the card leaves one, at the next rest point", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        const { state } = dispatcherOf(session);
+        const positions = laneOf(session);
+        layout.play();
+        layout.step();
+        layout.settle();
+        const before = state.arrangement;
+
+        // the frame is owed, not written: nothing reads a row before the rest point
+        const frame = new Float32Array([7, 7, 7, 8, 8, 8, 9, 9, 9]);
+        positions.owe(() => {
+            positions.view(3).set(frame);
+            positions.moved(3);
+        });
+        layout.settle();
+
+        const sealed = state.arrangement;
+        assert.notStrictEqual(sealed, before, "the rest point took a capture");
+        assert.deepEqual([...(sealed?.coords ?? [])], [...frame], "of the frame the layout owed");
+        session.dispose();
+    });
+
     it("drops a readback submitted before an undo when it lands after it", async () => {
         const session = await fixtureSession();
         const layout = fakeLayout(session);

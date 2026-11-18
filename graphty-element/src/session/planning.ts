@@ -19,7 +19,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
-import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { askedWeight, type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -43,8 +43,10 @@ import {
     resolveLocation,
 } from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
+import type { AnnotationsCommand } from "./commands/annotations";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
+import type { DataDeriveCommand } from "./commands/derive";
 import type { BatchCommand } from "./commands/index";
 import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
@@ -131,6 +133,7 @@ export type SessionCommand =
     | AlgoMoveCommand
     | AlgoRenameCommand
     | DataCommand
+    | DataDeriveCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
     | StyleCommand
@@ -139,6 +142,7 @@ export type SessionCommand =
     | SetCommand
     | NoteCommand
     | ViewCommand
+    | AnnotationsCommand
     | ConfigSetCommand
     | PositionsCommand
     | LayoutCommand
@@ -311,6 +315,11 @@ export interface PlanningContext {
      */
     readonly inputTick?: () => number;
     /**
+     * Whether the session's `workingGraph` option is on: a run over what is shown then computes
+     * over the view whatever its algorithm declares (design/working-graph/design.md section 6).
+     */
+    readonly workingGraph?: () => boolean;
+    /**
      * The data's own revision: it moves on a freeze or an attribute write, never on a mask, so the
      * location columns are kept until a column or a value changes.
      */
@@ -403,9 +412,11 @@ function costInput(
     /* A run computes over a scope smaller than the graph only when its class declares a scoped
        input; every other one computes on the whole graph and is masked back, so it is estimated
        -- and refused -- over the whole graph: a small scope must not admit a whole-graph run. A
-       scoped one pays for deriving its input on top. */
+       scoped one pays for deriving its input on top. Over the working graph's view every class
+       computes over what is shown. */
     const whole = scope.nodeCount === statistics.nodeCount && scope.edgeCount === statistics.edgeCount;
-    const scoped = !whole && descriptor?.scopeInput === "subgraph";
+    const overView = spec === "visible" && context.workingGraph?.() === true;
+    const scoped = !whole && (descriptor?.scopeInput === "subgraph" || overView);
 
     return {
         input: {
@@ -481,14 +492,10 @@ export function keptSetScopes(context: PlanningContext): ScopeCandidate[] {
  * would refuse is a confident answer to a question nobody asked, and it would gate a button on it.
  * @param descriptor - The algorithm's catalogue entry, when it has one.
  * @param refusal - Why the scope could not be resolved.
- * @param refusal.reason - The sentence, for the deprecated `reason`.
  * @param refusal.refusal - The coded fact.
  * @returns The estimate.
  */
-function unavailableEstimate(
-    descriptor: AlgorithmDescriptor | undefined,
-    { reason, refusal }: EstimateRefusal,
-): CostEstimate {
+function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, { refusal }: EstimateRefusal): CostEstimate {
     return Object.freeze({
         seconds: Number.POSITIVE_INFINITY,
         confidence: "unknown",
@@ -496,9 +503,7 @@ function unavailableEstimate(
         blocksFrame: false,
         cancellable: false,
         available: false,
-        reason,
         refusal,
-        basis: reason,
         basisFacts: bareBasis("cost.refused"),
     });
 }
@@ -630,9 +635,7 @@ function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
             : {
                   blocked: Object.freeze({
                       code: "E_OPTION_RANGE",
-                      // An unavailable layout's basis is its refusal sentence.
-                      // eslint-disable-next-line @typescript-eslint/no-deprecated -- PlanBlock.reason is still English
-                      reason: cost.basis,
+                      reason: layoutRefusalSentences.get(cost) ?? "",
                   }),
               }),
         cost,
@@ -657,7 +660,7 @@ function weighedCaveats(
     try {
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
-            command.params?.weight,
+            askedWeight(command.params?.weight, descriptor?.options),
             context.loadedWeight?.() ?? null,
         );
         return {
@@ -1210,7 +1213,6 @@ function layoutEstimateNow(
         blocksFrame: kind === "batch" && seconds > 1 / 60,
         cancellable: true,
         available: true,
-        basis: `${costClass} layout "${id}" drawn by "${engine}" over n=${String(n)}, m=${String(e)}`,
         basisFacts: Object.freeze({
             nodes: n,
             edges: e,
@@ -1229,21 +1231,27 @@ function layoutEstimateNow(
  * The estimate a layout gets when it cannot run.
  * @param costClass - The class its engine falls in.
  * @param refusal - Why it cannot.
- * @param refusal.reason - The sentence, for the deprecated `reason`.
+ * @param refusal.reason - The sentence, for the plan's block.
  * @param refusal.refusal - The coded fact.
  * @returns The estimate.
  */
 function unavailableLayout(costClass: CostClass, { reason, refusal }: EstimateRefusal): CostEstimate {
-    return Object.freeze({
+    const estimate: CostEstimate = Object.freeze({
         seconds: Number.POSITIVE_INFINITY,
         confidence: "unknown",
         costClass,
         blocksFrame: false,
         cancellable: false,
         available: false,
-        reason,
         refusal,
-        basis: reason,
         basisFacts: bareBasis("cost.refused"),
     });
+    layoutRefusalSentences.set(estimate, reason);
+    return estimate;
 }
+
+/**
+ * The sentence each unavailable layout estimate was refused with, for {@link PlanBlock.reason},
+ * which is still English. Keyed by the frozen estimate, which the layout cache hands back as is.
+ */
+const layoutRefusalSentences = new WeakMap<CostEstimate, string>();

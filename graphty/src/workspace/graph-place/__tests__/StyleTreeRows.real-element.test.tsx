@@ -321,7 +321,8 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
 
             await userEvent.click(await row("Annotations"));
             const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-            await within(inspector).findByText(/ in Annotations\b/);
+            await within(inspector).findByRole("heading", { level: 2, name: "Annotations" });
+            await within(inspector).findByTestId("style-tab");
             await page.screenshot({ path: `${SHOTS}/folder-panel-${size}.png` });
 
             await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));
@@ -333,7 +334,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
             }
             assert.isEmpty(settings.querySelectorAll('[data-collapsible="true"]'), "no section folds");
             const labels = [...settings.querySelectorAll(".cm-field-label, .cm-paint-label")].map((l) => l.textContent);
-            for (const label of ["Lighting", "Outline width"]) {
+            for (const label of ["Lighting"]) {
                 assert.include(labels, label, `${label} is drawn as a field label`);
             }
             await page.screenshot({ path: `${SHOTS}/graph-settings-${size}.png` });

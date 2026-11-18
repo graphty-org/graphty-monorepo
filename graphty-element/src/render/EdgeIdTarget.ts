@@ -1,13 +1,11 @@
-import {
-    Color4,
-    Constants,
-    Mesh,
-    type RawTexture,
-    RenderTargetTexture,
-    type Scene,
-    ShaderMaterial,
-    type TransformNode,
-} from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Edge } from "../Edge";
 

@@ -8,6 +8,10 @@
  * one depended on the machine's speed. The fit now records what it read and is owed again when
  * one of those changes before the picture is final, so both orders end on the same framing. Once
  * the picture was final, an inset change moves nothing (test/browser/camera/view-insets.test.ts).
+ *
+ * A style that changes how big the nodes are drawn, landing after the fit, is owed the same way
+ * (issue #7970): a layer naming a shader whose body was still loading landed after the fit on a
+ * cold load and before it on a warm one, so one story framed at two zooms.
  */
 
 import "../../../src/graphty-element";
@@ -81,6 +85,34 @@ describe("an owed fit reads the inputs in force when the picture is final", () =
         assertRightOfInset(element);
     });
 
+    it("nodes a style grows as the fit lands are framed at their new size", async () => {
+        let fits = 0;
+        const off = element.graph.on("zoom-to-fit-complete", () => {
+            // The layer lands right after the fit, before the frame that shows it.
+            if (fits++ === 0) {
+                void element.session.styles.add({
+                    name: "Big",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": 12 },
+                });
+            }
+        });
+
+        try {
+            element.zoomToFit();
+            await element.waitForStableFrame();
+        } finally {
+            off();
+        }
+
+        assert.isAtLeast(fits, 2, "the fit was owed again");
+        const settled = element.graph.getCameraState();
+        element.zoomToFit();
+        await element.waitForStableFrame();
+        assert.deepEqual(element.graph.getCameraState(), settled, "a fresh fit frames where the owed one did");
+    });
+
     it("a canvas made shorter as the fit lands is framed at its new size", async () => {
         const SHORT = HEIGHT / 3;
         let resized = false;
@@ -107,5 +139,52 @@ describe("an owed fit reads the inputs in force when the picture is final", () =
             assert.isAtLeast(at.y, 0, `${id} is inside the shortened canvas`);
             assert.isAtMost(at.y, SHORT, `${id} is inside the shortened canvas`);
         }
+    });
+});
+
+describe("a fit is owed again when the label pass moves the labels it measured", () => {
+    let container: HTMLDivElement;
+
+    afterEach(() => {
+        container.remove();
+    });
+
+    it("labels moved off their nodes after the fit lands are framed where they were moved", async () => {
+        container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        const element = document.createElement("graphty-element");
+        container.appendChild(element);
+        await element.waitForStableFrame();
+        // Four nodes on a square joined by edges, each labelled over its node: `avoidNodesAndEdges`
+        // moves every label off its node and edges -- the top row's above the square -- on the pass
+        // before a frame, after the fit below measured them over their nodes.
+        await element.graph.addNodes(
+            [0, 1, 2, 3].map((i) => ({
+                id: `s${String(i)}`,
+                position: { x: (i % 2) * 160, y: -Math.floor(i / 2) * 160, z: 0 },
+            })),
+        );
+        await element.graph.addEdges(
+            [0, 1, 2, 3].map((i) => ({ src: `s${String(i)}`, dst: `s${String((i + 1) % 4)}` })),
+        );
+        await element.graph.setLayout("fixed", { dim: 2 });
+        await element.setViewMode("2d");
+        await element.session.styles.add({
+            name: "Labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "a label", "node.labelLocation": "center" },
+        });
+        await element.waitForStableFrame();
+        element.graph.setLayoutBehavior({ labels: { avoidNodesAndEdges: true } });
+        element.zoomToFit();
+        await element.waitForStableFrame();
+
+        const settled = element.graph.getCameraState();
+        element.zoomToFit();
+        await element.waitForStableFrame();
+        assert.deepEqual(element.graph.getCameraState(), settled, "a fresh fit frames where the owed one did");
     });
 });

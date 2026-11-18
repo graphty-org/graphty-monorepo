@@ -525,6 +525,20 @@
             "sources": ["ci-results"]
         },
         {
+            "id": "ci.full_group_deadline",
+            "category": "ci",
+            "label": "Test group near its deadline",
+            "window": "slow",
+            "measure": {
+                "type": "group_deadline",
+                "metric": "ci.full_group_member_time"
+            },
+            "ok": ["<=", 0.8],
+            "fail": [">", 0.9],
+            "slowWindow": "7d",
+            "sources": ["ci-results"]
+        },
+        {
             "id": "ci.runner_minutes_per_merge",
             "category": "ci",
             "label": "Runner-minutes per merge",

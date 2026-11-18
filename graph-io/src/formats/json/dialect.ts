@@ -149,7 +149,7 @@ export function isJsonImportDialect(value: unknown): value is JsonImportDialect 
 
 /**
  * The dialect of a parsed JSON document, told by its shape (Cytoscape:
- * `elements` or a top-level array of `{ data }` elements; OBO Graphs: `graphs[]` whose first graph
+ * `elements`, a top-level array of `{ data }` elements, or top-level `nodes` / `edges` (no `links`) of them; OBO Graphs: `graphs[]` whose first graph
  * has an edge with `sub` (or `subj`) and `obj` or a `pred`, or a node with `lbl`, `meta` or an OWL
  * `type`; JGF: `graph.nodes` / `graph.edges` or any other `graphs[]`; graphology: `options.type` / `options.multi`, `key` nodes without `id`, edges with
  * `undirected` or an `attributes` record, and vis: edges with `from` / `to`, or no edge record and an `options`
@@ -222,6 +222,11 @@ function sniffEdgeListDialect(root: Record<string, unknown>): JsonImportDialect 
     if (isJsonObject(root.options) && (hasKey(root.options, "type") || hasKey(root.options, "multi"))) {
         return "graphology";
     }
+    // Cytoscape.js and Cytoscape desktop also write the elements as top-level `nodes` / `edges` (gal.json)
+    const elements = [firstNode, firstEdge].filter((r) => r !== null);
+    if (!hasKey(root, "links") && elements.length > 0 && elements.every(isCytoscapeElement)) {
+        return "cytoscape";
+    }
     // NetworkX's own keys (links, directed, multigraph, graph) settle node-link: one attribute named
     // like a graphology or vis field (`attributes`, `undirected`, `key`, `from`) must not re-route it
     const networkx =
@@ -236,6 +241,16 @@ function sniffEdgeListDialect(root: Record<string, unknown>): JsonImportDialect 
     }
     const bare = !hasKey(root, "directed") && !hasKey(root, "multigraph") && !hasKey(root, "graph");
     return bare && hasKey(root, "links") ? "d3" : "node-link";
+}
+
+/**
+ * Whether a node or edge record is a Cytoscape element: a `data` object, with none of the id or endpoint keys of
+ * the node-link, graphology and vis records beside it.
+ * @param record - the record
+ * @returns true for a Cytoscape element
+ */
+function isCytoscapeElement(record: Record<string, unknown>): boolean {
+    return isJsonObject(record.data) && !["id", "key", "source", "target", "from", "to"].some((k) => hasKey(record, k));
 }
 
 /** vis-network's top-level option groups (https://visjs.github.io/vis-network/docs/network/#options). */
@@ -433,6 +448,7 @@ const TABLES: Readonly<Record<JsonDialect, ExportCapabilities>> = Object.freeze(
     }),
     graphology: capabilities({
         ...COMMON,
+        positions: true,
         mixedDirection: true,
         edgeIds: "optional",
         hierarchy: false,
@@ -440,6 +456,7 @@ const TABLES: Readonly<Record<JsonDialect, ExportCapabilities>> = Object.freeze(
     }),
     vis: capabilities({
         ...COMMON,
+        positions: true,
         mixedDirection: false,
         edgeIds: "optional",
         hierarchy: false,
@@ -459,7 +476,7 @@ const TABLES: Readonly<Record<JsonDialect, ExportCapabilities>> = Object.freeze(
 /**
  * What one dialect can express: positions and visual columns are written as
  * plain attributes (an array for a multi-component column) and read back without their role,
- * except Cytoscape's `position` object; containment only as the Cytoscape `data.parent`; mixed
+ * except Cytoscape's `position` object and vis / graphology `x` / `y`; containment only as the Cytoscape `data.parent`; mixed
  * direction only where the dialect carries a per-edge flag (JGF `directed`, graphology
  * `undirected`); edge ids where the dialect has a slot (not node-link / d3); nothing temporal;
  * graph attributes everywhere but d3 (the bare shape) and vis.

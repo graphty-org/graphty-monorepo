@@ -55,7 +55,10 @@ describe("Community Detection Algorithm Options", () => {
 
                 // The damping factor a run used is in the caveats' notes, which is where a
                 // reader is told what the numbers mean.
-                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.85 },
+                });
             });
         });
 
@@ -111,7 +114,10 @@ describe("Community Detection Algorithm Options", () => {
                 const algo = new PageRankAlgorithm(graph, { dampingFactor: 0.5 });
                 await algo.run();
 
-                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
+                assert.deepInclude(algo.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.5 },
+                });
             });
         });
 
@@ -221,7 +227,7 @@ describe("Community Detection Algorithm Options", () => {
                 const schema = LeidenAlgorithm.getOptionsSchema();
                 assert.isDefined(schema.randomSeed);
                 assert.strictEqual(schema.randomSeed.type, "integer");
-                assert.strictEqual(schema.randomSeed.default, 42);
+                assert.strictEqual(schema.randomSeed.default, null);
                 assert.isTrue(schema.randomSeed.advanced);
             });
 
@@ -247,6 +253,11 @@ describe("Community Detection Algorithm Options", () => {
                 assert.doesNotThrow(() => new LeidenAlgorithm(graph, { randomSeed: 123 }));
             });
 
+            it("accepts a randomSeed of 0", async () => {
+                const graph = await createMockGraph();
+                assert.doesNotThrow(() => new LeidenAlgorithm(graph, { randomSeed: 0 }));
+            });
+
             it("rejects negative randomSeed", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
@@ -266,12 +277,12 @@ describe("Community Detection Algorithm Options", () => {
                         { srcId: "B", dstId: "C" },
                     ],
                 });
-                const algo = new LeidenAlgorithm(graph, { resolution: 1.5, maxIterations: 50 });
+                const algo = new LeidenAlgorithm(graph, { resolution: 1.5, maxIterations: 50, randomSeed: 42 });
                 await algo.run();
                 assert.deepStrictEqual(partitionOf(algo, ["A", "B", "C"], "leiden"), [["A"], ["B", "C"]]);
 
                 // At resolution 0.1 the whole path is one community.
-                const coarse = new LeidenAlgorithm(graph, { resolution: 0.1, maxIterations: 50 });
+                const coarse = new LeidenAlgorithm(graph, { resolution: 0.1, maxIterations: 50, randomSeed: 42 });
                 await coarse.run();
                 assert.deepStrictEqual(partitionOf(coarse, ["A", "B", "C"], "leiden"), [["A", "B", "C"]]);
             });

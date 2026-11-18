@@ -8,6 +8,7 @@ import {
     DEFAULT_BUDGET,
     earlierActive,
     FULL_RUN_MAX_PARALLEL,
+    MAX_WAIT_MINUTES,
     parseBudget,
     parseCap,
     POLL_SECONDS,
@@ -87,7 +88,8 @@ test("parseCap: default 2, off or junk is no cap", () => {
 });
 
 test("parseBudget: unset is the runner ceiling less the full run's share, off is no budget", () => {
-    assert.equal(DEFAULT_BUDGET, 160);
+    // 180 runners less the full run's 24 Test and 6 Story tests jobs (#7849; 160 while the full run ran 14)
+    assert.equal(DEFAULT_BUDGET, 150);
     assert.equal(parseBudget(undefined), DEFAULT_BUDGET);
     assert.equal(parseBudget(""), DEFAULT_BUDGET); // ci.yml passes an unset variable as ""
     assert.equal(parseBudget("120"), 120);
@@ -240,7 +242,7 @@ test("a run queued for over a day is stuck, not load, and never counts", async (
     assert.ok(!f.calls.includes("graphql"), "no earlier run, no query");
 });
 
-test("waits its turn with no time limit of its own: past 25 minutes until the jobs drain", async () => {
+test("waits its turn past 25 minutes until the jobs drain", async () => {
     const ci = [ME, suite(run(1, "2026-10-26T04:00:00Z", "in_progress"), "CS_1")];
     const f = fake({ ci, suites: { CS_1: { build: "COMPLETED", queued: 200 } } });
     // the earlier run's jobs drain after an hour
@@ -252,6 +254,20 @@ test("waits its turn with no time limit of its own: past 25 minutes until the jo
     const r = await waitTurn({ cap: null, budget: DEFAULT_BUDGET, runId: ME.id, ...f, api });
     assert.equal(r.outcome, "proceeded");
     assert.ok(r.waitedSeconds >= 3600, `waited ${r.waitedSeconds} s`);
+});
+
+test("ends its wait at MAX_WAIT_MINUTES and proceeds, so the job's timeout never cancels the run", async () => {
+    const ci = [ME, suite(run(1, "2026-10-26T04:00:00Z", "in_progress"), "CS_1")];
+    const f = fake({ ci, suites: { CS_1: { build: "COMPLETED", queued: 1000 } } });
+    const r = await waitTurn({ cap: null, budget: DEFAULT_BUDGET, runId: ME.id, ...f });
+    assert.equal(r.outcome, "wait limit");
+    assert.equal(r.waitedSeconds, MAX_WAIT_MINUTES * 60);
+});
+
+test("MAX_WAIT_MINUTES ends before the Run cap job's timeout in ci.yml", () => {
+    const yml = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+    const timeout = Number(/\n {4}run-cap:\n(?: {8}.*\n)*? {8}timeout-minutes: (\d+)\n/.exec(yml)?.[1]);
+    assert.ok(MAX_WAIT_MINUTES + 5 <= timeout, `wait ${MAX_WAIT_MINUTES} min, job timeout ${timeout} min`);
 });
 
 test("a failed GraphQL query is an API failure: it proceeds", async () => {
@@ -304,7 +320,7 @@ test("a full run waiting for runners with fewer than its share still holds pull 
         ],
     };
     assert.match(await firstTurn(fake({ ci: [ME], release, jobs }), { cap: 2 }), /release run 42966344736/);
-    // a test shard queued behind fourteen running ones is the run's own max-parallel, not a runner wait
+    // a test shard queued behind its running siblings at max-parallel is the run's own max-parallel, not a runner wait
     jobs[42966344736][jobs[42966344736].length - 1] = job("Test (layout-2)", "queued");
     const ok = await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], release, jobs }) });
     assert.equal(ok.outcome, "proceeded");
@@ -316,5 +332,7 @@ test("FULL_RUN_MAX_PARALLEL matches ci.yml's full-run max-parallel", () => {
         const re = new RegExp(`name: ${name} \\(\\$\\{\\{[^]*?max-parallel: .*\\|\\| (\\d+) \\}\\}`);
         assert.equal(Number(re.exec(yml)?.[1]), n, `${name}'s full-run max-parallel in ci.yml`);
     }
-    assert.equal(RELEASE_SHARE, 20);
+    assert.equal(RELEASE_SHARE, 30);
+    // the run cap's comment in ci.yml states the default budget it derives
+    assert.match(yml, new RegExp(`CI_PR_JOB_BUDGET \\(a repository variable, default ${DEFAULT_BUDGET}\\b`));
 });

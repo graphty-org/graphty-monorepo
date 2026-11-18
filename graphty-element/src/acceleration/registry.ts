@@ -28,9 +28,9 @@ export interface AcceleratorRegistration {
      * Yes opens the engine with every limit and feature of `adapter`, and `factory` then gets
      * that device. Left out, or if it throws, the backend finds its own.
      * @param adapter - The `GPUAdapter`, opaque here.
-     * @returns True to share.
+     * @returns True to share, or a promise of it (the WebGPU registration loads its peer first).
      */
-    readonly sharesDevice?: (adapter: unknown) => boolean;
+    readonly sharesDevice?: (adapter: unknown) => boolean | Promise<boolean>;
 }
 
 /** How a second registration under an existing name behaves. */

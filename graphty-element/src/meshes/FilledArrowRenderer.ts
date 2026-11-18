@@ -1,16 +1,14 @@
-import {
-    type AbstractMesh,
-    BoundingInfo,
-    Color3,
-    Effect,
-    Mesh,
-    MultiMaterial,
-    Scene,
-    ShaderMaterial,
-    SubMesh,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
@@ -1713,20 +1711,12 @@ void main() {
      * but applies a 2D StandardMaterial instead of billboarded ShaderMaterial.
      * @param type - Arrow type (normal, diamond, box, dot, vee, tee, etc.)
      * @param length - Arrow length in world units
-     * @param _width - Arrow width in world units (reserved for future use)
      * @param color - Hex color string
      * @param opacity - Opacity value 0-1
      * @param scene - Babylon.js scene
      * @returns Mesh with StandardMaterial and XY plane rotation
      */
-    static create2DArrow(
-        type: string,
-        length: number,
-        _width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-    ): Mesh {
+    static create2DArrow(type: string, length: number, color: string, opacity: number, scene: Scene): Mesh {
         // Get the appropriate geometry for the arrow type
         const geometry = this.getGeometryForType(type, scene);
 

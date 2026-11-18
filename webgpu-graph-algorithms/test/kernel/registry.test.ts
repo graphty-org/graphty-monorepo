@@ -175,6 +175,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
             ["DISTRIBUTED", "bool", false],
             ["TIER", "u32", 0],
             ["LAW", "u32", 0],
+            ["DISSUADE_HUBS", "bool", false],
         ],
         uniforms: [FA2_PARAMS],
         needs: ["subgroups"],

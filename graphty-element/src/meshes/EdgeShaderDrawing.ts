@@ -15,7 +15,7 @@
  * exited and changed stamps. They are written on a repaint and never because an edge moved.
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { drawingOf, motionOf, type ShaderParamDescriptor, type ShaderParams, timingOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";

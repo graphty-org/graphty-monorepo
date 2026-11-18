@@ -24,11 +24,15 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import baselineText from "../../../../special-layers-baseline.json?raw";
+import { withoutFeatures } from "../../../test/features";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Style tab body these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 const BASELINE = JSON.parse(baselineText) as { panelControls: readonly { row: string; control: string }[] };
 

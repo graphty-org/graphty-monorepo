@@ -16,11 +16,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { FIND_ATTRIBUTE } from "../words";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Style tab body these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 /** Volunteers: an id column kept as data, a yes-or-no, a number, and edges that carry a kind. */
 const NODES = ["Ana", "Bo", "Cy", "Di", "Ed", "Flo"].map((name, i) => ({

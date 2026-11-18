@@ -14,11 +14,15 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { findTreeRow } from "../rows";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Style tab body these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 /** Where the pictures for the owner's review go, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";

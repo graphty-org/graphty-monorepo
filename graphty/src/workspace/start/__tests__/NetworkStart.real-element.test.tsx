@@ -14,6 +14,7 @@ import { defineSource, type GraphSession, registerSource, replayFetch } from "@g
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { clearRecent, rememberRecent } from "../../project/recent";
@@ -21,6 +22,9 @@ import { clearRecent, rememberRecent } from "../../project/recent";
 import ndexRecordings from "../../server/__tests__/ndex-wp5483.json";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Style tab body these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 const NDEX = "https://www.ndexbio.org";
 const WP5483 = "86719f5b-1439-11f0-9806-005056ae3c32";

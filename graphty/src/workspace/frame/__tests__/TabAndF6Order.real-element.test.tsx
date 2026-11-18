@@ -12,9 +12,13 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Style tab body these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 /** Two rings of six joined by one bridge; each node labeled and weighed. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, label: `Node ${String(i)}`, weight: i }));

@@ -15,8 +15,6 @@ import React, { useRef, useState } from "react";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
 import { findTreeRow } from "../../graph-place/rows";
-import { isTypingTarget } from "../../keys/keys";
-import { useWorkspace } from "../../state/WorkspaceContext";
 import { LabelSection } from "../LabelSection";
 import type { RowContext } from "../PropertyRow";
 import { Section } from "../Section";
@@ -25,6 +23,7 @@ import { itemWord, partWord } from "./find";
 import { FindSettingBox, FindSettingResults } from "./FindSetting";
 import { PartPage } from "./PartPage";
 import { itemChannels, partChannels, partsFor, type PartSpec } from "./parts";
+import { useFindKey } from "./useFindKey";
 
 /**
  * Every channel the row's layers write, a label style's fields counted as their own channels.
@@ -87,7 +86,6 @@ function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean): Secti
  * @returns The sections
  */
 export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
-    const { store } = useWorkspace();
     const [query, setQuery] = useState("");
     const box = useRef<HTMLInputElement>(null);
     const ctx: RowContext = { ...row, pickers: "listbox" };
@@ -97,16 +95,7 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
     );
     const writes = writesOf(ctx.session, ctx);
     const written = (channel: Channel): boolean => writes.has(channel) || (ctx.many?.count(channel) ?? 0) > 0;
-    // "/" in the panel, outside a text field, is Find a setting's: the graph's Find keeps it elsewhere.
-    const onKeyDown = (event: React.KeyboardEvent): void => {
-        const plain = !event.ctrlKey && !event.metaKey && !event.altKey;
-        if (event.key !== "/" || !plain || isTypingTarget(event.target) || !store.get().singleKeyShortcuts) {
-            return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        box.current?.focus();
-    };
+    const onKeyDown = useFindKey(box);
     const page = (part: PartSpec): React.ReactNode =>
         part.id === "shaders" || part.id === "visibility" ? undefined : <PartPage ctx={ctx} part={part} />;
     const itemPage = (part: PartSpec, id: string): React.ReactNode => {

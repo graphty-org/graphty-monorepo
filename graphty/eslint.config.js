@@ -169,7 +169,7 @@ export default tseslint.config(
     // src/workspace/style/approved-controls.json. Inside the files it checks, what sits in a pop-over's
     // panel, a menu's list, a dialog or a tooltip's label is not in the sidebar and is left alone.
     {
-        files: ["src/workspace/style/**/*.tsx"],
+        files: ["src/workspace/style/**/*.tsx", "src/workspace/inspector/GraphSettingsV2*.tsx"],
         ignores: [
             "**/__tests__/**",
             "**/*.stories.tsx",

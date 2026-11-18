@@ -41,3 +41,14 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
 export function nodeModelsOn(session: GraphSession | null | undefined): boolean {
     return (session?.features.enabled ?? []).includes("node-models");
 }
+
+/**
+ * Whether the Style panel v2 experiment is on (issue #8880): it needs file styles too, as the panel
+ * it replaces (the panel by part of the drawing) is file styles'. On, the Style tab's body is v2's
+ * sections; off, nothing of it is drawn.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched both experiments on.
+ */
+export function stylePanelV2On(session: GraphSession | null | undefined): boolean {
+    return fileStylesOn(session) && (session?.features.enabled ?? []).includes("style-panel-v2");
+}

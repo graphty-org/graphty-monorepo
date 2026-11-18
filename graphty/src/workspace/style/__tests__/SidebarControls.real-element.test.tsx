@@ -14,6 +14,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore } from "../../state/store";
@@ -214,5 +215,18 @@ describe("the Style sidebar draws only approved controls", () => {
     it("on a model's Shape field", async () => {
         await openShapes();
         await checkSidebar("Shapes, node models on");
+    });
+});
+
+// The same check on Style panel v2 in both configurations, so #8739 holds there before it leaves its flag.
+describe("the Style sidebar draws only approved controls on Style panel v2", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+
+    it("on a layer, a run's rows and the Everything row", async () => {
+        const { rows } = await openScene();
+        for (const name of rows) {
+            await clickRow(name);
+            await checkSidebar(`${name}, v2`);
+        }
     });
 });

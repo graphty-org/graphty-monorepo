@@ -417,6 +417,18 @@ interface FieldProps {
     readonly settings?: React.ReactNode;
     /** The property is a setting drawn under its style's row, indented under it. */
     readonly setting?: boolean;
+    /**
+     * A thing's row in Style panel v2: the field is the thing's main control, its first trailing
+     * slot holds `slot` (the thing's settings button) in place of the vary glyph, and its minus
+     * removes the whole thing. `name` is drawn in the label column; null draws none, the control
+     * spanning it.
+     */
+    readonly thing?: {
+        readonly name: string | null;
+        readonly slot: React.ReactNode;
+        readonly removeLabel: string;
+        readonly onRemove: () => void;
+    };
 }
 
 /** The workspace store. */
@@ -1172,6 +1184,46 @@ function fieldNotes({ ctx, channel, own, pending, hiddenBy, label, breakdown }: 
 }
 
 /**
+ * The minus's name on a property row.
+ * @param ctx - the row.
+ * @param name - the property's name.
+ * @returns the words.
+ */
+function removeNameOf(ctx: RowContext, name: string): string {
+    return ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
+}
+
+/**
+ * A property row's one line: its name in the label column (none, the control spanning it, for a
+ * Style panel v2 thing its section names), then the control and the trailing columns.
+ * @param props - Component props
+ * @param props.name - the name, or null for none
+ * @param props.settings - a style's own "+" beside its name
+ * @param props.children - the control and the trailing columns
+ * @returns The line
+ */
+function FieldLine({
+    name,
+    settings,
+    children,
+}: Readonly<{ name: string | null; settings: React.ReactNode; children: React.ReactNode }>): React.JSX.Element {
+    if (name === null) {
+        return <div className="ws-field ws-varies">{children}</div>;
+    }
+    return (
+        <div className="ws-field ws-varies" data-named="">
+            <span className="ws-field-label">
+                <span className="ws-field-name" title={name} aria-hidden data-control-label="">
+                    {name}
+                </span>
+                {settings}
+            </span>
+            {children}
+        </div>
+    );
+}
+
+/**
  * One property this layer sets (the owner's style panel design, 2026-10-13): its name, its value,
  * the vary glyph, and a minus that removes it so the layers beneath show through. A property the
  * layer does not set has no row at all, so nothing here ever shows a value from beneath. Several
@@ -1186,6 +1238,7 @@ function fieldNotes({ ctx, channel, own, pending, hiddenBy, label, breakdown }: 
  * @param props.onCancel - takes a just-added property away again
  * @param props.settings - a style's own "+" beside its name, adding its settings
  * @param props.setting - drawn as a setting under its style's row
+ * @param props.thing - drawn as a Style panel v2 thing row: its name, settings slot and whole-thing minus
  * @returns The row, or nothing when the layer does not set the property
  */
 export function Field({
@@ -1196,6 +1249,7 @@ export function Field({
     onCancel,
     settings,
     setting = false,
+    thing,
 }: Readonly<FieldProps>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
@@ -1243,6 +1297,7 @@ export function Field({
         }
     };
     const remove =
+        thing?.onRemove ??
         asset?.remove ??
         ((): void => {
             removeField({ ctx, channel, name, lines, box, store, onCancel });
@@ -1320,8 +1375,7 @@ export function Field({
         label,
         breakdown: fieldBreakdown(ctx, channel, label, lines, pending),
     });
-    const removeName =
-        ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
+    const removeName = thing?.removeLabel ?? removeNameOf(ctx, name);
     return (
         <div
             ref={box}
@@ -1337,17 +1391,11 @@ export function Field({
         >
             {/* One line: the name, the field, then two reserved 24 px columns, vary and minus,
                 so the field keeps its width (Figma's property row). */}
-            <div className="ws-field ws-varies" data-named="">
-                <span className="ws-field-label">
-                    <span className="ws-field-name" title={label} aria-hidden data-control-label="">
-                        {label}
-                    </span>
-                    {settings}
-                </span>
+            <FieldLine name={thing === undefined ? label : thing.name} settings={settings}>
                 <div className="ws-field-control" data-notes={notes.length === 0 ? undefined : notes.join(" ")}>
                     {control}
                 </div>
-                <span className="ws-slot ws-vary">{varySlot}</span>
+                <span className="ws-slot ws-vary">{thing?.slot ?? varySlot}</span>
                 <span className="ws-slot">
                     {/* The field's notes are its row's minus tooltip, never a caption under it (#8739): the
                         control keeps its own tooltip, and a pop-over it opens is never inside another. */}
@@ -1370,7 +1418,7 @@ export function Field({
                         </ActionIcon>
                     </Tooltip>
                 </span>
-            </div>
+            </FieldLine>
             {asset?.extras}
             {pendingVary === null ? null : (
                 <BulkBinding

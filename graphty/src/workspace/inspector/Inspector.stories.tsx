@@ -13,6 +13,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { keepFeaturesOff } from "../../test/featuresOff";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { createRegistry } from "../commands/registry";
 import { REGISTRATIONS } from "../registrations";
@@ -107,7 +108,8 @@ const meta: Meta<typeof Workspace> = {
         },
     ],
     // Its cleanup puts the real clock back when the story ends.
-    beforeEach: fixWallClock,
+    // Style panel v2 replaces the Style tab body these stories show (kept off in the On configuration only).
+    beforeEach: [fixWallClock, () => keepFeaturesOff(["style-panel-v2"])],
 };
 
 export default meta;

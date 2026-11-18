@@ -715,6 +715,8 @@ export interface AddOption {
     readonly choices?: readonly AddOption[];
     /** Words drawn at the item's end, such as how many values will not convert. */
     readonly detail?: string;
+    /** Shown but not pickable: its name only. */
+    readonly disabled?: boolean;
 }
 
 /**
@@ -732,28 +734,46 @@ export interface AddOption {
  * @param props.disabledReason - why it adds nothing on this graph, which disables it as a full one is
  * @param props.expanded - whether the pop-out its one item opens is open (a shader gallery)
  * @param props.inRow - a style's own "+" on its row ("Add to node halo"), which adds its settings
+ * @param props.groups - what it can add in groups, a divider between each two; in place of `options`
+ * @param props.opened - whether its menu is open, when the caller drives it
+ * @param props.onOpenChange - called when its menu opens or closes
+ * @param props.anchorOnly - draws no "+" of its own: the menu opens at the header's end, from the
+ *   "+" an empty section carries (Style panel v2)
  * @returns The button and its menu
  */
 export function AddButton({
     kind,
     title,
-    options,
+    options: flat = [],
     onAdd,
     disabledReason,
     expanded,
     inRow = false,
+    groups,
+    opened,
+    onOpenChange,
+    anchorOnly = false,
 }: Readonly<{
     kind: "node" | "edge" | "background";
     title: string;
-    options: readonly AddOption[];
+    options?: readonly AddOption[];
     onAdd: (key: string) => void;
     disabledReason?: string;
     expanded?: boolean;
     /** A style's own "+" on its row, adding the style's settings: never its section's "+". */
     inRow?: boolean;
-}>): React.JSX.Element {
+    groups?: readonly (readonly AddOption[])[];
+    opened?: boolean;
+    onOpenChange?: (opened: boolean) => void;
+    anchorOnly?: boolean;
+}>): React.JSX.Element | null {
+    const shown = menuGroups(groups, flat);
+    if (anchorOnly) {
+        return <AddMenu groups={shown} onAdd={onAdd} opened={opened} onOpenChange={onOpenChange} />;
+    }
+    const options = shown.flat();
     const name = `Add to ${kind} ${title.toLowerCase()}`;
-    const full = options.length === 0 || disabledReason !== undefined;
+    const full = options.every((option) => option.disabled === true) || disabledReason !== undefined;
     const reason = disabledReason ?? `Everything in ${kind} ${title.toLowerCase()} is set`;
     const button = (
         <ActionIcon
@@ -792,35 +812,97 @@ export function AddButton({
         );
     }
     return (
-        <Menu position="bottom-end">
-            <Menu.Target>
-                <TargetTooltip label={name}>{button}</TargetTooltip>
-            </Menu.Target>
+        <AddMenu
+            groups={shown}
+            onAdd={onAdd}
+            opened={opened}
+            onOpenChange={onOpenChange}
+            target={<TargetTooltip label={name}>{button}</TargetTooltip>}
+        />
+    );
+}
+
+/**
+ * A "+" menu's groups: the groups given, less the empty ones, else the one list.
+ * @param groups - the groups, if any.
+ * @param flat - the one list.
+ * @returns the groups to draw.
+ */
+function menuGroups(
+    groups: readonly (readonly AddOption[])[] | undefined,
+    flat: readonly AddOption[],
+): readonly (readonly AddOption[])[] {
+    return groups === undefined ? [flat] : groups.filter((group) => group.length > 0);
+}
+
+/**
+ * A "+" menu, a divider between each two groups. Without a target it opens from a zero-width
+ * anchor at the header's end, beside the "+" an empty section carries; with nothing pickable it
+ * draws nothing.
+ * @param props - Component props
+ * @param props.groups - the items, in groups
+ * @param props.onAdd - adds one, by its key
+ * @param props.opened - whether it is open, when the caller drives it
+ * @param props.onOpenChange - called when it opens or closes
+ * @param props.target - the "+" that opens it
+ * @returns The menu
+ */
+function AddMenu({
+    groups,
+    onAdd,
+    opened,
+    onOpenChange,
+    target = <span aria-hidden style={{ display: "inline-block", width: 0, height: 24 }} />,
+}: Readonly<{
+    groups: readonly (readonly AddOption[])[];
+    onAdd: (key: string) => void;
+    opened?: boolean;
+    onOpenChange?: (opened: boolean) => void;
+    target?: React.JSX.Element;
+}>): React.JSX.Element | null {
+    if (groups.flat().every((option) => option.disabled === true)) {
+        return null;
+    }
+    return (
+        <Menu position="bottom-end" opened={opened} onChange={onOpenChange}>
+            <Menu.Target>{target}</Menu.Target>
             <Menu.Dropdown>
-                {options.map((option) => {
-                    const item = (each: AddOption): React.JSX.Element => (
-                        <Menu.Item
-                            key={each.key}
-                            rightSection={each.detail}
-                            onClick={() => {
-                                onAdd(each.key);
-                            }}
-                        >
-                            {each.label}
-                        </Menu.Item>
-                    );
-                    return option.choices === undefined ? (
-                        item(option)
-                    ) : (
-                        <Menu.Sub key={option.key}>
-                            <Menu.Sub.Target>
-                                <Menu.Sub.Item>{option.label}</Menu.Sub.Item>
-                            </Menu.Sub.Target>
-                            <Menu.Sub.Dropdown>{option.choices.map((each) => item(each))}</Menu.Sub.Dropdown>
-                        </Menu.Sub>
-                    );
-                })}
+                {groups.flatMap((group, at) => [
+                    ...(at === 0 ? [] : [<Menu.Divider key={`divider-${String(at)}`} />]),
+                    ...group.map((option) => menuItem(option, onAdd)),
+                ])}
             </Menu.Dropdown>
         </Menu>
+    );
+}
+
+/**
+ * One item of a "+" menu, or a submenu of its choices.
+ * @param option - the item.
+ * @param onAdd - adds one, by its key.
+ * @returns the menu item.
+ */
+function menuItem(option: AddOption, onAdd: (key: string) => void): React.JSX.Element {
+    const item = (each: AddOption): React.JSX.Element => (
+        <Menu.Item
+            key={each.key}
+            rightSection={each.detail}
+            disabled={each.disabled}
+            onClick={() => {
+                onAdd(each.key);
+            }}
+        >
+            {each.label}
+        </Menu.Item>
+    );
+    return option.choices === undefined ? (
+        item(option)
+    ) : (
+        <Menu.Sub key={option.key}>
+            <Menu.Sub.Target>
+                <Menu.Sub.Item>{option.label}</Menu.Sub.Item>
+            </Menu.Sub.Target>
+            <Menu.Sub.Dropdown>{option.choices.map((each) => item(each))}</Menu.Sub.Dropdown>
+        </Menu.Sub>
     );
 }

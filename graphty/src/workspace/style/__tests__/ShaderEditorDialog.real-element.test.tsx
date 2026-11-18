@@ -11,6 +11,7 @@ import { parseShaderText, shaderTemplate, splitShaderText } from "@graphty/graph
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     addNodeLayer,
@@ -26,6 +27,9 @@ import {
     treeRow,
     usesOn,
 } from "./shaderHarness";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Style tab body these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {

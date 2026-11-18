@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { keepFeaturesOff } from "../../test/featuresOff";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { fileStylesOn } from "../features";
 import type { WorkspaceStore } from "../state/store";
@@ -101,7 +102,8 @@ const meta: Meta<typeof Workspace> = {
     component: Workspace,
     parameters: { layout: "fullscreen" },
     // A run row's header shows when the run started, to the second: start runs on a fixed clock.
-    beforeEach: fixWallClock,
+    // Style panel v2 replaces the Style tab body these stories show (kept off in the On configuration only).
+    beforeEach: [fixWallClock, () => keepFeaturesOff(["style-panel-v2"])],
 };
 
 export default meta;

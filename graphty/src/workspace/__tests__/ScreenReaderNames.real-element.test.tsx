@@ -12,10 +12,14 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../test/features";
 import { render, screen, waitFor, within } from "../../test/test-utils";
 import { createWorkspaceStore } from "../state/store";
 import { colorName } from "../style/words";
 import { Workspace } from "../Workspace";
+
+// Style panel v2 (the style-panel-v2 experiment) replaces the Style tab body these tests drive.
+withoutFeatures(["style-panel-v2"]);
 
 /** Three kinds of node, a few of each. */
 const KINDS = ["agency", "company", "person"] as const;

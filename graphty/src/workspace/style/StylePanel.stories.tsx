@@ -7,6 +7,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore } from "../../stories/freshStore";
+import { keepFeaturesOff } from "../../test/featuresOff";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { sampleTile } from "../../test/sample-tile";
 import { siteFeatures } from "../../test/siteFeatures";
@@ -213,7 +214,8 @@ const meta: Meta<typeof Workspace> = {
     component: Workspace,
     parameters: { layout: "fullscreen" },
     // A run row's header shows when the run started, to the second: start runs on a fixed clock.
-    beforeEach: fixWallClock,
+    // Style panel v2 replaces the Style tab body these stories show (kept off in the On configuration only).
+    beforeEach: [fixWallClock, () => keepFeaturesOff(["style-panel-v2"])],
 };
 
 export default meta;

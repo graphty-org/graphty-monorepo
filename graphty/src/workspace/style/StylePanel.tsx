@@ -7,7 +7,7 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box, Checkbox, Stack, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, fileStylesOn, nodeModelsOn } from "../features";
+import { cosmographOn, fileStylesOn, nodeModelsOn, stylePanelV2On } from "../features";
 import { findTreeRow, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
 import type { WorkspaceStore } from "../state/store";
@@ -35,6 +35,7 @@ import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
+import { StylePanelV2 } from "./v2/StylePanelV2";
 import { WhichPicker } from "./WhichPicker";
 import { sectionsFor } from "./words";
 
@@ -439,7 +440,10 @@ export function RowStyle({
             documentColors: colors,
             ...many?.(side),
         };
-        // The file-styles experiment draws both tabs by part of the drawing.
+        // Style panel v2 (with file styles) draws its own sections; file styles alone, by part of the drawing.
+        if (stylePanelV2On(session)) {
+            return <StylePanelV2 ctx={ctx} />;
+        }
         if (fileStylesOn(session)) {
             return <PartsPanel ctx={ctx} />;
         }

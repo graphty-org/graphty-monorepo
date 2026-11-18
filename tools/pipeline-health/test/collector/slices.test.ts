@@ -49,7 +49,7 @@ const spend = (mode: "base" | "idle", minutes: number, at: number, run = at): Sl
     minutes,
 });
 
-/** A quiet pool, master's newest green build not sliced yet, a store whose oldest capture is 5 hours old. */
+/** A quiet pool, master's newest green build not sliced yet, a store whose oldest capture is 3.5 hours old (stale, not overdue). */
 function input(over: Partial<SliceInput> = {}, state: Partial<SliceInput["state"]> = {}): SliceInput {
     return {
         now: T,
@@ -57,7 +57,7 @@ function input(over: Partial<SliceInput> = {}, state: Partial<SliceInput["state"
         state: { samples: samples(), spent: [], ...state },
         running: false,
         newestGreen: { sha: "new" },
-        store: { lastSlicedSha: "old", oldestAt: T - 5 * HOUR },
+        store: { lastSlicedSha: "old", oldestAt: T - 3.5 * HOUR },
         ...over,
     };
 }
@@ -130,7 +130,7 @@ describe("decideSlice: the decision table (design 4b)", () => {
         ["31 running: neither", input({}, { samples: samples({ running: 31 }) }), none("busy")],
         [
             "30 running and the green build sliced: nothing",
-            input({ store: { lastSlicedSha: "new", oldestAt: T - 5 * HOUR } }, { samples: samples({ running: 30 }) }),
+            input({ store: { lastSlicedSha: "new", oldestAt: T - 3.5 * HOUR } }, { samples: samples({ running: 30 }) }),
             none("fresh-and-current"),
         ],
         [
@@ -172,6 +172,53 @@ describe("decideSlice: the decision table (design 4b)", () => {
             dispatch("idle"),
         ],
         ["store not read yet: ask for it", input({ store: null }), none("store-unavailable")],
+        [
+            "overdue (5 h > 4 h) and not quiet: idle anyway",
+            input(
+                { store: { lastSlicedSha: "old", oldestAt: T - 5 * HOUR } },
+                { samples: samples({ queued: 3, saturated: true, longestQueuedMs: 20 * MIN }) },
+            ),
+            dispatch("idle"),
+        ],
+        [
+            "overdue and 60 running: idle anyway",
+            input({ store: { lastSlicedSha: "old", oldestAt: T - 5 * HOUR } }, { samples: samples({ running: 60 }) }),
+            dispatch("idle"),
+        ],
+        [
+            "stale but not overdue (3.5 h) and not quiet: nothing",
+            input({}, { samples: samples({ queued: 1 }) }),
+            none("not-quiet"),
+        ],
+        [
+            "overdue but a slice in flight: never a second",
+            input(
+                { running: true, store: { lastSlicedSha: "old", oldestAt: T - 5 * HOUR } },
+                { samples: samples({ queued: 1 }) },
+            ),
+            none("in-flight"),
+        ],
+        [
+            "overdue but the idle hour used up: no flood",
+            input(
+                { store: { lastSlicedSha: "old", oldestAt: T - 5 * HOUR } },
+                { samples: samples({ queued: 1 }), spent: [spend("idle", 100, T - 30 * MIN)] },
+            ),
+            none("not-quiet"),
+        ],
+        [
+            "overdue but the idle day used up, busy: nothing",
+            input(
+                { store: { lastSlicedSha: "old", oldestAt: T - 5 * HOUR } },
+                { samples: samples({ running: 60 }), spent: [spend("idle", 680, T - 3 * HOUR)] },
+            ),
+            none("busy"),
+        ],
+        [
+            "nothing captured yet is not overdue: waits for a quiet pool",
+            input({ store: { lastSlicedSha: null, oldestAt: null } }, { samples: samples({ queued: 1 }) }),
+            none("not-quiet"),
+        ],
         ["store did not answer: never", input({ store: undefined }), none("store-unavailable")],
     ];
     for (const [name, i, want] of rows) {
@@ -352,6 +399,32 @@ describe("the collector cycle", () => {
         const state = JSON.parse((await getCursor(store, "slices")) ?? "{}");
         expect(state.samples).toHaveLength(1);
         expect(state.samples[0].at).toBe(NOW);
+    });
+
+    it("dispatches an idle slice on the store read when the set is overdue, quiet half hour or not", async () => {
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const dispatched: string[] = [];
+        const report = await collect({
+            store: new MemoryStore(),
+            now: NOW,
+            gh: new GitHub(() => Promise.resolve("ghs_test"), fake.fetch),
+            fetch: fake.fetch,
+            awsCosts: () => Promise.resolve([]),
+            rates: rates as unknown as Rates,
+            limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
+            org: "graphty-org",
+            repo: "graphty-org/graphty-monorepo",
+            slices: {
+                cfg,
+                readStore: () => Promise.resolve({ units: [{ at: NOW - 5 * HOUR }, { at: NOW - HOUR }] }),
+                dispatch: (sha, mode) => {
+                    dispatched.push(mode);
+                    return Promise.resolve();
+                },
+            },
+        });
+        expect(report.slice).toMatchObject({ action: "dispatch", mode: "idle", dispatched: true });
+        expect(dispatched).toEqual(["idle"]);
     });
 
     it("counts a story-slices run still going as in flight, so no second run waits in its concurrency group", async () => {

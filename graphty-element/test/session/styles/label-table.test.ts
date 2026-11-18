@@ -110,6 +110,41 @@ describe("labelTableForElement", () => {
         assert.strictEqual(pictureUrl("a.png", "not a url"), "a.png");
     });
 
+    it("reads a malformed row, cell, picture or line as empty and keeps the rest of the table", () => {
+        const file = {
+            rows: [
+                7,
+                { cells: "x" },
+                { cells: [null, { image: "a.png", lines: [3, { align: 1 }, { runs: [{ text: "k" }] }] }] },
+            ],
+        };
+        const out = JSON.parse(labelTableForElement(JSON.stringify(file), 1) ?? "null") as unknown;
+        assert.deepEqual(out, {
+            rows: [
+                { cells: [] },
+                { cells: [] },
+                { cells: [{}, { lines: [{ text: "" }, { text: "" }, { text: "k" }] }] },
+            ],
+        });
+    });
+
+    it("stops nesting tables eight deep: a deeper one is drawn as no table", () => {
+        let inner: Record<string, unknown> = { rows: [{ cells: [{ lines: [{ runs: [{ text: "deep" }] }] }] }] };
+        for (let i = 0; i < 9; i++) {
+            inner = { rows: [{ cells: [{ table: inner }] }] };
+        }
+        let depth = 0;
+        let at = JSON.parse(labelTableForElement(JSON.stringify(inner), 1) ?? "null") as {
+            rows: { cells: { table: unknown }[] }[];
+        } | null;
+        while (at !== null) {
+            at = at.rows[0].cells[0].table as typeof at;
+            depth++;
+        }
+        // the outer table and eight nested ones; the ninth is cut off
+        assert.strictEqual(depth, 9);
+    });
+
     it("draws nothing for a value that is not a table", () => {
         assert.isNull(labelTableForElement("not json", 1));
         assert.isNull(labelTableForElement('{"rows":3}', 1));

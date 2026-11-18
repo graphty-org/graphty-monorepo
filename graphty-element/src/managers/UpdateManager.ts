@@ -1765,6 +1765,8 @@ export class UpdateManager implements Manager {
             !this.mapArcsEdges() &&
             !this.endBehindEdges(source) &&
             !this.endBehindEdges(target) &&
+            !this.endInvisible(source) &&
+            !this.endInvisible(target) &&
             !this.rowSelected(index);
         if (lineable && lines.paintRow(index, source, target, paint)) {
             lines.setHidden(index, this.rowHidden(index));
@@ -1902,6 +1904,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether a node row is drawn at opacity 0 (`Node.drawnOpacity`), so an edge ends at its outline (`Edge.bareEnd`),
+     * which a row line, drawn center to center, does not: read from the row's batch when no `Node` draws it.
+     * @param row - The node row.
+     * @returns True when it is.
+     */
+    private endInvisible(row: number): boolean {
+        const node = this.dataManager.nodesByIndex[row];
+        if (node !== undefined) {
+            return node.drawnOpacity <= 0;
+        }
+
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const column = batches?.columnRowOf(row);
+        return column !== undefined && batches !== null && batches.columnOpacityOf(column) <= 0;
+    }
+
+    /**
      * Take one batch of pending nodes and the paint each is to be drawn with.
      * @param painter - Where the paint is read from.
      * @param rows - Every node, by index.
@@ -1937,8 +1956,7 @@ export class UpdateManager implements Manager {
      */
     private unbuiltPainted(painter: StylePainter, index: number): Node | undefined {
         const id = dataManagerInternals.unbuiltAt(this.dataManager, index);
-        // one style per look, not per row (`StylePainter.rowPaint`); a row that needs a `Node` is
-        // painted again below through `nodePaint`, so the Node never holds a shared style
+        // one style per look, not per row (`StylePainter.rowPaint`)
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
         const table = this.graphContext.getRowTable?.() ?? null;
@@ -2785,6 +2803,9 @@ export class UpdateManager implements Manager {
      *
      * Asked under the layer's render pass, because that is where the layer keeps the mesh's
      * shader -- which is what Babylon's own readiness check does before asking the same thing.
+     * A mesh with no geometry -- a model's root, an empty mesh -- has no submeshes and nothing to
+     * draw into the layer, so it is ready, as `Mesh.isReady` answers for it; one still loading was
+     * already answered not ready by `isReady` before the layers are asked.
      * @param layer - The layer drawing the mesh.
      * @param mesh - The mesh.
      * @param instanced - Whether the mesh is drawn through instances.

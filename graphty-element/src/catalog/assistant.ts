@@ -208,7 +208,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Capture",
         core: false,
         profiles: STANDARD,
-        actions: ["screenshot", "animation", "cancel"],
+        actions: ["screenshot", "animation", "cancel", "stop"],
     },
     {
         name: "immersive",

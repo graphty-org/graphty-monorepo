@@ -541,6 +541,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-js",
                 version: "cytoscape.js 3.34.3",
                 units: "px",
+                // drawEdgePath: `dotted` 1 1 and `dashed` its line-dash-pattern, 6 3 by default, butt-capped, whatever
+                // the width
+                dashes: {
+                    dashed: fixedDash(6, 3, `${CYJS} 18667 (line-dash-pattern [6, 3]) and 29961`),
+                    dotted: fixedDash(1, 1, `${CYJS} 29958 (drawEdgePath: setLineDash([1, 1]))`),
+                },
                 roundedCornerRadius: cornerCap(),
                 roundedCornerFraction: v(
                     1 / 4,

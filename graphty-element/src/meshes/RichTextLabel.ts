@@ -2940,6 +2940,30 @@ export class RichTextLabel {
     }
 
     /**
+     * The panel behind the words when it is one solid color: the color, and its rectangle and
+     * corner radius as fractions of the plane, as {@link textBounds} measures. Undefined for no
+     * panel, a transparent one, or a gradient.
+     * @returns The panel, or undefined.
+     */
+    public get panel():
+        { color: string; left: number; right: number; top: number; bottom: number; radius: number } | undefined {
+        const bg: unknown = this.options.backgroundColor;
+        const { width, height } = this.actualDimensions;
+        if (typeof bg !== "string" || bg === "" || bg === "transparent" || width <= 0 || height <= 0) {
+            return undefined;
+        }
+        const { x, y, width: w, height: h } = this.contentArea;
+        return {
+            color: bg,
+            left: x / width,
+            right: (x + w) / width,
+            top: y / height,
+            bottom: (y + h) / height,
+            radius: this.options.cornerRadius / width,
+        };
+    }
+
+    /**
      * Where the label's words' own font box is on its plane: {@link textBounds} without the room above the first line's
      * font box and below the last line's.
      * @returns The box, as fractions of the plane's width and height from its top left corner.

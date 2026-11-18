@@ -7,7 +7,8 @@
  * load reads now; anything a reader edited, or another load also supplied, stays in the file. A
  * left-out row is written as a placeholder in its place (`{ id, "_source.ref": <entry> }` for a
  * node, `{ source, target, "_source.ref": <entry> }` for an edge), so every member that names
- * elements by position (a run's edge values, the selection) reads the same positions on open. The
+ * elements by position (a run's edge values, the selection) reads the same positions on open; a
+ * placeholder a changed load no longer gives keeps its position empty (`Filled.linkAt`). The
  * load is read in a scratch session, so what is compared and what is put back are the records the
  * load gives, whatever its format and choices.
  */
@@ -21,7 +22,9 @@ import type { NetworkApiInternal } from "../network";
 import { pairKey } from "../replace";
 import type { CodedFact } from "../shared";
 import type { GraphSession, LoadChoices, LoadedSource, SourceNoPathReason } from "../types";
-import { type LoadFacts, redactUrl, sampleAddress } from "./member";
+import { type LoadFacts, paramsOf, redactUrl, sampleAddress } from "./member";
+import { targetOf } from "./pending";
+import type { SourceLoadRecord } from "./types";
 
 /** The key a placeholder names its load's entry by. */
 export const REF_KEY = "_source.ref";
@@ -58,19 +61,33 @@ function sampleRefusal(facts: LoadFacts | undefined): SourceNoPathReason | undef
         : "no-seed";
 }
 
+/** What a network load's reference reads: its source, params, endpoint and credential. */
+export type NetworkRecord = Pick<SourceLoadRecord, "source" | "config" | "endpoint" | "credential" | "options">;
+
 /**
  * Why a load cannot be saved as a reference.
  * @param load - The load, as `data.sources()` lists it.
  * @param facts - What the session keeps about it.
+ * @param record - A network load's record.
  * @returns The reason, or undefined for a load that can be one.
  */
-export function refusalOf(load: LoadedSource, facts: LoadFacts | undefined): SourceNoPathReason | undefined {
+export function refusalOf(
+    load: LoadedSource,
+    facts: LoadFacts | undefined,
+    record?: NetworkRecord,
+): SourceNoPathReason | undefined {
     if (load.kind === "join" || load.joinedOnto !== undefined) {
         return "join";
     }
 
     if (load.kind === "server") {
-        return "network";
+        // A network load is read again by its source, endpoint and params, unless reading it
+        // needed a credential or a secret the file never holds.
+        const secrets = new Set<string>();
+        paramsOf(record?.config ?? load.config ?? {}, secrets);
+        return (record?.credential ?? null) !== null || facts?.credentialSlot !== undefined || secrets.size > 0
+            ? "secret-url"
+            : undefined;
     }
 
     const address = sampleAddress(load, facts);
@@ -109,6 +126,12 @@ export interface LoadHow {
     readonly choices?: LoadChoices;
     /** A sample's `{ generator, params }` or `{ dataset, baseUrl }`. */
     readonly sample?: Readonly<Record<string, unknown>>;
+    /** A network load's source id, endpoint and recorded options (its limits). */
+    readonly network?: {
+        readonly source: string;
+        readonly endpoint: string | null;
+        readonly options: Readonly<Record<string, unknown>>;
+    };
 }
 
 /** A load's records as it reads them: nodes, edges without ids, and their digest. */
@@ -135,7 +158,11 @@ function bare(record: Readonly<Record<string, unknown>>): Record<string, unknown
  * @returns The URL, or undefined for a generated graph, which fetches nothing.
  */
 function fetchedUrl(how: LoadHow): URL | undefined {
-    const address = how.sample?.baseUrl ?? how.config.url;
+    const { network } = how;
+    const address =
+        network === undefined
+            ? (how.sample?.baseUrl ?? how.config.url)
+            : targetOf({ source: network.source, config: how.config, endpoint: network.endpoint });
     if (typeof address !== "string") {
         return undefined;
     }
@@ -190,6 +217,15 @@ export async function readAsLoaded(
 async function loadInto(session: GraphSession, how: LoadHow): Promise<void> {
     const { mode: _mode, ...choices } = how.choices ?? {};
     const sample = how.sample ?? {};
+    if (how.network !== undefined) {
+        const { endpoint, options } = how.network;
+        await session.data.import(
+            { source: how.network.source, config: how.config },
+            { ...options, ...choices, ...(endpoint === null ? {} : { endpoint }) },
+        );
+        return;
+    }
+
     if (how.kind === "sample" && typeof sample.generator === "string") {
         await session.data.generate(sample.generator, (sample.params ?? {}) as GeneratorParams, choices);
         return;
@@ -387,6 +423,12 @@ export interface Filled {
     readonly problems: ReferenceProblem[];
     /** The entries that could not be read: their rows open bare and are written back as placeholders. */
     readonly unread: ReadonlySet<string>;
+    /**
+     * Where each of the file's links is in `links`, by the file's position: undefined for a
+     * placeholder the load no longer gives. The selection, provenance and runs name edges by the
+     * file's positions, so they bind through it. Absent when every link kept its place.
+     */
+    readonly linkAt?: readonly (number | undefined)[];
 }
 
 /** What filling an opened file's references reads. */
@@ -413,6 +455,21 @@ function howOf(entry: Readonly<Record<string, unknown>>, data: Readonly<Record<s
         (each: unknown) => isObject(each) && each.key === entry.id,
     ) as Partial<LoadedSource> | undefined;
     const url = isObject(entry.url) ? entry.url.address : undefined;
+    const choices = listed?.choices === undefined ? {} : { choices: listed.choices };
+    if (isObject(entry.source)) {
+        const { source } = entry;
+        return {
+            kind: "server",
+            config: isObject(source.params) ? source.params : {},
+            ...choices,
+            network: {
+                source: String(source.id),
+                endpoint: typeof source.endpoint === "string" ? source.endpoint : null,
+                options: isObject(entry.options) ? entry.options : {},
+            },
+        };
+    }
+
     return {
         kind: String(entry.kind),
         ...(typeof entry.format === "string" ? { type: entry.format } : {}),
@@ -421,7 +478,7 @@ function howOf(entry: Readonly<Record<string, unknown>>, data: Readonly<Record<s
             ...(isObject(entry.options) ? entry.options : {}),
             ...(typeof url === "string" ? { url } : {}),
         },
-        ...(listed?.choices === undefined ? {} : { choices: listed.choices }),
+        ...choices,
         ...(isObject(entry.sample) ? { sample: entry.sample } : {}),
     };
 }
@@ -517,17 +574,22 @@ export async function fillReferences(input: FillInput): Promise<Filled> {
         // A placeholder for an id the file also embeds is dropped: the embedded record wins.
         hasRef(row) && embeddedIds.has(String(row.id)) ? [] : fill(row, (ref) => nodesOf.get(ref)?.get(String(row.id))),
     );
-    const links = input.links.flatMap((row) =>
-        fill(row, (ref) => {
+    const links: Record<string, unknown>[] = [];
+    const linkAt: (number | undefined)[] = [];
+    for (const row of input.links) {
+        const kept = fill(row, (ref) => {
             const read = reads.get(ref);
             return read === undefined
                 ? undefined
                 : pairsOf.get(ref)?.get(pairKey(String(row.source), String(row.target), read.directed));
-        }),
-    );
+        });
+        linkAt.push(kept.length === 0 ? undefined : links.length);
+        links.push(...kept);
+    }
+
     if (unread.size > 0) {
         UNREAD.set(input.session, unread);
     }
 
-    return { nodes, links, problems, unread };
+    return { nodes, links, problems, unread, ...(links.length === input.links.length ? {} : { linkAt }) };
 }

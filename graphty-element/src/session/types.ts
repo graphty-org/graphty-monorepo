@@ -3413,12 +3413,11 @@ export type SourceCopyChoice = "copy" | "reference";
 
 /**
  * Why a load cannot be saved as a reference: a file the page holds no path to (`file`), rows
- * handed over inline (`inline`), a joined table (`join`), a network source's load, which an open
- * already runs again (`network`), a URL whose secret query parameters a save drops
- * (`secret-url`), a URL that is not an absolute http(s) address (`relative-url`), or a generated
+ * handed over inline (`inline`), a joined table (`join`), a URL or network source's load whose
+ * secret query parameters or credential a save drops (`secret-url`), a URL that is not an absolute http(s) address (`relative-url`), or a generated
  * graph or dataset with nothing recorded to make it again (`no-seed`). OPEN UNION: later releases add values.
  */
-export type SourceNoPathReason = "file" | "inline" | "join" | "network" | "secret-url" | "relative-url" | "no-seed";
+export type SourceNoPathReason = "file" | "inline" | "join" | "secret-url" | "relative-url" | "no-seed";
 
 /** How a project save keeps one load: one entry of {@link SessionDataApi.copies}. */
 export interface SourceCopy {

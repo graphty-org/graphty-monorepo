@@ -7,7 +7,7 @@
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../session";
+import { createGraphSession, credentials, type GraphSession } from "../../session";
 import { GraphtyError } from "../../src/errors/GraphtyError";
 import { dataMember } from "../../src/session/projectFile";
 import { sessionWithRuns } from "../helpers/project-session";
@@ -33,8 +33,8 @@ const EXTRA = JSON.stringify({ nodes: [{ id: "d", label: "Dee" }], edges: [{ sou
  */
 function stubSite(site: Record<string, string>): Map<string, number> {
     const seen = new Map<string, number>();
-    vi.stubGlobal("fetch", (input: string | URL) => {
-        const url = String(input);
+    vi.stubGlobal("fetch", (input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : String(input);
         seen.set(url, (seen.get(url) ?? 0) + 1);
         const body = Object.hasOwn(site, url) ? site[url] : undefined;
         return Promise.resolve(
@@ -355,6 +355,36 @@ describe("a project saved with a reference", () => {
         assert.strictEqual(back.data.edges({ scope: "graph" }).length, 3);
     });
 
+    it("keeps the selected edge when a changed reference no longer gives an edge before it", async () => {
+        const URL_B = "https://data.example.com/more.json";
+        const MORE = JSON.stringify({ nodes: [{ id: "c" }, { id: "d" }], edges: [{ source: "c", target: "d" }] });
+        stubSite({ [URL_A]: GRAPH, [URL_B]: MORE });
+        const session = createGraphSession({ features: ["source-references"] });
+        session.network.setPolicy("allow");
+        await session.data.import({ type: "json", config: { url: URL_A } });
+        await session.data.import({ type: "json", config: { url: URL_B } }, { mode: "merge" });
+        session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
+        const pairOf = (edge: { source: unknown; target: unknown }): string =>
+            `${String(edge.source)}-${String(edge.target)}`;
+        const bc = session.data.edges({ scope: "graph" }).find((edge) => pairOf(edge) === "b-c");
+        await session.selection.apply({ nodes: [], edges: [bc?.id ?? ""] });
+        const saved = await session.project.save();
+
+        // The source no longer gives a-b, the edge saved before the selected one.
+        const changed = JSON.parse(GRAPH) as { edges: unknown[] };
+        stubSite({ [URL_A]: JSON.stringify({ ...changed, edges: changed.edges.slice(1) }), [URL_B]: MORE });
+        const { session: opened, problems } = await reopen(saved.text);
+        assert.deepEqual(
+            problems.map((problem) => problem.code),
+            ["W_SOURCE_CHANGED"],
+        );
+        const selected = opened.data
+            .edges({ scope: "graph" })
+            .filter((edge) => opened.selection.has(edge.id))
+            .map((edge) => pairOf(edge));
+        assert.deepEqual(selected, ["b-c"]);
+    });
+
     it("reports a changed reference and reads its new values", async () => {
         stubSite({ [URL_A]: GRAPH });
         const session = await twoLoads();
@@ -444,5 +474,46 @@ describe("with the experiment off", () => {
         assert.notInclude(saved.text, '"copy"');
         assert.notInclude(saved.text, "rowsSha256");
         assert.isUndefined(sourcesOf(saved.text).data);
+    });
+});
+
+describe("a network source's load", () => {
+    const URL_N = "https://files.example.com/data/graph.csv";
+    const CSV = "source,target\na,b\nb,c\n";
+
+    it("can be a reference, leaves its rows out, and reopens by reading the source again", async () => {
+        const fetched = stubSite({ [URL_N]: CSV });
+        const session = createGraphSession({ features: ["source-references"] });
+        await session.data.import({ source: "url", config: { url: URL_N } });
+        const [load] = session.data.sources();
+        assert.strictEqual(load?.kind, "server");
+        assert.isUndefined(session.data.copies()[0]?.refused);
+        assert.strictEqual(session.data.setCopy(load?.key ?? "", "reference").copy, "reference");
+
+        const saved = await session.project.save();
+        assert.notInclude(saved.text, "a,b");
+        const graph = dataOf(saved.text);
+        assert.isTrue(graph.nodes.every((node) => node["_source.ref"] === load?.key));
+        assert.isTrue(graph.links.every((link) => link["_source.ref"] === load?.key));
+        assert.strictEqual(sourcesOf(saved.text).loads[0]?.copy, "reference");
+
+        const before = fetched.get(URL_N) ?? 0;
+        const { session: opened, problems } = await reopen(saved.text);
+        assert.deepEqual(problems, []);
+        assert.isAbove(fetched.get(URL_N) ?? 0, before);
+        assert.deepEqual(Object.keys(labels(opened)).sort(), ["a", "b", "c"]);
+        assert.strictEqual(opened.data.edges({ scope: "graph" }).length, 2);
+        assert.strictEqual(opened.data.copies()[0]?.copy, "reference");
+    });
+
+    it("stays a copy when it was read with a credential", async () => {
+        stubSite({ [URL_N]: CSV });
+        const session = createGraphSession({ features: ["source-references"] });
+        await session.data.import(
+            { source: "url", config: { url: URL_N } },
+            { credential: credentials.bearer("typed") },
+        );
+        assert.strictEqual(session.data.copies()[0]?.refused?.params.reason, "secret-url");
+        assert.strictEqual(session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference").copy, "copy");
     });
 });

@@ -7073,7 +7073,7 @@ export interface SourceMoreOptions extends SourceLoadOptions {
 export { SourceNodeRecord }
 
 // @public
-export type SourceNoPathReason = "file" | "inline" | "join" | "network" | "secret-url" | "relative-url" | "no-seed";
+export type SourceNoPathReason = "file" | "inline" | "join" | "secret-url" | "relative-url" | "no-seed";
 
 export { SourceParamDescriptor }
 

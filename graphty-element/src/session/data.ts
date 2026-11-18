@@ -180,7 +180,7 @@ import {
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
-import { type LoadHow, refusalOf } from "./sources/references";
+import { type LoadHow, type NetworkRecord, refusalOf } from "./sources/references";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -3922,8 +3922,24 @@ export class SessionData implements SessionDataApi {
     referenceLoads(): readonly { readonly key: SourceKey; readonly how: LoadHow; readonly ask: boolean }[] {
         return this.sources().flatMap((load) => {
             const facts = this.loadFacts.get(load.key);
-            if (facts?.copy !== "reference" || facts.kept !== undefined || refusalOf(load, facts) !== undefined) {
+            const record = this.networkRecordOf(load);
+            if (
+                facts?.copy !== "reference" ||
+                facts.kept !== undefined ||
+                refusalOf(load, facts, record) !== undefined
+            ) {
                 return [];
+            }
+
+            if (record !== undefined) {
+                const { mode: _mode, ...options } = record.options;
+                const how: LoadHow = {
+                    kind: load.kind,
+                    config: record.config,
+                    ...(load.choices === undefined ? {} : { choices: load.choices }),
+                    network: { source: record.source, endpoint: record.endpoint, options },
+                };
+                return [{ key: load.key, how, ask: facts.opened === true }];
             }
 
             // A sample read by URL reads its address again, resolved against the page.
@@ -3941,6 +3957,27 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * A network load's record: the ledger's, or the listed source and params when it has none.
+     * @param load - The listed load.
+     * @returns The record, or undefined for a load that is no network load.
+     */
+    private networkRecordOf(load: LoadedSource): NetworkRecord | undefined {
+        if (load.kind !== "server") {
+            return undefined;
+        }
+
+        return (
+            this.ledger.loads().find((record) => record.key === load.loadKey) ?? {
+                source: (load.type ?? "").replace(/^source:/, ""),
+                config: load.config ?? {},
+                endpoint: null,
+                credential: null,
+                options: {},
+            }
+        );
+    }
+
+    /**
      * How a project save keeps each load: a copy or a reference.
      * @returns One entry per load, in `sources()` order.
      */
@@ -3949,7 +3986,7 @@ export class SessionData implements SessionDataApi {
         return Object.freeze(
             this.sources().map((load) => {
                 const facts = this.loadFacts.get(load.key);
-                const reason = refusalOf(load, facts);
+                const reason = refusalOf(load, facts, this.networkRecordOf(load));
                 return Object.freeze({
                     source: load.key,
                     copy:
@@ -3990,9 +4027,13 @@ export class SessionData implements SessionDataApi {
         const wanted = copy === "reference" && before.refused === undefined ? "reference" : "copy";
         if (wanted !== before.copy) {
             // A save choice, as `save({ assets })` is: kept with the load's facts, never a step.
+            // A network load's facts start from its record, as the writer's would.
+            const record = this.ledger.loads().find((each) => each.key === this.sources()[at].loadKey);
+            const recorded = record?.options.mode;
+            const listed = at === 0 ? ("replace" as const) : ("merge" as const);
             const { copy: _was, ...facts } = this.loadFacts.get(source) ?? {
-                loadedAt: new Date().toISOString(),
-                mode: at === 0 ? ("replace" as const) : ("merge" as const),
+                loadedAt: record?.loadedAt ?? new Date().toISOString(),
+                mode: recorded === "replace" || recorded === "merge" ? recorded : listed,
             };
             this.loadFacts.set(source, wanted === "reference" ? { ...facts, copy: "reference" } : facts);
             this.copyTick++;

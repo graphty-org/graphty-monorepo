@@ -1654,7 +1654,8 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
  * @param source - The member's `source`: where the graph was loaded from, when the file says.
  * @param sources - The member's `sources`: every load the graph held, when the file says.
  * @param provenance - The member's `provenance`: what each load supplied, edges by position.
- * @returns The edge ids this session gave the file's edges, by position.
+ * @param linkAt - Where each of the file's edges is in `graph.links`, when some were dropped.
+ * @returns The edge ids this session gave the file's edges, by the file's position.
  */
 async function importInto(
     tx: TransactionScope,
@@ -1662,6 +1663,7 @@ async function importInto(
     source: unknown,
     sources: unknown,
     provenance?: unknown,
+    linkAt?: readonly (number | undefined)[],
 ): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges({ scope: "graph" }).length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
@@ -1675,10 +1677,11 @@ async function importInto(
             ...(typeof graph.directed === "boolean" ? { directed: graph.directed } : {}),
         },
     });
-    const edgeIds = tx.data
+    const added = tx.data
         .edges({ scope: "graph" })
         .slice(before)
         .map((edge) => edge.id);
+    const edgeIds = linkAt === undefined ? added : linkAt.map((at) => (at === undefined ? undefined : added[at]));
     if (isObject(source)) {
         // A list with an entry not shaped like a load is left out whole, as an older file has none.
         const loads = Array.isArray(sources) && sources.every(isLoadedSource) ? sources : undefined;
@@ -1843,6 +1846,8 @@ interface Opening {
     readonly restoreDerived: (id: RunId) => void;
     /** How many elements a run over a scope (absent: the default run scope) would hold now. */
     readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
+    /** Where each of the file's edges is among those opened, when a changed reference dropped some. */
+    readonly linkAt?: readonly (number | undefined)[];
 }
 
 /**
@@ -2139,7 +2144,7 @@ async function readProject(
     await readSettings(opening, doc, state.config, name);
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
-    const edgeIds = await importInto(tx, records, source, sources, provenance);
+    const edgeIds = await importInto(tx, records, source, sources, provenance, opening.linkAt);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
     await readDeclarations(opening, state.declarations);
@@ -3083,6 +3088,7 @@ export function projectOf(
                             services: dispatcher.services,
                             restoreDerived,
                             scopeCountOf,
+                            ...(filled?.linkAt === undefined ? {} : { linkAt: filled.linkAt }),
                         },
                         doc,
                         opened,

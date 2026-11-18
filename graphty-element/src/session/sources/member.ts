@@ -403,7 +403,7 @@ function withoutSecretNames(value: unknown, dropped: Set<string>): unknown {
  * @param dropped - Collects the names left out.
  * @returns The params.
  */
-function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string>): Record<string, unknown> {
+export function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string>): Record<string, unknown> {
     const params = withoutSecretNames(withoutSecretUrls(jsonOf(config) ?? {}, dropped), dropped) as Record<
         string,
         unknown

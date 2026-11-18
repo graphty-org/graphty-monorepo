@@ -90,9 +90,10 @@ drawn, and a project saved with the experiment on opens with the styles it was s
 ### `source-references`
 
 Saving a load as a **reference** instead of a copy: the project file says where to read the load
-again, and an open reads it again, instead of holding its rows. A URL load and a generated graph or
-sample dataset can be a reference; a file the page holds no path to, pasted rows, a joined table and
-a network source's load stay copies.
+again, and an open reads it again, instead of holding its rows. A URL load, a network source's load
+(by its source, endpoint and params) and a generated graph or sample dataset can be a reference; a
+file the page holds no path to, pasted rows, a joined table and a load that needed a credential or a
+secret parameter stay copies.
 
 ```ts
 const session = createGraphSession({ features: ["source-references"] });

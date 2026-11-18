@@ -368,7 +368,9 @@ supplied lists both; an element no load supplied (added by hand, by an AI comman
    for a node, `{ source, target, "_source.ref": <entry> }` for an edge, so every position stays.
    An open reads each such entry again (after the page allows its host), puts the records it gives
    in the placeholders' places, reports `W_SOURCE_CHANGED { source }` when the rows' digest
-   differs, and `W_SOURCE_UNAVAILABLE { source, reason }` when it cannot read them; then the entry
+   differs (a placeholder the changed load no longer gives opens as nothing, and a selection, run
+   or provenance that named its position names nothing, never the next row), and
+   `W_SOURCE_UNAVAILABLE { source, reason }` when it cannot read them; then the entry
    and its placeholders are written back unchanged by the next save. An element that does not read
    references refuses the member (`E_BAD_DOCUMENT` at `/data`).
 

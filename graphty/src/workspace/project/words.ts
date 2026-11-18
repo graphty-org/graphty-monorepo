@@ -222,7 +222,6 @@ const NO_PATH_WORDS: Readonly<Record<string, string>> = {
     file: "Local file",
     inline: "Pasted rows",
     join: "Joined table",
-    network: "Read again on open",
     "secret-url": "Private address",
     "relative-url": "Not a web address",
     "no-seed": "No seed",

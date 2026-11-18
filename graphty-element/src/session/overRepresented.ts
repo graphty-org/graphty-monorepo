@@ -5,14 +5,21 @@
  * value a group member carries, the count in the group is tested against the hypergeometric
  * draw of the group's size from the whole partition: the upper-tail p is the chance of seeing
  * that many or more. Dozens of columns times hundreds of values make thousands of tests, so the p
- * values are adjusted by Benjamini-Hochberg over EVERY test performed -- including the values that
- * turn out under-represented and are not returned -- or chance results read as findings.
+ * values are adjusted (Benjamini-Hochberg unless the caller names another method) over EVERY test
+ * performed -- including the values that turn out under-represented and are not returned -- or
+ * chance results read as findings.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM: it is counting over values handed in.
  */
 
 import type { Path } from "../catalog/types";
-import type { OverRepresentedGroup, OverRepresentedValue, OverRepresentedValues } from "./types";
+import { GraphtyError } from "../errors";
+import type {
+    MultipleTestingCorrection,
+    OverRepresentedGroup,
+    OverRepresentedValue,
+    OverRepresentedValues,
+} from "./types";
 
 /** A value one element carries: a scalar, or each scalar of a list. */
 type Scalar = string | number | boolean;
@@ -126,6 +133,40 @@ export function benjaminiHochberg(p: readonly number[]): Float64Array {
     return adjusted;
 }
 
+/**
+ * Bonferroni adjusted p values: each raw p times the number of tests, capped at 1.
+ * @param p - the raw p values
+ * @returns the adjusted p values, in the order given
+ */
+export function bonferroni(p: readonly number[]): Float64Array {
+    return Float64Array.from(p, (each) => Math.min(1, each * p.length));
+}
+
+/**
+ * Holm (step-down Bonferroni) adjusted p values, in the order the raw ones were given.
+ * @param p - the raw p values
+ * @returns the adjusted p values, each from its raw value to 1
+ */
+export function holm(p: readonly number[]): Float64Array {
+    const m = p.length;
+    const order = Array.from(p.keys()).sort((a, b) => p[a] - p[b]);
+    const adjusted = new Float64Array(m);
+    let running = 0;
+    order.forEach((at, i) => {
+        running = Math.max(running, Math.min(1, p[at] * (m - i)));
+        adjusted[at] = running;
+    });
+
+    return adjusted;
+}
+
+/** Each correction's adjustment of a list of raw p values. */
+const CORRECTIONS: Readonly<Record<MultipleTestingCorrection, (p: readonly number[]) => Float64Array>> = {
+    "benjamini-hochberg": benjaminiHochberg,
+    bonferroni,
+    holm,
+};
+
 /** One column, as the test reads it. */
 export interface OverRepresentedColumn {
     /** The column's path. */
@@ -198,6 +239,7 @@ function testColumn(column: OverRepresentedColumn, groups: readonly (Scalar | un
  * @param groupAt - the group of an element, by index
  * @param count - how many elements there are
  * @param columns - the columns to test
+ * @param correction - how the p values are corrected for the number of tests
  * @returns the over-represented values per group, with the correction named
  */
 export function overRepresentedValues(
@@ -205,7 +247,19 @@ export function overRepresentedValues(
     groupAt: (index: number) => unknown,
     count: number,
     columns: readonly OverRepresentedColumn[],
+    correction: MultipleTestingCorrection = "benjamini-hochberg",
 ): OverRepresentedValues {
+    // Read from a typed table: a name from untyped code that is not a method must not index it.
+    const adjust = Object.hasOwn(CORRECTIONS, correction) ? CORRECTIONS[correction] : undefined;
+    if (adjust === undefined) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `There is no multiple-testing correction named "${correction}".`,
+            source: "data",
+            details: { option: "correction", value: correction, available: Object.keys(CORRECTIONS) },
+        });
+    }
+
     const groups: (Scalar | undefined)[] = [];
     const sizes = new Map<Scalar, number>();
     for (let index = 0; index < count; index++) {
@@ -221,7 +275,7 @@ export function overRepresentedValues(
     const lnF = logFactorials(count);
     const tests = columns.flatMap((column) => testColumn(column, groups, lnF));
 
-    const adjusted = benjaminiHochberg(tests.map((test) => test.p));
+    const adjusted = adjust(tests.map((test) => test.p));
     const byGroup = new Map<Scalar, OverRepresentedValue[]>();
     tests.forEach((test, at) => {
         if (test.count <= test.expected) {
@@ -255,7 +309,7 @@ export function overRepresentedValues(
 
     return Object.freeze({
         groupBy,
-        correction: "benjamini-hochberg",
+        correction,
         testCount: tests.length,
         groups: Object.freeze(result),
     });

@@ -992,6 +992,8 @@ export class Graph implements GraphContext {
 
     /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
     #passRepainted = false;
+    /** Whether the last whole-graph paint drew a graph past `largeGraphThreshold` (low node detail). */
+    #paintedLarge = false;
 
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
@@ -1199,6 +1201,7 @@ export class Graph implements GraphContext {
         this.stylePainter = new StylePainter(
             (row) => this.dataManager.edgeDirected(row),
             () => this.session.config.minMarkSize,
+            () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
         );
 
         // get the element that we are going to use for placing our canvas
@@ -5121,7 +5124,11 @@ export class Graph implements GraphContext {
         if (paintsWhole) {
             // A forward add over a picture that is current names what it changed; undo, redo
             // and a paint an earlier write left owed have no such list.
-            const changed = cause === "command" && !dispatcher.paintOwed ? dirty : null;
+            // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
+            const large = this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold;
+            const flipped = large !== this.#paintedLarge;
+            this.#paintedLarge = large;
+            const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
             dispatcher.paintOwed = false;
             this.#passRepainted = true;
             await repaintGraphPass(this.session, changed, () => this.repaintFromSession());

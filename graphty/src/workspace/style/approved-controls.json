@@ -243,7 +243,7 @@
         },
         {
             "name": "ScrollArea",
-            "from": "@mantine/core",
+            "from": "@graphty/compact-mantine",
             "dom": ".mantine-ScrollArea-root"
         },
         {

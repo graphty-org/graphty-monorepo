@@ -1986,6 +1986,22 @@ const PRESENCE = [
 ] as const;
 
 /**
+ * A card's header: its name, on one line.
+ * @param props - Component props
+ * @param props.name - the card's name
+ * @returns The header
+ */
+function CardHead({ name }: Readonly<{ name: string }>): React.JSX.Element {
+    return (
+        <Group gap={4} wrap="nowrap" className="ws-card-head">
+            <ControlLabel size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
+                {name}
+            </ControlLabel>
+        </Group>
+    );
+}
+
+/**
  * One card a layer (or every layer edited) holds alike: its header (name, count, x), its Match
  * select, and the editor its field's kind takes.
  * @param props - Component props
@@ -2034,11 +2050,7 @@ function CardEditor({
             className="ws-card"
             data-card={card.key}
         >
-            <Group gap={4} wrap="nowrap" className="ws-card-head">
-                <ControlLabel size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
-                    {name}
-                </ControlLabel>
-            </Group>
+            <CardHead name={name} />
             {/* Drawn in the header's corner, and first in Tab order there, as it is drawn. */}
             <Tooltip
                 label={
@@ -3708,11 +3720,7 @@ function LayerCard({
             data-card={shown.key}
             data-by-layer
         >
-            <Group gap={4} wrap="nowrap" className="ws-card-head">
-                <ControlLabel size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
-                    {name}
-                </ControlLabel>
-            </Group>
+            <CardHead name={name} />
             {/* Drawn in the header's corner, and first in Tab order there, as it is drawn. */}
             <Tooltip label={`Remove ${name} from every layer`}>
                 <CloseButton

@@ -1082,6 +1082,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "ogdf master 1a40505ac006",
                 units: "px",
                 roundedCornerRadius: cornerCap("ogdf"),
+                // GraphIO::drawSVG's stroke-dasharray, in line widths (Dash "12,6" and Dot "3,6" at width 3); its
+                // dash-dot patterns hold two dash lengths, which one dash and gap cannot say
+                dashes: {
+                    dashed: widthDash(4, 2, `${MEASURED}gml-specimen-edges-lines-p4.svg: Dash "12,6" at width 3)`),
+                    dotted: widthDash(1, 2, `${MEASURED}gml-specimen-edges-lines-p4.svg: Dot "3,6" at width 3)`),
+                },
                 // OGDF's arrowhead is three times its line's width long and half as wide as it is long
                 arrowhead: {
                     length: (size, width) => 3 * width * size,

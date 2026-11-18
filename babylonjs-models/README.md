@@ -21,9 +21,11 @@ inside the package.
 | USD              | `.usda`, `.usdc`, `.usd` with the layers and pictures it references; `.usdz` packages; skins, clips                               |
 | BVH              | motion capture (a skeleton and its motion, no shape): drawn as a figure of one box per bone, its motion one clip, `BVH Animation` |
 
-Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY, a glTF requiring `KHR_gaussian_splatting`)
-are recognized and refused with `E_MODEL_FORMAT_UNSUPPORTED`: `params.format` is `splat`, `spz`, `sog`
-or `splat-ply`, and a glTF names the extension in `params.extension`.
+Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY, a glTF or GLB that uses
+`KHR_gaussian_splatting`, required or not) are recognized and refused with
+`E_MODEL_FORMAT_UNSUPPORTED`: `params.format` is `splat`, `spz`, `sog` or `splat-ply`, and a glTF
+names the extension in `params.extension`. `detectModelFormat` answers `supported: false` for such a
+glTF or GLB when its first 4 KB name the extension.
 
 ```bash
 npm install babylonjs-models @babylonjs/core @babylonjs/loaders

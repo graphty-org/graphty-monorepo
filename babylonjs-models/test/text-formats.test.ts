@@ -118,6 +118,29 @@ describe("the text and plain binary formats", () => {
         }
     });
 
+    it("refuse a glTF that uses Gaussian splatting without requiring it", async () => {
+        // The shape of Babylon's own splat samples: extensionsUsed only, POINTS primitives.
+        const splat = "KHR_gaussian_splatting";
+        const gltf = JSON.stringify({
+            asset: { version: "2.0" },
+            extensionsUsed: [splat],
+            meshes: [
+                {
+                    primitives: [
+                        {
+                            mode: 0,
+                            attributes: { POSITION: 0 },
+                            extensions: { [splat]: {} },
+                        },
+                    ],
+                },
+            ],
+        });
+        const fact = await refusalOf(text("splats.gltf", gltf));
+        assert.strictEqual(fact.code, "E_MODEL_FORMAT_UNSUPPORTED");
+        assert.deepInclude(fact.params, { format: "gltf", extension: splat });
+    });
+
     it("upgrade glTF 1.0 and refuse a GLB version 1 cut short", async () => {
         const checked = await checkModelFiles(one("gltf1-embedded", "cube.gltf"), {}, DEFAULT_MODEL_LIMITS);
         assert.strictEqual(checked.summary.gltfVersion, "1.0");

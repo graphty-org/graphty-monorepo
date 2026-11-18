@@ -69,6 +69,24 @@ describe("detecting the formats babylonjs-models reads", () => {
         });
     });
 
+    it("does not support a glTF or GLB that uses Gaussian splatting", () => {
+        const json = '{"asset":{"version":"2.0"},"extensionsUsed":["KHR_gaussian_splatting"]}';
+        const bytes = new TextEncoder().encode(json);
+        const glb = new Uint8Array(20 + bytes.length);
+        const view = new DataView(glb.buffer);
+        glb.set(new TextEncoder().encode("glTF"));
+        view.setUint32(4, 2, true);
+        view.setUint32(8, glb.length, true);
+        view.setUint32(12, bytes.length, true);
+        view.setUint32(16, 0x4e4f534a, true);
+        glb.set(bytes, 20);
+        assert.deepStrictEqual(detectModelFormat({ head: glb }), { format: "glb", supported: false });
+        assert.deepStrictEqual(detectModelFormat({ filename: "s.gltf", head: bytes }), {
+            format: "gltf",
+            supported: false,
+        });
+    });
+
     it("recognizes Gaussian splats and does not load them", () => {
         const cases: [string, string, string][] = [
             ["splat", "points.splat", "splat"],

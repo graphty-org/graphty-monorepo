@@ -371,6 +371,14 @@ describe("model variant words", () => {
             tip: "points are drawn as small solids",
         });
         assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
+        for (const [rule, tip] of [
+            ["fbx", "FBX data damaged"],
+            ["usd", "USD data damaged"],
+            ["usdz", "USDZ package damaged"],
+            ["bvh", "BVH data damaged"],
+        ]) {
+            assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule } }).tip, tip, rule);
+        }
         assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
         // A refused format is named; a glTF refused for an extension names the extension.
         assert.equal(modelChip({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: "spz" } }).word, "SPZ not read");

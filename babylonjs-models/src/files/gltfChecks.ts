@@ -369,6 +369,14 @@ function checkExtensions(json: Record<string, unknown>): string[] {
         }
     }
 
+    // Gaussian splat files list KHR_gaussian_splatting only in extensionsUsed (it is optional: a
+    // reader without it draws the splat centers as points), so a splat is refused on use.
+    const used = Array.isArray(json.extensionsUsed) ? json.extensionsUsed.filter((e) => typeof e === "string") : [];
+    const splat = used.find((e) => e.startsWith("KHR_gaussian_splatting"));
+    if (splat !== undefined) {
+        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "gltf", extension: cut(splat) });
+    }
+
     return required;
 }
 

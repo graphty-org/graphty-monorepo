@@ -7,7 +7,14 @@
  */
 
 import { scanBvh } from "./bvhChecks.js";
-import { BUILT_IN_MODEL_FORMATS, detectModelFormat, imageFormatOf, isZip, type ModelFormat } from "./detect.js";
+import {
+    BUILT_IN_MODEL_FORMATS,
+    detectModelFormat,
+    imageFormatOf,
+    isZip,
+    type ModelFormat,
+    splatExtensionOf,
+} from "./detect.js";
 import { findFbxParts, scanFbx } from "./fbxChecks.js";
 import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks.js";
 import { DEFAULT_MODEL_LIMITS } from "./limits.js";
@@ -1417,7 +1424,15 @@ async function checkFileSet(
             refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: cut(main.path) });
         }
 
-        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
+        const bytes = files.get(main.path);
+        const splat =
+            main.format === "glb" || main.format === "gltf" ? splatExtensionOf(bytes ?? new Uint8Array()) : undefined;
+        refuse("E_MODEL_FORMAT_UNSUPPORTED", {
+            // A splat glTF or GLB is refused the way checkGltf refuses an extension it does not read.
+            format: splat === undefined ? main.format : "gltf",
+            fileName: cut(main.path),
+            ...(splat === undefined ? {} : { extension: cut(splat) }),
+        });
     }
 
     const findings: Findings = { warnings: [], missing: [], ...(base === undefined ? {} : { base }) };

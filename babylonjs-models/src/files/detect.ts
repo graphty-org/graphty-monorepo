@@ -47,7 +47,10 @@ export interface ModelDetection {
      * `"sog"` and `"splat-ply"`, a PLY holding splats).
      */
     readonly format: ModelFormat;
-    /** Whether this package can load it. */
+    /**
+     * Whether this package can load it. A `"glb"` or `"gltf"` whose head uses
+     * `KHR_gaussian_splatting` is Gaussian splats and is not supported.
+     */
     readonly supported: boolean;
 }
 
@@ -137,18 +140,30 @@ function headText(bytes: Uint8Array): string {
     return text;
 }
 
+/** A glTF that uses Gaussian splatting (`KHR_gaussian_splatting` and its compressions) is not loaded. */
+const SPLAT_EXTENSION = /"(KHR_gaussian_splatting[\w-]*)"/;
+
+/**
+ * The Gaussian splatting extension a glTF or GLB head names, if any.
+ * @param head - The first bytes.
+ * @returns The extension name, or undefined.
+ */
+export function splatExtensionOf(head: Uint8Array): string | undefined {
+    return SPLAT_EXTENSION.exec(headText(head))?.[1];
+}
+
 /** Binary magic numbers of recognized formats this package does not load. */
 const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [["BLENDER", "blend"]];
 
 /**
  * The answer for a file that starts `glTF`: a GLB, supported in version 1 (`KHR_binary_glTF`,
- * upgraded on reading) and version 2.
+ * upgraded on reading) and version 2, unless its JSON uses Gaussian splatting.
  * @param head - The first bytes.
  * @returns The detection.
  */
 function glbDetection(head: Uint8Array): ModelDetection {
     const version = head.length >= 8 ? new DataView(head.buffer, head.byteOffset, 8).getUint32(4, true) : 2;
-    return { format: "glb", supported: version === 1 || version === 2 };
+    return { format: "glb", supported: (version === 1 || version === 2) && !SPLAT_EXTENSION.test(headText(head)) };
 }
 
 /**
@@ -247,7 +262,7 @@ function jsonDetection(text: string, ext: string): ModelDetection | undefined {
 
     // A glTF 1.0 file without an `asset` names its meshes by id.
     if (/"asset"\s*:/.test(text) || (ext === "gltf" && /"meshes"\s*:/.test(text))) {
-        return { format: "gltf", supported: true };
+        return { format: "gltf", supported: !SPLAT_EXTENSION.test(text) };
     }
 
     return undefined;

@@ -37,7 +37,7 @@ when a reader opens one.
 
 Usage data: every visitor sends a few anonymous counts to Umami Cloud, with no cookies: visits, the
 site that sent them, and which sample, file format, layout, measure and export they use (ids only,
-never file names or contents). Masked session replays, click and command events, page speed, survey
+never file names or contents). Masked session replays, click, control-change and command events, page speed, survey
 answers (PostHog, EU region) and error reports with a masked replay of the moments before an error
 (Sentry) are sent only after a reader turns on Share usage data in the app. The app's
 `/privacy.html` lists every event and property, and how to turn it off.

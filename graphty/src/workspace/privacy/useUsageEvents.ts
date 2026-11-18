@@ -7,28 +7,84 @@
  */
 
 import { sourceDescriptors } from "@graphty/graphty-element/catalog";
-import { type GraphSession, isGraphtyErrorCode, type SourceLoaded } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    isGraphtyErrorCode,
+    type RunStatus,
+    type SourceLoaded,
+    TERMINAL_RUN_STATUSES,
+} from "@graphty/graphty-element/session";
 import { useEffect } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
 import {
     allowlisted,
+    appConfigWriting,
     count,
     detail,
     isGraphActionOp,
     type LoadAllowlists,
-    panelId,
     sourceLoadedEvent,
     type UsageProps,
 } from "../../lib/analytics";
+import { DISCARD_DIALOG, KEEP_ASSETS_DIALOG, SAVE_AS_DIALOG } from "../project/actions";
+import { EXPAND_DIALOG, SERVER_DIALOG } from "../server/commands";
+import { NETWORK_DIALOG } from "../start/NetworkDataDialog";
 import type { WorkspaceStore } from "../state/store";
 
-/** A run's endings `algorithm_run` sends; any other status at an end is not counted. */
-const RUN_OUTCOMES: ReadonlySet<string> = new Set(["succeeded", "failed", "canceled"]);
+/** A run's endings `algorithm_run` sends: the element's own terminal statuses. */
+const RUN_OUTCOMES: ReadonlySet<RunStatus> = new Set(TERMINAL_RUN_STATUSES);
 /** The camera gestures `camera_used` sends. */
 const CAMERA_KINDS: ReadonlySet<string> = new Set(["orbit", "pan", "zoom"]);
 /** The `style.patch` actions `graph_action` names. */
 const PATCH_ACTIONS: ReadonlySet<string> = new Set(["mark", "highlight"]);
+
+/**
+ * The ids `panel_opened` may send (section 4.2): every dialog id the app sets in the store, the
+ * places and the pages. The dialogs that have a constant are named by it.
+ */
+export const PANEL_IDS: ReadonlySet<string> = new Set([
+    // dialogs
+    "about",
+    "analyze",
+    "custom-model",
+    "export",
+    "generators",
+    "layout",
+    "path",
+    "quick-actions",
+    "report",
+    "samples",
+    "score",
+    "settings",
+    "shader-editor",
+    "shortcuts",
+    "view",
+    NETWORK_DIALOG,
+    SERVER_DIALOG,
+    EXPAND_DIALOG,
+    SAVE_AS_DIALOG,
+    DISCARD_DIALOG,
+    KEEP_ASSETS_DIALOG,
+    // places
+    "graph",
+    "data",
+    "assistant",
+    "notes",
+    // pages
+    "panels",
+    "data-page",
+]);
+
+/**
+ * The id `panel_opened` sends for a dialog id, place or page.
+ * @param id - the store's value.
+ * @returns the id, "settings" for any `settings:<tab>`, else "other".
+ */
+export function panelId(id: string): string {
+    const base = id.startsWith("settings:") ? "settings" : id;
+    return PANEL_IDS.has(base) ? base : "other";
+}
 
 /**
  * An error code when graphty-element's catalog knows it, else "other".
@@ -146,7 +202,7 @@ export function watchSession(session: GraphSession): () => void {
                 }
                 return;
             }
-            if (!isGraphActionOp(op)) {
+            if (!isGraphActionOp(op) || (op === "config.set" && appConfigWriting())) {
                 return;
             }
             if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey) {
@@ -199,24 +255,48 @@ export function watchSession(session: GraphSession): () => void {
 }
 
 /**
- * Sends `panel_opened` when the store's dialog, place or page changes to a new value.
+ * Sends `panel_opened` when the store's dialog, place or page changes to a new value because of
+ * the reader. A change the app makes itself is not sent: one in the same write that opens or
+ * closes a project, and any while a project's open (its load, a restore) is still running.
  * @param store - the workspace store.
  * @returns a function that stops listening.
  */
 export function watchPanels(store: WorkspaceStore): () => void {
-    let { dialog, place, page } = store.get();
+    let { dialog, place, page, project, opened } = store.get();
+    let opening = false;
+    const follow = (run: Promise<void> | null): void => {
+        if (run === null) {
+            return;
+        }
+        opening = true;
+        const settled = (): void => {
+            if (store.get().opened === run) {
+                opening = false;
+            }
+        };
+        run.then(settled, settled);
+    };
+    follow(opened);
     return store.subscribe(() => {
         const next = store.get();
+        if (next.opened !== opened) {
+            follow(next.opened);
+        }
+        if (next.project === null) {
+            // An open whose project closed never settles: nothing is opening any more.
+            opening = false;
+        }
+        const own = !opening && next.project?.id === project?.id;
         for (const [was, now] of [
             [dialog, next.dialog],
             [place, next.place],
             [page, next.page],
         ] as const) {
-            if (now !== null && now !== was) {
+            if (own && now !== null && now !== was) {
                 detail("panel_opened", { panel: panelId(now) });
             }
         }
-        ({ dialog, place, page } = next);
+        ({ dialog, place, page, project, opened } = next);
     });
 }
 

@@ -228,9 +228,11 @@
                     boxes. Console messages, network headers and request bodies are not recorded.
                 </li>
                 <li>
-                    <b>Clicks</b>, with all text masked: where on the page you click, repeated or ineffective clicks,
-                    and, for buttons that run a command, the command's id (such as <code>history.undo</code>). Clicks on
-                    the graph itself are not recorded as clicks.
+                    <b>Clicks and control changes</b>, with all text and every value masked: where on the page you
+                    click, repeated or ineffective clicks, that you changed a control (a menu, checkbox, slider or text
+                    box) or submitted a form, never what you chose or typed, and, for controls that run a command, the
+                    command's id (such as <code>history.undo</code>). Clicks on the graph itself are not recorded as
+                    clicks.
                 </li>
                 <li>
                     <b>What you do, by id only:</b> <code>command_run</code> and <code>command_failed</code> (the
@@ -314,7 +316,9 @@
                 <li>
                     Answer <b>No thanks</b> to the usage data question, or turn off <b>Share usage data</b> in
                     <b>Settings &gt; Privacy</b> (the privacy chip in the status bar opens it). PostHog and Sentry stop
-                    at once, in every open tab, and PostHog's id is deleted.
+                    at once, in every open tab, and PostHog's id is deleted. Nothing that happens after that is sent;
+                    PostHog may still send what it recorded in the last few seconds before you turned it off, including
+                    the click that turned it off.
                 </li>
                 <li>
                     The anonymous counts have no switch in the app. Do Not Track or Global Privacy Control stops the

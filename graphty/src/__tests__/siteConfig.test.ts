@@ -40,6 +40,8 @@ describe("site.json analytics", () => {
     for (const [why, analytics] of [
         ["a numeric posthogKey", { posthogKey: 12, posthogHost: EU }],
         ["a host not on the list", { posthogKey: KEY, posthogHost: "https://evil.example" }],
+        // The privacy page names the EU region; the US host would make it false.
+        ["PostHog's US host", { posthogKey: KEY, posthogHost: "https://us.i.posthog.com" }],
         ["a key with no host", { posthogKey: KEY }],
         ["a website id that is no UUID", { umamiWebsiteId: "not-a-uuid" }],
         ["a block that is no object", "on"],

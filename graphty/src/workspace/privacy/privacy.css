@@ -20,8 +20,26 @@
     box-shadow: var(--mantine-shadow-md);
 }
 
-/* The survey (SurveyCard, rendered right after UsageDataCard) takes the same corner: while it is up,
-   the line confirming a Share just pressed steps aside rather than being drawn under it. */
-.ws-usage-notice:has(+ .ws-usage-notice) {
-    display: none;
+/* The workspace's corner for both cards (Workspace.tsx): the usage data card (or the line confirming
+   an answer just given) and the survey stack upward from the window's foot, so neither is ever drawn
+   over the other or hidden while the other is up. The corner lets clicks through between them. */
+.ws-usage-corner {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    max-width: min(420px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    pointer-events: none;
+}
+
+.ws-usage-corner > .ws-usage-notice {
+    position: static;
+    min-height: 0;
+    flex-shrink: 1;
+    pointer-events: auto;
 }

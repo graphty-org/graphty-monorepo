@@ -11,7 +11,7 @@
  * catalogs) reaches it at runtime, through `setCommandAllowlist` and the callers' own checks.
  */
 
-import type { SourceLoaded } from "@graphty/graphty-element/session";
+import type { SessionCommand, SourceLoaded } from "@graphty/graphty-element/session";
 import type { CaptureResult, PostHog, PostHogConfig } from "posthog-js";
 
 import { type SiteConfig, siteConfig } from "../siteConfig";
@@ -106,10 +106,12 @@ const BASE_KEYS: ReadonlySet<string> = new Set([
     "use_case",
 ]);
 
-/** Journal ops sent as `graph_action` (section 4.2); `data.*` and `set.*` by prefix. A new op is excluded until listed. */
-const GRAPH_ACTION_OPS: ReadonlySet<string> = new Set([
+/**
+ * Journal ops sent as `graph_action` (section 4.2); `data.*` and `set.*` by prefix. A new op is
+ * excluded until listed. Typed against the element's commands, so a renamed op fails to compile.
+ */
+const GRAPH_ACTION_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>([
     "style.encode",
-    "styles.encode",
     "style.patch",
     "style.template",
     "shader.set",
@@ -143,46 +145,14 @@ const GRAPH_ACTION_OPS: ReadonlySet<string> = new Set([
  * @returns true when it is on the op allowlist.
  */
 export function isGraphActionOp(op: string): boolean {
-    return GRAPH_ACTION_OPS.has(op) || op.startsWith("data.") || op.startsWith("set.");
+    return GRAPH_ACTION_OPS.has(op) || (op.startsWith("data.") && !LOAD_OPS.has(op)) || op.startsWith("set.");
 }
-
-/** The panel ids `panel_opened` may send: the store's dialog ids, places and pages. */
-const PANEL_IDS: ReadonlySet<string> = new Set([
-    // dialogs
-    "about",
-    "analyze",
-    "custom-model",
-    "export",
-    "generators",
-    "layout",
-    "path",
-    "quick-actions",
-    "report",
-    "samples",
-    "score",
-    "settings",
-    "shader-editor",
-    "shortcuts",
-    "view",
-    // places
-    "graph",
-    "data",
-    "assistant",
-    "notes",
-    // pages
-    "panels",
-    "data-page",
-]);
 
 /**
- * The id `panel_opened` sends for a dialog id, place or page.
- * @param id - the store's value.
- * @returns the id, "settings" for any `settings:<tab>`, else "other".
+ * The `data.*` ops that read a source in: each load is counted once, as `sample_loaded` or
+ * `own_file_opened` from `source:loaded`, so its journal entry is not a `graph_action` too.
  */
-export function panelId(id: string): string {
-    const base = id.startsWith("settings:") ? "settings" : id;
-    return PANEL_IDS.has(base) ? base : "other";
-}
+const LOAD_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>(["data.import", "data.import-source"]);
 
 /** Control ids for clickable controls that run no registered command (decision 15). */
 export const FIXED_CONTROL_IDS: ReadonlySet<string> = new Set([
@@ -227,9 +197,10 @@ export function sourceLoadedEvent(
     if (loaded.callerKey === "reopen") {
         return null;
     }
-    if (loaded.kind === "sample" || loaded.sample !== undefined) {
+    const { sample: ids, callerKey } = loaded;
+    // A start-screen sample stays one however it was loaded, the join screen's rows included.
+    if (loaded.kind === "sample" || ids !== undefined || callerKey?.startsWith("sample:") === true) {
         let sample = "other";
-        const { sample: ids, callerKey } = loaded;
         if (callerKey?.startsWith("sample:") === true) {
             sample = allowlisted(callerKey.slice("sample:".length), known.startSamples);
         } else if (ids !== undefined && "datasetId" in ids) {
@@ -277,6 +248,8 @@ export interface AnalyticsCalls {
     hostname(): string;
     /** Do Not Track and Global Privacy Control. */
     privacySignals(): { dnt: boolean; gpc: boolean };
+    /** Today's local calendar date, "YYYY-MM-DD". */
+    today(): string;
     /** Tests only: PostHog's ingest host, with compression off so bodies are plain JSON. */
     posthogHost?: string;
 }
@@ -289,6 +262,7 @@ const defaultCalls: AnalyticsCalls = {
         const nav = navigator as Navigator & { globalPrivacyControl?: boolean };
         return { dnt: nav.doNotTrack === "1", gpc: nav.globalPrivacyControl === true };
     },
+    today: localDate,
 };
 let calls: AnalyticsCalls = defaultCalls;
 
@@ -543,14 +517,21 @@ function daysBetween(from: string, to: string): number {
 }
 
 /**
- * The `return_visit` bucket for a first visit and today.
+ * The `return_visit` bucket for a visit record and today.
  * @param first - the first visit's local date.
  * @param today - today's local date.
- * @returns the bucket, null on the same day, or "reset" for a record older than 395 days (or unreadable).
+ * @param last - the last visit's local date; the first when absent.
+ * @returns the bucket, null on the same day, or "reset" when the last visit was more than 395 days
+ * ago, or either date is unreadable or in the future.
  */
-export function visitBucket(first: string, today: string): "1" | "2-7" | "8-30" | "30+" | "reset" | null {
+export function visitBucket(
+    first: string,
+    today: string,
+    last: string = first,
+): "1" | "2-7" | "8-30" | "30+" | "reset" | null {
     const days = daysBetween(first, today);
-    if (!Number.isFinite(days) || days < 0 || days > 395) {
+    const sinceLast = daysBetween(last, today);
+    if (!Number.isFinite(days) || !Number.isFinite(sinceLast) || days < 0 || sinceLast < 0 || sinceLast > 395) {
         return "reset";
     }
     if (days === 0) {
@@ -567,7 +548,7 @@ export function visitBucket(first: string, today: string): "1" | "2-7" | "8-30" 
 
 /** Sends `first_visit` or `return_visit` from the visit record, at most once a day. Only the bucket leaves the page. */
 function countVisit(): void {
-    const today = localDate();
+    const today = calls.today();
     let record: { first: string; last: string } | null = null;
     try {
         const parsed: unknown = JSON.parse(localStorage.getItem(VISITS_KEY) ?? "null");
@@ -578,7 +559,7 @@ function countVisit(): void {
                 record = { first, last };
             }
         }
-        const bucket = record === null ? "reset" : visitBucket(record.first, today);
+        const bucket = record === null ? "reset" : visitBucket(record.first, today, record.last);
         if (record === null || bucket === "reset") {
             localStorage.setItem(VISITS_KEY, JSON.stringify({ first: today, last: today }));
             visit = "first";
@@ -730,6 +711,32 @@ export function setCommandAllowlist(ids: Iterable<string>): void {
     commandAllowlist = new Set(ids);
 }
 
+/** How many of the app's own `config.set` writes are under way (see {@link appConfigWrite}). */
+let appWrites = 0;
+
+/**
+ * Runs a settings write the app makes for itself, not the reader (its starting choices for every
+ * project, a project's name): its `config.set` journal entry is not sent as a `graph_action`.
+ * @param write - the write.
+ * @returns the write's promise.
+ */
+export async function appConfigWrite<T>(write: () => Promise<T>): Promise<T> {
+    appWrites++;
+    try {
+        return await write();
+    } finally {
+        appWrites--;
+    }
+}
+
+/**
+ * Whether one of the app's own settings writes is under way.
+ * @returns true while {@link appConfigWrite} runs one.
+ */
+export function appConfigWriting(): boolean {
+    return appWrites > 0;
+}
+
 /** The attributes PostHog's replay keeps; every other attribute is masked. */
 const REPLAY_KEPT_ATTRIBUTES: ReadonlySet<string> = new Set([
     "class",
@@ -760,12 +767,8 @@ export function maskEveryAttribute(key: string, value: string): string {
     return REPLAY_KEPT_ATTRIBUTES.has(key) ? value : "*";
 }
 
-/**
- * The attributes Sentry's error replay masks. Sentry takes a list of names, so this is the one
- * denylist: the attributes that can carry reader text, and each `data-*` attribute the app fills
- * with a value from the reader's data.
- */
-export const SENTRY_MASKED_ATTRIBUTES: readonly string[] = [
+/** The attribute names known to carry reader text, kept in Sentry's list itself as a floor. */
+const KNOWN_READER_ATTRIBUTES: readonly string[] = [
     "title",
     "aria-label",
     "aria-description",
@@ -793,6 +796,8 @@ export const SENTRY_MASKED_ATTRIBUTES: readonly string[] = [
     "data-row",
     "data-line",
     "data-unset-line",
+    "data-notes",
+    "data-shader",
     "data-receipt",
     "data-result",
     "data-value-listbox",
@@ -806,6 +811,30 @@ export const SENTRY_MASKED_ATTRIBUTES: readonly string[] = [
     "data-start",
     "data-run",
 ];
+
+/**
+ * Sentry's attribute list, answering "masked" for every attribute PostHog's replay does not keep.
+ * Sentry's replay takes only a list of names and asks it `maskAttributes.includes(name)`
+ * (@sentry/replay 11.12, `maskAttribute`), so this list's `includes` is the same allowlist as
+ * {@link maskEveryAttribute}: a `data-*` attribute added later is masked without anyone listing
+ * it. It still holds the known names, so an SDK that copied it into a plain array would mask those.
+ */
+class EveryAttributeExceptKept extends Array<string> {
+    override includes(name: string): boolean {
+        return !REPLAY_KEPT_ATTRIBUTES.has(name);
+    }
+}
+
+/**
+ * The attributes Sentry's error replay masks: every one but {@link REPLAY_KEPT_ATTRIBUTES}.
+ * Pass it to `replayIntegration` as is; a copy (`[...list]`) loses the allowlist.
+ * @returns a fresh list.
+ */
+export function sentryMaskedAttributes(): string[] {
+    const list = new EveryAttributeExceptKept();
+    list.push(...KNOWN_READER_ATTRIBUTES);
+    return list;
+}
 
 /** The stored survey state: shown survey ids and the answered use case. */
 export interface SurveyState {
@@ -1025,6 +1054,9 @@ function postHogOptions(host: string): Partial<PostHogConfig> {
             ...(plain ? { compress_events: false } : {}),
         },
         disable_surveys: false,
+        // Only the app's own SurveyCard asks a question: a popover survey made in PostHog by
+        // mistake is never drawn, so no open text is asked outside the one disclosed box.
+        disable_surveys_automatic_display: true,
         before_send: cleanPostHogEvent,
         ...(plain ? { disable_compression: true } : {}),
     };
@@ -1183,4 +1215,5 @@ export function resetAnalyticsForTests(): void {
     buffer.length = 0;
     commandAllowlist = new Set();
     listeners.clear();
+    appWrites = 0;
 }

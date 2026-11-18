@@ -17,6 +17,7 @@ import type { DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
+import { appConfigWrite } from "../../lib/analytics";
 import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
@@ -58,7 +59,7 @@ export function openProject(
         ...startOpening({
             name,
             load: async (session) => {
-                await session.config.set({ name });
+                await appConfigWrite(() => session.config.set({ name }));
                 await load(session);
             },
         }),
@@ -399,6 +400,7 @@ async function takeIn(
             draft,
             source: incoming.source,
             ...(incoming.origin === undefined ? {} : { origin: incoming.origin }),
+            ...(incoming.callerKey === undefined ? {} : { callerKey: incoming.callerKey }),
             ...(held === undefined ? {} : { matches: held.key }),
         },
     });

@@ -75,7 +75,11 @@ export async function replaceWith(
 ): Promise<void> {
     const replaced = session.data.sources().find((each) => each.key === key);
     const before = replaced === undefined ? key : sourceName(replaced);
-    const report = await session.data.replaceSource(key, incoming.source, choices);
+    const report = await session.data.replaceSource(
+        key,
+        incoming.source,
+        incoming.callerKey === undefined ? choices : { ...choices, callerKey: incoming.callerKey },
+    );
     const [first] = report.unbound;
     workspace.set({
         notice: {

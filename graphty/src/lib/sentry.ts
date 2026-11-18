@@ -7,13 +7,19 @@
 import * as SentrySdk from "@sentry/react";
 
 import { siteConfig } from "../siteConfig";
-import { SENTRY_MASKED_ATTRIBUTES } from "./analytics";
+import { sentryMaskedAttributes } from "./analytics";
 import { beforeAddRecordingEvent, privacyFilters } from "./sentryPrivacy";
 
 /** The parts of Sentry's SDK this module calls. */
 export type SentryCalls = Pick<
     typeof SentrySdk,
-    "init" | "close" | "replayIntegration" | "captureException" | "captureFeedback" | "getCurrentScope"
+    | "init"
+    | "getClient"
+    | "replayIntegration"
+    | "captureException"
+    | "captureFeedback"
+    | "getCurrentScope"
+    | "getIsolationScope"
 >;
 
 /** Sentry's SDK, or the stand-in a test passed to {@link setSentryCallsForTests}. */
@@ -98,14 +104,28 @@ export function initSentry(config?: SentryConfig): void {
         return;
     }
 
-    const restart = replay !== undefined;
+    const client = replay === undefined ? undefined : Sentry.getClient();
+    if (replay !== undefined && client !== undefined) {
+        // A later start in the same page: the client made by the first start is enabled again.
+        // Sentry.init would make a new client, while the replay's hooks (the one that sends a
+        // buffered recording with an error, and its breadcrumbs) stay on the first one, once per
+        // page, so no error replay would ever be sent again. start() would record the whole session.
+        // The breadcrumbs gathered while it was off (clicks, requests, the errors it refused) are
+        // dropped, or the next error would carry them.
+        Sentry.getIsolationScope().clearBreadcrumbs();
+        Sentry.getCurrentScope().clearBreadcrumbs();
+        client.getOptions().enabled = true;
+        replay.startBuffering();
+        initialized = true;
+        return;
+    }
     replay ??= Sentry.replayIntegration({
         maskAllText: true,
         maskAllInputs: true,
         blockAllMedia: true,
-        // Sentry's default masks only title, placeholder and aria-label; the app puts reader text in
-        // more attributes than those (analytics.ts SENTRY_MASKED_ATTRIBUTES).
-        maskAttributes: [...SENTRY_MASKED_ATTRIBUTES],
+        // Sentry's default masks only title, placeholder and aria-label. This list masks every
+        // attribute but the few PostHog's replay keeps too (analytics.ts sentryMaskedAttributes).
+        maskAttributes: sentryMaskedAttributes(),
         beforeAddRecordingEvent,
         ...(useCompression === undefined ? {} : { useCompression }),
     });
@@ -138,11 +158,6 @@ export function initSentry(config?: SentryConfig): void {
         },
         transport: effectiveConfig.transport,
     });
-    if (restart) {
-        // The integration sets itself up once per page; on a later start it buffers again only when
-        // asked. start() would record the whole session.
-        replay.startBuffering();
-    }
     initialized = true;
 }
 
@@ -151,9 +166,14 @@ export function initSentry(config?: SentryConfig): void {
  */
 export function stopSentry(): void {
     if (initialized) {
-        // Best effort: events that cannot be flushed as usage data is turned off are dropped.
+        // The client is disabled, not closed: it stays the page's one client, so a later Share
+        // enables it again (initSentry). Disabled at once, so nothing captured from here is sent;
+        // close() would disable it only after a flush, and could undo a quick Share again.
         replay?.stop().catch(() => undefined);
-        Sentry.close().catch(() => undefined);
+        const client = Sentry.getClient();
+        if (client !== undefined) {
+            client.getOptions().enabled = false;
+        }
     }
     initialized = false;
 }

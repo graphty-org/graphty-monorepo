@@ -1,6 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SENTRY_MASKED_ATTRIBUTES } from "./analytics";
 import {
     captureUserFeedback,
     initSentry,
@@ -18,7 +17,9 @@ import {
 const mockAddAttachment = vi.fn();
 const mockClearAttachments = vi.fn();
 const mockInit = vi.fn();
-const mockClose = vi.fn(() => Promise.resolve(true));
+/** The one client's options, as Sentry.init would have made them. */
+let clientOptions: { enabled?: boolean } = {};
+const mockGetClient = vi.fn(() => (mockInit.mock.calls.length === 0 ? undefined : { getOptions: () => clientOptions }));
 const mockReplayStart = vi.fn();
 const mockReplayStartBuffering = vi.fn();
 const mockReplay = vi.fn(() => ({
@@ -29,19 +30,23 @@ const mockReplay = vi.fn(() => ({
 }));
 const mockCaptureException = vi.fn();
 const mockCaptureFeedback = vi.fn();
+const mockClearBreadcrumbs = vi.fn();
 const mockGetCurrentScope = vi.fn(() => ({
     addAttachment: mockAddAttachment,
     clearAttachments: mockClearAttachments,
+    clearBreadcrumbs: mockClearBreadcrumbs,
 }));
+const mockGetIsolationScope = vi.fn(() => ({ clearBreadcrumbs: mockClearBreadcrumbs }));
 
 /** Only the members the module calls, each a recording stand-in. */
 const calls = {
     init: mockInit,
-    close: mockClose,
+    getClient: mockGetClient,
     replayIntegration: mockReplay,
     captureException: mockCaptureException,
     captureFeedback: mockCaptureFeedback,
     getCurrentScope: mockGetCurrentScope,
+    getIsolationScope: mockGetIsolationScope,
 } as unknown as SentryCalls;
 
 beforeAll(() => {
@@ -114,12 +119,16 @@ describe("Sentry initialization", () => {
                 maskAllText: true,
                 maskAllInputs: true,
                 blockAllMedia: true,
-                maskAttributes: [...SENTRY_MASKED_ATTRIBUTES],
             }),
         );
         const masked = (mockReplay.mock.calls[0] as unknown as [{ maskAttributes: string[] }])[0].maskAttributes;
-        for (const name of ["aria-description", "name", "href", "id", "data-part"]) {
-            expect(masked).toContain(name);
+        // Sentry asks the list `includes(name)`: every attribute but the few kept is masked,
+        // one nobody has listed yet included.
+        for (const name of ["aria-description", "name", "id", "data-part", "data-notes", "data-shader", "data-new"]) {
+            expect(masked.includes(name)).toBe(true);
+        }
+        for (const name of ["class", "role", "data-ph-capture-attribute-control"]) {
+            expect(masked.includes(name)).toBe(false);
         }
     });
 
@@ -182,21 +191,30 @@ describe("Sentry initialization", () => {
     });
 
     it("stops sending when usage data is turned off", () => {
+        clientOptions = {};
         initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
         stopSentry();
 
-        expect(mockClose).toHaveBeenCalled();
+        expect(clientOptions.enabled).toBe(false);
         expect(isSentryEnabled()).toBe(false);
     });
 
-    it("keeps one replay when usage data is turned off and on again", () => {
+    it("keeps one replay and one client when usage data is turned off and on again", () => {
+        clientOptions = {};
         mockReplay.mockClear();
         mockReplayStart.mockClear();
+        mockClearBreadcrumbs.mockClear();
         initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+        const inits = mockInit.mock.calls.length;
         stopSentry();
         initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
 
-        // Sentry throws on a second replayIntegration() in one page; start() would record the whole session.
+        // Sentry throws on a second replayIntegration() in one page; start() would record the whole
+        // session; a second init would leave the replay's hooks on the first client.
+        expect(mockInit).toHaveBeenCalledTimes(inits);
+        expect(clientOptions.enabled).toBe(true);
+        // Both scopes' breadcrumbs, gathered while it was off.
+        expect(mockClearBreadcrumbs).toHaveBeenCalledTimes(2);
         expect(mockReplay).toHaveBeenCalledTimes(1);
         expect(mockReplayStartBuffering).toHaveBeenCalledTimes(1);
         expect(mockReplayStart).not.toHaveBeenCalled();

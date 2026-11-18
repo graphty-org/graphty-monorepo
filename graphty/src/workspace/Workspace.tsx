@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
+import { appConfigWrite } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ScoreDialog } from "./data-place/ScoreDialog";
@@ -161,7 +162,7 @@ export function Workspace({
         const defaults =
             project?.id === startProjectId || Object.keys(patch).length === 0
                 ? Promise.resolve()
-                : session.config.set(patch);
+                : appConfigWrite(() => session.config.set(patch));
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
             void defaults.catch((error: unknown) => {
@@ -430,10 +431,13 @@ export function Workspace({
             <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
-            {/* The usage data question, on whatever page a first visit lands, until it is answered. */}
-            <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
-            {/* A short survey, only while usage data is shared (usage-analytics.md section 4.4). */}
-            <SurveyCard />
+            {/* One corner for the usage data question (on whatever page a first visit lands, until it
+                is answered) and a short survey, only while usage data is shared (usage-analytics.md
+                section 4.4): stacked, so neither covers or hides the other. */}
+            <div className="ws-usage-corner">
+                <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+                <SurveyCard />
+            </div>
             <ProjectDialogs />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a

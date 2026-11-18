@@ -6,8 +6,10 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { count, resetAnalyticsForTests, setPostHogClientForTests } from "../../../lib/analytics";
 import { sampleTile } from "../../../test/samples-dialog";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { USE_CASE_SURVEY } from "../../privacy/__tests__/surveyFixtures";
 import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
@@ -148,7 +150,9 @@ describe("the start screen", () => {
         const card = screen.getByRole("complementary", { name: "Usage data" });
         // Pinned to the window, not a card at the foot of the start page.
         assert.isNull(card.closest(".ws-land"));
-        assert.equal(getComputedStyle(card).position, "fixed");
+        const corner = card.parentElement;
+        assert.exists(corner);
+        assert.equal(getComputedStyle(corner).position, "fixed");
         assert.isTrue(card.checkVisibility());
         assert.isNotNull(within(card).getByText("Your data is yours, but please help us."));
         assert.isNotNull(within(card).getByText(OWNER_WORDS));
@@ -204,6 +208,46 @@ describe("the start screen", () => {
         assert.equal(document.activeElement, close);
         await userEvent.click(close);
         assert.isNull(screen.queryByText(/Usage data stays off/));
+    });
+
+    it("stacks a survey that comes up beside the answer line, hiding neither, and keeps focus", async () => {
+        let undoPostHog: () => void = () => undefined;
+        setUsageSenderForTests({
+            start: () => {
+                undoPostHog = setPostHogClientForTests({
+                    getActiveMatchingSurveys: (callback) => {
+                        callback([USE_CASE_SURVEY]);
+                    },
+                });
+            },
+            stop: () => {
+                undoPostHog();
+            },
+        });
+        try {
+            renderStart({ project: { name: "Les Miserables", id: 1 } });
+            const card = screen.getByRole("complementary", { name: "Usage data" });
+            await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+            const close = screen.getByRole("button", { name: "Close" });
+            assert.equal(document.activeElement, close);
+
+            act(() => {
+                count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+            });
+
+            const survey = screen.getByRole("complementary", { name: "Survey" });
+            const line = screen.getByText(/Usage data is on/, { selector: ".ws-start-answer" });
+            assert.isTrue(line.checkVisibility(), "the answer line is still shown");
+            assert.equal(document.activeElement, close, "focus stays on the answer line's close");
+            // Stacked in one corner: the line sits above the survey, never under it.
+            const lineBox = line.getBoundingClientRect();
+            const surveyBox = survey.getBoundingClientRect();
+            assert.isAtMost(lineBox.bottom, surveyBox.top);
+        } finally {
+            undoPostHog();
+            resetAnalyticsForTests();
+            setUsageSenderForTests({ start: initSentry, stop: stopSentry });
+        }
     });
 
     it("does not show the card again once it was answered", async () => {

@@ -83,8 +83,13 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
             if (assets === null) {
                 return;
             }
-            await element?.downloadProject({ fileName: name, ...(Object.keys(assets).length === 0 ? {} : { assets }) });
-            count("export_done", { kind, destination: "download" });
+            if (element !== null) {
+                await element.downloadProject({
+                    fileName: name,
+                    ...(Object.keys(assets).length === 0 ? {} : { assets }),
+                });
+                count("export_done", { kind, destination: "download" });
+            }
         } else if (contents?.text !== undefined) {
             saveBlob(new Blob([contents.text], { type: "application/json" }), name);
             count("export_done", { kind, destination: "download" });

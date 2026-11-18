@@ -33,14 +33,20 @@ export interface SiteAnalytics {
     readonly umamiWebsiteId?: string;
     /** PostHog project key ("phc_..."); it takes effect only with `posthogHost`. */
     readonly posthogKey?: string;
-    /** PostHog ingest host: the EU or the US ingest host of PostHog Cloud, written out in full. */
+    /**
+     * PostHog ingest host: PostHog Cloud's EU ingest host, written out in full. Only the EU host is
+     * accepted, because the privacy page and the README name the EU region as where the data goes.
+     */
     readonly posthogHost?: string;
 }
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const POSTHOG_KEY = /^phc_[A-Za-z0-9]+$/;
-/** PostHog Cloud's two ingest hosts. A pattern, not the two strings: the landing page must hold no PostHog host (scripts/check-posthog-chunks.mjs). */
-const POSTHOG_HOST = /^https:\/\/(eu|us)\.i\.posthog\.com$/;
+/**
+ * PostHog Cloud's EU ingest host, the one region public/privacy.html names. A pattern, not the
+ * string: the landing page must hold no PostHog host (scripts/check-posthog-chunks.mjs).
+ */
+const POSTHOG_HOST = /^https:\/\/eu\.i\.posthog\.com$/;
 
 const SITES: ReadonlySet<unknown> = new Set<SiteName>(["canary", "nightly", "production"]);
 

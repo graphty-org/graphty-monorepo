@@ -254,8 +254,31 @@ const realElementProject = (
     },
 });
 
+/**
+ * Answers the site's `site.json` with a 404 on the test server. The stories (through
+ * src/elementLoader.ts) and the app's boot read it; without this the dev server's single-page
+ * fallback answers with index.html, which makes Vite pre-transform src/main.tsx mid-run, the hazard
+ * `optimizeDeps` below describes: a dependency found then re-bundles and reloads the test page, and
+ * every story of the file running fails at once (the SurveyCard stories once all failed with an
+ * empty TypeError). A test that needs a site configuration loads a `data:` URL.
+ * @returns the plugin.
+ */
+const noSiteFile = (): Plugin => ({
+    name: "graphty-no-site-file",
+    configureServer(server) {
+        server.middlewares.use((request, response, next) => {
+            if (request.url?.split("?")[0]?.endsWith("/site.json") === true) {
+                response.statusCode = 404;
+                response.end();
+                return;
+            }
+            next();
+        });
+    },
+});
+
 const config = defineConfig({
-    plugins: [react(), sampleDataPlugin(), ...elementSourcePlugins],
+    plugins: [react(), sampleDataPlugin(), noSiteFile(), ...elementSourcePlugins],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },

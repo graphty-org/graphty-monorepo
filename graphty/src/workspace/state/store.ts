@@ -232,6 +232,8 @@ export interface WorkspaceState {
         readonly source?: DataSourceInput;
         /** One of the app's own samples, for a table added as rows. */
         readonly origin?: "sample";
+        /** The load's `callerKey`, echoed on `source:loaded` whichever way the join screen loads it. */
+        readonly callerKey?: string;
         /** The load holding the same columns as this file: the screen opens on Replace of it. */
         readonly matches?: SourceKey;
     } | null;

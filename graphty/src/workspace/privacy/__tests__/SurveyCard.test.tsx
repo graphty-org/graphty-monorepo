@@ -18,6 +18,7 @@ import {
 } from "../../../lib/analytics";
 import { act, render, screen } from "../../../test/test-utils";
 import { SurveyCard } from "../SurveyCard";
+import { answerUsageData, forgetUsageAnswer, setUsageSenderForTests } from "../usageData";
 import { EXPORT_EASE_SURVEY, USE_CASE_SURVEY } from "./surveyFixtures";
 
 /** Every capture the stand-in received, after `cleanPostHogEvent`. */
@@ -68,6 +69,8 @@ beforeEach(() => {
 });
 afterEach(() => {
     undo();
+    setUsageSenderForTests();
+    forgetUsageAnswer();
     vi.useRealTimers();
     localStorage.removeItem(SURVEYS_KEY);
 });
@@ -174,6 +177,37 @@ describe("SurveyCard", () => {
         moment(succeeded);
         assert.equal(asks, 0);
         assert.isNull(card());
+    });
+
+    it("drops a card left open at No, and a later Share in the same page view does not bring it back", () => {
+        // Share and No through the reader's own answer; the sender turns the stand-in on and off.
+        setUsageSenderForTests({
+            start: () => {
+                share();
+            },
+            stop: () => {
+                undo();
+            },
+        });
+        act(() => {
+            answerUsageData("share");
+        });
+        render(<SurveyCard />);
+        moment(succeeded);
+        assert.isNotNull(card());
+
+        act(() => {
+            answerUsageData("declined");
+        });
+        assert.isNull(card());
+        act(() => {
+            answerUsageData("share");
+        });
+        assert.isNull(card());
+        assert.lengthOf(
+            captured.filter((entry) => entry.event === "survey shown"),
+            1,
+        );
     });
 
     it("stores the chosen id, which later events carry as use_case, on this visit and the next", async () => {

@@ -1,7 +1,8 @@
 /**
  * Usage analytics through its seams (no module mocks): Umami's counts and their payload, the visit
  * record, the address bar, PostHog's lifecycle with a stand-in client, and what `cleanPostHogEvent`
- * lets through. The `hostname` and `privacySignals` seams make graphty.app and no DNT the default.
+ * lets through. The `hostname`, `privacySignals` and `today` seams make graphty.app, no DNT and a
+ * fixed day the default, so no case depends on the clock.
  */
 import type { SourceLoaded } from "@graphty/graphty-element/session";
 import type { CaptureResult, PostHog } from "posthog-js";
@@ -20,7 +21,6 @@ import {
     type LoadAllowlists,
     maskEveryAttribute,
     onUsageEvent,
-    panelId,
     postHog,
     readChannel,
     readSurveyState,
@@ -47,6 +47,9 @@ const HOST = "https://eu.i.posthog.com";
 const VISITS = "graphty.visits.v1";
 const USAGE = "graphty.usageData.v1";
 
+/** The day every case runs on, through the `today` seam. */
+const TODAY = "2026-06-15";
+
 /** What the Umami seam received. */
 let sends: UmamiBody[] = [];
 
@@ -62,6 +65,7 @@ function installCalls(overrides: Parameters<typeof setAnalyticsCallsForTests>[0]
         },
         hostname: () => "graphty.app",
         privacySignals: () => ({ dnt: false, gpc: false }),
+        today: () => TODAY,
         ...overrides,
     });
 }
@@ -86,15 +90,13 @@ function umamiNames(): string[] {
 }
 
 /**
- * A local date some days from today.
+ * A date some days from {@link TODAY}.
  * @param days - days to add (negative for the past).
  * @returns "YYYY-MM-DD".
  */
 function dayFromToday(days: number): string {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    const pad = (n: number): string => String(n).padStart(2, "0");
-    return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const [y, m, d] = TODAY.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 /** A PostHog stand-in: each member a recording function. */
@@ -226,7 +228,6 @@ describe("Umami counts", () => {
         };
         setSentryCallsForTests({
             init: vi.fn(record),
-            close: vi.fn(() => Promise.resolve(true)),
             replayIntegration: vi.fn(() => ({
                 name: "Replay",
                 startBuffering: vi.fn(),
@@ -263,10 +264,16 @@ describe("Umami counts", () => {
 });
 
 describe("the visit record", () => {
-    it("buckets days since the first visit", () => {
+    it("buckets days since the first visit, and resets on a last visit over 395 days ago", () => {
         const from = (days: number): string => new Date(Date.UTC(2026, 0, 1 + days)).toISOString().slice(0, 10);
         const buckets = [0, 1, 2, 7, 8, 30, 31, 400].map((days) => visitBucket(from(0), from(days)));
         assert.deepEqual(buckets, [null, "1", "2-7", "2-7", "8-30", "8-30", "30+", "reset"]);
+        // A regular reader whose first visit is over 395 days old stays a returning one.
+        assert.equal(visitBucket(from(0), from(800), from(799)), "30+");
+        assert.equal(visitBucket(from(0), from(800), from(400)), "reset");
+        // A date in the future, or one that does not parse, is a stale record.
+        assert.equal(visitBucket(from(0), from(5), from(6)), "reset");
+        assert.equal(visitBucket("nonsense", from(5)), "reset");
     });
 
     it("sends first_visit, then one return_visit a day, and nothing more that day", async () => {
@@ -291,9 +298,17 @@ describe("the visit record", () => {
         });
     });
 
-    it("resets a record older than 395 days", async () => {
+    it("resets a record whose last visit is older than 395 days, and keeps a regular reader's", async () => {
+        const config = await site({ umamiWebsiteId: UMAMI });
         localStorage.setItem(VISITS, JSON.stringify({ first: dayFromToday(-400), last: dayFromToday(-2) }));
-        startPageCounts(await site({ umamiWebsiteId: UMAMI }));
+        startPageCounts(config);
+        assert.deepEqual(umamiNames(), ["pageview", "return_visit"]);
+        assert.deepEqual(sends[1].payload.data, { days: "30+" });
+
+        resetAnalyticsForTests();
+        sends = [];
+        localStorage.setItem(VISITS, JSON.stringify({ first: dayFromToday(-500), last: dayFromToday(-400) }));
+        startPageCounts(config);
         assert.deepEqual(umamiNames(), ["pageview", "first_visit"]);
     });
 
@@ -357,6 +372,8 @@ describe("count and detail", () => {
             sourceLoadedEvent(loaded({ kind: "sample", sample: { generatorId: "SECRET_GEN" } }), known),
             sourceLoadedEvent(loaded({ kind: "server", sourceId: "SECRET_ID", sample: { exampleId: "ex-1" } }), known),
             sourceLoadedEvent(loaded({ kind: "url", callerKey: "sample:tile-1" }), known),
+            // An app sample added to a graph that holds data, through the join screen.
+            sourceLoadedEvent(loaded({ kind: "join", callerKey: "sample:tile-1" }), known),
             sourceLoadedEvent(loaded({ kind: "file", format: "graphml" }), known),
             sourceLoadedEvent(loaded({ kind: "url", format: "dot" }), known),
             sourceLoadedEvent(loaded({ kind: "server", sourceId: "SECRET_ID" }), known),
@@ -366,7 +383,8 @@ describe("count and detail", () => {
             { name: "sample_loaded", props: { sample: "karate" } },
             { name: "sample_loaded", props: { sample: "other" } },
             { name: "sample_loaded", props: { sample: "ex-1" } },
-            { name: "own_file_opened", props: { format: "other", via: "url" } },
+            { name: "sample_loaded", props: { sample: "tile-1" } },
+            { name: "sample_loaded", props: { sample: "tile-1" } },
             { name: "own_file_opened", props: { format: "graphml", via: "file" } },
             { name: "own_file_opened", props: { format: "other", via: "url" } },
             { name: "own_file_opened", props: { format: "other", via: "server" } },
@@ -376,14 +394,14 @@ describe("count and detail", () => {
         assert.equal(allowlisted("E_UNKNOWN_CODE", new Set(["E_PARSE"])), "other");
     });
 
-    it("allowlists journal ops and panel ids", () => {
+    it("allowlists journal ops", () => {
         assert.isTrue(isGraphActionOp("style.encode"));
         assert.isTrue(isGraphActionOp("data.apply"));
         assert.isFalse(isGraphActionOp("layout.set"));
         assert.isFalse(isGraphActionOp("visibility.window"));
-        assert.equal(panelId("settings:privacy"), "settings");
-        assert.equal(panelId("data-page"), "data-page");
-        assert.equal(panelId("SECRET project"), "other");
+        // A load is counted once, from source:loaded, never as a graph action too.
+        assert.isFalse(isGraphActionOp("data.import"));
+        assert.isFalse(isGraphActionOp("data.import-source"));
     });
 });
 
@@ -523,6 +541,7 @@ describe("PostHog", () => {
                 maskCapturedNetworkRequestFn: maskRequest,
             },
             disable_surveys: false,
+            disable_surveys_automatic_display: true,
             before_send: cleanPostHogEvent,
         });
         assert.equal(fake.opt_in_capturing.mock.calls.length, 1);

@@ -57,11 +57,20 @@ function responseKey(question: Question): string {
  * @returns The card, or nothing
  */
 export function SurveyCard(): React.JSX.Element | null {
-    // Re-render on an answer change, so the card goes as soon as sharing is turned off.
-    useUsageAnswer();
+    const answer = useUsageAnswer();
     const [survey, setSurvey] = useState<{ survey: Survey; question: Question } | undefined>();
     const [choice, setChoice] = useState<string | null>(null);
     const [otherText, setOtherText] = useState("");
+
+    // Sharing turned off drops the card for good: a later Share never brings back a question
+    // asked under the earlier id, outside the moments it is asked at.
+    useEffect(() => {
+        if (answer !== "share") {
+            setSurvey(undefined);
+            setChoice(null);
+            setOtherText("");
+        }
+    }, [answer]);
 
     useEffect(() => {
         let asked = false;

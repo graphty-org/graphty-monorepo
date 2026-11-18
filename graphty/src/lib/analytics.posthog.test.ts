@@ -205,13 +205,29 @@ describe("the real posthog-js chunk", () => {
         assert.isTrue(client.has_opted_out_capturing());
         assert.isUndefined(postHog());
         assert.isNull(localStorage.getItem(`ph_${KEY}_posthog`));
-        const before = bodies.length;
+        // Counted work, not a wait for a batch that may never flush: every capture after the stop,
+        // the click's autocapture included, returns nothing, so nothing was queued to send later.
+        const capture = vi.spyOn(client, "capture");
         const capturedAfter = client.capture("after_stop");
         assert.isUndefined(capturedAfter, "a capture after stop is dropped before it is queued");
         await userEvent.click(button);
+        assert.isTrue(
+            capture.mock.results.every((result) => result.type === "return" && result.value === undefined),
+            "no capture after the stop, the click's included, was queued",
+        );
         assert.strictEqual(reset.mock.calls.length, 0);
         assert.strictEqual(reload.mock.calls.length, 0);
         assert.isNull(localStorage.getItem(`ph_${KEY}_posthog`));
-        assert.notInclude(bodies.slice(before).join("\n"), "after_stop");
+    });
+
+    it("never draws a survey of its own: only the app's survey card asks", async () => {
+        startPostHog();
+        await vi.waitFor(() => {
+            assert.isDefined(postHog());
+        });
+        const client = postHog() as unknown as PostHog;
+        assert.isTrue(client.config.disable_surveys_automatic_display);
+        assert.isFalse(client.config.disable_surveys);
+        stopPostHog();
     });
 });

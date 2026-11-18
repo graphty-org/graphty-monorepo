@@ -165,6 +165,29 @@ describe("the drawn ring", () => {
         expectBitwiseEqual(host, card, "the host rows are the landed slot");
     });
 
+    it("reuses its readback buffers across landings, each landing's host rows still the slot it landed (issue #8801)", async (t) => {
+        requireGpu(t);
+        const simulation = ringed(ctx, 2);
+        simulation.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
+        simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * n).fill(1), readBack: true });
+        simulation.setDrawnTransform(TRANSFORM);
+        const buffers = new Set<ArrayBufferLike>();
+        const landings = 10;
+        for (let batch = 0; batch < landings; batch++) {
+            // two in flight, as a frame loop keeps them
+            const first = simulation.step(1);
+            await simulation.step(1);
+            await first;
+            const host = simulation.landedDrawnRows;
+            const landed = simulation.landedDrawn;
+            assert.ok(host !== null && landed !== null);
+            buffers.add(host.buffer);
+            expectBitwiseEqual(host, await readF32(ctx, landed, 4 * n), `landing ${String(batch)}`);
+        }
+        assert.isAtMost(buffers.size, 4, "the readbacks come from a few reused buffers, not one per landing");
+        simulation.dispose();
+    });
+
     it("without a ring nothing is drawn and the positions are those of a run with one", async (t) => {
         requireGpu(t);
         const positions = async (ring: boolean): Promise<F32> => {

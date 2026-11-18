@@ -554,12 +554,17 @@ interface PendingBatch {
     drawnOffset: number;
     /** Where the batch's envelope sits in the readback, or -1 without a drawn ring. */
     envelopeOffset: number;
+    /** The spare buffer the readback is copied into, or null before the submit. */
+    into: ArrayBuffer | null;
     profile: ReadbackRequest | null;
     /** Whether this batch carried the collision's settling sweeps. */
     sweptCollision: boolean;
     /** The drawn ring slot this batch wrote and the transform it drew with, or null. */
     drawn: DrawnRecord | null;
 }
+
+/** How many unused readback buffers a simulation keeps: one per batch in flight at the depth a frame loop reaches. */
+const SPARE_READBACKS = 3;
 
 /**
  * The envelope a batch's `envelope` dispatches wrote, decoded from its readback.
@@ -607,6 +612,7 @@ function createPending(k: number, generation: number): PendingBatch {
         sceneOffset: 0,
         drawnOffset: -1,
         envelopeOffset: -1,
+        into: null,
         stateOffset: 0,
         profile: null,
         sweptCollision: false,
@@ -800,6 +806,13 @@ export class ForceSimulation<
     private landedDrawnTransformValue: DrawnTransform | null = null;
     private landedDrawnRowsValue: Float32Array<ArrayBuffer> | null = null;
     private landedEnvelopeValue: LandedEnvelope | null = null;
+    /**
+     * Readback buffers no batch or landing holds, reused so a landing copies its bytes into warm memory instead of a
+     * new buffer every batch (issue #8801: 28 MB a landing at a million rows). At most {@link SPARE_READBACKS}.
+     */
+    private readonly spareBytes: ArrayBuffer[] = [];
+    /** The readback `landedDrawnRows` views, held until a later landing replaces it. */
+    private landedBytes: ArrayBuffer | null = null;
     private collisionDirty = false;
     private collisionRadiiDirty = false;
     /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
@@ -1089,6 +1102,8 @@ export class ForceSimulation<
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
         this.landedDrawnRowsValue = null;
+        this.spare(this.landedBytes);
+        this.landedBytes = null;
         this.landedEnvelopeValue = null;
         this.discardPending();
         const resized = this.buffers === null || n !== this.n || snapshot.serial !== this.serial;
@@ -1772,7 +1787,8 @@ export class ForceSimulation<
             record.drawn === null ? -1 : batch.readback(record.drawn.envelope, 0, ENVELOPE_BYTES).offset;
         const { profiler } = this.ctx;
         const profile = profiler === null ? null : profiler.resolveInto(batch);
-        const submitted = batch.submit();
+        record.into = this.takeSpare(batch.readbackBytes);
+        const submitted = batch.submit(record.into);
         record.submitted = submitted;
         record.id = submitted.id;
         record.sceneOffset = scene.offset;
@@ -1799,6 +1815,7 @@ export class ForceSimulation<
         this.finish(record);
         const { owner } = this;
         if (this.isStale(record) || owner === null) {
+            this.spare(record.into);
             record.resolve();
             return;
         }
@@ -1811,6 +1828,7 @@ export class ForceSimulation<
             );
             if (bytes.byteLength < needed) {
                 // a discarded readback resolves with an empty buffer
+                this.spare(record.into);
                 record.resolve();
                 return;
             }
@@ -1822,6 +1840,7 @@ export class ForceSimulation<
             this.landedDrawnTransformValue = record.drawn?.transform ?? null;
             this.landedDrawnRowsValue =
                 record.drawnOffset < 0 ? null : new Float32Array(bytes, record.drawnOffset, 4 * n);
+            const keep = this.landedDrawnRowsValue === null ? null : bytes;
             const header = new DataView(bytes, record.stateOffset, STATE_HEADER_BYTES);
             const trace = new DataView(bytes, record.stateOffset + STATE_HEADER_BYTES, k * this.traceBytes);
             this.writer.absorb(header);
@@ -1836,9 +1855,37 @@ export class ForceSimulation<
             this.settledCountValue = record.id <= this.reheatedAfterBatchId ? 0 : settledCount;
             this.collisionSwept ||= record.sweptCollision && record.id > this.reheatedAfterBatchId;
             this.settledValue = this.computeSettled();
+            // Every view into the bytes was read above but the landed rows, which the bytes back until replaced.
+            if (keep !== this.landedBytes) {
+                this.spare(this.landedBytes);
+            }
+            this.landedBytes = keep;
+            if (keep === null) {
+                this.spare(bytes);
+            }
             record.resolve();
         } catch (err) {
             record.reject(asError(err));
+        }
+    }
+
+    /**
+     * A readback buffer of at least `byteLength` bytes from the spares, or a new one.
+     * @param byteLength - what the batch reads back
+     * @returns the buffer
+     */
+    private takeSpare(byteLength: number): ArrayBuffer {
+        const at = this.spareBytes.findIndex((spare) => spare.byteLength >= byteLength);
+        return at < 0 ? new ArrayBuffer(byteLength) : this.spareBytes.splice(at, 1)[0];
+    }
+
+    /**
+     * Hands a readback buffer nothing views any longer back to the spares.
+     * @param bytes - the buffer, or null
+     */
+    private spare(bytes: ArrayBuffer | null): void {
+        if (bytes !== null && bytes.byteLength > 0 && this.spareBytes.length < SPARE_READBACKS) {
+            this.spareBytes.push(bytes);
         }
     }
 
@@ -1850,6 +1897,7 @@ export class ForceSimulation<
      */
     private onFailed(record: PendingBatch, err: unknown): void {
         this.finish(record);
+        this.spare(record.into);
         if (hasErrorCode(err, "E_ABORTED") && this.isStale(record)) {
             record.resolve();
             return;
@@ -2654,6 +2702,8 @@ export class ForceSimulation<
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
         this.landedDrawnRowsValue = null;
+        this.spare(this.landedBytes);
+        this.landedBytes = null;
         this.landedEnvelopeValue = null;
         if (stage !== null) {
             this.drawnStage = null;

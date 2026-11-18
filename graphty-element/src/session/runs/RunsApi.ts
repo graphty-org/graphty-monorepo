@@ -951,6 +951,15 @@ class Runs implements SessionRunsApi {
     // -- starting -----------------------------------------------------------------------------
 
     /**
+     * Why the session is starting the run a call on the stack starts, as `RunChange.trigger`
+     * names it: `"project"` while opening a project brings its saved runs back.
+     * @returns The trigger, or undefined for a caller's own start.
+     */
+    private get startingTrigger(): RunChange["trigger"] {
+        return this.dispatcher.startingTrigger === "project" ? "project" : undefined;
+    }
+
+    /**
      * Start one algorithm, or hand back the run that already answers this question.
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
@@ -1691,7 +1700,8 @@ class Runs implements SessionRunsApi {
             this.names.delete(id);
         }
 
-        run.start();
+        // A run that opening a project brings back says so (`RunChange.trigger`).
+        run.start(this.startingTrigger);
 
         return run;
     }
@@ -1766,12 +1776,17 @@ class Runs implements SessionRunsApi {
             // The same result under other parameters: its re-execution is the new command.
             this.commands.set(existing.id, withoutSuggested(launch.command));
             this.launches.set(existing.id, launch);
-            return existing.retune(identity.params, identity.seed, this.caveatsFor(identity, descriptor));
+            return existing.retune(
+                identity.params,
+                identity.seed,
+                this.caveatsFor(identity, descriptor),
+                this.startingTrigger,
+            );
         }
 
         if (this.shouldReexecute(existing)) {
             this.launches.set(existing.id, launch);
-            existing.rerun();
+            existing.rerun(this.startingTrigger);
         } else if (
             (launch.command.applySuggestedStyles === true || launch.command.restoreLayer === true) &&
             !this.adopting

@@ -286,8 +286,14 @@ interface DataWrites {
     /**
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
+     * @param options - The load's signal, and the caller's key its journal entries carry.
+     * @param options.signal - Withdraws the load.
+     * @param options.callerKey - Echoed on the load's journal entries.
      */
-    importer(signal?: AbortSignal): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    importer(options?: {
+        readonly signal?: AbortSignal;
+        readonly callerKey?: string;
+    }): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
@@ -1224,7 +1230,15 @@ export class SessionData implements SessionDataApi {
 
             // Taken before the first await: a transaction routes only what a verb dispatches
             // synchronously, and detecting the format may have to read the file or fetch the URL.
-            await this.importVia(this.keeping(this.writes.importer(signal), source), source, options, turn);
+            await this.importVia(
+                this.keeping(
+                    this.writes.importer({ ...(signal === undefined ? {} : { signal }), ...callerKeyOf(options) }),
+                    source,
+                ),
+                source,
+                options,
+                turn,
+            );
         } catch (error) {
             // The dispatcher rejects a withdrawn command with its own AbortError.
             throw signal?.aborted === true ? signal.reason : error;
@@ -1270,7 +1284,7 @@ export class SessionData implements SessionDataApi {
      */
     async generate(name: string, params: GeneratorParams = {}, options: ImportOptions = {}): Promise<void> {
         this.requireLive("generate");
-        const send = this.writes.importer();
+        const send = this.writes.importer(callerKeyOf(options));
         const descriptor = GENERATOR_CATALOG.find((each) => each.name === name);
         if (descriptor === undefined) {
             throw new GraphtyError({
@@ -1323,7 +1337,7 @@ export class SessionData implements SessionDataApi {
      */
     async loadDataset(name: string, options: DatasetLoadOptions = {}): Promise<void> {
         this.requireLive("loadDataset");
-        const send = this.writes.importer();
+        const send = this.writes.importer(callerKeyOf(options));
         const { baseUrl, signal, ...load } = options;
         // The element names no host of its own: the caller says where the files are published
         // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
@@ -1532,8 +1546,23 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Run a load the renderer dispatches itself -- `Graph.addDataFromSource`, `loadFromFile` and
+     * `loadFromUrl`, and so the `data-source` attribute -- and publish `source:loaded` for every
+     * source it added, as this surface's own load doors do.
+     * @param mode - Whether the load replaces the graph or merges into it.
+     * @param load - The load; it dispatches before it returns its promise.
+     * @returns What the load settled with.
+     */
+    async announcing<T>(mode: "replace" | "merge", load: () => Promise<T>): Promise<T> {
+        const before = new Set(this.storedSources().map((each) => each.key));
+        const result = await load();
+        this.publishAdded(before, mode, {});
+        return result;
+    }
+
+    /**
      * Publish `source:loaded` for one source a load door added, once its load committed. Only
-     * the doors call it: a project open, undo, redo, restore and `runPendingSourceLoad` never do.
+     * the doors (and the renderer's loads, through `announcing`) call it: a project open, undo, redo, restore and `runPendingSourceLoad` never do.
      * @param record - The source as `sources()` lists it, so the event never disagrees with it.
      * @param mode - Whether the load replaced the graph or merged into it.
      * @param facts - What the door knows beside the source list.
@@ -2108,7 +2137,7 @@ export class SessionData implements SessionDataApi {
                 },
                 inLine: async (run, choices) => {
                     const send = this.noting(
-                        this.keeping(this.writes.importer(), source),
+                        this.keeping(this.writes.importer(callerKeyOf(choices ?? {})), source),
                         () => bytesFacts(source.config),
                         undefined,
                         callerKeyOf(choices ?? {}),
@@ -6501,10 +6530,10 @@ function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
 /** The error limit the JSON source reads a sample's records with, by default. */
 const SAMPLE_ERROR_LIMIT = 100;
 
-/** What a generated graph or a dataset loads as; see `SessionData.sampleLoad`. */
 /** What a load door knows of its load beside what `sources()` records: for `source:loaded`. */
 type DoorFacts = Pick<SourceLoaded, "sourceId" | "sample" | "callerKey">;
 
+/** What a generated graph or a dataset loads as; see `SessionData.sampleLoad`. */
 interface SampleLoad {
     readonly source: DataSourceInput;
     /** The first of {@link LABEL_COLUMNS} some node holds text in. */

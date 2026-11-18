@@ -38,6 +38,7 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
 | `runId`       | For an algorithm run, the run it finished                                                                           |
 | `engine`      | The graphty-element, algorithms and layout versions that ran it                                                     |
 | `trigger`     | Why the session ran the command when no caller asked for it directly; absent for a direct call (see below)          |
+| `callerKey`   | The `callerKey` you gave the load or the transaction that ran the command, unchanged; absent when you gave none     |
 
 ## What is recorded
 
@@ -63,6 +64,20 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
 ```ts
 session.on("journal:appended", ({ entry }) => {
     if (entry.trigger === undefined) countReaderAction(entry.command.op);
+});
+```
+
+- **Your own setup work can say so too.** Pass a `callerKey` to a load (`import`, `loadDataset`,
+  `generate` and the rest) or to `session.transaction(label, fn, { callerKey })`, and every entry
+  that work writes carries it, so you can tell what your page did on its own from what the reader
+  asked for:
+
+```ts
+await session.transaction("Name the project", (tx) => tx.config.set({ name: "Untitled" }), {
+    callerKey: "setup",
+});
+session.on("journal:appended", ({ entry }) => {
+    if (entry.trigger === undefined && entry.callerKey === undefined) countReaderAction(entry.command.op);
 });
 ```
 

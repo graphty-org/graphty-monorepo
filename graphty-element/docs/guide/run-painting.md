@@ -163,7 +163,8 @@ session.on("run:changed", (change) => {
 
 - `change.trigger` says the session started that execution by itself rather than on a caller's
   request: `"timeline"` when the time window moved, or the time results policy switched to
-  `"rerun"` (see [Timeline](./timeline.md)). It is absent for a run a caller started or re-ran,
+  `"rerun"` (see [Timeline](./timeline.md)); `"project"` when opening a project (a file, or
+  restored autosaved work) brought back a run it saved. It is absent for a run a caller started or re-ran,
   and on a `"removed"` or `"restored"` change made by undo, redo or a restore. More triggers may
   be added.
 

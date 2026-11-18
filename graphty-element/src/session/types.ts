@@ -31,6 +31,7 @@ import type {
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
 import type { CameraState } from "../camera/types";
+import type { CameraGestureKind } from "../cameras/gestureEnd";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
@@ -3448,8 +3449,9 @@ export interface ImportOptions {
     readonly history?: "step" | "start";
     /**
      * An opaque value the caller chooses. The load does nothing with it but echo it as
-     * {@link SourceLoaded.callerKey} on the `source:loaded` event, so a caller can tell its own
-     * loads apart. It is never saved with the project.
+     * {@link SourceLoaded.callerKey} on the `source:loaded` event, and as `JournalEntry.callerKey`
+     * on the journal entries of the commands the load ran, so a caller can tell its own loads
+     * apart. It is never saved with the project.
      * @since 3.40.0
      */
     readonly callerKey?: string;
@@ -4105,8 +4107,9 @@ export interface SessionEventMap {
     "source:refreshed": { readonly load: string };
     /**
      * A load added a source to the graph: one event per source added, published by every load
-     * method (`import`, `LoadDraft.load`, `loadExample`, `loadDataset`, `generate`) once its load
-     * commits. Not published by opening a project, by undo, redo or restore, or by
+     * method (`import`, `LoadDraft.load`, `loadExample`, `loadDataset`, `generate`, and the
+     * element's `data-source` attribute, `loadFromFile`, `loadFromUrl` and `addDataFromSource`)
+     * once its load commits. Not published by opening a project, by undo, redo or restore, or by
      * `runPendingSourceLoad`, which fills a source a project already listed. It carries no
      * contents: no file name, URL or parameters.
      *
@@ -4132,7 +4135,7 @@ export interface SessionEventMap {
      * OPEN UNION: kinds may be added in a minor release; handle one you do not know.
      * @since 3.40.0
      */
-    "camera:gesture-end": { readonly kind: "orbit" | "pan" | "zoom" };
+    "camera:gesture-end": { readonly kind: CameraGestureKind };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.
@@ -4640,6 +4643,13 @@ export interface TransactionOptions {
      * cancels it rather than undoing the step it continues.
      */
     readonly after?: HistoryStepId;
+    /**
+     * The caller's own key for this work, echoed unchanged as `JournalEntry.callerKey` on the
+     * journal entry of every command the transaction runs. Lets a caller tell the commands its
+     * own setup ran (naming a new project, say) from the ones a reader asked for.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /**
@@ -5622,7 +5632,7 @@ export interface ElementSession extends GraphSession {
      * Publishes `camera:gesture-end`; the renderer calls it when a reader's camera gesture ends.
      * @param kind - What the gesture did.
      */
-    cameraGestureEnd(kind: SessionEventMap["camera:gesture-end"]["kind"]): void;
+    cameraGestureEnd(kind: CameraGestureKind): void;
     /**
      * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
      * @param target - The outline's layer, shader and group.

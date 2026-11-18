@@ -3,8 +3,21 @@
  * input and the frames it moves, never by a timer.
  */
 
-/** What a camera gesture did: turned the view, moved it sideways, or moved it nearer or farther. */
+/**
+ * What a reader's camera gesture did, as `camera:gesture-end` reports it: `"orbit"` turned the
+ * view, `"pan"` moved it sideways, `"zoom"` moved it nearer or farther.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle one you do not know.
+ * @since 3.40.0
+ */
 export type CameraGestureKind = "orbit" | "pan" | "zoom";
+
+/**
+ * Every {@link CameraGestureKind} this version reports, for a caller that lists the kinds or
+ * checks a value against them.
+ * @since 3.40.0
+ */
+export const CAMERA_GESTURE_KINDS: readonly CameraGestureKind[] = Object.freeze(["orbit", "pan", "zoom"]);
 
 /** What an input handler is handed to report a gesture's end. */
 export interface GestureEndHooks {

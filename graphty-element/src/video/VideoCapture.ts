@@ -1,6 +1,18 @@
 import type { CameraState } from "../screenshot/types.js";
 
 /**
+ * The formats a recording comes out in: what `AnimationResult.metadata.format` names.
+ * @since 3.40.0
+ */
+export type VideoFormat = "webm" | "mp4";
+
+/**
+ * Every {@link VideoFormat}, for a caller that lists the formats or checks a value against them.
+ * @since 3.40.0
+ */
+export const VIDEO_FORMATS: readonly VideoFormat[] = Object.freeze(["webm", "mp4"]);
+
+/**
  * One stop of a camera path given as a 3D position and target, flown as `setCameraState` would place
  * the camera. It is used only in 3D: in 2D it is refused with `E_UNSUPPORTED`; give a
  * {@link ViewWaypoint} with a zoom and pan there.
@@ -76,7 +88,7 @@ export interface AnimationOptions {
      */
     fps?: number;
     /** Video format: 'webm', 'mp4', or 'auto' to detect best format for browser */
-    format?: "webm" | "mp4" | "auto";
+    format?: VideoFormat | "auto";
     /**
      * Video bitrate in bits per second.
      * Higher values = better quality but larger file size.
@@ -131,7 +143,8 @@ export interface AnimationResult {
     metadata: {
         duration: number;
         fps: number;
-        format: string; // Actual format used (e.g., "webm", "mp4")
+        /** The format the recording came out in; with `"auto"`, the one the browser could record. */
+        format: VideoFormat;
         /** The recorded video's width in pixels. */
         width: number;
         /** The recorded video's height in pixels. */

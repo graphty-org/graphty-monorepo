@@ -149,6 +149,28 @@ describe("the element's own mirrors on the DOM", () => {
         assert.doesNotThrow(() => structuredClone(loaded), "the detail carries plain values");
     });
 
+    test("graphty-source-loaded arrives for the data-source attribute and loadFromFile", async () => {
+        const element = await mountWithGraph();
+        const seen: SourceLoaded[] = [];
+        element.addEventListener("graphty-source-loaded", (event) => {
+            seen.push(event.detail);
+        });
+
+        element.dataSourceConfig = { data: GRAPH.replace('"b"', '"c"').replace('"b"', '"c"') };
+        await element.waitForSettled();
+        assert.lengthOf(seen, 1, "the attribute's load, one event");
+        assert.strictEqual(seen[0].mode, "replace");
+        assert.strictEqual(seen[0].source, element.session.data.sources().at(-1)?.key);
+
+        await element.graph.loadFromFile(new File([GRAPH], "SECRET_NAME.json", { type: "application/json" }), {
+            replace: false,
+        });
+        assert.lengthOf(seen, 2, "the file's load, one event");
+        assert.strictEqual(seen[1].mode, "merge");
+        assert.strictEqual(seen[1].source, element.session.data.sources().at(-1)?.key);
+        assert.notInclude(JSON.stringify(seen), "SECRET_NAME");
+    });
+
     test("graphty-note-change arrives with plain values and no record", async () => {
         const element = await mountWithGraph();
         const seen: unknown[] = [];

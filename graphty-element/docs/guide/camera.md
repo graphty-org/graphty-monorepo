@@ -364,7 +364,8 @@ timer:
 `kind` is `"orbit"` for a turn (a 3D drag, the arrow keys in 3D, a roll), `"pan"` for a sideways
 move and `"zoom"` for the wheel, a pinch or the zoom keys. Moves the element makes itself (a fit,
 a glide, `camera.autoRotate`) and calls such as `setCameraState` publish nothing. More kinds may
-be added.
+be added. The type is `CameraGestureKind`, and `CAMERA_GESTURE_KINDS` lists every kind this
+version reports; both are exported from `@graphty/graphty-element/session`.
 
 ## Minimap
 

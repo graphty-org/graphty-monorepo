@@ -336,7 +336,7 @@ export interface AnimationOptions {
     downloadFilename?: string;
     duration: number;
     easing?: "linear" | "easeInOut" | "easeIn" | "easeOut";
-    format?: "webm" | "mp4" | "auto";
+    format?: VideoFormat | "auto";
     fps?: number;
     height?: number;
     tour?: readonly string[];
@@ -352,7 +352,7 @@ export interface AnimationResult {
     metadata: {
         duration: number;
         fps: number;
-        format: string;
+        format: VideoFormat;
         width: number;
         height: number;
         framesCaptured: number;
@@ -8182,6 +8182,7 @@ export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
     add(node: Node_2): void;
     bindSelection(selection: SelectionOwner): void;
+    // @internal
     byInput(via: SelectionVia, fn: () => void): void;
     deselect(): void;
     dispose(): void;
@@ -8760,6 +8761,12 @@ export class UpdateManager implements Manager {
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }
+
+// @public
+export const VIDEO_FORMATS: readonly VideoFormat[];
+
+// @public
+export type VideoFormat = "webm" | "mp4";
 
 // @public
 export const VIEW_MODE_VALUES: readonly ["2d", "3d", "ar", "vr"];

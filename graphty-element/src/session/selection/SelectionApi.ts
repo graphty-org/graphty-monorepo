@@ -146,6 +146,7 @@ export interface SelectionDelta {
      * `cause: "user"`.
      *
      * OPEN UNION: values may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
      */
     readonly via?: "click" | "box" | "keys";
 }

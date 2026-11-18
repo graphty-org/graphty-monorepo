@@ -248,6 +248,7 @@ export class SelectionManager implements Manager {
      * reader's carry `via` (see `SelectionOwner.byInput`).
      * @param via - How the input was made.
      * @param fn - The input's handling.
+     * @internal
      */
     byInput(via: SelectionVia, fn: () => void): void {
         if (this.selection === null) {

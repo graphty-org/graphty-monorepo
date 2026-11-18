@@ -11,7 +11,13 @@ import "../../src/algorithms";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { attachKeymap, type JournalEntry, type SelectionDelta, type SessionEventMap } from "../../session";
+import {
+    attachKeymap,
+    CAMERA_GESTURE_KINDS,
+    type CameraGestureKind,
+    type JournalEntry,
+    type SelectionDelta,
+} from "../../session";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { click, drag, holdKey, nextFrame, type Point, releaseHeldKeys, releaseKey, wheel } from "../helpers/real-input";
@@ -29,7 +35,7 @@ const NODES = [
 /** A spot with no node under it. */
 const EMPTY: Point = { x: 30, y: HEIGHT - 30 };
 
-type GestureKind = SessionEventMap["camera:gesture-end"]["kind"];
+type GestureKind = CameraGestureKind;
 
 const cleanups: (() => void)[] = [];
 
@@ -101,6 +107,7 @@ function gestureEnds(element: Graphty): { readonly heard: GestureKind[]; next: (
     const waiting: ((kind: GestureKind) => void)[] = [];
     cleanups.push(
         element.session.on("camera:gesture-end", ({ kind }) => {
+            assert.include(CAMERA_GESTURE_KINDS, kind, "a kind the published list names");
             heard.push(kind);
             waiting.shift()?.(kind);
         }),

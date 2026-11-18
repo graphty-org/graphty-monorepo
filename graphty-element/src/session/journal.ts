@@ -57,8 +57,17 @@ export interface JournalEntry {
      * opening a project ran.
      *
      * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
      */
     readonly trigger?: "suggestion" | "project";
+    /**
+     * The caller's own key for the work this command belongs to, echoed unchanged: the
+     * `callerKey` a load was given (`ImportOptions.callerKey`) or a transaction was opened
+     * with (`TransactionOptions.callerKey`). Absent when the caller gave none. Lets a
+     * caller tell the commands its own setup ran from the ones a reader asked for.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /** The record of the commands a session ran: `session.journal`. */
@@ -220,7 +229,7 @@ export function createJournal(options: {
             view = null;
             byId.clear();
         },
-        append({ command, value, coalesceKey, durationMs, trigger }) {
+        append({ command, value, coalesceKey, durationMs, trigger, callerKey }) {
             const op = command.op as SessionCommand["op"];
             const entry: JournalEntry = Object.freeze({
                 id: `journal_${String(next++)}`,
@@ -233,6 +242,7 @@ export function createJournal(options: {
                 ...(op === "algo.run" && typeof value === "string" ? { runId: value } : {}),
                 engine: options.engine,
                 ...(trigger === undefined ? {} : { trigger }),
+                ...(callerKey === undefined ? {} : { callerKey }),
             });
             if (coalesceKey !== null && list.at(-1)?.coalesceKey === coalesceKey) {
                 byId.delete((list.pop() as JournalEntry).id);

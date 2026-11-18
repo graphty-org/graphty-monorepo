@@ -476,6 +476,12 @@ export interface BySizeLeaf {
 }
 
 // @public
+export const CAMERA_GESTURE_KINDS: readonly CameraGestureKind[];
+
+// @public
+export type CameraGestureKind = "orbit" | "pan" | "zoom";
+
+// @public
 export interface Capabilities {
     readonly acceleration: AccelerationStatus;
     readonly calibration: CalibrationRecord | null;
@@ -3280,6 +3286,7 @@ export interface JournalApi {
 // @public
 export interface JournalEntry {
     readonly at: string;
+    readonly callerKey?: string;
     readonly coalesceKey?: string;
     readonly command: SessionCommand;
     readonly durationMs: number;
@@ -5456,7 +5463,7 @@ export interface RunChange {
     readonly generation: number;
     readonly phase: RunPhase;
     readonly run: RunRecord;
-    readonly trigger?: "timeline";
+    readonly trigger?: "timeline" | "project";
 }
 
 // @public
@@ -6320,7 +6327,7 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 // @public
 export interface SessionEventMap {
     "camera:gesture-end": {
-        readonly kind: "orbit" | "pan" | "zoom";
+        readonly kind: CameraGestureKind;
     };
     "canvas:element-click": {
         readonly node: NodeId_2;
@@ -7958,6 +7965,7 @@ export interface TouchingLeaf {
 // @public
 export interface TransactionOptions {
     readonly after?: HistoryStepId;
+    readonly callerKey?: string;
     readonly provenance?: Readonly<Record<string, string>>;
 }
 

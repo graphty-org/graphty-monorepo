@@ -181,8 +181,9 @@ names they gave. The field is there only when at least one row was left out.
 ### Knowing which load finished
 
 Every load method takes a `callerKey`: any string you choose. The load does nothing with it but
-hand it back on the `source:loaded` event it publishes once it is in, so you can tell your own
-loads apart. It is never saved with the project.
+hand it back on the `source:loaded` event it publishes once it is in, and on the
+[journal](./journal) entries of the commands it ran, so you can tell your own loads apart. It is
+never saved with the project.
 
 ```typescript
 session.on("source:loaded", ({ source, kind, callerKey }) => {
@@ -192,6 +193,8 @@ await session.data.generate("cycle", { n: 12 }, { callerKey: "tutorial-graph" })
 ```
 
 `import`, a prepared draft's `load()`, `loadExample`, `loadDataset` and `generate` all take it.
+The element's own loads -- the `data-source` attribute, `loadFromFile`, `loadFromUrl` and
+`addDataFromSource` -- publish `source:loaded` too, with no `callerKey`.
 See [graphty-source-loaded](./events#graphty-source-loaded) for what the event carries.
 
 ### Loads that overlap

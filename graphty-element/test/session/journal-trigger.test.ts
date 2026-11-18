@@ -5,8 +5,8 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type JournalEntry } from "../../session";
-import { fixtureSession } from "./history/fixture-session";
+import { createGraphSession, type JournalEntry, type RunChange } from "../../session";
+import { blankSession, fixtureSession } from "./history/fixture-session";
 
 describe("JournalEntry.trigger", () => {
     it("marks the suggestion entries a batch releases, and not the runs", async () => {
@@ -80,5 +80,65 @@ describe("JournalEntry.trigger", () => {
         assert.isFalse("trigger" in (heard[0] ?? {}), "the reader's own work after it");
         session.dispose();
         later.dispose();
+    });
+
+    it("marks every run:changed of a saved run a project open brings back, and not a later run", async () => {
+        const session = await fixtureSession();
+        await session.runs.start("degree", {}, { as: "deg" });
+        const { text } = await session.project.save();
+
+        const later = blankSession();
+        const heard: RunChange[] = [];
+        later.on("run:changed", (change) => heard.push(change));
+        await later.project.open(text);
+
+        assert.isTrue(
+            heard.some((change) => change.phase === "end" && change.run.status === "succeeded"),
+            "the saved run came back",
+        );
+        assert.deepEqual(
+            heard.filter((change) => change.trigger !== "project").map((change) => change.phase),
+            [],
+        );
+
+        heard.length = 0;
+        await later.runs.start("shortest-path", {}, { as: "mine" });
+        assert.isNotEmpty(heard);
+        assert.isTrue(
+            heard.every((change) => !("trigger" in change)),
+            "a run the reader starts after it",
+        );
+        session.dispose();
+        later.dispose();
+    });
+});
+
+describe("JournalEntry.callerKey", () => {
+    it("echoes a load's callerKey on its entries, and a transaction's on its members", async () => {
+        const session = createGraphSession();
+        const heard: JournalEntry[] = [];
+        session.on("journal:appended", ({ entry }) => heard.push(entry));
+        const data = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "b" }] });
+
+        await session.data.import({ type: "json", config: { data } }, { callerKey: "reopen" });
+        assert.isNotEmpty(heard, "the load wrote entries");
+        assert.isTrue(heard.every((entry) => entry.callerKey === "reopen"));
+
+        heard.length = 0;
+        await session.transaction("Name it", (tx) => tx.config.set({ name: "Untitled" }), { callerKey: "setup" });
+        assert.deepEqual(
+            heard.map((entry) => [entry.command.op, entry.callerKey]),
+            [["config.set", "setup"]],
+        );
+
+        heard.length = 0;
+        await session.config.set({ name: "Mine" });
+        await session.data.addNodes([{ id: "c" }]);
+        assert.lengthOf(heard, 2);
+        assert.isTrue(
+            heard.every((entry) => !("callerKey" in entry)),
+            "the reader's own work carries none",
+        );
+        session.dispose();
     });
 });

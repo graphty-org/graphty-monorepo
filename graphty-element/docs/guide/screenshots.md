@@ -242,6 +242,9 @@ const { blob, metadata } = await graph.captureAnimation({
 // blob is the video; metadata.format says which format the browser recorded
 ```
 
+`metadata.format` is `"webm"` or `"mp4"` (the `VideoFormat` type); `VIDEO_FORMATS`, exported
+from `@graphty/graphty-element`, lists them.
+
 `metadata.framesCaptured` counts the frames the graph drew while recording (at most one in each
 1/fps interval), and `framesDropped` and `dropRate` the frames expected that it did not draw in
 time, so a busy machine shows up as a drop rate above 0.

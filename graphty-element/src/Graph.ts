@@ -274,6 +274,7 @@ import {
     paintAddedRows,
     repaintGraphPass,
     scopeResolverOfSession,
+    sessionDataOf,
     sessionRunsOf,
     setsNotifierOfSession,
     workingGraphOfSession,
@@ -3692,7 +3693,12 @@ export class Graph implements GraphContext {
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
-            await turn.take(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
+            // `source:loaded` for what it added, as `session.data`'s own loads publish it.
+            await turn.take(() =>
+                sessionDataOf(this.session).announcing(place.replace ? "replace" : "merge", () =>
+                    this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }),
+                ),
+            );
         } finally {
             this.leaveLine(load);
         }

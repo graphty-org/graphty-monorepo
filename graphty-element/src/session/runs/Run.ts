@@ -932,11 +932,16 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
     /**
      * Hand the run's work to the queue. Calling this twice does nothing.
+     * @param trigger - Why the session started this execution by itself, published as
+     *     `RunChange.trigger`; absent for a caller's start.
      */
-    start(): void {
+    start(trigger?: RunChange["trigger"]): void {
         if (this.ticket !== null || this.settledFlag) {
             return;
         }
+
+        // Before "queued" is announced below: every phase of this execution carries it.
+        this.triggerValue = trigger;
 
         const { signal } = this.definition;
 
@@ -1023,9 +1028,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         // Before the result goes: what held references keep of it is captured now.
         this.heldValue = this.surroundings.captureHeld?.(this.held) ?? this.heldValue;
         this.beginExecution();
-        // After the reset and before `start`, which announces "queued" synchronously.
-        this.triggerValue = trigger;
-        this.start();
+        this.start(trigger);
 
         return this;
     }
@@ -1071,17 +1074,23 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @param params - The new parameters, canonicalised.
      * @param seed - The new seed, or null.
      * @param caveats - The caveats the new execution starts from.
+     * @param trigger - Why the session restarted it by itself, when it did.
      * @returns This run, restarted.
      * @internal
      */
-    retune(params: Readonly<Record<string, unknown>>, seed: number | null, caveats: Caveats): Run<T> {
+    retune(
+        params: Readonly<Record<string, unknown>>,
+        seed: number | null,
+        caveats: Caveats,
+        trigger?: RunChange["trigger"],
+    ): Run<T> {
         if (!isTerminalRunStatus(this.statusValue)) {
             this.cancel(`Run "${this.id}" was restarted with other parameters.`);
         }
 
         this.definition = { ...this.definition, params, seed, caveats };
 
-        return isTerminalRunStatus(this.status) ? this.restart() : this;
+        return isTerminalRunStatus(this.status) ? this.restart(trigger) : this;
     }
 
     /**

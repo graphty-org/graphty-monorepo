@@ -138,13 +138,15 @@ export interface RunChange {
      */
     readonly generation: number;
     /**
-     * Present when the session re-ran this algorithm by itself rather than on a caller's request:
-     * `"timeline"` when the time window moved, or the time results policy changed to `"rerun"`.
-     * Absent for a run a caller started or re-ran.
+     * Present when the session ran this algorithm by itself rather than on a caller's request:
+     * `"timeline"` when the time window moved, or the time results policy changed to `"rerun"`;
+     * `"project"` when opening a project (a file, or restored autosaved work) brought back a run
+     * it saved. Absent for a run a caller started or re-ran.
      *
      * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
      */
-    readonly trigger?: "timeline";
+    readonly trigger?: "timeline" | "project";
 }
 
 /**

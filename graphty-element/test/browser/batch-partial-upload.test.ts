@@ -518,6 +518,9 @@ describe("a context lost while a window is in force", () => {
 
     it("draws every line and cap again after a dirty run at slot 0", async () => {
         const element = document.createElement("graphty-element");
+        // The `Edge` line and cap batches' ranged uploads are the subject: under "batched" these edges are row lines
+        // with no `Edge`, which upload otherwise.
+        element.renderPath = "objects";
         // The working graph off: an uncommitted seek keeps drawing what the committed window
         // showed, which the working graph does not draw.
         element.workingGraph = false;

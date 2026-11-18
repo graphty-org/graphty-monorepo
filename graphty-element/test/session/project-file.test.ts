@@ -617,7 +617,7 @@ describe("the project file", () => {
         // The reader's edit is dispatched the moment the open is pending work.
         let styled: PromiseLike<unknown> | undefined;
         const off = session.on("history:changed", () => {
-            if (session.history.pending.some((each) => each.label === "Open project")) {
+            if (session.history.pending.some((each) => each.fact.code === "project.open")) {
                 off();
                 styled = session.styles.add({
                     name: "during",

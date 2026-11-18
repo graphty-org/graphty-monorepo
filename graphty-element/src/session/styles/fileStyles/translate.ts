@@ -610,10 +610,26 @@ function channelPlans(
         convert: (value) => (typeof value === "number" ? round(value * factor) : null),
         identity: factor === 1,
     });
+    // A text size under its channel's minimum (1, issue #2619) is drawn at the minimum, noted as drawn nearest.
+    const floored = (plan: ChannelPlan): ChannelPlan => {
+        const min = channelDescriptor(plan.channel)?.min ?? Number.NEGATIVE_INFINITY;
+        return {
+            ...plan,
+            convert: (value) => {
+                const out = plan.convert(value);
+                return typeof out === "number" ? Math.max(min, out) : out;
+            },
+            identity: false,
+            nearest: (value) => {
+                const out = plan.convert(value);
+                return typeof out === "number" && out < min;
+            },
+        };
+    };
     // A label size fixed on screen, as the screen size it is, with its label style's `sizeMode: "screen"` beside it,
     // never scaled by the lengths.
     const screenSize = (channel: Channel): ChannelPlan[] => [
-        id(channel),
+        floored(id(channel)),
         {
             channel: channel.replace(/Size$/, "Style") as Channel,
             convert: (value) => (typeof value === "number" ? { sizeMode: "screen" } : null),
@@ -633,14 +649,14 @@ function channelPlans(
         const px = factors.label;
         const { letter } = factors;
         return px === null || letter === null
-            ? [id(channel)]
+            ? [floored(id(channel))]
             : [
-                  {
+                  floored({
                       channel,
                       convert: (value) => (typeof value === "number" ? round(px(value)) : null),
                       identity: false,
                       curved: true,
-                  },
+                  }),
                   length(letters, letter),
               ];
     };
@@ -674,6 +690,14 @@ function channelPlans(
         ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
         ["labelBorderOpacity", [label("labelBorderOpacity")]],
         ["labelPadding", [labelLength(`${kind}.labelPadding`, false)]],
+    ];
+    // how a label box's corners, lines, border and shape are drawn, the same for nodes and edges
+    const labelBoxShape: [string, ChannelPlan[]][] = [
+        ["labelCornerRadius", [labelLength(`${kind}.labelCornerRadius`, false)]],
+        ["labelLineHeight", [label("labelLineHeight")]],
+        ["labelLineBox", [label("labelLineBox")]],
+        ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBackgroundShape", [label("labelBackgroundShape")]],
     ];
     if (kind === "node") {
         const shapeTable = NODE_SHAPES;
@@ -750,6 +774,7 @@ function channelPlans(
             ["imageSmoothing", [id("node.imageSmoothing")]],
             ["imageAutoSize", [id("node.imageAutoSize")]],
             ["imageOpacity", [id("node.imageOpacity")]],
+            ["imageAspect", [id("node.imageAspect")]],
             ["glyph", [id("node.glyph")]],
             ["glyphFont", [id("node.glyphFont")]],
             ["glyphSize", [length("node.glyphSize")]],
@@ -860,10 +885,13 @@ function channelPlans(
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
+            ["labelWrapSkipEndSpace", [id("node.labelWrapSkipEndSpace")]],
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
             ["labelKeepBlankLines", [keepBlankLines("node")]],
+            ["labelMaxLines", [id("node.labelMaxLines")]],
+            ["labelMaxLinesEllipsis", [id("node.labelMaxLinesEllipsis")]],
             ["labelRunAlign", [id("node.labelRunAlign")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
@@ -871,8 +899,7 @@ function channelPlans(
             ["labelPosition", [location("node")]],
             ["labelItalic", [label("labelItalic")]],
             ...labelBox,
-            ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
-            ["labelLineHeight", [label("labelLineHeight")]],
+            ...labelBoxShape,
             ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
@@ -1063,6 +1090,8 @@ function channelPlans(
         ["labelWrapAnywhere", [id("edge.labelWrapAnywhere")]],
         ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
         ["labelKeepBlankLines", [keepBlankLines("edge")]],
+        ["labelMaxLines", [id("edge.labelMaxLines")]],
+        ["labelMaxLinesEllipsis", [id("edge.labelMaxLinesEllipsis")]],
         ["labelRunAlign", [id("edge.labelRunAlign")]],
         ...labelBox,
         // its lengths in label units, as its padding is
@@ -1076,8 +1105,7 @@ function channelPlans(
                 },
             ],
         ],
-        ["labelCornerRadius", [labelLength("edge.labelCornerRadius", false)]],
-        ["labelLineHeight", [label("labelLineHeight")]],
+        ...labelBoxShape,
         // moved in the scene's units, as a wrap width is
         ["labelOffsetX", [length("edge.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
         ["labelOffsetY", [length("edge.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],

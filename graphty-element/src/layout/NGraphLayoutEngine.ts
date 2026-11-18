@@ -15,7 +15,7 @@ import {
     clusterCentroids,
     type ClusterPoint,
     clusterStrengthOption,
-    readCommunities,
+    readBodyCommunities,
     sameCommunities,
 } from "./clusterForce";
 import type { D3RowSource, RowExtent } from "./D3GraphLayoutEngine";
@@ -219,7 +219,7 @@ export class NGraphEngine extends LayoutEngine {
     private readonly clusterBy: string | null = null;
     private readonly clusterStrength: number = 1;
     /** The last read of `clusterBy`, and each member's body and community, in the same order. */
-    private communities = new Map<Node, number>();
+    private communities = new Map<NodeIdType, number>();
     private clusterBodies: Body[] = [];
     private clusterPoints: ClusterPoint[] = [];
     private clusterOf: number[] = [];
@@ -665,12 +665,16 @@ export class NGraphEngine extends LayoutEngine {
      */
     private readClusters(): boolean {
         this.clustersStale = false;
-        const read = readCommunities(this.clusterBy as string, this.nodeMapping.keys(), this.clusterColumn, (row) =>
-            this.isFollower(row),
+        const read = readBodyCommunities(
+            this.clusterBy as string,
+            this.nodeMapping.keys(),
+            this.rowNodes.keys(),
+            this,
+            (row) => this.isFollower(row),
         );
         const same = sameCommunities(read, this.communities);
         this.communities = read;
-        this.clusterBodies = [...read.keys()].map((node) => this.ngraphLayout.getBody(node.id) as Body);
+        this.clusterBodies = [...read.keys()].map((id) => this.ngraphLayout.getBody(id) as Body);
         this.clusterPoints = this.clusterBodies.map((body) => body.pos);
         this.clusterOf = [...read.values()];
         this.clusterCount = new Set(this.clusterOf).size;
@@ -753,8 +757,8 @@ export class NGraphEngine extends LayoutEngine {
 
     /**
      * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
-     * Such a row is sized for `nodeGap` from the row table, and is in no `clusterBy` community and never pinned,
-     * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
+     * Such a row is sized for `nodeGap` from the row table and read for `clusterBy` by its row, and is never
+     * pinned, since that is read from a `Node`; a hold reaches it by its row. A third party's
      * engine is handed `Node`s only.
      * @param ids - The rows' node ids.
      * @param source - Where a body finds its row at publish, and the element's array it publishes into.
@@ -762,6 +766,7 @@ export class NGraphEngine extends LayoutEngine {
      */
     addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
         this.rowSource = source;
+        this.clustersStale = true;
         for (const id of ids) {
             // An edge added first may already have made this body, placed by ngraph's own
             // unseeded generator; nothing has stepped yet, so the seed places it here either way.

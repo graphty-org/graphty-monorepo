@@ -136,6 +136,26 @@ const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
 /** A row number no row has: the piece draws nothing. */
 export const NO_ROW = -1;
 
+/** The row table's textures a straight piece's shader reads its ends' shapes from, asked each frame. */
+export type PulledRowShapes = () => { readonly extentTexture: BaseTexture; readonly outlineTexture: BaseTexture };
+
+/** The row table's textures a pulled batch reads, asked each frame: the table replaces one when it grows. */
+export interface PulledRowTextures {
+    readonly positionTexture: BaseTexture;
+    readonly extentTexture: BaseTexture;
+    readonly outlineTexture: BaseTexture;
+}
+
+/**
+ * Draw keys for `capacity` pieces, each piece's its own number: the key one width gives it, and the key of a piece
+ * not yet handed out.
+ * @param capacity - How many pieces.
+ * @returns The keys.
+ */
+function identityKeys(capacity: number): Float64Array {
+    return Float64Array.from({ length: capacity }, (_, piece) => piece);
+}
+
 /** Straight edges between row centres, drawn in one non-instanced draw; see the file comment. */
 export class PulledLineBatch {
     /** The one mesh that draws every piece. */
@@ -174,8 +194,10 @@ export class PulledLineBatch {
      * Each piece's draw key: its width group's rank, then the slot the object path's batch of that width gives it.
      * The object path draws a batch per width, one after another in the order they were made, and draw order
      * decides how lines that cross blend; the draw order table draws pieces in this order (#6392).
+     * Null while there is one width group, where every piece's key is its own number (8 MB a million edges spared).
+     * Doubles, never floats: a key is rank * 2^32 + slot.
      */
-    private keys = new Float64Array(0);
+    private keys: Float64Array | null = null;
 
     /** The width groups, by width, and by rank: the order this batch met them. */
     private readonly groups = new Map<number, WidthGroup>();
@@ -240,6 +262,9 @@ export class PulledLineBatch {
      * @param template.vertices - Its vertices.
      * @param switches - Whether {@link drawLinesLean} may switch it to the lean program: a straight
      *     batch drawing the join template, 2D or 3D.
+     * @param rowShapes - The row table's `rowExtent` and `rowOutline` textures, asked each frame, for a straight
+     *     piece's shader to stop at a translucent row's outline (`PULLED_TRIM_GLSL`); null for a shader that reads
+     *     neither (a curve's, whose ends are cut on the CPU).
      */
     constructor(
         mesh: Mesh,
@@ -248,6 +273,7 @@ export class PulledLineBatch {
         curve = false,
         private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
         switches = false,
+        private readonly rowShapes: PulledRowShapes | null = null,
     ) {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
@@ -299,6 +325,15 @@ export class PulledLineBatch {
     }
 
     /**
+     * How many draw keys the batch holds: none while it has met one width.
+     * @returns The count.
+     * @internal
+     */
+    get keyCount(): number {
+        return this.keys?.length ?? 0;
+    }
+
+    /**
      * Pieces the draw covers: every piece handed out, live or free (a free one draws nothing).
      * @returns The count.
      */
@@ -331,9 +366,18 @@ export class PulledLineBatch {
         }
 
         const key = group.rank * SLOTS_PER_RANK + (group.free.pop() ?? group.highWater++);
-        // With one width a piece's key is its own number, as the free pieces are taken in the same order.
-        this.reorder ||= this.keys[piece] !== key;
-        this.keys[piece] = key;
+        // With one width a piece's key is its own number, as the free pieces are taken in the same order, so the keys
+        // are kept only from the second width on, starting from that identity.
+        let { keys } = this;
+        if (keys === null && this.ranked.length > 1) {
+            keys = this.keys = identityKeys(this.rows.length / this.pieceFloats);
+        }
+
+        if (keys !== null) {
+            this.reorder ||= keys[piece] !== key;
+            keys[piece] = key;
+        }
+
         return piece;
     }
 
@@ -345,7 +389,7 @@ export class PulledLineBatch {
         this.setRows(piece, NO_ROW, NO_ROW);
         this.setHidden(piece, false);
         this.free.push(piece);
-        const key = this.keys[piece] ?? 0;
+        const key = this.keys === null ? piece : (this.keys[piece] ?? 0);
         this.ranked[Math.floor(key / SLOTS_PER_RANK)]?.free.push(key % SLOTS_PER_RANK);
     }
 
@@ -536,6 +580,11 @@ export class PulledLineBatch {
     flush(): void {
         const material = this.mesh.material as ShaderMaterial | null;
         material?.setTexture("rowPosition", this.rowPositions());
+        if (this.rowShapes !== null) {
+            const { extentTexture, outlineTexture } = this.rowShapes();
+            material?.setTexture("rowExtent", extentTexture);
+            material?.setTexture("rowOutline", outlineTexture);
+        }
         this.flushRoutes();
         this.flushHidden();
         if (this.reorder) {
@@ -730,15 +779,14 @@ export class PulledLineBatch {
      */
     private sort(): void {
         const capacity = this.rows.length / this.pieceFloats;
-        if (this.keys.length !== capacity) {
-            // a piece not yet handed out keys as its own number, which is the key one width gives it
-            const keys = Float64Array.from({ length: capacity }, (_, piece) => piece);
+        if (this.keys !== null && this.keys.length !== capacity) {
+            const keys = identityKeys(capacity);
             keys.set(this.keys);
             this.keys = keys;
         }
 
         const { keys, highWater } = this;
-        const ordered = this.ranked.length > 1;
+        const ordered = keys !== null && this.ranked.length > 1;
         if (ordered) {
             // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give
             // each group its own slot range if a large mixed-width load shows it

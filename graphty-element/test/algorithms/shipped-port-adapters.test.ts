@@ -429,7 +429,9 @@ describe("the direction and endpoint options", () => {
         const labels = (Run: typeof HITSAlgorithm | typeof KatzCentralityAlgorithm): Record<string, string> => {
             const { mode } = Run.optionsSchema;
             assert.strictEqual(mode.type, "select");
-            return Object.fromEntries((mode.options ?? []).map((option) => [option.value, option.label]));
+            return Object.fromEntries(
+                (mode.options ?? []).map((option): [string, string] => [String(option.value), option.label]),
+            );
         };
         assert.deepStrictEqual(labels(HITSAlgorithm), {
             total: "Average of hub and authority",

@@ -67,7 +67,6 @@ import { LitElement } from 'lit';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
-import { LossNote } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
@@ -1354,10 +1353,12 @@ export const EdgeStyle: z.ZodObject<{
             letterSize: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
             maxLines: z.ZodOptional<z.ZodNumber>;
+            maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -1371,6 +1372,19 @@ export const EdgeStyle: z.ZodObject<{
                 italic: "italic";
             }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            lineBox: z.ZodOptional<z.ZodEnum<{
+                font: "font";
+                size: "size";
+                glyphs: "glyphs";
+            }>>;
+            borderAlign: z.ZodOptional<z.ZodEnum<{
+                center: "center";
+                outside: "outside";
+            }>>;
+            backgroundShape: z.ZodOptional<z.ZodEnum<{
+                rectangle: "rectangle";
+                circle: "circle";
+            }>>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1632,10 +1646,12 @@ export const EdgeStyle: z.ZodObject<{
             letterSize: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
             maxLines: z.ZodOptional<z.ZodNumber>;
+            maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -1649,6 +1665,19 @@ export const EdgeStyle: z.ZodObject<{
                 italic: "italic";
             }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            lineBox: z.ZodOptional<z.ZodEnum<{
+                font: "font";
+                size: "size";
+                glyphs: "glyphs";
+            }>>;
+            borderAlign: z.ZodOptional<z.ZodEnum<{
+                center: "center";
+                outside: "outside";
+            }>>;
+            backgroundShape: z.ZodOptional<z.ZodEnum<{
+                rectangle: "rectangle";
+                circle: "circle";
+            }>>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -2062,10 +2091,12 @@ export const EdgeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2079,6 +2110,19 @@ export const EdgeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2286,10 +2330,12 @@ export const EdgeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2303,6 +2349,19 @@ export const EdgeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2623,8 +2682,6 @@ export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
     readonly losses: readonly ExportLoss[];
-    // @deprecated
-    readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
 
@@ -2645,7 +2702,7 @@ export type FeatureId = "assistant" | "data-management" | "location-map" | "cosm
 export interface FigureOptions {
     download?: boolean;
     downloadFilename?: string;
-    format?: "svg";
+    format?: "svg" | "pdf";
     legend?: ScreenshotOptions["legend"];
     transparentBackground?: boolean;
 }
@@ -3141,6 +3198,7 @@ export class Graph implements GraphContext {
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
     stopAiSpeech(): void;
+    stopAnimationCapture(): boolean;
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
@@ -3156,9 +3214,7 @@ export class Graph implements GraphContext {
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
-    waitForStableFrame(options?: {
-        timeoutMs?: number;
-    }): Promise<void>;
+    waitForStableFrame(options?: StableFrameOptions): Promise<void>;
     worldToScreen(worldPos: {
         x: number;
         y: number;
@@ -3760,6 +3816,7 @@ export class Graphty extends LitElement {
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
     stopAiSpeech(): void;
+    stopAnimationCapture(): boolean;
     stopVoiceInput(): void;
     static styles: CSSResult;
     unpin(ids: (string | number) | readonly (string | number)[]): void;
@@ -3779,9 +3836,7 @@ export class Graphty extends LitElement {
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
-    waitForStableFrame(options?: {
-        timeoutMs?: number;
-    }): Promise<void>;
+    waitForStableFrame(options?: StableFrameOptions): Promise<void>;
     get workingGraph(): boolean;
     set workingGraph(value: boolean);
     worldToScreen(worldPos: {
@@ -3836,7 +3891,7 @@ export class GraphtyError extends Error {
 export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
-* set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+* set together. `details` name the fields.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -4763,12 +4818,6 @@ export type GraphtyWarningCode =
 */
 | "W_OBJECT_CAP"
 /**
-* A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
-* which draws no text. `params.channel` is the channel, `params.path` where in the layer the
-* size sits, and `params.value` the size.
-*/
-| "W_TEXT_TOO_SMALL"
-/**
 * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
 * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
 * `params.path` where in the layer, and `params.fieldChannels` the label field channels that
@@ -5252,6 +5301,8 @@ export abstract class LayoutEngine {
     protected releasePublishScratch(): void;
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
+    // @internal
+    rowRecord: ((row: number) => unknown) | null;
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
@@ -5262,6 +5313,8 @@ export abstract class LayoutEngine {
     get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
+    // @internal
+    storeRowOf: ((id: NodeIdType) => number) | null;
     // (undocumented)
     static type: string;
     get type(): string;
@@ -5655,6 +5708,8 @@ class Node_2 implements ModelUser {
     // @internal
     get paintedColor(): Rgba | null;
     // @internal
+    get paintedOpacity(): number;
+    // @internal
     get paintedSourceMesh(): AbstractMesh;
     // (undocumented)
     parentGraph: Graph | GraphContext;
@@ -5858,6 +5913,7 @@ export interface NodeScreenPosition {
 // @public
 export const NodeShapes: z.ZodEnum<{
     none: "none";
+    rectangle: "rectangle";
     box: "box";
     diamond: "diamond";
     vee: "vee";
@@ -5887,7 +5943,6 @@ export const NodeShapes: z.ZodEnum<{
     goldberg: "goldberg";
     icosphere: "icosphere";
     geodesic: "geodesic";
-    rectangle: "rectangle";
     "round-rectangle": "round-rectangle";
     "top-round-rectangle": "top-round-rectangle";
     "bottom-round-rectangle": "bottom-round-rectangle";
@@ -5951,6 +6006,7 @@ export const NodeStyle: z.ZodObject<{
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
+            rectangle: "rectangle";
             box: "box";
             diamond: "diamond";
             vee: "vee";
@@ -5980,7 +6036,6 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
-            rectangle: "rectangle";
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
@@ -6034,6 +6089,7 @@ export const NodeStyle: z.ZodObject<{
         labelFitQuantum: z.ZodOptional<z.ZodNumber>;
         labelFitImage: z.ZodOptional<z.ZodNumber>;
         labelFitImagePadding: z.ZodOptional<z.ZodNumber>;
+        imageAspect: z.ZodOptional<z.ZodBoolean>;
         model: z.ZodOptional<z.ZodString>;
         modelSourceUp: z.ZodOptional<z.ZodEnum<{
             x: "x";
@@ -6122,8 +6178,8 @@ export const NodeStyle: z.ZodObject<{
         }>>;
         position: z.ZodOptional<z.ZodEnum<{
             center: "center";
-            inside: "inside";
             outside: "outside";
+            inside: "inside";
         }>>;
         waveAmplitude: z.ZodOptional<z.ZodNumber>;
         wavePeriod: z.ZodOptional<z.ZodNumber>;
@@ -6167,6 +6223,7 @@ export const NodeStyle: z.ZodObject<{
         padding: z.ZodOptional<z.ZodNumber>;
         shape: z.ZodOptional<z.ZodEnum<{
             none: "none";
+            rectangle: "rectangle";
             box: "box";
             diamond: "diamond";
             vee: "vee";
@@ -6196,7 +6253,6 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
-            rectangle: "rectangle";
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
@@ -6228,6 +6284,7 @@ export const NodeStyle: z.ZodObject<{
         padding: z.ZodOptional<z.ZodNumber>;
         shape: z.ZodOptional<z.ZodEnum<{
             none: "none";
+            rectangle: "rectangle";
             box: "box";
             diamond: "diamond";
             vee: "vee";
@@ -6257,7 +6314,6 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
-            rectangle: "rectangle";
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
@@ -6417,10 +6473,12 @@ export const NodeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6434,6 +6492,19 @@ export const NodeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6641,10 +6712,12 @@ export const NodeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6658,6 +6731,19 @@ export const NodeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6865,10 +6951,12 @@ export const NodeStyle: z.ZodObject<{
         letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
         maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6882,6 +6970,19 @@ export const NodeStyle: z.ZodObject<{
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7248,8 +7349,6 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
     id: string;
-    // @deprecated
-    reason: string;
     // (undocumented)
     type: "operation-cancelled";
 }
@@ -7634,11 +7733,15 @@ export class RenderManager implements Manager {
     // (undocumented)
     engine: Engine | WebGPUEngine;
     // @internal
+    fencedFrames(): number;
+    // @internal
     frameDrawn(): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;
     };
+    // @internal
+    gpuFinishedFrame(frame: number): boolean;
     // (undocumented)
     graphRoot: TransformNode;
     holdFrames(): () => void;
@@ -7741,10 +7844,12 @@ export const RichTextStyle: z.ZodObject<{
     letterSize: z.ZodOptional<z.ZodNumber>;
     wrapWidth: z.ZodOptional<z.ZodNumber>;
     wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+    wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
     maxLines: z.ZodOptional<z.ZodNumber>;
+    maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
     keepBlankLines: z.ZodOptional<z.ZodBoolean>;
     runAlign: z.ZodOptional<z.ZodEnum<{
         baseline: "baseline";
@@ -7758,6 +7863,19 @@ export const RichTextStyle: z.ZodObject<{
         italic: "italic";
     }>>>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    lineBox: z.ZodOptional<z.ZodEnum<{
+        font: "font";
+        size: "size";
+        glyphs: "glyphs";
+    }>>;
+    borderAlign: z.ZodOptional<z.ZodEnum<{
+        center: "center";
+        outside: "outside";
+    }>>;
+    backgroundShape: z.ZodOptional<z.ZodEnum<{
+        rectangle: "rectangle";
+        circle: "circle";
+    }>>;
     minScreenSize: z.ZodOptional<z.ZodNumber>;
     declutter: z.ZodOptional<z.ZodEnum<{
         size: "size";
@@ -8417,6 +8535,12 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 export { SourceValidators }
 
 // @public
+export interface StableFrameOptions {
+    // @deprecated
+    timeoutMs?: number;
+}
+
+// @public
 export class StatsManager implements Manager {
     constructor(eventManager: EventManager);
     // (undocumented)
@@ -8550,6 +8674,8 @@ export const TOL_VIBRANT_COLORS: readonly ["#0077BB", "#33BBEE", "#009988", "#EE
 export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     // @internal
+    adoptBuiltEdge(edge: Edge): void;
+    // @internal
     adoptBuiltNode(node: Node_2): void;
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
@@ -8575,6 +8701,11 @@ export class UpdateManager implements Manager {
     // @internal
     framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
+    // @internal
+    gpuFrames: {
+        fenced: () => number;
+        finished: (frame: number) => boolean;
+    } | null;
     get graphIsDrawn(): boolean;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     init(): Promise<void>;

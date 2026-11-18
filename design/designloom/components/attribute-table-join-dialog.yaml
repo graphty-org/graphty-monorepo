@@ -1,0 +1,16 @@
+id: attribute-table-join-dialog
+name: Attribute Table Join Dialog
+category: dialog
+description: "Dialog for joining a table of values (a spreadsheet or CSV) onto existing nodes by a key column. Shows matched and unmatched keys before the join."
+status: planned
+implements_capabilities:
+    - data-import
+    - data-validation
+used_in_workflows:
+    - W20
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T00:00:00.000Z
+updated_at: 2026-11-18T00:00:00.000Z

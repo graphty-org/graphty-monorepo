@@ -1,5 +1,8 @@
 # Mantine vs Chakra UI: Quick Reference Guide
 
+Status: historical research (2025). The decision it informed is made: the graphty app uses Mantine,
+through `@graphty/compact-mantine`.
+
 ## At a Glance Comparison
 
 | Criteria                 | Mantine                    | Chakra UI          | Winner       |

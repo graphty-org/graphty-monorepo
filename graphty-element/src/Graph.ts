@@ -681,6 +681,17 @@ export function featuresFrom(graph: Graph, read: () => readonly string[] | undef
     requestedFeatures.set(graph, read);
 }
 
+/** How {@link Graph.waitForStableFrame} and `element.waitForStableFrame()` wait. */
+export interface StableFrameOptions {
+    /**
+     * How long to wait before the wait rejects; 30 seconds by default.
+     * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
+     * machine while the picture is still on its way. To ask whether the picture is final
+     * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
+     */
+    timeoutMs?: number;
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -1694,6 +1705,11 @@ export class Graph implements GraphContext {
         };
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
+        // Late-bound: a change of renderer replaces the render manager.
+        this.updateManager.gpuFrames = {
+            fenced: () => this.renderManager.fencedFrames(),
+            finished: (frame) => this.renderManager.gpuFinishedFrame(frame),
+        };
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };
@@ -2491,6 +2507,9 @@ export class Graph implements GraphContext {
 
         try {
             await this.openWebGPU(requested);
+            // The render path opens before the held loads run: resumed first, a load under "batched"
+            // finds no batch yet and gives every row a `Node` (#8734).
+            this.#openRenderPath();
         } finally {
             if (holdQueue) {
                 queue.resume();
@@ -2999,8 +3018,7 @@ export class Graph implements GraphContext {
 
             this.watchRenderLoss();
             this.#watchViewForLog();
-            this.#renderPathOpen = true;
-            this.#applyRenderPath();
+            this.#openRenderPath();
 
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
@@ -5387,6 +5405,16 @@ export class Graph implements GraphContext {
         };
     }
 
+    /** Start applying the render path, once, unless the graph shut down while its renderer opened. */
+    #openRenderPath(): void {
+        if (this.#renderPathOpen || this.#teardown.signal.aborted) {
+            return;
+        }
+
+        this.#renderPathOpen = true;
+        this.#applyRenderPath();
+    }
+
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
         const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
@@ -7480,9 +7508,6 @@ export class Graph implements GraphContext {
      * error names what was still moving. A wait for a final frame that quietly gives up and
      * returns a moving one is worse than no wait at all: the caller cannot tell the two apart.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
-     *   Leave it out. To ask whether the picture is final now, without waiting, read
-     *   {@link Graph.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * It also rejects, at once, when the graph is shut down -- the element was removed from the page
      * -- before the picture came to rest, or had been already when the wait started: a graph that
@@ -7500,17 +7525,7 @@ export class Graph implements GraphContext {
      * const screenshot = await graph.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(
-        options: {
-            /**
-             * How long to wait before the wait rejects; 30 seconds by default.
-             * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
-             * machine while the picture is still on its way. To ask whether the picture is final
-             * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
-             */
-            timeoutMs?: number;
-        } = {},
-    ): Promise<void> {
+    async waitForStableFrame(options: StableFrameOptions = {}): Promise<void> {
         // Read through a plain type: the option is deprecated for callers, not for its own implementation.
         const bound: { timeoutMs?: number } = options;
         const timeoutMs = bound.timeoutMs ?? defaultStableFrameTimeoutMs();
@@ -8346,6 +8361,23 @@ export class Graph implements GraphContext {
         }
 
         return cancelled;
+    }
+
+    /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. A camera tour being recorded stops where it is.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * // Record until the reader stops it: a long duration as the limit, then stop.
+     * const recording = graph.captureAnimation({ duration: 300_000, cameraMode: "stationary" });
+     * stopButton.onclick = () => graph.stopAnimationCapture();
+     * const { blob, metadata } = await recording; // metadata.duration is how long it ran
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.activeCapture?.stop() ?? false;
     }
 
     /**
@@ -9903,8 +9935,8 @@ export class Graph implements GraphContext {
      * The export carries whatever the format can represent: every node and edge with its
      * attributes, the current positions, every published algorithm result (as attributes named
      * by the result's path, `results.<runId>.<field>`) and the colour, size and edge width each
-     * element is drawn with. What the format has no place for is listed in `lossNotes`, one note
-     * per kind of omission; nothing is dropped silently. The element's internal ids and columns
+     * element is drawn with. What the format has no place for is listed in `losses`, one coded
+     * fact per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.
      *
      * Notes are left out unless `{ notes: true }` asks for them; then each node and edge a note

@@ -141,6 +141,11 @@ function General(): React.JSX.Element {
                         const next = TIMELINE_STYLE.values.find((v) => v === value) ?? TIMELINE_STYLE.fallback;
                         setTimelineStyle(next);
                         writePreference(TIMELINE_STYLE, next);
+                        // The open project's row comes when its timeline first turns on, so the
+                        // choice applies to it too; a row already there is never rewritten.
+                        if (session !== null && session.config.timelineHiddenLook !== next) {
+                            void session.config.set({ timelineHiddenLook: next });
+                        }
                     }}
                     data={[
                         { value: "hidden", label: "Hidden" },

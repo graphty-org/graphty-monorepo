@@ -3,7 +3,8 @@
 // CI posts the results service's own bodies to the same paths (POST /v1/invocations, /failures, /durations,
 // /verdicts); the HTTP API's JWT authorizer has already checked the token's signature, issuer, audience
 // (graphty-health) and expiry, and this handler checks its claims the way tools/results-service does. This machine's
-// writer posts {rows: [...]} to /v1/local/{invocations,push-runs,waits} with a bearer token whose SHA-256 is in SSM.
+// writer posts {rows: [...]} to /v1/local/{invocations,push-runs,waits,grouping} with a bearer token whose SHA-256
+// is in SSM.
 // Every record becomes a raw item with a natural id, written through the model's putRaw, so a retried post replaces
 // what it wrote before and the recomputed rollups never count it twice.
 
@@ -30,7 +31,7 @@ import {
     ttlAt,
 } from "../model/index.js";
 import type { Store } from "../model/store.js";
-import { recordResults, ResultsRefused } from "./results.js";
+import { recordResults, ResultsRefused, TESTS_PATH } from "./results.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
 export const MAX_ROWS = 5000;
@@ -64,18 +65,20 @@ const MASTER_KINDS: Record<string, Kind> = {
 };
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
-const CI_ROUTES = new Set([
-    "invocations",
-    "failures",
-    "durations",
-    "verdicts",
-    "sites",
-    "benchmarks",
+/** The results service's records (#3607, handlers/results.ts): these routes store nothing else. */
+const RESULTS_ONLY = new Set([
     "issues",
     "channel-moves",
+    "hold",
+    "base-checks",
+    "DELETE base-checks",
+    "story-captures",
+    "story-reach",
+    "PUT durations/tests",
 ]);
-/** The results service's records (#3607, handlers/results.ts): these two routes store nothing else. */
-const RESULTS_ONLY = new Set(["issues", "channel-moves"]);
+const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites", "benchmarks", ...RESULTS_ONLY]);
+/** A test duration history's body: the results service takes up to 1.9 MB (handlers/results.ts HISTORY_MAX). */
+const MAX_HISTORY_BYTES = 2_000_000;
 /** The kinds the results service gives a master workflow's token (tools/results-service MASTER_KINDS). */
 const RESULTS_KINDS: Record<string, string> = {
     ...MASTER_KINDS,
@@ -88,7 +91,7 @@ const RESULTS_KINDS: Record<string, string> = {
 /** Results in one benchmark post, and the longest benchmark name or source. */
 const MAX_BENCH_ROWS = 1000;
 const MAX_BENCH_NAME = 200;
-const LOCAL_ROUTES = new Set(["invocations", "push-runs", "waits"]);
+const LOCAL_ROUTES = new Set(["invocations", "push-runs", "waits", "grouping"]);
 
 type Kind = "pr" | "full" | "bisect" | "base" | "stress" | "local" | "deploy" | "site";
 type Claims = Record<string, string | number | boolean | string[] | undefined>;
@@ -119,7 +122,8 @@ let localTokenHash: { hash: string; until: number } | undefined;
 let store: Store | undefined;
 
 /**
- * POST /v1/{invocations,failures,durations,verdicts} (CI) and /v1/local/{invocations,push-runs,waits} (this machine).
+ * POST /v1/{invocations,failures,durations,verdicts} (CI) and /v1/local/{invocations,push-runs,waits,grouping} (this
+ * machine).
  * @param event - the HTTP API request, with the JWT claims on the CI routes
  * @returns 200 {stored}, or an error {code, params}
  */
@@ -154,22 +158,60 @@ export async function handler(
 }
 
 async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: number): Promise<unknown> {
-    const { raw, size, local, route } = requestOf(event);
+    const { raw, size, local, route, name } = requestOf(event);
     if (local && !(await localTokenOk(event.headers?.authorization, now))) {
         refuse(401, "unauthorized");
     }
     const body = bodyOf(raw, event.isBase64Encoded);
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const claims = event.requestContext.authorizer?.jwt?.claims ?? {};
-    if (!local && route !== "invocations") {
-        // The results service's copy first, under its own claim rules: a post the dashboard refuses (a verdict
-        // state it does not chart, nightly-abandon.yml's rejection) is still the results service's record.
-        const answer = await resultsCopy(route, body, claims, db, now);
-        if (RESULTS_ONLY.has(route)) {
-            return answer;
-        }
+    if (local) {
+        return stored(await dashboardCopy(route, body, { kind: "local", claims: {} }, db, now), size, event);
     }
-    const who: Who = local ? { kind: "local", claims: {} } : whoOf(claims);
+    // CI is answered as the results service answers it, so RESULTS_URL can name this API (#3607); with the dashboard's
+    // own answer only where the results service has none.
+    if (route === "invocations") {
+        // a shard run's results copy only once the dashboard took it, so a refused record leaves no trace in either
+        const dashboard = stored(await dashboardCopy(route, body, whoOf(claims), db, now), size, event);
+        return (await resultsCopy(route, body, claims, db, now)) ?? dashboard;
+    }
+    // The results service's copy first, under its own claim rules: a post the dashboard refuses (a verdict state it
+    // does not chart, nightly-abandon.yml's rejection) is still the results service's record, and answered as such.
+    const answer = await resultsCopy(route, body, claims, db, now, name);
+    if (RESULTS_ONLY.has(route)) {
+        return answer;
+    }
+    try {
+        const dashboard = stored(await dashboardCopy(route, body, whoOf(claims), db, now), size, event);
+        return answer ?? dashboard;
+    } catch (error) {
+        // only a master workflow the dashboard does not list (nightly-site.yml's durations, nightly-abandon.yml's
+        // verdict); every other refusal stands
+        if (answer === undefined || !(error instanceof Refused) || error.code !== "wrong_workflow") {
+            throw error;
+        }
+        log({ route: event.rawPath, dashboard: error.code });
+        return answer;
+    }
+}
+
+function stored(
+    { rows, kind }: { rows: number; kind: Kind },
+    size: number,
+    event: APIGatewayProxyEventV2WithJWTAuthorizer,
+): { stored: number; kind: Kind } {
+    log({ route: event.rawPath, kind, size, rows });
+    return { stored: rows, kind };
+}
+
+// The dashboard's own rows of a post: checked, charged to the write quota and stored.
+async function dashboardCopy(
+    route: string,
+    body: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<{ rows: number; kind: Kind }> {
     const { items, extra, source } = await itemsOf(route, body, who, db, now);
     // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
     if (items.length > MAX_ROWS) {
@@ -186,12 +228,7 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     }
     await putRaw(db, items, now);
     await recordSource(db, source, now, { ok: true }, oldestAt(items));
-    // a shard run's results copy only once the dashboard took it, so a refused record leaves no trace in either
-    if (!local && route === "invocations") {
-        await resultsCopy(route, body, claims, db, now);
-    }
-    log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
-    return { stored: items.length, kind: who.kind };
+    return { rows: items.length, kind: who.kind };
 }
 
 /**
@@ -204,18 +241,23 @@ function requestOf(event: APIGatewayProxyEventV2WithJWTAuthorizer): {
     size: number;
     local: boolean;
     route: string;
+    name?: string;
 } {
-    const raw = event.body ?? "";
-    const size = Buffer.byteLength(raw, event.isBase64Encoded ? "base64" : "utf8");
-    if (size > MAX_BODY_BYTES) {
-        refuse(413, "too_large", { limit: MAX_BODY_BYTES });
-    }
     const local = event.rawPath.startsWith("/v1/local/");
-    const route = event.rawPath.split("/").pop() ?? "";
+    const tests = !local && event.rawPath.startsWith(TESTS_PATH);
+    const last = tests ? "durations/tests" : (event.rawPath.split("/").pop() ?? "");
+    const method = event.requestContext.http?.method ?? "POST";
+    const route = method === "POST" ? last : `${method} ${last}`;
     if (!(local ? LOCAL_ROUTES : CI_ROUTES).has(route)) {
         refuse(404, "unknown_route");
     }
-    return { raw, size, local, route };
+    const raw = event.body ?? "";
+    const size = Buffer.byteLength(raw, event.isBase64Encoded ? "base64" : "utf8");
+    const limit = tests ? MAX_HISTORY_BYTES : MAX_BODY_BYTES;
+    if (size > limit) {
+        refuse(413, "too_large", { limit });
+    }
+    return { raw, size, local, route, name: tests ? event.rawPath.slice(TESTS_PATH.length) : undefined };
 }
 
 /**
@@ -326,6 +368,7 @@ export function resultsKindOf(claims: Claims): string {
  * @param claims - the OIDC token's claims
  * @param db - the store
  * @param now - the current time, in ms
+ * @param name - a test duration history's name, from its path
  * @returns the results service's answer
  */
 async function resultsCopy(
@@ -334,9 +377,10 @@ async function resultsCopy(
     claims: Claims,
     db: Store,
     now: number,
+    name?: string,
 ): Promise<unknown> {
     try {
-        return await recordResults(route, body, { kind: resultsKindOf(claims), claims }, db, now);
+        return await recordResults(route, body, { kind: resultsKindOf(claims), claims }, db, now, name);
     } catch (error) {
         if (RESULTS_ONLY.has(route)) {
             throw error;
@@ -403,6 +447,8 @@ async function localItems(
             items.push(...(await invocationItems(r, who, db, now)).items);
         } else if (route === "push-runs") {
             items.push(pushRun(r));
+        } else if (route === "grouping") {
+            items.push(...groupingItems(r));
         } else {
             items.push(slotWait(r));
         }
@@ -412,7 +458,9 @@ async function localItems(
 
 async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
     if (who.kind === "local") {
-        return { items: await localItems(route, body, who, db, now), extra: [], source: "local" };
+        // The grouping ledger writes once a day, so it is its own source with its own age limit.
+        const source = route === "grouping" ? "grouping-ledger" : "local";
+        return { items: await localItems(route, body, who, db, now), extra: [], source };
     }
     // As tools/results-service: a site repository writes only durations, deploy-pages.yml only its site and durations.
     if (
@@ -795,7 +843,7 @@ function verdictItems(b: Record<string, unknown>, who: Who, now: number): Observ
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The local writer's push log and slot waits.
+// The local writer's push log, slot waits and issue-grouping ledger readings.
 
 function localId(r: Record<string, unknown>): string {
     if (typeof r.id !== "string" || !r.id.startsWith("local.")) {
@@ -835,6 +883,36 @@ function slotWait(r: Record<string, unknown>): ObservationItem {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * One daily reading of the issue-grouping ledger (tools/issue-groups.mjs metrics): issues closed per merged pull
+ * request and the share of merged pull requests closing two or more (the ledger's own count), the share of grouped members
+ * released as not part of their branch, the groups whose branch is finished but not opened, and the families of those
+ * that can each open as one pull request with the branches they hold.
+ * @param r - the row: `{ id, at, issuesPerMergedPr?, multiFixShare?, releasedShare?, ready?, combinable?, combinableBranches? }`
+ * @returns its observations
+ */
+function groupingItems(r: Record<string, unknown>): ObservationItem[] {
+    const id = localId(r);
+    need(r, { at: "number" });
+    const out: ObservationItem[] = [];
+    const o = (metric: string, v: unknown): void => {
+        if (v === undefined || v === null) {
+            return;
+        }
+        if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+            refuse(400, "bad_field", { field: metric, type: "number" });
+        }
+        out.push({ kind: "obs", id: `${id}.${metric}`, attempt: 1, metric, value: v as number, at: r.at as number });
+    };
+    o("issues.per_merged_pr", r.issuesPerMergedPr);
+    o("issues.multi_issue_share", r.multiFixShare);
+    o("issues.group_released_share", r.releasedShare);
+    o("issues.groups_ready", r.ready);
+    o("issues.groups_combinable", r.combinable);
+    o("issues.groups_combinable_branches", r.combinableBranches);
+    return out;
+}
 
 async function localTokenOk(authorization: string | undefined, now: number): Promise<boolean> {
     const token = /^Bearer (\S+)$/.exec(authorization ?? "")?.[1];

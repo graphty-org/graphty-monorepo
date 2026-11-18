@@ -64,12 +64,12 @@ describe("the names of a partition's groups", () => {
         assert.deepStrictEqual(block?.field?.result, { algorithm: "louvain", field: "group" });
 
         assert.deepStrictEqual(
-            groups.map((group) => [group.name, group.group]),
+            groups.map((group) => [group.rank, group.group]),
             [
-                ["Group 1", 2],
-                ["Group 2", 10],
-                ["Group 3", 0],
-                ["Group 4", 7],
+                [1, 2],
+                [2, 10],
+                [3, 0],
+                [4, 7],
             ],
             "largest first, and equal sizes ordered by id as a number",
         );
@@ -88,11 +88,6 @@ describe("the names of a partition's groups", () => {
             block?.swatches.map((swatch) => [swatch.rank, swatch.value]),
             groups.map((group) => [group.rank, group.group]),
             "the legend carries the same rank for the same group",
-        );
-        assert.deepStrictEqual(
-            groups.map((group) => group.name),
-            groups.map((group) => `Group ${String(group.rank)}`),
-            "the deprecated English name is worded from the rank, the neutral fact (#866)",
         );
         const sizes = result.graph.sizes as readonly { readonly group: unknown }[];
         assert.deepStrictEqual(

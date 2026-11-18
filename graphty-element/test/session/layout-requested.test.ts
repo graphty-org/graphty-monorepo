@@ -66,7 +66,6 @@ describe("the recommendation for a requested layout", () => {
         assert.strictEqual(hand?.fact.params.layout, "graphviz-dot");
         assert.strictEqual(hand?.fact.params.nodeCount, 30);
         assert.deepEqual(hand?.options, BY_HAND.options);
-        assert.isUndefined(hand?.reason, "no English sentence");
     });
 
     it("keeps placed nodes where they are with the request's routing, the same for both", () => {

@@ -60,9 +60,6 @@ async function lesMis(): Promise<GraphSession> {
     return session;
 }
 
-/** The Timeline Hidden row, which the starting rows include: its name and pin. */
-const TIMELINE_HIDDEN: [string, string][] = [["Timeline Hidden", "top"]];
-
 /**
  * A top-level row by name.
  * @param session - The session.
@@ -107,7 +104,11 @@ describe("the starting rows", () => {
 
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [["Everything", "bottom"], ...TIMELINE_HIDDEN, ["Selected", "top"], ["Hovered", "top"]],
+            [
+                ["Everything", "bottom"],
+                ["Selected", "top"],
+                ["Hovered", "top"],
+            ],
             "bottom first",
         );
         assert.strictEqual(
@@ -125,7 +126,7 @@ describe("the starting rows", () => {
         });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", "Mine", ...TIMELINE_HIDDEN.map(([name]) => name), "Selected", "Hovered"],
+            ["Everything", "Mine", "Selected", "Hovered"],
         );
 
         await session.undo();
@@ -193,7 +194,10 @@ describe("the starting rows", () => {
         await session.config.set({ startingRows: true, selectionStyle: { color: "#ff0000" } });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [["Everything", "bottom"], ...TIMELINE_HIDDEN, ["Pointer", "top"]],
+            [
+                ["Everything", "bottom"],
+                ["Pointer", "top"],
+            ],
         );
         assert.strictEqual(session.styles.get(part(session, "Everything", "node"))?.set?.["node.color"], "#00ff00");
 
@@ -203,7 +207,7 @@ describe("the starting rows", () => {
         await session.undo();
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", ...TIMELINE_HIDDEN.map(([name]) => name), "Selected", "Hovered"],
+            ["Everything", "Selected", "Hovered"],
         );
     });
 });

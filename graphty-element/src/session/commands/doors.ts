@@ -992,6 +992,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     project: READ,
     transaction: HISTORY,
     estimate: READ,
+    // Measures this machine for cost estimates; changes nothing a project file saves.
+    calibrate: READ,
     recommendLayout: READ,
     plan: READ,
     on: LISTEN,
@@ -1609,6 +1611,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
+            stopAnimationCapture: CAPTURE,
             cancelCameraAnimation: IN_FLIGHT,
             playTour: CAMERA,
             isAnimationCapturing: READ,
@@ -1998,6 +2001,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
+            stopAnimationCapture: CAPTURE,
             cancelCameraAnimation: IN_FLIGHT,
             playTour: CAMERA,
             isAnimationCapturing: READ,
@@ -2124,6 +2128,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             roundRadius: READ,
             drawnFill: READ,
             drawnOpacity: READ,
+            paintedOpacity: READ,
             drawnRadius: READ,
             layoutRadius: READ,
             spacingRadius: READ,
@@ -2822,6 +2827,36 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         nodes: [{ id: "door-derive", values: { doorDerived: 2 } }],
                         edges: [],
                         column: { kind: "node", name: "doorDerived" },
+                    },
+                ],
+            },
+            // The same op as derive: the score's definition and its values, as one step.
+            deriveScore: {
+                kind: "dispatches",
+                op: "data.derive",
+                call: {
+                    kind: "call",
+                    args: ["doorScore", [{ path: "data.doorInput", weight: 2 }]],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-score", doorInput: 2 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "data.derive",
+                        columns: [
+                            {
+                                kind: "node",
+                                name: "doorScore",
+                                expression: "data.doorInput * `2`",
+                                score: [{ path: "data.doorInput", weight: 2 }],
+                            },
+                        ],
+                        nodes: [{ id: "door-score", values: { doorScore: 0 } }],
+                        edges: [],
+                        column: { kind: "node", name: "doorScore" },
                     },
                 ],
             },
@@ -3890,6 +3925,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startingRows: READ,
             editableBase: READ,
             timelineHiddenLook: READ,
+            timelineHiddenAdded: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
@@ -4110,6 +4146,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
             clusterColumn: READ,
+            // A row's stored record and a node id's store row, for `clusterBy` over rows with no `Node`; the layout
+            // manager fills both in when it starts the engine.
+            rowRecord: READ,
+            storeRowOf: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
             // The box the last publish left the rows in, read by the batched fit; walks no row.
@@ -4292,6 +4332,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdFrames: RENDER,
             holdSmooth: RENDER,
             frameDrawn: RENDER,
+            fencedFrames: READ,
+            gpuFinishedFrame: READ,
             setPixelRatio: RENDER,
             resize: RENDER,
             drawHeld: RENDER,

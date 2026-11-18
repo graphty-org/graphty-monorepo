@@ -58,8 +58,10 @@ function merged(had, c) {
         !had || had.repeat < c.repeat ? { base: c.base, file: c.file, variant: c.variant, repeat: c.repeat } : had;
     const touched = c.touched === true;
     const name = NAME.test(c.name ?? "") ? [c.name] : [];
-    // only an untouched test's flake files an issue against master: a touched one's is likely the pull request's own
-    const names = [...(had?.names ?? []), ...(c.repeat === 5 && !touched ? name : [])];
+    // every flake this check is asked about files its issue when master passes 5 times (#8795): a touched line is a
+    // test whose imports alone the pull request changed (its own file changed asks for no check), and leaving it out
+    // left flakes seen only on such pull requests (a lint pass, a dependency bump) with no issue at all
+    const names = [...(had?.names ?? []), ...(c.repeat === 5 ? name : [])];
     if (names.length) check.names = [...new Set(names)].slice(0, MAX_NAMES);
     // a touched test's failures and the job that ran them: base-check.yml re-runs that one job, and only when master
     // fails one of the same tests (#8363)
@@ -75,7 +77,7 @@ function merged(had, c) {
  * The valid, distinct base checks in a directory's JSON lines.
  * @param dir the directory (missing: none)
  * @returns `{ base, file, variant, repeat, touched, names?, failed?, job? }[]`, at most MAX_CHECKS; `names` are an
- *   untouched 5-repeat check's flaky tests, `failed` and `job` a touched check's tests and the job that ran them
+ *   5-repeat check's flaky tests, `failed` and `job` a touched check's tests and the job that ran them
  */
 export function readChecks(dir) {
     let names = [];
@@ -93,7 +95,11 @@ export function readChecks(dir) {
             out.set(key, merged(out.get(key), c));
         }
     const checks = [...out.values()];
-    const touched = checks.filter((c) => c.touched).slice(0, MAX_TOUCHED);
+    // a flaky test's check first: it is the one that files an issue
+    const touched = checks
+        .filter((c) => c.touched)
+        .sort((a, b) => (b.names ? 1 : 0) - (a.names ? 1 : 0))
+        .slice(0, MAX_TOUCHED);
     return [...checks.filter((c) => !c.touched), ...touched].slice(0, MAX_CHECKS);
 }
 

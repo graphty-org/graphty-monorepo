@@ -12,6 +12,7 @@ tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/browser-crash-log.test.mjs
 tools/build-bundle.test.mjs
 tools/cache-hygiene.test.mjs
 tools/channel/approval-update.test.mjs
@@ -50,6 +51,7 @@ tools/claude-owner-credential-guard.test.mjs
 tools/dataset-overlay.test.mjs
 tools/dependency-refresh.test.mjs
 tools/design-studio-workflow.test.mjs
+tools/designloom-links.test.mjs
 tools/duplicates-check.test.mjs
 tools/features-on.test.mjs
 tools/full-run.test.mjs

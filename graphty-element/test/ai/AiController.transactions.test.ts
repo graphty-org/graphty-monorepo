@@ -207,7 +207,7 @@ describe("an assistant message's transactions", () => {
         const steps = newSteps();
         assert.lengthOf(steps, 1);
         assert.strictEqual(steps[0].provenance.via, "assistant");
-        assert.strictEqual(steps[0].label, "add x and y");
+        assert.strictEqual(steps[0].fact.params.label, "add x and y");
         assert.deepEqual([...steps[0].ops], ["data.apply", "data.apply"]);
 
         await session.undo();
@@ -227,8 +227,8 @@ describe("an assistant message's transactions", () => {
         assert.isTrue(result.success, result.message);
         const steps = newSteps();
         // The run committed in its own tail and recorded "Ran degree" beside the message's step.
-        assert.lengthOf(steps, 1, steps.map((step) => step.label).join(", "));
-        assert.strictEqual(steps[0].label, "add x, then degree");
+        assert.lengthOf(steps, 1, steps.map((step) => step.fact.params.label).join(", "));
+        assert.strictEqual(steps[0].fact.params.label, "add x, then degree");
         assert.deepEqual([...steps[0].ops], ["data.apply", "algo.run"]);
     });
 
@@ -251,8 +251,8 @@ describe("an assistant message's transactions", () => {
 
         assert.isTrue(result.success, result.message);
         const steps = newSteps();
-        assert.lengthOf(steps, 1, steps.map((step) => step.label).join(", "));
-        assert.strictEqual(steps[0].label, "rank the nodes");
+        assert.lengthOf(steps, 1, steps.map((step) => step.fact.params.label).join(", "));
+        assert.strictEqual(steps[0].fact.params.label, "rank the nodes");
         assert.strictEqual(steps[0].provenance.via, "assistant");
     });
 

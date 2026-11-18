@@ -167,6 +167,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.minMarkSize": "not the graph",
     // A computed column: defining one writes, and the list is the definitions, not their values.
     "data.derive()": "writes",
+    "data.deriveScore()": "writes",
     "data.derivedColumns()": "not the graph",
     // A collapse or an expand edits the original graph, hidden members included, so nothing is lost.
     "groups.collapse()": "writes",
@@ -196,6 +197,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "assets.states()": "not the graph",
     "assets.supply()": "writes",
     "assets.waiting()": "not the graph",
+    // Measures this machine for cost estimates.
+    "calibrate()": "not the graph",
     canRedo: "not the graph",
     canUndo: "not the graph",
     capabilities: "not the graph",
@@ -215,6 +218,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.selectionStyle": "not the graph",
     "config.startingRows": "not the graph",
     "config.timelineHiddenLook": "not the graph",
+    "config.timelineHiddenAdded": "not the graph",
     "config.viewRotation": "not the graph",
     "config.acceleration": "not the graph",
     "config.backgroundColor": "not the graph",

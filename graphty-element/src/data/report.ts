@@ -48,7 +48,7 @@ export interface ImportReport {
         /** Edges the graph holds after the load. */
         readonly edges: number;
         /**
-         * Node records handed over, which is fewer than {@link nodes} when an edge named an
+         * Node records handed over, which is fewer than `nodes` when an edge named an
          * endpoint the file never declared as a node of its own.
          */
         readonly nodeRecords: number;

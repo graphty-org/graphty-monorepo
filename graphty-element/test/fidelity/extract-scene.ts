@@ -91,6 +91,20 @@ export function shapeClassOf(shape: unknown): ShapeClass {
 }
 
 /**
+ * The shape class a node's style asks for: a polygon of three corners (`node.shapePoints`) asks for a triangle, as
+ * vis-network's triangles are drawn; any other polygon stays "other", the class the references give the free-form
+ * polygons of DOT, GML and yEd.
+ * @param shape - its `node.shape`
+ * @param points - its `node.shapePoints`
+ * @returns the class
+ */
+export function askedShapeClass(shape: unknown, points: unknown): ShapeClass {
+    const triangle =
+        shape === "polygon" && polygonPoints(typeof points === "string" ? points : undefined)?.length === 3;
+    return triangle ? "triangle" : shapeClassOf(shape);
+}
+
+/**
  * The shape class of a polygon node, from its corners as a reader tells them apart: by how many
  * there are, and four as a rectangle when three sit on their box's corners, else a diamond.
  * @param points - the polygon's `shape.points`
@@ -566,7 +580,7 @@ export function sceneNode(
         z: -d.box.near,
         requested: {
             size: channel(merged, "node.size"),
-            shape: shapeClassOf(channel(merged, "node.shape")),
+            shape: askedShapeClass(channel(merged, "node.shape"), merged["node.shapePoints"]),
             fill: requestedFill?.hex ?? null,
             fillOpacity: (typeof opacity === "number" ? opacity : 1) * (requestedFill?.alpha ?? 1),
             borderColor: colorOf(merged["node.borderColor"] ?? merged["node.outline"])?.hex ?? null,

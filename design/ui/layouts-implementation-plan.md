@@ -1,5 +1,9 @@
 # Implementation Plan for Run Layouts Modal
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 This implementation plan covers the creation of a "Run Layouts" modal dialog that allows users to select from all 16 available graph layout algorithms, configure their parameters via dynamically-generated forms based on Zod schemas, and apply layouts to the graph visualization. The modal integrates with graphty-element as the source of truth for layout state.

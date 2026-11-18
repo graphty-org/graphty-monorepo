@@ -1178,15 +1178,30 @@ function judge(
             const refs = ref.annotations ?? [];
             // A side of 0 in a reference box is an extent its route did not record (CyREST gives a text annotation
             // no width): that side is the subject's, so the box is judged by where it is and the extent it has.
-            const overlap = (r: Box, s: Box): number => {
+            //
+            // An arrow's box is its line's, a few units across, where a shift of a unit halves the overlap: an arrow
+            // is judged by its two ends instead, each within `arrowEnd` of the reference line's length. Its box does
+            // not say which diagonal the line runs along, so each end's error is taken as the larger of the two ends'
+            // offsets across and the larger of the two along, which bounds it whichever diagonal it is.
+            const agreement = (kind: string, r: Box, s: Box): number => {
                 const b = transformBox(t, s);
-                return iou({ ...r, w: r.w === 0 ? b.w : r.w, h: r.h === 0 ? b.h : r.h }, b);
+                if (kind !== "arrow") {
+                    return iou({ ...r, w: r.w === 0 ? b.w : r.w, h: r.h === 0 ? b.h : r.h }, b);
+                }
+                const dx = Math.max(Math.abs(b.x - r.x), Math.abs(b.x + b.w - r.x - r.w));
+                const dy = Math.max(Math.abs(b.y - r.y), Math.abs(b.y + b.h - r.y - r.h));
+                const length = Math.hypot(r.w, r.h);
+                const off = Math.hypot(dx, dy);
+                return length > 0 ? Math.max(0, 1 - off / length) : Number(off === 0);
             };
+            const passes = (kind: string, v: number): boolean =>
+                v >= (kind === "arrow" ? 1 - THRESHOLDS.arrowEnd : THRESHOLDS.groupIoU);
             // An annotation the subject draws where the reference has none of its kind is a fail.
             const extra = subs
                 .map((s, i) => ({ s, i }))
                 .filter(
-                    ({ s }) => !refs.some((r) => r.kind === s.kind && overlap(r.bbox, s.bbox) >= THRESHOLDS.groupIoU),
+                    ({ s }) =>
+                        !refs.some((r) => r.kind === s.kind && passes(s.kind, agreement(s.kind, r.bbox, s.bbox))),
                 )
                 .map(({ s, i }) => ({
                     id: `extra ${s.kind}#${String(i)}`,
@@ -1197,14 +1212,14 @@ function judge(
                 ...refs.map((r, i) => {
                     const best = Math.max(
                         0,
-                        ...subs.filter((s) => s.kind === r.kind).map((s) => overlap(r.bbox, s.bbox)),
+                        ...subs.filter((s) => s.kind === r.kind).map((s) => agreement(r.kind, r.bbox, s.bbox)),
                     );
                     return {
                         id: `${r.kind}#${String(i)}`,
                         v: {
                             value: best,
                             bad: 1 - best,
-                            pass: best >= THRESHOLDS.groupIoU,
+                            pass: passes(r.kind, best),
                             ref: r.text ?? r.kind,
                             got: null,
                         },

@@ -677,8 +677,8 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
 /**
  * The run whose groups a path reads.
  *
- * Those swatches are labelled with the names the run's summary gives the same groups, so a reader
- * sees "Group 1" in the key and in the list of groups rather than a raw id in one of them.
+ * Those swatches carry the ranks the run's summary gives the same groups, so an application that
+ * words a group from its rank names it the same in the key and in the list of groups.
  * @param path - The column path.
  * @returns The run id for `results.<run>.group`, otherwise undefined.
  */

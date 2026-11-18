@@ -7,11 +7,12 @@ import {
     PANEL_GRID,
     PanelField,
     RampRow,
+    SegmentedControl,
     ToggleRow,
     ToggleRowGroup,
     TrailingSlot,
 } from "@graphty/compact-mantine";
-import { MantineProvider, SegmentedControl, VisuallyHidden } from "@mantine/core";
+import { MantineProvider, VisuallyHidden } from "@mantine/core";
 
 const SCALES = [
     { value: "sqrt", word: "Square root", glyph: "scaleSqrt" },

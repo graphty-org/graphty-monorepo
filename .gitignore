@@ -143,6 +143,7 @@ docs/remote-logger/
 docs/babylonjs-map/
 docs/babylonjs-models/
 docs/cytoscape-extensions/
+docs/webgpu-graph-algorithms/
 
 # Layout package specific
 layout/examples/layout.js

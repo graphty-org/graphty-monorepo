@@ -992,8 +992,6 @@ export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
     readonly losses: readonly ExportLoss[];
-    // @deprecated
-    readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
 
@@ -1158,7 +1156,7 @@ export class GraphtyError extends Error {
 export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
-* set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+* set together. `details` name the fields.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -2192,6 +2190,8 @@ export abstract class LayoutEngine {
     protected releasePublishScratch(): void;
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
+    // @internal
+    rowRecord: ((row: number) => unknown) | null;
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
@@ -2202,6 +2202,8 @@ export abstract class LayoutEngine {
     get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
+    // @internal
+    storeRowOf: ((id: NodeIdType) => number) | null;
     // (undocumented)
     static type: string;
     get type(): string;
@@ -2423,6 +2425,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get paintedColor(): Rgba | null;
+    // @internal
+    get paintedOpacity(): number;
     // @internal
     get paintedSourceMesh(): AbstractMesh;
     // (undocumented)

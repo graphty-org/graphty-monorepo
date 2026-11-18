@@ -1,9 +1,10 @@
-import { Box, Button, Checkbox, Select, Slider, Stack, Text } from "@mantine/core";
+import { Box, Button, Checkbox, Select, Stack, Text } from "@mantine/core";
 import { type JSX, type RefObject, useState } from "react";
 
 import { Popout } from "../../../src/components/popout/Popout";
 import { PopoutButton } from "../../../src/components/popout/PopoutButton";
 import { PanelField } from "../../../src/components/rows/PanelField";
+import { Slider } from "../../../src/components/Slider";
 import { ToggleWithContent } from "../../../src/components/ToggleWithContent";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { UiGlyph } from "../../../src/icons";

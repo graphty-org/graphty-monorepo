@@ -497,7 +497,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(60, `${CYL} 155`),
                     height: v(40, `${CYL} 163`),
                     borderColor: v("#000000", `${CYL} 230`),
-                    borderWidth: v(2, `${CYL} 54`),
+                    // the half of the 2 desktop strokes that its default opaque fill leaves showing (cytoscape/lexicon.ts
+                    // `visibleBorder`)
+                    borderWidth: v(1, `${CYL} 54, halved`),
                     borderPosition: CYTOSCAPE_BORDER_INSIDE,
                     borderWaveAmplitude: v(10, CY_WAVE),
                     borderWavePeriod: v(20, CY_WAVE),
@@ -539,6 +541,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-js",
                 version: "cytoscape.js 3.34.3",
                 units: "px",
+                // drawEdgePath: `dotted` 1 1 and `dashed` its line-dash-pattern, 6 3 by default, butt-capped, whatever
+                // the width
+                dashes: {
+                    dashed: fixedDash(6, 3, `${CYJS} 18667 (line-dash-pattern [6, 3]) and 29961`),
+                    dotted: fixedDash(1, 1, `${CYJS} 29958 (drawEdgePath: setLineDash([1, 1]))`),
+                },
                 roundedCornerRadius: cornerCap(),
                 roundedCornerFraction: v(
                     1 / 4,
@@ -583,9 +591,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
                     labelWeight: v("normal", `${CYJS} 18495`),
                     labelPosition: v("top", `${CYJS} 18470-18471`),
-                    // text-wrap: wrap measures `subline + word + wordSeparator` against text-max-width; ponytail: a
-                    // line's last word has no separator there, where graphty counts a space after it too
+                    // text-wrap: wrap measures `subline + word + wordSeparator` against text-max-width, and a line's
+                    // last word has no separator there
                     labelWrapTrailingSpace: v(true, `${CYJS} 25218`),
+                    labelWrapSkipEndSpace: v(true, `${CYJS} 25218`),
                 },
                 edge: {
                     color: v("#999999", `${CYJS} 18639`),
@@ -1079,6 +1088,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "ogdf master 1a40505ac006",
                 units: "px",
                 roundedCornerRadius: cornerCap("ogdf"),
+                // GraphIO::drawSVG's stroke-dasharray, in line widths (Dash "12,6" and Dot "3,6" at width 3); its
+                // dash-dot patterns hold two dash lengths, which one dash and gap cannot say
+                dashes: {
+                    dashed: widthDash(4, 2, `${MEASURED}gml-specimen-edges-lines-p4.svg: Dash "12,6" at width 3)`),
+                    dotted: widthDash(1, 2, `${MEASURED}gml-specimen-edges-lines-p4.svg: Dot "3,6" at width 3)`),
+                },
                 // OGDF's arrowhead is three times its line's width long and half as wide as it is long
                 arrowhead: {
                     length: (size, width) => 3 * width * size,

@@ -815,6 +815,9 @@ export class LayoutManager implements Manager {
     /** The motion last told to `onMotion`. */
     #toldMotion: LayoutMotion = "settled";
 
+    /** When the layout last started running, for the time a settle took in the log. */
+    #runningSince = 0;
+
     /**
      * Whether undo, redo or a restore is on its way to the position array. While it is, a new
      * snapshot or accelerator reloads the engine without starting it, so nothing moves the
@@ -948,6 +951,10 @@ export class LayoutManager implements Manager {
         this._running = next;
         if (resting) {
             this.onRest?.();
+        }
+
+        if (this.layoutEngine) {
+            layoutEngineInternals.rest(this.layoutEngine, !next);
         }
 
         // The bridge closes its work span once a stopped layout's batches have landed, so a status
@@ -1694,9 +1701,8 @@ export class LayoutManager implements Manager {
             layoutEngineInternals.setWorkingSource(engine, () => this.scopeSource?.input?.() ?? null);
             engine.clusterColumn = (path, graph = wholeGraph(this.dataManager)) =>
                 this.scopeSource?.nodeValues?.(graph, path) ?? null;
-            if (engine instanceof SimulationLayoutEngine) {
-                engine.rowRecord = (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row);
-            }
+            engine.rowRecord = (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row);
+            engine.storeRowOf = (id) => dataManagerInternals.rowOf(this.dataManager, id);
         }
 
         if (!engine) {
@@ -2680,6 +2686,9 @@ export class LayoutManager implements Manager {
                 remaining -= chunk;
             }
         } else {
+            // An engine stepped here publishes on every step, and a resting one lets its publish
+            // scratch go after each publish; so it is held through the loop and let go once, below.
+            layoutEngineInternals.rest(engine, false);
             for (let i = 0; i < preSteps; i++) {
                 // Stop if layout has settled
                 if (engine.isSettled) {
@@ -2695,6 +2704,7 @@ export class LayoutManager implements Manager {
         // publish the arrangement of the frame before for an accelerated simulation, and one that
         // published in a `then` would publish a frame late for every other engine.
         engine.publishPositions();
+        layoutEngineInternals.rest(engine, !this._running);
         return true;
     }
 
@@ -3004,9 +3014,11 @@ export class LayoutManager implements Manager {
             return;
         }
 
+        // The store's row, building no `Node`: under renderPath "batched" one built here, while a layout being tried
+        // holds the data manager, would belong to that layout alone, and a refused one would take it away with it.
         const rowOf = (id: NodeIdType): number | undefined => {
-            const index = this.dataManager.nodes.get(id)?.index;
-            return index !== undefined && validRow(index) ? index : undefined;
+            const index = dataManagerInternals.rowOf(this.dataManager, id);
+            return validRow(index) ? index : undefined;
         };
         const groups = new Map<number, number[]>();
         for (const { group, members } of this.followingGroups()) {
@@ -3404,6 +3416,13 @@ export class LayoutManager implements Manager {
         const { motion } = this;
         if (motion !== this.#toldMotion) {
             this.#toldMotion = motion;
+            if (motion === "running") {
+                this.#runningSince = performance.now();
+            }
+            this.logger.info(`layout ${motion}`, {
+                layoutType: this.layoutType ?? null,
+                ...(motion === "running" ? {} : { ms: Math.round(performance.now() - this.#runningSince) }),
+            });
             this.onMotion?.(motion);
         }
     }

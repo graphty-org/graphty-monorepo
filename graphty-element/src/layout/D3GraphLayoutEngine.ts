@@ -22,7 +22,7 @@ import {
     clusterByOption,
     clusterCentroids,
     clusterStrengthOption,
-    readCommunities,
+    readBodyCommunities,
     sameCommunities,
 } from "./clusterForce";
 import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
@@ -262,7 +262,7 @@ export class D3GraphEngine extends LayoutEngine {
     private readonly clusterBy: string | null;
     private readonly clusterStrength: number;
     /** The last read of `clusterBy`, and each member's d3 node and community, in the same order. */
-    private communities = new Map<Node, number>();
+    private communities = new Map<NodeIdType, number>();
     private clusterNodes: D3Node[] = [];
     private clusterOf: number[] = [];
     private clusterCount = 0;
@@ -445,10 +445,15 @@ export class D3GraphEngine extends LayoutEngine {
      */
     private readClusters(): boolean {
         this.clustersStale = false;
-        const read = readCommunities(this.clusterBy as string, this.nodeMapping.keys(), this.clusterColumn, (row) =>
-            this.isFollower(row),
+        const read = readBodyCommunities(
+            this.clusterBy as string,
+            this.nodeMapping.keys(),
+            this.rowBodies.keys(),
+            this,
+            (row) => this.isFollower(row),
         );
-        const nodes = [...read.keys()].map((node) => this.nodeMapping.get(node) as D3Node);
+        const built = new Map([...this.nodeMapping].map(([node, body]) => [node.id, body]));
+        const nodes = [...read.keys()].map((id) => (built.get(id) ?? this.rowBodies.get(id)) as D3Node);
         const same = sameCommunities(read, this.communities);
         this.communities = read;
         this.clusterNodes = nodes;
@@ -621,8 +626,8 @@ export class D3GraphEngine extends LayoutEngine {
 
     /**
      * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
-     * Such a row is sized for `nodeGap` from the row table, and is in no `clusterBy` community and never pinned,
-     * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
+     * Such a row is sized for `nodeGap` from the row table and read for `clusterBy` by its row, and is never
+     * pinned, since that is read from a `Node`; a hold reaches it by its row. A third party's
      * engine is handed `Node`s only.
      * @param ids - The rows' node ids.
      * @param source - Where a body finds its row at publish, and the element's array it publishes into.
@@ -630,6 +635,7 @@ export class D3GraphEngine extends LayoutEngine {
      */
     addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
         this.rowSource = source;
+        this.clustersStale = true;
         for (const id of ids) {
             const fresh: D3InputNode = this.dim === 2 ? { id, z: 0, vz: 0 } : { id };
             const held = this.rowBodies.get(id);

@@ -13,7 +13,7 @@ describe("dispatch", () => {
         assert.strictEqual(stackName(dispatcher), "hubs");
         const { steps } = dispatcher.history;
         assert.lengthOf(steps, 1);
-        assert.strictEqual(steps[0].label, "Styled hubs");
+        assert.strictEqual(steps[0].fact.params.label, "Styled hubs");
         assert.deepEqual(steps[0].ops, ["fake.styles"]);
         assert.deepEqual(steps[0].slices, ["styles"]);
         assert.deepEqual(published, [{ slices: ["styles"], cause: "command" }]);
@@ -133,7 +133,7 @@ describe("dispatch", () => {
         await dispatcher.dispatch({ op: "fake.styles", name: "c" });
 
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Styled a", "Styled c"],
         );
     });

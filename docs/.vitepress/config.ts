@@ -23,6 +23,7 @@ const algorithmsTypedoc = loadTypedocSidebar("./docs/algorithms/api/generated/ty
 const layoutTypedoc = loadTypedocSidebar("./docs/layout/api/generated/typedoc-sidebar.json");
 const cytoscapeTypedoc = loadTypedocSidebar("./docs/cytoscape-extensions/api/generated/typedoc-sidebar.json");
 const graphIoTypedoc = loadTypedocSidebar("./docs/graph-io/api/generated/typedoc-sidebar.json");
+const webgpuTypedoc = loadTypedocSidebar("./docs/webgpu-graph-algorithms/api/generated/typedoc-sidebar.json");
 const graphFormatTypedoc = loadTypedocSidebar("./docs/graph-format/api/generated/typedoc-sidebar.json");
 const graphSamplesTypedoc = loadTypedocSidebar("./docs/graph-samples/api/generated/typedoc-sidebar.json");
 const compactMantineTypedoc = loadTypedocSidebar("./docs/compact-mantine/api/generated/typedoc-sidebar.json");
@@ -245,6 +246,7 @@ const config = defineConfig({
                     { text: "layout", link: "/layout/" },
                     { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "graph-io", link: "/graph-io/" },
+                    { text: "webgpu-graph-algorithms", link: "/webgpu-graph-algorithms/" },
                     { text: "graph-format", link: "/graph-format/" },
                     { text: "graph-samples", link: "/graph-samples/" },
                     { text: "compact-mantine", link: "/compact-mantine/" },
@@ -266,6 +268,7 @@ const config = defineConfig({
                         { text: "layout", link: "/layout/" },
                         { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "graph-io", link: "/graph-io/" },
+                        { text: "webgpu-graph-algorithms", link: "/webgpu-graph-algorithms/" },
                         { text: "graph-format", link: "/graph-format/" },
                         { text: "graph-samples", link: "/graph-samples/" },
                         { text: "compact-mantine", link: "/compact-mantine/" },
@@ -668,6 +671,34 @@ const config = defineConfig({
                     items: layoutTypedoc,
                 },
             ],
+            "/webgpu-graph-algorithms/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/webgpu-graph-algorithms/" },
+                        { text: "Getting Started", link: "/webgpu-graph-algorithms/guide/getting-started" },
+                        { text: "Node and Browser Setup", link: "/webgpu-graph-algorithms/guide/setup" },
+                    ],
+                },
+                {
+                    text: "Guides",
+                    items: [
+                        { text: "Algorithms", link: "/webgpu-graph-algorithms/guide/algorithms" },
+                        { text: "Layouts", link: "/webgpu-graph-algorithms/guide/layouts" },
+                        { text: "Errors", link: "/webgpu-graph-algorithms/guide/errors" },
+                        { text: "With graphty-element", link: "/webgpu-graph-algorithms/guide/graphty-element" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/webgpu-graph-algorithms/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: webgpuTypedoc,
+                },
+            ],
             "/cytoscape-extensions/": [
                 {
                     text: "Guide",
@@ -743,6 +774,7 @@ config.themeConfig!.sidebar = splitApiSidebars(config.themeConfig!.sidebar as Si
     layoutTypedoc,
     cytoscapeTypedoc,
     graphIoTypedoc,
+    webgpuTypedoc,
     graphFormatTypedoc,
     graphSamplesTypedoc,
     remoteLoggerTypedoc,

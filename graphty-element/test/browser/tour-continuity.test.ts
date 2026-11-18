@@ -167,6 +167,10 @@ function flatProgress(a: CameraState, b: CameraState, s: CameraState): number | 
     span(a.pan?.x ?? 0, b.pan?.x ?? 0, s.pan?.x ?? 0);
     span(a.pan?.y ?? 0, b.pan?.y ?? 0, s.pan?.y ?? 0);
     span(1 / (a.zoom ?? 1), 1 / (b.zoom ?? 1), 1 / (s.zoom ?? 1));
+    // The turn, measured the short way round from where it started.
+    const from = a.rotation ?? 0;
+    const turn = (r: number): number => from + Math.atan2(Math.sin(r - from), Math.cos(r - from));
+    span(from, turn(b.rotation ?? 0), turn(s.rotation ?? 0));
     return shares.length === 0 ? null : shares.reduce((x, y) => x + y) / shares.length;
 }
 
@@ -197,6 +201,7 @@ function placeDifference(a: CameraState, b: CameraState): string | null {
         ["pan.x", a.pan?.x, b.pan?.x],
         ["pan.y", a.pan?.y, b.pan?.y],
         ["zoom", a.zoom, b.zoom],
+        ["rotation", a.rotation, b.rotation],
     ];
     for (const [name, x, y] of pairs) {
         if ((x === undefined) !== (y === undefined) || Math.abs((x ?? 0) - (y ?? 0)) > 1e-3 * scale) {
@@ -336,6 +341,11 @@ async function playAndCheck(graph: Graph, name: string, stops: Stop[]): Promise<
                 }
             }
         } else {
+            const firstShare = flatProgress(start.state, end.state, first.state);
+            if (firstShare !== null && firstShare > ease((first.ts - start.ts) / duration) + 0.05) {
+                fail(`stop ${index} snapped to ${firstShare} of the way on its first frame`, first.i);
+            }
+
             let previous = 0;
             for (const f of span) {
                 const share = flatProgress(start.state, end.state, f.state);
@@ -366,6 +376,7 @@ async function playAndCheck(graph: Graph, name: string, stops: Stop[]): Promise<
                 distance: state.cameraDistance,
                 pan: state.pan,
                 zoom: state.zoom,
+                rotation: state.rotation,
                 ts,
                 stop,
                 phase,
@@ -490,6 +501,30 @@ describe("a tour flies the camera continuously", () => {
             { view: "topView" },
             { view: "fitToGraph", duration: 800 },
             { view: "topView", duration: 800 },
+        ]);
+    });
+
+    test("a 2D tour through turned cameras: the turn glides with the pan and zoom, never snaps", async () => {
+        await graph.setViewMode("2d");
+        await graph.waitForSettled();
+        await graph.waitForStableFrame();
+        const fit = graph.resolveCameraPreset("fitToGraph");
+        const zoom = fit.zoom ?? 1;
+        await graph.getSession().views.save([
+            { name: "Flat1", camera: { mode: "2d", zoom: zoom * 2.5, pan: { x: 2, y: -1 }, rotation: 0.6 } },
+            { name: "Flat2", camera: { mode: "2d", zoom: zoom * 0.6, pan: { x: -3, y: 2 }, rotation: -0.4 } },
+            // Across the half turn: the short way from 3 to -3 is 0.28 rad, not 6.
+            { name: "Flat3", camera: { mode: "2d", zoom, pan: { x: 0, y: 0 }, rotation: 3 } },
+            { name: "Flat4", camera: { mode: "2d", zoom, pan: { x: 1, y: 0 }, rotation: -3 } },
+        ]);
+        await playAndCheck(graph, "7", [
+            { view: "topView" },
+            { view: "Flat1", duration: 800 },
+            { pause: 300 },
+            { view: "Flat2", duration: 800 },
+            { view: "topView", duration: 800 },
+            { view: "Flat3", duration: 800 },
+            { view: "Flat4", duration: 800 },
         ]);
     });
 });

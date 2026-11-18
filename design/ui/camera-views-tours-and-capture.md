@@ -294,7 +294,8 @@ await session.views.setStartingCameras([
   reader's own cameras. A name already taken is skipped, and a key already held is dropped. Deleting, renaming or
   reordering one, saving and reopening (or reloading the tab) keeps what the reader did: the project records that
   its starting cameras were written, so they are never written again.
-- **2D and 3D.** All five are written whatever the dimension. Top works in 2D and 3D; Bottom, Front, Side and
+- **2D and 3D.** All five are written whatever the dimension. Top works in 2D and 3D (in 2D it frames the whole
+  graph, upright, like Fit with the turn reset); Bottom, Front, Side and
   Isometric are 3D only, so in a 2D drawing they are disabled with "3D only" and work again in 3D. Switching modes
   never rewrites or hides a camera. The cost: a reader who only works in 2D sees four of five starting cameras
   greyed out until deleting them (section 10).
@@ -636,7 +637,9 @@ This change adds only the pause phase (section 4.2) and the flight fix below.
   must equal it.
 - **Guard.** `PivotController.rotateAroundAxis` falls back to `Quaternion.FromEulerVector(this.pivot.rotation)`,
   never `Identity()`.
-- 2D flights are unchanged: the 2D camera has no pivot orientation, and they did not jump.
+- 2D flights turn too. The 2D camera has no pivot orientation, but it has a turn (`rotation`), and a flight
+  to a camera with a different turn used to set the whole turn on the first frame and glide only the pan and
+  zoom. The turn now glides on the same eased clock as the pan and zoom, the short way round.
 
 **Breaking, for the commit message:** a tour no longer follows a non-zero `cameraTransitionDuration`. Reader input
 on the canvas, including a click, now ends a playing tour, and so does an outside `setCameraState`,
@@ -895,6 +898,7 @@ what a reader would see through the public API, uses `assert`, and waits on cond
         4. A tour whose first stop flies from an arbitrary current camera.
         5. Top, a 500 ms pause, Isometric.
         6. A 2D tour: Top, Fit, Top.
+        7. A 2D tour through turned cameras, with a pause and a turn across the half turn (3 to -3 rad).
     - The checks are what a slerp guarantees, judged against time, never against a mean step (the default
       easeInOut peaks at 3x its mean speed, and one slow frame on a loaded machine makes a large but correct
       step). For each flight from pose A to pose B, with q the pivot orientation per frame, `total` the quaternion

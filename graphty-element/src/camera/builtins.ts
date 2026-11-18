@@ -360,14 +360,8 @@ function topView(input: CameraViewInput): CameraState {
     }
 
     if (input.mode === "2d") {
-        // Flat drawing already looks straight down, so the only thing left to decide is where the
-        // centre of the frame is. The zoom stays at the element's neutral 1.0 rather than fitting,
-        // which is what distinguishes this view from fitToGraph in two dimensions.
-        return {
-            type: "orthographic",
-            zoom: 1,
-            pan: { x: center.x, y: center.y },
-        };
+        // A flat drawing already looks straight down: Top frames all of it, upright (no turn).
+        return { ...fitToGraph({ ...input, current: { ...input.current, rotation: 0 } }), rotation: 0 };
     }
 
     const distance = input.bounds.maxDimension * STRAIGHT_ON_DISTANCE;

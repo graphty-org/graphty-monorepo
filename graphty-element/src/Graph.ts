@@ -9430,11 +9430,6 @@ export class Graph implements GraphContext {
             return;
         }
 
-        // The turn is not animated: it is set at the start, so the pan and zoom glide in the turned view.
-        if (targetState.rotation !== undefined) {
-            controller.rotation = targetState.rotation;
-        }
-
         const twoDController = controller;
 
         const fps = 60;
@@ -9449,9 +9444,33 @@ export class Graph implements GraphContext {
             orthoRight: twoDController.camera.orthoRight ?? 1,
             orthoTop: twoDController.camera.orthoTop ?? 1,
             orthoBottom: twoDController.camera.orthoBottom ?? -1,
+            rotation: twoDController.rotation,
         };
 
         const animations: Animation[] = [];
+
+        // The turn glides on the same eased clock as the pan and zoom, the short way round.
+        if (targetState.rotation !== undefined) {
+            const delta = Math.atan2(
+                Math.sin(targetState.rotation - dummy.rotation),
+                Math.cos(targetState.rotation - dummy.rotation),
+            );
+            if (Math.abs(delta) > 1e-9) {
+                const rotationAnim = new Animation(
+                    "camera_rotation",
+                    "rotation",
+                    fps,
+                    Animation.ANIMATIONTYPE_FLOAT,
+                    Animation.ANIMATIONLOOPMODE_CONSTANT,
+                );
+                rotationAnim.setKeys([
+                    { frame: 0, value: dummy.rotation },
+                    { frame: frameCount, value: dummy.rotation + delta },
+                ]);
+                this.applyEasing(rotationAnim, options.easing);
+                animations.push(rotationAnim);
+            }
+        }
 
         // Animate zoom (ortho bounds)
         if (targetState.zoom !== undefined) {
@@ -9587,6 +9606,7 @@ export class Graph implements GraphContext {
                     twoDController.camera.orthoRight = dummy.orthoRight;
                     twoDController.camera.orthoTop = dummy.orthoTop;
                     twoDController.camera.orthoBottom = dummy.orthoBottom;
+                    twoDController.rotation = dummy.rotation;
                 },
                 undefined,
                 true,
@@ -9605,6 +9625,10 @@ export class Graph implements GraphContext {
                     twoDController.camera.orthoRight = dummy.orthoRight;
                     twoDController.camera.orthoTop = dummy.orthoTop;
                     twoDController.camera.orthoBottom = dummy.orthoBottom;
+                }
+
+                if (targetState.rotation !== undefined) {
+                    twoDController.rotation = targetState.rotation;
                 }
 
                 this.eventManager.emit("camera-state-changed", {

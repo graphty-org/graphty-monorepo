@@ -230,6 +230,38 @@ describe("the camera keys", () => {
         assert.deepEqual(holders.get("5"), ["view.toggle-dimension"]);
     });
 
+    it("in 2D, Top's key 7 frames every node of a graph far wider than ten units", async () => {
+        const { element, session } = await openRing();
+        const more = Array.from({ length: 18 }, (_, i) => `n${String(i)}`);
+        await session.data.addNodes(more.map((id) => ({ id })));
+        await userEvent.keyboard("5");
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "2d");
+        });
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        // Somewhere else first, so the key has to move the camera.
+        await element.setCameraState({ mode: "2d", zoom: 4, pan: { x: 30, y: -20 }, rotation: 0.5 });
+
+        await userEvent.keyboard("7");
+        await waitFor(() => {
+            const now = element.getCameraState();
+            assert.closeTo(now.zoom ?? Number.NaN, element.resolveCameraPreset("Top").zoom ?? Number.NaN, 1e-6);
+            assert.closeTo(now.rotation ?? Number.NaN, 0, 1e-9);
+        });
+        await element.waitForStableFrame();
+
+        const box = element.getBoundingClientRect();
+        for (const id of [...IDS, ...more]) {
+            const at = element.nodeScreenPosition(id);
+            assert.isTrue(at?.visible, `${id} is drawn on the canvas`);
+            assert.isTrue(
+                (at?.x ?? -1) >= 0 && (at?.x ?? -1) <= box.width && (at?.y ?? -1) >= 0 && (at?.y ?? -1) <= box.height,
+                `${id} is inside the view`,
+            );
+        }
+    });
+
     it("flies to the camera on a digit, does nothing on a free digit or while typing, and shows each key", async () => {
         const { element, session } = await openRing();
 

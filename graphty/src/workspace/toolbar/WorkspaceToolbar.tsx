@@ -272,7 +272,7 @@ function SavedViewRows(): React.JSX.Element {
 /**
  * The Camera menu: Fit and Frame selection; the four standard views, disabled with the element's
  * reason where they do not work; the saved views, Previous view, Next view, Save view and the
- * tours; zoom in and out in 2D; then the Auto-rotate and Follow selection switches.
+ * tours; zoom in and out in 2D; then the Auto-rotate and Focus selected switches.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -305,12 +305,7 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
                 checked={autoRotate && element?.isMotionReduced() !== true}
                 radio={false}
             />
-            <CheckItem
-                command="view.follow-selection"
-                label="Follow selection"
-                checked={followSelection}
-                radio={false}
-            />
+            <CheckItem command="view.follow-selection" label="Focus selected" checked={followSelection} radio={false} />
         </>
     );
 }

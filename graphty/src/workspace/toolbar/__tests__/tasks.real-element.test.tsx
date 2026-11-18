@@ -430,7 +430,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
-    it("saves the camera as a view, goes back to it, deletes it in the Views section, and turns Follow selection off", async () => {
+    it("saves the camera as a view, goes back to it, deletes it in the Views section, and turns Focus selected off", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
@@ -486,9 +486,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.deepEqual([...session.views.keys()], ["View 2"]);
         });
 
-        // Follow selection is on, and turning it off leaves the camera where it is on a pick.
+        // Focus selected is on, and turning it off leaves the camera where it is on a pick.
         await userEvent.keyboard("{Escape}");
-        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
         assert.equal(follow.getAttribute("aria-checked"), "true");
         await userEvent.click(follow);
         await waitFor(() => {
@@ -499,7 +499,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await session.selection.apply({ nodes: [session.data.nodes()[0].id] }, "replace", { cause: "user" });
         await element.waitForStableFrame();
         assert.deepEqual(element.getCameraState().target, before.target);
-        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
         assert.equal(off.getAttribute("aria-checked"), "false");
     });
 

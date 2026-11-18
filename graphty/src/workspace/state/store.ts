@@ -310,7 +310,7 @@ export interface WorkspaceState {
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
     /**
-     * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
+     * Camera > Focus selected: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
      */
     readonly followSelection: boolean;

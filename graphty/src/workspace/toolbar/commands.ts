@@ -292,7 +292,7 @@ export const registration = defineRegistration({
         },
         {
             id: "view.follow-selection",
-            label: "Follow selection",
+            label: "Focus selected",
             group: "View",
             disabled: ({ session }) => nothingDrawn(session),
             run: ({ workspace }) => {

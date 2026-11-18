@@ -90,7 +90,7 @@ whether motion is reduced now.
 | Views and tours...                      |  -> opens the Graph panel's Views section
 |-----------------------------------------|
 | [x] Auto-rotate                         |
-| [ ] Follow selection                    |
+| [ ] Focus selected                      |
 +-----------------------------------------+
 ```
 

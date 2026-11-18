@@ -93,6 +93,7 @@ import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
+import { orientationOf } from "./camera/orientation.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
 import {
@@ -9042,35 +9043,11 @@ export class Graph implements GraphContext {
             orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
         }
 
-        // Set pivot rotation if provided (for exact state restoration)
-        // Must use rotationQuaternion because PivotController initializes with quaternion
-        // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
-        if (state.pivotRotation) {
-            // Convert Euler angles to quaternion
-            const quat = Quaternion.RotationYawPitchRoll(
-                state.pivotRotation.y, // yaw
-                state.pivotRotation.x, // pitch
-                state.pivotRotation.z, // roll
-            );
-            orbitController.pivot.rotationQuaternion = quat;
-        } else if (state.position && state.target) {
-            // Calculate pivot rotation from position and target
-            // Camera should look from position towards target
-            const direction = new Vector3(
-                state.position.x - state.target.x,
-                state.position.y - state.target.y,
-                state.position.z - state.target.z,
-            );
-            const distance = direction.length();
-
-            // Calculate rotation angles to orient pivot so camera looks at target
-            // Add π to yaw because OrbitController's camera points in the opposite direction
-            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-            const pitch = Math.asin(direction.y / distance);
-
-            // Convert Euler angles to quaternion
-            const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
-            orbitController.pivot.rotationQuaternion = quat;
+        // The pivot is always turned through its quaternion: Babylon's Euler `rotation` is zeroed
+        // whenever `rotationQuaternion` is set, so it never says where the camera points.
+        const orientation = orientationOf(state);
+        if (orientation) {
+            orbitController.pivot.rotationQuaternion = orientation;
         }
 
         // Set camera distance if provided, floored the way every orbit distance is
@@ -9254,8 +9231,11 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Animate OrbitCameraController to target state
-     * Handles pivot-based camera system with custom distance animation
+     * Fly the orbit camera to a state: the pivot's position, its orientation and the camera
+     * distance move together on the scene's animation clock and end on the state exactly.
+     * The orientation turns from where the pivot really points, as a quaternion along the shortest
+     * arc: a flight that read the Euler `rotation` started from the front view whenever the camera
+     * had been placed by a cut, since a quaternion write zeroes the Euler angles.
      * @param targetState - Target camera state to animate to
      * @param options - Animation configuration options
      * @param signal - Optional abort signal to cancel animation
@@ -9274,13 +9254,14 @@ export class Graph implements GraphContext {
         }
 
         const orbitController = controller;
+        const { pivot } = orbitController;
 
         const fps = 60;
         const duration = options.duration ?? 1000;
-        const frameCount = Math.floor(duration / (1000 / fps));
-        const animations: Animation[] = [];
+        const frameCount = Math.round((duration * fps) / 1000);
+        const motions: Promise<void>[] = [];
 
-        // Animation 1: Pivot Position (target)
+        // Pivot position (target)
         if (targetState.target) {
             const posAnim = new Animation(
                 "pivot_position",
@@ -9289,201 +9270,122 @@ export class Graph implements GraphContext {
                 Animation.ANIMATIONTYPE_VECTOR3,
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
-
             posAnim.setKeys([
-                {
-                    frame: 0,
-                    value: orbitController.pivot.position.clone(),
-                },
+                { frame: 0, value: pivot.position.clone() },
                 {
                     frame: frameCount,
                     value: new Vector3(targetState.target.x, targetState.target.y, targetState.target.z),
                 },
             ]);
-
             this.applyEasing(posAnim, options.easing);
-            animations.push(posAnim);
+            motions.push(this.#playDirect(pivot, posAnim, frameCount, signal));
         }
 
-        // Animation 2: Pivot Rotation (view direction)
-        if (targetState.pivotRotation) {
-            const rotAnim = new Animation(
-                "pivot_rotation",
-                "rotation",
+        // Pivot orientation (view direction), slerped from the real current orientation
+        const endOrientation = orientationOf(targetState);
+        if (endOrientation) {
+            const start = pivot.rotationQuaternion ?? Quaternion.FromEulerVector(pivot.rotation);
+            const turn = { value: 0 };
+            const turnAnim = new Animation(
+                "pivot_turn",
+                "value",
                 fps,
-                Animation.ANIMATIONTYPE_VECTOR3,
+                Animation.ANIMATIONTYPE_FLOAT,
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
-
-            rotAnim.setKeys([
-                {
-                    frame: 0,
-                    value: orbitController.pivot.rotation.clone(),
-                },
-                {
-                    frame: frameCount,
-                    value: new Vector3(
-                        targetState.pivotRotation.x,
-                        targetState.pivotRotation.y,
-                        targetState.pivotRotation.z,
-                    ),
-                },
+            turnAnim.setKeys([
+                { frame: 0, value: 0 },
+                { frame: frameCount, value: 1 },
             ]);
-
-            this.applyEasing(rotAnim, options.easing);
-            animations.push(rotAnim);
-        } else if (targetState.position && targetState.target) {
-            // Calculate pivot rotation from position and target
-            const direction = new Vector3(
-                targetState.position.x - targetState.target.x,
-                targetState.position.y - targetState.target.y,
-                targetState.position.z - targetState.target.z,
-            );
-            const distance = direction.length();
-            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-            const pitch = Math.asin(direction.y / distance);
-
-            const rotAnim = new Animation(
-                "pivot_rotation",
-                "rotation",
-                fps,
-                Animation.ANIMATIONTYPE_VECTOR3,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-
-            rotAnim.setKeys([
-                {
-                    frame: 0,
-                    value: orbitController.pivot.rotation.clone(),
+            this.applyEasing(turnAnim, options.easing);
+            // First of the frame's observers, like the distance's: the passes before the frame read
+            // the camera where this frame draws it from (issue #5562).
+            const observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    pivot.rotationQuaternion = Quaternion.Slerp(start, endOrientation, turn.value);
+                    orbitController.updateCameraPosition();
                 },
-                {
-                    frame: frameCount,
-                    value: new Vector3(pitch, yaw, 0),
+                undefined,
+                true,
+            );
+            motions.push(
+                this.#playDirect(turn, turnAnim, frameCount, signal).finally(() => {
+                    this.scene.onBeforeRenderObservable.remove(observer);
+                }),
+            );
+        }
+
+        // Camera distance
+        const requestedDistance =
+            targetState.cameraDistance ??
+            (targetState.position && targetState.target
+                ? Math.hypot(
+                      targetState.position.x - targetState.target.x,
+                      targetState.position.y - targetState.target.y,
+                      targetState.position.z - targetState.target.z,
+                  )
+                : undefined);
+        if (requestedDistance !== undefined) {
+            motions.push(
+                this.animateCameraDistance(orbitController, requestedDistance, frameCount, fps, options.easing, signal),
+            );
+        }
+
+        if (motions.length === 0) {
+            return;
+        }
+
+        await Promise.all(motions);
+
+        // A cancelled flight's target is not the camera's now.
+        if (signal?.aborted === true) {
+            return;
+        }
+
+        // End on the state exactly, once all three motions are over.
+        if (targetState.target) {
+            pivot.position.set(targetState.target.x, targetState.target.y, targetState.target.z);
+        }
+
+        if (endOrientation) {
+            pivot.rotationQuaternion = endOrientation;
+        }
+
+        pivot.computeWorldMatrix(true);
+        orbitController.updateCameraPosition();
+
+        this.eventManager.emit("camera-state-changed", {
+            state: targetState,
+        });
+    }
+
+    /**
+     * Play one animation on a target until it ends or `signal` aborts it.
+     * @param target - What the animation writes to.
+     * @param animation - The animation.
+     * @param frameCount - Its last frame.
+     * @param signal - Stops it where it stands.
+     * @returns Settles when it has ended or been stopped.
+     */
+    #playDirect(target: object, animation: Animation, frameCount: number, signal?: AbortSignal): Promise<void> {
+        return new Promise((resolve) => {
+            if (signal?.aborted === true) {
+                resolve();
+                return;
+            }
+
+            const animatable = this.scene.beginDirectAnimation(target, [animation], 0, frameCount, false, 1, () => {
+                resolve();
+            });
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    animatable.stop();
+                    resolve();
                 },
-            ]);
-
-            this.applyEasing(rotAnim, options.easing);
-            animations.push(rotAnim);
-        }
-
-        // Animation 3: Camera Distance (custom property)
-        let distanceAnimation: Promise<void> | undefined;
-        if (targetState.cameraDistance !== undefined) {
-            distanceAnimation = this.animateCameraDistance(
-                orbitController,
-                targetState.cameraDistance,
-                frameCount,
-                fps,
-                options.easing,
-                signal,
+                { once: true },
             );
-        } else if (targetState.position && targetState.target) {
-            // Calculate distance from position to target
-            const dx = targetState.position.x - targetState.target.x;
-            const dy = targetState.position.y - targetState.target.y;
-            const dz = targetState.position.z - targetState.target.z;
-            const calculatedDistance = Math.hypot(dx, dy, dz);
-            distanceAnimation = this.animateCameraDistance(
-                orbitController,
-                calculatedDistance,
-                frameCount,
-                fps,
-                options.easing,
-                signal,
-            );
-        }
-
-        // Apply animations to pivot
-        if (animations.length > 0) {
-            orbitController.pivot.animations = animations;
-
-            await new Promise<void>((resolve) => {
-                let settled = false;
-
-                const safeSettle = (): void => {
-                    if (!settled) {
-                        settled = true;
-                        resolve();
-                    }
-                };
-
-                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1, () => {
-                    // Wait for distance animation to complete
-                    const finalize = async (): Promise<void> => {
-                        if (distanceAnimation) {
-                            await distanceAnimation;
-                        }
-
-                        // Stopping a cancelled animation raises this too; its target is not the camera's now.
-                        if (signal?.aborted === true) {
-                            safeSettle();
-                            return;
-                        }
-
-                        // Ensure final state is applied exactly
-                        if (targetState.target) {
-                            orbitController.pivot.position.set(
-                                targetState.target.x,
-                                targetState.target.y,
-                                targetState.target.z,
-                            );
-                        }
-
-                        if (targetState.pivotRotation) {
-                            orbitController.pivot.rotation.set(
-                                targetState.pivotRotation.x,
-                                targetState.pivotRotation.y,
-                                targetState.pivotRotation.z,
-                            );
-                        } else if (targetState.position && targetState.target) {
-                            const direction = new Vector3(
-                                targetState.position.x - targetState.target.x,
-                                targetState.position.y - targetState.target.y,
-                                targetState.position.z - targetState.target.z,
-                            );
-                            const distance = direction.length();
-                            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-                            const pitch = Math.asin(direction.y / distance);
-                            orbitController.pivot.rotation.set(pitch, yaw, 0);
-                        }
-
-                        orbitController.pivot.computeWorldMatrix(true);
-                        orbitController.updateCameraPosition();
-
-                        // Emit completion event
-                        this.eventManager.emit("camera-state-changed", {
-                            state: targetState,
-                        });
-
-                        safeSettle();
-                    };
-
-                    void finalize();
-                });
-
-                // Handle cancellation via AbortSignal - just resolve (don't reject)
-                // to avoid unhandled promise rejections during cleanup
-                if (signal) {
-                    signal.addEventListener(
-                        "abort",
-                        () => {
-                            // Stop the animation
-                            this.scene.stopAnimation(orbitController.pivot);
-                            // Resolve instead of reject to prevent unhandled rejection during cleanup
-                            // The operation queue will handle the abort signal separately
-                            safeSettle();
-                        },
-                        { once: true },
-                    );
-                }
-            });
-        } else if (distanceAnimation) {
-            // Only distance animation
-            await distanceAnimation;
-            this.eventManager.emit("camera-state-changed", {
-                state: targetState,
-            });
-        }
+        });
     }
 
     /**
@@ -9513,7 +9415,7 @@ export class Graph implements GraphContext {
 
         const fps = 60;
         const duration = options.duration ?? 1000;
-        const frameCount = Math.floor(duration / (1000 / fps));
+        const frameCount = Math.round((duration * fps) / 1000);
 
         // Create dummy object to animate camera properties
         const dummy = {

@@ -72,6 +72,10 @@ export class MediaRecorderCapture {
     private isCancelled = false;
     /** Stored reject callback for cancellation - cleared after use */
     private cancelReject: ((error: Error) => void) | null = null;
+    /** A failure that came before the recorder existed: the recording starts failed. */
+    private pendingFailure: "cancelled" | RecordingFailure | null = null;
+    /** Set once the recording has settled: a failure after it fails nothing. */
+    private settled = false;
 
     /**
      * Creates a new MediaRecorderCapture instance
@@ -165,6 +169,33 @@ export class MediaRecorderCapture {
         onProgress?: (progress: number) => void,
         control: RecordingControl = {},
     ): Promise<AnimationResult> {
+        try {
+            return await this.record(canvas, options, onProgress, control);
+        } finally {
+            this.settled = true;
+        }
+    }
+
+    /**
+     * Record, as `captureRealtime` describes.
+     * @param canvas - The canvas.
+     * @param options - The options.
+     * @param onProgress - Progress, 0 to 100.
+     * @param control - The caller's timing.
+     * @returns The recording.
+     */
+    private async record(
+        canvas: HTMLCanvasElement,
+        options: AnimationOptions,
+        onProgress: ((progress: number) => void) | undefined,
+        control: RecordingControl,
+    ): Promise<AnimationResult> {
+        // Failed or cancelled while the caller was still getting ready (placing stop 0).
+        const failed = this.pendingFailure;
+        if (failed !== null) {
+            throw failed === "cancelled" ? new AnimationCancelledError() : recordingFailure(failed);
+        }
+
         // Reset cancellation state for new capture
         this.isCancelled = false;
         this.cancelReject = null;
@@ -401,12 +432,18 @@ export class MediaRecorderCapture {
      * 3. Reject synchronously, before onstop can run
      * 4. Clear state, so nothing handles it twice
      * @param reason - `"cancelled"`, or why the recording failed.
+     * Before the recorder exists, the failure is kept and the recording rejects with it when it
+     * starts.
      * @returns True if a capture was failed, false if none was in progress.
      */
     fail(reason: "cancelled" | RecordingFailure): boolean {
         const recorder = this.activeRecorder;
         if (!recorder) {
-            return false;
+            if (this.settled || this.pendingFailure !== null) {
+                return false;
+            }
+            this.pendingFailure = reason;
+            return true;
         }
 
         this.isCancelled = true;

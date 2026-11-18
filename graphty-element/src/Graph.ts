@@ -2152,6 +2152,10 @@ export class Graph implements GraphContext {
         // rather than running against the store and session this is about to dispose.
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
 
+        // A tour's holds and an untimed recording count drawn frames, which stop now: end both.
+        this.#endTour("cancelled");
+        this.cancelAnimationCapture();
+
         // XR listens on the page's navigator.xr, which outlives this graph: a listener left there
         // when the element leaves the page (which shuts the graph down without disposing it) keeps
         // the whole graph, its scene and its data alive for the life of the page.
@@ -8265,10 +8269,21 @@ export class Graph implements GraphContext {
         } finally {
             stopClock();
             handle.onEnd = undefined;
-            // The camera goes back, unless the reader, another camera move or a mode switch took it.
+            // The camera goes back, unless the reader, another camera move or a mode switch took it,
+            // or the graph is gone.
             const { reason } = handle;
-            if (reason !== "interrupted" && reason !== "replaced" && reason !== "mode-changed") {
+            if (
+                reason !== "interrupted" &&
+                reason !== "replaced" &&
+                reason !== "mode-changed" &&
+                !this.#teardown.signal.aborted
+            ) {
                 await this.#applyTourCamera(before, 0);
+                // Placing the camera marks it placed and stops the element's framing: a tour that
+                // has already ended (cancelCameraAnimation) put those back before, so again now.
+                if (handle.ended) {
+                    handle.restore();
+                }
             }
             // A recording that ended before its tour (a shorter duration, a failure) cancels it.
             this.#finishTour(handle, tourFinished ? "finished" : "cancelled");

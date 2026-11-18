@@ -241,6 +241,47 @@ describe("recording a tour", () => {
         assert.isFalse(standsAt(graph, POSE_A), "a cancelled recording puts the camera back");
     });
 
+    test("an abort or a tour ending while stop 0 is placed, before the recorder exists, still ends the recording", async () => {
+        const controller = new AbortController();
+        // Stop 0 is placed before the recorder is made; its camera change is that moment.
+        const offAbort = graph.on("camera-state-changed", () => {
+            offAbort();
+            controller.abort();
+        });
+        const aborted = refusalOf(
+            graph.captureAnimation({ tour: [{ view: "a", hold: FOREVER }], signal: controller.signal }),
+        );
+        assert.strictEqual((await aborted)?.code, "E_CANCELLED");
+
+        const offCancel = graph.on("camera-state-changed", () => {
+            offCancel();
+            graph.cancelCameraAnimation();
+        });
+        const ended = refusalOf(graph.captureAnimation({ tour: [{ view: "a", hold: FOREVER }] }));
+        assert.strictEqual((await ended)?.code, "E_CANCELLED");
+    });
+
+    test("cancelCameraAnimation cancels a recording and leaves the element's framing as before the tour", async () => {
+        const placed = graph.isCameraPlaced();
+        const framing = graph.getUpdateManager().isZoomToFitEnabled();
+        const holding = reaches(graph, 0, "hold");
+        const recording = refusalOf(graph.captureAnimation({ tour: [{ view: "a", hold: FOREVER }] }));
+        await holding;
+        graph.cancelCameraAnimation();
+        assert.strictEqual((await recording)?.code, "E_CANCELLED");
+        assert.isFalse(standsAt(graph, POSE_A), "the camera is put back");
+        assert.strictEqual(graph.isCameraPlaced(), placed, "putting the camera back is not a placement");
+        assert.strictEqual(graph.getUpdateManager().isZoomToFitEnabled(), framing, "the framing is as before");
+    });
+
+    test("shutting the graph down cancels a recording without a duration", async () => {
+        const holding = reaches(graph, 0, "hold");
+        const recording = refusalOf(graph.captureAnimation({ tour: [{ view: "a", hold: FOREVER }] }));
+        await holding;
+        graph.shutdown();
+        assert.strictEqual((await recording)?.code, "E_CANCELLED");
+    });
+
     test("conflicting and missing options, and an empty tour, are refused with their codes", async () => {
         assert.deepStrictEqual(await refusalOf(graph.captureAnimation({ tour: "walk", cameraPath: [{ view: "a" }] })), {
             code: "E_BAD_COMMAND",

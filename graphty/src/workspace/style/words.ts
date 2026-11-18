@@ -2035,6 +2035,26 @@ function sizeNumber(value: number): string {
     return String(Number(value.toPrecision(3)));
 }
 
+/** The units a model file may name, by meters per unit. */
+const UNIT_WORDS: readonly (readonly [number, string])[] = [
+    [1, "Meters"],
+    [0.01, "Centimeters"],
+    [0.001, "Millimeters"],
+    [0.0254, "Inches"],
+    [0.3048, "Feet"],
+    [1000, "Kilometers"],
+];
+
+/**
+ * A model file's unit in a reader's words: "Centimeters", or "0.05 m" for one with no name.
+ * @param metersPerUnit - from the summary.
+ * @returns the words.
+ */
+function unitWords(metersPerUnit: number): string {
+    const named = UNIT_WORDS.find(([meters]) => Math.abs(meters - metersPerUnit) <= meters * 1e-6);
+    return named?.[1] ?? `${sizeNumber(metersPerUnit)} m`;
+}
+
 export const CUSTOM_MODEL = {
     title: "Load custom model",
     button: "Add custom model...",
@@ -2213,6 +2233,7 @@ export const CUSTOM_MODEL = {
             "Size",
             bounds === undefined ? "" : [0, 1, 2].map((i) => sizeNumber(bounds.max[i] - bounds.min[i])).join(" x "),
         );
+        add(summary.metersPerUnit !== undefined, "Units", unitWords(summary.metersPerUnit ?? 1));
         add(summary.extensionsRequired.length > 0, "Extensions required", summary.extensionsRequired.join(", "));
         add(ignored.length > 0, "Extensions ignored", ignored.join(", "));
         return rows;

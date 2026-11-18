@@ -126,6 +126,9 @@ const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
     delayLoad: "meshes kept in other files",
     ply: "PLY data damaged",
     babylon: ".babylon data damaged",
+    fbx: "FBX data damaged",
+    usd: "USD data damaged",
+    usdz: "USDZ package damaged",
 };
 
 /**

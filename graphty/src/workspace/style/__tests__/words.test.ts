@@ -258,6 +258,36 @@ describe("model variant words", () => {
         );
     });
 
+    it("names an FBX or USD file's units, by name when they have one", () => {
+        const units = (metersPerUnit: number): string | undefined =>
+            CUSTOM_MODEL.detailRows(
+                {
+                    format: "fbx",
+                    encoding: "binary",
+                    triangles: 12,
+                    meshes: 1,
+                    materials: [],
+                    textures: 0,
+                    textureBytes: 0,
+                    upAxis: "y",
+                    animations: [],
+                    pictures: [],
+                    skinned: false,
+                    morphTargets: 0,
+                    transparent: false,
+                    extensionsRequired: [],
+                    metersPerUnit,
+                },
+                undefined,
+            ).find((row) => row.name === "Units")?.value;
+        assert.equal(units(0.01), "Centimeters");
+        assert.equal(units(1), "Meters");
+        assert.equal(units(0.0254), "Inches");
+        assert.equal(units(0.05), "0.05 m");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "fbx", encoding: "ascii" }), "FBX, ASCII");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "usdz" }), "USDZ");
+    });
+
     it("lists clips with their lengths, and the extensions drawn without", () => {
         const rows = CUSTOM_MODEL.detailRows(
             {

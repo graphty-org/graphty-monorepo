@@ -128,7 +128,14 @@ export default defineConfig(({ mode }) => {
         // everything they can load is optimized at startup. Dev server only.
         optimizeDeps: {
             entries: ["index.html", "../graphty-element/src/**/*.ts", "!**/*.d.ts", "!**/*.test.ts"],
-            include: ["encrypt-storage"],
+            // babylonjs-models imports Babylon's FBX, USD and BVH loaders when such a model first loads.
+            include: [
+                "encrypt-storage",
+                "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
+                "@babylonjs/loaders/USD/usdFileLoader.pure.js",
+                "@babylonjs/loaders/BVH/bvhFileLoader.pure.js",
+                "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
+            ],
         },
         server: {
             host: true,

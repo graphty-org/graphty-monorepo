@@ -12,6 +12,7 @@ import type { BrowserCommand } from "vitest/node";
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { rawModelWorkers } from "../tools/vite-raw-model-workers.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { withBabylonCompilers } from "../vitest.babylon-compilers.mjs";
 import { baseTest } from "../vitest.base.mjs";
@@ -255,7 +256,7 @@ const realElementProject = (
 });
 
 const config = defineConfig({
-    plugins: [react(), sampleDataPlugin(), ...elementSourcePlugins],
+    plugins: [react(), sampleDataPlugin(), ...elementSourcePlugins, rawModelWorkers()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
@@ -271,7 +272,16 @@ const config = defineConfig({
         // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
         // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
         // must never fetch a missing path from the test server; stub fetch instead.
-        include: ["@mantine/hooks", "react-dom/client", "eruda"],
+        // The FBX, USD and BVH loaders babylonjs-models imports when such a model first loads, too.
+        include: [
+            "@mantine/hooks",
+            "react-dom/client",
+            "eruda",
+            "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
+            "@babylonjs/loaders/USD/usdFileLoader.pure.js",
+            "@babylonjs/loaders/BVH/bvhFileLoader.pure.js",
+            "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
+        ],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
         // bundle under node_modules/.vite and trusts it while the lockfile and this config are
         // unchanged -- it does not notice a SOURCE change that imports a dependency the cache

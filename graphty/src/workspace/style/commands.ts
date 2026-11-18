@@ -106,7 +106,7 @@ export const registration = defineRegistration({
             label: CUSTOM_MODEL.button,
             group: "Project",
             description: CUSTOM_MODEL.description,
-            keywords: ["model", "3d", "glb", "gltf", "obj", "stl", "upload", "file"],
+            keywords: ["model", "3d", "glb", "gltf", "obj", "stl", "fbx", "usd", "usdz", "upload", "file"],
             experiment: true,
             feature: "node-models",
             shown: ({ session }) => nodeModelsOn(session),

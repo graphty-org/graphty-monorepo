@@ -47,6 +47,10 @@ interface LayerFacts {
     skeletons: number;
     blendShapes: number;
     animated: boolean;
+    /** A mesh carries a `primvars:displayColor` other than white, which Babylon draws as vertex colors. */
+    vertexColors: boolean;
+    /** A surface's `inputs:opacity` or a mesh's `primvars:displayOpacity` is below 1. */
+    transparent: boolean;
     /** Picture asset paths, with the materials that draw them. */
     readonly pictures: Map<string, Set<string>>;
     readonly min: [number, number, number];
@@ -72,6 +76,8 @@ function noFacts(): LayerFacts {
         skeletons: 0,
         blendShapes: 0,
         animated: false,
+        vertexColors: false,
+        transparent: false,
         pictures: new Map(),
         min: [Infinity, Infinity, Infinity],
         max: [-Infinity, -Infinity, -Infinity],
@@ -194,6 +200,11 @@ function crateAttribute(crate: Crate, spec: CrateSpec, types: ReadonlyMap<string
         facts.triangles += trianglesOf(crate.numbers(value) ?? []);
     } else if (name === "points" && mesh) {
         bound(facts, crate.numbers(value) ?? []);
+    } else if (name === "primvars:displayColor" && mesh) {
+        // White draws as no color at all (graphty-element drops all-white vertex colors).
+        facts.vertexColors ||= Array.from(crate.numbers(value) ?? []).some((v) => v !== 1);
+    } else if (name === "primvars:displayOpacity" || name === "inputs:opacity") {
+        facts.transparent ||= Array.from(crate.numbers(value) ?? [crate.number(value) ?? 1]).some((v) => v < 1);
     } else if (name === "inputs:file") {
         const ref = crate.text(value);
         if (ref !== undefined && PICTURE.test(ref)) {
@@ -329,6 +340,13 @@ function usdaFacts(text: string): LayerFacts {
     }
     for (const match of text.matchAll(/\bpoints\s*=\s*\[([^\]]*)\]/g)) {
         bound(facts, numbersIn(match[1]));
+    }
+    // ponytail: any displayColor counts, not only a mesh's; a prim of another type rarely has one.
+    for (const match of text.matchAll(/\bprimvars:displayColor\s*=\s*\[([^\]]*)\]/g)) {
+        facts.vertexColors ||= numbersIn(match[1]).some((v) => v !== 1);
+    }
+    for (const match of text.matchAll(/\b(?:primvars:displayOpacity|inputs:opacity)\s*=\s*\[?([^\]\n]*)/g)) {
+        facts.transparent ||= numbersIn(match[1]).some((v) => v < 1);
     }
     for (const match of text.matchAll(/@([^@\n]+)@/g)) {
         if (LAYER.test(match[1]) || PICTURE.test(match[1])) {
@@ -605,9 +623,10 @@ export function scanUsd(
             pictures: Object.freeze(pictures),
             skinned: sum("skeletons") > 0,
             morphTargets: sum("blendShapes"),
-            transparent: false,
+            transparent: all.some((f) => f.transparent),
             extensionsRequired: Object.freeze([]),
             geometry: "mesh",
+            ...(all.some((f) => f.vertexColors) ? { vertexColors: true } : {}),
             ...(format === "usd" ? { encoding: binary ? "binary" : "ascii" } : {}),
             metersPerUnit: root.metersPerUnit !== undefined && root.metersPerUnit > 0 ? root.metersPerUnit : 0.01,
         }),
@@ -616,32 +635,4 @@ export function scanUsd(
                 ? [{ code: "W_MODEL_HAS_ANIMATIONS", params: { clips: animations.map((a) => a.name) } }]
                 : [],
     };
-}
-
-/**
- * The materials that draw any of some pictures, for a load that draws without them.
- * @param root - The root layer's path.
- * @param files - The set, a USDZ's entries already unpacked.
- * @param pictures - The pictures, by path in the set.
- * @param limits - The limits in force.
- * @returns The materials' names.
- */
-export function usdMaterialsDrawing(
-    root: string,
-    files: ReadonlyMap<string, Uint8Array>,
-    pictures: readonly string[],
-    limits: ModelLimits,
-): Set<string> {
-    const gone = new Set(pictures.map((p) => p.toLowerCase()));
-    const out = new Set<string>();
-    const scratch: Findings = { warnings: [], missing: [] };
-    for (const [layer, facts] of walk(root, files, limits, scratch).layers) {
-        for (const [ref, using] of facts.pictures) {
-            const found = findReference(ref, layer, files, "texture", { warnings: [], missing: [] });
-            if (found !== undefined && gone.has(found.path.toLowerCase())) {
-                using.forEach((m) => out.add(m));
-            }
-        }
-    }
-    return out;
 }

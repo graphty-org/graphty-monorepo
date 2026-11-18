@@ -89,6 +89,70 @@ export function takeOffByName(container: AssetContainer, names: readonly string[
     }
 }
 
+/** A PBR material's picture slots, as Babylon's USD loader fills them. */
+const USD_SLOTS = [
+    "albedoTexture",
+    "emissiveTexture",
+    "bumpTexture",
+    "metallicTexture",
+    "microSurfaceTexture",
+    "ambientTexture",
+    "opacityTexture",
+] as const;
+
+/**
+ * After a USD load: take every white stand-in for a picture drawn without off every slot it
+ * fills, so the part draws in its plain look. Babylon names a picture's texture by its file name,
+ * and a picture it had to scale or bias first is a new 1 x 1 texture (the stand-in's size). A part
+ * that lost its color picture is marked; one that lost its glow picture stops glowing (the glow's
+ * color was the picture's scale, white for the SoC-ElephantWithMonochord's emission map).
+ * @param container - The loaded model.
+ * @param gone - The pictures drawn without, by path in the set.
+ */
+export function takeOffUsdPictures(container: AssetContainer, gone: readonly string[]): void {
+    // ponytail: matched by file name, so a kept picture with the same name in another folder is
+    // taken off too; match by path once Babylon names a USD texture by its resolved path.
+    const names = new Set(gone.map((path) => baseName(path)));
+    if (names.size === 0) {
+        return;
+    }
+
+    const standIns = new Set(container.textures.filter((t) => names.has(baseName(t.name))));
+    const isStandIn = (texture: BaseTexture): boolean => {
+        if (standIns.has(texture)) {
+            return true;
+        }
+        const size = texture.getSize();
+        return !("url" in texture && texture.url) && standIns.size > 0 && size.width === 1 && size.height === 1;
+    };
+    for (const material of container.materials) {
+        if (!(material instanceof PBRMaterial)) {
+            continue;
+        }
+        for (const slot of USD_SLOTS) {
+            const texture = material[slot];
+            if (texture === null || !isStandIn(texture)) {
+                continue;
+            }
+            material[slot] = null;
+            if (slot === "albedoTexture") {
+                markWithoutPicture(material);
+            } else if (slot === "emissiveTexture") {
+                material.emissiveColor.set(0, 0, 0);
+            }
+        }
+    }
+}
+
+/**
+ * A path's last part, lowercased.
+ * @param path - The path.
+ * @returns Its file name.
+ */
+function baseName(path: string): string {
+    return path.slice(path.lastIndexOf("/") + 1).toLowerCase();
+}
+
 /**
  * A picture's path in the set, lowercased, from its URL under the load's root.
  * @param url - The picture's URL.

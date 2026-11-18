@@ -103,8 +103,8 @@
         "meshoptimizer": "^1.3.0"
     },
     "peerDependencies": {
-        "@babylonjs/core": "^9.0.0",
-        "@babylonjs/loaders": "^9.0.0"
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "^9.37.0"
     },
     "peerDependenciesMeta": {
         "@babylonjs/core": {

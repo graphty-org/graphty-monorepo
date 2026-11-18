@@ -193,6 +193,24 @@ function placeAt(data: VertexData, world: Matrix): VertexData {
 }
 
 /**
+ * Vertex data with all-white vertex colors dropped. White vertex colors (a USD exporter's default
+ * `displayColor`, SoC-ElephantWithMonochord) change nothing a material draws and state no color:
+ * without them the part can still take the node's color once its pictures are gone.
+ * @param data - The vertex data, changed in place.
+ * @returns The same data.
+ */
+function withoutWhiteColors(data: VertexData): VertexData {
+    const colors = data.colors ?? [];
+    for (let i = 0; i < colors.length; i++) {
+        if (colors[i] !== 1) {
+            return data;
+        }
+    }
+    data.colors = null;
+    return data;
+}
+
+/**
  * Bake every drawable part of the container into world-space vertex data, turned upright.
  * @param container - The loaded model.
  * @param turn - The orientation to bake in.
@@ -206,7 +224,7 @@ function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): 
             continue;
         }
 
-        const data = restPose(mesh);
+        const data = withoutWhiteColors(restPose(mesh));
         const { material } = mesh;
         const signature = [data.uvs, data.uvs2, data.colors, data.tangents].map((a) => (a ? 1 : 0)).join("");
         const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
@@ -216,7 +234,8 @@ function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): 
         // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
         const instances = mesh.thinInstanceGetWorldMatrices();
         // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) is drawn still; give each copy a bone if a file animates one.
-        const movable = animated && instances.length === 0 ? { mesh, local: ownVertices(mesh) } : {};
+        const movable =
+            animated && instances.length === 0 ? { mesh, local: withoutWhiteColors(ownVertices(mesh)) } : {};
         for (const instance of instances.length === 0 ? [Matrix.Identity()] : instances) {
             const copy = instances.length > 1 ? data.clone() : data;
             parts.push({ vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable });
@@ -478,7 +497,8 @@ function picturesAllGone(groups: ReadonlyMap<string, Part[]>): boolean {
  * @param gray - Whether the whole model states no color of its own (`allPlainGray`) and no layer
  *   set `node.modelTint` to false.
  * @param options - The template options.
- * @param flat - The template's flat material, made on first use.
+ * @param flat - The template's flat material, made on first use, two-sided for a part whose own
+ *   material draws both sides (a thin strip seen from behind vanished in a one-sided one).
  * @param bare - Whether every picture that colored the model is gone (`picturesAllGone`) and no
  *   layer set `node.modelTint` to false: every part takes the node's color, a see-through one
  *   keeping its own see-through material.
@@ -489,17 +509,18 @@ function lookOf(
     colored: boolean,
     gray: boolean,
     options: TemplateOptions,
-    flat: () => PBRMaterial,
+    flat: (twoSided: boolean) => PBRMaterial,
     bare = false,
 ): { material: Material; follows: boolean } {
+    const { material } = first;
+    const twoSided = material?.backFaceCulling === false;
     if (options.replace) {
-        return { material: flat(), follows: true };
+        return { material: flat(twoSided), follows: true };
     }
 
-    const { material } = first;
     if (colored) {
         // Vertex colors state the part's color; with no material they draw in the flat one.
-        return { material: material ?? flat(), follows: false };
+        return { material: material ?? flat(false), follows: false };
     }
 
     if (
@@ -511,7 +532,7 @@ function lookOf(
         (bare && material.alpha >= 1) ||
         (options.untextured === true && !hasPicture(material))
     ) {
-        return { material: flat(), follows: true };
+        return { material: flat(twoSided), follows: true };
     }
 
     if (bare) {
@@ -536,7 +557,7 @@ function lookOf(
  * @param name - A name for the template's meshes.
  * @param groups - The parts by group key.
  * @param options - The template options.
- * @param flat - The template's flat material, made on first use.
+ * @param flat - The template's flat material, made on first use, one-sided or two-sided.
  * @param made - Where each material and mesh goes as it is made, and the groups that follow the
  *   node's color.
  */
@@ -545,7 +566,7 @@ function mergeGroups(
     name: string,
     groups: ReadonlyMap<string, Part[]>,
     options: TemplateOptions,
-    flat: () => PBRMaterial,
+    flat: (twoSided: boolean) => PBRMaterial,
     made: Made,
 ): void {
     const { used, meshes, follows } = made;
@@ -839,17 +860,21 @@ async function build(
     const animation =
         options.animated === true ? bakeAnimation(scene, container, parts, turn.multiply(fit.matrix), name) : null;
     made.animation = animation;
-    let flatMaterial: PBRMaterial | null = null;
-    const flat = (): PBRMaterial => {
-        if (flatMaterial === null) {
-            flatMaterial = new PBRMaterial(`${name}-flat`, scene);
-            used.add(flatMaterial);
-            flatMaterial.albedoColor = Color3.White();
-            flatMaterial.metallic = 0;
-            flatMaterial.roughness = 1;
+    const flatMaterials = new Map<boolean, PBRMaterial>();
+    const flat = (twoSided: boolean): PBRMaterial => {
+        let material = flatMaterials.get(twoSided);
+        if (material === undefined) {
+            material = new PBRMaterial(`${name}-flat${twoSided ? "-two-sided" : ""}`, scene);
+            used.add(material);
+            material.albedoColor = Color3.White();
+            material.metallic = 0;
+            material.roughness = 1;
+            material.backFaceCulling = !twoSided;
+            material.twoSidedLighting = twoSided;
+            flatMaterials.set(twoSided, material);
         }
 
-        return flatMaterial;
+        return material;
     };
 
     mergeGroups(scene, name, groups, options, flat, made);

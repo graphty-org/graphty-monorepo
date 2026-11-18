@@ -31,11 +31,11 @@ import type {
     ModelSource,
     ModelSummary,
 } from "../files/types.js";
-import { readUsdz, usdMaterialsDrawing } from "../files/usdChecks.js";
+import { readUsdz } from "../files/usdChecks.js";
 import { bvhFigure } from "./bvhFigure.js";
 import { loadBabylonModel, type LoaderOptions, loadOwnModel, type ModelExtension, type OwnFormat } from "./loaders.js";
 import { guardRequests, REFUSED } from "./requestGuard.js";
-import { markWithoutPictures, takeOffByName } from "./withoutPicture.js";
+import { markWithoutPictures, takeOffByName, takeOffUsdPictures } from "./withoutPicture.js";
 
 /** Which reader draws each built-in format: one of Babylon's loaders, or the element's own. */
 const READERS: Readonly<Record<BuiltInModelFormat, ModelExtension | OwnFormat>> = {
@@ -578,13 +578,13 @@ function fbxFiles(
 
 /**
  * A USD model's set as OpenUSD reads it, as virtual files: a USDZ's entries unpacked (its first
- * is the root layer), and every picture drawn without left out, so its material draws in its
- * plain color. The materials that lose a picture are added to `lost`.
+ * is the root layer), and every picture drawn without swapped for a 1 x 1 white stand-in, taken
+ * off once loaded. A picture OpenUSD cannot find is not a plain color: the parts whose material
+ * reads it are not drawn at all (RoughnessTest.usdz without its roughness picture drew nothing).
  * @param files - The set.
  * @param main - The main file's path.
  * @param format - `usd` or `usdz`.
  * @param gone - Pictures drawn without, by path.
- * @param lost - Where the names of the materials that lose a picture go.
  * @returns The set to load and its root layer.
  */
 function usdFiles(
@@ -592,7 +592,6 @@ function usdFiles(
     main: string,
     format: "usd" | "usdz",
     gone: readonly string[],
-    lost: Set<string>,
 ): { files: ReadonlyMap<string, Uint8Array>; main: string } {
     let set = files;
     let root = main;
@@ -601,23 +600,39 @@ function usdFiles(
         [root] = set.keys();
     }
 
-    for (const name of usdMaterialsDrawing(root, set, gone, DEFAULT_MODEL_LIMITS)) {
-        lost.add(name);
+    const out = new Map(set);
+    const left = new Set(gone.map((g) => g.toLowerCase()));
+    for (const path of out.keys()) {
+        if (path !== root && left.has(path.toLowerCase())) {
+            out.set(path, WHITE_PNG);
+        }
+    }
+    // A skipped picture is not in the set at all: its stand-in takes its place.
+    for (const path of gone) {
+        if (![...out.keys()].some((p) => p.toLowerCase() === path.toLowerCase())) {
+            out.set(path, WHITE_PNG);
+        }
     }
 
-    const left = new Set(gone.map((g) => g.toLowerCase()));
-    return { files: new Map([...set].filter(([path]) => path === root || !left.has(path.toLowerCase()))), main: root };
+    return { files: out, main: root };
 }
 
 /**
  * What a format's loaded container still needs: an OBJ's faces drawn as faces, an FBX file's
  * curves as tubes and its embedded pictures drawn without taken off (they are named by their
- * file's base name, as the loader names them), a BVH file's skeleton drawn as a figure.
+ * file's base name, as the loader names them), a BVH file's skeleton drawn as a figure, a USD
+ * model's stand-ins for its pictures drawn without taken off.
  * @param container - The loaded model.
  * @param format - Its format.
  * @param hidden - Pictures drawn without.
+ * @param gone - Pictures drawn without and parts skipped, by path in the set.
  */
-async function finish(container: AssetContainer, format: ModelFormat, hidden: readonly string[]): Promise<void> {
+async function finish(
+    container: AssetContainer,
+    format: ModelFormat,
+    hidden: readonly string[],
+    gone: readonly string[],
+): Promise<void> {
     if (format === "obj") {
         facesNotPoints(container);
     } else if (format === "fbx") {
@@ -625,6 +640,8 @@ async function finish(container: AssetContainer, format: ModelFormat, hidden: re
         takeOffByName(container, hidden);
     } else if (format === "bvh") {
         bvhFigure(container);
+    } else if (format === "usd" || format === "usdz") {
+        takeOffUsdPictures(container, gone);
     }
 }
 
@@ -683,7 +700,7 @@ export async function loadModelFiles(
     if (format === "fbx") {
         files = fbxFiles(files, main, hidden);
     } else if (format === "usd" || format === "usdz") {
-        ({ files, main } = usdFiles(files, main, format, [...skipped, ...hidden], lostPicture));
+        ({ files, main } = usdFiles(files, main, format, [...skipped, ...hidden]));
     }
 
     let reader = READERS[format];
@@ -723,7 +740,7 @@ export async function loadModelFiles(
             format === "usd" || format === "usdz" ? await withUsdFiles(options, files, main) : options,
         );
         clearReflections(container, clear);
-        await finish(container, format, hidden);
+        await finish(container, format, hidden, [...skipped, ...hidden]);
         markWithoutPictures(container, root, format === "fbx" ? [...skipped, ...hidden] : skipped, lostPicture);
         return container;
     } catch (error) {

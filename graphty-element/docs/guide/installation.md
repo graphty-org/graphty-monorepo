@@ -181,14 +181,15 @@ Graphty has peer dependencies on Babylon.js and Lit:
 ```json
 {
     "peerDependencies": {
-        "@babylonjs/core": "^9.0.0",
-        "@babylonjs/loaders": "^9.0.0",
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "^9.37.0",
         "lit": "^3.0.0"
     }
 }
 ```
 
-These are typically installed automatically. If you need to install them manually:
+Babylon.js must be 9.37 or a later 9.x: the FBX and USD loaders graphty-element loads models with
+are not in earlier 9.x releases. These are typically installed automatically. If you need to install them manually:
 
 ```bash
 npm install @babylonjs/core @babylonjs/loaders lit

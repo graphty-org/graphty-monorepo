@@ -31,8 +31,9 @@ glTF or GLB when its first 4 KB name the extension.
 npm install babylonjs-models @babylonjs/core @babylonjs/loaders
 ```
 
-`@babylonjs/core` and `@babylonjs/loaders` 9 are optional peer dependencies: the main
-`babylonjs-models` entry needs them. `babylonjs-models/files` and `babylonjs-models/detect` never
+`@babylonjs/core` and `@babylonjs/loaders` 9.37 or a later 9.x are optional peer dependencies (the
+FBX loader first ships in 9.13 and the USD loader in 9.26; this package is built and tested against
+9.37): the main `babylonjs-models` entry needs them. `babylonjs-models/files` and `babylonjs-models/detect` never
 load Babylon.js, so they work in Node, a Web Worker or a server with only `npm install babylonjs-models`.
 
 ## Load a model

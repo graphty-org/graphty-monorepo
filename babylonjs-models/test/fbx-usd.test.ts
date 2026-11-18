@@ -244,6 +244,29 @@ describe("the USD checks", () => {
         ]);
     });
 
+    it("say a layer's displayColor other than white is drawn as vertex colors, and an opacity below 1 is see-through", async () => {
+        const text = new TextDecoder().decode(set("usda", "cube.usda").get("cube.usda"));
+        const { summary: plain } = await check(set("usda", "cube.usda"));
+        assert.isUndefined(plain.vertexColors);
+        assert.isFalse(plain.transparent);
+        const painted = text.replace(
+            "uniform token subdivisionScheme",
+            "color3f[] primvars:displayColor = [(0.8, 0.8, 0.8)]\n        float[] primvars:displayOpacity = [0.5]\n        uniform token subdivisionScheme",
+        );
+        assert.notStrictEqual(painted, text);
+        const { summary } = await check(new Map([["cube.usda", new TextEncoder().encode(painted)]]));
+        assert.isTrue(summary.vertexColors);
+        assert.isTrue(summary.transparent);
+        const white = text.replace(
+            "uniform token subdivisionScheme",
+            "color3f[] primvars:displayColor = [(1, 1, 1)]\n        uniform token subdivisionScheme",
+        );
+        const { summary: plainWhite } = await check(new Map([["cube.usda", new TextEncoder().encode(white)]]));
+        assert.isUndefined(plainWhite.vertexColors, "white draws as no color");
+        const glass = text.replace("float inputs:roughness = 0.8", "float inputs:opacity = 0.25");
+        assert.isTrue((await check(new Map([["cube.usda", new TextEncoder().encode(glass)]]))).summary.transparent);
+    });
+
     it("count a stage's clip and skeleton", async () => {
         const spin = (await check(set("usda-animated", "cube.usda"))).summary;
         assert.deepStrictEqual(spin.animations, [{ name: "USD Animation 1", seconds: 1 }]);

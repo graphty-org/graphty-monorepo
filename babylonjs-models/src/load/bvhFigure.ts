@@ -42,13 +42,15 @@ function sidesOf(along: Vector3): [Vector3, Vector3] {
 }
 
 /**
- * Move a root bone's motion so it starts where the figure stands at rest. A BVH file's root
- * channels give the hips' place in the capture room (often a meter up and off to one side), while
- * its rest pose stands them at the origin: played as written, the figure jumped out of the box it is
- * framed and drawn in. Each position key keeps its distance from the first.
+ * Keep a root bone's motion in place. A BVH file's root channels give the hips' place in the
+ * capture room (often a meter up and off to one side), while its rest pose stands them at the
+ * origin: played as written, the figure jumped out of the box it is framed and drawn in, and a
+ * dancer that travels (pirouette.bvh) drifted off its node and out of the preview. The hips stay
+ * over the rest place across the floor; up and down they keep their distance from the first key,
+ * so a crouch or a jump still shows.
  * @param root - The root bone.
  */
-function startAtRest(root: Bone | undefined): void {
+function inPlace(root: Bone | undefined): void {
     const motion = root?.animations.find((animation) => animation.targetProperty === "position");
     const keys = motion?.getKeys() ?? [];
     const first = keys[0]?.value as Vector3 | undefined;
@@ -56,9 +58,13 @@ function startAtRest(root: Bone | undefined): void {
         return;
     }
 
-    const rest = (root as Bone).position.clone();
-    const shift = rest.subtract(first);
-    motion.setKeys(keys.map((key) => ({ ...key, value: (key.value as Vector3).add(shift) })));
+    const rest = (root as Bone).position;
+    motion.setKeys(
+        keys.map((key) => ({
+            ...key,
+            value: new Vector3(rest.x, (key.value as Vector3).y - first.y + rest.y, rest.z),
+        })),
+    );
 }
 
 /**
@@ -126,7 +132,7 @@ export function bvhFigure(container: AssetContainer): void {
     container.meshes.push(figure);
     container.materials.push(material);
 
-    startAtRest(skeleton.bones.find((bone) => bone.getParent() === null));
+    inPlace(skeleton.bones.find((bone) => bone.getParent() === null));
     const group = new AnimationGroup(BVH_CLIP, scene);
     scene.removeAnimationGroup(group);
     for (const bone of skeleton.bones) {

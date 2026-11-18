@@ -7,7 +7,7 @@ import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xr
 import { panelsInView } from "../time/timeActions";
 import { noGraph, nothingDrawn } from "./disabledReasons";
 import { togglePopover } from "./popover";
-import { cameraViewName, tourProblemWords, viewProblemWords } from "./viewWords";
+import { cameraViewName, isFixedCamera, tourProblemWords, viewProblemWords } from "./viewWords";
 
 /**
  * Why Neighborhood cannot run: it acts on a selected node.
@@ -103,13 +103,14 @@ function enterImmersive(mode: "vr" | "ar"): {
 }
 
 /**
- * The name a new view or tour gets: the first "View N" (or "Tour N") not saved yet. The reader's
- * views and tours are the element's (`session.views`, `session.tours`), saved with the project.
+ * The name a new camera or tour gets: the first "Camera N" (or "Tour N") not saved yet. The
+ * reader's cameras and tours are the element's (`session.views`, `session.tours`), saved with the
+ * project.
  * @param saved - the names already saved.
- * @param word - what it is, "View" or "Tour".
+ * @param word - what it is, "Camera" or "Tour".
  * @returns the name.
  */
-export function nextName(saved: ReadonlyMap<string, unknown>, word: "View" | "Tour" = "View"): string {
+export function nextName(saved: ReadonlyMap<string, unknown>, word: "Camera" | "Tour"): string {
     let n = 1;
     while (saved.has(`${word} ${String(n)}`)) {
         n += 1;
@@ -136,7 +137,10 @@ function cameraViewReason(ctx: CommandContext, id: string): string | null {
  */
 export function savedViewReason(ctx: CommandContext, name: string): string | null {
     const { session, element } = ctx;
-    return nothingDrawn(session) ?? viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, true);
+    return (
+        nothingDrawn(session) ??
+        viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, isFixedCamera(name, element))
+    );
 }
 
 /**
@@ -299,27 +303,6 @@ export const registration = defineRegistration({
                 workspace.set((state) => ({ followSelection: !state.followSelection }));
             },
         },
-        {
-            // Keeps the camera under a name; Camera lists it to go back to. One undoable step: the
-            // element saves the camera on screen.
-            id: "view.save",
-            label: "Save view",
-            group: "View",
-            keys: ["V"],
-            // The element refuses to save while immersive: the headset's camera is no 2D or 3D state.
-            disabled: ({ session }) => {
-                const active = immersiveMode(session);
-                return nothingDrawn(session) ?? (active === null ? null : `Not in ${active.toUpperCase()}`);
-            },
-            run: async ({ session, workspace }) => {
-                if (session === null) {
-                    return;
-                }
-                const name = nextName(session.views);
-                await session.views.save([{ name }]);
-                workspace.set({ announcement: `Saved ${name}` });
-            },
-        },
         stepCommand(true),
         stepCommand(false),
         {
@@ -335,8 +318,8 @@ export const registration = defineRegistration({
             },
         },
         {
-            // Opens the Graph place's Views section, where views are renamed, ordered and deleted
-            // and tours are made; focus goes to its first list.
+            // Opens the Views place, where cameras are renamed, ordered and deleted and tours are
+            // made; focus goes to its Cameras section.
             id: "view.views-section",
             label: "Views and tours...",
             group: "View",
@@ -345,9 +328,9 @@ export const registration = defineRegistration({
             run: ({ workspace }) => {
                 workspace.set({
                     page: "panels",
-                    place: "graph",
-                    viewsOpen: true,
-                    viewsFocusNext: true,
+                    place: "views",
+                    viewsCamerasOpen: true,
+                    viewsFocus: "cameras",
                     ...panelsInView(),
                 });
             },

@@ -78,7 +78,7 @@ describe("the Assistant with its experiment on", () => {
         const names = within(rail)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Graph", "Data", "Assistant", "Notes", "Settings"]);
+        assert.deepEqual(names, ["Graph", "Data", "Views", "Assistant", "Notes", "Settings"]);
 
         await userEvent.keyboard("{Control>}k{/Control}");
         await screen.findByRole("option", { name: /^Assistant/ });

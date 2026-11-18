@@ -25,10 +25,11 @@ function AssistantGlyph({ waiting }: Readonly<{ waiting: boolean }>): React.JSX.
 }
 
 /**
- * The rail (tier1-design.md section 2.2): Graph, Data and Notes, with Settings pinned to its foot
- * as the classic shell's activity rail pins it, and Assistant after Data while the element has the
- * assistant experiment on, with a neutral dot while a request waits for the reader. Views is not drawn until it is built. Icon buttons with the shared
- * tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
+ * The rail (tier1-design.md section 2.2): Graph, Data, Views and Notes, with Settings pinned to its
+ * foot as the classic shell's activity rail pins it, and Assistant after Views while the element has
+ * the assistant experiment on, with a neutral dot while a request waits for the reader. Views wears
+ * the Camera tool's glyph (design/ui/camera-views-tours-and-capture.md, section 3.1). Icon buttons
+ * with the shared tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
  * @returns The rail
  */
 export function Rail(): React.JSX.Element {
@@ -73,6 +74,15 @@ export function Rail(): React.JSX.Element {
                 aria-current={place === "data" ? "page" : undefined}
                 onClick={() => {
                     run("place.data");
+                }}
+            />
+            <RailButton
+                icon={<GLYPHS.camera size={20} aria-hidden />}
+                label="Views"
+                active={place === "views"}
+                aria-current={place === "views" ? "page" : undefined}
+                onClick={() => {
+                    run("place.views");
                 }}
             />
             {assistant === null ? null : (

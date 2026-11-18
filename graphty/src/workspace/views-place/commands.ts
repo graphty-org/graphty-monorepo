@@ -1,0 +1,168 @@
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { type RefObject, useEffect, useRef } from "react";
+
+import { defineRegistration } from "../commands/registry";
+import { undoOrRedo } from "../frame/historyWords";
+import { matchesKey } from "../keys/keys";
+import { panelsInView } from "../time/timeActions";
+import { immersiveMode, nextName } from "../toolbar/commands";
+import { nothingDrawn } from "../toolbar/disabledReasons";
+
+/**
+ * The keys a camera can hold, in the order the Key list offers them: the digits but 0 (Fit) and
+ * 5 (Switch between 2D and 3D) (design/ui/camera-views-tours-and-capture.md, section 3.4).
+ */
+export const CAMERA_KEYS = ["1", "2", "3", "4", "6", "7", "8", "9"] as const;
+
+/**
+ * Saves the camera on screen as the first free "Camera N", at the end of the list, one undo step.
+ * @param session - the element's session.
+ * @returns the new camera's name, once saved.
+ */
+export async function saveCamera(session: GraphSession): Promise<string> {
+    const name = nextName(session.views, "Camera");
+    await session.views.save([{ name }]);
+    return name;
+}
+
+/**
+ * The Views place's commands (design/ui/camera-views-tours-and-capture.md, sections 3.1 and 6):
+ * the place itself, and Save camera on V, which works with the place closed.
+ */
+export const registration = defineRegistration({
+    owner: "views-place",
+    commands: [
+        {
+            id: "place.views",
+            label: "Views",
+            group: "Go to",
+            keywords: ["camera", "tour", "video", "hotkey"],
+            run: ({ workspace }) => {
+                workspace.set({ page: "panels", place: "views", ...panelsInView() });
+            },
+        },
+        {
+            // Keeps the camera under a name. One undoable step: the element saves the camera on screen.
+            id: "camera.save",
+            label: "Save camera",
+            group: "View",
+            keys: ["V"],
+            keywords: ["view", "save view"],
+            // The element refuses to save while immersive: the headset's camera is no 2D or 3D state.
+            disabled: ({ session }) => {
+                const active = immersiveMode(session);
+                return nothingDrawn(session) ?? (active === null ? null : `Not in ${active.toUpperCase()}`);
+            },
+            run: async ({ session, workspace }) => {
+                if (session === null) {
+                    return;
+                }
+                const name = await saveCamera(session);
+                const { page, place } = workspace.get();
+                if (page === "panels" && place === "views") {
+                    // The place unfolds the new card and opens its name to rename.
+                    workspace.set({ viewsCamerasOpen: true, viewsRename: name, announcement: `Saved ${name}` });
+                    return;
+                }
+                workspace.set({
+                    notice: {
+                        message: `Saved ${name}`,
+                        action: {
+                            label: "Undo",
+                            run: () => {
+                                void undoOrRedo(session, true, workspace);
+                            },
+                        },
+                    },
+                });
+            },
+        },
+    ],
+});
+
+/**
+ * Moves a camera or tour one place up or down its list.
+ * @param list - the list, `session.views` or `session.tours`.
+ * @param name - the item.
+ * @param by - -1 for up, 1 for down.
+ * @returns the write, or undefined at the list's end.
+ */
+export function moveBy(
+    list: GraphSession["views"] | GraphSession["tours"],
+    name: string,
+    by: -1 | 1,
+): Promise<void> | undefined {
+    const names = [...list.keys()];
+    const to = names.indexOf(name) + by;
+    return to < 0 || to >= names.length ? undefined : list.move(name, to);
+}
+
+/**
+ * A copy's name: "Hub 2", then "Hub 3" and on, the first not saved yet.
+ * @param saved - the names saved.
+ * @param name - the item copied.
+ * @returns the name.
+ */
+export function copyName(saved: ReadonlyMap<string, unknown>, name: string): string {
+    let n = 2;
+    while (saved.has(`${name} ${String(n)}`)) {
+        n += 1;
+    }
+    return `${name} ${String(n)}`;
+}
+
+/** The list-local keys a card header takes (section 3.1): F2, Delete, Mod+] and Mod+[. */
+export type CardKey = "rename" | "delete" | "up" | "down";
+
+/**
+ * Which list-local key a press is.
+ * @param event - the press.
+ * @returns the key, or null for any other press.
+ */
+function headerKey(event: KeyboardEvent): CardKey | null {
+    if (event.key === "F2") {
+        return "rename";
+    }
+    if (event.key === "Delete") {
+        return "delete";
+    }
+    if (matchesKey(event, "Mod+]")) {
+        return "up";
+    }
+    return matchesKey(event, "Mod+[") ? "down" : null;
+}
+
+/**
+ * Reads the list-local keys as they bubble from a card's header controls (CardList's grip, fold,
+ * title and the header slot's buttons) to the list's wrapper; keys from a card's body, its footer,
+ * a field or a menu are left alone. A handled key calls `preventDefault`, so F2 is not the
+ * project's rename and Mod+[ is not the browser's Back.
+ * @param onKey - runs a key on the card it came from, by its id.
+ * @returns the ref for the wrapper.
+ */
+export function useHeaderKeys(onKey: (id: string, key: CardKey) => void): RefObject<HTMLDivElement | null> {
+    const wrapper = useRef<HTMLDivElement>(null);
+    const latest = useRef(onKey);
+    latest.current = onKey;
+    useEffect(() => {
+        const box = wrapper.current;
+        const listen = (event: KeyboardEvent): void => {
+            const target = event.target as HTMLElement;
+            const id = target.closest<HTMLElement>("[data-card-id]")?.dataset.cardId;
+            if (id === undefined || target.closest(".cm-card-head") === null || target.closest("input") !== null) {
+                return;
+            }
+            const key = headerKey(event);
+            if (key !== null) {
+                event.preventDefault();
+                event.stopPropagation();
+                latest.current(id, key);
+            }
+        };
+        box?.addEventListener("keydown", listen);
+        return () => {
+            box?.removeEventListener("keydown", listen);
+        };
+    }, []);
+    return wrapper;
+}

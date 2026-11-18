@@ -86,28 +86,28 @@ describe("the Camera menu's saved views", () => {
 
         await userEvent.keyboard("v");
         await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["View 1"]);
+            assert.deepEqual([...session.views.keys()], ["Camera 1"]);
         });
         // Top (7) moves the camera, and V saves the second view there.
         await userEvent.keyboard("7");
         await element.waitForStableFrame();
         await userEvent.keyboard("v");
         await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["View 1", "View 2"]);
+            assert.deepEqual([...session.views.keys()], ["Camera 1", "Camera 2"]);
         });
         const menu = await openCamera();
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^View 1$/ }));
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^View 2$/ }));
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Camera 1$/ }));
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Camera 2$/ }));
         await userEvent.keyboard("{Escape}");
 
         await userEvent.keyboard("]");
         await waitFor(() => {
-            assertAt(element, session.views.get("View 1")?.camera);
+            assertAt(element, session.views.get("Camera 1")?.camera);
         });
         // Where "]" needs AltGr, it arrives with Ctrl and Alt held.
         await userEvent.keyboard("{Control>}{Alt>}]{/Alt}{/Control}");
         await waitFor(() => {
-            assertAt(element, session.views.get("View 2")?.camera);
+            assertAt(element, session.views.get("Camera 2")?.camera);
         });
 
         const next = within(await openCamera()).getByRole("menuitem", { name: /^Next view/ });
@@ -119,7 +119,7 @@ describe("the Camera menu's saved views", () => {
         const { session } = await openRing();
         await userEvent.keyboard("v");
         await waitFor(() => {
-            assert.isTrue(session.views.has("View 1"));
+            assert.isTrue(session.views.has("Camera 1"));
         });
 
         await userEvent.keyboard("5");
@@ -129,8 +129,8 @@ describe("the Camera menu's saved views", () => {
         const menu = await openCamera();
         const front = within(menu).getByRole("menuitem", { name: /^Front/ });
         assert.equal(front.getAttribute("aria-disabled"), "true");
-        assert.include(front.textContent, "Only in 3D");
-        const saved = within(menu).getByRole("menuitem", { name: /^View 1/ });
+        assert.include(front.textContent, "3D only");
+        const saved = within(menu).getByRole("menuitem", { name: /^Camera 1/ });
         assert.equal(saved.getAttribute("aria-disabled"), "true");
         assert.include(saved.textContent, "Saved in 3D");
         const fit = within(menu).getByRole("menuitem", { name: /^Fit/ });
@@ -141,11 +141,11 @@ describe("the Camera menu's saved views", () => {
         const { session } = await openRing();
         await userEvent.keyboard("v");
         await waitFor(() => {
-            assert.isTrue(session.views.has("View 1"));
+            assert.isTrue(session.views.has("Camera 1"));
         });
         await session.tours.save([
             { name: "Fronts", tour: { stops: [{ view: "frontView" }] } },
-            { name: "Saves", tour: { stops: [{ view: "View 1" }] } },
+            { name: "Saves", tour: { stops: [{ view: "Camera 1" }] } },
         ]);
 
         await userEvent.keyboard("5");
@@ -160,7 +160,7 @@ describe("the Camera menu's saved views", () => {
         }
         const fronts = within(tours).getByRole("menuitem", { name: /^Fronts/ });
         assert.equal(fronts.getAttribute("aria-disabled"), "true");
-        assert.include(fronts.textContent, "Stop 1: Only in 3D");
+        assert.include(fronts.textContent, "Stop 1: 3D only");
         const saves = within(tours).getByRole("menuitem", { name: /^Saves/ });
         assert.equal(saves.getAttribute("aria-disabled"), "true");
         assert.include(saves.textContent, "Stop 1: Saved in 3D");
@@ -172,11 +172,11 @@ describe("a tour played from the Camera menu", () => {
         const { element, session } = await openRing();
         await userEvent.keyboard("v");
         await waitFor(() => {
-            assert.isTrue(session.views.has("View 1"));
+            assert.isTrue(session.views.has("Camera 1"));
         });
         // A hold far longer than the test, so only a stop ends it.
         await session.tours.save([
-            { name: "Walk", tour: { stops: [{ view: "View 1", hold: 600_000 }, { view: "topView" }] } },
+            { name: "Walk", tour: { stops: [{ view: "Camera 1", hold: 600_000 }, { view: "topView" }] } },
         ]);
         const ended: string[] = [];
         element.addEventListener("tour-ended", (event) => {

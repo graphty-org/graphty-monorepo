@@ -59,12 +59,13 @@ function FramesRow({ estimate }: Readonly<{ estimate: CaptureEstimate | null }>)
 }
 
 /**
- * With no tours: says so, and Views and tours... closes the dialog and opens the Views section.
+ * With no tours: says so, and Video tours... closes the dialog and opens the Views place on its
+ * Video tours section.
  * @returns the row
  */
 function NoToursRow(): React.JSX.Element {
     const { store } = useWorkspace();
-    const door = useCommand("view.views-section");
+    const door = useCommand("place.views");
     return (
         <div className="ws-export-wide">
             <ActionRow
@@ -78,12 +79,12 @@ function NoToursRow(): React.JSX.Element {
                             aria-description={door.disabledReason ?? undefined}
                             onClick={() => {
                                 if (door.disabledReason === null) {
-                                    store.set({ dialog: null });
+                                    store.set({ dialog: null, viewsToursOpen: true, viewsFocus: "tours" });
                                     door.run();
                                 }
                             }}
                         >
-                            {door.command.label}
+                            Video tours...
                         </Button>
                     )
                 }
@@ -293,8 +294,8 @@ function CameraFields({ target, choices, recording, set }: CameraFieldsProps): R
  * The Video output: a saved tour (its length the element's plan of it) or a still view held for
  * 3, 5 or 10 seconds, the frame rate, the element's frame estimate, and Record. Every recording is
  * graphty-element's `captureAnimation`; the bar follows `animation-progress` and the stop label
- * `tour-progress`. With no tours, Camera is on Still and "Views and tours..." opens the Views
- * section. Leaving the output while it records cancels the recording, so nothing records unseen.
+ * `tour-progress`. With no tours, Camera is on Still and "Video tours..." opens the Views place
+ * on Video tours. Leaving the output while it records cancels the recording, so nothing records unseen.
  * @param props - Component props
  * @param props.choices - The video choices
  * @param props.onChange - Called with new choices

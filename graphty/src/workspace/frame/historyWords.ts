@@ -48,6 +48,49 @@ function counted(params: Params, noun: string, key = "count"): string {
 }
 
 /**
+ * One thing a param names: "camera Top", or "a camera" when the element gave none.
+ * @param params - the params.
+ * @param key - the param.
+ * @param noun - the noun.
+ * @returns the words.
+ */
+function one(params: Params, key: string, noun: string): string {
+    const value = params[key];
+    return typeof value === "string" ? `${noun} ${value}` : `a ${noun}`;
+}
+
+/**
+ * The things a `names` param lists: "camera Hub cluster", or "3 cameras".
+ * @param params - the params.
+ * @param noun - the singular noun.
+ * @returns the words.
+ */
+function named(params: Params, noun: string): string {
+    const { names } = params;
+    if (Array.isArray(names) && names.length === 1) {
+        return `${noun} ${String(names[0])}`;
+    }
+    return Array.isArray(names) ? count(names.length, noun) : `${noun}s`;
+}
+
+/**
+ * A camera key change: "moving key 7 from Top to Hub cluster", "giving Hub cluster key 2",
+ * "removing the key of Top".
+ * @param params - the `view.key` params: `name`, `key` and `from`.
+ * @returns the words.
+ */
+function keyWords(params: Params): string {
+    const name = text(params, "name", "a camera");
+    if (params.key === null) {
+        return `removing the key of ${name}`;
+    }
+    const key = text(params, "key", "");
+    return typeof params.from === "string"
+        ? `moving key ${key} from ${params.from} to ${name}`
+        : `giving ${name} key ${key}`;
+}
+
+/**
  * An algorithm by its key, in the app's words.
  * @param session - the session, for the catalog.
  * @param key - the algorithm's key.
@@ -233,16 +276,16 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "note.update": () => "editing a note",
     "note.remove": () => "deleting a note",
     "note.merge": () => "merging notes",
-    "view.save": () => "saving a view",
-    "view.remove": () => "deleting a view",
-    "view.rename": (p) => `renaming ${text(p, "from", "a view")} to ${text(p, "to", "a new name")}`,
-    "view.move": (p) => `moving ${text(p, "name", "a view")}`,
-    "view.key": (p) => `setting the key of ${text(p, "name", "a view")}`,
+    "view.save": (p) => `saving ${named(p, "camera")}`,
+    "view.remove": (p) => `deleting ${named(p, "camera")}`,
+    "view.rename": (p) => `renaming ${one(p, "from", "camera")} to ${text(p, "to", "a new name")}`,
+    "view.move": (p) => `moving ${one(p, "name", "camera")}`,
+    "view.key": (p) => keyWords(p),
     "view.starting": () => "adding the starting cameras",
-    "tour.save": () => "saving a tour",
-    "tour.remove": () => "deleting a tour",
-    "tour.rename": (p) => `renaming ${text(p, "from", "a tour")} to ${text(p, "to", "a new name")}`,
-    "tour.move": (p) => `moving ${text(p, "name", "a tour")}`,
+    "tour.save": (p) => `saving ${named(p, "tour")}`,
+    "tour.remove": (p) => `deleting ${named(p, "tour")}`,
+    "tour.rename": (p) => `renaming ${one(p, "from", "tour")} to ${text(p, "to", "a new name")}`,
+    "tour.move": (p) => `moving ${one(p, "name", "tour")}`,
     "view.dimension": (p) => `switching to ${p.dimension === "2d" ? "2D" : "3D"}`,
     "view.immersive": (p) => `entering ${p.mode === "ar" ? "AR" : "VR"}`,
     "config.set": (p) => settingsWords(p),

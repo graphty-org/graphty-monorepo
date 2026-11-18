@@ -282,15 +282,19 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("radio", { name: "Still" }).checked);
         assert.isNotNull(within(dialog).getByText("No tours yet"));
         await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
-        assert.isNotNull(await screen.findByRole("option", { name: "Front" }), "a camera view in the app's words");
+        // Front is both a camera view and, in every new project, a starting camera.
+        assert.isNotEmpty(await screen.findAllByRole("option", { name: "Front" }), "a camera view in the app's words");
         assert.isNull(screen.queryByRole("option", { name: "frontView" }), "no camera id is shown");
         await userEvent.keyboard("{Escape}");
-        // Views and tours... closes the dialog and opens the Views section.
-        await userEvent.click(within(dialog).getByRole("button", { name: "Views and tours..." }));
+        // Video tours... closes the dialog and opens the Views place on Video tours.
+        await userEvent.click(within(dialog).getByRole("button", { name: "Video tours..." }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
         });
-        assert.isNotNull(await screen.findByRole("group", { name: "Views" }));
+        assert.isNotNull(await screen.findByRole("region", { name: "Views place" }));
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "New tour");
+        });
     });
 
     it("opens Export image... on Image, and exports a PNG from a saved view", async () => {
@@ -327,7 +331,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         dialog = await openExport();
         const view = within(dialog).getByRole<HTMLInputElement>("combobox", { name: "View" });
         assert.equal(view.value, "Overview", "the choice is not silently swapped for the current camera");
-        assert.isNotNull(within(dialog).getByText("View not found"));
+        assert.isNotNull(within(dialog).getByText("Camera not found"));
         assert.isTrue(within(dialog).getByRole<HTMLButtonElement>("button", { name: "Export" }).disabled);
     });
 
@@ -484,7 +488,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         }
     });
 
-    it("opens Video on a tour from its Record... in the Views section", async () => {
+    it("opens Video on a tour from its Export video... in the Views place", async () => {
         await page.viewport(1440, 900);
         const session = await openScoredGraph();
         await session.views.save([{ name: "Overview" }]);
@@ -493,10 +497,12 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             { name: "Second", tour: { stops: [{ view: "Overview", hold: 2000 }] } },
         ]);
 
-        await userEvent.click(await screen.findByRole("button", { name: /^Expand Views/ }));
-        const section = screen.getByRole("group", { name: "Views" });
+        await userEvent.click(
+            within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+        );
+        const section = await screen.findByRole("region", { name: "Views place" });
         await userEvent.click(within(section).getByRole("button", { name: "More for Second" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Record..." }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Export video/ }));
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Video" }));
         assert.equal(within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Tour" }).value, "Second");

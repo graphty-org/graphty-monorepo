@@ -9,7 +9,6 @@ import { GRAPH_PLACE_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FindBox } from "./FindBox";
 import { StyleTree } from "./StyleTree";
-import { ViewsSection } from "./ViewsSection";
 
 /**
  * The footer line: "Add data to start" while there is no graph, else nothing (the layer list is
@@ -24,8 +23,7 @@ function Footer({ hasGraph }: Readonly<{ hasGraph: boolean }>): React.JSX.Elemen
 
 /**
  * The Graph place (tier1-design.md section 2.5): the graph title line, the find box, the style
- * tree (tier 3 design section 2.1), the Views section (design/ui/camera-views-tours-and-capture.md,
- * section 3.2) and one footer line. Everything it shows is read from graphty-element's session.
+ * tree (tier 3 design section 2.1) and one footer line. Everything it shows is read from graphty-element's session.
  * @returns The Graph place
  */
 export function GraphPlace(): React.JSX.Element {
@@ -67,7 +65,6 @@ export function GraphPlace(): React.JSX.Element {
                 <FindBox />
             </div>
             {session === null ? null : <StyleTree session={session} />}
-            {session === null ? null : <ViewsSection session={session} />}
             <Footer hasGraph={hasGraph} />
         </section>
     );

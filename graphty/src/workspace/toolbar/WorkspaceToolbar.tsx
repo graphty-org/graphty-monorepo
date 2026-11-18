@@ -251,7 +251,7 @@ function SavedViewRows(): React.JSX.Element {
             {views.slice(0, MENU_VIEWS).map((row) => (
                 <RowItem key={row.id} row={row} />
             ))}
-            <Sections sections={[["view.previous", "view.next", "view.save"]]} />
+            <Sections sections={[["view.previous", "view.next", "camera.save"]]} />
             {tours.length === 0 ? null : (
                 <Menu.Sub>
                     <Menu.Sub.Target>
@@ -317,12 +317,13 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
  * @param progress.stop - The stop, 0-based.
  * @param progress.stops - How many stops the tour has.
  * @param progress.view - The saved view the stop flies to, if any.
+ * @param progress.phase - Whether it flies, holds or pauses.
  * @returns The words.
  */
-function stopWords(session: GraphSession, { stop, stops, view }: TourProgressEvent): string {
+function stopWords(session: GraphSession, { stop, stops, view, phase }: TourProgressEvent): string {
     const lead = `Stop ${String(stop + 1)} of ${String(stops)}`;
     if (view === undefined) {
-        return lead;
+        return phase === "pause" ? `${lead}, Pause` : lead;
     }
     return `${lead}, ${cameraViewName(view, session.catalog.cameras().find(({ id }) => id === view)?.plainName)}`;
 }

@@ -250,6 +250,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],
+    "views-place": ["place.views", "camera.save"],
     "graph-place": [
         "find.focus",
         "row.rename",

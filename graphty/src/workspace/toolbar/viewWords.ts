@@ -12,6 +12,7 @@ const CAMERA_VIEW_WORDS: Readonly<Record<string, string>> = {
     frontView: "Front",
     sideView: "Side",
     topView: "Top",
+    bottomView: "Bottom",
     isometric: "Isometric",
 };
 
@@ -25,6 +26,29 @@ export function cameraViewName(id: string, plainName?: string): string {
     return CAMERA_VIEW_WORDS[id] ?? plainName ?? id;
 }
 
+/**
+ * A camera view as a phrase inside a sentence: "the top view", for the Views place's Kind row
+ * ("Recomputed from the top view"), so a camera renamed from Top to Overhead still says what it
+ * follows rather than its own name.
+ * @param id - the camera view id.
+ * @param plainName - the catalog's name for it, for a view an extension registered.
+ * @returns the phrase.
+ */
+export function cameraViewPhrase(id: string, plainName?: string): string {
+    return `the ${cameraViewName(id, plainName).toLowerCase()} view`;
+}
+
+/**
+ * Words for a drawing mode list, such as "3D" or "2D and 3D".
+ * @param modes - the modes.
+ * @param join - the word between the last two.
+ * @returns the words.
+ */
+export function modeListWords(modes: readonly string[], join = "and"): string {
+    const list = modes.map((mode) => MODE_WORDS[mode] ?? mode);
+    return list.length < 2 ? (list[0] ?? "") : `${list.slice(0, -1).join(", ")} ${join} ${String(list.at(-1))}`;
+}
+
 /** A drawing mode as the app writes it. */
 const MODE_WORDS: Readonly<Record<string, string>> = { "2d": "2D", "3d": "3D", vr: "VR", ar: "AR" };
 
@@ -34,14 +58,14 @@ const MODE_WORDS: Readonly<Record<string, string>> = { "2d": "2D", "3d": "3D", v
  * @returns such as "3D" or "2D or 3D".
  */
 function modesWords(modes: unknown): string {
-    const list = Array.isArray(modes) ? modes.map((mode) => MODE_WORDS[String(mode)] ?? String(mode)) : [];
-    return list.join(" or ");
+    return modeListWords(Array.isArray(modes) ? modes.map(String) : [], "or");
 }
 
 /**
  * Why a view cannot be applied now, from the element's `viewProblem` (or a tour stop's problem).
  * @param problem - the coded fact, or null.
- * @param saved - whether the row is a saved view, which says where it was saved ("Saved in 3D").
+ * @param saved - whether the row is a fixed saved camera, which says where it was saved ("Saved in
+ *     3D"); anything else says the modes it works in ("3D only").
  * @returns the reason, or null when it can be applied.
  */
 export function viewProblemWords(problem: CodedFact | null, saved = false): string | null {
@@ -53,19 +77,19 @@ export function viewProblemWords(problem: CodedFact | null, saved = false): stri
         return `Not in ${MODE_WORDS[String(params.mode)] ?? "VR or AR"}`;
     }
     if (code === "E_UNSUPPORTED" && params.reason === "mode") {
-        return `${saved ? "Saved in" : "Only in"} ${modesWords(params.modes)}`;
+        return saved ? `Saved in ${modesWords(params.modes)}` : `${modesWords(params.modes)} only`;
     }
     switch (code) {
         case "E_UNKNOWN_CAMERA":
-            return "View not found";
+            return "Camera not found";
         case "E_PROTECTED":
-            return "A camera view has this name";
+            return "Reserved name";
         case "E_BAD_COMMAND":
             if (params.reason === "no-stops") {
                 return "No stops";
             }
             if (params.reason === "name-taken") {
-                return "That name is taken";
+                return "Name in use";
             }
             return params.missing === undefined ? "No name" : "Tour not found";
         case "E_OPTION_RANGE":
@@ -75,23 +99,38 @@ export function viewProblemWords(problem: CodedFact | null, saved = false): stri
     }
 }
 
-/** What judges a view name: the element's `viewProblem`. */
+/** What judges a view name: the element's `viewProblem`, and its saved views. */
 interface ViewJudge {
     viewProblem: (name: string, options?: { saved?: boolean }) => CodedFact | null;
+    readonly session: { readonly views: ReadonlyMap<string, { readonly follows?: string }> };
 }
 
 /**
- * Why a tour stop cannot be flown, from its `planTour` problem: "Saved in 3D" for a stop on a saved
- * view, "Only in 3D" for one on a camera view (the element answers E_PROTECTED for a camera view's
- * name judged as saved).
+ * Whether a name is a fixed saved camera: a saved view no camera view has taken the name of, which
+ * holds its own pose rather than following a camera view.
+ * @param name - the name.
+ * @param element - the element that judges it.
+ * @returns true for a fixed saved camera.
+ */
+export function isFixedCamera(name: string, element: ViewJudge | null): boolean {
+    const saved = element?.session.views.get(name);
+    return (
+        saved !== undefined &&
+        saved.follows === undefined &&
+        element?.viewProblem(name, { saved: true })?.code !== "E_PROTECTED"
+    );
+}
+
+/**
+ * Why a tour stop cannot be flown, from its `planTour` problem: "Saved in 3D" for a stop on a fixed
+ * camera, "3D only" for one on a camera that follows a view or on a camera view id.
  * @param problem - the stop's problem, or null.
  * @param element - the element that judges the stop's view name.
  * @returns the reason, or null when it can be flown.
  */
 export function stopProblemWords(problem: CodedFact | null, element: ViewJudge | null): string | null {
     const name = problem?.params.name;
-    const saved = typeof name === "string" && element?.viewProblem(name, { saved: true })?.code !== "E_PROTECTED";
-    return viewProblemWords(problem, saved);
+    return viewProblemWords(problem, typeof name === "string" && isFixedCamera(name, element));
 }
 
 /**

@@ -420,7 +420,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         for (const name of [/^Front/, /^Side/, /^Isometric/]) {
             const row = within(menu).getByRole("menuitem", { name });
             assert.equal(row.getAttribute("aria-disabled"), "true");
-            assert.include(row.textContent, "Only in 3D");
+            assert.include(row.textContent, "3D only");
         }
         assert.notEqual(within(menu).getByRole("menuitem", { name: /^Top/ }).getAttribute("aria-disabled"), "true");
         const flatRotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
@@ -447,20 +447,20 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         };
 
         // Save view keeps the camera under the first free name, and Camera lists it.
-        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save camera/ }));
         await waitFor(() => {
-            assert.isTrue(session.views.has("View 1"));
+            assert.isTrue(session.views.has("Camera 1"));
         });
-        const saved = session.views.get("View 1");
+        const saved = session.views.get("Camera 1");
         await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Top/ }));
         await element.waitForStableFrame();
-        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save view/ }));
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Save camera/ }));
         await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["View 1", "View 2"]);
+            assert.deepEqual([...session.views.keys()], ["Camera 1", "Camera 2"]);
         });
 
         // Its row moves the camera back.
-        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^View 1$/ }));
+        await userEvent.click(within(await open()).getByRole("menuitem", { name: /^Camera 1$/ }));
         await waitFor(() => {
             const now = element.getCameraState();
             for (const axis of ["x", "y", "z"] as const) {
@@ -478,12 +478,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await waitFor(() => {
             assert.equal(
                 document.activeElement,
-                within(screen.getByRole("grid", { name: "Saved views" })).getByRole("gridcell", { name: "View 1" }),
+                within(screen.getByRole("grid", { name: "Saved views" })).getByRole("gridcell", { name: "Camera 1" }),
             );
         });
         await userEvent.keyboard("{Delete}");
         await waitFor(() => {
-            assert.deepEqual([...session.views.keys()], ["View 2"]);
+            assert.deepEqual([...session.views.keys()], ["Camera 2"]);
         });
 
         // Focus selected is on, and turning it off leaves the camera where it is on a pick.

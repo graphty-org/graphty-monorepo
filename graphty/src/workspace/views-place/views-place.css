@@ -1,0 +1,84 @@
+/* The Views place (design/ui/camera-views-tours-and-capture.md, section 3.1): the graph's name,
+   then Cameras and Video tours, scrolling as one column; the lists never scroll on their own. */
+.vp {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.vp-title {
+    margin: 0;
+    padding: 12px 8px 4px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 24px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vp-key,
+.vp-length {
+    font-variant-numeric: tabular-nums;
+}
+
+/* An unfolded camera: its read-only values, its Key and Update to current camera. */
+.vp-inspect {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vp-stops {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vp-stop {
+    padding: 2px 0;
+    border-radius: 4px;
+}
+
+.vp-stop + .vp-stop {
+    margin-top: 4px;
+}
+
+/* The stop playing now wears the active row's fill. */
+.vp-stop[aria-current] {
+    background: var(--cm-bg-selected, var(--mantine-color-default-hover));
+}
+
+.vp-stop-line {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.vp-stop-number {
+    flex: none;
+    width: 20px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+}
+
+.vp-stop[aria-current] .vp-stop-number {
+    font-weight: 700;
+}
+
+.vp-stop-camera,
+.vp-stop-pause {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.vp-stop-pause {
+    font-size: 11px;
+}
+
+.vp-add-stops {
+    display: flex;
+    gap: 4px;
+}

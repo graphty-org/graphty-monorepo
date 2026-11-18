@@ -40,7 +40,7 @@ export type Opener =
     | { readonly kind: "network"; readonly name: string; readonly source: string; readonly example: string };
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data" | "assistant" | "notes";
+type Place = "graph" | "data" | "views" | "assistant" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 type Page = "panels" | "data-page";
@@ -327,10 +327,14 @@ export interface WorkspaceState {
     readonly lastView: string | null;
     /** The tour playing now, from graphty-element's `tour-progress`; null once `tour-ended` fires. */
     readonly tourProgress: { readonly tour: string | null; readonly stop: number; readonly stops: number } | null;
-    /** Whether the Graph place's Views section is expanded. Collapsed by default. */
-    readonly viewsOpen: boolean;
-    /** Views and tours... asked for focus on the Views section's first list; the section clears it. */
-    readonly viewsFocusNext: boolean;
+    /** Whether the Views place's Cameras section is open. Open by default. */
+    readonly viewsCamerasOpen: boolean;
+    /** Whether the Views place's Video tours section is open. Open by default. */
+    readonly viewsToursOpen: boolean;
+    /** A door asked the Views place to put focus on one of its sections; the place clears it. */
+    readonly viewsFocus: "cameras" | "tours" | null;
+    /** A camera just saved by Save camera, which the Views place unfolds and opens to rename; it clears it. */
+    readonly viewsRename: string | null;
     /** The saved tour the Export dialog's Video opens on (a tour's Record...), else null. */
     readonly exportTour: string | null;
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
@@ -464,8 +468,10 @@ export const ON_RELOAD = {
     exportOn: "fresh: set when the Export dialog opens",
     lastView: "fresh: the camera itself is not kept across a reload",
     tourProgress: "fresh: a tour ends when the page reloads",
-    viewsOpen: "kept",
-    viewsFocusNext: "fresh: a one-time request the Views section clears",
+    viewsCamerasOpen: "kept",
+    viewsToursOpen: "kept",
+    viewsFocus: "fresh: a one-time request the Views place clears",
+    viewsRename: "fresh: a one-time request the Views place clears",
     exportTour: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
@@ -582,8 +588,10 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     lastView: null,
     tourProgress: null,
-    viewsOpen: false,
-    viewsFocusNext: false,
+    viewsCamerasOpen: true,
+    viewsToursOpen: true,
+    viewsFocus: null,
+    viewsRename: null,
     exportTour: null,
     exportSource: null,
     serverKind: null,

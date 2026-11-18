@@ -20,6 +20,8 @@
 // `affected` when it has a `base` (newFlakyJudge). When the store answers that a record proved a test flaky, this
 // files its priority:critical issue (or comments on the signature's earlier one) and posts the number back; a
 // `base` run (base-check.yml) files one `Failing on master` issue per signature that failed every time.
+// The full path (RESULTS_STORE_QUARANTINE=1, no plan file) reads its family's quarantine from the store as well, and
+// keeps the committed list only when the store does not answer.
 //
 // Off (runs the command through runShard() and writes nothing) unless RESULTS_URL is set; GRAPHTY_RESULTS=0
 // switches it off. An On shard (`flags: "on"` in its SHARDS entry) or GRAPHTY_FLAGS=on names the feature-flag
@@ -332,7 +334,7 @@ export async function shotsPlan({ cfg, sha, base, family, variant }) {
     try {
         // the shard's own family too, as plan-read.mjs asks: judgeRules() carries its quarantine over to `-shots`
         const own = family.replace(/-shots$/, "");
-        const variants = [`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant];
+        const variants = [...new Set([`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant])];
         const r = await fetchPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
         const fresh = r.ok ? r.data : null;
         if (!fresh || fresh.unavailable) {
@@ -558,6 +560,8 @@ export function namesFlakyTest(issue, t) {
     return t.file.endsWith(t.name) || text.includes(words(t.name.split(" > ").at(-1)));
 }
 
+const SETTLED = new Set(["NOT_PLANNED", "DUPLICATE"]);
+
 // raises an issue to priority:critical; a refusal is logged, the comment already landed
 function raise(gh, number) {
     try {
@@ -569,9 +573,11 @@ function raise(gh, number) {
 }
 
 /**
- * Files the priority:critical flaky issue of each test a pull request saw fail and pass, which it did not touch,
- * and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
+ * Files the priority:critical flaky issue of each test a pull request saw fail and pass, whose file it did not
+ * change (it may have changed the test's imports, #8795), and whose 5-repeat base check then passed on master (#8317): the flake is rare, so master seldom shows it again,
  * but it is still a bug. An open flaky issue naming the test gets a comment instead (raised to priority:critical).
+ * A closed one is left closed, with nothing filed, when the base does not contain the commit that closed it: that
+ * flake ran on code from before the fix. Otherwise it is reopened, unless it closed as not planned or a duplicate.
  * Nothing is quarantined: master never reproduced it. base-check.yml runs this after a passing 5-repeat check.
  * @param o the check
  * @param o.file the test file
@@ -584,33 +590,57 @@ function raise(gh, number) {
  * @returns `{ name, number }` for each test; number 0 when GitHub refused
  */
 export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, gh = ghCli) {
-    let open = [];
+    let found = [];
     try {
         const search = `"${file.split("/").at(-1)}" flaky in:title,body`;
-        open = JSON.parse(
+        found = JSON.parse(
             gh([
                 "issue",
                 "list",
                 "--state",
-                "open",
+                "all",
                 "--search",
                 search,
                 "--json",
-                "number,title,body",
+                "number,title,body,state,stateReason",
                 "--limit",
-                "100",
+                "1000",
             ]),
         );
     } catch (e) {
         console.log(`run-group: could not search the flaky issues of ${file} (${e.message.split("\n")[0]})`);
     }
+    // whether base contains the commit that closed the issue: undefined when no commit closed it (closed by hand)
+    // or GitHub cannot say. Asked of GitHub's compare API, since base-check.yml's checkout is too shallow for
+    // git merge-base --is-ancestor.
+    const baseHasFix = (number) => {
+        try {
+            const fix = gh([
+                "api",
+                `repos/{owner}/{repo}/issues/${number}/events?per_page=100`,
+                "--jq",
+                '[.[] | select(.event == "closed")] | last | .commit_id // ""',
+            ]).trim();
+            if (!fix) return undefined;
+            const status = gh(["api", `repos/{owner}/{repo}/compare/${fix}...${base}`, "--jq", ".status"]).trim();
+            return status === "ahead" || status === "identical";
+        } catch (e) {
+            console.log(
+                `run-group: could not tell whether ${base} has the fix of #${number} (${e.message.split("\n")[0]})`,
+            );
+            return undefined;
+        }
+    };
     return names.map((name) => {
         const t = { file, name };
-        const had = open.find((i) => namesFlakyTest(i, t))?.number;
+        const matches = found.filter((i) => namesFlakyTest(i, t));
+        const had = matches.find((i) => i.state !== "CLOSED")?.number;
+        // an issue closed as not planned or as a duplicate is never reopened: the flake gets its own
+        const closed = had ? undefined : matches.find((i) => !SETTLED.has(i.stateReason));
         const seen = pr ? `pull request #${pr}` : "a pull request";
         const run = runUrl ? ` (${runUrl})` : "";
         const body = [
-            `\`${idOf(t)}\` (variant \`${variant}\`) failed and then passed on ${seen}, which did not touch it.`,
+            `\`${idOf(t)}\` (variant \`${variant}\`) failed and then passed on ${seen}, which did not change the test file.`,
             `Its base check then passed 5 times on master at ${base}${run}, so it is a rare`,
             "flake: not quarantined, since master did not reproduce it.",
             "Find the mechanism: timing or load is not an accepted cause without one.",
@@ -620,6 +650,24 @@ export function fileFlakyUnrelated({ file, variant, base, names, pr, runUrl }, g
                 gh(["issue", "comment", String(had), "--body", `Flaky again.\n\n${body}`]);
                 raise(gh, had);
                 return { name, number: had };
+            }
+            if (closed) {
+                if (baseHasFix(closed.number) === false) {
+                    console.log(
+                        `run-group: ${idOf(t)} flaked on ${base}, older than the fix that closed #${closed.number}`,
+                    );
+                    return { name, number: closed.number };
+                }
+                gh(["issue", "reopen", String(closed.number)]);
+                gh([
+                    "issue",
+                    "comment",
+                    String(closed.number),
+                    "--body",
+                    `Flaky again after this issue closed.\n\n${body}`,
+                ]);
+                raise(gh, closed.number);
+                return { name, number: closed.number };
             }
             const url = gh([
                 "issue",
@@ -837,7 +885,9 @@ async function groupPlan({ root, env, shardName, family, variant, head }) {
     // a screenshot run's `-shots` quarantine is only the store's (never committed): with no plan for it (none given,
     // a store outage then, or a family the light check did not ask about, such as graph-io's fidelity stories on a
     // graphty-element change) ask the store for it here (#3648)
-    if (!plan && family !== familyOf(shardName))
+    // the full path (ci.yml's test job on the release train's call or a dispatch: RESULTS_STORE_QUARANTINE=1) has no
+    // plan file and asks the store for its family's quarantine the same way; no answer keeps the committed list
+    if (!plan && (family !== familyOf(shardName) || env.RESULTS_STORE_QUARANTINE === "1"))
         plan = await shotsPlan({
             cfg: config(env, root),
             sha: head.commit,

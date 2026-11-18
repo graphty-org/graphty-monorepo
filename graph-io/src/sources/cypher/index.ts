@@ -17,7 +17,7 @@ import { isLoopback } from "../context.js";
 import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { CYPHER_SOURCE_ID, NEO4J_SOURCE_ID, NEPTUNE_SOURCE_ID } from "../ids.js";
-import { sha256Hex } from "../sigv4.js";
+import { sha256Hex } from "../sha256.js";
 import {
     type ExpandRequest,
     type GraphSource,

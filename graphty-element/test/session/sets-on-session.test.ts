@@ -208,7 +208,10 @@ describe("a run over a kept set", () => {
 
         assert.deepStrictEqual(run.record.scope.set, { id, revision });
         assert.strictEqual(run.record.scope.reading, "listed");
-        assert.include(run.label, "Route");
+        assert.include(
+            h.session.sets.usedBy(id).map((user) => user.label),
+            "Connections (Route)",
+        );
 
         h.session.sets.redefine(id, { kind: "path", nodes: ["a", "b"] });
         assert.strictEqual(run.record.scope.set?.revision, revision, "the record keeps the revision the run resolved");

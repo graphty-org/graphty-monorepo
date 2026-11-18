@@ -34,7 +34,7 @@ import {
 import { ID_TEXT_COLLISION_CODE, ID_TEXT_TYPE_CODE } from "../../common/codes.js";
 import { type DeclaredTypeSpec, mapDeclaredType } from "../../common/declared-types.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
-import { quoteCsvCell } from "../../common/escape.js";
+import { quoteCsvCell, spreadsheetSafeText } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
@@ -94,6 +94,16 @@ export interface Neo4jExportOptions extends CommonExportOptions {
      * @defaultValue null
      */
     idColumn?: string | null | undefined;
+    /**
+     * Whether to keep spreadsheets from running cells as formulas: a cell or property header starting
+     * with `=`, `+`, `-`, `@`, a tab or a CR (other than a plain number such as `-5`) is written with a
+     * leading `'`. Turn it on for a file someone may open in Excel or LibreOffice when the graph came
+     * from a source you do not trust: a value such as `=HYPERLINK("http://x","click")` otherwise runs
+     * as a formula, quoted or not. The prefixed cells read back with the `'`, so the round trip is no
+     * longer exact.
+     * @defaultValue false
+     */
+    spreadsheetSafe?: boolean | undefined;
 }
 
 /**
@@ -238,6 +248,7 @@ interface ResolvedNeo4jExportOptions {
     readonly arrayDelimiter: string;
     readonly weightColumn: string | null;
     readonly idColumn: string | null;
+    readonly spreadsheetSafe: boolean;
 }
 
 /** How one cell's value is written. */
@@ -317,7 +328,14 @@ function resolveNeo4jExportOptions(
             found: idColumn,
         });
     }
-    return { part, syntax, arrayDelimiter, weightColumn, idColumn };
+    const spreadsheetSafe = o.spreadsheetSafe ?? false;
+    if (typeof spreadsheetSafe !== "boolean") {
+        throw new GraphFormatError("E_UNSUPPORTED", "option spreadsheetSafe: expected a boolean", {
+            option: "spreadsheetSafe",
+            found: spreadsheetSafe,
+        });
+    }
+    return { part, syntax, arrayDelimiter, weightColumn, idColumn, spreadsheetSafe };
 }
 
 /**
@@ -1042,7 +1060,7 @@ class ExportPlan {
         if (this.labels !== null) {
             header.push(":LABEL");
         }
-        const properties = this.nodeColumns.map((plan) => plan.header).join(delimiter);
+        const properties = this.nodeColumns.map((plan) => this.headerText(plan.header)).join(delimiter);
         if (properties.length > 0) {
             header.push(properties);
         }
@@ -1112,7 +1130,7 @@ class ExportPlan {
         if (this.weights !== null) {
             header.push(formatHeaderField(this.options.weightColumn ?? "weight", "double", null));
         }
-        const properties = this.edgeColumns.map((plan) => plan.header).join(delimiter);
+        const properties = this.edgeColumns.map((plan) => this.headerText(plan.header)).join(delimiter);
         if (properties.length > 0) {
             header.push(properties);
         }
@@ -1158,7 +1176,18 @@ class ExportPlan {
         if (text.length === 0) {
             return quote + quote;
         }
-        return quoteCsvCell(text, this.options.syntax.delimiter, quote);
+        const safe = this.options.spreadsheetSafe ? spreadsheetSafeText(text) : text;
+        return quoteCsvCell(safe, this.options.syntax.delimiter, quote);
+    }
+
+    /**
+     * A property header as written: prefixed with `'` under `spreadsheetSafe` when a spreadsheet
+     * would read it as a formula.
+     * @param header - the header field
+     * @returns the header field as written
+     */
+    private headerText(header: string): string {
+        return this.options.spreadsheetSafe ? spreadsheetSafeText(header) : header;
     }
 
     /**
@@ -1504,7 +1533,15 @@ function textOf(column: Column, row: number): string {
  */
 export const neo4jExporter: GraphExporter<Neo4jExportOptions> = Object.freeze({
     format: NEO4J,
-    options: Object.freeze(["arrayDelimiter", "delimiter", "idColumn", "part", "quote", "weightColumn"]),
+    options: Object.freeze([
+        "arrayDelimiter",
+        "delimiter",
+        "idColumn",
+        "part",
+        "quote",
+        "spreadsheetSafe",
+        "weightColumn",
+    ]),
     capabilities: NEO4J_CAPABILITIES,
     /**
      * Pre-flight: what export() would lose.

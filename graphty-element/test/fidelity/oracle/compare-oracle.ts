@@ -1085,7 +1085,9 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
     };
     // a ring drawn round a loop's node (vis-network's loop, behind its node) shows only the arc outside the node: it is
     // read from inside the node, wherever the program started stroking it (json-vis-synth 55 -> 55)
-    const head = trimStart(start !== undefined && start === end ? fromInside(pts, start) : [...pts], start);
+    // the same node at both ends, however each end's copy of it was made (each end's outline is its own object)
+    const loop = start !== undefined && start.id === end?.id;
+    const head = trimStart(loop ? fromInside(pts, start) : [...pts], start);
     const out = trimStart([...head].reverse(), end).reverse();
     // what is left wholly under its nodes (two nodes drawn over one another, the line between their centers) shows no
     // part between them: a sliver cut from it would be judged as the route (pajek-synth-vertices 32->41)
@@ -1138,8 +1140,14 @@ export function routeShape(
     if (loop) {
         const unit = Math.max(length, 1e-9);
         const [sx, sy] = shift[0];
-        const onNode = g.map(([x, y]): Pt => [x - sx, y - sy]);
-        return { gap: frechet(resample(o, N), resample(onNode, N)) / unit, unit };
+        const onNode = resample(
+            g.map(([x, y]): Pt => [x - sx, y - sy]),
+            N,
+        );
+        // a loop's arc runs either way round its node, as a ring does: which way it runs is its arrowhead's to say
+        // (edge.arrow); vis-network strokes its loop clockwise and graphty counterclockwise (json-vis-synth 55 -> 55)
+        const O = resample(o, N);
+        return { gap: Math.min(frechet(O, onNode), frechet(O, [...onNode].reverse())) / unit, unit };
     }
     if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
         const unit = Math.max(length, 1e-9);
@@ -1618,6 +1626,20 @@ export function strayIou(a: PBox, b: PBox): number {
     return iou(toBox(thick(a)), toBox(thick(b)));
 }
 
+/** The five XML entities and numeric character references a text holds, decoded once. */
+const XML_ENTITIES: Readonly<Record<string, string>> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const decodeRefs = (text: string): string =>
+    text.replace(
+        /&(?:#(\d+)|#x([\da-f]+)|(amp|lt|gt|quot|apos));/gi,
+        (m, dec?: string, hex?: string, name?: string) => {
+            if (dec !== undefined || hex !== undefined) {
+                const code = dec === undefined ? parseInt(hex ?? "", 16) : Number(dec);
+                return code <= 0x10ffff ? String.fromCodePoint(code) : m;
+            }
+            return XML_ENTITIES[(name ?? "").toLowerCase()] ?? m;
+        },
+    );
+
 /** A specimen sheet's corner anchor node (`anchor-nw` and so on), which fixes the frame. */
 const isAnchor = (id: string): boolean => id.startsWith("anchor-");
 
@@ -1662,8 +1684,11 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
     const squash = (w: string): string => w.replace(/\s+/g, "");
     const theirs = other === null ? [] : captionWordsOf(other);
     const own = new Set(captionWordsOf(scene).map(squash));
-    const words = new Set([...own, ...theirs.map(squash)]);
-    if (ids.size === 0 && words.size === 0) {
+    const known = new Set([...own, ...theirs.map(squash)]);
+    // a program that draws a file's text as written, its character references undecoded (OGDF draws GML's
+    // "label=A&amp;amp;B" where graph-io reads the draft's "label=A&amp;B"), still draws the caption
+    const words = { has: (w: string): boolean => known.has(w) || known.has(decodeRefs(w)) };
+    if (ids.size === 0 && known.size === 0) {
         return facelessAsTexts(scene, other);
     }
     const { texts } = scene;
@@ -2367,11 +2392,12 @@ export function compareOracle(
         at: PNode | undefined,
         end: Pt | undefined,
     ): [PNode | undefined, PNode | undefined] => {
-        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text and icon
-        // nodes, whose lines it runs to their middle) is cut at that box, and graphty's line at its own node's box
-        if (on?.drawnBox === true && at !== undefined) {
+        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text nodes, whose
+        // lines it runs to their middle), or where it ends their lines (`PNode.endBox`: its icon nodes), is cut at that
+        // box, and graphty's line at its own node's box
+        if ((on?.drawnBox === true || on?.endBox !== undefined) && at !== undefined) {
             return [
-                { ...on, shape: "rect" },
+                { ...on, ...on.endBox, shape: "rect" },
                 { ...at, figure: undefined, ...(bodied(at) ? {} : { shape: "rect" }) },
             ];
         }
@@ -4008,7 +4034,10 @@ function judgeLabelDress(j: Judge, kind: string, id: string, o: PText, g: PText,
     if ((of !== null || os !== null) && (gf !== null || gs !== null) && ob !== null && gb !== null) {
         const shapeMiss = ob.shape !== null && gb.shape !== null && ob.shape !== gb.shape ? 1 : 0;
         const [ow, oh] = [ob.box.x1 - ob.box.x0, ob.box.y1 - ob.box.y0];
-        const [gw, gh] = [(gb.box.x1 - gb.box.x0) * scale, (gb.box.y1 - gb.box.y0) * scale];
+        // measured along its border's middle, as the oracle's box is the path its border is stroked along: graphty's
+        // box is the panel's outer edge, its border's whole width inside it
+        const mid = gs === null ? 0 : gs.width;
+        const [gw, gh] = [(gb.box.x1 - gb.box.x0 - mid) * scale, (gb.box.y1 - gb.box.y0 - mid) * scale];
         const miss =
             shapeMiss +
             Math.max(ratioMiss(gw / Math.max(ow, 1e-9), T.sizeRatio), ratioMiss(gh / Math.max(oh, 1e-9), T.sizeRatio));

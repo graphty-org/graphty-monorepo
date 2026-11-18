@@ -57,7 +57,7 @@ route the reason names the step or check that failed, and `tmp/dry-run/<route>.a
 what the page offered a user at that moment (its accessibility tree), which is usually enough to
 see why a step found nothing to click. `tmp/dry-run/<route>.png` is the screen each route ended on,
 passed or failed, and `<route>.ui.png` the same with what moves from run to run covered (the drawing,
-the status bar); the design studio compares it with the previous pass's (`design/ui/studio/tool/README.md`,
+the status bar); the design studio compares it with the previous pass's (`design/ui/studio/tool/REFERENCE.md`,
 "The scripted dry run").
 
 It runs only on this machine's GPU. Each browser checks that it draws with the NVIDIA card and the

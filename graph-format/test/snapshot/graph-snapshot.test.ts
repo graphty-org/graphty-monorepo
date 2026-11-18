@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { FORMAT_VERSION, INVALID_INDEX, SNAPSHOT_BRAND } from "../../src/constants.js";
-import { GraphFormatError } from "../../src/errors.js";
 import {
     CLONE_GUARD_KEY,
     createSnapshot,
@@ -16,21 +15,9 @@ import {
 import { type ArenaLayout, type GraphSnapshotContract } from "../../src/types/index.js";
 import { fromByteChunks, fromBytes } from "../../src/wire/bytes.js";
 import { fromWire } from "../../src/wire/from-wire.js";
+import { expectError } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
 import { type GraphSpec, makeParts, makeSnapshot } from "../helpers/parts.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
 
 const SPEC: GraphSpec = {
     directed: false,

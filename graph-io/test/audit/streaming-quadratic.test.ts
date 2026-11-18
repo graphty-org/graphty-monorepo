@@ -121,16 +121,12 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         expect(work[2] / work[1]).toBeLessThan(DOUBLING_BOUND);
     });
 
-    it("LineReader: the cost of a chunk is linear in its size for LF-terminated text (PINS a defect)", async () => {
-        // FAILS: LineReader (src/common/input.ts) calls text.indexOf("\r", start) for EVERY line;
-        // in a file without any CR (every Unix-written file) the search runs to the end of the
-        // chunk each time, so one chunk of L lines costs O(L x chunk length). Observed for
-        // `i i*7 1.5` lines: 10k lines in one chunk 15 ms, 20k 45 ms, 40k 125 ms, 80k 511 ms,
-        // 160k 2304 ms; the same 160k lines in 64 KiB pieces 55 ms; 1M lines in 4 MiB pieces
-        // (the Uint8Array DECODE_SLICE) 24.8 s versus 337 ms in 64 KiB pieces. CRLF text is
-        // unaffected (the CR is always near). Fix: search for the next line break once per
-        // line (a single charCodeAt loop, or indexOf("\n") and a CR check only on the character
-        // before it plus a bounded lone-CR scan), never an unbounded indexOf("\r").
+    it("LineReader: the cost of a chunk is linear in its size for LF-terminated text", async () => {
+        // Guards a fixed defect: LineReader (src/common/input.ts) once called text.indexOf("\r",
+        // start) for every line, and in a file without any CR the search ran to the end of the
+        // chunk each time, so one chunk of L lines cost O(L x chunk length) (1M lines in a 4 MiB
+        // slice took 24.8 s versus 337 ms in 64 KiB pieces). It now remembers the position of the
+        // next \n and \r and searches again only once the reader has passed it.
         const lines = 160_000;
         const text = `${Array.from({ length: lines }, (_, i) => `${i} ${i * 7} 1.5`).join("\n")}\n`;
         const pieces = await linesWork(textPieces(text, CHUNK));
@@ -141,11 +137,10 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         expect(whole / pieces, "one chunk versus 64 KiB pieces").toBeLessThan(SHAPE_BOUND);
     });
 
-    it("Pajek: a Uint8Array input examines about the same as 64 KiB chunks (PINS the LineReader defect)", async () => {
-        // FAILS: the Uint8Array path decodes 4 MiB slices, each a single LineReader chunk, so a
-        // Pajek file pays the quadratic scan above. Observed: 100k vertices + 200k arcs (5.5 MB)
-        // 270 ms chunked versus 14.7 s as one string; the 1M-arc file (23 MB) 1.2 s chunked
-        // versus 68.9 s as a Uint8Array (57x) and longer still as a string.
+    it("Pajek: a Uint8Array input examines about the same as 64 KiB chunks", async () => {
+        // Guards the same fixed LineReader defect: the Uint8Array path decodes 4 MiB slices, each
+        // a single LineReader chunk, so while the scan was quadratic the 1M-arc file (23 MB) took
+        // 68.9 s as a Uint8Array against 1.2 s in 64 KiB chunks.
         const path = pajekNetwork(100_000, 100_000);
         const bytes = new Uint8Array(readFileSync(path));
         const chunked = await importWork(pajekImporter, byteChunks(bytes, CHUNK));

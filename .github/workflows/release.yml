@@ -1178,8 +1178,6 @@ jobs:
                       artifact: build-storybook-layout
                     - project: algorithms
                       artifact: build-storybook-algorithms
-                    - project: graphty
-                      artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
                     # four legs, merged by recapture_merge (its matrix lists every legged project)
@@ -1203,13 +1201,39 @@ jobs:
                       storybook: graph-io/fidelity-stories/storybook-static
                       leg: 4
                       legs: 4
+                    # four legs too: 380 changed and new stories took 2603 s in one job, past its 45 minutes with the
+                    # merge (#8128); at about 7 s a story a quarter of them is about 11 minutes
+                    # unsteady: its app stories may draw differently on two runners, so a fix forward's whole re-shoot
+                    # (WHOLE) runs in leg 1 alone, every story, and legs 2-4 find no capture and do nothing. Each leg
+                    # shooting its own whole capture would plan from four different changed lists, and legShare picks
+                    # by position, so the legs would re-shoot the wrong stories (#8128)
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 1
+                      legs: 4
+                      unsteady: true
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 2
+                      legs: 4
+                      unsteady: true
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 3
+                      legs: 4
+                      unsteady: true
+                    - project: graphty
+                      artifact: build-storybook-app
+                      leg: 4
+                      legs: 4
+                      unsteady: true
         env:
             PROJECT: ${{ matrix.project }}
-            LEG: ${{ matrix.leg && format('{0}/{1}', matrix.leg, matrix.legs) || '' }}
+            LEG: ${{ matrix.leg && !(matrix.unsteady && needs.pick.outputs.source_run != '' && contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project)) && format('{0}/{1}', matrix.leg, matrix.legs) || '' }}
             # a fix forward's re-test (the pick's source_run and capture): the CI lane shot nothing, so this job shoots
             # every story of a Storybook the fixes reach (WHOLE) and carries the others' final captures over from the
             # run that judged the head before (CARRY), shooting their changed and new stories again
-            WHOLE: ${{ needs.pick.outputs.source_run != '' && contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) }}
+            WHOLE: ${{ needs.pick.outputs.source_run != '' && contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) && (!matrix.unsteady || matrix.leg == 1) }}
             CARRY: ${{ needs.pick.outputs.source_run != '' && !contains(fromJSON(needs.pick.outputs.capture || '[]'), matrix.project) }}
         steps:
             - uses: actions/checkout@v7
@@ -1392,6 +1416,7 @@ jobs:
             matrix:
                 include:
                     - project: graph-io-fidelity
+                    - project: graphty
         env:
             PROJECT: ${{ matrix.project }}
         steps:

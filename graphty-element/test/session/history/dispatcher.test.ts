@@ -13,7 +13,7 @@ describe("dispatch", () => {
         assert.strictEqual(stackName(dispatcher), "hubs");
         const { steps } = dispatcher.history;
         assert.lengthOf(steps, 1);
-        assert.strictEqual(steps[0].label, "Styled hubs");
+        assert.strictEqual(steps[0].fact.params.label, "Styled hubs");
         assert.deepEqual(steps[0].ops, ["fake.styles"]);
         assert.deepEqual(steps[0].slices, ["styles"]);
         assert.deepEqual(published, [{ slices: ["styles"], cause: "command" }]);
@@ -133,7 +133,7 @@ describe("dispatch", () => {
         await dispatcher.dispatch({ op: "fake.styles", name: "c" });
 
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Styled a", "Styled c"],
         );
     });
@@ -158,4 +158,56 @@ describe("dispatch", () => {
 
         assert.strictEqual(listening, 0);
     });
+
+    it("lets go of a queued job's slot signal once the job settles", async () => {
+        const { dispatcher, queue } = setup();
+        const enqueue = queue.enqueue.bind(queue);
+        const counts: { count: number }[] = [];
+        queue.enqueue = (...args: Parameters<typeof enqueue>) => {
+            const slot = enqueue(...args);
+            counts.push(countListeners(slot.signal));
+            return slot;
+        };
+
+        const done = dispatcher.dispatch({ op: "fake.add-edge", source: "x", target: "y" });
+        assert.lengthOf(counts, 1);
+        const [listening] = counts;
+        assert.strictEqual(listening.count, 1);
+        await queue.next();
+        await done;
+
+        assert.strictEqual(listening.count, 0);
+    });
+
+    it("lets go of a transaction's signal once its body settles", async () => {
+        const { dispatcher } = setup();
+        let listening: { count: number } | undefined;
+
+        await dispatcher.transaction("Styled", async (tx, signal) => {
+            listening = countListeners(signal);
+            await tx.dispatch({ op: "fake.styles", name: "a" });
+        });
+
+        assert.strictEqual(listening?.count, 0);
+    });
 });
+
+/**
+ * Count a signal's abort listeners from now on: each add counts one, each remove one less.
+ * @param signal - The signal.
+ * @returns The live count.
+ */
+function countListeners(signal: AbortSignal): { count: number } {
+    const counted = { count: 0 };
+    const add = signal.addEventListener.bind(signal);
+    const remove = signal.removeEventListener.bind(signal);
+    signal.addEventListener = (...args: Parameters<AbortSignal["addEventListener"]>): void => {
+        counted.count++;
+        add(...args);
+    };
+    signal.removeEventListener = (...args: Parameters<AbortSignal["removeEventListener"]>): void => {
+        counted.count--;
+        remove(...args);
+    };
+    return counted;
+}

@@ -2,6 +2,7 @@ import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMas
 import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
+import type { RankSet } from "../data/groups";
 import { readSeedPosition } from "../data/seedPosition";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -173,6 +174,8 @@ interface SnapshotLayoutHost {
     positionScale?(): number | undefined;
     /** The element's `data.knownFields`; undefined before the element is attached. */
     knownFields?(): LocationDesignation | undefined;
+    /** The data manager's rank subgraphs, which a graph whose rows have no `Node` (renderPath "batched") reaches no other way. */
+    rankSets?(): readonly RankSet[];
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -309,6 +312,11 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         }
 
         super.refresh();
+        // Published, and the base class's column keeps the answer in scene units: the answer as
+        // computed is read only by the next refresh, so a layout that has finished holds one copy
+        // of its coordinates. (A third party's `SimpleLayoutEngine` keeps `result`, which its
+        // documented contract lets it read.)
+        this.result = null;
     }
 
     /**
@@ -594,6 +602,17 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      */
     protected knownFields(): LocationDesignation | undefined {
         return this.#host?.knownFields?.() ?? this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
+    }
+
+    /**
+     * The data manager's rank subgraphs: from the element, so a graph whose rows have no `Node` (the batched path)
+     * still reads them; else through the first `Node`, for an engine the element did not connect.
+     * @returns The rank sets; none before the element is attached.
+     */
+    protected rankSets(): readonly RankSet[] {
+        const graph: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
+            this._nodes[0]?.parentGraph;
+        return this.#host?.rankSets?.() ?? graph?.getDataManager?.().rankSets ?? [];
     }
 
     #nodesByRow(n: number): (Node | undefined)[] {

@@ -71,6 +71,24 @@ describe("pulled line batch draw order", () => {
         assert.deepEqual(drawn(), [0, 1, 2]);
     });
 
+    it("keeps no draw keys for one width, and keys every piece once a second width arrives", () => {
+        [3, 3, 3, 3, 3].forEach((width) => batch.acquire(width));
+        batch.release(1);
+        batch.release(3);
+        assert.equal(batch.acquire(3), 3, "the last freed piece is taken first");
+        drawn();
+        assert.equal(batch.keyCount, 0, "one width: a piece's key is its own number");
+
+        assert.equal(batch.acquire(5), 1, "the other freed piece, now of a second width");
+        // a new piece, in the slot the first width's batch freed: drawn where piece 1 was
+        assert.equal(batch.acquire(3), 5);
+        assert.isAtLeast(batch.keyCount, 6, "a key for every piece from here on");
+        assert.deepEqual(drawn(), [0, 5, 2, 3, 4, 1]);
+        batch.release(2);
+        assert.equal(batch.acquire(5), 2);
+        assert.deepEqual(drawn(), [0, 5, 3, 4, 1, 2]);
+    });
+
     it("keeps plain piece order for one width, freed pieces included, with no order table", () => {
         [3, 3, 3, 3].forEach((width) => batch.acquire(width));
         batch.release(1);

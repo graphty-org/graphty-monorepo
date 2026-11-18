@@ -30,6 +30,7 @@ import {
     specimenSettingNames,
 } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
+import { withoutHiddenHeads } from "./hidden-heads";
 import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./judges";
 import type { Pixels } from "./picture-gradient";
 import type { PScene } from "./primitives";
@@ -436,7 +437,10 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
         // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
         const association = {
             ...associated,
-            scene: withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+            scene: withoutHiddenHeads(
+                withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+                read.prims,
+            ),
         };
         const report = compareOracle(
             id,

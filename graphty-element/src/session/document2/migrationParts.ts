@@ -9,6 +9,7 @@ import { sha256HexSync } from "@graphty/graph-io";
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import { oldLookColumns } from "../styles/fileStyles/oldLooks";
+import { DTYPES } from "./basics";
 import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
 import type { DocumentProblem, EdgeRef, JsonObject, NodeRef } from "./types";
 
@@ -101,14 +102,6 @@ export function keyText(id: unknown): string {
 // ---------------------------------------------------------------------------------------------
 // The version 1 column encoding (projectFile.ts `encodeColumn`)
 // ---------------------------------------------------------------------------------------------
-
-/** Bytes per value, and the reader, of each version 1 dtype; projectFile.ts's columns share it. */
-export const DTYPES: Readonly<Record<string, readonly [number, (view: DataView, at: number) => number]>> = {
-    f64: [8, (view, at) => view.getFloat64(at, true)],
-    f32: [4, (view, at) => view.getFloat32(at, true)],
-    i32: [4, (view, at) => view.getInt32(at, true)],
-    u8: [1, (view, at) => view.getUint8(at)],
-};
 
 /**
  * A version 1 column as plain values: a JSON list as it is, base64 little-endian numbers decoded,

@@ -218,7 +218,7 @@ function Privacy(): React.JSX.Element {
                 <Text size="xs">
                     {on ? "Usage data: sent with content masked, only while Share usage data is on." : usageOff}
                 </Text>
-                <Text size="xs">Anonymous counts: for everyone, with no cookies (Umami).</Text>
+                <Text size="xs">Anonymous counts: for everyone, with no cookies or stored id (PostHog, EU).</Text>
                 <Anchor href="/privacy.html" target="_blank" rel="noopener noreferrer" size="xs">
                     Privacy details
                 </Anchor>

@@ -112,8 +112,9 @@
 
             <h2 id="always">Always sent, whatever you answer</h2>
             <p>
-                These counts go to Umami Cloud. They use no cookies, and Umami stores nothing in your browser. Each
-                event below is sent at most once per page load.
+                These counts go to PostHog (EU region), in its cookieless mode. PostHog stores nothing in your browser
+                for them, and no id is sent from your browser; the app's own visit record is described under Visits.
+                Each event below is sent at most once per page load.
             </p>
             <div class="table">
                 <table>
@@ -132,8 +133,8 @@
                                 when they are on a short fixed list (such as <code>hn</code>, <code>reddit</code>,
                                 <code>github</code>, <code>newsletter</code>); any other value is sent as
                                 <code>other</code>, and every other part of the address is dropped. The referring site's
-                                origin only (for example <code>https://news.ycombinator.com</code>). The page title is
-                                always sent as "graphty". Your language and screen size are not sent.
+                                origin only (for example <code>https://news.ycombinator.com</code>). Your language and
+                                screen size are not sent.
                             </td>
                         </tr>
                         <tr>
@@ -190,6 +191,11 @@
                     </tbody>
                 </table>
             </div>
+            <p>
+                Each count also carries: that it is an anonymous count, the site's name, the channel and the days bucket
+                above, whether it is the first of its kind on this page, and your browser, your operating system, your
+                device type (desktop, mobile or tablet) and your time zone.
+            </p>
             <h3>Visits</h3>
             <p>
                 To tell a first visit from a return, the app keeps two dates in this browser
@@ -199,21 +205,22 @@
                 visit record and sends no <code>first_visit</code>, <code>return_visit</code> or
                 <code>usage_data_shared</code>; the page view and the other counts are still sent.
             </p>
-            <h3>What Umami receives with each count</h3>
+            <h3>What PostHog receives with each anonymous count</h3>
             <p>
-                Like any web request, each count reaches Umami Cloud with your IP address and your browser's User-Agent.
-                Umami does not store the IP address. It does store what it derives from the request: an approximate
-                location (country, region and city) from the IP address, and your browser, operating system and device
-                type from the User-Agent. From the IP address, the User-Agent and a secret salt it derives a
-                pseudonymous session id, so counts from one visitor can be grouped; the salt is replaced every month, so
-                that id changes monthly. The app ignores and never stores any id Umami sends back.
+                Like any web request, each count reaches PostHog with your IP address and your browser's User-Agent.
+                PostHog combines them with this site's host name and a random value it replaces every day into an id
+                that groups one day's counts from one browser. It replaces the random value every day and deletes each
+                one within about four days (the day itself plus a buffer for late counts); after that the id can no
+                longer be traced back to your browser, and because each day has a new value, the id cannot be linked to
+                another day's. It removes your IP address and User-Agent before it stores the count, and looks up no
+                location from them.
             </p>
 
             <h2 id="share">Sent only with Share usage data</h2>
             <p>
-                When you choose Share usage data, the app also sends the following to PostHog (EU) and Sentry. Before
-                either starts recording, the app removes everything after the path from the address bar, so a replay
-                never records it.
+                When you choose Share usage data, PostHog switches from anonymous counts to the following, and the app
+                also sends errors to Sentry. Before either starts recording, the app removes everything after the path
+                from the address bar, so a replay never records it.
             </p>
             <h3>PostHog</h3>
             <ul>
@@ -297,12 +304,15 @@
                 <li>File names, and the addresses of files or servers you open.</li>
                 <li>Node and edge labels, attribute values and column names.</li>
                 <li>Project names and note text.</li>
-                <li>A PostHog id, or anything at all to PostHog or Sentry, before you choose Share usage data.</li>
                 <li>
-                    A location with your PostHog events or from Sentry: PostHog's IP location lookup is off for every
-                    event it stores, and Sentry is told never to record your IP address. PostHog's settings requests
-                    (when it starts, and every few minutes while sharing is on) do reach it with your IP address and
-                    time zone, like any web request. (Umami's approximate location is listed above, under Always sent.)
+                    A PostHog id stored in your browser, anything to PostHog beyond the anonymous counts, or anything at
+                    all to Sentry, before you choose Share usage data.
+                </li>
+                <li>
+                    A location: PostHog's IP location lookup is off for every event, and for anonymous counts PostHog
+                    removes your IP address before any lookup could run; Sentry is told never to record your IP address.
+                    PostHog's settings requests (when sharing starts, and every few minutes while it is on) do reach it
+                    with your IP address and time zone, like any web request.
                 </li>
             </ul>
             <p>
@@ -312,10 +322,11 @@
 
             <h2 id="where">Where it goes</h2>
             <ul>
-                <li><b>Umami Cloud</b> (<code>gateway.umami.is</code>): the anonymous counts.</li>
                 <li>
-                    <b>PostHog, EU region</b> (<code>eu.i.posthog.com</code>, and <code>eu-assets.i.posthog.com</code>
-                    for its settings): only with Share usage data. PostHog's code is not even downloaded before then.
+                    <b>PostHog, EU region</b> (<code>eu.i.posthog.com</code>): the anonymous counts for everyone and,
+                    only with Share usage data, everything listed under it, plus <code>eu-assets.i.posthog.com</code>
+                    for its settings. Every visitor's browser downloads PostHog's code after the page has loaded; until
+                    you choose Share it sends only the anonymous counts.
                 </li>
                 <li><b>Sentry</b> (<code>sentry.io</code>): only with Share usage data.</li>
             </ul>
@@ -325,14 +336,15 @@
             <ul>
                 <li>
                     Answer <b>No thanks</b> to the usage data question, or turn off <b>Share usage data</b> in
-                    <b>Settings &gt; Privacy</b> (the privacy chip in the status bar opens it). PostHog and Sentry stop
-                    at once, in every open tab, and PostHog's id is deleted. Nothing that happens after that is sent;
-                    PostHog may still send what it recorded in the last few seconds before you turned it off, including
-                    the click that turned it off.
+                    <b>Settings &gt; Privacy</b> (the privacy chip in the status bar opens it). PostHog goes back to
+                    anonymous counts and Sentry stops, at once, in every open tab, and PostHog's id is deleted. Nothing
+                    beyond the anonymous counts is sent after that; PostHog may still send what it recorded in the last
+                    few seconds before you turned it off, including the click that turned it off.
                 </li>
                 <li>
                     The anonymous counts have no switch in the app. Do Not Track or Global Privacy Control stops the
-                    visit record; a content blocker that blocks <code>gateway.umami.is</code> stops the counts.
+                    visit record; a content blocker that blocks <code>eu.i.posthog.com</code> stops the counts, and
+                    Share usage data with them.
                 </li>
             </ul>
         </main>

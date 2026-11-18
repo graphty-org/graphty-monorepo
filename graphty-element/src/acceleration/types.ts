@@ -273,20 +273,24 @@ export interface AccelerationStatus {
 }
 
 /**
- * The measured numbers that govern how much the element will attempt on this machine.
+ * The numbers that govern how much the element will attempt.
  *
- * They come from `session.calibrate()`, the element's own first-run probe, and fall back to
- * built-in defaults when the probe cannot run.
+ * They are shipped defaults (`DEFAULT_LIMITS`); `renderCeiling`, `edgesDrawn`, `objectRows` and
+ * `objectEdges` can be set through the `limits` option. `session.calibrate()` measures this
+ * machine's throughput for the cost estimates and does not change them.
  */
 export interface Limits {
-    /** Above this node count the element draws less visual detail. Nothing to do with acceleration. */
+    /**
+     * Above this node count the element draws less visual detail: a round node shape no style layer
+     * gives a `node.meshDetail` is drawn `"low"`, and `session.recommendLayout()` scatters the graph
+     * at random rather than settling a force simulation. A layer that sets `node.meshDetail`
+     * (`"full"` included) keeps it at any size. Nothing to do with acceleration.
+     */
     largeGraphThreshold: number;
     /** The most nodes this machine will render at an interactive frame rate. */
     renderCeiling: number;
     /** How much memory the element is willing to hold for one graph. */
     graphMemoryBudgetBytes: number;
-    /** Above this node count an approximable algorithm is approximated rather than computed exactly. */
-    approximateAboveNodes: number;
     /** The most elements a single selection will hold. */
     selectionCap: number;
     /** The most edges drawn at once. */

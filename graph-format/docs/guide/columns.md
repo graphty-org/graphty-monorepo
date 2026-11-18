@@ -52,6 +52,50 @@ A column can also carry a **role**, which tells other packages what it means wit
 its name: `label`, `id`, `weight`, `position`, `color`, `size`, and so on. `byRole("label")` finds
 the column holding a role, and a table holds each role at most once.
 
+## Positions and coordinate systems
+
+A node position column (role `position`) can say what kind of coordinates it holds, so a reader
+does not need to know which file format it came from. Declare it with `coordinates` and read it
+back with `coordinateSystemOf()`:
+
+```typescript
+import { coordinateSystemOf, GraphBuilder } from "@graphty/graph-format";
+
+const b = new GraphBuilder({ directed: false });
+b.addEdge("SEA", "LAX");
+b.declareNodeColumn({
+    name: "where",
+    dtype: "f64",
+    components: 3,
+    role: "position",
+    coordinates: { kind: "geographic", dims: 2 },
+});
+b.setNodeValue("where", 0, [-122.31, 47.45, 0]); // longitude, latitude, altitude
+b.setNodeValue("where", 1, [-118.41, 33.94, 0]);
+const snapshot = b.freeze();
+
+coordinateSystemOf(snapshot.nodes.require("where").meta);
+// { kind: "geographic", dims: 2, units: "degrees", yAxis: null, datum: "WGS84", crs: null,
+//   order: ["longitude", "latitude", "altitude"] }
+```
+
+| Field   | Cartesian                                     | Geographic                              |
+| ------- | --------------------------------------------- | --------------------------------------- |
+| `kind`  | `"cartesian"` (the default)                   | `"geographic"`                          |
+| `dims`  | 2 or 3: what the source stored (default 3)    | 2 or 3 (3 when it has an altitude)      |
+| `units` | `"file"` (default) or `"scene"`               | `"degrees"` (altitude in meters)        |
+| `yAxis` | `"up"` (default) or `"down"`                  | `null`                                  |
+| `datum` | `null`                                        | `"WGS84"` unless declared               |
+| `crs`   | the source's reference-system name, or `null` | the source's name (Neo4j `"wgs-84-3d"`) |
+| `order` | `["x", "y", "z"]`                             | `["longitude", "latitude", "altitude"]` |
+
+A column that declares nothing reads as cartesian, file units, y up. The declaration survives
+freeze, derived graphs, renames and the wire form.
+
+A node `bool` column with role `fixed` marks the nodes whose position the source pins (Graphviz
+`pos="x,y!"`, a locked node): a layout keeps them where the position column puts them and places
+the rest.
+
 ## Adding columns to a frozen snapshot
 
 A snapshot's graph never changes, but its set of columns does: `set()`, `remove()` and `rename()`

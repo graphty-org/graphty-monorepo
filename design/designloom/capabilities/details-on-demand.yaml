@@ -4,7 +4,8 @@ category: interaction
 description: "Show comprehensive information for selected nodes or edges in a detail panel. Display all attributes,
     computed metrics, and related context. The fourth step of Shneiderman's mantra: overview, zoom, filter,
     details-on-demand."
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/inspector/NodeValues.tsx."
 algorithms: []
 used_by_workflows:
     - W02
@@ -15,9 +16,15 @@ used_by_workflows:
     - W12
     - W13
     - W17
+    - W20
+    - W22
+    - W23
+    - W25
 implemented_by_components:
     - attribute-row
     - node-details-panel
+    - data-table-panel
+    - heatmap-panel
 requirements:
     - Display detail panel within 100ms of node selection
     - Show all node attributes as label-value pairs in detail panel

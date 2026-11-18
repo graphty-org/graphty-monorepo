@@ -281,6 +281,29 @@ function shownStroke(n: PNode): PNode["stroke"] {
     return band === n.stroke.width ? n.stroke : { ...n.stroke, width: band };
 }
 
+/**
+ * Whether a node draws no body: no fill, outline, ring or picture of its own, only its words if any.
+ * @param n - the node, either side's
+ * @returns true when it draws no body
+ */
+const bodiless = (n: PNode): boolean =>
+    n.fill === null && n.stroke === null && (n.ring ?? null) === null && (n.pictures?.length ?? 0) === 0;
+
+/**
+ * The shape "none" of a node the program draws as its words alone (vis-network's `text`, Graphviz's `plaintext`):
+ * graphty draws it right when it draws no body either. An icon node's glyph is its body, which an oracle with no icon
+ * font cannot show (`endBox`), so it is not judged.
+ * @param o - the oracle's node
+ * @param g - graphty's node
+ * @returns 0 when both draw only words, 1 when graphty draws a body, null when the oracle's node is not words alone
+ */
+export function wordsOnlyShapeMiss(o: PNode, g: PNode): number | null {
+    if (o.label === null || o.endBox !== undefined || !bodiless(o)) {
+        return null;
+    }
+    return bodiless(g) ? 0 : 1;
+}
+
 /** One judged element. */
 export interface OracleJudged {
     id: string;
@@ -1626,6 +1649,20 @@ export function strayIou(a: PBox, b: PBox): number {
     return iou(toBox(thick(a)), toBox(thick(b)));
 }
 
+/** The five XML entities and numeric character references a text holds, decoded once. */
+const XML_ENTITIES: Readonly<Record<string, string>> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const decodeRefs = (text: string): string =>
+    text.replace(
+        /&(?:#(\d+)|#x([\da-f]+)|(amp|lt|gt|quot|apos));/gi,
+        (m, dec?: string, hex?: string, name?: string) => {
+            if (dec !== undefined || hex !== undefined) {
+                const code = dec === undefined ? parseInt(hex ?? "", 16) : Number(dec);
+                return code <= 0x10ffff ? String.fromCodePoint(code) : m;
+            }
+            return XML_ENTITIES[(name ?? "").toLowerCase()] ?? m;
+        },
+    );
+
 /** A specimen sheet's corner anchor node (`anchor-nw` and so on), which fixes the frame. */
 const isAnchor = (id: string): boolean => id.startsWith("anchor-");
 
@@ -1670,8 +1707,11 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
     const squash = (w: string): string => w.replace(/\s+/g, "");
     const theirs = other === null ? [] : captionWordsOf(other);
     const own = new Set(captionWordsOf(scene).map(squash));
-    const words = new Set([...own, ...theirs.map(squash)]);
-    if (ids.size === 0 && words.size === 0) {
+    const known = new Set([...own, ...theirs.map(squash)]);
+    // a program that draws a file's text as written, its character references undecoded (OGDF draws GML's
+    // "label=A&amp;amp;B" where graph-io reads the draft's "label=A&amp;B"), still draws the caption
+    const words = { has: (w: string): boolean => known.has(w) || known.has(decodeRefs(w)) };
+    if (ids.size === 0 && known.size === 0) {
         return facelessAsTexts(scene, other);
     }
     const { texts } = scene;
@@ -2177,6 +2217,11 @@ export function compareOracle(
         }
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
+        } else {
+            const miss = wordsOnlyShapeMiss(o, g);
+            if (miss !== null) {
+                j.add("node.shape", "node", id, miss, "none", miss === 0 ? "none" : g.shape);
+            }
         }
         // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
         // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)

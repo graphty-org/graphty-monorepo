@@ -125,6 +125,12 @@ const VALUE_EXPORTS = [
     "PAJEK_STYLE_COMMENT",
     "pajekExporter",
     "pajekImporter",
+    "INTERACTION_COLUMN",
+    "SIF_CAPABILITIES",
+    "SIF_ISSUE",
+    "SIF_LOSS",
+    "sifExporter",
+    "sifImporter",
     "XGMML_ISSUE",
     "XGMML_LOSS",
     "xgmmlExporter",
@@ -329,6 +335,7 @@ const VALUE_EXPORTS = [
     "GITHUB_SOURCE_ID",
     "S3_SOURCE_ID",
     "ZENODO_SOURCE_ID",
+    "FIGSHARE_SOURCE_ID",
     "SOURCE_DEGREE_ATTR",
     "SOURCE_ENTITY_ATTR",
     "SOURCE_FORMAT_PREFIX",
@@ -359,6 +366,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
             ["obo", graphIo.oboImporter, graphIo.oboExporter],
             ["cys", graphIo.cysImporter, graphIo.cysExporter],
+            ["sif", graphIo.sifImporter, graphIo.sifExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);

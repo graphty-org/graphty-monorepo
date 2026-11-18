@@ -385,7 +385,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const { session } = document.getElementById("g");
      *   await session.visibility.set({ kind: "degree", min: 3 });
@@ -541,7 +541,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   const run = g.run("betweenness");
@@ -570,7 +570,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   await g.select({ nodes: [1, 2, 3] });
@@ -4412,7 +4412,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Export the graph as it is drawn now as a vector figure, an SVG file for a paper or a slide.
+     * Export the graph as it is drawn now as a vector figure, an SVG or a PDF file for a paper or a slide.
      *
      * Every visible node is a filled shape where the canvas draws it, in its color; every visible
      * edge is a line; every label on screen is text, not pixels, so it can be edited and searched;
@@ -4420,9 +4420,9 @@ export class Graphty extends LitElement {
      * canvas's size in CSS pixels and lines up with a screenshot taken at the same moment. It waits
      * for the finished picture first, as {@link Graphty.waitForStableFrame} does, and rejects as it
      * does.
-     * @param options - The format (`"svg"`), the key, the background and an optional download.
-     * @returns The file as a Blob of type `image/svg+xml`, its size, and whether it was downloaded.
-     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` (`details.field`
+     * @param options - The format (`"svg"` or `"pdf"`), the key, the background and an optional download.
+     * @returns The file as a Blob of type `image/svg+xml` or `application/pdf`, its size, and whether it was downloaded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` or `"pdf"` (`details.field`
      *   is `"format"`), `E_CAPTURE_FAILED` when there is no camera to draw from.
      * @since 3.40.0
      * @example
@@ -4598,6 +4598,24 @@ export class Graphty extends LitElement {
      */
     cancelAnimationCapture(): boolean {
         return this.#graph.cancelAnimationCapture();
+    }
+
+    /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. Pair it with a long `duration` to record until
+     * the reader stops.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * const recording = el.captureAnimation({ duration: 300_000, cameraMode: "stationary", download: true });
+     * stopButton.onclick = () => el.stopAnimationCapture();
+     * await recording; // the video so far, downloaded
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.#graph.stopAnimationCapture();
     }
 
     /**

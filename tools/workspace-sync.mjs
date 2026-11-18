@@ -7,7 +7,7 @@
 // `issue-groups.mjs check --fix` (every round) calls syncWorkspace(). Under a lock it fetches, asks
 // `git merge-tree --write-tree HEAD origin/master` whether the merge is clean, and only then runs a signed
 // `git merge --no-edit origin/master` (git itself refuses to overwrite a dirty file the merge would touch). Any failure,
-// a locked gpg agent included, ends in `git merge --abort`; it never passes --no-gpg-sign and never merges a branch
+// a locked gpg agent included, ends in `git merge --abort`; it never turns signing off and never merges a branch
 // other than master. It records { behind, ahead, conflict, dirtyBlocked, at, behindSince, error } in
 // tmp/workspace-sync.json, which `issue-groups.mjs idle` reads: a conflict, or being behind for over an hour, is a sink
 // the round must clear. dirtyBlocked (git refused because master changes files the owner has uncommitted there) is not:

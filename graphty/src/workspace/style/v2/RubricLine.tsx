@@ -18,8 +18,10 @@ import { Field, FieldLine, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent } from "../words";
+import { ItemListEditor, PointPair } from "./ItemList";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
-import { isPictured, type LineSpec, type Rule, segmentOptions } from "./rubric";
+import { coordinateDescriptor, ITEM_LISTS, readPoints, writePoints } from "./lists";
+import { isPictured, type LineSpec, type Rule, segmentOptions, VALUE_GLYPHS } from "./rubric";
 import { setOn } from "./things";
 import { sectionsOf } from "./valueSections";
 
@@ -120,7 +122,9 @@ export function PresetLine({
     onWrite: (value: ChannelValue) => void;
 }>): React.JSX.Element {
     const values = presets ?? ctx.session.catalog.channelValues(descriptor.channel);
-    const named = values.find((each) => each.id === value)?.plainName;
+    const named = values.find((each) => each.id === String(value))?.plainName;
+    // A number's presets (a glyph's weight, 400 or 700) write the number they name.
+    const numeric = descriptor.accepts === "number";
     return (
         <ComboInput
             label={label ?? fieldName(descriptor.channel)}
@@ -130,7 +134,7 @@ export function PresetLine({
             onChange={(next) => {
                 const preset = values.find((each) => each.id === next || each.plainName === next);
                 if (preset !== undefined) {
-                    onWrite(preset.id);
+                    onWrite(numeric && Number.isFinite(Number(preset.id)) ? Number(preset.id) : preset.id);
                 } else if (typeof next === "number" || (next !== "" && Number.isFinite(Number(next)))) {
                     onWrite(Number(next));
                 }
@@ -320,11 +324,12 @@ function numberControl(args: ControlArgs): React.ReactNode {
  * @returns The control
  */
 function presetControl(args: ControlArgs): React.ReactNode {
-    const { ctx, descriptor, value, write } = args;
+    const { ctx, line, descriptor, value, write } = args;
     return (
         <PresetLine
             ctx={ctx}
             descriptor={descriptor}
+            presets={line.presets}
             value={value}
             onWrite={(next) => {
                 write(descriptor.channel, next);
@@ -340,6 +345,16 @@ function presetControl(args: ControlArgs): React.ReactNode {
  */
 function listControl(args: ControlArgs): React.ReactNode {
     const { ctx, descriptor, value, label, write } = args;
+    const glyphs = VALUE_GLYPHS[descriptor.channel];
+    const icons =
+        glyphs === undefined
+            ? undefined
+            : Object.fromEntries(
+                  Object.entries(glyphs).map(([id, glyph]) => {
+                      const Glyph = GLYPHS[glyph];
+                      return [id, <Glyph key={id} size={14} aria-hidden />];
+                  }),
+              );
     return (
         <ValueListbox
             session={ctx.session}
@@ -349,6 +364,7 @@ function listControl(args: ControlArgs): React.ReactNode {
             shown={undefined}
             sections={sectionsOf(descriptor.channel)}
             counts={false}
+            icons={icons}
             onPick={(picked) => {
                 write(descriptor.channel, picked);
             }}
@@ -426,8 +442,121 @@ function fontControl(args: ControlArgs): React.ReactNode {
     );
 }
 
+/**
+ * A point held as one `x,y` text (a port): an X | Y pair; emptying both unsets it.
+ * @param args - the line.
+ * @returns The control
+ */
+function pointControl(args: ControlArgs): React.ReactNode {
+    const { descriptor, value, label, write } = args;
+    return (
+        <PointPair
+            descriptor={coordinateDescriptor(descriptor)}
+            label={label}
+            point={readPoints(value)[0]}
+            onWrite={(point) => {
+                write(descriptor.channel, point === undefined ? undefined : writePoints([point]));
+            }}
+        />
+    );
+}
+
+/** A frame's four sides, in the element's order, with their glyphs (R17). */
+const SIDES = [
+    ["Top", "arrowUpToLine"],
+    ["Right", "arrowRightToLine"],
+    ["Bottom", "arrowDownToLine"],
+    ["Left", "arrowLeftToLine"],
+] as const;
+
+/**
+ * A set of sides (R17, `node.stripeFrame`: four fractions "top right bottom left"): top | right,
+ * then bottom | left, each field with its side's glyph. Emptying all four unsets it.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.line - the line
+ * @param props.descriptor - its channel
+ * @param props.set - whether the layer sets it
+ * @param props.write - writes the sides' text, or undefined to unset
+ * @returns The two lines
+ */
+function SidesLines({
+    ctx,
+    line,
+    descriptor,
+    set,
+    write,
+}: Readonly<{
+    ctx: RowContext;
+    line: LineSpec;
+    descriptor: ChannelDescriptor;
+    set: boolean;
+    write: (text: string | undefined) => void;
+}>): React.JSX.Element {
+    const raw = lineIn(ctx, descriptor.channel)?.value;
+    const sides = typeof raw === "string" ? raw.trim().split(/\s+/) : [];
+    const number = { ...descriptor, accepts: "number" as const, min: 0, max: 1, step: 0.05 };
+    const field = (at: number): React.JSX.Element => {
+        const [side, glyph] = SIDES[at];
+        const Glyph = GLYPHS[glyph];
+        const now = Number(sides[at]);
+        return (
+            <NumberLine
+                key={side}
+                descriptor={number}
+                label={`${line.name ?? channelWord(descriptor.channel)} ${side.toLowerCase()}`}
+                percent={false}
+                value={sides[at] === undefined || !Number.isFinite(now) ? undefined : now}
+                glyph={<Glyph size={12} aria-hidden />}
+                onWrite={(next) => {
+                    const typed = next === undefined ? "" : String(next);
+                    const all = SIDES.map((_, i) => (i === at ? typed : (sides[i] ?? "")));
+                    write(
+                        all.every((each) => each === "")
+                            ? undefined
+                            : all.map((each) => (each === "" ? "0" : each)).join(" "),
+                    );
+                }}
+            />
+        );
+    };
+    const pair = (a: number, b: number): React.ReactNode => (
+        <Group grow gap={4} wrap="nowrap">
+            {field(a)}
+            {field(b)}
+        </Group>
+    );
+    const name = line.name ?? channelWord(descriptor.channel);
+    return (
+        <>
+            <LineFrame
+                line={descriptor.channel}
+                name={name}
+                set={set}
+                rule="R17"
+                control={pair(0, 1)}
+                modifier={null}
+                removeName={set ? `Remove ${name.toLowerCase()}` : undefined}
+                onRemove={() => {
+                    write(undefined);
+                }}
+            />
+            <LineFrame
+                line={`${descriptor.channel}:bottom`}
+                name={null}
+                set={set}
+                rule="R17"
+                control={pair(2, 3)}
+                modifier={null}
+                removeName={undefined}
+                onRemove={() => undefined}
+            />
+        </>
+    );
+}
+
 /** Each rule's control. */
-const CONTROLS: Readonly<Record<Exclude<Rule, "field">, (args: ControlArgs) => React.ReactNode>> = {
+const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: ControlArgs) => React.ReactNode>> = {
     R1: valueControl,
     // A location (R2) is a label style field's only: never a channel's line.
     R2: valueControl,
@@ -441,6 +570,7 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field">, (args: ControlArgs) => R
     R13: fontControl,
     // Free text (R14): today's text field, which commits on Enter or blur.
     R14: valueControl,
+    XY: pointControl,
 };
 
 /**
@@ -487,6 +617,49 @@ function applies(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
     return typeof now === "string" && when.values.includes(now);
 }
 
+/**
+ * A line drawn by another editor: a structured list (R15), or today's field for a list, an asset, a
+ * text source, a value varying by data, or several layers each holding their own value (the
+ * "Layer" palette, design 10.4).
+ * @param ctx - the row.
+ * @param line - the line.
+ * @param row - drawn as a thing's row.
+ * @param descriptor - its channel.
+ * @param rule - its rule.
+ * @param set - whether the layer sets it.
+ * @returns the line, or undefined when the rubric's own control draws it.
+ */
+function keptField(
+    ctx: RowContext,
+    line: LineSpec,
+    row: RowSlots | undefined,
+    descriptor: ChannelDescriptor,
+    rule: Rule,
+    set: boolean,
+): React.JSX.Element | undefined {
+    const { channel } = descriptor;
+    const own = lineIn(ctx, channel);
+    const spread = set && ctx.many?.plain?.(channel) !== undefined;
+    const bound = own?.binding !== undefined || own?.template !== undefined;
+    const list = ITEM_LISTS[channel];
+    if (rule === "R15" && list !== undefined && !bound && !spread) {
+        return <ItemListEditor ctx={ctx} channel={channel} list={list} legend="line" />;
+    }
+    if (rule !== "field" && rule !== "R15" && !bound && !spread) {
+        return undefined;
+    }
+    return (
+        <Field
+            ctx={ctx}
+            descriptor={descriptor}
+            word={row === undefined ? (line.name ?? undefined) : undefined}
+            pending={!set}
+            unsetLine={!set && row === undefined}
+            thing={row === undefined ? undefined : { name: line.name ?? null, ...row }}
+        />
+    );
+}
+
 /** Props for RubricLine. */
 interface RubricLineProps {
     readonly ctx: RowContext;
@@ -515,19 +688,9 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
         return null;
     }
     const rule = ruleOf(line, descriptor);
-    const spread = set && ctx.many?.plain?.(channel) !== undefined;
-    if (rule === "field" || own?.binding !== undefined || own?.template !== undefined || spread) {
-        // Today's field: a list, an asset, a text source, a value varying by data, or several
-        // layers each holding their own value (the "Layer" palette, design 10.4).
-        return (
-            <Field
-                ctx={ctx}
-                descriptor={descriptor}
-                pending={!set}
-                unsetLine={!set && row === undefined}
-                thing={row === undefined ? undefined : { name: line.name ?? null, ...row }}
-            />
-        );
+    const kept = keptField(ctx, line, row, descriptor, rule, set);
+    if (kept !== undefined || rule === "field" || rule === "R15") {
+        return kept ?? null;
     }
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
@@ -536,6 +699,19 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
         const done = value === undefined ? unsetIn(ctx, [to]) : writeIn(ctx, to, { value });
         done.catch(fail);
     };
+    if (rule === "R17") {
+        return (
+            <SidesLines
+                ctx={ctx}
+                line={line}
+                descriptor={descriptor}
+                set={set}
+                write={(text) => {
+                    write(channel, text);
+                }}
+            />
+        );
+    }
     const args: ControlArgs = { ctx, line, descriptor, value: own?.value, set, label: fieldName(channel), write, fail };
     const control = line.unit === undefined ? CONTROLS[rule](args) : unitControl(args);
     const channels = [channel, ...(line.pair === undefined ? [] : [line.pair])];

@@ -27,8 +27,13 @@ import {
     Calendar,
     Camera,
     CaseSensitive,
+    ChartCandlestick,
     ChartColumn,
+    ChartColumnStacked,
+    ChartLine,
     ChartNetwork,
+    ChartNoAxesColumn,
+    ChartSpline,
     Check,
     ChevronDown,
     ChevronLeft,
@@ -49,6 +54,7 @@ import {
     Columns4,
     Combine,
     Copy,
+    CornerUpRight,
     createLucideIcon,
     Database,
     Disc,
@@ -64,7 +70,7 @@ import {
     Gauge,
     GitCommitHorizontal,
     Grid2x2,
-    Grid3x3,
+    Grid3x2,
     GripVertical,
     Group,
     HardDriveDownload,
@@ -110,6 +116,7 @@ import {
     PanelRight,
     Pause,
     Pencil,
+    PenTool,
     Pin,
     PinOff,
     Play,
@@ -412,9 +419,8 @@ export const GLYPHS = {
     // The model preview's Reset view: back to the first view of the model.
     resetView: LocateFixed,
     // Style panel v2 (design/ui/style-panel-v2/design.md, section 6): a stroke width's in-field
-    // glyph is `weight` above; italic beside a font weight; padding split into its four sides.
+    // glyph is `weight` above; italic beside a font weight.
     italic: Italic,
-    sides: Grid3x3,
     // Each side of a box, one toggle a side (a frame's sides).
     arrowUpToLine: ArrowUpToLine,
     arrowRightToLine: ArrowRightToLine,
@@ -452,6 +458,16 @@ export const GLYPHS = {
     gradientLinear: MoveRight,
     gradientRadial: Target,
     gradientNone: Ban,
+    // How a curved edge runs through its bends: corners rounded, one smooth curve, one Bezier curve.
+    bendCorners: CornerUpRight,
+    bendMidpoints: ChartSpline,
+    bendBezier: PenTool,
+    // A chart's kind: bars, stacked bars, a line, a box plot, a row of cells.
+    chartBar: ChartNoAxesColumn,
+    chartStackedBar: ChartColumnStacked,
+    chartLine: ChartLine,
+    chartBox: ChartCandlestick,
+    chartCells: Grid3x2,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

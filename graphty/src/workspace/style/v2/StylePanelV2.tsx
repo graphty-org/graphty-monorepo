@@ -24,7 +24,7 @@ import { addShader, moveShader, pickedShader, placeOf, shaderEntries, type Shade
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
-import { LISTS, nextColor } from "./lists";
+import { ITEM_LISTS, LISTS, nextColor } from "./lists";
 import { FIT_TO_LABEL, lineFor } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ThingRow } from "./ThingRow";
@@ -93,6 +93,23 @@ function thingsOf(
             (thing.id === "shape" && replaceUse(ctx) !== undefined),
     );
     return { things, shown };
+}
+
+/**
+ * What "+" writes for a list thing (design 5.1): its first item, a slice of the next color, a
+ * line, an empty field or table cell.
+ * @param ctx - the row.
+ * @param id - the thing's id.
+ * @param main - its main channel.
+ * @returns the writes, or undefined for a thing that is not a list.
+ */
+function firstItem(ctx: RowContext, id: string, main: Channel): Partial<Record<Channel, string>> | undefined {
+    const list = ctx.side === "node" ? LISTS[id] : undefined;
+    if (list !== undefined) {
+        return { [list.colors]: writeChannelList(list.colors, [nextColor(ctx, [])]) };
+    }
+    const items = ITEM_LISTS[main];
+    return items === undefined ? undefined : { [main]: items.fresh };
 }
 
 /** The Group outline item's key in Order and groups' "+" menu. */
@@ -201,13 +218,11 @@ function ThingSection({
             return;
         }
         focusLineNext(ctx.session, main.channel);
-        const list = ctx.side === "node" ? LISTS[id] : undefined;
+        const first = firstItem(ctx, id, main.channel);
         // A list thing opens on its list, and an Image on its picker (design 5.1).
-        if (list !== undefined || id === "image") {
+        if (first !== undefined || id === "image") {
             setOpening(id);
         }
-        const first =
-            list === undefined ? undefined : { [list.colors]: writeChannelList(list.colors, [nextColor(ctx, [])]) };
         const start = first?.[main.channel] ?? (main.accepts === "text" ? undefined : startForOrNone(ctx, main));
         const starts = first === undefined || main.channel in first ? thing.starts : { ...thing.starts, ...first };
         // A thing with no plain starting value (a text source, a list) waits for the reader's first pick.

@@ -2,40 +2,91 @@
  * The Switch to line (design/ui/style-panel-v2/design.md, section 5): the first line of a family
  * thing's settings pop-over, the same in every member. Every member is listed; one an experiment
  * has off is disabled, never hidden. Words when they fit the pop-over's full line, else a select
- * named "Switch to". A member that needs a pick (a model, a picture) opens its picker beside the
- * pop-over and switches on the pick; Escape changes nothing. Others switch at once, in one undo step.
+ * named "Switch to". A member that needs a pick (a model, a picture, a shader in the shapes' place)
+ * opens its picker beside the pop-over and switches on the pick; Escape changes nothing. Others
+ * switch at once, in one undo step.
  */
 
-import { PanelField } from "@graphty/compact-mantine";
-import type { StyleFamilyDescriptor } from "@graphty/graphty-element/catalog";
+import { PanelField, Popout } from "@graphty/compact-mantine";
+import type { ShaderPlace, StyleFamilyDescriptor } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { ModelsPopover } from "../ModelsPopover";
 import { PicturePopover } from "../PicturePopover";
 import type { RowContext } from "../PropertyRow";
+import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
 import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
 import { LINE_WIDTHS, segmentsWidth } from "./rubric";
-import { LineFrame, type RowSlots, SegmentsLine } from "./RubricLine";
+import { LineFrame, SegmentsLine } from "./RubricLine";
 
 /** The line's name, on the select it becomes when the members' words do not fit. */
 const SWITCH_TO = "Switch to";
+
+/** The places a shader for the shapes' place is picked from. */
+const REPLACE_PLACES: readonly ShaderPlace[] = ["replace"];
+
+/**
+ * The shader gallery beside a pop-over, listing the shaders that draw in the shapes' place
+ * (design 5, rule 1): Sticker, Mandala and their presets.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.anchor - the line it opens beside
+ * @param props.title - its header
+ * @param props.onPick - picks a shader by id
+ * @param props.onClose - closes it with nothing picked
+ * @returns The gallery
+ */
+export function ReplaceGallery({
+    ctx,
+    anchor,
+    title,
+    onPick,
+    onClose,
+}: Readonly<{
+    ctx: RowContext;
+    anchor: React.RefObject<HTMLElement | null>;
+    title: string;
+    onPick: (id: string) => void;
+    onClose: () => void;
+}>): React.JSX.Element {
+    return (
+        <Popout
+            opened
+            onOpenChange={(open) => {
+                if (!open) {
+                    onClose();
+                }
+            }}
+        >
+            <Popout.Panel
+                width={280}
+                placement="left"
+                alignment="start"
+                anchorY={anchor}
+                header={{ variant: "title", title }}
+                closeLabel={`Close ${title}`}
+            >
+                <Popout.Content>
+                    <ShaderGallery session={ctx.session} tab={ctx.side} bare places={REPLACE_PLACES} onPick={onPick} />
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
+    );
+}
 
 /**
  * The line: see the file header.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.family - the thing's family
- * @param props.row - drawn as a thing's row (the Shape row while a shader draws in the shapes'
- *     place): always the select, with the row's settings button and minus
  * @returns The line
  */
 export function SwitchTo({
     ctx,
     family,
-    row,
-}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor; row?: RowSlots }>): React.JSX.Element {
+}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor }>): React.JSX.Element {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const [picking, setPicking] = useState<{ readonly to: MemberChoice; readonly pick: MemberPick } | null>(null);
@@ -71,7 +122,7 @@ export function SwitchTo({
         name: member.name,
         disabled: member.disabled && member.key !== now,
     }));
-    const fits = row === undefined && segmentsWidth(options) <= LINE_WIDTHS.popoverFull;
+    const fits = segmentsWidth(options) <= LINE_WIDTHS.popoverFull;
     const control = fits ? (
         <SegmentsLine label={SWITCH_TO} options={options} value={now} onPick={choose} />
     ) : (
@@ -101,14 +152,14 @@ export function SwitchTo({
             }}
         >
             <LineFrame
-                line={row === undefined ? `switch:${family.id}` : "node.shaders:replace"}
-                name={fits || row !== undefined ? null : SWITCH_TO}
-                set={row !== undefined}
+                line={`switch:${family.id}`}
+                name={fits ? null : SWITCH_TO}
+                set={false}
                 rule={fits ? "R8f" : "R9"}
                 control={control}
-                modifier={row?.slot ?? null}
-                removeName={row?.removeLabel}
-                onRemove={row?.onRemove ?? close}
+                modifier={null}
+                removeName={undefined}
+                onRemove={close}
             />
             {picking?.pick === "model" && (
                 <ModelsPopover
@@ -119,6 +170,17 @@ export function SwitchTo({
                     }}
                     onCustom={close}
                     onBack={close}
+                    onClose={close}
+                />
+            )}
+            {picking?.pick === "shader" && (
+                <ReplaceGallery
+                    ctx={ctx}
+                    anchor={box}
+                    title={picking.to.name}
+                    onPick={(id) => {
+                        go(picking.to.key, id);
+                    }}
                     onClose={close}
                 />
             )}

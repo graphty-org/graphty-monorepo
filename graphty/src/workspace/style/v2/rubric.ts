@@ -17,7 +17,8 @@ import type { GLYPHS } from "../../glyphs";
  * theirs from the channel (R1, R5, R7); an enum line names its rule; `field` draws today's field
  * (a list, an asset, a text source, a value bound to data).
  */
-export type Rule = "R1" | "R2" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "R13" | "R14" | "field";
+export type Rule =
+    "R1" | "R2" | "R5" | "R5b" | "R7" | "R8" | "R8f" | "R9" | "R10" | "R13" | "R14" | "R15" | "R17" | "XY" | "field";
 
 /** One line of the panel or a pop-over. */
 export interface LineSpec {
@@ -41,6 +42,8 @@ export interface LineSpec {
     readonly toggle?: Channel;
     /** The toggle's glyph, when not a lock (italic beside a font weight). */
     readonly toggleGlyph?: keyof typeof GLYPHS;
+    /** A number's named presets (R5b), where the element names none for its channel. */
+    readonly presets?: readonly { readonly id: string; readonly plainName: string }[];
 }
 
 /** One named sub-group of a pop-over, added from its "+". */
@@ -122,6 +125,21 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
             { left: { name: "Left", glyph: "sideLeft" }, right: { name: "Right", glyph: "sideRight" } },
         ]),
     ),
+};
+
+/**
+ * The app's glyph of each value of an R10 list the element pictures none of (design 6, "R10
+ * lucide"), by channel and value id.
+ */
+export const VALUE_GLYPHS: Partial<Readonly<Record<Channel, Readonly<Record<string, keyof typeof GLYPHS>>>>> = {
+    "edge.bendCurve": { corners: "bendCorners", midpoints: "bendMidpoints", bezier: "bendBezier", arc: "routeArc" },
+    "node.chartKind": {
+        bar: "chartBar",
+        "stacked-bar": "chartStackedBar",
+        line: "chartLine",
+        box: "chartBox",
+        cells: "chartCells",
+    },
 };
 
 /** A Unit line's options for a stroke width: in graph units, or in screen pixels. */
@@ -214,7 +232,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         main: [
             { channel: "node.shapeRotation", name: "Rotation" },
             { channel: "node.meshDetail", name: "Detail", rule: "R5b" },
-            { channel: "node.shapeParts", name: "Parts", rule: "field" },
+            { channel: "node.shapeParts", name: "Parts", rule: "R15" },
         ],
         groups: [
             {
@@ -223,7 +241,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "node.cornerRadius", name: "Radius" },
                     { channel: "node.exactCornerRadius" },
                     { channel: "node.cornerFraction", name: "Fraction" },
-                    { channel: "node.shapePoints", name: "Points", rule: "field" },
+                    { channel: "node.shapePoints", name: "Points", rule: "R15" },
                     { channel: "node.shapeStretchPoints" },
                 ],
             },
@@ -341,9 +359,10 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.stripeDirection", name: "Direction", rule: "R8" },
             { channel: "node.stripeSize", name: "Size" },
         ],
-        groups: [{ name: "Frame", lines: [{ channel: "node.stripeFrame", name: "Frame", rule: "field" }] }],
+        groups: [{ name: "Frame", lines: [{ channel: "node.stripeFrame", name: "Frame", rule: "R17" }] }],
     },
     chart: {
+        row: { channel: "node.chartKind", name: "Chart", rule: "R10" },
         rowOwns: ["node.chartValues", "node.chartColors"],
         main: [{ channel: "node.chartMin", name: "Range", pair: "node.chartMax" }, { channel: "node.chartHorizontal" }],
         groups: [
@@ -406,6 +425,8 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     outline: { common: [{ channel: "node.outlineWidth", name: "Width", glyph: "weight" }], main: [] },
     innerLines: {
+        // The lines themselves are the list editor's (R15, `ItemList.tsx`), under Main.
+        rowOwns: ["node.shapeLines"],
         main: [{ channel: "node.shapeLineWidth", name: "Width", glyph: "weight" }],
         groups: [
             {
@@ -461,10 +482,20 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         main: [
             { channel: "node.glyphSize", name: "Size" },
             { channel: "node.glyphFont", name: "Font", rule: "R13" },
-            { channel: "node.glyphWeight", name: "Weight" },
+            {
+                channel: "node.glyphWeight",
+                name: "Weight",
+                rule: "R5b",
+                presets: [
+                    { id: "400", plainName: "Regular" },
+                    { id: "700", plainName: "Bold" },
+                ],
+            },
         ],
     },
     record: {
+        // The fields are the list editor's (R15, `ItemList.tsx`), under Main.
+        rowOwns: ["node.shapeTexts"],
         main: [],
         groups: [{ name: "Table", lines: [{ channel: "node.labelTable", name: "Table", rule: "field" }] }],
     },
@@ -545,7 +576,7 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
             {
                 name: middle ? "Picture" : "Stack",
                 lines: [
-                    ...(middle ? [] : [{ channel: at("Stack"), name: "Stack", rule: "field" as const }]),
+                    ...(middle ? [] : [{ channel: at("Stack"), name: "Stack", rule: "R15" as const }]),
                     { channel: at("Image"), name: "Image", rule: "field" },
                 ],
             },
@@ -613,8 +644,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             {
                 name: "Bends",
                 lines: [
-                    { channel: "edge.bends", name: "Bends", rule: "field" },
-                    { channel: "edge.bendCurve", name: "Curve", rule: "R9" },
+                    { channel: "edge.bends", name: "Bends", rule: "R15" },
+                    { channel: "edge.bendCurve", name: "Curve", rule: "R10" },
                 ],
             },
             {
@@ -627,8 +658,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             {
                 name: "Ports",
                 lines: [
-                    { channel: "edge.sourcePort", name: "Source", rule: "field" },
-                    { channel: "edge.targetPort", name: "Target", rule: "field" },
+                    { channel: "edge.sourcePort", name: "Source", rule: "XY" },
+                    { channel: "edge.targetPort", name: "Target", rule: "XY" },
                 ],
             },
         ],
@@ -674,6 +705,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     visibility: { row: { channel: "edge.visible", name: null, rule: "R8" }, main: [] },
+    // An edge Record is its label table (design 4.2), its rows the list editor's (R15, `ItemList.tsx`).
+    record: { rowOwns: ["edge.labelTable"], main: [] },
 };
 
 /**
@@ -769,7 +802,7 @@ export function segmentOptions(
 }
 
 /** A setting's line in a thing's rubric, and the pop-over sub-group that holds it, if any. */
-export interface FoundLine {
+interface FoundLine {
     readonly line: LineSpec;
     readonly group?: string;
 }

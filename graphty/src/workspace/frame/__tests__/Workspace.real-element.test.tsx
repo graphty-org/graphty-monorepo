@@ -12,6 +12,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { APP_HIGHLIGHT_COLOR } from "../../../constants/highlight";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -35,6 +36,8 @@ async function openWorkspace(): Promise<GraphSession> {
 }
 
 describe("the workspace frame on the real element", () => {
+    // Style panel v2 (the style-panel-v2 experiment) replaces the Graph settings and Style tab bodies these tests drive.
+    withoutFeatures(["style-panel-v2"]);
     it("undoes and redoes the element's own steps from the header and the keys", async () => {
         const session = await openWorkspace();
         const undo = screen.getByRole("button", { name: /^Undo( |$)/ });

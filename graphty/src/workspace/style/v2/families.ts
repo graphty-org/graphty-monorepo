@@ -22,7 +22,7 @@ import { cosmographOn, nodeModelsOn } from "../../features";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { lineIn, startFor, writeIn } from "../row";
-import type { ShaderEntry } from "../shaderSlots";
+import { placeOf, type ShaderEntry } from "../shaderSlots";
 import { experimentChannelsOff } from "../words";
 
 /** The family each thing's row draws, by kind and thing id. */
@@ -31,8 +31,8 @@ const THING_FAMILIES: Readonly<Record<"node" | "edge", Readonly<Record<string, S
     edge: { line: "edge.line" },
 };
 
-/** What a member needs picked before it can be drawn: a model, a picture. */
-export type MemberPick = "model" | "picture";
+/** What a member needs picked before it can be drawn: a model, a picture, a shader for the shapes' place. */
+export type MemberPick = "model" | "picture" | "shader";
 
 /** One member as the strip lists it. */
 export interface MemberChoice {
@@ -79,7 +79,7 @@ function catalogIdOf(ctx: RowContext, use: ShaderUse): string {
  * @returns true for a `replace` use.
  */
 export function replaces(ctx: RowContext, use: ShaderUse): boolean {
-    return (use.place ?? ctx.session.shaders.describe(use.shader)?.place) === "replace";
+    return placeOf({ use, descriptor: ctx.session.shaders.describe(use.shader) }) === "replace";
 }
 
 /**
@@ -117,6 +117,7 @@ export function membersOf(ctx: RowContext, family: StyleFamilyDescriptor): reado
                     keeps,
                     shader: shader.id,
                     disabled: false,
+                    pick: "shader" as const,
                 }));
         }
         let pick: MemberPick | undefined;
@@ -157,14 +158,7 @@ function memberId(member: MemberChoice): string {
  */
 function layerOf(ctx: RowContext, family: StyleFamilyDescriptor): Layer | undefined {
     const layers = ctx.layers.filter((layer) => !layer.locked);
-    const holds = (layer: Layer): boolean => {
-        const values = ctx.session.styles.familyValues(layer.id, family.id);
-        return (
-            values !== undefined &&
-            (Object.keys(values.set).length > 0 || Object.keys(values.encode).length > 0 || values.uses.length > 0)
-        );
-    };
-    return layers.find((layer) => holds(layer)) ?? layers[0];
+    return layers.find((layer) => holdsAny(ctx.session.styles.familyValues(layer.id, family.id))) ?? layers[0];
 }
 
 /**
@@ -296,7 +290,8 @@ export async function switchMember(
     if (holdsAny(back)) {
         start = back;
     } else if (to.shader !== undefined) {
-        start = { uses: [{ shader: to.shader }] };
+        // The shader picked for the shapes' place (a preset of it, or the member's own).
+        start = { uses: [{ shader: picked ?? to.shader }] };
     } else if (picked !== undefined && to.owns[0] !== undefined) {
         start = { set: { [to.owns[0]]: picked } };
     } else {
@@ -336,4 +331,22 @@ export function groupOutlineShaders(): readonly string[] {
  */
 export function isGroupOutline(ctx: RowContext, entry: ShaderEntry): boolean {
     return groupOutlineShaders().includes(ctx.session.shaders.describe(entry.use.shader)?.copyOf ?? entry.use.shader);
+}
+
+/**
+ * Draws another shader in the shapes' place, the Shape row staying on its shader member (design
+ * 7.1, "replace shader": the row's control is its preset), one undo step.
+ * @param ctx - the row.
+ * @param family - the Shape family.
+ * @param shader - the shader picked.
+ * @returns when it is written.
+ */
+export async function pickReplace(ctx: RowContext, family: StyleFamilyDescriptor, shader: string): Promise<void> {
+    const layer = layerOf(ctx, family);
+    if (layer === undefined) {
+        return;
+    }
+    await ctx.session.transaction(`changing ${family.plainName.toLowerCase()}`, (tx) =>
+        tx.styles.switchFamily(layer.id, family.id, "replace", { uses: [{ shader }] }),
+    );
 }

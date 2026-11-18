@@ -14,7 +14,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withFeatures } from "../../../test/features";
+import { withFeatures, withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore } from "../../state/store";
@@ -191,6 +191,8 @@ async function clickRow(name: string, add = false): Promise<void> {
 }
 
 describe("the Style sidebar draws only approved controls", () => {
+    // The panel before Style panel v2; the describe below runs the same check on v2.
+    withoutFeatures(["style-panel-v2"]);
     it("on a layer, a run's rows, the Everything row and several rows together", async () => {
         const { rows } = await openScene();
         for (const name of rows) {

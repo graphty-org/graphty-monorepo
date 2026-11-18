@@ -39,6 +39,7 @@ function Glyph({ svg }: Readonly<{ svg: string }>): React.JSX.Element {
  * @param descriptor - the property.
  * @param extraChoices - choices listed after the property's own (Shape's shaders).
  * @param counts - whether a row in use says how many things draw it.
+ * @param icons - the app's glyph of each value the element pictures none of.
  * @returns the rows.
  */
 function valueRows(
@@ -46,13 +47,16 @@ function valueRows(
     descriptor: ChannelDescriptor,
     extraChoices: readonly ExtraChoice[],
     counts: boolean,
+    icons: Readonly<Record<string, React.ReactNode>> | undefined,
 ): QuickAction[] {
     const values = session.catalog.channelValues(descriptor.channel);
     const drawn = session.styles.drawnValues(descriptor.channel);
+    const iconOf = (value: (typeof values)[number]): React.ReactNode =>
+        value.glyph === undefined ? icons?.[value.id] : <Glyph svg={value.glyph} />;
     const row = (value: (typeof values)[number], count?: number): QuickAction => ({
         value: value.id,
         label: value.plainName,
-        ...(value.glyph === undefined ? {} : { icon: <Glyph svg={value.glyph} /> }),
+        ...(iconOf(value) === undefined ? {} : { icon: iconOf(value) }),
         ...(count === undefined
             ? { section: "All" }
             : {
@@ -114,6 +118,7 @@ function sectionRows(
  * @param props.onPick - writes the value picked
  * @param props.sections - shows one section of a long list at a time, with a section select (Style panel v2)
  * @param props.counts - whether a row in use says how many things draw it (not in Style panel v2, #8739)
+ * @param props.icons - the app's glyph of each value the element pictures none of (Style panel v2's R10 lucide lists)
  * @returns The picker
  */
 export function ValueListbox({
@@ -127,6 +132,7 @@ export function ValueListbox({
     onPick,
     sections,
     counts = true,
+    icons,
 }: Readonly<{
     session: GraphSession;
     descriptor: ChannelDescriptor;
@@ -138,6 +144,7 @@ export function ValueListbox({
     onPick: (value: string) => void;
     sections?: readonly ValueSection[];
     counts?: boolean;
+    icons?: Readonly<Record<string, React.ReactNode>>;
 }>): React.JSX.Element {
     const [opened, setOpened] = useState(false);
     const [query, setQuery] = useState("");
@@ -148,7 +155,7 @@ export function ValueListbox({
         sections?.[0]?.name ??
         "";
     const [section, setSection] = useState(startSection);
-    const rows = opened ? valueRows(session, descriptor, extraChoices, counts) : [];
+    const rows = opened ? valueRows(session, descriptor, extraChoices, counts, icons) : [];
     const listed = sections === undefined ? rows : sectionRows(rows, sections, section, query.trim() !== "");
     const things = `${channelWord(descriptor.channel).toLowerCase()}s`;
     // As the shared choice field reads it: "mixed", or the default in force when nothing is set.
@@ -177,7 +184,9 @@ export function ValueListbox({
                     justify="flex-start"
                     className="ws-value-listbox"
                     data-unset={unset ? "" : undefined}
-                    leftSection={current?.glyph === undefined ? undefined : <Glyph svg={current.glyph} />}
+                    leftSection={
+                        current?.glyph === undefined ? icons?.[current?.id ?? ""] : <Glyph svg={current.glyph} />
+                    }
                 >
                     {mixed ? "Mixed" : (current?.plainName ?? "")}
                 </Button>

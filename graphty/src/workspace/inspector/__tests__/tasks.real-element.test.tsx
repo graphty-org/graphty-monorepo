@@ -16,6 +16,7 @@ import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-elem
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -132,6 +133,8 @@ const controlNames = (): string[] =>
         .map((control) => control.getAttribute("aria-label") ?? control.textContent);
 
 describe("tier 1 tasks in the inspector, on the real element", () => {
+    // Style panel v2 (the style-panel-v2 experiment) replaces the Graph settings and Style tab bodies these tests drive.
+    withoutFeatures(["style-panel-v2"]);
     beforeAll(async () => {
         await page.viewport(1366, 768);
     });

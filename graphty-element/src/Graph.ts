@@ -8374,6 +8374,25 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * End a playing tour as replaced, for a capture about to move the camera: before the capture
+     * reads the framing and placement it puts back, so it puts back the pre-tour ones.
+     * @internal
+     */
+    replaceTour(): void {
+        this.#endTour("replaced");
+    }
+
+    /**
+     * Put the camera back at once after a capture, without ending a tour: not a camera API call.
+     * @param state - Where the camera goes.
+     * @returns Settles once the camera is placed.
+     * @internal
+     */
+    applyCaptureCamera(state: import("./screenshot/types.js").CameraState): Promise<void> {
+        return this.#applyTourCamera(state, 0);
+    }
+
+    /**
      * Place the camera for a tour: the flight time as given, never the view's own transition
      * time, and no camera API call, so the tour does not end itself.
      * @param state - Where the camera goes.

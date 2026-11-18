@@ -284,6 +284,10 @@ export class ScreenshotCapture {
             throw cameraRefusal(immersive);
         }
 
+        // A capture's camera replaces a playing tour. Ended first, so what is saved below to put
+        // back is the pre-tour framing and placement, not the tour's.
+        this.graph.replaceTour();
+
         // Temporarily disable zoom-to-fit to prevent camera from being reset
         const updateManager = this.graph.getUpdateManager();
         const zoomToFitWasEnabled = updateManager.isZoomToFitEnabled();
@@ -352,7 +356,8 @@ export class ScreenshotCapture {
             this.graph.setViewInsets(override.insets);
         }
 
-        await this.graph.setCameraState(override.original);
+        // The internal path: putting the camera back is no camera API call, so ends no tour.
+        await this.graph.applyCaptureCamera(override.original);
         override.restorePlacement();
         if (override.zoomToFitWasEnabled) {
             this.graph.getUpdateManager().enableZoomToFit();

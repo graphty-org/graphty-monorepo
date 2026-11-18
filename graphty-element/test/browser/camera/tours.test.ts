@@ -295,6 +295,16 @@ describe("tours on a real element", () => {
 
         await graph.captureScreenshot({ format: "png", camera: { view: "b" } });
         assert.strictEqual(await playing, "replaced");
+        assert.isFalse(graph.isCameraPlaced(), "the capture puts back the pre-tour placement");
+
+        const framed = new Promise<void>((resolve) => {
+            const off = graph.on("zoom-to-fit-complete", () => {
+                off();
+                resolve();
+            });
+        });
+        await graph.addNodes([{ id: "d" }]);
+        await framed;
     });
 
     test("setCameraState and another tour replace a tour; a mode switch ends it as mode-changed", async () => {

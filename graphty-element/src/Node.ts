@@ -20,21 +20,37 @@ import omit from "lodash/omit.js";
 
 import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
-import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
+import {
+    AdHocData,
+    DEFAULT_SELECTION_STYLE,
+    defaultNodeStyle,
+    type GraphSelectionStyleConfig,
+    NodeStyleConfig,
+} from "./config";
 import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
+import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import {
+    batchableOf,
+    type BatchView,
+    bootstrapNodePaint,
+    type NodePaint,
+    type NodeSizeSpace,
+    shaderPartOf,
+} from "./managers/StylePainter";
+import { convexRayHit } from "./meshes/convexHit";
+import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
-import { labelFitExtent } from "./meshes/labelFit";
+import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
 import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
@@ -58,7 +74,17 @@ import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
 import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
-import { ModelCache, type ModelTemplate, type ModelUser, noteModelDrawn } from "./models/ModelCache";
+import type { TemplateAnimation } from "./models/animateTemplate";
+import { loadedChunk } from "./models/loadModel";
+import {
+    animationOf,
+    ModelCache,
+    type ModelTemplate,
+    type ModelUser,
+    noteModelDrawn,
+    tintBufferOf,
+} from "./models/ModelCache";
+import type { ModelMarkLook } from "./models/NodeOutlineLayers";
 import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
@@ -66,7 +92,13 @@ import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
-import { CHANNEL_DESCRIPTORS, drawnUses, toColorValue } from "./session/styles/channels";
+import {
+    CHANNEL_DESCRIPTORS,
+    DEFAULT_GLOW_COLOR,
+    DEFAULT_OUTLINE_COLOR,
+    drawnUses,
+    toColorValue,
+} from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 export type NodeIdType = string | number;
@@ -94,7 +126,8 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
 /**
- * The picture a node that grows round its picture holds (`shape.labelFitImage`), once its size is known.
+ * The picture a node that grows round its picture holds (`shape.labelFitImage`), or takes the proportions of
+ * (`shape.imageAspect`), once its size is known.
  * @param o - The resolved style.
  * @param picture - A picture's own size, once read.
  * @returns Its size in pixels, or null when the node holds none or it is not known yet.
@@ -104,7 +137,18 @@ function heldPicture(
     picture: (src: string) => { width: number; height: number } | null,
 ): { width: number; height: number } | null {
     const src = o.image?.src ?? "";
-    return (o.shape?.labelFitImage ?? 0) > 0 && src !== "" ? picture(src) : null;
+    const held = (o.shape?.labelFitImage ?? 0) > 0 || o.shape?.imageAspect === true;
+    return held && src !== "" ? picture(src) : null;
+}
+
+/**
+ * Whether a node's size is fitted to what it holds: its label (`shape.labelFit`, a table) or its picture's proportions
+ * (`shape.imageAspect`).
+ * @param shape - The resolved shape block.
+ * @returns True when the node is fitted.
+ */
+function fitsNode(shape: NodeStyleConfig["shape"]): boolean {
+    return shape?.labelFit !== undefined || shape?.labelTable !== undefined || shape?.imageAspect === true;
 }
 
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
@@ -233,6 +277,29 @@ let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 let ownAnchor: (node: Node) => TransformNode;
 
 /**
+ * The parts a node draws, as the tests that check its drawing read them, typed so a rename in
+ * `Node` fails to compile rather than at run time (issue #6988). The class fills it in; no entry
+ * point exports it.
+ */
+export const nodeInternals = {} as {
+    /**
+     * The node's border, outer border, shadow, underlay, overlay, selection halo and face
+     * decoration meshes and the look it last drew.
+     */
+    drawn(node: Node): {
+        border: Node["border"];
+        outerBorder: Node["outerBorder"];
+        drawnStyle: Node["drawnStyle"];
+        tableTexts: Node["tableTexts"];
+        shadow: Node["shadow"];
+        underlay: Node["underlay"];
+        overlay: Node["overlay"];
+        halo: Node["halo"];
+        decorations: Node["decorations"];
+    };
+};
+
+/**
  * Whether {@link Node.applySessionPaint} with this paint would dispose the node's mesh and build
  * a new one, rather than only write to the mesh it has. A repaint of many nodes asks first, so it
  * can hand every mesh about to go to the bulk teardown before any of them is disposed (#2749).
@@ -312,6 +379,27 @@ const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "
 /** White: an untinted model instance keeps its own colours. */
 const UNTINTED = new Color4(1, 1, 1, 1);
 
+/** The color a model part that follows the node is drawn in when nothing names one. */
+const MODEL_FALLBACK_COLOR =
+    typeof defaultNodeStyle.texture?.color === "string" ? defaultNodeStyle.texture.color : "#6366F1";
+
+/** How a shape block colors its model (`node.modelTint`). */
+type ModelTintMode = "own" | "on" | "untextured" | "replace";
+
+/**
+ * How a shape block colors its model, read by name as well as by value.
+ * @param shape - The shape block.
+ * @returns The mode.
+ */
+function modelTintMode(shape: NodeStyleConfig["shape"]): ModelTintMode {
+    const tint = shape?.modelTint as unknown;
+    if (tint === true || tint === "true") {
+        return "on";
+    }
+
+    return tint === "replace" || tint === "untextured" ? tint : "own";
+}
+
 /**
  * Whether a shape block tints its model with the node's colour.
  * @param shape - The shape block.
@@ -385,6 +473,17 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        nodeInternals.drawn = (node) => ({
+            border: node.border,
+            outerBorder: node.outerBorder,
+            drawnStyle: node.drawnStyle,
+            tableTexts: node.tableTexts,
+            shadow: node.shadow,
+            underlay: node.underlay,
+            overlay: node.overlay,
+            halo: node.halo,
+            decorations: node.decorations,
+        });
         rebuildsFor = (node, paint) => {
             if (node.disposed) {
                 return false;
@@ -439,7 +538,11 @@ export class Node implements ModelUser {
     #anchor!: TransformNode;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
-    /** The view's scale on this node (`depthIndependentSize`, a map's `nodeScale: "screen"`), a shrink left out. */
+    /** Whether this node's model carries a silhouette mark (src/models/NodeOutlineLayers.ts). */
+    #modelMarked = false;
+    /** The animation this node's model instances play from, to forget it when the model changes. */
+    #playing: TemplateAnimation | null = null;
+    /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
@@ -448,15 +551,14 @@ export class Node implements ModelUser {
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
      * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
-     * never by a node batch, so what a consumer does to the mesh shows.
+     * never by a node batch, so what a consumer does to the mesh shows. The rest of its look stays
+     * on the batch.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
         if (!this.#meshHeld) {
             this.#meshHeld = true;
-            if (!this.disposed) {
-                this.context.getNodeBatches?.()?.sync(this);
-            }
+            this.holdOffBatch();
         }
 
         if (this.#mesh === null) {
@@ -562,7 +664,43 @@ export class Node implements ModelUser {
     private fittedExtent: { width: number; height: number } | null = null;
 
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
-    private drawnStyle: NodeStyleConfig | null = null;
+    #drawnStyle: NodeStyleConfig | null = null;
+
+    /**
+     * The style the current mesh was built from.
+     * @returns The style, or null before the first.
+     */
+    private get drawnStyle(): NodeStyleConfig | null {
+        return this.#drawnStyle;
+    }
+
+    /**
+     * Take the style the mesh is now drawn with, and tell the frame loop whether its size follows
+     * the view (`node.sizeSpace`), so only such nodes are visited each frame.
+     * @param style - The style.
+     */
+    private set drawnStyle(style: NodeStyleConfig | null) {
+        this.#drawnStyle = style;
+        this.context.getUpdateManager?.().markViewSized(this, (style?.shape?.sizeSpace ?? "scene") !== "scene");
+    }
+
+    /**
+     * How this node's drawn size follows the camera, as its style sets it (`node.sizeSpace`);
+     * undefined when the style sets none, and `layoutBehavior.node.sizeSpace` applies.
+     * @returns The size space, or undefined.
+     * @internal
+     */
+    get sizeSpace(): NodeSizeSpace | undefined {
+        return this.#drawnStyle?.shape?.sizeSpace;
+    }
+
+    /** The last answer of {@link Node.compareDrawn}, and the two styles it compared. */
+    private comparedDrawn: {
+        style: NodeStyleConfig;
+        drawn: NodeStyleConfig | null;
+        equal: boolean;
+        equalButFill: boolean;
+    } | null = null;
     /** The model template this node's mesh instances, or null when it draws a built-in shape. */
     private drawnModel: ModelTemplate | null = null;
     /** The `node.texture` picture the built-in shape's mesh was built with, or null. */
@@ -865,8 +1003,8 @@ export class Node implements ModelUser {
             return round === null ? null : exactOf(round, this.roundRadiusValue);
         }
 
-        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
-        // camera turns, and its edges must stop at the surface it is drawn with.
+        // The scale too: `node.sizeSpace` rescales a node mesh as the camera moves, and its edges
+        // must stop at the surface it is drawn with.
         if (this.roundRadiusMesh === this.#anchor && this.roundRadiusScale === this.#anchor.scaling.x) {
             return this.roundRadiusValue;
         }
@@ -887,6 +1025,35 @@ export class Node implements ModelUser {
      */
     get borderReach(): number {
         return this.border === null ? 0 : this.borderWidth;
+    }
+
+    /**
+     * How far past where a line leaving this node in a direction crosses its drawn fill the line stops: to the outer
+     * edge of its border. {@link Node.borderReach} for most nodes; but a polygon under a border drawn in from its
+     * outline (inside, or centered) has its fill drawn in by the inset on each side of its box, so at a slanted side
+     * the fill lies less than the inset inside the outline along the line, and the line stops on the outline plus
+     * what of the border reaches past it, never more than {@link Node.borderReach}. A 27-wide triangle with an inside
+     * border of 6 left at its middle 3 beyond the outline before; Cytoscape desktop ends it on the outline (issue
+     * #7566).
+     * @param dir - The unit direction the line leaves in, in the units the node's position is laid out in.
+     * @returns The distance.
+     * @internal
+     */
+    borderReachAlong(dir: Xyz): number {
+        const reach = this.borderReach;
+        const outline = reach > 0 ? this.reachOutline : null;
+        const inset = outline !== null && NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        if (outline === null || inset <= 0) {
+            return reach;
+        }
+
+        const toOutline =
+            surfaceReach(dir, this.outlineHalfExtents, null, outline) -
+            surfaceReach(dir, this.drawnHalfExtents, null, outline);
+        // never further out than the border's width along the line: across a side the line meets at a shallow
+        // angle the outline lies far along it, and Cytoscape desktop's line stops inside it there
+        // (cx-radiation-bibliography, a hexagon and two round rectangles met nearly edge on)
+        return Math.min(reach, Math.max(0, toOutline + reach - inset));
     }
 
     /**
@@ -1266,7 +1433,8 @@ export class Node implements ModelUser {
         const layoutManager = this.context.getLayoutManager();
         const { layoutEngine } = layoutManager;
 
-        const pos = layoutEngine?.getNodePosition(this);
+        // A node the working graph hides was never handed to the engine: it is drawn where it was.
+        const pos = layoutEngine === undefined ? undefined : layoutEngineInternals.positionOf(layoutEngine, this);
         const box = layoutManager.groupBox(this.id);
         // A node becomes, or stops being, a group following its members after it is painted (the
         // groups arrive with the file, the behaviour can turn them off): draw it again as one.
@@ -1700,7 +1868,14 @@ export class Node implements ModelUser {
             return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
         }
 
-        return this.#mesh === null ? null : (ray.intersectsMeshes([this.#mesh])[0]?.pickedPoint ?? null);
+        const mesh = this.#mesh;
+        if (mesh === null) {
+            return null;
+        }
+
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, not by a triangle search
+        const convex = convexRayHit(mesh, ray);
+        return convex === undefined ? (ray.intersectsMeshes([mesh])[0]?.pickedPoint ?? null) : convex;
     }
 
     /**
@@ -1999,6 +2174,15 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a selection highlight is drawn around the node now.
+     * @returns True while its halo is on the canvas.
+     * @internal
+     */
+    get drawnSelectionHalo(): boolean {
+        return this.halo !== null && !this.halo.isDisposed();
+    }
+
+    /**
      * A number that changes whenever the node is rebuilt, for a reader that remembers what it saw.
      * @returns The number.
      * @internal
@@ -2221,13 +2405,21 @@ export class Node implements ModelUser {
      * @param color - The colour, or null when no layer painted one.
      */
     private applyModelTint(model: ModelTemplate, color: Rgba | null): void {
-        const tint =
-            color !== null && modelTinted(this.drawnStyle?.shape)
-                ? new Color4(color.r / 255, color.g / 255, color.b / 255, 1)
-                : UNTINTED;
+        const mode = modelTintMode(this.drawnStyle?.shape);
+        // A part that follows the node's color takes it even when no layer painted one: the
+        // color a node is drawn in by default.
+        const fill = this.drawnStyle?.texture?.color;
+        const painted = typeof fill === "string" ? fill : undefined;
+        const nodeColor =
+            color === null
+                ? readColor(painted, MODEL_FALLBACK_COLOR).rgb.toColor4(1)
+                : new Color4(color.r / 255, color.g / 255, color.b / 255, 1);
+        const onTop = mode === "on" && color !== null ? nodeColor : UNTINTED;
         for (const part of this.#mesh === null ? [] : [this.#mesh, ...this.#mesh.getChildMeshes(true)]) {
             if (part instanceof InstancedMesh && model.groups.includes(part.sourceMesh)) {
-                part.instancedBuffers.color = tint;
+                part.instancedBuffers[tintBufferOf(part.sourceMesh)] = model.follows.has(part.sourceMesh)
+                    ? nodeColor
+                    : onTop;
             }
         }
     }
@@ -2256,13 +2448,17 @@ export class Node implements ModelUser {
      */
     private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
         this.applyInstanceColor(color);
+        this.syncModelAnimation(style);
         // A node drawn by the shader batch draws its outline ring and glow there, from its radius:
         // on its invisible pick proxy they would ring nothing.
-        const effect = this.drawnByBatch() ? undefined : style.effect;
+        // A model node marks its silhouette instead (syncModelMark): a ring is a circle whatever the
+        // model's shape, and a glow on its shared source mesh lights every node drawing the model.
+        const effect = this.drawnByBatch() || this.drawnModel !== null ? undefined : style.effect;
         if (this.#mesh !== null) {
             NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache());
             NodeEffects.applyGlowEffect(this.#mesh, effect);
         }
+        this.syncModelMark();
         const hidden = style.visible === false;
         if (hidden !== this.styleHidden) {
             this.styleHidden = hidden;
@@ -2364,7 +2560,7 @@ export class Node implements ModelUser {
         const opacity = typeof painted === "object" ? (painted.opacity ?? 1) : 1;
         const color = this.drawnColor ?? { r: 255, g: 255, b: 255, a: 1 };
         const batch = this.drawnByBatch();
-        const halo = batch && this.renderState === "visible" ? this.haloLook() : null;
+        const halo = batch && this.getRenderState() === "visible" ? this.haloLook() : null;
         const haloColor = halo === null ? null : hexOf(halo.color, DEFAULT_SELECTION_STYLE.color);
         const outline = style.effect?.outline;
         const glow = style.effect?.glow;
@@ -2485,7 +2681,7 @@ export class Node implements ModelUser {
         // impostor's pick proxy must never share one, since the proxy's source is not drawn.
         const samePath = shaderPartOf(meshKey) === shaderPartOf(this.meshKey);
         const sameGeometry =
-            meshKey === this.meshKey || (samePath && isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
+            meshKey === this.meshKey || (samePath && this.compareDrawn(o).equal && isEqual(color, this.drawnColor));
         const model = this.modelFor(o);
         return (
             sameGeometry &&
@@ -2512,7 +2708,7 @@ export class Node implements ModelUser {
      * @returns True when the mesh has to be fitted again.
      */
     private fitIsStale(o: NodeStyleConfig): boolean {
-        if ((o.shape?.labelFit === undefined && o.shape?.labelTable === undefined) || this.drawnAsGroup) {
+        if (!fitsNode(o.shape) || this.drawnAsGroup) {
             return false;
         }
 
@@ -2533,7 +2729,7 @@ export class Node implements ModelUser {
         const { shape } = o;
         const table = this.drawnAsGroup ? null : readLabelTable(shape?.labelTable);
         this.tableTexts = null;
-        if ((shape?.labelFit === undefined && table === null) || this.drawnAsGroup) {
+        if ((shape?.labelFit === undefined && table === null && shape?.imageAspect !== true) || this.drawnAsGroup) {
             this.fittedFor = null;
             this.fittedExtent = null;
             return { meshKey, style: o };
@@ -2558,7 +2754,8 @@ export class Node implements ModelUser {
         const picture = (src: string): { width: number; height: number } | null => pictureSize(scene, src, this);
         const drawn = table === null ? null : layoutLabelTable(table, measure, picture);
         const box = drawn ?? measure(text);
-        const extent = labelFitExtent(shape, box, heldPicture(o, picture));
+        const held = heldPicture(o, picture);
+        const extent = labelFitExtent(shape, box, held) ?? imageAspectExtent(shape, held);
         const own = shape?.size ?? 0;
         const width = Number((extent?.width ?? shape?.width ?? own).toPrecision(6));
         const height = Number((extent?.height ?? shape?.height ?? own).toPrecision(6));
@@ -2622,7 +2819,8 @@ export class Node implements ModelUser {
             return null;
         }
 
-        return ModelCache.of(this.context)?.templateFor(this, o.shape, o.texture?.image) ?? null;
+        const look = { unlit: o.effect?.unlit === true, wireframe: o.effect?.wireframe === true };
+        return ModelCache.of(this.context)?.templateFor(this, o.shape, o.texture?.image, look) ?? null;
     }
 
     /**
@@ -2666,7 +2864,58 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Give a held node a source mesh of its own while node batches draw: on a read of its mesh, and
+     * when the graph switches to batched drawing after that read. A batch hides its whole source, so
+     * a held node sharing it took every row of its look off the batch (#8038, #8073).
+     * @internal
+     */
+    holdOffBatch(): void {
+        const batches = this.disposed ? undefined : this.context.getNodeBatches?.();
+        if (!this.#meshHeld || !batches) {
+            return;
+        }
+
+        batches.leave(this);
+        this.drawFromOwnSource();
+        batches.sync(this);
+    }
+
+    /**
+     * Move a held node's instance onto its own source mesh ({@link Node.sourceArgs}), if it is not there.
+     */
+    private drawFromOwnSource(): void {
+        const mesh = this.#mesh;
+        if (!(mesh instanceof InstancedMesh) || this.drawnModel !== null) {
+            return;
+        }
+
+        const { meshKey, style } = this.#fit;
+        const source = NodeMesh.source(
+            this.context.getMeshCache(),
+            ...this.sourceArgs(meshKey, style, this.drawnImage),
+            this.context.getScene(),
+        );
+        if (source !== mesh.sourceMesh) {
+            moveInstance(mesh, source);
+            this.#source = source;
+            // A new source has no color buffer until a paint registers one: paint the instance again.
+            this.applyInstancePaint(this.drawnStyle ?? style, this.drawnColor);
+        }
+    }
+
+    /**
+     * Whether this node draws from a source of its own: a consumer holds its mesh while node batches
+     * draw, which hide the shared source. The objects path keeps sharing.
+     * @returns True when it does.
+     */
+    private drawsOwnSource(): boolean {
+        return this.#meshHeld && !this.disposed && (this.context.getNodeBatches?.() ?? null) !== null;
+    }
+
+    /**
      * What {@link NodeMesh.create} and {@link NodeMesh.source} are asked for this node's source mesh.
+     * A held node under node batches draws from a source of its own, so a batch can keep hiding
+     * the shared one.
      * @param meshKey - The source mesh key.
      * @param o - The resolved style.
      * @param image - The picture on its shape, or null.
@@ -2679,9 +2928,37 @@ export class Node implements ModelUser {
     ): [Parameters<typeof NodeMesh.source>[1], Parameters<typeof NodeMesh.source>[2]] {
         return [
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
-            { styleId: image === null ? meshKey : `${meshKey}|image`, is2D: this.context.is2D(), size: this.size },
+            {
+                styleId: `${meshKey}${image === null ? "" : "|image"}${this.drawsOwnSource() ? "|held" : ""}`,
+                is2D: this.context.is2D(),
+                size: this.size,
+            },
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
         ];
+    }
+
+    /**
+     * How a style compares with the one the mesh was drawn from: deep-equal, and deep-equal but for
+     * its fill. One deep comparison answers both (the fill is one small subtree), and the answer is
+     * kept for the same two objects: a repaint asks `nodeRebuildsFor` about a paint and then draws
+     * it, and each asked `keepsMeshFor` and then `movesFor`, so a filter that ghosts every node
+     * compared every node's whole style four times, most of a repaint at 50,000 nodes (#7966). A
+     * paint's style is built fresh and never written after (as `reachOutline` relies on too),
+     * so the identity of the pair stands for what they hold.
+     * @param o - The resolved style.
+     * @returns Both answers; both false when nothing is drawn yet.
+     */
+    private compareDrawn(o: NodeStyleConfig): { equal: boolean; equalButFill: boolean } {
+        const drawn = this.drawnStyle;
+        const kept = this.comparedDrawn;
+        if (kept?.style === o && kept.drawn === drawn) {
+            return kept;
+        }
+
+        const equalButFill = drawn !== null && isEqual(withoutFill(o), withoutFill(drawn));
+        const equal = equalButFill && isEqual(o.texture, drawn?.texture);
+        this.comparedDrawn = { style: o, drawn, equal, equalButFill };
+        return this.comparedDrawn;
     }
 
     /**
@@ -2704,7 +2981,7 @@ export class Node implements ModelUser {
             drawn !== null &&
             this.drawnModel === null &&
             shaderPartOf(meshKey) === shaderPartOf(this.meshKey) &&
-            isEqual(withoutFill(o), withoutFill(drawn)) &&
+            this.compareDrawn(o).equalButFill &&
             !this.fitIsStale(o) &&
             this.modelFor(o) === null &&
             this.imageFor(o) === this.drawnImage
@@ -2781,16 +3058,25 @@ export class Node implements ModelUser {
      * @returns Its template, whether it is tinted and whether a reader's layer coloured it.
      * @internal
      */
-    modelDrawn(): { readonly template: ModelTemplate | null; readonly tinted: boolean; readonly colored: boolean } {
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+        readonly clip: string | null;
+    } {
         const color = this.drawnColor;
         const hex =
             color === null
                 ? DEFAULT_NODE_COLOR
                 : `#${[color.r, color.g, color.b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+        const model = this.drawnModel;
+        const mode = modelTintMode(this.drawnStyle?.shape);
         return {
-            template: this.drawnModel,
-            tinted: modelTinted(this.drawnStyle?.shape),
+            template: model,
+            // Untinted only while some part that states its own color keeps it.
+            tinted: mode === "on" || model === null || model.groups.every((group) => model.follows.has(group)),
             colored: hex !== DEFAULT_NODE_COLOR,
+            clip: animationOf(this.drawnStyle?.shape),
         };
     }
 
@@ -3022,7 +3308,8 @@ export class Node implements ModelUser {
         // Restore position from layout engine after mesh recreation
         // This ensures the mesh doesn't reset to (0, 0, 0) when style changes
         const layoutManager = this.context.getLayoutManager();
-        const pos = layoutManager.layoutEngine?.getNodePosition(this);
+        const engine = layoutManager.layoutEngine;
+        const pos = engine === undefined ? undefined : layoutEngineInternals.positionOf(engine, this);
         if (pos) {
             const at = transitionsOf(layoutManager)?.place(this, pos) ?? pos;
             this.setMeshPosition(at.x, at.y, at.z ?? 0);
@@ -3091,8 +3378,15 @@ export class Node implements ModelUser {
         }
 
         this.disposed = true;
+        if (this.#modelMarked) {
+            loadedChunk()?.markModelNode(this.context.getScene(), this, [], null);
+            this.#modelMarked = false;
+        }
+        this.#playing?.stop(this);
+        this.#playing = null;
         this.rowTable?.drop(this.row);
         this.context.getNodeBatches?.()?.leave(this);
+        this.context.getUpdateManager?.().viewSizedNodeDisposed(this);
 
         this.pointerHandler?.dispose();
         this.pointerHandler = undefined;
@@ -3307,7 +3601,15 @@ export class Node implements ModelUser {
      * Draw or take down this node's halo from the selection and the layers as they now stand.
      */
     private syncHalo(): void {
-        const look = this.renderState === "visible" ? this.haloLook() : null;
+        // Drawn only while the node is: a layer hiding it (what lies outside a time window) hides its halo too.
+        const look = this.getRenderState() === "visible" ? this.haloLook() : null;
+        this.syncModelMark();
+        if (this.drawnModel !== null) {
+            // A copy of one part, scaled out, is no halo for a model: its silhouette is marked instead.
+            this.showOverlay("halo", false);
+            return;
+        }
+
         if (this.drawnByBatch()) {
             // The shader batch draws the halo from the radius; the mesh halo would be the proxy's.
             this.showOverlay("halo", false);
@@ -3317,6 +3619,104 @@ export class Node implements ModelUser {
         }
 
         this.showOverlay("halo", look !== null, look ?? undefined);
+    }
+
+    /**
+     * The model instances this node draws: its root and every part, or none for a built-in shape.
+     * @returns The instances.
+     */
+    private modelInstances(): AbstractMesh[] {
+        const model = this.drawnModel;
+        const root = this.#mesh;
+        if (model === null || root === null || root.isDisposed()) {
+            return [];
+        }
+
+        return [root, ...root.getChildMeshes(true)].filter(
+            (part) => part instanceof InstancedMesh && model.groups.includes(part.sourceMesh),
+        );
+    }
+
+    /**
+     * Play the clip `node.modelAnimation` names on this node's model, at its speed and start, or
+     * forget the clip of a model it no longer draws.
+     * @param style - The resolved style.
+     */
+    private syncModelAnimation(style: NodeStyleConfig): void {
+        const animation = this.drawnModel?.animation ?? null;
+        if (this.#playing !== animation) {
+            this.#playing?.stop(this);
+            this.#playing = animation;
+        }
+
+        if (animation === null) {
+            return;
+        }
+
+        const clip = animationOf(style.shape);
+        animation.play(
+            this,
+            this.modelInstances(),
+            clip !== null && animation.clips.has(clip) ? clip : null,
+            style.shape?.modelAnimationSpeed ?? 1,
+            style.shape?.modelAnimationOffset ?? 0,
+        );
+    }
+
+    /**
+     * Mark, change or take off the silhouette band of a model node: its halo, else its outline,
+     * else its glow, drawn around the model's outline on screen (src/models/NodeOutlineLayers.ts).
+     */
+    private syncModelMark(): void {
+        const model = this.drawnModel;
+        const look = model === null || this.getRenderState() !== "visible" ? null : this.modelMarkLook();
+        if (look === null && !this.#modelMarked) {
+            return;
+        }
+
+        const chunk = loadedChunk();
+        if (chunk === null) {
+            return;
+        }
+
+        const parts =
+            this.#mesh === null || this.#mesh.isDisposed() ? [] : [this.#mesh, ...this.#mesh.getChildMeshes(true)];
+        const meshes = parts.filter(
+            (part) => model !== null && part instanceof InstancedMesh && model.groups.includes(part.sourceMesh),
+        );
+        chunk.markModelNode(this.context.getScene(), this, meshes, look);
+        this.#modelMarked = look !== null;
+    }
+
+    /**
+     * The band a model node is marked with: its halo (selection or `node.halo*`), else its
+     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 20` (9 at the default
+     * 1.45), an outline's width x 4, a glow's strength x 8, each between 2 and 16.
+     * @returns The look, or null for no mark.
+     */
+    private modelMarkLook(): ModelMarkLook | null {
+        const pixels = (value: number): number => Math.min(16, Math.max(2, Math.round(value)));
+        const halo = this.haloLook();
+        if (halo !== null && halo.opacity !== 0) {
+            const { rgb } = readColor(halo.color, DEFAULT_SELECTION_STYLE.color);
+            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 20) };
+        }
+
+        const effect = this.drawnStyle?.effect;
+        if (effect?.outline !== undefined && NodeEffects.outlineDrawn(effect)) {
+            const { rgb } = readColor(NodeEffects.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
+            const width = NodeEffects.outlineWidthOf(this.context.getScene(), effect.outline.width);
+            return { color: rgb.toHexString(), thickness: pixels(width * 4) };
+        }
+
+        const glow = NodeEffects.extractColorValue(effect?.glow?.color);
+        const strength = effect?.glow?.strength ?? 1;
+        if (glow !== undefined && strength > 0) {
+            const { rgb } = readColor(glow, DEFAULT_GLOW_COLOR);
+            return { color: rgb.toHexString(), thickness: pixels(strength * 8) };
+        }
+
+        return null;
     }
 
     /**

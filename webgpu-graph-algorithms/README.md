@@ -5,23 +5,23 @@
 WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format` snapshot, for Node
 (Dawn, through the `webgpu` npm package) and browsers (Chromium). One code base, four entry points:
 
-| Entry                                      | Import            | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@graphty/webgpu-graph-algorithms`         | the core          | the layouts (`createForceAtlas2`, `createFruchtermanReingold`, `createSpringElectrical`, `seedPositions`), the algorithms (`pageRank`, `personalizedPageRank`, `hits`, `eigenvectorCentrality`, `katzCentrality`, `connectedComponents`, `degree`), `createAccelerator`, `calibrateLayout`, `verifyDevice`, `GpuContext`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `FR_DEFAULTS`, `SE_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
-| `@graphty/webgpu-graph-algorithms/node`    | Node only         | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`, `acquireAccelerator`                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `@graphty/webgpu-graph-algorithms/browser` | browsers only     | `probeBrowserWebGpu`, `requestGpuContext`, `acquireAccelerator`                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `@graphty/webgpu-graph-algorithms/acquire` | Node and browsers | `acquireAccelerator`: the managed accelerator. The `browser` export condition resolves it to the browser build and `node` to the Node build, so one import line serves both and the two builds never meet in one bundle                                                                                                                                                                                                                                                                                                      |
+| Entry                                      | Import            | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@graphty/webgpu-graph-algorithms`         | the core          | the layouts (`createForceAtlas2`, `createFruchtermanReingold`, `createSpringElectrical`, `seedPositions`), the algorithms (`pageRank`, `personalizedPageRank`, `hits`, `eigenvectorCentrality`, `katzCentrality`, `connectedComponents`, `breadthFirstSearch`, `sssp`, `bellmanFord`, `allPairsShortestPath`, `betweennessCentrality`, `edgeBetweennessCentrality`, `closenessCentrality`, `labelPropagation`, `minimumSpanningTree`, `triangleCount`, `degree`), `createAccelerator`, `calibrateLayout`, `verifyDevice`, `GpuContext`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `FR_DEFAULTS`, `SE_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
+| `@graphty/webgpu-graph-algorithms/node`    | Node only         | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`, `acquireAccelerator`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `@graphty/webgpu-graph-algorithms/browser` | browsers only     | `probeBrowserWebGpu`, `requestGpuContext`, `acquireAccelerator`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `@graphty/webgpu-graph-algorithms/acquire` | Node and browsers | `acquireAccelerator`: the managed accelerator. The `browser` export condition resolves it to the browser build and `node` to the Node build, so one import line serves both and the two builds never meet in one bundle                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-**Status: three force layouts and six algorithms, on the exact and the grid repulsion tiers.**
+**Three force layouts and seventeen graph algorithms, all on the GPU.**
 ForceAtlas2, Fruchterman-Reingold and ngraph's spring-electrical preset run from Node (`run()`) and from a
-browser frame loop (`step()` once per frame) at any size: the default `repulsion: "auto"` runs the exact tier
-up to `exactMaxNodes` = 32768 nodes (owner decision G4-D1 in `docs/decisions/G4.md`) and the grid tier above
-it; `repulsion: "exact"` forces all pairs at any size (O(n^2) per iteration: 18.971 ms per iteration at 100k
-nodes / 1M edges on an RTX 4070 SUPER) and `repulsion: "grid"` forces the grid tier. PageRank, personalized
-PageRank, HITS, eigenvector centrality, Katz centrality and weakly connected components run as plain async
-calls on the same context. The phases follow the phase plan of
-`design/webgpu/webgpu-acceleration-plan.md` (monorepo root) section 13 and the interface contract
-`design/webgpu/plans/2026-09-14-webgpu-p0-p3-interfaces.md`; the gate records are `docs/decisions/G<n>.md`.
+browser frame loop (`step()` once per frame) at any size: the default `repulsion: "auto"` computes every pair of
+nodes exactly up to `exactMaxNodes` = 32768 nodes and switches to the faster, approximate grid tier above it;
+`repulsion: "exact"` forces all pairs at any size (O(n^2) per iteration: 18.971 ms per iteration at 100k nodes /
+1M edges on an RTX 4070 SUPER) and `repulsion: "grid"` forces the grid tier. The algorithms run as plain async
+calls on the same context: PageRank, personalized PageRank, HITS, eigenvector, Katz, betweenness, edge
+betweenness and closeness centrality; weakly connected components, label propagation, triangle counting and the
+minimum spanning forest; breadth-first search, single-source shortest paths (non-negative weights and
+Bellman-Ford) and all-pairs shortest paths; and the `degree` diagnostic.
 There is no CPU fallback anywhere in this package: when no adapter or device exists it throws
 `WebGpuGraphError`.
 
@@ -38,14 +38,14 @@ overlap. `webgpu@0.5.0` moved its Linux build base to Ubuntu 24.04, so `webgpu@0
 `GLIBCXX_3.4.32` -- Ubuntu 24.04 or newer, which ship glibc 2.39 and GLIBCXX_3.4.33. `webgpu@0.4.0` is the last
 build that runs below that line: it needs no more than `GLIBC_2.34` and `GLIBCXX_3.4.30`, which Ubuntu 22.04
 satisfies. Loading 0.6.x on 22.04 fails at `require` with
-"libstdc++.so.6: version `GLIBCXX_3.4.32' not found", not at adapter acquisition. The peer range
-`>=0.4.0 <1.0.0`admits both on purpose, so a consumer pins the one their distribution can load; a Node consumer
-that forgets the package entirely gets`E_NO_WEBGPU`with the message
-"install the optional peer dependency webgpu@0.6.1".`@graphty/algorithms`and`@graphty/layout`are
-optional peer dependencies too, on different footings since W1b: the layout interfaces and option types
-are`import type`d from `@graphty/layout`and re-exported, so they ARE its declarations, while the`@graphty/algorithms`accelerator types are still structural mirrors until A2. Either way a consumer that
-type-checks against the accelerator types (without`skipLibCheck`) installs the package it names; a
-consumer that never touches them does not need it.
+`libstdc++.so.6: version 'GLIBCXX_3.4.32' not found`, not at adapter acquisition. The peer range
+`>=0.4.0 <1.0.0` admits both on purpose, so a consumer pins the one their distribution can load; a Node
+consumer that forgets the package entirely gets `E_NO_WEBGPU` with the message
+"install the optional peer dependency webgpu@0.6.1". `@graphty/algorithms` and `@graphty/layout` are optional
+peer dependencies too: the accelerator interfaces and option types of both are `import type`d from those
+packages and re-exported, so they are those packages' own declarations. A consumer that type-checks against the
+accelerator types (without `skipLibCheck`) installs the package it names; a consumer that never touches them
+does not need it.
 
 ## ForceAtlas2 from Node
 
@@ -57,7 +57,7 @@ import { createNodeGpuContext } from "@graphty/webgpu-graph-algorithms/node";
 const ctx = await createNodeGpuContext(); // Dawn; { adapter: "llvmpipe" } selects Mesa's software adapter
 const snapshot = fromEdgeArrays({ directed: false, nodeCount, src, dst, weights }); // undirected: pass toUndirected().snapshot otherwise
 
-// The owner's stride-3 array: x, y, z per node in scene units. NaN rows are seeded by the CPU port's LCG
+// Your stride-3 array: x, y, z per node in scene units. NaN rows are seeded by the CPU port's LCG
 // (seed 42 here) inside [-1, 1) x scale + center; finite rows are kept as the starting layout.
 const positions = new Float32Array(3 * snapshot.nodeCount).fill(Number.NaN);
 
@@ -72,7 +72,7 @@ ctx.release(snapshot); // destroys the snapshot's buffers (nothing is freed by G
 ctx.dispose(); // destroys the device and lets the process exit
 ```
 
-Above `exactMaxNodes` the default `"auto"` picks the grid tier (spec 7.8: by n alone); `repulsion: "exact"`
+Above `exactMaxNodes` the default `"auto"` picks the grid tier (by the node count alone); `repulsion: "exact"`
 keeps the all-pairs tier at any size and `repulsion: "grid"` picks the grid tier at any size. The same run
 from the command line, with a verification of the result:
 
@@ -149,7 +149,7 @@ names and defaults as the CPU port in `@graphty/layout`) plus the GPU tuning:
 | `nodeMass`                        | `null`           | `null`: the node column with the role `mass` when present, else `outDegree + 1`; a `Float32Array` of length n; a numeric node column name (a `Record` is `E_UNSUPPORTED`)                                                                                                                                |
 | `nodeSize`                        | `null`           | `E_UNSUPPORTED` when non-null (no overlap prevention)                                                                                                                                                                                                                                                    |
 | `weight`                          | unset            | `true`: the snapshot's arc weights; an edge column name: that numeric column; unset / `false` / `null`: every edge weighs 1                                                                                                                                                                              |
-| `dissuadeHubs`                    | `false`          | accepted and ignored                                                                                                                                                                                                                                                                                     |
+| `dissuadeHubs`                    | `false`          | each node's attraction divided by its degree + 1 (on top of `distributedAction`)                                                                                                                                                                                                                         |
 | `settleThreshold`, `settleWindow` | `0.001`, `10`    | settled when the mean displacement stayed below `settleThreshold x rmsRadius` AND below an absolute floor (a fraction of the model's length unit: 0.003 `springLength` x (2000 / n)^(1/4) for spring-electrical, 0.002 `k` for Fruchterman-Reingold; ForceAtlas2 has none) for `settleWindow` iterations |
 | `iterationsPerStep`               | `1`              | iterations per `step()` (the Node `run()` uses its own `batch`)                                                                                                                                                                                                                                          |
 | `maxInFlight`                     | `2`              | batches in flight before `step()` coalesces; `1` for the strictest freshness                                                                                                                                                                                                                             |
@@ -157,13 +157,13 @@ names and defaults as the CPU port in `@graphty/layout`) plus the GPU tuning:
 GPU tuning (`GpuLayoutTuning`; also the `layout` field of `createAccelerator`'s options, inherited by every
 simulation the accelerator creates):
 
-| Option                                              | Default                 | Meaning                                                                                                                                                                                                                    |
-| --------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `repulsion`                                         | `"auto"`                | `"exact"` at any n; `"auto"` = exact iff n <= `exactMaxNodes`, else grid; `"grid"` at any n                                                                                                                                |
-| `exactMaxNodes`                                     | `32768`                 | the G3 value, kept by owner decision G4-D1 while the accuracy work G4-F1 leaves is open (`docs/decisions/G4.md`; the section 7.8 rule computes 1024 on the RTX 4070 SUPER); pass your own (`calibrateLayout` measures it). |
-| `deterministic`                                     | `true`                  | fixed summation order (the exact tier is always deterministic)                                                                                                                                                             |
-| `compat`                                            | `"paper"`               | `"networkx"` reproduces NetworkX 3.4's `forceatlas2_layout` (gravity toward the origin, its accumulated swing / traction)                                                                                                  |
-| `nearMax`, `gridMax2D`, `gridMax3D`, `extentFactor` | `64`, `512`, `128`, `6` | stored for the grid tier (P4)                                                                                                                                                                                              |
+| Option                                              | Default                 | Meaning                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repulsion`                                         | `"auto"`                | `"exact"` at any n; `"auto"` = exact iff n <= `exactMaxNodes`, else grid; `"grid"` at any n                                                                                                                                                                                                                                     |
+| `exactMaxNodes`                                     | `32768`                 | the largest node count `"auto"` runs on the exact tier. The exact tier is the more accurate one, so the default keeps it well past the size where the grid tier becomes faster (about 1024 nodes on an RTX 4070 SUPER); `calibrateLayout(ctx)` measures that crossover on your device                                           |
+| `deterministic`                                     | `true`                  | fixed summation order (the exact tier is always deterministic)                                                                                                                                                                                                                                                                  |
+| `compat`                                            | `"paper"`               | `"networkx"` reproduces NetworkX 3.4's `forceatlas2_layout` (gravity toward the origin, its accumulated swing / traction)                                                                                                                                                                                                       |
+| `nearMax`, `gridMax2D`, `gridMax3D`, `extentFactor` | `64`, `512`, `128`, `6` | the grid tier's shape: a grid cell holding more than `nearMax` nodes is sampled by `nearMax` draws instead of summed exactly; the finest grid is at most `gridMax2D` cells a side in 2D and `gridMax3D` in 3D; the grid spans at most `extentFactor` times the layout's RMS radius, and nodes outside it are summed per orthant |
 
 Every range error is `E_INVALID_ARGUMENT` (`gravity < 0`, `scalingRatio <= 0`, `jitterTolerance <= 0`,
 `maxIter < 1`, `settleWindow < 1`, `maxInFlight < 1`, `iterationsPerStep < 1`, `dim` not 2 or 3,
@@ -175,14 +175,15 @@ the next batch's parameters; `dim` and `maxInFlight` cannot change after creatio
 
 `sim.stats` (`ForceAtlas2Stats`) after every completed batch: `iteration`, `swing`, `traction`, `speed`,
 `speedEfficiency`, `meanDisplacement`, `rmsRadius`, `layoutRadius` (max |p - centroid|), `centroid`,
-`repulsionTier` (`"exact"`), `msPerIteration` (the GPU time per iteration when `timestamp-query` was granted,
-else the batch's wall time divided by its iteration count), the grid fields (`null` on the exact tier) and
+`repulsionTier` (`"exact"` or `"grid"`), `msPerIteration` (the GPU time per iteration when `timestamp-query` was
+granted, else the batch's wall time divided by its iteration count), the grid fields `maxCellOccupancy` (the most
+nodes in one grid cell) and `outsideGrid` (the nodes outside the grid's extent), both `null` on the exact tier, and
 `trace`: one `{ swing, traction, speed, speedEfficiency, meanDisplacement, settledCount }` record per
 iteration of the last batch.
 
 ## Fruchterman-Reingold and the spring-electrical preset
 
-Two more force layouts ship beside ForceAtlas2, on the same exact repulsion tier and with exactly the
+Two more force layouts ship beside ForceAtlas2, on the same exact and grid repulsion tiers and with exactly the
 lifecycle the two ForceAtlas2 sections above describe: `load(snapshot, positions)`, then `run()` from Node or
 `step()` once per frame, with `stats`, `settled`, `setPosition`, `setFixed`, `reheat`, `flush`, `setParams`,
 `dispose` and the coalescing rule all unchanged. They differ in the force law, in their option records and in
@@ -197,7 +198,7 @@ What they ask of the graph, and what they refuse, is ForceAtlas2's:
 - edge weights are ignored by both models, and both give every node the same mass rule for its whole run --
   1 for Fruchterman-Reingold, `1 + degree / 3` for the spring preset -- so neither has a `weight` or
   `nodeMass` option to pass
-- `positions` is the owner's stride-3 scene-unit `Float32Array` of length `3 * nodeCount`, over a plain
+- `positions` is your stride-3 scene-unit `Float32Array` of length `3 * nodeCount`, over a plain
   `ArrayBuffer`; any other length is `E_INVALID_ARGUMENT`. Rows holding a non-finite component are seeded in
   place at `load()` (see `seedPositions` below), finite rows are the starting layout
 - an empty snapshot (`nodeCount: 0`) loads without touching the GPU and is `settled` on arrival; `step()`
@@ -206,9 +207,8 @@ What they ask of the graph, and what they refuse, is ForceAtlas2's:
   `E_TOO_LARGE { path: "positions" }` when `16 * nodeCount` bytes exceed the device's `maxBufferSize`,
   `{ path: "windowed" }` when the arc arrays need more than one storage binding, and `{ path: "partials" }`
   above 16,776,960 nodes
-- above `exactMaxNodes` with the default `repulsion: "auto"`, `load()` throws
-  `E_UNSUPPORTED { feature: "repulsion.grid" }`, as ForceAtlas2 does; `repulsion: "exact"` runs all pairs at
-  any size
+- above `exactMaxNodes` the default `repulsion: "auto"` runs the grid tier, as ForceAtlas2 does;
+  `repulsion: "exact"` runs all pairs at any size
 
 The GPU tuning table above applies to both, with one exception: `compat` is read by ForceAtlas2 alone and
 changes nothing here.
@@ -222,7 +222,7 @@ single iteration.
 ```ts
 import { createFruchtermanReingold } from "@graphty/webgpu-graph-algorithms";
 
-// positions: the owner's stride-3 scene-unit array; NaN rows are seeded at load(), finite rows are kept
+// positions: your stride-3 scene-unit array; NaN rows are seeded at load(), finite rows are kept
 const positions = new Float32Array(3 * snapshot.nodeCount).fill(Number.NaN);
 
 const sim = createFruchtermanReingold(ctx, { iterations: 50, cooling: "linear", seed: 42, dim: 2 });
@@ -291,8 +291,6 @@ ForceAtlas2's does. Without it, and without `run({ maxIter })`, `run()` returns 
 iteration that follows an integrate is the one that folds its energy -- so the first record after `load()`
 carries `0` and record i carries the energy of iteration i - 1.
 
-Both models appear in the Performance section below as row T-14 and in the `layout-fr` benchmark group.
-
 ## The `seedPositions` helper
 
 Every simulation seeds the unplaced rows of your positions array at `load()`, so you never have to call this.
@@ -310,7 +308,7 @@ seedPositions(s, positions, 42, 2, 1, null, "fa2");
 // every row now holds x and y in [-1, 1) and z = 0; seed 42 gives this same array every time
 ```
 
-The arguments are positional and all required: the snapshot, the owner's stride-3 scene-unit array (modified
+The arguments are positional and all required: the snapshot, your stride-3 scene-unit array (modified
 in place, length `3 * nodeCount`), the LCG seed (an integer >= 0, or `null` for a random one; any other value
 throws `E_INVALID_ARGUMENT`), `dim` (`2` or `3`), the scene `scale` (> 0), the scene `center` (an `ArrayLike<number>`, or
 `null` for the origin), and the draw range: `"fa2"` is `[-1, 1)` in layout units, `"fr"` is `[0, 1)`.
@@ -422,8 +420,18 @@ on `globalThis`), plus the `GpuContext.create` options (`powerPreference`, `reje
 `onError`).
 
 On a machine where the NVIDIA Vulkan driver cannot find `libEGL.so.1` (a container without `libegl1`),
-Dawn silently lists only llvmpipe; see `docs/HEADLESS_GPU_REPORT.md` appendix D for the `LD_LIBRARY_PATH`
-recipe.
+Dawn silently lists only llvmpipe. Install `libegl1`, or, without root, extract the library and put it on the
+library path:
+
+```bash
+mkdir -p egl && cd egl
+apt-get download libegl1 libglvnd0
+dpkg -x libegl1_*.deb root && dpkg -x libglvnd0_*.deb root
+export LD_LIBRARY_PATH="$PWD/root/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+```
+
+Headless Chromium needs the same library, plus the flags `--enable-unsafe-webgpu --enable-features=Vulkan
+--use-angle=vulkan --disable-vulkan-surface`, to reach an NVIDIA card instead of SwiftShader.
 
 ### Browser
 
@@ -463,10 +471,10 @@ ctx.dispose(); // destroys the device and lets the process exit
 In a browser, `import { requestGpuContext } from "@graphty/webgpu-graph-algorithms/browser"` and `const ctx = await
 requestGpuContext();` replace the first import and line; the rest is identical.
 
-## Centrality and components
+## Algorithms
 
-Six algorithm functions run on the device. Every one has the same shape -- `await fn(ctx, snapshot, options?)`
--- and every array that comes back is indexed by the snapshot's NODE INDEX (`0 .. nodeCount - 1`), never by
+Every algorithm function has the same shape -- `await fn(ctx, snapshot, options?)`, with a source node index
+before the options for `breadthFirstSearch`, `sssp` and `bellmanFord` -- and every per-node array that comes back is indexed by the snapshot's NODE INDEX (`0 .. nodeCount - 1`), never by
 node id; the snapshot's id map turns an index back into the id it was built from. Every score result carries
 `precision: "f32"`, so a reader can label what it is looking at.
 
@@ -475,8 +483,8 @@ The context uploads what an algorithm needs the first time it sees a snapshot an
 the reverse adjacency for PageRank, HITS and Katz, the edge list for connected components. A second call on
 the same snapshot pays no upload.
 
-Each one is also a method of the object `createAccelerator(ctx)` returns -- `acc.pageRank(s, options)` and so
-on, with `connectedComponents` answering to `weaklyConnectedComponents` as well -- which is how
+Each one except `degree` is also a method of the object `createAccelerator(ctx)` returns -- `acc.pageRank(s,
+options)` and so on, with `connectedComponents` answering to `weaklyConnectedComponents` as well -- which is how
 `@graphty/algorithms` reaches them when a GPU accelerator is injected into it.
 
 The PageRank example below is complete; the examples after it reuse its context `ctx` and its snapshot `s`
@@ -484,15 +492,17 @@ rather than repeating the setup.
 
 Options every one of them accepts on top of its own (`GpuRunOptions`):
 
-| Option       | Default | Meaning                                                                                                                                                                                                                                         |
-| ------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dest`       | unset   | a preallocated result of exactly `nodeCount` elements over a plain `ArrayBuffer`: a `Float32Array` for scores, a `Uint32Array` for labels. Any other type or length is `E_INVALID_ARGUMENT { argument: "dest" }`; `hits` fills it with the hubs |
-| `signal`     | unset   | an `AbortSignal`, checked before the first submit and after every batch; `E_ABORTED { batchId }`                                                                                                                                                |
-| `onProgress` | unset   | `(done, total)` after every batch. `total` is `maxIterations`, `2 * maxIterations` for `hits` (it runs two chains) and `1` for `connectedComponents`, which reports once when it finishes                                                       |
+| Option       | Default | Meaning                                                                                                                                                                                                                                                                                                                                                 |
+| ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dest`       | unset   | a preallocated result of exactly `nodeCount` elements over a plain `ArrayBuffer`: a `Float32Array` for scores and distances, a `Uint32Array` for labels, depths and counts. Any other type or length is `E_INVALID_ARGUMENT { argument: "dest" }`; `hits` fills it with the hubs. Each section below says which array it fills when that is not obvious |
+| `signal`     | unset   | an `AbortSignal`, checked before the first submit and after every batch; `E_ABORTED { batchId }`                                                                                                                                                                                                                                                        |
+| `onProgress` | unset   | `(done, total)` after every batch. `total` is `maxIterations`, `2 * maxIterations` for `hits` (it runs two chains) and `1` for `connectedComponents`, which reports once when it finishes                                                                                                                                                               |
 
-A graph too large for the device is refused before any GPU work: when the arc arrays need more than one
-storage binding they would need a windowed upload, which only `degree` executes, and each of these six throws
-`E_TOO_LARGE { needed, limit, path: "windowed" }` instead. A node count whose dispatch does not fit
+A graph too large for the device is refused before any GPU work. When the arc arrays need more than one
+storage binding they need a windowed upload, which `degree` and `breadthFirstSearch` execute; PageRank,
+personalized PageRank, HITS, eigenvector and Katz centrality and connected components throw
+`E_TOO_LARGE { needed, limit, path: "windowed" }` instead. The other algorithms' own size limits are in their
+sections below. A node count whose dispatch does not fit
 the device's 2D workgroup grid is `E_TOO_LARGE { path: "dispatch" }`, and scratch that does not fit the
 device's budget is `E_OUT_OF_MEMORY { requested, resident, label }`.
 
@@ -676,6 +686,207 @@ the labels in that same first-seen order.
 `count === nodeCount`, which is what an isolated node gets inside a larger graph too. Self-loops and repeated
 edges change nothing: the link step is idempotent.
 
+### Breadth-first search
+
+`breadthFirstSearch(ctx, snapshot, source, options?)` walks out from one node along the arcs (both directions
+of an undirected edge, the out-arcs of a directed one) and returns, for every node, how many hops away it is and
+which node it was reached from.
+
+```ts
+import { breadthFirstSearch } from "@graphty/webgpu-graph-algorithms";
+
+const r = await breadthFirstSearch(ctx, s, 0, { maxDepth: 2 });
+console.log(r.depth); // Uint32Array: hops from node 0; 4294967295 for a node not reached
+console.log(r.parent, r.order, r.visitedCount, r.levels);
+```
+
+`GpuBfsResult` carries `depth`, `parent` (the smallest node index one hop closer to the source with an arc to
+the node; `4294967295` for the source and for an unreached node), `order` (the `visitedCount` reached nodes grouped
+by depth and ascending by index within a depth), `visitedCount` (the source included), `levels` (the largest
+depth plus one) and `switches` (how often the search changed between expanding the frontier and sweeping the
+unvisited nodes). Every array is the same on every run.
+
+`maxDepth` is the one option it reads: a node at that depth is reached but not expanded; leave it out for no cap.
+`dest` receives `depth`. A source outside `[0, nodeCount)` is `E_INVALID_ARGUMENT`, so an empty graph refuses
+every source. It also runs on a graph too large for one storage binding.
+
+### Shortest paths from one source: `sssp` and `bellmanFord`
+
+`sssp(ctx, snapshot, source, options?)` finds the shortest weighted distance from one node to every other, for
+non-negative weights. `bellmanFord` takes the same arguments, also accepts negative weights, and reports a negative
+cycle.
+
+```ts
+import { bellmanFord, sssp } from "@graphty/webgpu-graph-algorithms";
+
+const r = await sssp(ctx, s, 0, { cutoff: 10 });
+console.log(r.dist); // Float32Array: the distance from node 0; Infinity when not reached, or beyond the cutoff
+console.log(r.predArc, r.reachedCount);
+
+const bf = await bellmanFord(ctx, s, 0);
+if (bf.hasNegativeCycle) {
+    // dist and predArc hold the last round's values, not shortest paths
+}
+```
+
+`GpuSsspResult` carries `dist` (f32), `predArc` (for each reached node, the index of the arc it was reached
+along; follow the arcs' sources back to the source; `4294967295` for the source and for an unreached node) and
+`reachedCount` (the nodes with a finite distance, the source included). `bellmanFord` adds `hasNegativeCycle`:
+when true, a negative cycle is reachable from the source and `dist` and `predArc` are the last round's values. The
+distances are the same on every run.
+
+| Option    | Default | Meaning                                                                                                                                          |
+| --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cutoff`  | none    | stop at this distance: a node farther away is reported unreached. `NaN` is `E_INVALID_ARGUMENT`                                                  |
+| `weights` | unset   | per-arc weights for this run, `arcCount` long, instead of the snapshot's weight column; without either, every arc weighs 1 and the call is a BFS |
+
+`dest` receives `dist`. `sssp` refuses a negative weight with `E_UNSUPPORTED` (use `bellmanFord`), and both
+refuse a NaN or infinite weight. On an undirected snapshot `bellmanFord` reads one weight per edge, so a `weights`
+override that gives the two arcs of one edge different weights is `E_UNSUPPORTED`; use a directed snapshot for
+that. `sssp` keeps its work queue in one storage binding and throws `E_TOO_LARGE { path: "sssp.queue" }` when the
+graph's arcs do not fit it.
+
+### All-pairs shortest paths
+
+`allPairsShortestPath(ctx, snapshot, options?)` computes the distance between every ordered pair of nodes in one
+`n x n` matrix.
+
+```ts
+import { allPairsShortestPath } from "@graphty/webgpu-graph-algorithms";
+
+const r = await allPairsShortestPath(ctx, s);
+const fromTo = (i: number, j: number): number => r.dist[i * r.n + j]; // Infinity when j is unreachable from i
+```
+
+`GpuApspResult` carries `dist` (f32, row-major: `dist[i * n + j]` is the distance from `i` to `j`, `0` on the
+diagonal even when a self-loop has a weight, `Infinity` when unreachable) and `n`. The one option is `weighted`
+(default: true when the snapshot has weights); `false` counts hops. `dest` is a `Float32Array` of length `n * n`.
+
+The whole matrix must fit one storage binding, so the node count is capped at
+`floor(sqrt(maxStorageBufferBindingSize / 4))`: 23,170 nodes on a typical hardware adapter under the context's
+default `limits: "raise"`, 5,792 under `limits: "default"`. Above it the call throws
+`E_TOO_LARGE { path: "allPairs.matrix" }`. A negative or non-finite weight is `E_UNSUPPORTED` unless
+`weighted: false`.
+
+### Betweenness and edge betweenness
+
+`betweennessCentrality(ctx, snapshot, options?)` scores each node by how many shortest paths between other nodes
+pass through it, by Brandes' algorithm; `edgeBetweennessCentrality` scores each edge the same way. Both count hops:
+edge weights are ignored.
+
+```ts
+import { betweennessCentrality, edgeBetweennessCentrality } from "@graphty/webgpu-graph-algorithms";
+
+const exact = await betweennessCentrality(ctx, s, { normalized: true });
+const sampled = await betweennessCentrality(ctx, s, { k: 64 }); // 64 sources instead of every node
+const estimate = sampled.scores.map((x) => (x * s.nodeCount) / sampled.sourcesUsed);
+const edges = await edgeBetweennessCentrality(ctx, s); // one score per edge, by edge index
+```
+
+| Option       | Default | Meaning                                                                                                                        |
+| ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `normalized` | `false` | divide by `(n - 1)(n - 2)` on a directed snapshot, half that on an undirected one                                              |
+| `k`          | unset   | run from `k` sources drawn by a fixed seed (the same sources every call) instead of every node; an integer in `[0, nodeCount]` |
+| `sources`    | unset   | run from these node indices instead; `k`, when also given, must equal its length                                               |
+| `endpoints`  | `false` | `true` is `E_UNSUPPORTED`                                                                                                      |
+
+The node result, `GpuBetweennessResult`, carries `scores` (f32), `iterations` (the batches of sources run),
+`converged` (always true), `precision`, `sourcesUsed` (`nodeCount` for an exact run, the number of sources for a
+sampled one) and `sigmaOverflow`. A sampled run returns the plain sum over the sources it ran; multiply by
+`nodeCount / sourcesUsed` for an estimate of the full scores. On an undirected snapshot the scores are halved, as
+`@graphty/algorithms` does. `sigmaOverflow` is true when the numbers of shortest paths at one depth spread wider
+than f32 can hold (from a corner of a 235 x 235 grid, for example): the scores are then wrong, and
+`@graphty/algorithms` throws rather than return them.
+
+The edge result, `GpuEdgeScoresResult`, carries `scores` (one per logical edge, `edgeCount` long, and `dest` must
+be that length), `precision`, `sourcesUsed` and `sigmaOverflow`. `onProgress` reports sources done of sources to
+run. One source's working arrays must fit one storage binding, which caps the node count at about
+`maxStorageBufferBindingSize / 4`; above it the call throws `E_TOO_LARGE { path: "binding" }`.
+
+### Closeness
+
+`closenessCentrality(ctx, snapshot, options?)` scores each node by how near it is to the nodes it reaches:
+`1 / (sum of the distances)` over every node reached, `0` when it reaches none -- the default of
+`@graphty/algorithms`' `closenessCentrality`.
+
+```ts
+import { closenessCentrality } from "@graphty/webgpu-graph-algorithms";
+
+const r = await closenessCentrality(ctx, s, { harmonic: true });
+console.log(r.scores, r.sourcesUsed);
+```
+
+| Option     | Default                          | Meaning                                                                                                                                                                      |
+| ---------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `weighted` | whether the snapshot has weights | sum the weights instead of counting hops. A negative or non-finite weight is then `E_UNSUPPORTED`                                                                            |
+| `harmonic` | `false`                          | score with the sum of `1 / distance` instead                                                                                                                                 |
+| `sources`  | unset                            | score every node by its distances to these node indices only (the sampled score of `@graphty/algorithms`, not scaled up); undirected snapshots only, and not with `harmonic` |
+
+`GpuClosenessResult` carries `scores` (f32), `iterations` (the batches of sources run), `converged` (always true),
+`precision` and `sourcesUsed` (`nodeCount` for an exact run, the length of `sources` for a sampled one). It is an
+exact traversal, so `maxIterations` and `tolerance` are `E_UNSUPPORTED` when given. A sampled run on a directed
+snapshot, or a sampled harmonic run, is `E_UNSUPPORTED`.
+
+### Label propagation
+
+`labelPropagation(ctx, snapshot, options?)` finds communities: every node repeatedly takes the label most common
+among its neighbours until nothing changes. It follows the rules of `@graphty/algorithms`'
+`labelPropagationSynchronous`, with ties broken by a fixed scramble of the labels rather than at random, so the
+result is the same on every run and every device.
+
+```ts
+import { labelPropagation } from "@graphty/webgpu-graph-algorithms";
+
+const r = await labelPropagation(ctx, s, { maxIterations: 100 });
+console.log(r.labels, r.count, r.groups());
+```
+
+The options are `maxIterations` (default `100`, a non-negative integer) and `weighted` (default `true`: sum the
+weights of the edges to each neighbour label, each copy of a parallel edge counting; `false` counts every distinct
+neighbour once). The result is `GpuLabelResult`, as connected components return it: `labels` dense
+`0 .. count - 1` in first-seen index order, `count` and `groups()`. Arc directions are ignored and self-loops do
+not count. A run whose labels swap back and forth forever runs to `maxIterations`. More parallel edges between
+one pair of nodes than a weighted sum can merge is `E_UNSUPPORTED`; run it unweighted or merge them first.
+
+### Minimum spanning forest
+
+`minimumSpanningTree(ctx, snapshot, options?)` picks the edges of a minimum-weight spanning tree of every
+connected component, by Boruvka's algorithm. A directed snapshot is spanned as its underlying undirected graph.
+
+```ts
+import { minimumSpanningTree } from "@graphty/webgpu-graph-algorithms";
+
+const r = await minimumSpanningTree(ctx, s);
+console.log(r.edges); // Uint32Array of edge indices: nodeCount minus the number of components
+console.log(r.totalWeight);
+```
+
+`GpuMstResult` carries `edges` (logical edge indices, `edgeCount`-indexed) and `totalWeight` (summed in f64; 1 per
+edge on an unweighted snapshot). Ties between equal weights are broken by edge index, so the edge set is exactly
+the one `@graphty/algorithms`' `kruskalMST` returns; only the order of `edges` differs. Negative weights are
+fine. It takes `signal` and `onProgress`; `dest` is `E_UNSUPPORTED`, because the forest's size is not known
+before the run.
+
+### Triangle counting
+
+`triangleCount(ctx, snapshot, options?)` counts the triangles of the simple undirected graph under the snapshot:
+directions are ignored, parallel edges count once and self-loops not at all.
+
+```ts
+import { triangleCount } from "@graphty/webgpu-graph-algorithms";
+
+const r = await triangleCount(ctx, s);
+console.log(r.perNode, r.total, r.coefficient, r.transitivity);
+```
+
+`GpuTriangleResult` carries `perNode` (the triangles each node lies in), `total` (each triangle once),
+`coefficient` (each node's local clustering coefficient, `0` for a node with fewer than two neighbours) and
+`transitivity` (`3 x triangles / connected triples`, `0` when there is no connected triple). `dest` receives
+`perNode`.
+
+Label propagation and triangle counting first build the simple undirected graph on the device; when it needs
+more than one storage binding they throw `E_TOO_LARGE`.
+
 ## Errors
 
 Every condition the package detects itself is a `WebGpuGraphError` with a stable `code`
@@ -717,270 +928,9 @@ if (!check.ok) {
 
 It checks one property -- that values crossing a workgroup barrier, and block totals crossing dispatches of one
 compute pass, survive. A device that gets that right and gets atomics or float rounding wrong still passes. It is
-a refusal mechanism, not a certificate of correctness; `docs/decisions/device-self-check.md` records what it
-covers, what it does not, and why the package refuses such a device rather than computing around it.
-
-## Benchmarks
-
-```bash
-pnpm run bench                                                 # every group; appends to benchmarks/out/<runner-class>.json
-pnpm exec tsx benchmarks/run.ts upload roundtrip layout-exact  # selected groups; --no-save, --runs N, --allow-software
-pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end layout driver (exit 1 on a bad result)
-pnpm run gpu:report > gpu-report.json                          # the adapter report with a 10 s nvidia-smi sample
-pnpm run bench:compare                                         # the last out session vs benchmarks/results/<runner-class>.json (1.35x and 2.5 ms over the pinned best fails)
-pnpm run bench:append benchmarks/out/<class>.json benchmarks/results/<class>.json   # append the last out session to a baseline (refuses software / incomplete / duplicate sessions)
-```
-
-The runner class is `<vendor>-<architecture>-driver<major>` (`scripts/runner-class.js`; `GRAPHTY_RUNNER_CLASS` overrides it,
-which the GPU lane sets to `gpu-linux-t4`). Software adapters never time anything: `pnpm run bench` prints
-`software adapter: nothing timed` on lavapipe unless `--allow-software` is given, and a software session is never a
-baseline. The checked-in baselines under `benchmarks/results/` are written by the owner on the dev box (the RTX 4070 SUPER,
-runner class `nvidia-lovelace-driver580` -- Dawn spells the architecture `lovelace`) and, for the GPU lane, from the
-lane's own artifact; `bench:compare` skips when the card was not quiet during the report's sample. Groups: `upload` (T-1),
-`roundtrip` (T-2, T-3), `layout-exact` (T-4 and the Node side of T-5: `step(1)` on the exact ladder 1k / 4k / 8k / 16k /
-32k / 65k and at 10k, two rows per rung -- the wall time of one iteration with its readback, and the GPU time per iteration
-the profiler reports; every rung starts with an untimed clock warm-up burst, because NVIDIA's power management leaves the
-SM clock at its idle 210 MHz under sparse sub-millisecond dispatches and the kernels then measure 4-15x slower),
-`pagerank` (T-8), `wcc` (T-9), `layout-fr` (T-14: `step(1)` of `createFruchtermanReingold` and `createSpringElectrical`
-at 10k and at 100k with `repulsion: "exact"`, the same two rows per model and rung as `layout-exact`, tagged `fr` /
-`se`), `layout-grid` (T-6 and T-7: `step(1)` of the grid tier on the grid ladder 32k / 65k / 100k / 262k / 1M in 2D
-and in 3D, the same two rows per rung tagged `grid` with the dimension, plus the `fa2-attraction` pass of the 1M 2D
-iteration from the profiler, and the exact ladder's 1k / 4k / 8k / 16k rungs in 2D for the crossover re-check),
-`attraction-scale` (no target: the `fa2-attraction` pass across a working-set ladder, the G4-F16 diagnostic) and `bfs`
-(T-10: `breadthFirstSearch` direction-optimizing and top-down from node 0 of the undirected RMAT tiers 100k / 1M and
-1M / 10M, `sssp` on the same tiers with random weights in [0.1, 10), and `breadthFirstSearch` from a corner of the
-1000 x 1000 grid, all wall end to end including the upload). A baseline session must carry every group:
-`pnpm run bench:append` refuses one that does not. The Chromium numbers of T-5 (10k on the exact tier, 100k on the grid tier) come from the
-`bench`-tagged browser test (`GRAPHTY_BROWSER_GPU=nvidia node scripts/run-browser-project.js`), which appends its
-session through the Vitest commands bridge. `exactMaxNodes` is re-fixed from the ladder by the rule of plan section 7.8
-(the largest rung under 4 ms per iteration and not slower than the grid tier at the same n -- the `layout-grid` 2D rows,
-which the group also records at the exact ladder's 1k / 4k / 8k / 16k rungs so the clause has a row at every rung --
-rounded down to a power of two; `benchmarks/layout-exact.bench.ts` `exactMaxNodesFromLadder`); `calibrateLayout(ctx)`
-measures the same crossover on a consumer's own device.
-
-## Performance
-
-The targets are the T-table of plan section 10.4, kept in `benchmarks/results/targets.json` with one entry per
-benchmark row. They bind the reference card, the Tesla T4 of the GPU lane: on that class `bench:compare` fails the lane
-when a row misses its target, unless the row is one of the class's known misses, which carry the reason and the
-decision record beside the target. Every other runner class reports met or missed and does not gate. The two tables
-below are generated from that file and the checked-in results (`pnpm run bench:readme`, which a node test checks), so
-they are never edited by hand. A missed target is re-fixed by a recorded owner decision in `docs/decisions/G<n>.md`,
-never relaxed silently.
-
-### The dev box (nvidia-lovelace-driver580)
-
-<!-- targets-table:nvidia-lovelace-driver580 -->
-
-Generated by `pnpm run bench:readme` from `benchmarks/results/targets.json`. Each figure is the best median the row has recorded, the baseline `bench:compare` pins: Node rows across the 11 session(s) of `benchmarks/results/nvidia-lovelace-driver580.json`, Chromium rows across the 3 of `benchmarks/results/nvidia-lovelace-driver0.json`.
-
-| Id   | What                                                                                                                                                                   | Target     | Measured   | Status   |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------- | -------- |
-| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB), Node                                                                                                            | <= 10 ms   | 5.734 ms   | met      |
-| T-1  | Upload of the 1M / 10M weighted hot prefix (164 MB), Node                                                                                                              | <= 100 ms  | 74.110 ms  | met      |
-| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                                               | <= 2 ms    | 0.256 ms   | met      |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn in Node                                                                                                               | <= 0.1 ms  | 0.037 ms   | met      |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Chromium (the <= 0.1 ms target is Dawn's)                                                                                  | recorded   | 0.170 ms   | recorded |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k                                                                                                       | <= 1 ms    | 0.586 ms   | met      |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 16k                                                                                                       | <= 2 ms    | 1.052 ms   | met      |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium                                                                                              | <= 6 ms    | 2.400 ms   | met      |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Node                                                                                                  | recorded   | 0.713 ms   | recorded |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium                                                                            | <= 12 ms   | 3.700 ms   | met      |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Node                                                                                | recorded   | 1.769 ms   | recorded |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D                                                                                                    | <= 10 ms   | 0.553 ms   | met      |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 1M 2D                                                                                                      | <= 100 ms  | 5.303 ms   | met      |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 3D                                                                                                    | <= 20 ms   | 1.279 ms   | met      |
-| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                                                          | <= 15 ms   | 1.475 ms   | met      |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M                                                                                           | <= 150 ms  | 17.204 ms  | met      |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 1M / 10M                                                                                            | <= 1500 ms | 197.154 ms | met      |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M                                                       | <= 100 ms  | 138.425 ms | missed   |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 100k / 1M                                                      | recorded   | 12.613 ms  | recorded |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k                                                                                              | recorded   | 0.566 ms   | recorded |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                      | recorded   | 16.322 ms  | recorded |
-| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 10k                                                                                                     | recorded   | 0.648 ms   | recorded |
-| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                             | recorded   | 18.154 ms  | recorded |
-| T-10 | BFS direction-optimizing (`breadthFirstSearch`), wall end to end including the upload, from node 0 of the undirected RMAT at 1M / 10M (a contract on the dev box only) | <= 100 ms  | 84.989 ms  | met      |
-| T-10 | BFS top-down, the same traversal at 1M / 10M                                                                                                                           | recorded   | 81.261 ms  | recorded |
-| T-10 | BFS direction-optimizing, the same traversal at 100k / 1M                                                                                                              | recorded   | 12.837 ms  | recorded |
-| T-10 | BFS on the 1000 x 1000 grid from a corner (1,999 levels), wall including the upload (a contract on the dev box only)                                                   | <= 1500 ms | 369.673 ms | met      |
-| T-10 | `sssp` (the near-far queue), wall end to end including the upload, random f32 weights in [0.1, 10), at 1M / 10M                                                        | recorded   | 256.320 ms | recorded |
-| T-10 | `sssp`, the same run at 100k / 1M                                                                                                                                      | recorded   | 47.421 ms  | recorded |
-
-<!-- /targets-table:nvidia-lovelace-driver580 -->
-
-Why the misses miss. The 1M / 10M upload is the open owner decision of `docs/decisions/G1.md` section 7. The
-empty-submit round trip in Node meets its target at the working clock, but a session that measures it right after the
-`upload` group reads about 0.15-0.18 ms, because the group's CPU-heavy setup lets the SM clock fall to its idle state
-(finding G3-F2 of `docs/decisions/G3.md` section 10). WCC at 1M / 10M is wall end to end from a released core, so it
-carries the same 164 MB upload T-1 times; with the core resident the same call takes 11-16 ms, and the T-9 target is
-therefore below the T-1 upload it includes, an owner decision for `docs/decisions/G7.md`. The `pagerank` rows run all
-100 iterations (`tolerance: 0`), so every row times the same hundred pulls whatever the input's convergence. The Chromium round trip (T-3, issue
-#278) is what every interactive frame of a browser layout pays; its figure is the mean of batches of 20 round trips,
-because Chromium quantises `performance.now()` to 100 us, and it was measured on 2026-09-27 at a load average near 70,
-so it is an upper bound.
-
-The three T-10 rows are the `bfs` group of session 2026-09-25T10:19:11.536Z (the file's last session, the current
-baseline; `webgpu` 0.4.0, driver 580.173.02, load average 1.7-2.1, medians of 5). Both T-10 targets are MISSED on the
-reference card, by 2.4x and 3.8x, and the cost is not in the kernels: a traversal costs about 2.85 ms per LEVEL
-whatever the level's size or the submit cadence (the 200 x 200 grid, 399 levels, at 32, 8 and 1 levels per submit
-alike) plus about 80 ms per CALL (a karate BFS, 34 nodes and 3 levels, takes 90 ms), and with Dawn's `skip_validation`
-toggle the same karate call takes 3.0 ms and the 399-level grid 27 ms. About 97 % of the wall time is Dawn's own
-validation of `dispatchWorkgroupsIndirect`, which the frontier design pays nine times a level; the baseline records
-the default runtime because that is what a consumer gets, and the toggle is unsafe. The decision -- re-fix T-10 to
-the class, fold the per-level indirect dispatches, or dispatch directly where the host already knows a count -- is
-recorded in `docs/decisions/G8.md`.
-
-That decision was taken on 2026-09-25, before the merge: every level kernel is now a DIRECT grid-stride dispatch
-gated by a path word the device-side selector writes, and no traversal driver dispatches indirectly
-(`design/decisions/2026-09-25-frontier-kernels-dispatch-directly.md`; the measurement of Dawn's per-indirect-dispatch
-cost, about 0.4 ms each in Node and Chromium alike, is `design/webgpu/dawn-indirect-dispatch-validation-cost.md`).
-Re-measured on the same card with `--no-save --runs 3` at load average about 20 (so an upper bound, and not appended
-to the baseline): a 34-node BFS 7.2 ms (from 89.3 with the core resident), the grid row 427 ms (MET), the 1M / 10M
-auto row 156.6 ms and the top-down row 88.6 ms. The auto row now misses only because the direction-optimizing
-choice itself is slower than top-down on that graph, which the validation cost had hidden (G8-F21).
-
-That miss was not the direction choice either (G8-F21, closed by issue #391). The 156.6 against 88.6 ms gap was the
-card clocking down to P5 and then ramping back up: the benchmark runs the auto row first, so whichever row runs
-first carries the ramp, and alternating the two directions end to end reads the same 75 ms from the third iteration
-on. The upload cannot explain it, being paid by both rows alike. The real defect the issue uncovered was Beamer's m_f
-measured one level stale -- `frontierDegreeSum` is the degree of the frontier the PREVIOUS level expanded, which is
-0 after a bottom-up level -- so the switch into bottom-up was missed at the level holding 13.6M of the 21M arcs. The
-`bfs-next-degree` kernel now sums the out-degree of the frontier about to be expanded (counters word 25) and the
-boundary compares that. With the core resident on the card the 1M / 10M auto traversal went from 37.8 to 31.4 ms
-and 100k / 1M from 10.3 to 8.8 ms; the three bottom-up levels of the 1M / 10M run read 649,743 arcs in total. At
-100k / 1M the direction-optimizing traversal still loses to plain top-down on this card, 9.55 against 9.34 ms
-resident, which is a smaller loss than the 10.87 against 9.91 ms it read before the fix, and still a loss. The
-new kernel is dispatched on every level, so a high-diameter traversal pays its fixed cost per level: the grid
-traversal resident on the card went 339 -> 421 ms with the full-width grid `planGridStride(n, wg)` gives it and
-back to 356 ms with the grid capped at 128 workgroups (`NEXT_DEGREE_MAX_GROUPS`), which is still enough to sum n
-out-degrees by grid stride; neither R-MAT row moved. The
-rows in the table (`--no-save --runs 3`, not appended to the baseline; both samples on 2026-09-25, one minute
-apart): at load average 7.3 the 1M / 10M auto row is 89.2 ms against 95.0 ms top-down, the 100k / 1M row 14.9
-against 14.7 ms, the grid row 542 ms and `sssp` 275.5 ms (48.3 ms); at load average 10.5 the same auto row read
-134.7 ms and top-down 99.0 ms. The two samples ran the same code on the same card, so the 100 ms target is met or
-missed by the upload and the clock state the row starts in, not by the traversal.
-
-The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
-
-| n     | ms / iteration | step(1) wall (ms) | pairs / s |
-| ----- | -------------- | ----------------- | --------- |
-| 1024  | 0.087          | 0.224             | 1.20e+10  |
-| 4096  | 0.255          | 0.381             | 6.58e+10  |
-| 8192  | 0.478          | 0.612             | 1.40e+11  |
-| 10000 | 0.586          | 0.726             | 1.71e+11  |
-| 16384 | 1.053          | 1.207             | 2.55e+11  |
-| 32768 | 2.561          | 2.757             | 4.19e+11  |
-| 65536 | 8.402          | 8.705             | 5.11e+11  |
-
-The end-to-end run of `benchmarks/layout-run.ts --nodes 100000 --edges 1000000` (the exact tier at 100k, 100
-iterations, batches of 8) takes 18.971 ms per iteration on the same card, uploads and readbacks included (16.975 ms of
-GPU time per iteration in the last batch).
-
-### The CI lane (gpu-linux-t4)
-
-The first run of the GPU lane (`gpu.yml`, graphty-monorepo run 35316416067, 2026-09-18) on a machine.dev T4 -- one Tesla
-T4 (16 GB), 4 vCPU of a Xeon Platinum 8259CL, driver 580.126.20 -- wrote this baseline; `scripts/bench-compare.js` fails
-a later run of the lane whose median AND minimum both exceed 1.35x the best figures this file has ever held, by at
-least 2.5 ms, or whose row misses a target that is not one of the known misses listed under the table. The T-table
-targets were set on the dev box; the T4 meets T-4, T-5, T-6 and T-8 and misses T-1 (both uploads), T-2, T-3, T-7 (the
-1M attraction pass of the grid tier, 18.165 ms against 15 ms) and T-9, which is the class difference of a datacentre card behind a cloud vCPU (host-side copies and submit
-latency), not a regression: the exact tier's `ms / iteration` is 1.7x the RTX 4070 SUPER's at 10k and 3.0x at 65k, and
-the grid tier's is 2.8x at 100k 2D and 5.7x at 1M 2D while the attraction pass alone is 12.2x.
-
-<!-- targets-table:gpu-linux-t4 -->
-
-Generated by `pnpm run bench:readme` from `benchmarks/results/targets.json`. Each figure is the best median the row has recorded, the baseline `bench:compare` pins: Node rows across the 5 session(s) of `benchmarks/results/gpu-linux-t4.json`, Chromium rows across the 2 of `benchmarks/results/nvidia-turing-driver0.json`.
-
-| Id   | What                                                                                                                                                                   | Target     | Measured         | Status         |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------- | -------------- |
-| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB), Node                                                                                                            | <= 10 ms   | 14.338 ms        | missed (known) |
-| T-1  | Upload of the 1M / 10M weighted hot prefix (164 MB), Node                                                                                                              | <= 100 ms  | 174.329 ms       | missed (known) |
-| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                                               | <= 2 ms    | 0.716 ms         | met            |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn in Node                                                                                                               | <= 0.1 ms  | 0.155 ms         | missed (known) |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Chromium (the <= 0.1 ms target is Dawn's)                                                                                  | recorded   | not yet measured | -              |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k                                                                                                       | <= 1 ms    | 0.972 ms         | met            |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 16k                                                                                                       | <= 2 ms    | 1.844 ms         | met            |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium                                                                                              | <= 6 ms    | 2.600 ms         | met            |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Node                                                                                                  | recorded   | 1.357 ms         | recorded       |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium                                                                            | <= 12 ms   | 6.450 ms         | met            |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Node                                                                                | recorded   | 4.492 ms         | recorded       |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D                                                                                                    | <= 10 ms   | 1.507 ms         | met            |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 1M 2D                                                                                                      | <= 100 ms  | 28.246 ms        | met            |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 3D                                                                                                    | <= 20 ms   | 3.736 ms         | met            |
-| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                                                          | <= 15 ms   | 14.025 ms        | met            |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M                                                                                           | <= 150 ms  | 42.576 ms        | met            |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 1M / 10M                                                                                            | <= 1500 ms | 1092.799 ms      | met            |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M                                                       | <= 100 ms  | 290.695 ms       | missed (known) |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 100k / 1M                                                      | recorded   | 28.475 ms        | recorded       |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k                                                                                              | recorded   | 0.918 ms         | recorded       |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                      | recorded   | 51.708 ms        | recorded       |
-| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 10k                                                                                                     | recorded   | 1.051 ms         | recorded       |
-| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                             | recorded   | 57.475 ms        | recorded       |
-| T-10 | BFS direction-optimizing (`breadthFirstSearch`), wall end to end including the upload, from node 0 of the undirected RMAT at 1M / 10M (a contract on the dev box only) | <= 100 ms  | 175.118 ms       | missed         |
-| T-10 | BFS top-down, the same traversal at 1M / 10M                                                                                                                           | recorded   | 162.658 ms       | recorded       |
-| T-10 | BFS direction-optimizing, the same traversal at 100k / 1M                                                                                                              | recorded   | 28.818 ms        | recorded       |
-| T-10 | BFS on the 1000 x 1000 grid from a corner (1,999 levels), wall including the upload (a contract on the dev box only)                                                   | <= 1500 ms | 821.879 ms       | met            |
-| T-10 | `sssp` (the near-far queue), wall end to end including the upload, random f32 weights in [0.1, 10), at 1M / 10M                                                        | recorded   | 503.865 ms       | recorded       |
-| T-10 | `sssp`, the same run at 100k / 1M                                                                                                                                      | recorded   | 106.239 ms       | recorded       |
-
-Known misses on this class, which `bench:compare` reports without failing:
-
-- T-1: host-side copy cost of a datacentre card behind a cloud vCPU (the README's CI-lane section); the 1M / 10M upload misses on the dev box too (docs/decisions/G1.md section 7).
-- T-2: readback and submit latency of a datacentre card behind a cloud vCPU (the README's CI-lane section); met on the dev box.
-- T-3: submit latency of the cloud runner; on the dev box the row misses too whenever the SM clock has dropped to idle (G3-F2 of docs/decisions/G3.md section 10).
-- T-7: the pass's 16 MiB working set does not fit the T4's 4 MiB L2, and two T4 instances read 13.8 and 18.2 ms on the same work (G4-F16 and G4-F21 of docs/decisions/G4.md).
-- T-9: the row carries the same 164 MB upload T-1 times, which alone takes longer than the 100 ms target; it misses on the dev box too (docs/decisions/G7.md).
-
-<!-- /targets-table:gpu-linux-t4 -->
-
-The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
-
-| n     | ms / iteration | step(1) wall (ms) | pairs / s |
-| ----- | -------------- | ----------------- | --------- |
-| 1024  | 0.340          | 0.711             | 3.08e+9   |
-| 4096  | 0.431          | 0.814             | 3.90e+10  |
-| 8192  | 0.797          | 1.172             | 8.42e+10  |
-| 10000 | 0.972          | 1.359             | 1.03e+11  |
-| 16384 | 1.953          | 2.383             | 1.37e+11  |
-| 32768 | 6.861          | 7.394             | 1.57e+11  |
-| 65536 | 25.236         | 26.366            | 1.70e+11  |
-
-## Development
-
-```bash
-pnpm install                                      # at the monorepo root
-cd webgpu-graph-algorithms
-pnpm run build:all                                # tsc + the vite bundle + the d.ts shims
-pnpm run lint                                     # eslint + tsc --noEmit + the strict-consumer compile
-pnpm exec vitest run --project=node --project=node-gpu-alone   # the node suite on the default adapter
-pnpm run coverage                                 # the node suite with the 80 / 80 / 75 / 80 thresholds
-node scripts/run-browser-project.js               # the browser smoke suite (SwiftShader by default)
-node scripts/gpu-report.js                        # the adapter report and the policy verdict (after build)
-cd .. && pnpm exec knip                           # unused files / exports / dependencies
-```
-
-Environment variables of the test harness (plan section 12.2):
-
-| Variable                                  | Default lane (GitHub, software) | GPU lane (NVIDIA T4) | Local (dev box)                                                     |
-| ----------------------------------------- | ------------------------------- | -------------------- | ------------------------------------------------------------------- |
-| `GRAPHTY_GPU_ADAPTER`                     | `llvmpipe`                      | unset                | unset (NVIDIA) or `llvmpipe` to mirror CI                           |
-| `GRAPHTY_GPU_REQUIRE`                     | `any`                           | `nvidia`             | unset (skip with a printed reason) or `hardware`                    |
-| `GRAPHTY_BROWSER_GPU`                     | `swiftshader`                   | `nvidia`             | `nvidia` (needs the libEGL tree)                                    |
-| `GRAPHTY_GPU_NO_SUBGROUPS`                | `1` in a second pass            | `1` in a second pass | unset                                                               |
-| `GRAPHTY_GPU_INSPECT`                     | unset                           | unset                | `1` to enable `sim.inspect(name)` / `debugRunStages` in test builds |
-| `GRAPHTY_NOISE_FLOOR_WRITE`               | unset                           | unset                | `1` to (re)write this adapter's noise fixtures                      |
-| `GRAPHTY_DAWN_FEATURES`                   | unset                           | unset                | optional Dawn toggles                                               |
-| `GRAPHTY_EGL_LIB_DIR` / `LD_LIBRARY_PATH` | --                              | unset                | the extracted libEGL tree                                           |
-| `VK_DRIVER_FILES`                         | the lavapipe ICD                | unset                | unset                                                               |
-| `XDG_RUNTIME_DIR`                         | `/tmp`                          | `/tmp`               | `/tmp`                                                              |
-
-`GRAPHTY_GPU_REQUIRE` is the one policy switch: unset skips tests that need an adapter (with the reason
-printed), `any` fails when no adapter exists, `hardware` additionally rejects lavapipe / SwiftShader, a
-vendor name (`nvidia`) additionally requires that vendor. A wrong result is never a skip. Every f32 tolerance
-of the layout tests is derived from `benchmarks/results/noise-floor.json` (the measured summation noise across
-the subgroup twins, lavapipe, SwiftShader and NVIDIA; a tolerance is at most 10x its floor), every kernel ships
-with sabotage mutations that must fail its test by 10x that tolerance, and every kernel result is compared
-twice for bitwise determinism before it is compared to an oracle (plan section 11.9).
+a refusal mechanism, not a certificate of correctness. The package refuses such a device rather than computing
+around it: a second implementation for a device that is known to return wrong answers could never be verified on
+that device, and its atomics and float rounding would be just as untrusted.
 
 ## License
 

@@ -36,7 +36,7 @@ import { CORPUS_SAMPLES } from "../../../graph-io/test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import { createGraphSession, type GraphSession } from "../../session";
-import { type AcceptedDrop, raiseFloors } from "./oracle/floors";
+import { type AcceptedDrop, floorsFileText, raiseFloors } from "./oracle/floors";
 import { REQUESTED_PROPERTIES, requestedScene } from "./requested-scene";
 
 const GRAPH_IO_TEST = join(__dirname, "..", "..", "..", "graph-io", "test");
@@ -68,7 +68,7 @@ async function load(sample: FidelitySample): Promise<{ session: GraphSession; sh
     const raw = readFileSync(join(GRAPH_IO_TEST, sample.file));
     const sha256 = createHash("sha256").update(raw).digest("hex");
     const data = new Uint8Array(sample.file.endsWith(".gz") ? gunzipSync(raw) : raw);
-    const session = createGraphSession({ features: ["file-styles"] });
+    const session = createGraphSession({ features: ["file-styles"], workingGraph: false });
     await session.data.import(
         { type: sample.format, config: { data, errorLimit: 1_000_000 } },
         { styles: "file", layout: "recommended" },
@@ -220,7 +220,7 @@ describe("style fidelity scorecard: what graphty-element is asked to draw", () =
 
     afterAll(() => {
         if (RECORD) {
-            writeFileSync(FLOORS, `${JSON.stringify(merged(stored, recorded), null, 4)}\n`);
+            writeFileSync(FLOORS, floorsFileText(merged(stored, recorded)));
             return;
         }
         // One line per raised score, so a fix shows which floors it can raise.

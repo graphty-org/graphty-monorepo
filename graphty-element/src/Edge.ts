@@ -19,7 +19,7 @@ import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextS
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
-import type { EdgePosition } from "./layout/LayoutEngine";
+import { type EdgePosition, layoutEngineInternals } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
@@ -470,7 +470,7 @@ function differsOnlyInColour(a: EdgeStyleConfig, b: EdgeStyleConfig): boolean {
 function edgeSeedOf(id: string): number {
     let hash = 0x811c9dc5;
     for (let i = 0; i < id.length; i++) {
-        hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193); // NOSONAR(S7758): FNV-1a over UTF-16 code units; codePointAt would change the seed of an id outside the BMP
+        hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193); // eslint-disable-line unicorn/prefer-code-point -- FNV-1a over UTF-16 code units; codePointAt would change the seed of an id outside the BMP
     }
 
     return (hash >>> 0) / 0xffffffff;
@@ -525,6 +525,28 @@ let writeRecord: (edge: Edge, record: AdHocData) => void;
 export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
     writeRecord(edge, record);
 }
+
+/**
+ * What the tests that check an edge's drawing read of it, typed so a rename in `Edge` fails to
+ * compile rather than at run time (issue #6988). The class fills it in; no entry point exports it.
+ */
+export const edgeInternals = {} as {
+    /** The pieces the edge's line, outline and halo are drawn in, and the look it last drew. */
+    drawn(edge: Edge): {
+        lineBatch: Edge["lineBatch"];
+        pulled: Edge["pulled"];
+        lineSlots: Edge["lineSlots"];
+        outlineBatch: Edge["outlineBatch"];
+        outlineSlots: Edge["outlineSlots"];
+        haloBands: Edge["haloBands"];
+        lineIsCurve: Edge["lineIsCurve"];
+        drawnStyle: Edge["drawnStyle"];
+    };
+    /** Where the edge's line leaves `node`, from `centre` toward `toward`; see `Edge.leaveNode`. */
+    leaveNode(edge: Edge, node: Node, centre: Vector3, toward: Vector3): Vector3;
+    /** How far a line from a node's centre runs before it leaves the node's box; see `Edge.boxReachOf`. */
+    boxReachOf(node: Node, direction: Vector3): number;
+};
 
 /**
  * How far a line through a node's centre runs before it leaves the node's bounding box, in the
@@ -652,6 +674,18 @@ export class Edge {
         writeEdgeRow = (edge, row) => {
             edge.index = row;
         };
+        edgeInternals.drawn = (edge) => ({
+            lineBatch: edge.lineBatch,
+            pulled: edge.pulled,
+            lineSlots: edge.lineSlots,
+            outlineBatch: edge.outlineBatch,
+            outlineSlots: edge.outlineSlots,
+            haloBands: edge.haloBands,
+            lineIsCurve: edge.lineIsCurve,
+            drawnStyle: edge.drawnStyle,
+        });
+        edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
+        edgeInternals.boxReachOf = (node, direction) => Edge.boxReachOf(node, direction);
         writeRecord = (edge, record) => {
             edge.#record = frozenRecord(record);
             edge.shaderDataChanged();
@@ -1084,8 +1118,6 @@ export class Edge {
 
     /** The arrow-tail text block the glyph on screen was built from. See {@link syncContent}. */
     private drawnArrowTailText?: NonNullable<EdgeStyleConfig["arrowTail"]>["text"];
-    // Debug flag for logging lineDirection (reserved for future use)
-    private readonly _loggedLineDirection: boolean = false;
 
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;
@@ -1430,12 +1462,12 @@ export class Edge {
         }
 
         // create arrow mesh if needed
-        this.arrowCap = this.createEndCap(paint.meshKey, style, "arrowHead");
+        this.arrowCap = this.createEndCap(style, "arrowHead");
 
         // create arrow tail mesh if needed
-        this.arrowTailCap = this.createEndCap(paint.meshKey, style, "arrowTail");
+        this.arrowTailCap = this.createEndCap(style, "arrowTail");
 
-        this.createMidCaps(paint.meshKey, style);
+        this.createMidCaps(style);
 
         // create edge line mesh
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
@@ -1486,6 +1518,16 @@ export class Edge {
         }
 
         return (bent || this.bundled ? this.routeMiddle() : null) ?? Vector3.Center(src, dst);
+    }
+
+    /**
+     * Where the running layout puts this edge, or nowhere without one. An edge the layout's working
+     * graph hides runs straight between its ends.
+     * @returns The position, or undefined.
+     */
+    private laidOutPosition(): EdgePosition | undefined {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        return engine === undefined ? undefined : layoutEngineInternals.edgePositionOf(engine, this);
     }
 
     /**
@@ -1557,7 +1599,7 @@ export class Edge {
      * @param dstPos - The target end's position this frame.
      */
     private followLayout(srcPos: Vector3, dstPos: Vector3): void {
-        const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
+        const lnk = this.laidOutPosition();
         if (!lnk) {
             this.endsMoving = false;
             return;
@@ -1712,13 +1754,16 @@ export class Edge {
      */
     private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
         const gap = this.gapAt(end);
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        // a node drawn at opacity 0 hides nothing: the line ends at its outline, where a drawn node's hides the rest
+        // (Cytoscape.js `visibility: hidden` keeps the node's place and its edges, trimmed at its shape)
+        const invisible = node.drawnOpacity <= 0;
         // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node
-        if (gap <= 0 && !this.endBehindEdges(end)) {
+        if (gap <= 0 && !invisible && !this.endBehindEdges(end)) {
             return centre;
         }
 
-        const node = end === "source" ? this.srcNode : this.dstNode;
-        return gap > 0 ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
+        return gap > 0 || invisible ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
     }
 
     /**
@@ -2082,16 +2127,16 @@ export class Edge {
             this.arrowCap.dispose();
         }
 
-        this.arrowCap = this.createEndCap(meshKey, style, "arrowHead");
+        this.arrowCap = this.createEndCap(style, "arrowHead");
 
         // recreate arrow tail mesh if needed
         if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
             this.arrowTailCap.dispose();
         }
 
-        this.arrowTailCap = this.createEndCap(meshKey, style, "arrowTail");
+        this.arrowTailCap = this.createEndCap(style, "arrowTail");
 
-        this.createMidCaps(meshKey, style);
+        this.createMidCaps(style);
 
         // recreate edge line mesh; the next update places it, because the endpoint cache was
         // invalidated above
@@ -2115,7 +2160,6 @@ export class Edge {
 
     /**
      * Build one end cap a resolved style asks for.
-     * @param meshKey - Which source mesh the edge is drawn from.
      * @param style - The resolved style.
      * @param end - The head or the tail.
      * @param reuse - The cap drawn at that end now, recolored and handed back when the new look's
@@ -2123,15 +2167,12 @@ export class Edge {
      * @returns The cap, or null for none.
      */
     private createEndCap(
-        meshKey: string,
         style: EdgeStyleConfig,
         end: "arrowHead" | "arrowTail",
         reuse: ArrowCap | null = null,
     ): ArrowCap | null {
         const arrow = style[end];
         return EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            end === "arrowHead" ? meshKey : `${meshKey}-tail`,
             {
                 type: arrow?.type ?? "none",
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -2200,7 +2241,7 @@ export class Edge {
      * and placing them again.
      *
      * WHY THIS EXISTS (#6026). Colour and opacity are a batch's, folded into the mesh key, so a
-     * look that changes only them -- the Ghost row, as a time window slides past thousands of
+     * look that changes only them -- a ghost look, as a time window slides past thousands of
      * edges a frame -- took the whole rebuild in `paintFrom` for every edge: release the line,
      * dispose and rebuild every cap, rebuild the content, and place everything again on the next
      * frame. Nothing about where the edge is drawn moved, so the slots are copied instead.
@@ -2261,7 +2302,7 @@ export class Edge {
         }
 
         this.colorLine(style);
-        placed = this.moveEndCaps(meshKey, style) && placed;
+        placed = this.moveEndCaps(style) && placed;
 
         // Whatever could not be copied is placed by the next update.
         if (!placed) {
@@ -2273,15 +2314,14 @@ export class Edge {
 
     /**
      * Rebuild both end caps in a new look, each standing where its old cap stood.
-     * @param meshKey - The new look's mesh key.
      * @param style - The new look.
      * @returns False when a cap could not take its old cap's place and must be placed again.
      */
-    private moveEndCaps(meshKey: string, style: EdgeStyleConfig): boolean {
+    private moveEndCaps(style: EdgeStyleConfig): boolean {
         let placed = true;
         const move = (cap: ArrowCap | null, end: "arrowHead" | "arrowTail"): ArrowCap | null => {
             const live = cap !== null && !cap.isDisposed();
-            const made = this.createEndCap(meshKey, style, end, live ? cap : null);
+            const made = this.createEndCap(style, end, live ? cap : null);
             // A cap whose batch draws the new look too was recolored where it stands, and stays.
             if (live && made !== cap) {
                 placed = (made?.takePlaceOf(cap) ?? false) && placed;
@@ -3977,7 +4017,7 @@ export class Edge {
     supportEdge(centerOf: (node: Node) => Readonly<Vector3> = (node) => node.drawnPosition): SupportEdge | null {
         const line = this.drawnStyle?.line;
         const model = line?.supportModel;
-        if (model === undefined || !this.curved || this.isLoop || !this.renderVisible) {
+        if (model === undefined || !this.curved || this.isLoop || !this.isRenderVisible()) {
             return null;
         }
         return {
@@ -4909,8 +4949,9 @@ export class Edge {
         const fallbackSrc = this.endPosition("source");
         const fallbackDst = this.endPosition("target");
 
-        // Hide arrow if nodes are too close or at same position
-        if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
+        // Hide the arrow when the nodes are at the same position or overlap: walking out to each node's wall would
+        // cross the other's centre, and the line would run from wall to far wall, longer than the gap (#7759).
+        if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01) || this.endsOverlap(fallbackSrc, fallbackDst)) {
             arrowCap.setDrawn(false);
             return {
                 srcPoint: fallbackSrc,
@@ -5065,19 +5106,16 @@ export class Edge {
     /**
      * Build the caps drawn part-way along the line (`arrowMiddleHead`, `arrowMiddleTail`), disposing any
      * drawn before. Each is a slot in the batch every cap of its appearance shares, as the end caps are.
-     * @param meshKey - The source mesh key the edge is drawn under.
      * @param style - The resolved style.
      */
-    private createMidCaps(meshKey: string, style: EdgeStyleConfig): void {
+    private createMidCaps(style: EdgeStyleConfig): void {
         for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
             if (cap && !cap.isDisposed()) {
                 cap.dispose();
             }
         }
-        const make = (arrow: EdgeStyleConfig["arrowMiddleHead"], suffix: string): ArrowCap | null =>
+        const make = (arrow: EdgeStyleConfig["arrowMiddleHead"]): ArrowCap | null =>
             EdgeMesh.createArrowHead(
-                this.context.getMeshCache(),
-                `${meshKey}-${suffix}`,
                 {
                     type: arrow?.type ?? "none",
                     width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -5092,8 +5130,8 @@ export class Edge {
                 },
                 this.context.getScene(),
             );
-        this.arrowMiddleHeadCap = make(style.arrowMiddleHead, "mid-head");
-        this.arrowMiddleTailCap = make(style.arrowMiddleTail, "mid-tail");
+        this.arrowMiddleHeadCap = make(style.arrowMiddleHead);
+        this.arrowMiddleTailCap = make(style.arrowMiddleTail);
 
         for (const cap of this.stackCaps()) {
             if (!cap.isDisposed()) {
@@ -5101,28 +5139,22 @@ export class Edge {
             }
         }
         // a row of caps behind an end cap, each part in the end cap's colour and opacity
-        const stack = (
-            arrow: EdgeStyleConfig["arrowHead"],
-            suffix: string,
-        ): { cap: ArrowCap; part: ArrowStackPart }[] =>
+        const stack = (arrow: EdgeStyleConfig["arrowHead"]): { cap: ArrowCap; part: ArrowStackPart }[] =>
             !arrow?.type || arrow.type === "none" || (arrow.size ?? 1) <= 0
                 ? []
-                : parseArrowStack(arrow.stack).flatMap((part, i) => {
-                      const cap = make(
-                          {
-                              ...arrow,
-                              type: part.type as NonNullable<typeof arrow.type>,
-                              size: part.size ?? arrow.size,
-                              width: part.width,
-                              side: part.side,
-                              outlineWidth: part.outline ?? arrow.outlineWidth,
-                          },
-                          `${suffix}-${String(i)}`,
-                      );
+                : parseArrowStack(arrow.stack).flatMap((part) => {
+                      const cap = make({
+                          ...arrow,
+                          type: part.type as NonNullable<typeof arrow.type>,
+                          size: part.size ?? arrow.size,
+                          width: part.width,
+                          side: part.side,
+                          outlineWidth: part.outline ?? arrow.outlineWidth,
+                      });
                       return cap === null ? [] : [{ cap, part }];
                   });
-        this.headStack = stack(style.arrowHead, "head-stack");
-        this.tailStack = stack(style.arrowTail, "tail-stack");
+        this.headStack = stack(style.arrowHead);
+        this.tailStack = stack(style.arrowTail);
     }
 
     /**
@@ -5234,7 +5266,7 @@ export class Edge {
             const dx = dstCentre.x - srcCentre.x;
             const dy = dstCentre.y - srcCentre.y;
             const dz = dstCentre.z - srcCentre.z;
-            const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // NOSONAR(S7769): per edge, per frame; Math.hypot measured ~5x slower here
+            const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame; Math.hypot measured ~5x slower here
 
             // Two nodes closer than their own surfaces have no line between them to trim, which
             // is the same case the intersection search reported by finding no hit.
@@ -5255,50 +5287,7 @@ export class Edge {
                 );
             }
         } else {
-            // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
-            // graph used to do this, once a frame, whether or not the edge had moved.
-            freshenWorldMatrix(srcMesh);
-            freshenWorldMatrix(dstMesh);
-
-            // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
-            // meshes' world geometry, so the ray runs between their world centres; the line is
-            // drawn under graph-root, so each hit is carried back as how far along the centre
-            // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
-            const srcWorld = srcMesh.getAbsolutePosition();
-            const dstWorld = dstMesh.getAbsolutePosition();
-            this.ray.origin.copyFrom(srcWorld);
-            dstWorld.subtractToRef(srcWorld, this.ray.direction);
-            const worldSpan = this.ray.direction.length();
-
-            const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
-            // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
-            // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
-            // across its own arm; coming in from the destination, the first wall is where the line
-            // finally leaves the outline, as it is for the destination.
-            this.ray.origin.copyFrom(dstWorld);
-            srcWorld.subtractToRef(dstWorld, this.ray.direction);
-            const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
-            // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
-            const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
-                // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
-                const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
-                if (hit) {
-                    return Vector3.Lerp(
-                        srcMesh.position,
-                        dstMesh.position,
-                        Vector3.Distance(srcWorld, hit) / worldSpan,
-                    );
-                }
-
-                return node.shapeType === "none" || node.surfaceIsBox
-                    ? this.leaveNode(node, node.drawnPosition, toward.drawnPosition)
-                    : null;
-            };
-
-            if (worldSpan > 0) {
-                srcPoint = along(srcHitInfo, this.srcNode, this.dstNode);
-                dstPoint = along(dstHitInfo, this.dstNode, this.srcNode);
-            }
+            [srcPoint, dstPoint] = this.rayEnds(srcMesh, dstMesh);
         }
 
         if (srcPoint !== null && dstPoint !== null) {
@@ -5323,6 +5312,74 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * Where the line meets two nodes that are not both round, by a ray cast against each one's mesh.
+     * @param srcMesh - The source's mesh.
+     * @param dstMesh - The target's mesh.
+     * @returns The two ends, or nulls where the line has none.
+     */
+    private rayEnds(srcMesh: AbstractMesh, dstMesh: AbstractMesh): [Vector3 | null, Vector3 | null] {
+        // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
+        // graph used to do this, once a frame, whether or not the edge had moved.
+        freshenWorldMatrix(srcMesh);
+        freshenWorldMatrix(dstMesh);
+
+        // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
+        // meshes' world geometry, so the ray runs between their world centres; the line is
+        // drawn under graph-root, so each hit is carried back as how far along the centre
+        // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
+        const srcWorld = srcMesh.getAbsolutePosition();
+        const dstWorld = dstMesh.getAbsolutePosition();
+        this.ray.origin.copyFrom(srcWorld);
+        dstWorld.subtractToRef(srcWorld, this.ray.direction);
+        const worldSpan = this.ray.direction.length();
+
+        const dstHit = this.dstNode.drawnRayHit(this.ray);
+        // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
+        // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
+        // across its own arm; coming in from the destination, the first wall is where the line
+        // finally leaves the outline, as it is for the destination.
+        this.ray.origin.copyFrom(dstWorld);
+        srcWorld.subtractToRef(dstWorld, this.ray.direction);
+        const srcHit = this.srcNode.drawnRayHit(this.ray);
+        // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
+        const along = (met: Vector3 | null, node: Node, toward: Node): Vector3 | null => {
+            // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
+            const hit = node.surfaceIsBox ? null : met;
+            if (hit) {
+                // signed, so a wall met behind the source's centre (one node inside the other) stays behind it
+                return Vector3.Lerp(
+                    srcMesh.position,
+                    dstMesh.position,
+                    Vector3.Dot(hit.subtract(srcWorld), dstWorld.subtract(srcWorld)) / (worldSpan * worldSpan),
+                );
+            }
+
+            return node.shapeType === "none" || node.surfaceIsBox
+                ? this.leaveNode(node, node.drawnPosition, toward.drawnPosition)
+                : null;
+        };
+
+        if (worldSpan === 0) {
+            return [null, null];
+        }
+
+        const srcPoint = along(srcHit, this.srcNode, this.dstNode);
+        const dstPoint = along(dstHit, this.dstNode, this.srcNode);
+
+        // Two nodes that overlap meet the line in the wrong order: the source's wall lies past the target's, and a
+        // line between them would run backwards across both (#7759). Like two round nodes, they have no line.
+        if (
+            srcPoint !== null &&
+            dstPoint !== null &&
+            Edge.crossed(srcPoint, dstPoint, srcMesh.position, dstMesh.position)
+        ) {
+            return [null, null];
+        }
+
+        return [srcPoint, dstPoint];
     }
 
     /**
@@ -5403,7 +5460,14 @@ export class Edge {
             ray.origin.copyFrom(from);
             to.subtractToRef(from, ray.direction);
             const hit = node.drawnRayHit(ray);
-            return hit === null ? TRIM_NO_HIT : (Vector3.Distance(to, hit) / worldSpan) * span;
+            if (hit === null) {
+                return TRIM_NO_HIT;
+            }
+
+            // a wall met behind the centre (the ray started inside this node) is no end: the nodes overlap, and
+            // reaching the far centre leaves `trimEnds` no line between them (#7759)
+            const toward = Vector3.Dot(hit.subtract(to), from.subtract(to)) / worldSpan;
+            return toward < 0 ? span : (toward / worldSpan) * span;
         };
         const { src, dst, lineEnd } = trimEnds({
             ...input,
@@ -5422,6 +5486,11 @@ export class Edge {
      * @internal
      */
     get trimInput(): EdgeTrimInput {
+        const toward = (from: Xyz, to: Xyz): Xyz => {
+            const [dx, dy, dz] = [to.x - from.x, to.y - from.y, to.z - from.z];
+            const span = Math.hypot(dx, dy, dz);
+            return span > 0 ? { x: dx / span, y: dy / span, z: dz / span } : { x: 0, y: 0, z: 0 };
+        };
         const trimEnd = (node: Node, gap: number, other: Node): TrimEnd => {
             const leaves = node.surfaceIsBox || node.shapeType === "none";
             const closed =
@@ -5430,7 +5499,7 @@ export class Edge {
                 radius: node.roundRadius,
                 half: node.drawnHalfExtents,
                 flat: node.shapeType === "ellipse" || (node.reachOutline ?? false),
-                border: node.borderReach,
+                border: node.borderReachAlong(toward(node.drawnPosition, other.drawnPosition)),
                 gap,
                 measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
                 leaves,
@@ -5454,15 +5523,23 @@ export class Edge {
      * @param dstPoint - Where it meets the destination node's surface; moved in place.
      */
     private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
-        const srcReach = this.srcNode.borderReach + this.gapAt("source");
-        const dstReach = this.dstNode.borderReach + this.gapAt("target");
+        const direction = dstPoint.subtract(srcPoint);
+        const span = direction.length();
+        // along the line: a polygon's border drawn in from its outline reaches less far at a slant (issue #7566)
+        const along = (node: Node, sign: number): number =>
+            node.borderReach === 0 || span === 0
+                ? 0
+                : node.borderReachAlong({
+                      x: (sign * direction.x) / span,
+                      y: (sign * direction.y) / span,
+                      z: (sign * direction.z) / span,
+                  });
+        const srcReach = along(this.srcNode, 1) + this.gapAt("source");
+        const dstReach = along(this.dstNode, -1) + this.gapAt("target");
 
         if (srcReach === 0 && dstReach === 0) {
             return;
         }
-
-        const direction = dstPoint.subtract(srcPoint);
-        const span = direction.length();
 
         if (span <= srcReach + dstReach) {
             return;
@@ -5471,6 +5548,35 @@ export class Edge {
         direction.scaleInPlace(1 / span);
         srcPoint.addInPlace(direction.scale(srcReach));
         dstPoint.subtractInPlace(direction.scale(dstReach));
+    }
+
+    /**
+     * Whether a line's two ends are out of order: the source's end lies behind its centre, the target's past its
+     * centre, or the source's at or past the target's, as they do when two nodes overlap.
+     * @param srcPoint - Where the line leaves the source.
+     * @param dstPoint - Where it meets the target.
+     * @param srcCentre - The source's center.
+     * @param dstCentre - The target's center.
+     * @returns True when they are.
+     */
+    private static crossed(srcPoint: Vector3, dstPoint: Vector3, srcCentre: Vector3, dstCentre: Vector3): boolean {
+        const line = dstCentre.subtract(srcCentre);
+        const lengthSquared = line.lengthSquared();
+        const s = Vector3.Dot(srcPoint.subtract(srcCentre), line) / lengthSquared;
+        const t = Vector3.Dot(dstPoint.subtract(srcCentre), line) / lengthSquared;
+        return !(s >= -1e-9 && s < t && t <= 1 + 1e-9);
+    }
+
+    /**
+     * Whether the two end nodes' boxes, measured along the line between their centres, reach each other.
+     * @param src - The source's center.
+     * @param dst - The target's center.
+     * @returns True when they overlap.
+     */
+    private endsOverlap(src: Vector3, dst: Vector3): boolean {
+        const span = Vector3.Distance(src, dst);
+        const direction = dst.subtract(src).scaleInPlace(1 / span);
+        return this.boxReachAt("source", direction) + this.boxReachAt("target", direction) >= span;
     }
 
     /**
@@ -5520,7 +5626,7 @@ export class Edge {
 
     /**
      * How much larger or smaller than its style's size a cap at a node is drawn: as the node is,
-     * so a node kept one size on screen (a map's `nodeScale: "screen"`) or drawn at one depth's
+     * so a node kept one size on screen (`node.sizeSpace: "screen"`) or drawn at one depth's
      * size keeps its arrowheads in proportion rather than buried under them.
      * An end drawn with no `Node` is read from its row, so no `Node` is built for it.
      * @param end - The end the cap stands on.

@@ -23,7 +23,7 @@ const envDump = (file, rcVar) =>
     `writeFileSync(${JSON.stringify(file)}, JSON.stringify({ env: process.env, argv: process.argv.slice(2), cwd: process.cwd() }));\n` +
     `process.exit(Number(process.env.${rcVar} ?? 0));\n`;
 
-function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
+function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "check-quick-"));
     const repo = join(dir, "repo");
     const out = (n) => join(dir, n);
@@ -34,7 +34,6 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     for (const f of ["step-log.mjs", "wait-log.mjs"])
         copyFileSync(new URL(`./${f}`, import.meta.url).pathname, join(repo, "tools", f));
     writeFileSync(join(repo, "tools/test-changed.mjs"), envDump(out("tests.json"), "STUB_RC_TESTS"));
-    writeFileSync(join(repo, "tools/sonar-gate.mjs"), envDump(out("sonar.json"), "STUB_RC_SONAR"));
     writeFileSync(join(repo, "tools/test-slots.mjs"), envDump(out("gpu.json"), "STUB_RC_GPU"));
     writeFileSync(join(repo, "tools/pr-integrity.mjs"), envDump(out("integrity.json"), "STUB_RC_INTEGRITY"));
     writeFileSync(join(repo, "tools/ci-budgets.mjs"), envDump(out("budgets.json"), "STUB_RC_BUDGETS"));
@@ -43,9 +42,7 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     writeFileSync(join(repo, "graph-format/package.json"), "{}");
     mkdirSync(join(repo, "graphty/acceptance"), { recursive: true });
     writeFileSync(join(repo, "graphty/acceptance/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
-    copyFileSync(new URL("./docs-affected.sh", import.meta.url).pathname, join(repo, "tools/docs-affected.sh"));
-    writeFileSync(join(repo, "tools/copy-docs-content.js"), "");
-    writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { "docs:api:graph-io": "x" } }));
+    writeFileSync(join(repo, "package.json"), "{}");
     writeFileSync(
         join(dir, "bin/pnpm"),
         `#!/bin/sh\necho "$*" >> ${out("pnpm")}\n` +
@@ -57,6 +54,7 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     git("add", ".");
     git("commit", "-q", "-m", "a");
     writeFileSync(join(repo, "changed.ts"), "x\n");
+    for (const [f, text] of Object.entries(files)) writeFileSync(join(repo, f), text);
     const r = spawnSync("bash", [join(repo, "tools/check-quick.sh"), "--base", "main", ...args], {
         cwd: repo,
         encoding: "utf8",
@@ -85,7 +83,6 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
         r,
         pnpm: readFileSync(out("pnpm"), "utf8"),
         tests: read("tests.json"),
-        sonar: read("sonar.json"),
         gpu: read("gpu.json"),
         integrity: read("integrity.json"),
         dryRun: read("dryrun.json"),
@@ -113,8 +110,8 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
 }
 
 describe("tools/check-quick.sh", () => {
-    it("runs formatting, lint, the selected tests and SonarQube from the base, without the old gate's settings", () => {
-        const { r, pnpm, tests, sonar, gpu } = sandbox();
+    it("runs formatting, lint, the selected tests and the duplicate check from the base, without the old gate's settings", () => {
+        const { r, pnpm, tests, gpu } = sandbox();
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(pnpm, /^exec prettier --check --ignore-unknown changed\.ts$/m, "the changed file only");
         assert.match(pnpm, /^exec nx affected -t build lint typecheck --base=main$/m);
@@ -130,18 +127,18 @@ describe("tools/check-quick.sh", () => {
         }
         assert.equal(tests.env.GRAPHTY_TEST_SLOTS, "3", "the slot count stays");
         assert.equal(tests.env.GIT_CONFIG_GLOBAL, "/dev/null", "tests read no developer git config");
-        assert.equal(sonar.env.PUSH_BASE_REF, "main", "SonarQube measures from the same base");
+        assert.match(pnpm, /^run check:duplicates$/m, "the duplicate code check runs");
         assert.equal(gpu, undefined, "no GPU run when webgpu-graph-algorithms is not affected");
         assert.doesNotMatch(pnpm, /docs:build|check:bundle-size|run size/, "no docs or bundle step when unaffected");
         assert.match(r.stdout, /\[PASS\] quick check/);
     });
 
     it("logs each step's time and exit code, and the whole run's, to the step log", () => {
-        const { r, steps } = sandbox({ env: { STUB_RC_SONAR: "4" } });
+        const { r, steps } = sandbox({ env: { STUB_RC_INTEGRITY: "4" } });
         assert.equal(r.status, 1, r.stdout + r.stderr);
         const step = (what) => steps.find((s) => s.kind === "check-quick-step" && s.what === what);
         assert.equal(step("Selected tests")?.exit, 0);
-        assert.equal(step("SonarQube (changed lines)")?.exit, 4, "a failed step keeps its own exit code");
+        assert.equal(step("PR Integrity (local)")?.exit, 4, "a failed step keeps its own exit code");
         const ran = r.stdout.match(/^> /gm).length;
         assert.equal(steps.filter((s) => s.kind === "check-quick-step").length, ran, "one line per step that ran");
         const total = steps.filter((s) => s.kind === "check-quick");
@@ -162,13 +159,26 @@ describe("tools/check-quick.sh", () => {
         assert.equal(gpu.env.GIT_CONFIG_GLOBAL, "/dev/null");
     });
 
-    it("runs PR Integrity on HEAD, and the docs build and bundle sizes when their packages are affected", () => {
+    it("runs PR Integrity on HEAD, and the bundle sizes when their packages are affected", () => {
         const { r, pnpm, integrity } = sandbox({ affected: "graph-io graphty-element cytoscape-extensions" });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.deepEqual(integrity.argv, ["--local", "--base", "main"]);
-        assert.match(pnpm, /^run docs:build$/m);
         assert.match(pnpm, /^run check:bundle-size$/m);
         assert.match(pnpm, /^--filter @graphty\/cytoscape-extensions run size$/m);
+    });
+
+    // CI's Docs job and its Checks job's "Formatting" step run these on every pull request that needs them,
+    // and they were the two slowest steps here after the tests and the builds (issue #8052).
+    it("leaves the docs-site build and the whole-repository format check to CI", () => {
+        const { r, pnpm } = sandbox({
+            affected: "graph-io graphty-element",
+            files: { "package.json": '{"x":1}\n', ".prettierrc": "{}\n" },
+        });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.doesNotMatch(pnpm, /docs:build|format:check/);
+        // The sandbox has no docs inputs, so the run alone cannot see a docs step come back: read the script too.
+        assert.doesNotMatch(readFileSync(SCRIPT, "utf8"), /^\s*step\b.*\b(docs:build|format:check)\b/m);
+        assert.match(pnpm, /^exec prettier --check --ignore-unknown /m, "the changed files are still formatted");
     });
 
     it("names a failed PR Integrity in the summary", () => {
@@ -178,9 +188,9 @@ describe("tools/check-quick.sh", () => {
     });
 
     it("runs every step after a failure and names each failed one", () => {
-        const { r, tests, sonar } = sandbox({ env: { STUB_RC_NX: "1", STUB_RC_TESTS: "1" } });
+        const { r, tests, integrity } = sandbox({ env: { STUB_RC_NX: "1", STUB_RC_TESTS: "1" } });
         assert.equal(r.status, 1);
-        assert.ok(tests && sonar, "the steps after the failures still ran");
+        assert.ok(tests && integrity, "the steps after the failures still ran");
         assert.match(
             r.stdout,
             /\[FAIL\] quick check: Build, lint and type-check \(affected\)\n\[FAIL\] quick check: Selected tests/,
@@ -191,6 +201,12 @@ describe("tools/check-quick.sh", () => {
         const { r } = sandbox({ env: { STUB_RC_SHOW: "1" } });
         assert.equal(r.status, 1);
         assert.match(r.stdout, /\[FAIL\] quick check: Affected projects \(nx show projects\)/);
+    });
+
+    it("asks the selected tests for whole browser shards only with --whole-browser-shards", () => {
+        const { r, tests } = sandbox({ args: ["--whole-browser-shards"] });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.deepEqual(tests.argv, ["--base", "main", "--whole-browser-shards"]);
     });
 
     it("never runs the dry run unless asked", () => {
@@ -251,7 +267,10 @@ describe("tools/check-quick.sh", () => {
     it("runs every `pnpm run` script of ci.yml's Checks job, so the two cannot drift", () => {
         const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
         const job = ci.split(/^ {4}checks:$/m)[1].split(/^ {4}[a-z][\w-]*:$/m)[0];
-        const scripts = [...new Set([...job.matchAll(/pnpm run ([\w:-]+)/g)].map((m) => m[1]))];
+        // format:check is left to CI (issue #8052); the changed files are still checked.
+        const scripts = [...new Set([...job.matchAll(/pnpm run ([\w:-]+)/g)].map((m) => m[1]))].filter(
+            (s) => s !== "format:check",
+        );
         assert.ok(scripts.length > 10, `found the Checks job's scripts: ${scripts}`);
         const quick = readFileSync(SCRIPT, "utf8");
         for (const script of scripts) assert.match(quick, new RegExp(`pnpm run ${script}\\b`), script);

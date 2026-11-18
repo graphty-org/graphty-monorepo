@@ -5,6 +5,7 @@
 ```ts
 
 import { AwsCredentials } from '@graphty/graph-io';
+import { BuiltInModelFormat } from 'babylonjs-models/detect';
 import { Credential as Credential_2 } from '@graphty/graph-io';
 import { CredentialKind } from '@graphty/graph-io';
 import { credentials } from '@graphty/graph-io';
@@ -19,19 +20,21 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import { ExpandRequest } from '@graphty/graph-io';
-import { FileLayout } from '@graphty/graph-io';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
+import type { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import { GraphSource } from '@graphty/graph-io';
+import type { ImageAnnotation } from '@graphty/graph-io/styles';
 import { JSON_LOSS } from '@graphty/graph-io';
 import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import { LOSS } from '@graphty/graph-io';
+import { ModelFormat } from 'babylonjs-models/detect';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { PAJEK_LOSS } from '@graphty/graph-io';
@@ -43,6 +46,7 @@ import { registerSource } from '@graphty/graph-io';
 import { ReplayFetch } from '@graphty/graph-io';
 import { replayFetch } from '@graphty/graph-io';
 import { ReplayOptions } from '@graphty/graph-io';
+import type { RequestedLayout } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
@@ -50,9 +54,11 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { sourceEndpoint } from '@graphty/graph-io';
 import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
+import { sourceFileName } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
 import { SourceFreshness } from '@graphty/graph-io';
 import { SourceInfo } from '@graphty/graph-io';
@@ -74,10 +80,6 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -129,7 +131,7 @@ export interface AddAssetOptions {
     readonly format?: ModelFormat;
     readonly main?: string;
     readonly name?: AssetId;
-    // (undocumented)
+    readonly onProgress?: (change: ProgressChange) => void;
     readonly signal?: AbortSignal;
     readonly skipped?: readonly string[];
 }
@@ -186,6 +188,7 @@ export interface AssetRecord {
 // @public
 export interface AssetsApi {
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
+    addEach(source: AssetSource, options?: AddAssetOptions): Promise<readonly AssetRecord[]>;
     allowHosts(hosts: readonly string[]): void;
     files(id: AssetId): ReadonlyMap<string, Uint8Array>;
     find(ref: string): AssetRecord | undefined;
@@ -233,6 +236,9 @@ export type AssetState = "pending" | "accepted" | "rejected";
 
 // @public
 export type AssetStorage = "embed" | "url";
+
+// @public
+export function attachKeymap(session: KeymapSession, root: KeymapRoot, options?: KeymapOptions): () => void;
 
 // @public
 export interface AttributeDescriptor {
@@ -292,6 +298,9 @@ export interface AutosaveLookupOptions {
 }
 
 export { AwsCredentials }
+
+// @public
+export type BackgroundImageProblem = CodedFact<"E_IMAGE_DECODE">;
 
 // @public
 export interface BatchResult {
@@ -447,8 +456,7 @@ export interface BrowserProjectSaveOptions {
     readonly id?: string;
 }
 
-// @public
-export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
+export { BuiltInModelFormat }
 
 // @beta
 export interface BySizeLeaf {
@@ -489,7 +497,7 @@ export interface CaptureCapability {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
@@ -501,11 +509,8 @@ export interface Caveats {
     readonly filterScope?: boolean;
     readonly iterations?: number;
     readonly method: string;
-    // @deprecated
     readonly notes: readonly string[];
     readonly partialCause?: CodedFact<PartialCode>;
-    // @deprecated
-    readonly partialReason?: string;
     readonly precision: Precision;
     readonly sampleSize?: number;
     readonly seed?: number | null;
@@ -517,7 +522,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.sizeSpace" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapSkipEndSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelMaxLines" | "node.labelMaxLinesEllipsis" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelLineBox" | "node.labelBorderAlign" | "node.labelBackgroundShape" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.imageAspect" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelDoubleSided" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapSkipEndSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelMaxLines" | "edge.labelMaxLinesEllipsis" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelLineBox" | "edge.labelBorderAlign" | "edge.labelBackgroundShape" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
 
 // @public
 export type ChannelAgreement = {
@@ -554,8 +559,6 @@ export interface ChannelExplanation {
     readonly fact?: CodedFact<ChannelRefusalCode>;
     readonly layerId: LayerId;
     readonly mode: "static" | "encoded";
-    // @deprecated
-    readonly reason?: string;
 }
 
 // @public
@@ -576,6 +579,14 @@ export interface CodedFact<Code extends string = string> {
 
 // @public
 export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
+
+// @beta
+export interface CollapsedGroup {
+    readonly group: GroupValue;
+    readonly groupBy: Path;
+    readonly node: NodeId;
+    readonly size: number;
+}
 
 // @public
 export interface CollapseResult {
@@ -637,19 +648,22 @@ export interface CommandOutcomeMap {
     "algo.remove": Promise<RunRemoval>;
     "algo.rename": Promise<void>;
     "algo.run": Run;
+    "annotations.patch": Promise<void>;
+    "annotations.set": Promise<void>;
     "config.set": Promise<void>;
     "data.apply": Promise<void>;
     "data.collapse": Promise<void>;
     "data.columns": Promise<void>;
     "data.declare": Promise<void>;
+    "data.derive": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
     "data.import-source": Promise<void>;
     "data.issues": Promise<void>;
     "data.label": Promise<void>;
-    "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
     "data.source-expand": Promise<void>;
+    "layout.rerun": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
     "layout.transport": Promise<void>;
@@ -677,6 +691,7 @@ export interface CommandOutcomeMap {
     // @beta
     "visibility.conditions": Promise<void>;
     "visibility.context": Promise<void>;
+    "visibility.hide": Promise<void>;
     "visibility.playback": Promise<void>;
     "visibility.set": Promise<void>;
     "visibility.steps": Promise<void>;
@@ -825,15 +840,11 @@ export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
 // @public
 export interface CostEstimate {
     readonly available: boolean;
-    // @deprecated
-    readonly basis: string;
     readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
     readonly cancellable: boolean;
     readonly confidence: CostConfidence;
     readonly costClass: CostClass;
-    // @deprecated
-    readonly reason?: string;
     readonly refusal?: CodedFact<EstimateRefusalCode>;
     readonly seconds: number;
 }
@@ -851,7 +862,6 @@ export type CostGateDecision = {
     readonly sampleSize: number;
     readonly seeded: boolean;
     readonly facts: readonly CodedFact<CaveatCode>[];
-    readonly notes: readonly string[];
 } | {
     readonly kind: "refused";
     readonly error: GraphtyError;
@@ -893,6 +903,7 @@ export interface CreateGraphSessionOptions {
     readonly features?: readonly string[];
     readonly limits?: Readonly<LimitsOption>;
     readonly runs?: SessionRunsOptions;
+    readonly workingGraph?: boolean;
 }
 
 export { Credential_2 as Credential }
@@ -902,6 +913,24 @@ export { CredentialKind }
 export { credentials }
 
 export { credentialSlots }
+
+// @public
+export interface DataChange {
+    readonly added: DataChangeIds;
+    readonly cause: HistoryCause;
+    readonly fields: {
+        readonly nodes: readonly string[];
+        readonly edges: readonly string[];
+    };
+    readonly removed: DataChangeIds;
+    readonly updated: DataChangeIds;
+}
+
+// @public
+export interface DataChangeIds {
+    readonly edges: readonly EdgeId[];
+    readonly nodes: readonly NodeId_2[];
+}
 
 // @public
 export interface DataIssue {
@@ -935,6 +964,9 @@ export interface DataSourceInput {
     readonly type?: string;
 }
 
+// @public
+export const DEFAULT_BACKGROUND_IMAGE_SIZE = 4096;
+
 // @beta
 export const DEFAULT_BRANCH_PALETTE: readonly string[];
 
@@ -963,6 +995,19 @@ export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
 
 export { defineSource }
+
+// @public
+export interface DerivedColumn {
+    readonly expression: Query;
+    readonly kind: "node" | "edge";
+    readonly name: string;
+    readonly score?: readonly ScoreTerm[];
+}
+
+// @public
+export interface DeriveOptions {
+    readonly kind?: "node" | "edge";
+}
 
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
@@ -1002,6 +1047,21 @@ export interface DraftTable {
     readonly name: string;
     readonly rowCount: number;
     readonly weightCandidate?: string;
+}
+
+// @public
+export type DrawnAnnotation = GraphAnnotation | ImageAnnotation;
+
+// @public
+export interface DrawnAnnotations {
+    readonly annotations: readonly DrawnAnnotation[];
+    readonly scale: number;
+}
+
+// @public
+export interface DrawnValue {
+    readonly count: number;
+    readonly value: unknown;
 }
 
 // @public
@@ -1069,7 +1129,7 @@ export interface ElementSet {
 }
 
 // @public
-export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+export type ElementState = "selected" | "hovered" | "ghosted" | "outsideWindow" | "pinned";
 
 // @public
 export interface EnabledFeatures {
@@ -1104,8 +1164,6 @@ export interface EncodingRun {
     readonly distinguishedBy: RunDistinction | null;
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
-    // @deprecated
-    readonly label: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly shape: ResultShape;
     readonly siblingsDifferBy: readonly string[] | null;
@@ -1180,16 +1238,22 @@ export type ExplainTarget = {
 };
 
 // @public
+export const EXPORT_FLATTEN_REASONS: readonly ["SCALE", "RESULT_PATH"];
+
+// @public
 export const EXPORT_LOSS_CODES: readonly ExportLossCode[];
 
 // @public
 export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_APPROXIMATED", "W_STYLE_RULES_NOT_KEPT", "W_STYLE_LAYER_FLATTENED", "W_STYLES_NOT_EXPORTED", "E_STYLES_MISMATCH"];
 
 // @public
+export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
+
+// @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export interface FieldBand {
@@ -1317,12 +1381,6 @@ export const FILE_STYLE_ISSUE: Readonly<{
 }>;
 
 // @public
-export const FILE_STYLE_REASONS: readonly FileStyleReason[];
-
-// @public
-export const FILE_STYLE_SHAPES: FileStyleShapeTable;
-
-// @public
 export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
     NOT_DRAWN: "W_STYLE_NOT_DRAWN";
     NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
@@ -1340,34 +1398,6 @@ export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
 export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
 
 // @public
-export interface FileStyleColumnValues {
-    readonly ids: readonly (NodeId | EdgeId)[];
-    readonly key: string;
-    readonly kind: FileStyleKind;
-    readonly values: readonly (FileStyleScalar | null)[];
-}
-
-// @public
-export type FileStyleKind = "node" | "edge";
-
-// @public
-export interface FileStyleLoadValues {
-    readonly columns: readonly FileStyleColumnValues[];
-    readonly format: string;
-    readonly importId: string;
-    readonly namespace: string;
-}
-
-// @public
-export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
-
-// @public
-export interface FileStyleMeaning {
-    readonly name: string;
-    readonly value: string | number | boolean;
-}
-
-// @public
 export interface FileStyleNote {
     readonly code: FileStyleNoteCode;
     readonly params: Readonly<Record<string, CodedFactParam>>;
@@ -1377,11 +1407,6 @@ export interface FileStyleNote {
 export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
 
 // @public
-export function fileStyleOf(layer: {
-    readonly fileStyle?: unknown;
-}): FileStyleOrigin | null;
-
-// @public
 export interface FileStyleOptions {
     readonly framing?: "element" | "file";
     readonly imageBaseUrl?: string;
@@ -1389,51 +1414,14 @@ export interface FileStyleOptions {
     readonly labelLayers?: number;
     readonly labelSizes?: "proportional" | "file";
     readonly lengths?: "median" | "file" | "spacing";
-    readonly shapes?: FileStyleShapeTable;
     readonly toolDefaults?: boolean;
 }
-
-// @public
-export interface FileStyleOrigin {
-    readonly classes?: number;
-    readonly column?: Path;
-    readonly distinctValues?: number;
-    readonly elements?: number;
-    readonly entries?: number;
-    readonly format: string;
-    readonly importId: string;
-    readonly mapping?: FileStyleMappingKind;
-    readonly meanings?: readonly FileStyleMeaning[];
-    readonly origin: FileStyleRuleOrigin;
-    readonly reason?: FileStyleReason;
-    readonly role: FileStyleRole;
-    readonly ruleId: string;
-}
-
-// @public
-export type FileStyleReason = StyleRuleReason;
-
-// @public
-export type FileStyleRole = StyleRuleRole;
-
-// @public
-export type FileStyleRuleOrigin = StyleRuleOrigin;
-
-// @public
-export type FileStyleScalar = string | number | boolean;
-
-// @public
-export type FileStyleShapeTable = Readonly<Record<string, string>>;
 
 // @public
 export interface FileStyleSummary {
     readonly edgeRules: number;
     readonly nodeRules: number;
-    readonly tool: FileStyleTool | null;
 }
-
-// @public
-export type FileStyleTool = StyleTool;
 
 // @public
 export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];
@@ -1469,11 +1457,24 @@ export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
 // @beta
 export interface FilterConditionMatches {
     readonly matched: number;
+    readonly shown: number;
     readonly total: number;
 }
 
 // @public @deprecated
 export type FilterDirection = SelectionDirection;
+
+// @beta
+export interface FilterDraft {
+    cancel(): void;
+    commit(options?: RunOptions): Run<FilterResult & {
+        readonly id: string;
+    }>;
+    readonly condition: FilterCondition;
+    counts(): FilterConditionCount;
+    readonly open: boolean;
+    update(change: Partial<Omit<FilterCondition, "id">>): void;
+}
 
 // @beta
 export type FilterEffect = "keep" | "exclude" | "select";
@@ -1652,6 +1653,7 @@ export interface GraphFraming {
 // @public
 export interface GraphSession {
     acceleration: AccelerationPolicy;
+    readonly annotations: SessionAnnotations;
     readonly assets: AssetsApi;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
@@ -1665,6 +1667,9 @@ export interface GraphSession {
     readonly features: EnabledFeatures;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    // @beta
+    readonly groups: GroupsApi;
+    readonly hidden: SessionHidden;
     readonly history: SessionHistory;
     readonly journal: JournalApi;
     readonly layout: SessionLayout;
@@ -1695,10 +1700,11 @@ export interface GraphSession {
     undo(): Promise<HistoryOutcome>;
     readonly views: SessionViews;
     readonly visibility: VisibilityApi;
+    workingGraph: boolean;
 }
 
 // @public
-export type GraphSettingKey = "background" | "lighting" | "node.depthIndependentSize" | "node.outlineWidth" | "labels.declutter" | "labels.avoidNodesAndEdges";
+export type GraphSettingKey = "background" | "lighting" | "node.sizeSpace" | "node.outlineWidth" | "labels.declutter" | "labels.avoidNodesAndEdges";
 
 export { GraphSource }
 
@@ -1784,7 +1790,7 @@ export type GraphtyErrorCode =
 * missing result (`missing: { value }`), which would ask the element to paint elements the run
 * never measured. Without `missing`, such a layer is accepted: an element with no result is
 * not painted. The caller scopes the layer to the
-* elements that carry the run's result.
+* elements that carry the run's result: the problem's `scope` is that selector.
 */
 | "E_UNSCOPED_RUN_ENCODING"
 /**
@@ -1830,7 +1836,6 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @experimental timeline
 * @beta
 */
 | "E_NO_TIME_FIELD"
@@ -1957,6 +1962,15 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
+* Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+* holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+* suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+* `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+* listing nothing is known about the kept work; the caller offers none and asks again later.
+* A refused restore leaves the entry as it was; the caller may restore it again later.
+*/
+| "E_AUTOSAVE_STALLED"
+/**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
@@ -1994,15 +2008,19 @@ export type GraphtyErrorCode =
 | "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-* unreadable file. `details` carry the url and the status where there was one, and `cause`
+* unreadable file. `details` carry the url (or the file's name), the status where there was
+* one and `timeoutMs` when the last request ran out of time, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
 * than 408 and 429), which fails after one request with `recoverable: false`.
 */
 | "E_FETCH_FAILED"
 /**
 * A source was fetched but could not be parsed as the format it claimed to be. `details`
-* carry the format, the line and, where the parser reported one, the column. The caller
-* corrects the file, or re-imports naming the true format.
+* carry the format, the line and, where the parser reported one, the column; when graph-io
+* read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+* `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+* code of its own is reported as this too, with its error as `cause`. The caller corrects
+* the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
 /**
@@ -2206,6 +2224,13 @@ export type GraphtyErrorCode =
 */
 | "E_DEVICE_LOST"
 /**
+* The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+* device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+* The session and its data are untouched; the element asks for the device back, and
+* `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+*/
+| "E_RENDER_LOST"
+/**
 * No WebGL context could be created, so nothing can be rendered. `details` carry what the
 * canvas reported. The session's data and results still work; only the view is unavailable.
 */
@@ -2375,11 +2400,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -2421,7 +2446,7 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_EXTERNAL_URL"
 /**
-* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+* A model's compressed data could not be decoded. `params.reason`: `missing` when this build of graphty-element leaves the decoder out (the single-file `./bundle` carries no Draco or KTX2 decoder), `load` when the decoder's files could not be loaded, `decode` when the data is damaged. `params.extension` names the glTF extension when known. Every other build ships the Draco, meshopt and KTX2 decoders; nothing is fetched from a CDN.
 */
 | "E_MODEL_DECODER_UNAVAILABLE"
 /**
@@ -2446,13 +2471,17 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DIGEST_MISMATCH"
 /**
-* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
 */
 | "E_IMAGE_LOAD"
 /**
+* A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+*/
+| "E_IMAGE_DECODE"
+/**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
-* no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+* no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
 * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
 * @since 3.40.0
 */
@@ -2473,9 +2502,20 @@ export interface GraphtyErrorDetailsMap {
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
+    E_FETCH_FAILED: {
+        readonly url?: string;
+        readonly file?: string;
+        readonly status?: number;
+        readonly attempts?: number;
+        readonly timeoutMs?: number;
+    };
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
+        readonly issue?: string;
+        readonly element?: string;
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -2648,12 +2688,46 @@ export type GraphtyWarningCode =
 */
 | "W_ANTIALIAS_LATE"
 /**
+* `preserveDrawingBuffer` was changed after the element built its engine, which reads it only
+* then: the engine keeps the value it was built with. Raised as a `graphty-warning` event.
+* `params.requested` is the value given, `params.active` the one in use.
+*/
+| "W_PRESERVE_DRAWING_BUFFER_LATE"
+/**
 * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
 * `node.modelSourceUp` turns it.
 */
 | "W_MODEL_UP_GUESSED"
 /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
 | "W_MODEL_HAS_ANIMATIONS"
+/**
+* A glTF uses an extension that is drawn without: the transmission family
+* (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
+* `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
+* extension.
+*/
+| "W_MODEL_EXTENSION_IGNORED"
+/**
+* `node.modelAnimation` names a clip the model does not have: its nodes hold the first frame
+* of its first clip. `params.name` is the name asked for, `params.available` every clip's name.
+*/
+| "W_MODEL_ANIMATION_UNKNOWN"
+/**
+* A model's clips were sampled at fewer frames a second than 30 to keep their texture within
+* 16 MB: they play less smoothly. `params.fps`, `params.clips`.
+*/
+| "W_MODEL_ANIMATION_REDUCED"
+/**
+* Part of a model's animation is not played: `params.reason` is `"morph"` for shape keys
+* (morph targets), whose parts keep their rest shape while the rest moves.
+*/
+| "W_MODEL_ANIMATION_PARTIAL"
+/**
+* A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
+* size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
+* evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+*/
+| "W_MODEL_POINTS_APPROXIMATED"
 /**
 * A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
 * `params.layerIds` names the layers that write `node.color`.
@@ -2818,6 +2892,51 @@ export interface GroupOverlap {
     readonly count: number;
 }
 
+// @beta
+export type GroupRef = {
+    readonly run: RunRef;
+    readonly group: GroupValue;
+} | {
+    readonly groupBy: Path;
+    readonly group: GroupValue;
+};
+
+// @beta
+export interface GroupsApi {
+    collapse(ref: GroupRef): Promise<NodeId>;
+    expand(ref: GroupRef): Promise<void>;
+    list(): readonly CollapsedGroup[];
+}
+
+// @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTable {
+    readonly columns: readonly string[];
+    readonly groupBy: Path;
+    readonly rows: readonly GroupTableRow[];
+}
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+// @public
+export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+// @beta
+export type GroupValue = string | number | boolean;
+
+// @beta
+export interface HiddenNotDrawn {
+    readonly code: "W_HIDDEN_NOT_DRAWN";
+    readonly params: {
+        readonly asked: "showContext" | "hold" | "full";
+    };
+}
+
 // @public
 export interface HighlightSpec {
     readonly field?: string;
@@ -2869,7 +2988,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2893,8 +3012,6 @@ export interface HistoryStep {
     readonly bytes: number;
     readonly fact: CodedFact<HistoryCode>;
     readonly id: HistoryStepId;
-    // @deprecated
-    readonly label: string;
     readonly ops: readonly SessionCommand["op"][];
     readonly provenance: Readonly<Record<string, string>>;
     readonly slices: readonly ProjectSlice[];
@@ -2914,6 +3031,13 @@ export interface HopsLeaf {
     // (undocumented)
     readonly max?: number;
     readonly of?: StepReference;
+}
+
+// @public
+export interface HoverDrawn {
+    readonly radius: number;
+    readonly x: number;
+    readonly y: number;
 }
 
 // @public
@@ -3168,10 +3292,31 @@ export interface JournalEntry {
 export type JournalId = string;
 
 // @public
+export interface KeymapOptions {
+    readonly ignore?: (event: KeyboardEvent, action: KeymapAction) => boolean;
+    readonly onAction?: (report: KeymapReport) => void;
+}
+
+// @public
+export type KeymapReport = {
+    readonly action: "deselect";
+    readonly nodes: number;
+    readonly edges: number;
+} | {
+    readonly action: "undo" | "redo";
+    readonly done: Promise<HistoryOutcome>;
+};
+
+// @public
+export type KeymapRoot = Pick<EventTarget, "addEventListener" | "removeEventListener">;
+
+// @public
+export type KeymapSession = Pick<GraphSession, "selection" | "canUndo" | "canRedo" | "undo" | "redo">;
+
+// @public
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
-    readonly fileStyle?: FileStyleOrigin;
     readonly hidden?: true;
     readonly id: LayerId;
     readonly kind: LayerKind;
@@ -3222,6 +3367,7 @@ export interface LayerProblem {
     readonly message: string;
     readonly path?: string;
     readonly position?: number;
+    readonly scope?: Selector_2;
 }
 
 // @public
@@ -3231,6 +3377,7 @@ export interface LayerReach {
     readonly locked: boolean;
     readonly row: StyleRowId;
     readonly sets: readonly Channel[];
+    readonly writes: readonly Channel[];
 }
 
 // @public
@@ -3258,7 +3405,6 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
-    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -3288,28 +3434,25 @@ export interface LayerUnmatchedGroup {
 }
 
 // @public
+export type LayoutMotion = "running" | "paused" | "settled";
+
+// @public
 export interface LayoutRecommendation {
     readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
     readonly options?: Readonly<Record<string, unknown>>;
-    // @deprecated
-    readonly reason: string;
 }
 
 // @public
-export type LayoutRecommendationCode = "recommend.fixed" | "recommend.location-map" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.graphviz-file" | "recommend.graphviz-unavailable";
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.location-map" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.requested-layout" | "recommend.requested-layout-unavailable";
 
 // @public
 export interface LayoutRecommendationOptions {
-    readonly file?: {
-        readonly format?: string;
-        readonly attributes?: Readonly<Record<string, unknown>>;
-        readonly layout?: FileLayout;
-    };
     readonly graphvizAvailable?: boolean;
     readonly largeGraphThreshold?: number;
     readonly locations?: boolean;
     readonly placedNodes?: number;
+    readonly requested?: RequestedLayout;
 }
 
 export { LazySource }
@@ -3329,8 +3472,6 @@ export interface LeftOutEdge {
 // @public
 export interface LegendBlock {
     readonly channel: Channel;
-    // @deprecated
-    readonly departures: readonly string[];
     readonly domain?: {
         readonly min: number;
         readonly max: number;
@@ -3342,7 +3483,6 @@ export interface LegendBlock {
     };
     readonly facts: readonly LegendFact[];
     readonly field?: {
-        readonly plainName: string;
         readonly technicalName: string;
         readonly path: Path;
         readonly result?: FieldResult;
@@ -3366,7 +3506,6 @@ export interface LegendBlock {
     readonly runId?: RunId;
     readonly scale?: {
         readonly kind: string;
-        readonly label: string;
     };
     readonly scope?: {
         readonly count: number;
@@ -3402,8 +3541,6 @@ export interface LegendSwatch {
         readonly max: number;
     };
     readonly hidden?: true;
-    // @deprecated
-    readonly label: string;
     readonly name?: string;
     readonly paintedOverBy?: LayerId;
     readonly paints?: unknown;
@@ -3550,6 +3687,20 @@ export interface LoadMappingRead {
 }
 
 // @public
+export type LoadPath = {
+    readonly code: "PATH_COLUMNS";
+    readonly params: Readonly<Record<string, never>>;
+} | {
+    readonly code: "PATH_RECORDS";
+    readonly params: {
+        readonly reason: LoadPathReason;
+    };
+};
+
+// @public
+export type LoadPathReason = "objects" | "duplicateIds" | "repeatedEdges" | "endpoints" | "weights" | "records";
+
+// @public
 export interface LoadReport extends ImportReport {
     readonly duplicates: {
         readonly rows: number;
@@ -3560,6 +3711,7 @@ export interface LoadReport extends ImportReport {
         readonly sharedIds: number;
         readonly byKind: Readonly<Record<string, number>>;
     };
+    readonly path?: LoadPath;
     readonly rows?: {
         readonly rejected: readonly DraftRow[];
         readonly unmatched: readonly DraftRow[];
@@ -3696,7 +3848,15 @@ export interface ModelChange {
 }
 
 // @public
-export type ModelFormat = string;
+export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
+
+// @public
+export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
+
+export { ModelFormat }
+
+// @public
+export type ModelGeometry = "mesh" | "points" | "splats";
 
 // @public
 export interface ModelLimits {
@@ -3742,14 +3902,20 @@ export interface ModelSummary {
         readonly min: readonly [number, number, number];
         readonly max: readonly [number, number, number];
     };
+    readonly compression?: readonly ModelCompression[];
+    readonly encoding?: ModelEncoding;
     readonly extensionsRequired: readonly string[];
+    readonly extensionsUsed?: readonly string[];
     // (undocumented)
     readonly format: ModelFormat;
+    readonly geometry?: ModelGeometry;
+    readonly gltfVersion?: "1.0" | "2.0";
     readonly materials: readonly string[];
     // (undocumented)
     readonly meshes: number;
     // (undocumented)
     readonly morphTargets: number;
+    readonly points?: number;
     // (undocumented)
     readonly skinned: boolean;
     readonly textureBytes: number;
@@ -3758,7 +3924,8 @@ export interface ModelSummary {
     // (undocumented)
     readonly transparent: boolean;
     readonly triangles: number;
-    readonly upAxis: "y" | "z" | "unknown";
+    readonly upAxis: "y" | "z" | "-y" | "unknown";
+    readonly vertexColors?: boolean;
 }
 
 // @public
@@ -3907,6 +4074,7 @@ export interface Note {
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
     readonly mediaType?: string;
+    readonly tags?: readonly string[];
     readonly targets: readonly NoteTarget[];
     readonly text: string;
     readonly time: string;
@@ -3916,7 +4084,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done" | "tags")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -3943,6 +4111,7 @@ export interface NoteInput {
     }[];
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly mediaType?: string;
+    readonly tags?: readonly string[];
     readonly targets: readonly NoteTargetInput[];
     readonly text: string;
 }
@@ -3953,6 +4122,7 @@ export interface NoteListOptions {
     readonly cites?: ResultId;
     readonly done?: boolean;
     readonly missing?: boolean;
+    readonly tag?: string;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
 }
@@ -3971,6 +4141,7 @@ export interface NotePatch {
     readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
+    readonly tags?: readonly string[] | null;
     readonly targets?: readonly NoteTargetInput[];
     readonly text?: string;
 }
@@ -3991,6 +4162,8 @@ export interface NotesApi {
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
     status(id: NoteId): NoteStatus;
+    // (undocumented)
+    tags(): readonly string[];
     toDocument(options?: {
         readonly name?: string;
         readonly description?: string;
@@ -4178,6 +4351,19 @@ export type Path = string;
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
 
 // @public
+export type PathParts = {
+    readonly from: "data";
+    readonly column: string;
+} | {
+    readonly from: "run";
+    readonly runId: RunId;
+    readonly field: string;
+};
+
+// @public
+export function pathParts(path: Path): PathParts | undefined;
+
+// @public
 export type PendingId = string & {
     readonly __brand: "PendingId";
 };
@@ -4198,8 +4384,6 @@ export interface PendingSourceLoad {
 export interface PendingStep {
     readonly fact: CodedFact<HistoryCode>;
     readonly id: PendingId;
-    // @deprecated
-    readonly label: string;
     readonly runIds: readonly RunId[];
     readonly since: string;
 }
@@ -4279,6 +4463,26 @@ export interface PositionEntry {
 export type Precision = "f32" | "f64";
 
 // @public
+export function prepareBackgroundImage(file: Blob, options?: PrepareBackgroundImageOptions): Promise<PreparedBackgroundImage>;
+
+// @public
+export interface PrepareBackgroundImageOptions {
+    readonly maxSize?: number;
+}
+
+// @public
+export type PreparedBackgroundImage = {
+    readonly ok: true;
+    readonly data: string;
+    readonly width: number;
+    readonly height: number;
+    readonly scaled: boolean;
+} | {
+    readonly ok: false;
+    readonly problem: BackgroundImageProblem;
+};
+
+// @public
 export type PreviewDefaultedPart = "palette" | "scale" | "domain" | "range";
 
 // @public
@@ -4305,6 +4509,10 @@ export interface Progress {
 
 // @public
 export interface ProgressChange {
+    readonly asset?: {
+        readonly stage: "downloading" | "reading" | "unpacking";
+        readonly part?: string;
+    };
     readonly completed: number;
     readonly error?: {
         readonly code: string;
@@ -4318,8 +4526,9 @@ export interface ProgressChange {
         readonly name?: string;
         readonly url?: string;
     };
-    readonly task: "load" | "prepare" | "run";
+    readonly task: "load" | "prepare" | "run" | "asset";
     readonly total: number | null;
+    readonly unit?: "bytes";
 }
 
 // @public
@@ -4365,12 +4574,18 @@ export interface ProjectConfig {
         readonly minDelta: number;
     };
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: {
+        readonly node?: number;
+        readonly edge?: number;
+    };
     readonly name?: string;
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     readonly runAlgorithmsOnLoad: boolean;
     readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
     readonly startingRows: boolean;
+    readonly timelineHiddenAdded: boolean;
+    readonly timelineHiddenLook: "hidden" | "ghost";
     readonly viewRotation?: number;
 }
 
@@ -4390,6 +4605,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: ProjectConfig["minMarkSize"];
     readonly name?: string | null;
     readonly pinnedStyle?: GraphSelectionStyleInput;
     // (undocumented)
@@ -4398,6 +4614,8 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
     readonly startingRows?: boolean;
+    readonly timelineHiddenAdded?: boolean;
+    readonly timelineHiddenLook?: "hidden" | "ghost";
     readonly viewRotation?: number;
 }
 
@@ -4708,6 +4926,12 @@ export interface RecordSort {
 }
 
 export { registerSource }
+
+// @public
+export interface RemapOptions {
+    readonly mapping: LoadMapping;
+    readonly source?: SourceKey;
+}
 
 // @public
 export function removeAutosave(key: string, id: string, options?: AutosaveLookupOptions): Promise<void>;
@@ -5149,6 +5373,7 @@ export type RuleTree = {
     readonly percentile?: number;
     readonly from?: "high" | "low";
     readonly missing?: MissingValues;
+    readonly within?: "graph" | "visible";
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -5198,8 +5423,6 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
     readonly journalId: JournalId | null;
-    // @deprecated
-    readonly label: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly partial: boolean;
     readonly progress: Progress;
@@ -5292,7 +5515,6 @@ export interface RunOutcome<T = RunResult> {
     readonly fields?: readonly FieldDescriptor[];
     readonly partial?: boolean;
     readonly partialCause?: CodedFact<PartialCode>;
-    readonly partialReason?: string;
     readonly result: T;
     readonly summary?: ResultSummary;
 }
@@ -5345,8 +5567,6 @@ export interface RunRecord {
     readonly engine: EngineVersions;
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
-    // @deprecated
-    readonly label: string;
     readonly name: string | null;
     readonly params: Readonly<Record<string, unknown>>;
     readonly partial: boolean;
@@ -5380,6 +5600,8 @@ export interface RunResult {
     readonly graph: Readonly<Record<string, unknown>>;
     // @beta
     groupRanks(): ReadonlyMap<string, number> | undefined;
+    // @beta
+    groups(): readonly SummaryGroup[] | undefined;
     groupSizes(options?: HistogramOptions): Histogram;
     histogram(field: string, options?: HistogramOptions): Histogram;
     ids(field: string): readonly NodeId[];
@@ -5387,6 +5609,7 @@ export interface RunResult {
         readonly nodes: number;
         readonly edges: number;
     };
+    memberIds(): readonly NodeId[];
     node(id: NodeId): Readonly<Record<string, unknown>> | undefined;
     ranking(field: string, limit?: number): readonly RankingEntry[];
     // @deprecated
@@ -5396,6 +5619,7 @@ export interface RunResult {
     readonly shape: ResultShape;
     summary(): ResultSummary;
     top(field: string, n: number): TopRanking;
+    toTsv(): string;
 }
 
 // @public
@@ -5582,6 +5806,12 @@ export interface ScopeStepOptions {
 }
 
 // @public
+export interface ScoreTerm {
+    readonly path: Path;
+    readonly weight?: number;
+}
+
+// @public
 export interface ScreenshotPreset {
     readonly destination?: {
         readonly download?: boolean;
@@ -5635,8 +5865,13 @@ export interface SelectionApi {
         readonly edges: number;
     } | null;
     previewHover(on: boolean): void;
+    previous(): {
+        readonly nodes: readonly NodeId[];
+        readonly edges: readonly EdgeId[];
+    } | null;
     // @deprecated
     promote(name: string): ScopeId;
+    restore(options?: SelectionApplyOptions): SelectionDelta;
     readonly size: number;
     statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics>;
     readonly truncated: boolean;
@@ -5861,8 +6096,9 @@ export type Selector = {
 }
 /**
 * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-* edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
-* (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+* edges), under the pointer (`"hovered"`, one node at most), drawn while a held filter
+* condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`:
+* a layer selecting it decides how it looks: hidden, faint, or as any other), or pinned in place
 * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
 * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
 * `selectorRule` reads this selector as with its `states` option.
@@ -5905,6 +6141,16 @@ export function selectorRule(selector: Selector_2, options?: {
 export function selectorStates(selector: Selector_2): readonly ElementState[];
 
 // @public
+export interface SessionAnnotations {
+    add(annotation: DrawnAnnotation): Promise<void>;
+    clear(): Promise<void>;
+    list(): readonly DrawnAnnotation[];
+    remove(id: string): Promise<void>;
+    readonly scale: number;
+    update(id: string, patch: Readonly<Record<string, unknown>>): Promise<void>;
+}
+
+// @public
 export type SessionAttributes = Readonly<Record<string, unknown>>;
 
 // @public
@@ -5916,7 +6162,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -5937,11 +6183,16 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
-    count(): {
+    count(options?: {
+        readonly scope?: "graph" | "visible";
+    }): {
         readonly nodes: number;
         readonly edges: number;
     };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
+    derivedColumns(): readonly DerivedColumn[];
+    deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgeName(edge: {
         readonly source: NodeId_2;
@@ -5955,19 +6206,24 @@ export interface SessionDataApi {
     };
     // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
-    edges(): readonly EdgeRecord[];
+    edges(options?: {
+        readonly scope?: "graph" | "visible";
+    }): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    groupTable(groupBy: Path, options?: GroupTableOptions): GroupTable;
     hiddenColumns(): readonly ColumnRef[];
-    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    histogram(column: ColumnRef, options?: HistogramOptions & {
+        readonly scope?: "graph" | "visible";
+    }): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
-    importColumns(columns: ImportColumnsInput): Promise<void>;
+    importColumns(columns: ImportColumnsInput): Promise<LoadReport>;
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;
@@ -5994,7 +6250,9 @@ export interface SessionDataApi {
     };
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
-    nodes(): readonly NodeRecord[];
+    nodes(options?: {
+        readonly scope?: "graph" | "visible";
+    }): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
     overRepresented(groupBy: Path, options?: {
         readonly columns?: readonly Path[];
@@ -6011,6 +6269,7 @@ export interface SessionDataApi {
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
+    remap(options: RemapOptions): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
@@ -6018,6 +6277,7 @@ export interface SessionDataApi {
     renameSource(name: string, key?: SourceKey): Promise<void>;
     replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices & SourceLoadOptions): Promise<ReplaceReport>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
+    roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
@@ -6035,7 +6295,9 @@ export interface SessionDataApi {
         readonly scope?: "all" | "visible";
     }): GraphStatistics;
     readonly store: SessionGraphStore;
-    structureValue(id: NodeId_2, path: Path): number | undefined;
+    structureValue(id: NodeId_2, path: Path, options?: {
+        readonly scope?: "graph" | "visible";
+    }): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
@@ -6043,6 +6305,7 @@ export interface SessionDataApi {
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
     valueCounts(path: Path, options?: {
         readonly kind?: "node" | "edge";
+        readonly scope?: "graph" | "visible";
     }): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
 }
@@ -6066,11 +6329,19 @@ export interface SessionEventMap {
     "capabilities:changed": {
         readonly capabilities: SessionCapabilities;
     };
+    "data:changed": DataChange;
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
     };
     "journal:appended": {
         readonly entry: JournalEntry;
+    };
+    "layout:motion-changed": {
+        readonly motion: LayoutMotion;
+        readonly id: LayoutId;
+        readonly engine: string;
+        readonly kind: "live" | "batch";
+        readonly step: number;
     };
     "model:changed": ModelChange;
     "network:pending": NetworkRequest;
@@ -6091,6 +6362,7 @@ export interface SessionEventMap {
     "selection:hover-changed": {
         readonly before: NodeId_2 | null;
         readonly after: NodeId_2 | null;
+        readonly drawn?: HoverDrawn;
     };
     "selection:origin-changed": {
         readonly origin: SelectionTarget | null;
@@ -6150,6 +6422,10 @@ export interface SessionEventMap {
     // @beta
     "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
+    // @beta
+    "visibility:not-drawn-changed": {
+        readonly notDrawn: readonly HiddenNotDrawn[];
+    };
 }
 
 // @public
@@ -6160,6 +6436,13 @@ export interface SessionGraphStore {
     readonly positions: ReadonlyElementPositions;
     readonly seededNodeCount: number;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
+}
+
+// @public
+export interface SessionHidden {
+    add(ids: readonly NodeId_2[]): Promise<void>;
+    readonly ids: ReadonlySet<NodeId_2>;
+    remove(ids: readonly NodeId_2[]): Promise<void>;
 }
 
 // @public
@@ -6190,20 +6473,41 @@ export interface SessionLayout {
     readonly engine: string;
     readonly id: LayoutId;
     locationColumns(): LocationColumns;
+    readonly motion: LayoutMotion;
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     readonly options: Readonly<Record<string, unknown>>;
+    pause(): Promise<void>;
+    play(): Promise<void>;
+    rerun(): Promise<void>;
     set(id: LayoutId, options?: {
         readonly engine?: string;
         readonly options?: Readonly<Record<string, unknown>>;
     }): Promise<void>;
     setDimension(dimension: "2d" | "3d"): Promise<void>;
+    settle(): Promise<boolean>;
+    readonly step: number;
+    tick(count?: number): void;
 }
 
 // @public
 export interface SessionPositions extends ReadonlyElementPositions {
+    get(id: NodeId_2): {
+        readonly x: number;
+        readonly y: number;
+        readonly z: number;
+    } | undefined;
     pin(ids: readonly NodeId_2[]): Promise<void>;
     readonly pinned: ReadonlySet<NodeId_2>;
+    pinnedMask(): Uint8Array;
+    restore(saved: {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: Float32Array;
+    }): Promise<void>;
     set(entries: readonly PositionEntry[]): Promise<void>;
+    snapshot(): {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: Float32Array;
+    };
     unpin(ids: readonly NodeId_2[]): Promise<void>;
 }
 
@@ -6611,6 +6915,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { sourceEndpoint }
+
 export { SourceExample }
 
 // @public
@@ -6649,6 +6955,8 @@ export interface SourceFeatures {
 }
 
 export { SourceFile }
+
+export { sourceFileName }
 
 export { SourceFinish }
 
@@ -6874,6 +7182,7 @@ export interface StepsReading {
     readonly total: {
         readonly count: number;
         readonly of: number;
+        readonly shown: number;
     };
 }
 
@@ -7012,13 +7321,38 @@ export interface StyleFileDocument extends StyleDocument {
 }
 
 // @public
+export interface StyleGrayCollision {
+    readonly colors: readonly [StyleGrayColor, StyleGrayColor];
+    readonly difference: number;
+}
+
+// @public
+export interface StyleGrayCollisionOptions {
+    readonly threshold?: number;
+}
+
+// @public
+export interface StyleGrayColor {
+    readonly color: string;
+    readonly lightness: number;
+    readonly uses: readonly StyleGrayUse[];
+}
+
+// @public
+export interface StyleGrayUse {
+    readonly channel: Channel;
+    readonly layer: LayerId;
+    readonly value?: unknown;
+}
+
+// @public
 export interface StyleProblem {
     readonly error: GraphtyError;
     readonly runId: RunId;
 }
 
 // @public
-export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "layer";
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
 
 // @public
 export interface StyleRepaintFailure {
@@ -7058,13 +7392,17 @@ export interface StylesApi {
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     categories(id: LayerId, channel: Channel): readonly ValueCategory[];
     colors(rowIds: readonly StyleRowId[]): readonly StyleColor[];
-    counts(id: LayerId): StyleCounts;
-    defaultValue(channel: Channel): ChannelValue | undefined;
+    counts(id: LayerId, options?: {
+        readonly scope?: "graph" | "visible";
+    }): StyleCounts;
+    defaultValue(channel: Channel, edge?: EdgeId): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     drawnCount(id: LayerId): number;
+    drawnValues(channel: Channel): readonly DrawnValue[];
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     groups(id: LayerId, path: Path): readonly ValueGroup[];
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
@@ -7094,7 +7432,6 @@ export interface StylesApi {
     renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
-    restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
     sequence(binding: Omit<RuleBinding, "by">, options: {
         readonly channel: Channel;
         readonly count: number;
@@ -7111,6 +7448,7 @@ export interface StylesApi {
     // @beta
     showBranches(view: BranchesView): {
         end(): void;
+        readonly notDrawn: readonly HiddenNotDrawn[];
     };
     // @beta
     readonly showingBranches: boolean;
@@ -7177,8 +7515,6 @@ export interface SummaryEntry {
 // @public
 export interface SummaryGroup {
     readonly group: string | number;
-    // @deprecated
-    readonly name?: string;
     readonly rank?: number;
     readonly size: number;
 }
@@ -7274,6 +7610,7 @@ export interface TimeApi {
     readonly current: TimeWindow | null;
     extent(): TimeExtent | null;
     readonly field: TimeField | null;
+    readonly inside: TimeCountPair | null;
     readonly interval: number;
     readonly mode: TimePlayMode;
     notices(): readonly CodedFact<TimeNoticeCode>[];
@@ -7524,7 +7861,6 @@ export interface TimeStepEvent {
     // (undocumented)
     readonly to: number;
     readonly untimed: TimeCountPair;
-    // (undocumented)
     readonly visible: TimeCountPair;
 }
 
@@ -7618,8 +7954,6 @@ export interface UnboundLayer {
     readonly fact: CodedFact<UnboundLayerCode>;
     readonly layerId: LayerId;
     readonly needs: readonly Path[];
-    // @deprecated
-    readonly reason: string;
 }
 
 // @public
@@ -7760,12 +8094,16 @@ export interface VisibilityApi {
     conditionCounts(): readonly FilterConditionCount[];
     // @beta
     readonly conditions: readonly FilterCondition[];
+    // @beta
+    draft(target: FilterConditionInput | string): FilterDraft;
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
+    // @beta
+    readonly notDrawn: readonly HiddenNotDrawn[];
     // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;

@@ -15,8 +15,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import {
     click,
@@ -369,6 +368,26 @@ describe("the mouse", () => {
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
         });
 
+        it("restore brings back the selection a click on empty canvas cleared, with no undo step", async () => {
+            const element = await mounted(viewMode);
+            const { session } = element;
+
+            await click(element, at(element, "a"));
+            await click(element, at(element, "b"), { shift: true });
+            await applied(element);
+            assert.sameMembers([...session.selection.nodes], ["a", "b"]);
+            const steps = session.history.steps.length;
+
+            await click(element, EMPTY);
+            await applied(element);
+            assert.strictEqual(session.selection.size, 0, "the click on empty canvas cleared the selection");
+            assert.sameMembers([...(session.selection.previous()?.nodes ?? [])], ["a", "b"]);
+
+            session.selection.restore({ cause: "user" });
+            assert.sameMembers([...session.selection.nodes], ["a", "b"], "the cleared selection is back");
+            assert.strictEqual(session.history.steps.length, steps, "no undo step was recorded");
+        });
+
         it("a click that changes the selection switches a select condition off, and undo switches it back on", async () => {
             const element = await mounted(viewMode);
             const { session } = element;
@@ -533,6 +552,8 @@ describe("the mouse", () => {
 
         it("a selected node's halo follows it while it is dragged, before the button is released", async () => {
             const element = await mounted(viewMode);
+            // Read by its gold, which nothing else here carries; the default ring is blue (#811).
+            element.graph.setSelectionStyle({ color: "#FFD700" });
             const from = at(element, "b");
             await click(element, from);
             await applied(element);
@@ -659,7 +680,7 @@ async function hold(
     const { canvas } = element.graph;
     const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
     assert.isDefined(input);
-    const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+    const renderManager = renderManagerOf(element.graph);
     const update = input.update.bind(input);
     let held = false;
     let all = 0;
@@ -747,7 +768,7 @@ describe("the keyboard", () => {
             // loop is held from the key-down until the key-up arrives: the keys are real input,
             // only the clock is stopped, as `hold` stops it.
             const { canvas } = element.graph;
-            const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+            const renderManager = renderManagerOf(element.graph);
             let releaseFrames = (): void => undefined;
             const down = (): void => {
                 releaseFrames = renderManager.holdFrames();

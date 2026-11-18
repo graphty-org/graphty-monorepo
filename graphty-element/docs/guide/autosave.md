@@ -198,7 +198,10 @@ await element.autosaver.flush(); // write everything now
 `restore()` refuses with `E_UNSAVED_CHANGES` when the current work was never saved to a file,
 unless `discard: true` is passed; the current work then ends and stays listed. `remove()` and
 `restore()` refuse an entry another tab is writing with `E_AUTOSAVE_ENTRY_TAKEN`, and a missing
-one with `E_AUTOSAVE_UNKNOWN_ENTRY`.
+one with `E_AUTOSAVE_UNKNOWN_ENTRY`. When the browser's database does not answer (another tab holds
+it, or the browser's storage stalled), `restore()` refuses with `E_AUTOSAVE_STALLED` instead of
+waiting: `details.step` is `"list"` or `"read"` (finding or reading the entry) or `"restore"`
+(writing the attempt). The entry is left as it was, so a later `restore()` can open it.
 
 ### Before there is an element
 
@@ -220,6 +223,10 @@ await removeAutosave("acme.org-chart", latest.id);
 ```
 
 Both take `{ store }` for a store of your own. Where the browser keeps no storage, the list is empty.
+When another tab holds the browser's database for three seconds and does not let go (a tab the
+browser suspended in the middle of a write), `listAutosaves` refuses with `E_AUTOSAVE_STALLED`
+rather than answer an empty list: nothing is known about the kept work then, so offer none and
+start the page as usual.
 
 An entry listed with `own: true` is the one this tab was writing before a reload or a discarded
 tab: open it without asking. After a reload the call waits up to two seconds for the page that left

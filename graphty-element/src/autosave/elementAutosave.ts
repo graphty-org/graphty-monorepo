@@ -25,7 +25,7 @@ import {
     type RecoverOptions,
 } from "./Autosaver";
 import { indexedDbAutosaveStore } from "./indexedDbStore";
-import { entryOfMeta, type PageSource } from "./recovery";
+import { entryOfMeta, navigationFacts, type PageSource } from "./recovery";
 import type {
     AutosaveApi,
     AutosaveAvailable,
@@ -357,15 +357,6 @@ function takeLeaving(env: AutosaveEnvironment, key: string): string | null {
 }
 
 /**
- * How this page was reached, for the logs.
- * @returns `navigate`, `reload`, `back_forward`, or null where the browser does not say.
- */
-function navigationType(): string | null {
-    const [entry] = (globalThis.performance?.getEntriesByType?.("navigation") ?? []) as PerformanceNavigationTiming[];
-    return entry?.type ?? null;
-}
-
-/**
  * This tab's own entry of a key, as session storage kept it across a reload or a discard.
  * @param env - The page.
  * @param key - The key.
@@ -558,12 +549,49 @@ export class ElementAutosave {
             stashed: (name) => this.#saver?.stashed(name),
             requestPersistence: () => this.#requestPersistence(),
         };
-        this.api = Object.defineProperties(methods, {
-            status: { enumerable: true, get: () => this.#saver?.status ?? this.#status },
-            ready: { enumerable: true, get: () => this.#ready },
-            restored: { enumerable: true, get: () => this.#saver?.restored ?? null },
-        }) as AutosaveApi;
+        ElementAutosave.#owners.set(methods, this);
+        this.api = Object.defineProperties(methods, ElementAutosave.#apiGetters) as AutosaveApi;
     }
+
+    /** The autosave behind each `api`, for the getters below. */
+    static readonly #owners = new WeakMap<object, ElementAutosave>();
+
+    /**
+     * The autosave behind an `api`.
+     * @param api - An `api` this class made.
+     * @returns Its autosave.
+     */
+    static #of(api: object): ElementAutosave {
+        return ElementAutosave.#owners.get(api) as ElementAutosave;
+    }
+
+    /**
+     * `api`'s getters: the same three functions for every element, never a closure over one. V8
+     * keeps an accessor's function in the hidden class every element's `api` shares, so a closure
+     * there would keep the first element, its graph and its scene alive after it was removed
+     * (test/browser/element-removal-heap.test.ts).
+     */
+    static readonly #apiGetters: PropertyDescriptorMap = {
+        status: {
+            enumerable: true,
+            get(this: object): AutosaveStatus {
+                const owner = ElementAutosave.#of(this);
+                return owner.#saver?.status ?? owner.#status;
+            },
+        },
+        ready: {
+            enumerable: true,
+            get(this: object): Promise<AutosaveRestored | null> {
+                return ElementAutosave.#of(this).#ready;
+            },
+        },
+        restored: {
+            enumerable: true,
+            get(this: object): AutosaveRestored | null {
+                return ElementAutosave.#of(this).#saver?.restored ?? null;
+            },
+        },
+    };
 
     /** The element connected with autosave on: until it starts, it reports nothing to write. */
     connect(): void {
@@ -1282,8 +1310,7 @@ function listWithin(store: AutosaveStore, key: string): Promise<readonly Autosav
  * The work kept under an autosave key, read without an element: for a page that offers it before
  * it shows a graph, such as a start screen. The same list as `autosaver.list()`, oldest first;
  * `live` is true for an entry an element (in any tab) is writing now. Empty where the browser
- * keeps no storage, and empty after three seconds when another tab holds the browser's database
- * and does not let go (a tab the browser suspended in the middle of a write). Open an entry with `autosaver.restore(id)` on an element with the same key.
+ * keeps no storage. Open an entry with `autosaver.restore(id)` on an element with the same key.
  *
  * `own` is true for the one entry this tab was writing (after a reload, or after the browser
  * discarded the tab and loaded it again) once this tab holds its lock: the call takes the lock and
@@ -1296,6 +1323,10 @@ function listWithin(store: AutosaveStore, key: string): Promise<readonly Autosav
  * @param key - The autosave key.
  * @param options - Where to look.
  * @returns The entries.
+ * @throws A `GraphtyError` (as a rejection): `E_AUTOSAVE_STALLED` (`details: { afterMs, step: "list" }`)
+ *     when another tab holds the browser's database for three seconds and does not let go (a tab
+ *     the browser suspended in the middle of a write). Nothing is known about the kept work then:
+ *     not that there is none.
  */
 export function listAutosaves(key: string, options: AutosaveLookupOptions = {}): Promise<readonly AutosaveEntry[]> {
     return withLookupStore(options, async (store, env) => {
@@ -1314,9 +1345,16 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
 
         const metas = await listWithin(store, key);
         if (metas === null) {
-            // Nothing to offer rather than a page that never starts; the element lists again itself.
+            // Refused rather than answered empty: an empty list says nothing is kept, and a page
+            // that read it so opened again work another tab was writing (issue #6583). The page
+            // still starts; the element lists again itself.
             logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
-            return [];
+            throw new GraphtyError({
+                code: "E_AUTOSAVE_STALLED",
+                message: `Autosave could not list key ${key} within ${String(LIST_TIMEOUT_MS)} ms.`,
+                source: "data",
+                details: { afterMs: LIST_TIMEOUT_MS, step: "list" },
+            });
         }
 
         // The entry named before, when the named one was never written or was replaced.
@@ -1332,7 +1370,7 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
             waited,
             leavingMark: leaving !== null,
             entries: metas.length,
-            navigationType: navigationType(),
+            navigationType: navigationFacts().navigationType,
         });
         return metas.map((meta) => ({
             ...entryOfMeta(meta, held.has(lockName(key, meta.id))),

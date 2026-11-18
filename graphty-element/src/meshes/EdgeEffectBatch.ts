@@ -167,7 +167,7 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
         this.stopData = data.onRebuilt(() => {
             material.setTexture(data.paramSampler, data.paramTexture);
         });
-        this.ready = this.compiled(material, mesh); // NOSONAR(S7059): compiling starts with the batch, read at once
+        this.ready = this.compiled(material, mesh); // eslint-disable-line sonarjs/no-async-constructor -- compiling starts with the batch, read at once
     }
 
     /**

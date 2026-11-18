@@ -106,8 +106,8 @@ export function durationsOf(plan) {
 }
 
 /**
- * Says why there is no plan, as a ::warning:: annotation on the run page: the bins fall back to one per file, which
- * multiplies the run's jobs (#6164), or to the durations snapshot (#7851).
+ * Says why there is no plan, as a ::warning:: annotation on the run page (::error:: when the store answered 5xx):
+ * the bins fall back to one per file, which multiplies the run's jobs (#6164), or to the durations snapshot (#7851).
  * @param why the reason the read failed
  * @param [snapshot] the durations snapshot the bins are packed by instead (readSnapshot())
  */
@@ -115,7 +115,9 @@ export function fallback(why, snapshot = null) {
     const how = snapshot
         ? `packed by the durations snapshot of ${new Date(snapshot.at).toISOString()}`
         : "packed without history, one job per file";
-    console.log(`::warning::results store: no plan (${why}); test bins are ${how}`);
+    // a 5xx is a fault in the store, never a normal miss: an error annotation, so it is seen and fixed (#8208)
+    const level = /^HTTP 5\d\d\b/.test(why) ? "error" : "warning";
+    console.log(`::${level}::results store: no plan (${why}); test bins are ${how}`);
 }
 
 /**
@@ -185,7 +187,40 @@ async function storePlan(cfg, { sha, base, variants, files }) {
     // the inputs key is per group and not known before the bins exist: no `passedWithInputs` reuse yet
     const r = await fetchPlan(cfg, { sha, base, variants, inputs: variants.map(() => "-"), files });
     if (r.ok && r.data) return { plan: r.data, why: "" };
-    return { plan: null, why: r.ok ? "the store answered with no plan" : r.why };
+    const why = r.ok ? "the store answered with no plan" : r.why;
+    return /^HTTP 5\d\d\b/.test(why) ? planByFamily(cfg, { sha, base, variants, files }, why) : { plan: null, why };
+}
+
+/**
+ * The plan read one family at a time, in turn, after the whole read answered 5xx: the store answers small reads it
+ * refuses as one (a light check's ~47 variants overloaded D1 while each family alone answered, #8363), and without a
+ * plan a pull request loses the master excuse and the quarantine. Answers are merged; the families whose read failed
+ * are listed in `unanswered`, so run-group.mjs reads those again itself.
+ * @param cfg config()
+ * @param q the read
+ * @param [q.sha] the commit tested
+ * @param [q.base] the base commit
+ * @param q.variants variant names
+ * @param q.files the changed files
+ * @param why why the whole read failed
+ * @returns `{ plan, why }`; plan is null when no family answered
+ */
+async function planByFamily(cfg, { sha, base, variants, files }, why) {
+    const plan = { quarantine: [], failingOnBase: [], variants: {}, unanswered: [] };
+    for (const vs of Map.groupBy(variants, (v) => v.split("|")[0].replace(/-shots$/, "")).values()) {
+        const r = await fetchPlan(cfg, { sha, base, variants: vs, inputs: vs.map(() => "-"), files });
+        if (!r.ok || !r.data) {
+            plan.unanswered.push(...new Set(vs.map((v) => v.split("|")[0])));
+            continue;
+        }
+        plan.quarantine.push(...(r.data.quarantine ?? []));
+        plan.failingOnBase.push(...(r.data.failingOnBase ?? []));
+        Object.assign(plan.variants, r.data.variants);
+    }
+    const asked = new Set(variants.map((v) => v.split("|")[0])).size;
+    if (plan.unanswered.length === asked) return { plan: null, why };
+    console.log(`::warning::results store: the whole plan read failed (${why}); read one family at a time instead`);
+    return { plan, why: "" };
 }
 
 /**
@@ -215,7 +250,13 @@ export async function planRead({ root, affected, out, sha, base, files = [], sna
     const snap = !plan && variants.length > 0 ? readSnapshot(snapshot) : null;
     const durations = snap ? pick(snap.durations, families) : durationsOf(plan);
     mkdirSync(out, { recursive: true });
-    writeFileSync(join(out, "results-plan.json"), JSON.stringify(plan ? { ...plan, families } : { unavailable: why }));
+    // `changed`: the files the pull request changes, which prJudge() never excuses (a re-run's plan keeps it)
+    const changed = files.length > 0 ? { changed: files } : {};
+    // `changed` even with no plan: run-group.mjs reads the store again per family, and judges by it (#8363)
+    writeFileSync(
+        join(out, "results-plan.json"),
+        JSON.stringify(plan ? { ...plan, families, ...changed } : { unavailable: why, ...changed }),
+    );
     writeFileSync(join(out, "durations.json"), JSON.stringify(durations));
     const n = Object.values(durations).reduce((t, d) => t + Object.keys(d).length, 0);
     const also = readers.length > 0 ? ` (with ${readers.join(", ")}: its files import an affected package)` : "";

@@ -388,7 +388,7 @@ Each rule below exists because breaking it cost a run.
   reason to wait, never to skip; a pilot that skipped is run again, and a targeted re-pilot walks
   each touched route exactly as the first pass did.
 - **Land every pass.** 526 product fix commits on the tier 3 branch never reached master, so no
-  CI, SonarQube or screenshot review saw them and no consumer got them, and pass 2's work was
+  CI, lint or screenshot review saw them and no consumer got them, and pass 2's work was
   committed only after pass 3 piloted it. Commit before freezing a build (a build no commit
   reproduces is invalid), merge origin/master into the studio branch every pass, open its pull
   request with `tools/pr-open.sh` (see "Landing"), and commit the pilot reports and triage.

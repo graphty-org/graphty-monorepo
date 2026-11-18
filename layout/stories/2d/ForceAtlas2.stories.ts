@@ -1,7 +1,8 @@
 /**
  * ForceAtlas2 Layout Algorithm Story
  *
- * Demonstrates ForceAtlas2 force-directed layout algorithm.
+ * Demonstrates ForceAtlas2 force-directed layout algorithm, on 100 nodes in 4 planted groups: the forces pull
+ * each group together and push the groups apart.
  * Shows animation from random initial positions to final optimized positions.
  *
  * IMPORTANT: This story uses the actual forceAtlas2 implementation
@@ -12,8 +13,9 @@ import { forceAtlas2, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
+import { generateRandomPositions, PLANTED_GROUPS, plantedGroups, toSnapshot } from "../utils/graph-generators.js";
 import {
+    colorGroups,
     createAnimationControls,
     createInfoPanel,
     createStatusPanel,
@@ -28,8 +30,6 @@ import {
  * Story arguments interface.
  */
 interface ForceAtlas2Args {
-    nodeCount: number;
-    graphType: GraphType;
     iterations: number;
     gravity: number;
     scalingRatio: number;
@@ -40,10 +40,10 @@ interface ForceAtlas2Args {
  * Create the ForceAtlas2 layout visualization story.
  */
 function createForceAtlas2Story(args: ForceAtlas2Args): HTMLElement {
-    const { nodeCount, graphType, iterations, gravity, scalingRatio, seed } = args;
+    const { iterations, gravity, scalingRatio, seed } = args;
 
     // Generate graph
-    const generatedGraph = generateGraph(graphType, nodeCount, seed);
+    const { graph: generatedGraph, groups } = plantedGroups(seed);
     const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
@@ -59,12 +59,17 @@ function createForceAtlas2Story(args: ForceAtlas2Args): HTMLElement {
     const { container, svg } = createStoryContainer();
 
     // Render graph with random initial positions
-    renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+    renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
+    colorGroups(svg, groups);
 
     // Create info panel
     const infoPanel = createInfoPanel("ForceAtlas2 Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(infoPanel, `${iterations} iterations, gravity ${gravity}, scaling ${scalingRatio}.`);
+    updateInfoPanel(
+        infoPanel,
+        `${PLANTED_GROUPS} Look for: the forces pull each color together and push the colors apart ` +
+            `(${iterations} iterations, gravity ${gravity}, scaling ${scalingRatio}).`,
+    );
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -96,7 +101,8 @@ function createForceAtlas2Story(args: ForceAtlas2Args): HTMLElement {
         isApplied = false;
 
         // Reset to random positions
-        renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+        renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
+        colorGroups(svg, groups);
         updateStatus(statusPanel, "Reset to random positions. Click 'Apply Layout' to see optimized arrangement.");
     }
 
@@ -110,15 +116,6 @@ function createForceAtlas2Story(args: ForceAtlas2Args): HTMLElement {
 const meta: Meta<ForceAtlas2Args> = {
     title: "Layout2D",
     argTypes: {
-        nodeCount: {
-            control: { type: "range", min: 4, max: 20, step: 1 },
-            description: "Number of nodes in the graph",
-        },
-        graphType: {
-            control: { type: "select" },
-            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
-            description: "Type of graph to generate",
-        },
         iterations: {
             control: { type: "range", min: 10, max: 200, step: 10 },
             description: "Maximum number of iterations",
@@ -137,8 +134,6 @@ const meta: Meta<ForceAtlas2Args> = {
         },
     },
     args: {
-        nodeCount: 10,
-        graphType: "random",
         iterations: 100,
         gravity: 1,
         scalingRatio: 2,

@@ -4,16 +4,11 @@
  * numbers (a process's steps), which stay numbers with no calendar anywhere.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { inferUnit } from "../../../src/session/time/parse";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
+import { windowNodeIds } from "../../helpers/time-window";
 
 /**
  * A session over a node-link document whose nodes and edges carry the given values.
@@ -126,7 +121,7 @@ describe("time units", () => {
         assert.isTrue(starts.every((each) => Number.isInteger(each)));
         // One step's window holds that step's node and the edge into it.
         await session.time.window({ from: 12, to: 13 });
-        assert.deepStrictEqual([...session.visibility.nodes].sort(), ["n12"]);
+        assert.deepStrictEqual(windowNodeIds(session).sort(), ["n12"]);
 
         const bins = session.time.bins({ maxCount: 5 }) ?? [];
         assert.isTrue(bins.every((bin) => Number.isInteger(bin.start) && Number.isInteger(bin.end)));

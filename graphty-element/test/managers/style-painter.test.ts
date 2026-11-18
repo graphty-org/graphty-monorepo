@@ -98,10 +98,10 @@ interface Harness {
 
 /**
  * Build a stack, an engine and a painter over four nodes and two edges.
- * @param directed - Whether the graph behind the painter is directed.
+ * @param directed - Whether the graph behind the painter is directed, or each edge row's own direction.
  * @returns The harness.
  */
-function harness(directed = true): Harness {
+function harness(directed: boolean | ((row: number) => boolean) = true): Harness {
     const elements: SelectorSource = {
         nodeValue: (index, path) => NODES[index]?.[path],
         edgeValue: (index, path) => EDGES[index]?.[path],
@@ -117,7 +117,7 @@ function harness(directed = true): Harness {
         base: [NODE_BASE],
         repaint: engine.repaint,
     });
-    const painter = new StylePainter(() => directed);
+    const painter = new StylePainter(typeof directed === "function" ? directed : () => directed);
     painter.bind(engine);
 
     return {
@@ -552,6 +552,15 @@ describe("StylePainter row paints, one look per mesh key", () => {
         assert.strictEqual(new Set(paints.map((paint) => paint?.color?.r)).size, NODES.length, "each keeps its color");
     });
 
+    it("hands rows of one look and one color the same paint object, not one per row (G11)", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        const paints = NODES.map((_, index) => held.painter.rowPaint(index));
+        assert.isNotNull(paints[0]?.color, "the default style paints a color");
+        assert.strictEqual(new Set(paints).size, 1, "a paint and its color object per row was 52 MB at 1M rows");
+    });
+
     it("builds a style per size when the size is data-driven", async () => {
         const held = harness();
         await held.styles.add({
@@ -590,6 +599,14 @@ describe("StylePainter row paints, one look per mesh key", () => {
 });
 
 describe("StylePainter arrowheads", () => {
+    it("draws the default head only on the directed edges of a graph that mixes both (#309)", async () => {
+        const mixed = harness((row) => row === 0);
+        await mixed.paintAll();
+
+        assert.strictEqual(mixed.painter.edgePaint(0)?.style.arrowHead?.type, "normal");
+        assert.isUndefined(mixed.painter.edgePaint(1)?.style.arrowHead, "the undirected edge draws no head");
+    });
+
     it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
         const directed = harness(true);
         const undirected = harness(false);
@@ -858,7 +875,7 @@ describe("fillDefaults", () => {
 });
 
 describe("batchableOf", () => {
-    const plain = { flatOutline: false };
+    const plain = { flatOutline: false, sizeSpace: "scene" } as const;
     const style = (over: object): NodeStyleConfig =>
         defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
 
@@ -894,6 +911,6 @@ describe("batchableOf", () => {
     });
 
     it("a flat outline keeps every row an object", () => {
-        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true }));
+        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true, sizeSpace: "scene" }));
     });
 });

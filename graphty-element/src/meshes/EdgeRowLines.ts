@@ -5,12 +5,12 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeStyleConfig } from "../config";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
-import type { EdgePaint } from "../managers/StylePainter";
+import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
-import type { PulledLineBatch } from "./PulledLineBatch";
+import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
 
 /** Style keys a row line may set: any other needs an `Edge` (a cap, a label or a band is drawn by one). */
 const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
@@ -106,7 +106,7 @@ export interface EdgeRowLinesHost {
     readonly cache: MeshCache;
     readonly rows: RowTable;
     /** Whether lines take the lean program (`GraphContext.leansLines`). */
-    readonly lean: () => boolean;
+    readonly lean: () => LeanLines;
     /** Ask for a frame, so a row painted or unpainted shows. */
     readonly requestFrame: () => void;
 }
@@ -126,6 +126,10 @@ export class EdgeRowLines {
     /** The batches the row lines are drawn in, one per look: a row names its batch by its place here. */
     private readonly batches: PulledLineBatch[] = [];
     private drawn = 0;
+    /** The batches, by their place in {@link batches}, that draw plain paints (`plainEdgePaint`). */
+    private readonly plainBatches = new Set<number>();
+    /** Of {@link drawn}, the rows drawn in a plain batch. */
+    private plainDrawn = 0;
     private lastLook: RowLook | null = null;
 
     /**
@@ -140,6 +144,24 @@ export class EdgeRowLines {
      */
     get count(): number {
         return this.drawn;
+    }
+
+    /**
+     * How many edge rows are drawn from a plain paint, past `limits.objectEdges` (`plainEdgePaint`).
+     * @returns The count.
+     */
+    get plainCount(): number {
+        return this.plainDrawn;
+    }
+
+    /**
+     * The edge rows drawn from a plain paint, past `limits.objectEdges` (`plainEdgePaint`).
+     * @returns Their rows.
+     */
+    plainRows(): number[] {
+        return this.plainDrawn === 0
+            ? []
+            : this.drawnRows().filter((row) => this.plainBatches.has(this.lines.batchOf[row]));
     }
 
     /**
@@ -335,6 +357,11 @@ export class EdgeRowLines {
 
         this.lines.set(row, at, piece, source, target);
         this.drawn++;
+        if (isPlainPaint(paint)) {
+            this.plainBatches.add(at);
+            this.plainDrawn++;
+        }
+
         this.host.requestFrame();
         return true;
     }
@@ -347,6 +374,7 @@ export class EdgeRowLines {
         const { lines } = this;
         if (lines.has(row)) {
             this.batches[lines.batchOf[row]].release(lines.piece[row]);
+            this.plainDrawn -= this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
             lines.batchOf[row] = NO_LINE;
             this.drawn--;
             this.host.requestFrame();
@@ -369,6 +397,7 @@ export class EdgeRowLines {
         const { lines } = this;
         this.lines = new LineColumns();
         this.drawn = 0;
+        this.plainDrawn = 0;
         for (const row of this.drawnRows(lines)) {
             const batch = this.batches[lines.batchOf[row]];
             const piece = lines.piece[row];
@@ -385,6 +414,7 @@ export class EdgeRowLines {
             this.lines.set(edge, lines.batchOf[row], piece, source, target);
             this.lines.hidden[edge] = hidden ? 1 : 0;
             this.drawn++;
+            this.plainDrawn += this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
         }
 
         this.host.requestFrame();
@@ -398,6 +428,8 @@ export class EdgeRowLines {
 
         this.lines = new LineColumns();
         this.batches.length = 0;
+        this.plainBatches.clear();
+        this.plainDrawn = 0;
     }
 
     /**

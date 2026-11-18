@@ -17,7 +17,7 @@ export interface MstOptions {
     readonly weights?: NumericVector | undefined;
 }
 
-/** Result of the index-based MST (graph-format design 14.2's result table, line 3745). @public */
+/** A minimum spanning forest: its edges and their total weight. @public */
 export interface MstResult {
     /** Logical edge indices of the spanning forest, in the order they were accepted. */
     readonly edges: U32;
@@ -28,9 +28,8 @@ export interface MstResult {
 /**
  * Kruskal's minimum spanning forest over logical edges.
  *
- * The sort is a comparator over an f64 key array, tie-broken by edge index, rather than the
- * design's radix sort on the f32 bit pattern (plan departure DEP-8A-D): the tie-break makes it
- * stable by construction and it has to serve both the f32 arc array and an f64 override.
+ * Edges are taken in order of weight, an equal weight in edge-index order, so one snapshot always gives one
+ * forest. O(m log m).
  *
  * Unlike {@link primMST}, a directed snapshot is accepted and spanned as if undirected: arc
  * direction is ignored, so the result is the minimum spanning forest of the underlying undirected

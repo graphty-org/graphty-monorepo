@@ -215,8 +215,6 @@ the `file-styles` experiment is off, and otherwise `{ declared, summary }`:
 
 - `declared`: true when reading the file's styles found rules to draw;
 - `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;
-- `summary.tool`: the program that wrote the file, whose defaults fill in what the file leaves
-  unset (`"cytoscape"`, `"gephi"`, `"graphviz"`, `"yed"`, ...), or null when it is not known.
 
 So a reader can be asked before the load:
 
@@ -371,6 +369,41 @@ again, with new choices or, after the graph changed, with its own (`join.choices
 A plain merge can update the nodes it names too: `import(source, { mode: "merge", existing:
 "update" })` writes the incoming values onto nodes the graph already holds, where the default,
 `"keep"`, leaves them as they are.
+
+## Changing the columns after a load
+
+A reader who picked the wrong id or weight column can change it without picking the file again.
+`session.data.remap({ mapping })` takes the same mapping `report` and `load` take and reads the
+rows the load already holds again under it, as one undoable step:
+
+```ts
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+const { session } = element;
+
+// The people were keyed by their row number; the links name them by email.
+await session.data.import(
+    { config: { nodeFile: peopleFile, edgeFile: linksFile } },
+    { mapping: { tables: { nodes: { key: "row" } } } },
+);
+
+await session.data.remap({ mapping: { tables: { nodes: { key: "email" }, edges: { weight: "trips" } } } });
+
+await session.undo(); // the old columns and the old graph, exactly
+```
+
+A role you leave out keeps the column it had. A new id column makes the nodes anew, and the edges
+find their ends among them. Style layers, filters and finished analyses stay; an analysis whose
+numbers came from the old graph reads as stale (`run.stale.reason === "data-changed"`) and is not
+run again by itself.
+
+When the graph holds more than one load, name the one to change with `source`, a key from
+`session.data.sources()`. A load in a project opened from a saved file cannot be re-mapped (its
+`reloadable` is absent), since the file itself is never saved. `remap` refuses with the codes in the
+table below, and with `E_BAD_COMMAND` whose `details.reason` is `"which-source"` (several loads,
+none named; `details.known` lists them) or `"no-mapping"`, `E_SOURCE_UNKNOWN` for a key
+`sources()` does not list, and `E_UNSUPPORTED` with `details.reason: "not-reloadable"`.
 
 ## Errors
 

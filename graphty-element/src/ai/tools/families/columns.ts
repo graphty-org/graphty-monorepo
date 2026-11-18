@@ -8,9 +8,10 @@
 import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import { z } from "zod";
 
+import type { GroupValue } from "../../../session/groups";
 import type { FixCode, IssueId } from "../../../session/issues";
 import type { ColumnRef } from "../../../session/shared";
-import type { ColumnRole, TransactionScope, ValueType } from "../../../session/types";
+import type { ColumnRole, GroupSummary, ScoreTerm, TransactionScope, ValueType } from "../../../session/types";
 import { MAX_ITEMS, MAX_STRING, recordField, resolveNode, text } from "../fields";
 import {
     type ActionResult,
@@ -21,7 +22,7 @@ import {
     type ToolDefinition,
     ToolRefusal,
 } from "../types";
-import { coded, list, ok } from "./common";
+import { coded, codedNow, list, ok } from "./common";
 
 const column = z.string().max(200).describe("The column's name.");
 const on = z.enum(["node", "edge"]).optional().describe("Default node.");
@@ -65,6 +66,7 @@ export const columnsTool: ToolDefinition = {
                 { door: "SessionDataApi.structureValues" },
                 { door: "SessionDataApi.hiddenColumns" },
                 { door: "SessionDataApi.loadedWeight" },
+                { door: "SessionDataApi.derivedColumns" },
             ],
             run: ({ tx }) =>
                 Promise.resolve(
@@ -73,6 +75,7 @@ export const columnsTool: ToolDefinition = {
                         structure: list(tx.data.structureValues()),
                         hidden: list(tx.data.hiddenColumns()),
                         weight: tx.data.loadedWeight(),
+                        computed: list(tx.data.derivedColumns()),
                     }),
                 ),
         },
@@ -103,6 +106,74 @@ export const columnsTool: ToolDefinition = {
                 const group = text(args.column);
                 return Promise.resolve(ok(tx.data.overRepresented(group.includes(".") ? group : `data.${group}`)));
             },
+        },
+        {
+            name: "group_table",
+            summary: "one row per group of the column: its size and summaries of numeric columns",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+                summaries: z
+                    .record(
+                        z.string().max(200),
+                        z.array(z.enum(["count", "sum", "min", "max", "mean", "median"])).max(6),
+                    )
+                    .optional()
+                    .describe('Per numeric column path, the summaries, e.g. {"data.age": ["mean", "max"]}.'),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.groupTable" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                const summaries = args.summaries as Record<string, GroupSummary[]> | undefined;
+                const path = group.includes(".") ? group : `data.${group}`;
+                return Promise.resolve(ok(codedNow(() => tx.data.groupTable(path, { summaries }))));
+            },
+        },
+        {
+            name: "collapse_group",
+            summary: "one group of the column (a community, a team) to one node; expand_group undoes it",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+                group: z.union([z.string().max(MAX_STRING), z.number(), z.boolean()]).describe("The group's value."),
+            },
+            effect: "write",
+            reaches: [{ door: "GroupsApi.collapse" }],
+            run: async ({ tx }, args) => {
+                const column = text(args.column);
+                const groupBy = column.includes(".") ? column : `data.${column}`;
+                const node = await coded(() => tx.groups.collapse({ groupBy, group: args.group as GroupValue }));
+                return { ...ok(undefined, { node }), affectedNodes: [String(node)] };
+            },
+        },
+        {
+            name: "expand_group",
+            summary: "a collapsed group back to its members",
+            fields: {
+                column: z.string().max(200).describe("The column or path the group was collapsed by."),
+                group: z.union([z.string().max(MAX_STRING), z.number(), z.boolean()]).describe("The group's value."),
+            },
+            effect: "write",
+            reaches: [{ door: "GroupsApi.expand" }],
+            run: async ({ tx }, args) => {
+                const column = text(args.column);
+                const groupBy = column.includes(".") ? column : `data.${column}`;
+                await coded(() => tx.groups.expand({ groupBy, group: args.group as GroupValue }));
+                return ok();
+            },
+        },
+        {
+            name: "collapsed_groups",
+            summary: "the groups collapsed now, each with the node standing in for it",
+            fields: {},
+            effect: "read",
+            reaches: [{ door: "GroupsApi.list" }],
+            run: ({ tx }) => Promise.resolve(ok(tx.groups.list())),
         },
         {
             name: "preview_type",
@@ -151,6 +222,50 @@ export const columnsTool: ToolDefinition = {
             run: async ({ tx }, args) => {
                 await coded(() => tx.data.setRole(columnOf(args), (args.role ?? null) as ColumnRole | null));
                 return ok(undefined, { role: (args.role ?? null) as string | null });
+            },
+        },
+        {
+            name: "compute",
+            summary: "a column whose values an expression reads from other columns and results",
+            fields: {
+                column,
+                on,
+                expression: z
+                    .string()
+                    .max(MAX_STRING)
+                    .describe("A selector expression, such as data.nickname || data.name."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.derive" }, { op: "data.derive" }],
+            run: async ({ tx }, args) => {
+                const { kind, name } = columnOf(args);
+                await coded(() => tx.data.derive(name, text(args.expression), { kind }));
+                return ok(undefined, { column: name });
+            },
+        },
+        {
+            name: "score",
+            summary: "a column that combines numeric columns or results, each rescaled to 0..1, by weight",
+            fields: {
+                column,
+                on,
+                terms: z
+                    .array(
+                        z.object({
+                            path: z.string().max(MAX_STRING).describe("A numeric column's path, such as data.age."),
+                            weight: z.number().optional().describe("How much it counts. Default 1."),
+                        }),
+                    )
+                    .min(1)
+                    .max(MAX_ITEMS)
+                    .describe("The columns and their weights."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.deriveScore" }, { op: "data.derive" }],
+            run: async ({ tx }, args) => {
+                const { kind, name } = columnOf(args);
+                await coded(() => tx.data.deriveScore(name, args.terms as ScoreTerm[], { kind }));
+                return ok(undefined, { column: name });
             },
         },
         {

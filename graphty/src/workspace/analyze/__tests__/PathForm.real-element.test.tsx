@@ -150,6 +150,30 @@ describe("the Path popover, on the real element", () => {
         assert.equal(document.activeElement, within(form).getByRole("button", { name: "Find path" }));
     });
 
+    it("lists only what the filter shows as an end: a hidden node is not offered", async () => {
+        const { session, element } = await openFriends();
+        await session.visibility.set({ kind: "member", of: { nodes: ["Ava", "Ben", "Lee", "Dev"] } });
+        element.focus();
+        await userEvent.keyboard("p");
+        const form = await pathForm();
+        const from = within(form).getByRole<HTMLInputElement>("combobox", { name: "From node" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, from);
+        });
+
+        // "e" is in Ben, Lee, Dev, Zed and Zoe: the shown three are offered, the hidden two are not.
+        await userEvent.type(from, "e");
+        const list = await within(form).findByRole("listbox", { name: "From nodes" });
+        await waitFor(() => {
+            assert.sameMembers(
+                within(list)
+                    .getAllByRole("option")
+                    .map((option) => option.textContent),
+                ["Ben", "Lee", "Dev"],
+            );
+        });
+    });
+
     it("says when no path joins the two nodes", async () => {
         const { session } = await openFriends();
         await session.selection.apply({ nodes: ["Ava", "Zoe"] });

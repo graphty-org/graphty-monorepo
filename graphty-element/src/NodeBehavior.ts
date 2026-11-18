@@ -10,13 +10,15 @@ import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.j
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
+import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
-import { filterPointerPicks, hoverNodeId, pickNodeId } from "./render/PickService";
+import { MIN_RADIUS_PX } from "./render/NodeIdTarget";
+import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import {
     cancelReasonOf,
@@ -25,6 +27,8 @@ import {
     type TransactionScope,
 } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
+import type { HoverDrawn } from "./session/types";
+import { inXR } from "./xr/inXR";
 
 /**
  * When a pointer event HAPPENED, on the `performance.now()` clock.
@@ -54,6 +58,8 @@ interface DragState {
     dragStartWorldPosition: Vector3 | null;
     /** Where the pointer was at the last drag update, for the XR tracking-glitch guard. */
     lastWorldPosition: Vector3 | null;
+    /** When the last drag update (or the drag start) came, in ms, for the same guard. */
+    lastUpdateTime: number;
     dragPlaneNormal: Vector3 | null;
     /** The pointer moved the node during this drag (set with or without a session). */
     moved: boolean;
@@ -101,8 +107,10 @@ export interface NodePointerRoster {
     readonly engaged: Set<NodeDragHandler>;
     /** Handlers whose node the pointer is over: they hear the move that leaves it. */
     readonly hovered: Set<NodeDragHandler>;
-    /** Pointer moves so far, so a hover answered late is dropped once a newer move came. */
+    /** Pointer moves so far, numbering each move's hover answer. */
     moves: number;
+    /** The newest move whose hover answer was delivered, so an older answer landing later is dropped. */
+    heard: number;
     /** The node the last move found under the pointer. */
     overId: NodeIdType | undefined;
 }
@@ -152,16 +160,6 @@ function tappedNode(scene: Scene, roster: NodePointerRoster, pointerInfo: Pointe
 const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
 
 /**
- * Whether the scene is in an XR session, whose input XRInputHandler handles instead.
- * @param scene - The scene.
- * @returns True in XR.
- */
-function inXR(scene: Scene): boolean {
-    const xrHelper = scene.metadata?.xrHelper;
-    return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
-}
-
-/**
  * Deliver one pointer event to the nodes it concerns.
  * @param scene - The scene.
  * @param roster - The scene's nodes.
@@ -192,17 +190,17 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 
             // Picked AFTER the drags above have moved their nodes, so the hover reads where things
             // are now. On the batched path the answer is read from the node ID target and comes
-            // later; only the latest move's answer is heard.
+            // later. An answer is dropped only when a newer move's answer was already heard: a
+            // pointer that moves every frame while each read takes several frames still hears
+            // each answer one read late, instead of never (#8016).
             const move = ++roster.moves;
-            const pickedId = hoverNodeId(scene, scene.pointerX, scene.pointerY);
-            if (pickedId instanceof Promise) {
-                void pickedId.then((id) => {
-                    if (move === roster.moves) {
-                        deliverHover(roster, id);
-                    }
+            const picked = hoverNodeId(scene, scene.pointerX, scene.pointerY);
+            if (picked instanceof Promise) {
+                void picked.then((pick) => {
+                    hearHover(roster, move, pick);
                 });
             } else {
-                deliverHover(roster, pickedId);
+                hearHover(roster, move, picked);
             }
 
             break;
@@ -220,19 +218,33 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 }
 
 /**
+ * Deliver a move's hover answer unless a newer move's answer was already delivered.
+ * @param roster - The scene's nodes.
+ * @param move - The move's number.
+ * @param pick - The node under the pointer at that move, if any, and where the pick found it drawn.
+ */
+function hearHover(roster: NodePointerRoster, move: number, pick: HoverPick): void {
+    if (move > roster.heard) {
+        roster.heard = move;
+        deliverHover(roster, pick);
+    }
+}
+
+/**
  * Tell the hovered nodes and the node under the pointer where the pointer is.
  * @param roster - The scene's nodes.
- * @param pickedId - The node under the pointer, if any.
+ * @param pick - The node under the pointer, if any, and where the pick found it drawn.
  */
-function deliverHover(roster: NodePointerRoster, pickedId: NodeIdType | undefined): void {
+function deliverHover(roster: NodePointerRoster, pick: HoverPick): void {
+    const { id: pickedId, drawn } = pick;
     roster.overId = pickedId;
     for (const handler of roster.hovered) {
-        handler.onHover(pickedId);
+        handler.onHover(pickedId, drawn);
     }
 
     const target = pickedId === undefined ? undefined : roster.byId.get(pickedId)?.dragHandler;
     if (target && !roster.hovered.has(target)) {
-        target.onHover(pickedId);
+        target.onHover(pickedId, drawn);
     }
 }
 
@@ -252,6 +264,7 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
             hovered: new Set(),
             overId: undefined,
             moves: 0,
+            heard: 0,
         };
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
@@ -444,11 +457,37 @@ function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): v
     session.data.expand([node.id], options).catch(() => undefined);
 }
 
-/**
- * The largest pointer move, in world units before amplification, one XR drag update may make. A
- * bigger jump is a controller losing and reacquiring tracking, not the reader's hand.
+/*
+ * The XR tracking-glitch guard: the largest move a reader's hand can make between two drag updates,
+ * in metres of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
+ * controller losing and reacquiring tracking (a snap of tens of centimetres in one frame), not a
+ * hand, and is ignored.
+ *
+ * - XR_MAX_HAND_SPEED: 10 m/s. Deliberate arm movement peaks well below it: fast reaching runs 1 to
+ *   3 m/s at the hand, the hardest VR rhythm-game swings and punches reach 6 to 10 m/s. A 30 cm
+ *   tracking snap inside one 72 Hz frame is 22 m/s.
+ * - The time is what passed since the previous update, so the bound holds at any frame rate. It is
+ *   never less than one frame of the fastest headset display (120 Hz), so updates that arrive
+ *   close together (an emulator, a script) still allow a hand's frame of movement.
+ * - XR_MAX_HAND_REACH: 2 m, about a standing adult's arm span. However long tracking was lost, a
+ *   hand comes back no further than that from where it went, so a long gap cannot excuse a bigger
+ *   snap.
  */
-const XR_MAX_REASONABLE_DELTA = 5;
+const XR_MAX_HAND_SPEED = 10;
+const XR_SHORTEST_FRAME_SECONDS = 1 / 120;
+const XR_MAX_HAND_REACH = 2;
+
+/**
+ * The longest pointer move one XR drag update may make. XRInputHandler moves the drag pointer by the
+ * hand's movement in the reader's own space (its position under the pivot, turned with the pivot
+ * but never scaled by zoom), so the pointer moves in metres.
+ * @param elapsedMs - Time since the previous update.
+ * @returns The limit, in metres.
+ */
+function xrMaxDragStep(elapsedMs: number): number {
+    const seconds = Math.max(elapsedMs / 1000, XR_SHORTEST_FRAME_SECONDS);
+    return Math.min(XR_MAX_HAND_SPEED * seconds, XR_MAX_HAND_REACH);
+}
 
 // Click detection thresholds
 const CLICK_MAX_DURATION_MS = 300; // Maximum time for a click (vs long press/drag)
@@ -480,6 +519,7 @@ export class NodeDragHandler {
             dragStartMeshPosition: null,
             dragStartWorldPosition: null,
             lastWorldPosition: null,
+            lastUpdateTime: 0,
             dragPlaneNormal: null,
             moved: false,
         };
@@ -527,6 +567,7 @@ export class NodeDragHandler {
         this.dragState.dragStartMeshPosition = this.node.drawnPosition.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
         this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = performance.now();
         this.node.dragging = true;
 
         // Capture the drag plane orientation at drag start
@@ -537,7 +578,7 @@ export class NodeDragHandler {
 
             // Disable camera input handler during node drag
             // This prevents OrbitInputController from rotating camera while dragging nodes
-            const cameraManager = this.scene.metadata?.cameraManager;
+            const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
             if (cameraManager) {
                 // Debug: console.log("📷 Disabling camera input during node drag");
                 cameraManager.temporarilyDisableInput();
@@ -588,10 +629,13 @@ export class NodeDragHandler {
 
         const isXR = this.isXRMode();
         const jump = worldPosition.subtract(this.dragState.lastWorldPosition ?? worldPosition);
+        const now = performance.now();
+        const elapsedMs = now - this.dragState.lastUpdateTime;
         this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = now;
         // A controller that loses and reacquires tracking reports one huge jump. Absorb it into the
         // drag start, so the node stays where it is and later movement carries on from here.
-        if (isXR && jump.length() > XR_MAX_REASONABLE_DELTA) {
+        if (isXR && jump.length() > xrMaxDragStep(elapsedMs)) {
             this.dragState.dragStartWorldPosition.addInPlace(jump);
             return;
         }
@@ -850,7 +894,7 @@ export class NodeDragHandler {
 
     /** Give the camera its input back after a drag. */
     private releaseCamera(): void {
-        const cameraManager = this.scene.metadata?.cameraManager;
+        const cameraManager = (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager;
         if (cameraManager) {
             cameraManager.temporarilyEnableInput();
         }
@@ -945,8 +989,10 @@ export class NodeDragHandler {
      * A move: emit node-hover when the pointer arrives on this node, and hide its tooltip when it
      * leaves. The scene's roster calls it for the node under the pointer and the hovered ones.
      * @param pickedNodeId - The node under the pointer, if any.
+     * @param drawn - Where the pick found it drawn, when the pick says (a read that answers frames
+     *     later); absent, the pick read the scene as it stands, so it is measured now.
      */
-    public onHover(pickedNodeId: NodeIdType | undefined): void {
+    public onHover(pickedNodeId: NodeIdType | undefined, drawn?: HoverDrawn): void {
         // Skip if we're currently dragging
         if (this.dragState.dragging) {
             return;
@@ -957,8 +1003,9 @@ export class NodeDragHandler {
         // Tell the session which node is under the pointer, for `{ match: "hover" }` layers.
         // Asked on every move over the node, not only on arrival, because the pointer can
         // leave the canvas and come back onto the same node without this node seeing it go.
-        if (isOverThisNode) {
-            this.getContext().getSelectionManager?.()?.hover(this.node.id);
+        const selection = this.getContext().getSelectionManager?.();
+        if (isOverThisNode && selection && !selection.isHovered(this.node.id)) {
+            selection.hover(this.node.id, drawn ?? this.drawnNow());
         }
 
         // Emit node-hover when entering the node (not when already hovering)
@@ -990,6 +1037,21 @@ export class NodeDragHandler {
         } else if (!isOverThisNode && this.isHovered) {
             this.endHover();
         }
+    }
+
+    /**
+     * Where this node is drawn now, with the radius hover picks it within: on a batch, never under
+     * the node ID target's least radius.
+     * @returns The place, or undefined when the graph cannot say.
+     */
+    private drawnNow(): HoverDrawn | undefined {
+        const screen = this.getContext().nodeScreenPosition?.(this.node.id);
+        if (screen === undefined) {
+            return undefined;
+        }
+
+        const least = drawnByBatch(this.node) ? MIN_RADIUS_PX * this.scene.getEngine().getHardwareScalingLevel() : 0;
+        return { x: screen.x, y: screen.y, radius: Math.max(screen.radius, least) };
     }
 
     /**

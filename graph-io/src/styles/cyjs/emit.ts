@@ -177,6 +177,9 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return exact({ "curve-style": value === true ? "unbundled-bezier" : "straight" });
         case "labelPosition":
             return labelPositionToCyjs(String(value));
+        case "labelWrapSkipEndSpace":
+            // Cytoscape.js always measures a line's last word without a space after it: nothing to write
+            return value === true ? exact({}) : null;
         case "fanSpacing":
         case "labelWrapWidth":
             return ifNumber(value, (v) => numberToCyjs(property, v));
@@ -224,7 +227,35 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "labelBorderWidth":
             return ifNumber(value, (v) => exact({ "text-border-width": v, "text-border-opacity": 1 }));
         default:
-            return groupToCyjs(property, value) ?? propertyToCyjs(property, value, specs);
+            return (
+                labelBoxToCyjs(property, value) ??
+                groupToCyjs(property, value) ??
+                propertyToCyjs(property, value, specs)
+            );
+    }
+}
+
+/**
+ * A label box's line box, border place and shape as Cytoscape.js properties: it strokes the line round the box
+ * centered on its edge and has no other place for it, measures a line one font size or its letters' ink tall
+ * (`text-metrics: glyph`), never its font box, and draws a rectangle or a circle.
+ * @param property - the neutral property
+ * @param value - the value
+ * @returns the properties, or null when the property is none of these or Cytoscape.js cannot draw its value
+ */
+function labelBoxToCyjs(property: string, value: StyleValue): Written | null {
+    switch (property) {
+        case "labelBorderAlign":
+            return value === "center" ? exact({}) : null;
+        case "labelLineBox":
+            if (value === "size") {
+                return exact({});
+            }
+            return value === "glyphs" ? exact({ "text-metrics": "glyph" }) : null;
+        case "labelBackgroundShape":
+            return value === "circle" || value === "rectangle" ? exact({ "text-background-shape": value }) : null;
+        default:
+            return null;
     }
 }
 

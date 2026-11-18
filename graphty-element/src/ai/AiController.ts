@@ -659,7 +659,7 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
-    /** Where `load_dataset` downloads datasets from; absent, it fails with `E_OPTION_RANGE`. */
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `AI_ARG_OUT_OF_RANGE`. */
     datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
@@ -713,6 +713,26 @@ export interface ExecutionResult extends CommandResult {
      * `"classifier"` router's turn and every helper's. Absent when it ended before a model was asked.
      */
     usage?: AiTokenUsage;
+}
+
+/**
+ * The engine's image model, as a tool host offers it.
+ * @param engine - The engine.
+ * @returns `{ image }`, or nothing when the engine makes no pictures.
+ */
+function imageOf(engine: AiEngine): Pick<ToolHost, "image"> {
+    const { imageModel } = engine;
+    return imageModel === undefined || engine.generateImage === undefined
+        ? {}
+        : {
+              image: {
+                  model: imageModel,
+                  generate: (prompt, signal) => {
+                      // Present with `imageModel`, so never absent here.
+                      return engine.generateImage?.(prompt, signal) ?? Promise.reject(new Error("no image model"));
+                  },
+              },
+          };
 }
 
 /**
@@ -876,7 +896,7 @@ export class AiController {
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
             STORE_OVERRIDE
         ];
-        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // NOSONAR(S7059): the store opens at construction on purpose; openHistory never rejects and ready() awaits it
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // eslint-disable-line sonarjs/no-async-constructor -- the store opens at construction on purpose; openHistory never rejects and ready() awaits it
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
         liveFactsOf.set(this, {
@@ -1354,6 +1374,8 @@ export class AiController {
             readerText,
             ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
             ...(this.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: this.datasetBaseUrl }),
+            provider: this.engine.providerName,
+            ...imageOf(this.engine),
         };
     }
 

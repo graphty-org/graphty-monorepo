@@ -1,14 +1,13 @@
 import "./start.css";
 
 import { useFileDrop } from "@graphty/compact-mantine";
-import { type DatasetMeta, GENERATOR_DESCRIPTORS, type GeneratorDescriptor } from "@graphty/graphty-element/catalog";
+import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
@@ -17,7 +16,6 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { NETWORK_DIALOG } from "../server/commands";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
@@ -26,6 +24,7 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
+import { NETWORK_DIALOG, NetworkDataDialog } from "./NetworkDataDialog";
 import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
@@ -250,9 +249,7 @@ function SampleLibrary(): React.JSX.Element {
         }
     };
     const query = text.trim().toLowerCase();
-    // The first paint does not wait for the site's configuration.
-    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const library = offeredTiles(timeline);
+    const library = offeredTiles();
     // In the order the sections are drawn: samples, network data, then generated.
     const offered = [
         ...library.filter((tile) => tile.field !== GENERATED),
@@ -261,6 +258,7 @@ function SampleLibrary(): React.JSX.Element {
     ];
     const fields = [...new Set(offered.map((tile) => tile.field))];
     const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
+    const generatorCount = library.length - datasetCount;
     const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>
         each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
     const tiles = shown(library);
@@ -276,7 +274,7 @@ function SampleLibrary(): React.JSX.Element {
             </h2>
             <p className="ws-land-intro">
                 {datasetCount} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
-                routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
+                routes, and {generatorCount} ways to generate one.
             </p>
             <div className="ws-land-libhead">
                 <TextInput
@@ -722,6 +720,8 @@ export function StartScreen(): React.JSX.Element {
                     </Paper>
                 </div>
             ) : null}
+            {/* Only here: the app proper adds network data through its own Network data panel. */}
+            <NetworkDataDialog />
         </div>
     );
 }

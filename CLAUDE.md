@@ -74,12 +74,8 @@ These all count as working around the element, and all of them are forbidden:
 - translating between two spellings or two unit conventions the element never settled
 
 **The tell is a comment.** If a file in the app explains why the element could not be used here,
-that comment is a bug report that was never filed. Every one found in the 2026-09-19 audit was
-accurate, well reasoned, and pointed at a real element defect: suggested-style layers that
-overwrite the whole graph, a calculated value that throws on an unmeasured node and aborts the
-repaint loop, `StyleManager.addLayer` not repainting at all, and an entry point that drags in
-Babylon.js so a constants import is impossible. The app was right every time, and every defect
-survived because being right in the app fixed nothing.
+that comment is a bug report that was never filed. Every one found in the 2026-09-19 audit pointed
+at a real element defect (graphty/CLAUDE.md, "graphty-element Feedback").
 
 When the element fix genuinely cannot land first -- a release is in flight, the change is large --
 the workaround is temporary and must say so: a comment naming the element defect, and a tracking
@@ -181,15 +177,7 @@ Full wording: design/owner-standing-rules.md.
 
 ### Why
 
-The failure mode this prevents is silent and expensive: a capability lands "in the product"
-because the app wires it up, the element ships without it, and every third-party consumer either
-reimplements the wiring or never discovers the feature exists. By the time that is noticed, the
-wiring is public API in the wrong package and moving it is a breaking change.
-
-The workaround rule closes the same trap from the other side. Without it, the element's defects
-become invisible: the app absorbs each one, the element's API never improves because nothing
-pushes back on it, and the first third-party consumer meets every unfixed problem at once with no
-workarounds available to them and no way to know they are not alone.
+Why these rules exist, and the defects that showed it: graphty/CLAUDE.md, "graphty-element Feedback".
 
 ## Naming Conventions
 
@@ -207,6 +195,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
 | `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-models` (unscoped; `/files` and `/detect` subpaths), in `babylonjs-models/` | **babylonjs-models** | "@graphty/babylonjs-models" (no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -215,37 +204,40 @@ workarounds available to them and no way to know they are not alone.
 
 ## Package Directory
 
-| Package | Location | Version | Description |
-|---------|----------|---------|-------------|
-| `@graphty/graph-format` | `graph-format/` | 1.1.2 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
-| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
-| `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
-| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
-| `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
-| `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
-| `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
-| `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.8.18 | React wrapper application (Mantine UI), published as the built static app |
-| `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
-| `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
-| `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
-| `@graphty/githerd` | `githerd/` | 0.1.0 | Retired 2026-10-18 (code kept, daemon not run). Was the repository pipeline daemon that turned master, pull request and issue events into jobs for Claude sessions; nothing uses it now |
+Each package's version is in its `package.json`.
+
+| Package | Location | Description |
+|---------|----------|-------------|
+| `@graphty/graph-format` | `graph-format/` | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
+| `@graphty/graph-io` | `graph-io/` | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | WebGPU-accelerated graph algorithms and layouts over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples` | `graph-samples/` | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
+| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
+| `babylonjs-map` | `babylonjs-map/` | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
+| `babylonjs-models` | `babylonjs-models/` | 3D models into Babylon.js scenes from URLs, files, folders or zips (unscoped, no graphs) |
+| `@graphty/algorithms` | `algorithms/` | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
+| `@graphty/layout` | `layout/` | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
+| `@graphty/graphty-element` | `graphty-element/` | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
+| `@graphty/graphty` | `graphty/` | React wrapper application (Mantine UI), published as the built static app |
+| `@graphty/remote-logger` | `remote-logger/` | Remote logging client and server for browser debugging |
+| `@graphty/compact-mantine` | `compact-mantine/` | Compact size variants for Mantine UI components, for dense UIs |
+| `@graphty/visual-review` | `visual-review/` | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/githerd` | `githerd/` | Retired 2026-10-18 (code kept, daemon not run). Was the repository pipeline daemon that turned master, pull request and issue events into jobs for Claude sessions; nothing uses it now |
 
 ## Where to read more
 
 This file holds only the rules every session needs. Read the rest when your task reaches it:
 
 - `tools/README.md` -- before running builds, tests, servers or any script under `tools/`: commands, the tools
-  table, the secret scan, SonarQube, starting servers, test projects, the full testing and quarantine rules, where a
-  change takes effect, parallel agents and the GitHub API budget.
+  table, the secret scan, lint and duplicate code findings, starting servers, test projects, the full testing and
+  quarantine rules, where a change takes effect, parallel agents and the GitHub API budget.
 - `.github/workflows/README.md` -- before touching CI, a release, versions, screenshots or the held nightly: the
   channels, every workflow, dead links, the full run and nightly, versions and npm, visual review, sites, the build
   system and grouping breaking changes.
 - The package's own `CLAUDE.md` -- before working in that package (Claude Code loads it there). graphty-element's
   holds WebGPU ownership, graph styling, algorithm styles, the public API review and the module system; graphty's
   holds the UI component rules.
-- `design/` -- architecture and design documents (start at `design/monorepo-design.md`); `.claudehistory/` --
+- `design/` -- architecture and design documents (start at `design/README.md`); `.claudehistory/` --
   transcripts of past sessions in this repository, for context from earlier work.
 
 `tools/claude-md-size.test.mjs` fails when this file passes 30 KB or a package `CLAUDE.md` passes 20 KB: move
@@ -254,8 +246,8 @@ reference out to one of the files above instead of adding a paragraph.
 ## Commands
 
 From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; inside a package: `npm run build`,
-`npm run test:run`, `npm run lint`. `./tools/run-tests.sh <shard>` runs one CI shard exactly as CI does
-(`--list` names them). Every server reads `PORT` and refuses to start without it: start it through servherd with
+`npm run test:run`, `npm run lint`. `./tools/run-tests.sh <shard>` reproduces one failing CI shard when asked, never as a
+pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to start without it: start it through servherd with
 `{{port}}` (tools/README.md, "Starting Servers").
 
 ## Rules for every change
@@ -263,9 +255,9 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
 ### TypeScript and modules
 
 - Strict mode in every package; never disable `@typescript-eslint/no-explicit-any`; use `import type`.
-- Packages are TypeScript project references (each extends `tsconfig.base.json` with `composite: true`), built in
-  the order graph-format -> graph-io -> webgpu-graph-algorithms -> graph-samples -> algorithms -> layout ->
-  graphty-element -> graphty. ES modules are the default.
+- There are no cross-package TypeScript project references: Nx builds packages in their `package.json` dependency
+  order: graph-format first, then graph-io and graph-samples (each needs only graph-format), algorithms and
+  layout (they need graph-samples), webgpu-graph-algorithms, graphty-element, graphty. ES modules are the default.
 
 ### WebGPU
 
@@ -286,8 +278,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   SPECIAL LAYER."). Everything, Hovered, Selected and Pinned are ordinary layers: each is
   a style on a calculated value (hovered, selected, pinned). No layer gets its own behavior, controls, wording or protection, and
   code never branches on a layer's name, template or kind. A node left out of every shown layer is hidden.
-  Default layers are data written once when a project is created. Issue #5905 tracks removing the existing
-  exceptions.
+  Default layers are data written once when a project is created. The exceptions left are listed in
+  `graphty/special-layers-baseline.json`.
 - UI: use the default components and never write a bespoke control to work around one; a wrong shared component
   is fixed in the shared component (graphty/CLAUDE.md, "UI Components").
 
@@ -314,10 +306,11 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
 
 - Tokens live in the root `.env` (gitignored); never read, print or put one on a command line. A secretlint false
   positive goes in `.secretlintignore`.
-- Run `node tools/sonar-gate.mjs` before `pr-open.sh` and fix every finding on your changed lines; a false positive
-  gets `// NOSONAR(<rule>): <reason>` (say so in your reply); a function you edit that scores 16 to 20 comes down
-  to 15 ("touch it, fix it"). Never bypass without saying so; report "SonarQube step cannot run" to the owner. Full
-  rules: tools/README.md, "SonarQube".
+- Fix every lint finding on your changed lines (SonarQube's rules run in ESLint); a false positive gets
+  `// eslint-disable-next-line <rule> -- <reason>` (say so in your reply). Never add to `eslint-suppressions.json`
+  to get a change through, except a deliberate legacy carry-over, and say so. A new duplicate found by
+  `pnpm run check:duplicates` (jscpd) is reused or extracted; a deliberate parallel goes in `.jscpd.json` with a
+  reason. Full rules: tools/README.md, "Lint and duplicate code findings".
 - Only the owner approves screenshots, releases and Figma changes. Agents never press Accept or Finish, never write
   under `visual-baselines/` or `visual-review-approvals/`, never edit `visual-review/passkeys.json`,
   `visual-review/trusted/` or the gate step and story-test jobs in ci.yml, and never make a visual check pass by
@@ -348,21 +341,17 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    issue: its number in the name (`fix/1234-topic`), `--issue N` or `--new-issue "<title>"`. Every commit pushes
    the branch until its pull request is open. When you stop,
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
-2. Before opening it, run what CI would: `pnpm run check:quick` (in the background; it runs through
-   `tools/low-priority.sh` and includes the selected tests, `node tools/sonar-gate.mjs` and every check of CI's
-   Checks job). `pnpm run test:changed` alone misses those checks. A long-lived branch -- open more than about two
-   days, holding more than a day of work, after a merge of master that brought app or graphty-element changes or
-   needed conflicts resolved, or after a large change (a refactor of a shared component, a dependency or lockfile
-   upgrade, a change to graphty-element's styling, layout or rendering) -- whose change reaches the graphty app also
-   runs the app's dry run: `pnpm run check:quick --with-dry-run`, or `node graphty/acceptance/run.mjs` after
-   `pnpm exec nx run graphty:build`. Fix every failed route before opening the pull request
-   (design/ci/ai-checked-acceptance-tests.md, 10.4).
+2. Before opening it, run the pre-push checklist in `.claude/skills/pipeline-round/shared.md` ("Subagent rules"):
+   lint, typecheck, build and the tests your change touches, never whole shards (CI runs the rest). A human, or a
+   long-lived branch, may run `pnpm run check:quick` instead, in the background. A long-lived branch (open about two
+   days or more, or after a large change such as a refactor of a shared component) whose change reaches the graphty
+   app also runs the app's dry run: `pnpm run check:quick --with-dry-run`, or `node graphty/acceptance/run.mjs`
+   after `pnpm exec nx run graphty:build`, and fixes every failed route before opening the pull request. What
+   counts as long-lived and what check:quick runs: tools/README.md, "Before opening a pull request".
 3. When the work is finished -- never earlier, auto-merge merges the first green commit -- write a Proof file (the
    commands you ran and what they showed) and run `tools/pr-open.sh --proof tmp/<task>/proof.md` (`--refs` for
-   `Refs #N`, `--title` for a better title). It merges GitHub's copy of the branch, refuses a conflict with master
-   (exit 2: merge `origin/master`, resolve, run again), runs a fresh-context review (exit 3: fix it, or answer it
-   in the Proof and pass `--review-answered`), scans for secrets, pushes, opens the pull request, arms auto-merge
-   and returns in seconds. Never wait for CI.
+   `Refs #N`, `--title` for a better title); it returns in seconds (its steps and exit codes: tools/README.md,
+   "Before opening a pull request"). Never wait for CI.
 4. A red pull request stays open with auto-merge armed: fix it with ordinary commits and push them once. Never
    merge past a check, never `--admin`.
 5. Auto-merge stays off, and the owner merges, for a change to a file guarding the owner (`GUARD_PATHS` in
@@ -387,11 +376,9 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
   and red pull requests; `issue-round` starts issue work.
 
 **Rolling out a change to this flow.** Sessions read `CLAUDE.md`, the skills and `.claude/settings.json` from the
-main checkout at their start, and `worktree-new.sh` runs from `.worktrees/land-live`. Put such a change live as soon
-as it is committed, without waiting for its pull request: `tools/live.sh workspace <commit>` merges it into the main
-checkout and `tools/live.sh land <commit>` into the land copy; then restart every running session, `/loop` included.
-The rounds keep the main checkout following master by merging `origin/master` into it (not only a fast-forward,
-since a live change puts a merge there first).
+main checkout at their start: put such a change live as soon as it is committed, without waiting for its pull
+request, with `tools/live.sh workspace <commit>` (and `land` for `worktree-new.sh`), then restart every running
+session, `/loop` included (tools/README.md, "Where a change takes effect").
 
 ## Working beside other agents
 
@@ -403,6 +390,9 @@ since a live change puts a merge there first).
   reaches master.
 - Never wait inside a model turn: start a push or a long run in the background and end the turn. A subagent opens
   its pull request and stops. A prompt that starts an agent carries this rule.
+- Tell the owner when work is done locally, never only after CI or the merge (owner, 2026-11-14): once it is
+  committed and its local checks pass, say what changed. A mock, story or new behavior he can see gets a running
+  local URL and an `ACTION NEEDED` line to review it.
 - Every session shares graphty-agent's 5,000 GitHub requests an hour: ask about many pull requests in one GraphQL
   query, read pull request status from the broker's `tmp/pr-status/status.json`, poll every 5 minutes or slower,
   and on a 403 rate limit stop and wait. A prompt that starts an agent which talks to GitHub carries these rules.

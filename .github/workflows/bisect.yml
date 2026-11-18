@@ -11,8 +11,9 @@
 # hours a bisect. The answer -- the culprit merge, or why no merge is named -- is the last round's job summary and
 # its `bisect-answer` artifact; the pipeline round opens the revert.
 name: Bisect
-# the lane in the run name: tools/llm-spend.mjs and the health dashboard count an llm-lane bisect's points as paid LLM runs
-run-name: Bisect (${{ inputs.lane }} lane)
+# the lane in the run name: tools/llm-spend.mjs and the health dashboard count an llm-lane bisect's points as paid LLM runs;
+# the range's green commit too: tools/full-run.mjs (bisectRunName) dispatches no second paid llm bisect from it (#8314)
+run-name: Bisect (${{ inputs.lane }} lane) from ${{ inputs.good }}
 on:
     workflow_dispatch:
         inputs:

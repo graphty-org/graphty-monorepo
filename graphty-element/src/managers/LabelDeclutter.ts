@@ -419,6 +419,18 @@ export class LabelDeclutter {
     }
 
     /**
+     * A row drawn plain past `limits.objectRows` wants a label: while label sampling is on, a pass is owed,
+     * which may pick the row and build it a `Node` for the label.
+     * @param scene - The scene the labels are drawn in.
+     * @param context - The graph.
+     */
+    static notePlainLabel(scene: Scene, context: GraphContext): void {
+        if (context.getStyles().config.behavior.labels.sampleCell !== undefined) {
+            LabelDeclutter.of(scene, context).sampler.pending = true;
+        }
+    }
+
+    /**
      * Make sure the scene has a declutter pass, and add an edge that is drawing a label or an end
      * caption to it.
      * @param scene - The scene the labels are drawn in.
@@ -620,6 +632,23 @@ export class LabelDeclutter {
         if (!sameCounts(this.counts, next)) {
             this.counts = Object.freeze(next);
         }
+    }
+
+    /**
+     * Move the labels for a camera a framing has just set, so the framing measures them where
+     * they are drawn from it (issue #8250). Only the labels' places change the room they take:
+     * hiding one (`declutter`) leaves its plane where it was, so nothing runs without
+     * `avoidNodesAndEdges`.
+     * @param camera - The camera the framing set.
+     * @returns True when labels were placed.
+     */
+    placeForFraming(camera: Camera): boolean {
+        if (!this.context.getStyles().config.behavior.labels.avoidNodesAndEdges) {
+            return false;
+        }
+
+        this.place(camera);
+        return true;
     }
 
     /**

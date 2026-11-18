@@ -1,13 +1,6 @@
 import "./options.css";
 
-import {
-    CompactColorInput,
-    DataRow,
-    FieldRow,
-    PanelField,
-    PanelLabelsProvider,
-    ResetButton,
-} from "@graphty/compact-mantine";
+import { CompactColorInput, DataRow, PanelField, ResetButton } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import {
@@ -24,11 +17,12 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
+import { runName } from "../runWords";
+import { drawnYet } from "./notYetDrawn";
 import { splitOptions } from "./splitOptions";
 
-/** One name for one idea across the algorithms and layouts, by option (the `selection-workspace` forms). */
+/** One name for one idea across the algorithms and layouts, by option. */
 const ONE_NAME: Readonly<Partial<Record<string, string>>> = {
     randomSeed: "Seed",
     seed: "Seed",
@@ -46,8 +40,7 @@ const sentenceCase = (name: string): string =>
     name.replaceAll(/ ([A-Z])(?=[a-z])/gu, (_all, letter: string) => ` ${letter.toLowerCase()}`);
 
 /**
- * One line of a form in the `selection-workspace` forms: the name at its left, its control filling
- * the rest, as Figma's property rows and the approved prototype's settings.
+ * One line of a form: the name at its left, its control filling the rest, as Figma's property rows and the approved prototype's settings.
  * @param props - Component props
  * @param props.label - the name
  * @param props.children - the control
@@ -126,6 +119,33 @@ function num(value: unknown): number | undefined {
     return typeof value === "number" ? value : undefined;
 }
 
+/**
+ * What to call a choice that is a run's result column: the run's name, and the column's name
+ * after it when the run offers more than one. Any other choice keeps the element's label.
+ * @param session - The element's session.
+ * @param choices - Every choice of the option.
+ * @param choice - The choice.
+ * @param choice.value - Its value: an attribute name or a result path.
+ * @param choice.label - The element's label for it.
+ * @returns The label.
+ */
+function choiceLabel(
+    session: GraphSession,
+    choices: readonly { readonly value: string }[],
+    choice: { readonly value: string; readonly label: string },
+): string {
+    const root = session.results.roots.find((each) => each.fields.some((field) => field.path === choice.value));
+    const run = root === undefined ? undefined : session.runs.get(root.runId);
+    if (root === undefined || run === undefined) {
+        return choice.label;
+    }
+
+    const name = runName(session, run);
+    const field = root.fields.find((each) => each.path === choice.value);
+    const offered = choices.filter((each) => root.fields.some((f) => f.path === each.value)).length;
+    return offered === 1 || field === undefined ? name : `${name}: ${field.plainName}`;
+}
+
 /** Props for one field. */
 interface FieldProps extends Omit<
     OptionsFormProps,
@@ -183,7 +203,7 @@ function AttributeField({
                   }
                   return {
                       value: choice.value,
-                      label: choice.label,
+                      label: choiceLabel(session, option.values ?? [], choice),
                       ...(choice.refusal === undefined ? {} : { disabled: true }),
                   };
               })
@@ -244,28 +264,22 @@ const LOADED = "\u0000loaded";
  * @param props.session - The element's session
  * @param props.value - The value set
  * @param props.label - The app's words for it
- * @param props.reads - The meaning the algorithm reads
  * @param props.algorithm - The algorithm, for the element's plan
  * @param props.onChange - Called with the new value
- * @param props.plain - Lists a column by its name alone, with no "(closer)"
  * @returns The select
  */
 function WeightField({
     session,
     value,
     label,
-    reads,
     algorithm,
     onChange,
-    plain,
 }: Readonly<{
     session: GraphSession;
     value: unknown;
     label: string;
-    reads: WeightMeaningRead;
     algorithm: string | undefined;
     onChange: (v: unknown) => void;
-    plain: boolean;
 }>): React.JSX.Element {
     const loaded = session.data.loadedWeight();
     // The plan is asked again when the loaded weight or its meaning changes.
@@ -288,7 +302,7 @@ function WeightField({
             live = false;
         };
     }, [session, algorithm, loadedAttribute, loadedMeaning]);
-    const data = weightChoices(session, loaded, unread, plain ? null : reads);
+    const data = weightChoices(session, loaded, unread);
     const shown = shownWeight(value, loaded, unread);
     const unreadLoaded = unread !== null && (value === undefined || value === loaded?.attribute);
     return (
@@ -312,27 +326,23 @@ function WeightField({
     );
 }
 
-/** A meaning an algorithm reads. */
-type WeightMeaningRead = NonNullable<Meaning>;
-
 /** The weight the graph was loaded with, as the element reports it. */
 type LoadedWeight = ReturnType<GraphSession["data"]["loadedWeight"]>;
 
 /**
- * The weight box's choices: the loaded weight, None, and every other number edge column. A loaded
+ * The weight box's choices: the loaded weight, None, and every other number edge column, each by
+ * its name alone. A loaded
  * weight the run would leave unread is listed, so the reader sees it is there, but not offered:
  * choosing it would run exactly as None does.
  * @param session - The element's session
  * @param loaded - The loaded weight, or null
  * @param unread - Why the run would leave the loaded weight unread, or null
- * @param reads - The meaning the algorithm reads, or null to name a column alone
  * @returns The choices
  */
 function weightChoices(
     session: GraphSession,
     loaded: LoadedWeight,
     unread: string | null,
-    reads: Meaning,
 ): { value: string; label: string; disabled?: boolean }[] {
     const data: { value: string; label: string; disabled?: boolean }[] = [];
     if (loaded !== null) {
@@ -347,7 +357,7 @@ function weightChoices(
     for (const column of session.data.attributes()) {
         const isNumber = column.type === "number" || column.type === "integer";
         if (column.kind === "edge" && isNumber && column.name !== loaded?.attribute) {
-            data.push({ value: column.name, label: weightName(column.plainName, reads) });
+            data.push({ value: column.name, label: weightName(column.plainName, null) });
         }
     }
     return data;
@@ -374,8 +384,6 @@ interface ControlProps {
     label: string;
     empty: string | undefined;
     onChange: (v: unknown) => void;
-    /** Drawn as a line of the `selection-workspace` forms. */
-    row?: boolean;
 }
 
 /**
@@ -386,17 +394,9 @@ interface ControlProps {
  * @param props.label - The app's words for it
  * @param props.empty - What an empty box means, when the default is no value
  * @param props.onChange - Called with the new value
- * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The number box
  */
-function NumberOption({
-    option,
-    value,
-    label,
-    empty,
-    onChange,
-    row = false,
-}: Readonly<ControlProps>): React.JSX.Element {
+function NumberOption({ option, value, label, empty, onChange }: Readonly<ControlProps>): React.JSX.Element {
     const integer = option.type === "integer";
     // The value in force, the default included: an option always has one, so the box never says
     // "not set" beside it. At the default there is nothing to reset: no Reset is drawn.
@@ -429,14 +429,10 @@ function NumberOption({
             }}
         />
     );
-    return row ? (
+    return (
         <OptionRow label={label} after={reset}>
             {field}
         </OptionRow>
-    ) : (
-        <PanelLabelsProvider showLabels>
-            <FieldRow trailing={reset}>{field}</FieldRow>
-        </PanelLabelsProvider>
     );
 }
 
@@ -589,15 +585,14 @@ function OptionControl({
     disabled = false,
 }: Readonly<FieldProps & { disabled?: boolean }>): React.JSX.Element | null {
     const { label: named, choice, empty } = words(option);
-    const row = selectionWorkspaceOn(session);
-    const label = row ? (ONE_NAME[option.name] ?? sentenceCase(named)) : named;
+    const label = ONE_NAME[option.name] ?? sentenceCase(named);
     const set = (v: unknown): void => {
         onChange(option.name, v);
     };
     switch (option.type) {
         case "number":
         case "integer":
-            return <NumberOption option={option} value={value} label={label} empty={empty} onChange={set} row={row} />;
+            return <NumberOption option={option} value={value} label={label} empty={empty} onChange={set} />;
         case "enum":
             return (
                 <EnumOption
@@ -636,12 +631,10 @@ function OptionControl({
                     set(event.currentTarget.checked);
                 },
             };
-            return row ? (
+            return (
                 <OptionRow label={label}>
                     <Checkbox size="xs" aria-label={label} {...box} />
                 </OptionRow>
-            ) : (
-                <Checkbox size="xs" label={label} {...box} />
             );
         }
         case "string": {
@@ -664,15 +657,7 @@ function OptionControl({
         case "partition":
             if (weightReads !== null && option.name === "weight" && option.on === "edge") {
                 return (
-                    <WeightField
-                        session={session}
-                        value={value}
-                        label={label}
-                        reads={weightReads}
-                        algorithm={algorithm}
-                        onChange={set}
-                        plain={row}
-                    />
+                    <WeightField session={session} value={value} label={label} algorithm={algorithm} onChange={set} />
                 );
             }
             return (
@@ -732,7 +717,7 @@ export function OptionsForm({
     rows = [],
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
-    const { key, advanced } = splitOptions(options);
+    const { key, advanced } = splitOptions(options.filter((option) => drawnYet(rest.algorithm, option.name)));
     const list = [...key, ...advanced];
     const field = (option: OptionDescriptor): React.JSX.Element => {
         const own = <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />;
@@ -749,12 +734,11 @@ export function OptionsForm({
     // Options that share a row are drawn side by side where the row's first one stands.
     const rowOf = (option: OptionDescriptor): readonly string[] | undefined =>
         rows.find((r) => r.includes(option.name));
-    // In the workspace's forms the advanced options sit under a quiet word: the key ones lead.
-    const lined = selectionWorkspaceOn(rest.session);
+    // The advanced options sit under a quiet word: the key ones lead.
     const placed = list.flatMap((option) => {
         const row = rowOf(option);
         if (row === undefined) {
-            return lined && key.length > 0 && option === advanced[0]
+            return key.length > 0 && option === advanced[0]
                 ? [
                       <Text key="advanced" size="xs" c="dimmed" className="ws-options-more">
                           Advanced

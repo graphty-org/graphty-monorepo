@@ -8,8 +8,11 @@ import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
 
-/** The share of the way to its target a gliding pivot covers each frame: most of it in 20 frames. */
-const GLIDE = 0.2;
+/**
+ * The share of the way to its target a gliding pivot covers each nominal 60 Hz frame: half of it
+ * in about 4 frames (1/15 s), most of it in 20.
+ */
+const GLIDE = 0.16;
 
 /**
  * Move a point a share of the way to a target, and onto it once it is within a thousandth of a
@@ -17,7 +20,8 @@ const GLIDE = 0.2;
  * @param from - The point, moved in place.
  * @param to - The target.
  * @param frames - How many nominal 60 Hz frames this pass stands for, so the glide takes the same
- *   time however slowly frames are drawn; 1 by default.
+ *   time however fast or slowly frames are drawn (a 120 Hz pass stands for half a frame); 1 by
+ *   default, and a hand-pumped pass (0) counts as one frame.
  * @returns Whether the point moved.
  */
 export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
@@ -28,7 +32,7 @@ export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
     if (Vector3.DistanceSquared(from, to) < 1e-6) {
         from.copyFrom(to);
     } else {
-        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** Math.max(1, frames), from);
+        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** (frames > 0 ? frames : 1), from);
     }
 
     return true;
@@ -105,6 +109,9 @@ export class CameraManager {
     /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
     public onReaderMove: (() => void) | null = null;
 
+    /** Frame time since the reader last moved the camera, for `camera.autoRotateResume`; null, not since it turned. */
+    #idleMs: number | null = null;
+
     /**
      * Creates a new CameraManager instance.
      * @param scene - The Babylon.js scene to manage cameras for
@@ -123,6 +130,7 @@ export class CameraManager {
         this.controllers.set(key, controller);
         this.inputs.set(key, inputHandler);
         controller.onReaderMove = () => {
+            this.#idleMs = 0;
             this.onReaderMove?.();
         };
     }
@@ -269,18 +277,40 @@ export class CameraManager {
     }
 
     /**
-     * Turn the active camera on its own by an angle, unless the reader is moving it.
+     * Turn the active camera on its own by an angle, unless the reader is moving it or moved it
+     * less than `resumeAfter` of frame time ago.
      * @param radians - The angle.
+     * @param frameMs - The frame's time, counted toward `resumeAfter` once the reader stops.
+     * @param resumeAfter - How long to wait after the reader's last move, or "never"; see `camera.autoRotateResume`.
      * @returns Whether it turned, so the next frame has to be drawn.
      */
-    public autoTurn(radians: number): boolean {
+    public autoTurn(radians: number, frameMs = 0, resumeAfter: number | "never" = 0): boolean {
         const controller = this.activeCameraController;
-        if (radians <= 0 || controller?.autoTurn === undefined || this.activeInputHandler?.busy === true) {
+        if (radians <= 0 || controller?.autoTurn === undefined) {
             return false;
+        }
+
+        if (this.activeInputHandler?.busy === true) {
+            this.#idleMs = 0;
+            return false;
+        }
+
+        if (this.#idleMs !== null) {
+            this.#idleMs += frameMs;
+            if (resumeAfter === "never" || this.#idleMs < resumeAfter) {
+                return false;
+            }
+
+            this.#idleMs = null;
         }
 
         controller.autoTurn(radians);
         return true;
+    }
+
+    /** Forget the reader's last move, so `autoTurn` turns again at once (`camera.autoRotate` was changed). */
+    public resumeAutoTurn(): void {
+        this.#idleMs = null;
     }
 
     /**

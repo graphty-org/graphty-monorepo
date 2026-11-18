@@ -29,6 +29,10 @@ const TYPE = {
     string: 10,
     token: 11,
     assetPath: 12,
+    matrix4d: 15,
+    quatd: 16,
+    quatf: 17,
+    vec3d: 23,
     vec3f: 24,
     pathListOp: 34,
     referenceListOp: 35,
@@ -72,6 +76,13 @@ export interface Crate {
     number(rep: ValueRep | undefined): number | undefined;
     /** A field's value as a number array (int, float or vec3f, flattened). */
     numbers(rep: ValueRep | undefined): ArrayLike<number> | undefined;
+    /**
+     * A field's single value as numbers: a number, a vec3d or vec3f, a quaternion (i, j, k, then
+     * real, as stored) or a 4x4 matrix (row by row).
+     */
+    tuple(rep: ValueRep | undefined): number[] | undefined;
+    /** A field's token array (`xformOpOrder`). */
+    texts(rep: ValueRep | undefined): string[] | undefined;
     /**
      * The items a list of paths, references or payloads composes (explicit, added, prepended and
      * appended; not deleted or reordered), or a single payload's.
@@ -460,6 +471,47 @@ class CrateReader implements Crate {
         return Float32Array.from({ length: n * width }, (_, i) => read(reader.view, reader.at + i * 4));
     }
 
+    tuple(rep: ValueRep | undefined): number[] | undefined {
+        const shape = rep === undefined || rep.array ? undefined : TUPLES[rep.type];
+        if (rep === undefined || shape === undefined) {
+            const n = this.number(rep);
+            return n === undefined ? undefined : [n];
+        }
+        if (rep.inline) {
+            // A vector of small whole numbers is stored as an int8 per component; a diagonal matrix as its diagonal.
+            const lo = rep.payload % 0x100000000;
+            const int8 = (k: number): number => (((lo >>> (8 * k)) & 255) << 24) >> 24;
+            if (rep.type === TYPE.matrix4d) {
+                return Array.from({ length: 16 }, (_, i) => (i % 5 === 0 ? int8(i / 5) : 0));
+            }
+            return Array.from({ length: shape.count }, (_, k) => int8(k));
+        }
+        const { reader } = this;
+        reader.at = rep.payload;
+        reader.need(shape.count * shape.width);
+        return Array.from({ length: shape.count }, (_, i) =>
+            shape.width === 8
+                ? reader.view.getFloat64(rep.payload + i * 8, true)
+                : reader.view.getFloat32(rep.payload + i * 4, true),
+        );
+    }
+
+    texts(rep: ValueRep | undefined): string[] | undefined {
+        if (rep?.array !== true || rep.inline || rep.compressed || rep.type !== TYPE.token) {
+            return undefined;
+        }
+        if (rep.payload === 0) {
+            return [];
+        }
+        const { reader } = this;
+        reader.at = rep.payload;
+        const n = this.minor < 7 ? reader.u32() : reader.u64();
+        if (n > MAX_COUNT || n * 4 > this.left.left) {
+            fail();
+        }
+        return Array.from({ length: n }, () => this.tokens[reader.u32()] ?? fail());
+    }
+
     arcs(rep: ValueRep | undefined): CrateArc[] | undefined {
         if (rep === undefined || rep.array || rep.inline) {
             return undefined;
@@ -624,6 +676,15 @@ class CrateReader implements Crate {
         return fields;
     }
 }
+
+/** The single values {@link CrateReader.tuple} reads: how many numbers, of how many bytes each. */
+const TUPLES: Readonly<Record<number, { count: number; width: 4 | 8 }>> = {
+    [TYPE.vec3d]: { count: 3, width: 8 },
+    [TYPE.vec3f]: { count: 3, width: 4 },
+    [TYPE.quatd]: { count: 4, width: 8 },
+    [TYPE.quatf]: { count: 4, width: 4 },
+    [TYPE.matrix4d]: { count: 16, width: 8 },
+};
 
 /** The array types {@link CrateReader.numbers} reads. */
 const NUMBER_ARRAYS: ReadonlySet<number> = new Set([TYPE.int, TYPE.uint, TYPE.float, TYPE.vec3f]);

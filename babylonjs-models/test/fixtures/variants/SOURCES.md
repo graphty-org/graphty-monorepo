@@ -27,5 +27,10 @@ cd babylonjs-models && /tmp/usd/bin/python test/fixtures/variants/usd.py
 
 The FBX variants are written by `fbx.ts` (binary and ASCII FBX 7.4), which `generate.ts` calls.
 
+Written by hand, outside the manifest: `fbx-curves/` (ASCII FBX files holding one Line or
+NurbsCurve geometry each, for the curve counts) and, in `usd-composed/`, `packaged.usda` with
+`pkg.usdz` (ten package-relative references, `@./pkg.usdz[geo.usda]@`, to a cube inside an
+uncompressed zip).
+
 The GIF, WebP, AVIF and DDS pictures are converted from the script's PNG by ImageMagick's
 `convert`, which the script needs when it runs.

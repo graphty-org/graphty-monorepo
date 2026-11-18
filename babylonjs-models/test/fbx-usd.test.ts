@@ -338,6 +338,8 @@ describe("the USD checks", () => {
         // A cube in a package a layer references, beside it or inside an outer package.
         assert.deepStrictEqual(await drawn("nested.usda", "inner.usdz"), [12, 1]);
         assert.deepStrictEqual(await drawn("nested.usdz"), [12, 1]);
+        // Given together with no main named, the layer is the model, not the package it references.
+        assert.strictEqual((await check(set("usd-composed", "nested.usda", "inner.usdz"))).main, "nested.usda");
         assert.deepInclude(await refusalOf(set("usd-composed", "nested.usda")), {
             code: "E_MODEL_MISSING_FILE",
             params: { name: "inner.usdz", referencedBy: "nested.usda", role: "geometry", optional: false },
@@ -382,6 +384,95 @@ describe("the USD checks", () => {
             ["a.usda", text('def "A" ( references = </B> ) {}\ndef "B" ( references = </A> ) {}\n')],
         ]);
         assert.strictEqual((await check(cycle)).summary.triangles, 0);
+    });
+
+    it("size a stage as drawn: each use where its transforms and an instancer's positions put it", async () => {
+        const size = async (main: string, ...names: string[]) => {
+            const { bounds } = (
+                await checkModelFiles(set("usd-composed", main, ...names), { main }, DEFAULT_MODEL_LIMITS)
+            ).summary;
+            return bounds === undefined ? undefined : [0, 1, 2].map((a) => bounds.max[a] - bounds.min[a]);
+        };
+        for (const ext of ["usda", "usdc"]) {
+            // A unit cube and five copies 2 apart; four copies of one in another layer; ten instances 2 apart.
+            assert.deepStrictEqual(await size(`internal.${ext}`), [11, 1, 1], ext);
+            assert.deepStrictEqual(await size(`external.${ext}`, "geo.usdc"), [7, 1, 1], ext);
+            assert.deepStrictEqual(await size(`instancer.${ext}`), [19, 1, 1], ext);
+        }
+        // Ten uses of a unit cube inside a package, 2 apart.
+        assert.deepStrictEqual(await size("packaged.usda", "pkg.usdz"), [19, 1, 1]);
+
+        // Scaled, turned, and moved by a matrix; a pivot undone by its inverse.
+        const text = (body: string) => new TextEncoder().encode(`#usda 1.0\n${body}`);
+        const square =
+            'def Mesh "M"\n{\n int[] faceVertexCounts = [4]\n point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]\n';
+        const cases: [string, number[]][] = [
+            ['float3 xformOp:scale = (3, 2, 1)\n uniform token[] xformOpOrder = ["xformOp:scale"]', [3, 2, 0]],
+            [
+                'float xformOp:rotateZ = 45\n uniform token[] xformOpOrder = ["xformOp:rotateZ"]',
+                [Math.SQRT2, Math.SQRT2, 0],
+            ],
+            [
+                'matrix4d xformOp:transform = ( (2, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (5, 0, 0, 1) )\n uniform token[] xformOpOrder = ["xformOp:transform"]',
+                [2, 1, 0],
+            ],
+            [
+                'double3 xformOp:translate:pivot = (1, 0, 0)\n float xformOp:rotateZ = 90\n uniform token[] xformOpOrder = ["xformOp:translate:pivot", "xformOp:rotateZ", "!invert!xformOp:translate:pivot"]',
+                [1, 1, 0],
+            ],
+            [
+                'quatf xformOp:orient = (0.70710678, 0, 0, 0.70710678)\n float3 xformOp:scale = (3, 1, 1)\n uniform token[] xformOpOrder = ["xformOp:orient", "xformOp:scale"]',
+                [1, 3, 0],
+            ],
+            [
+                'float3 xformOp:rotateXYZ = (0, 0, 90)\n float3 xformOp:scale = (3, 1, 1)\n uniform token[] xformOpOrder = ["xformOp:rotateXYZ", "xformOp:scale"]',
+                [1, 3, 0],
+            ],
+        ];
+        for (const [ops, expected] of cases) {
+            const { bounds } = (await check(new Map([["a.usda", text(`${square} ${ops}\n}\n`)]]))).summary;
+            assert.isDefined(bounds);
+            [0, 1, 2].forEach((a) => {
+                assert.closeTo((bounds?.max[a] ?? 0) - (bounds?.min[a] ?? 0), expected[a], 1e-9, ops);
+            });
+        }
+    });
+
+    it("follow a package-relative asset path (@pkg.usdz[geo.usda]@) and count every use", async () => {
+        const text = (body: string) => new TextEncoder().encode(`#usda 1.0\n${body}`);
+        const geo = text('(\n defaultPrim = "G"\n)\ndef Mesh "G"\n{\n int[] faceVertexCounts = [3, 3]\n}\n');
+        const refs = Array.from(
+            { length: 10 },
+            (_, i) => `def "C${String(i)}" ( references = @./pkg.usdz[geo.usda]@ ) {}\n`,
+        ).join("");
+        const files = new Map([
+            ["root.usda", text(refs)],
+            ["pkg.usdz", zipSync({ "geo.usda": [geo, { level: 0 }] })],
+        ]);
+        const checked = await checkModelFiles(files, { main: "root.usda" }, DEFAULT_MODEL_LIMITS);
+        assert.deepStrictEqual([checked.summary.triangles, checked.summary.meshes], [20, 10]);
+        // Picked as the model over the package it references, whose entry is only a part.
+        assert.strictEqual((await check(files)).main, "root.usda");
+        const error = await checkModelFiles(
+            files,
+            { main: "root.usda" },
+            { ...DEFAULT_MODEL_LIMITS, maxTriangles: 19 },
+        ).then(
+            () => assert.fail("accepted"),
+            (e: unknown) => e,
+        );
+        assert.instanceOf(error, ModelError);
+        assert.deepInclude(error.fact, {
+            code: "E_MODEL_TOO_LARGE",
+            params: { what: "triangles", found: 20, limit: 19 },
+        });
+        // A prim that writes its own type (Xform) is not the Mesh it references: OpenUSD draws no faces.
+        const retyped = new Map(files);
+        retyped.set("root.usda", text(refs.replaceAll('def "C', 'def Xform "C')));
+        const xform = await checkModelFiles(retyped, { main: "root.usda" }, DEFAULT_MODEL_LIMITS);
+        assert.deepStrictEqual([xform.summary.triangles, xform.summary.meshes], [0, 0]);
+        // Without the package, the part is missing.
+        assert.deepInclude(await refusalOf(new Map([["root.usda", text(refs)]])), { code: "E_MODEL_MISSING_FILE" });
     });
 
     it("refuse a damaged layer or package", async () => {

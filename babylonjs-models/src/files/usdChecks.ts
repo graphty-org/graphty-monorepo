@@ -43,6 +43,17 @@ import {
     textureBytesOf,
 } from "./references.js";
 import type { ModelFact, ModelLimits, ModelPicture, ModelSummary } from "./types.js";
+import {
+    type Affine,
+    type Box,
+    emptyBox,
+    growBox,
+    IDENTITY,
+    joinBox,
+    opTransform,
+    placeBox,
+    placement,
+} from "./usdTransforms.js";
 
 /** An asset path to another USD layer, or to a USDZ package of layers. */
 const LAYER = /\.usd[acz]?$/i;
@@ -50,6 +61,32 @@ const LAYER = /\.usd[acz]?$/i;
 const ROOT_LAYER = /\.usd[ac]?$/i;
 /** An asset path to a picture. */
 const PICTURE = /\.(?:png|jpe?g|webp|avif|bmp|gif|tga|tiff?|exr|hdr|ktx2?)$/i;
+/** A package-relative asset path, `pkg.usdz[geo.usda]`: a file inside a USDZ package (nestable). */
+const PACKAGED = /^(.+?\.usdz)\[(.+)\]$/i;
+
+/**
+ * The file an asset path finally names: the innermost entry of a package-relative path.
+ * @param ref - The asset path.
+ * @returns The innermost path.
+ */
+function innermost(ref: string): string {
+    let match = PACKAGED.exec(ref);
+    while (match !== null) {
+        ref = match[2];
+        match = PACKAGED.exec(ref);
+    }
+    return ref;
+}
+
+/**
+ * Whether an asset path names a layer or a picture, a part of the stage.
+ * @param ref - The asset path.
+ * @returns True for a part.
+ */
+function isPart(ref: string): boolean {
+    const path = innermost(ref);
+    return LAYER.test(path) || PICTURE.test(path);
+}
 
 /**
  * A prim brought in again: by a reference, payload, inherit or specialize, or as a point
@@ -62,6 +99,8 @@ interface Arc {
     readonly path: string;
     /** How many times it is drawn. */
     readonly times: number;
+    /** A point instancer's instances of it: where each is, x, y, z after x, y, z. */
+    readonly at?: ArrayLike<number>;
 }
 
 /** What one prim writes itself. */
@@ -69,6 +108,13 @@ interface PrimFacts {
     triangles: number;
     meshes: number;
     readonly arcs: Arc[];
+    /** The box around its own points, where it writes them. */
+    readonly box: Box;
+    /** Its transform ops, by full name, and the order it applies them in. */
+    readonly ops: Map<string, Affine>;
+    order?: readonly string[];
+    /** Its type, when it writes one. */
+    type?: string;
 }
 
 /** What one layer says about the stage. */
@@ -89,9 +135,8 @@ interface LayerFacts {
     transparent: boolean;
     /** Picture asset paths, with the materials that draw them. */
     readonly pictures: Map<string, Set<string>>;
-    readonly min: [number, number, number];
-    readonly max: [number, number, number];
     /** The layer's own metadata (the root layer's is the stage's). */
+    defaultPrim?: string;
     upAxis?: string;
     metersPerUnit?: number;
     timeCodesPerSecond?: number;
@@ -115,8 +160,6 @@ function noFacts(): LayerFacts {
         vertexColors: false,
         transparent: false,
         pictures: new Map(),
-        min: [Infinity, Infinity, Infinity],
-        max: [-Infinity, -Infinity, -Infinity],
     };
 }
 
@@ -129,7 +172,7 @@ function noFacts(): LayerFacts {
 function primOf(facts: LayerFacts, path: string): PrimFacts {
     let prim = facts.prims.get(path);
     if (prim === undefined) {
-        prim = { triangles: 0, meshes: 0, arcs: [] };
+        prim = { triangles: 0, meshes: 0, arcs: [], box: emptyBox(), ops: new Map() };
         facts.prims.set(path, prim);
     }
     return prim;
@@ -142,23 +185,29 @@ function primOf(facts: LayerFacts, path: string): PrimFacts {
  * @param instancer - The instancer's path.
  * @param prototypes - Its prototypes' paths.
  * @param indices - Its instances' prototype indices.
+ * @param positions - Its instances' positions, x, y, z after x, y, z.
  */
 function instance(
     facts: LayerFacts,
     instancer: string,
     prototypes: readonly string[],
     indices: ArrayLike<number>,
+    positions: ArrayLike<number>,
 ): void {
-    const times = new Map<number, number>();
+    const at = new Map<number, number[]>();
     for (let i = 0; i < indices.length; i++) {
-        times.set(indices[i], (times.get(indices[i]) ?? 0) + 1);
+        const list = at.get(indices[i]) ?? [];
+        // ponytail: positions only; an instance's orientation and scale are left out of the box.
+        list.push(positions[i * 3] ?? 0, positions[i * 3 + 1] ?? 0, positions[i * 3 + 2] ?? 0);
+        at.set(indices[i], list);
     }
     prototypes.forEach((path, i) => {
         if (path.startsWith(`${instancer}/`)) {
             facts.prototypes.add(path);
         }
-        if ((times.get(i) ?? 0) > 0) {
-            primOf(facts, instancer).arcs.push({ path, times: times.get(i) ?? 0 });
+        const list = at.get(i);
+        if (list !== undefined) {
+            primOf(facts, instancer).arcs.push({ path, times: list.length / 3, at: list });
         }
     });
 }
@@ -203,19 +252,13 @@ function trianglesOf(counts: ArrayLike<number>): number {
 }
 
 /**
- * Grow the bounds by a flat x, y, z list.
- * @param facts - The facts.
+ * Grow a prim's box by a flat x, y, z list of points.
+ * @param prim - The prim.
  * @param points - The points.
  */
-function bound(facts: LayerFacts, points: ArrayLike<number>): void {
+function bound(prim: PrimFacts, points: ArrayLike<number>): void {
     for (let i = 0; i + 2 < points.length; i += 3) {
-        const p = [points[i], points[i + 1], points[i + 2]];
-        if (p.every((v) => Number.isFinite(v))) {
-            for (let a = 0; a < 3; a++) {
-                facts.min[a] = Math.min(facts.min[a], p[a]);
-                facts.max[a] = Math.max(facts.max[a], p[a]);
-            }
-        }
+        growBox(prim.box, points[i], points[i + 1], points[i + 2]);
     }
 }
 
@@ -259,6 +302,9 @@ const PRIM_COUNTS: Readonly<Record<string, (facts: LayerFacts, name: string, pat
  * @param path - Its path.
  */
 function countPrim(facts: LayerFacts, type: string, path: string): void {
+    if (type !== "") {
+        primOf(facts, path).type = type;
+    }
     PRIM_COUNTS[type]?.(facts, leafOf(path), path);
 }
 
@@ -290,14 +336,14 @@ function materialOf(types: ReadonlyMap<string, string>, path: string): string | 
  * @param spec - The attribute.
  * @param types - Each prim's type, by path.
  * @param facts - The facts.
- * @param indices - Each point instancer's instances' prototype indices, by its path.
+ * @param instances - Each point instancer's instances' prototype indices and positions, by its path.
  */
 function crateAttribute(
     crate: Crate,
     spec: CrateSpec,
     types: ReadonlyMap<string, string>,
     facts: LayerFacts,
-    indices: Map<string, ArrayLike<number>>,
+    instances: Map<string, Instances>,
 ): void {
     const samples = spec.fields.get("timeSamples");
     facts.animated ||= isTimeSamples(samples);
@@ -309,10 +355,13 @@ function crateAttribute(
     const all = (): ArrayLike<number>[] => [value, ...crate.samples(samples)].map((rep) => crate.numbers(rep) ?? []);
     if (name === "faceVertexCounts" && mesh) {
         primOf(facts, prim).triangles += Math.max(...all().map((counts) => trianglesOf(counts)));
-    } else if (name === "protoIndices") {
-        indices.set(prim, longest(all()));
+    } else if (name === "protoIndices" || name === "positions") {
+        const held = instances.get(prim) ?? { indices: [], positions: [] };
+        instances.set(prim, { ...held, [name === "positions" ? "positions" : "indices"]: longest(all()) });
     } else if (name === "points" && mesh) {
-        bound(facts, crate.numbers(value) ?? []);
+        bound(primOf(facts, prim), crate.numbers(value) ?? []);
+    } else if (name.startsWith("xformOp")) {
+        crateTransform(crate, primOf(facts, prim), name, value);
     } else if (name === "primvars:displayColor" && mesh) {
         // White draws as no color at all (graphty-element drops all-white vertex colors).
         facts.vertexColors ||= Array.from(crate.numbers(value) ?? []).some((v) => v !== 1);
@@ -320,7 +369,7 @@ function crateAttribute(
         facts.transparent ||= Array.from(crate.numbers(value) ?? [crate.number(value) ?? 1]).some((v) => v < 1);
     } else if (name === "inputs:file") {
         const ref = crate.text(value);
-        if (ref !== undefined && PICTURE.test(ref)) {
+        if (ref !== undefined && PICTURE.test(innermost(ref))) {
             usePicture(facts, ref, materialOf(types, prim));
         }
     }
@@ -333,6 +382,30 @@ function crateAttribute(
  */
 function longest(arrays: readonly ArrayLike<number>[]): ArrayLike<number> {
     return arrays.reduce((a, b) => (b.length > a.length ? b : a), []);
+}
+
+/**
+ * Note one of a binary layer's transform attributes on its prim: an op, or their order.
+ * @param crate - The layer.
+ * @param prim - The prim's facts.
+ * @param name - The attribute's name (`xformOp:translate`, `xformOpOrder`).
+ * @param value - Its value.
+ */
+function crateTransform(crate: Crate, prim: PrimFacts, name: string, value: ValueRep | undefined): void {
+    if (name === "xformOpOrder") {
+        prim.order = crate.texts(value) ?? [];
+        return;
+    }
+    const op = name.startsWith("xformOp:") ? opTransform(name.split(":")[1], crate.tuple(value) ?? []) : undefined;
+    if (op !== undefined) {
+        prim.ops.set(name, op);
+    }
+}
+
+/** A point instancer's instances: each one's prototype index and position. */
+interface Instances {
+    readonly indices: ArrayLike<number>;
+    readonly positions: ArrayLike<number>;
 }
 
 /** The prim fields that bring a prim in again. */
@@ -379,6 +452,7 @@ function crateFacts(crate: Crate): LayerFacts {
             );
         } else if (spec.type === SPEC.pseudoRoot) {
             const field = (name: string): ValueRep | undefined => spec.fields.get(name);
+            facts.defaultPrim = crate.text(field("defaultPrim"));
             facts.upAxis = crate.text(field("upAxis"));
             facts.metersPerUnit = crate.number(field("metersPerUnit"));
             facts.timeCodesPerSecond = crate.number(field("timeCodesPerSecond"));
@@ -387,18 +461,19 @@ function crateFacts(crate: Crate): LayerFacts {
         }
     }
 
-    const indices = new Map<string, ArrayLike<number>>();
+    const instances = new Map<string, Instances>();
     for (const spec of crate.specs) {
         if (spec.type === SPEC.attribute) {
-            crateAttribute(crate, spec, types, facts, indices);
+            crateAttribute(crate, spec, types, facts, instances);
         }
     }
     for (const [instancer, paths] of prototypes) {
-        instance(facts, instancer, paths, indices.get(instancer) ?? []);
+        const { indices, positions } = instances.get(instancer) ?? { indices: [], positions: [] };
+        instance(facts, instancer, paths, indices, positions);
     }
 
     // Every asset path is a token (a string is stored as one too): the layers and pictures it names.
-    facts.refs.push(...crate.tokens.filter((t) => LAYER.test(t) || PICTURE.test(t)));
+    facts.refs.push(...crate.tokens.filter((t) => isPart(t)));
     return facts;
 }
 
@@ -427,6 +502,7 @@ function usdaMeta(text: string, facts: LayerFacts): void {
         const value = meta(key);
         return value === undefined ? undefined : Number(value);
     };
+    facts.defaultPrim = meta("defaultPrim");
     facts.upAxis = meta("upAxis");
     facts.metersPerUnit = number("metersPerUnit");
     facts.timeCodesPerSecond = number("timeCodesPerSecond");
@@ -460,7 +536,7 @@ class UsdaPrims {
         // Strings and asset paths may hold braces: they are taken out before braces are counted.
         const line = raw.replaceAll(/"(?:[^"\\]|\\.)*"/g, '""');
         const picture = /\binputs:file\s*=\s*@([^@]+)@/.exec(line);
-        if (picture !== null && PICTURE.test(picture[1])) {
+        if (picture !== null && PICTURE.test(innermost(picture[1]))) {
             usePicture(this.facts, picture[1], this.materials.at(-1));
         }
 
@@ -536,9 +612,31 @@ function usdaArcs(text: string, facts: LayerFacts, ownerAt: (at: number) => stri
             [...match[1].matchAll(/<([^>\n]*)>/g)].map((p) => absolute(p[1], owner)),
         );
     }
-    const indices = new Map(arraysOf(text, "protoIndices").map(({ at, arrays }) => [ownerAt(at), longest(arrays)]));
+    const written = (name: string): Map<string, ArrayLike<number>> =>
+        new Map(arraysOf(text, name).map(({ at, arrays }) => [ownerAt(at), longest(arrays)]));
+    const [indices, positions] = [written("protoIndices"), written("positions")];
     for (const [instancer, paths] of prototypes) {
-        instance(facts, instancer, paths, indices.get(instancer) ?? []);
+        instance(facts, instancer, paths, indices.get(instancer) ?? [], positions.get(instancer) ?? []);
+    }
+}
+
+/**
+ * Note each prim's transform ops and their order, as a text layer writes them.
+ * @param text - The layer.
+ * @param facts - The facts.
+ * @param ownerAt - The prim written at an offset.
+ */
+function usdaTransforms(text: string, facts: LayerFacts, ownerAt: (at: number) => string): void {
+    for (const match of text.matchAll(
+        /\b(xformOp:([A-Za-z]+)[\w:]*)\s*=\s*(\((?:[^()\n]|\([^()\n]*\))*\)|-?[\d.eE+-]+)/g,
+    )) {
+        const op = opTransform(match[2], numbersIn(match[3]), true);
+        if (op !== undefined) {
+            primOf(facts, ownerAt(match.index)).ops.set(match[1], op);
+        }
+    }
+    for (const match of text.matchAll(/\bxformOpOrder\s*=\s*\[([^\]]*)\]/g)) {
+        primOf(facts, ownerAt(match.index)).order = [...match[1].matchAll(/"([^"]*)"/g)].map((m) => m[1]);
     }
 }
 
@@ -574,8 +672,9 @@ function usdaFacts(text: string): LayerFacts {
     }
     usdaArcs(text, facts, ownerAt);
     for (const match of text.matchAll(/\bpoints\s*=\s*\[([^\]]*)\]/g)) {
-        bound(facts, numbersIn(match[1]));
+        bound(primOf(facts, ownerAt(match.index)), numbersIn(match[1]));
     }
+    usdaTransforms(text, facts, ownerAt);
     // ponytail: any displayColor counts, not only a mesh's; a prim of another type rarely has one.
     for (const match of text.matchAll(/\bprimvars:displayColor\s*=\s*\[([^\]]*)\]/g)) {
         facts.vertexColors ||= numbersIn(match[1]).some((v) => v !== 1);
@@ -584,7 +683,7 @@ function usdaFacts(text: string): LayerFacts {
         facts.transparent ||= numbersIn(match[1]).some((v) => v < 1);
     }
     for (const match of text.matchAll(/@([^@\n]+)@/g)) {
-        if (LAYER.test(match[1]) || PICTURE.test(match[1])) {
+        if (isPart(match[1])) {
             facts.refs.push(match[1]);
         }
     }
@@ -735,6 +834,46 @@ interface Next {
     readonly prefix: string;
 }
 
+/** A file an asset path names, in the set that holds it. */
+interface Located {
+    readonly path: string;
+    readonly bytes: Uint8Array;
+    readonly files: ReadonlyMap<string, Uint8Array>;
+    readonly prefix: string;
+}
+
+/**
+ * Look up one asset path, from the file that names it. A package-relative path
+ * (`pkg.usdz[geo.usda]`) is the entry inside the package found; an entry the package lacks is
+ * drawn without, as any part inside a package is.
+ * @param ref - The asset path.
+ * @param from - The file naming it.
+ * @param files - The set it is in.
+ * @param prefix - That set's key prefix.
+ * @param notes - Where a missing part goes; without, a missing one is refused.
+ * @returns The file, or undefined when not found.
+ */
+function locate(
+    ref: string,
+    from: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    prefix: string,
+    notes: Findings | undefined,
+): Located | undefined {
+    const packaged = PACKAGED.exec(ref);
+    const outer = packaged === null ? ref : packaged[1];
+    const role = packaged === null && PICTURE.test(ref) ? "texture" : "geometry";
+    const found =
+        notes === undefined ? resolveReference(outer, from, files) : findReference(outer, from, files, role, notes);
+    if (found === undefined || found.path === "") {
+        return undefined;
+    }
+    if (packaged === null) {
+        return { path: found.path, bytes: found.bytes, files, prefix };
+    }
+    return locate(packaged[2], "", readUsdz(found.bytes), `${prefix}${found.path}!`, { warnings: [], missing: [] });
+}
+
 /**
  * Look up one asset path a layer names, and say which layer to read next for it: the layer found,
  * or the first layer of the package found.
@@ -744,17 +883,18 @@ interface Next {
  * @returns The layer to read, or undefined for a picture or a part not found.
  */
 function follow(ref: string, layer: StageLayer, notes: Findings | undefined): Next | undefined {
-    const role = PICTURE.test(ref) ? "texture" : "geometry";
-    const found =
-        notes === undefined
-            ? resolveReference(ref, layer.path, layer.files)
-            : findReference(ref, layer.path, layer.files, role, notes);
-    if (found === undefined || found.path === "" || role !== "geometry") {
+    if (PICTURE.test(innermost(ref))) {
+        // Looked up for a missing-part fact; pictures are read by stagePictures.
+        locate(ref, layer.path, layer.files, layer.prefix, notes);
         return undefined;
     }
-    const key = layer.prefix + found.path;
+    const found = locate(ref, layer.path, layer.files, layer.prefix, notes);
+    if (found === undefined) {
+        return undefined;
+    }
+    const key = found.prefix + found.path;
     if (found.bytes[0] !== 0x50 || found.bytes[1] !== 0x4b) {
-        return { key, path: found.path, files: layer.files, prefix: layer.prefix };
+        return { key, path: found.path, files: found.files, prefix: found.prefix };
     }
     const entries = readUsdz(found.bytes);
     const [first] = entries.keys();
@@ -801,20 +941,23 @@ export function findUsdParts(
     stageOf(path, files, limits, findings);
 }
 
-/** Meshes and triangles drawn. */
+/** Meshes and triangles drawn, and the box around them. */
 interface Drawn {
     triangles: number;
     meshes: number;
+    /** Where it is drawn, in the frame of the prim that holds it (its own transform applied). */
+    readonly box: Box;
 }
 
 /**
- * The meshes and triangles a stage draws, counted per use: each prim's own, each arc's target
- * again as many times as it is drawn, and every layer no arc reaches (a sublayer) once.
+ * What a stage draws, counted per use: each prim's own, each arc's target again as many times as
+ * it is drawn, and every layer no arc reaches (a sublayer) once; and the box around it all, each
+ * use where its transforms, and a point instancer's positions, put it.
  * @param stage - The stage.
  * @returns What it draws.
  */
 function drawn(stage: Stage): Drawn {
-    const memo = new Map<string, Drawn>();
+    const memo = new Map<string, { drawn: Drawn; place: Affine }>();
     const open = new Set<string>();
     const reached = new Set<string>();
     const children = new Map<string, Map<string, string[]>>();
@@ -845,43 +988,100 @@ function drawn(stage: Stage): Drawn {
         into.triangles += from.triangles * times;
         into.meshes += from.meshes * times;
     };
-    const below = (key: string, path: string): Drawn => {
-        const id = `${key}\0${path}`;
+    /**
+     * A prim's drawing, in its own frame (before its transform), and its transform: its own, or,
+     * when it writes no `xformOpOrder`, the one its first reference brings.
+     * @param key - The layer's key.
+     * @param path - The prim's path.
+     * @param withoutOwn - Leave out its own faces (a prim that references it wrote another type).
+     * @returns Its drawing and transform.
+     */
+    const below = (key: string, path: string, withoutOwn = false): { drawn: Drawn; place: Affine } => {
+        const id = `${key}\0${path}\0${String(withoutOwn)}`;
         const known = memo.get(id);
         if (known !== undefined) {
             return known;
         }
-        const out: Drawn = { triangles: 0, meshes: 0 };
+        const out: Drawn = { triangles: 0, meshes: 0, box: emptyBox() };
         const layer = stage.layers.get(key);
         // A cycle of arcs draws nothing more (OpenUSD refuses it).
         if (layer === undefined || open.has(id)) {
-            return out;
+            return { drawn: out, place: IDENTITY };
         }
         open.add(id);
         reached.add(key);
         const prim = layer.facts.prims.get(path);
-        add(out, prim ?? out, prim === undefined ? 0 : 1);
+        let place = prim?.order === undefined ? undefined : placement(prim.order, prim.ops);
+        if (prim !== undefined && !withoutOwn) {
+            add(out, { triangles: prim.triangles, meshes: prim.meshes, box: prim.box }, 1);
+            joinBox(out.box, prim.box);
+        }
         for (const arc of prim?.arcs ?? []) {
             const target = arc.asset === undefined ? key : layer.found.get(arc.asset);
-            if (target !== undefined) {
-                add(out, below(target, arc.path), arc.times);
+            const brought = target === undefined ? undefined : through(target, arc, prim?.type);
+            if (brought === undefined) {
+                continue;
+            }
+            add(out, brought.drawn, arc.times);
+            if (arc.at === undefined) {
+                // A reference composes its target into this prim: its drawing, in this prim's frame.
+                place ??= brought.place;
+                joinBox(out.box, brought.drawn.box);
+            } else {
+                joinBox(out.box, instancesBox(placeBox(brought.drawn.box, brought.place), arc.at));
             }
         }
+        addChildren(out, key, layer, path);
+        open.delete(id);
+        const result = { drawn: out, place: place ?? IDENTITY };
+        memo.set(id, result);
+        return result;
+    };
+
+    /**
+     * Add a prim's children, each where its transform puts it; a prototype under its instancer is
+     * drawn only as its instances.
+     * @param out - Where they go.
+     * @param key - The layer's key.
+     * @param layer - The layer.
+     * @param path - The prim's path.
+     */
+    const addChildren = (out: Drawn, key: string, layer: StageLayer, path: string): void => {
         for (const child of childrenOf(key, layer).get(path) ?? []) {
             if (!layer.facts.prototypes.has(child)) {
-                add(out, below(key, child), 1);
+                const held = below(key, child);
+                add(out, held.drawn, 1);
+                joinBox(out.box, placeBox(held.drawn.box, held.place));
             }
         }
-        open.delete(id);
-        memo.set(id, out);
-        return out;
+    };
+    /**
+     * What an arc brings in. A reference to a layer brings its default prim, when it names one; and
+     * a type the referencing prim writes is stronger than the one it brings in, so an Xform that
+     * references a Mesh is an Xform: the mesh's own faces are not drawn (its children still are).
+     * @param target - The target layer's key.
+     * @param arc - The arc.
+     * @param type - The referencing prim's type, when it writes one.
+     * @returns The target's drawing and transform.
+     */
+    const through = (target: string, arc: Arc, type: string | undefined): { drawn: Drawn; place: Affine } => {
+        const facts = stage.layers.get(target)?.facts;
+        const path = arc.path === "" && facts?.defaultPrim !== undefined ? `/${facts.defaultPrim}` : arc.path;
+        const retyped =
+            arc.at === undefined && type !== undefined && type !== "Mesh" && facts?.prims.get(path)?.type === "Mesh";
+        return below(target, path, retyped);
     };
 
     try {
-        const total = below(stage.root, "");
+        const root = below(stage.root, "");
+        const total: Drawn = { triangles: 0, meshes: 0, box: emptyBox() };
+        add(total, root.drawn, 1);
+        joinBox(total.box, root.drawn.box);
         for (const key of stage.layers.keys()) {
             if (!reached.has(key)) {
-                add(total, below(key, ""), 1);
+                const sub = below(key, "").drawn;
+                add(total, sub, 1);
+                joinBox(total.box, sub.box);
             }
         }
         return total;
@@ -892,6 +1092,20 @@ function drawn(stage: Stage): Drawn {
         }
         throw error;
     }
+}
+
+/**
+ * The box around a prototype's instances.
+ * @param box - The prototype's box, placed.
+ * @param at - Each instance's position, x, y, z after x, y, z.
+ * @returns The box around them all.
+ */
+function instancesBox(box: Box, at: ArrayLike<number>): Box {
+    const out = emptyBox();
+    for (let i = 0; i + 2 < at.length; i += 3) {
+        joinBox(out, placeBox(box, [1, 0, 0, at[i], 0, 1, 0, at[i + 1], 0, 0, 1, at[i + 2]]));
+    }
+    return out;
 }
 
 /**
@@ -906,13 +1120,13 @@ function stagePictures(stage: Stage): { pictures: ModelPicture[]; textureBytes: 
     const scratch: Findings = { warnings: [], missing: [] };
     for (const layer of stage.layers.values()) {
         const { facts } = layer;
-        const refs = new Set([...facts.pictures.keys(), ...facts.refs.filter((r) => PICTURE.test(r))]);
+        const refs = new Set([...facts.pictures.keys(), ...facts.refs.filter((r) => PICTURE.test(innermost(r)))]);
         for (const ref of refs) {
-            const found = findReference(ref, layer.path, layer.files, "texture", scratch);
-            if (found === undefined || found.path === "") {
+            const found = locate(ref, layer.path, layer.files, layer.prefix, scratch);
+            if (found === undefined) {
                 continue;
             }
-            const key = layer.prefix + found.path;
+            const key = found.prefix + found.path;
             const entry = named.get(key) ?? { name: found.path, using: new Set<string>() };
             if (!named.has(key)) {
                 textureBytes += textureBytesOf(found.bytes, found.path);
@@ -928,23 +1142,6 @@ function stagePictures(stage: Stage): { pictures: ModelPicture[]; textureBytes: 
         Object.freeze({ name, materials: Object.freeze([...using]) }),
     );
     return { pictures, textureBytes };
-}
-
-/**
- * The box around every layer's points.
- * @param all - The layers' facts.
- * @returns The box; `min[0]` is Infinity when there are no points.
- */
-function stageBounds(all: readonly LayerFacts[]): { min: [number, number, number]; max: [number, number, number] } {
-    const min: [number, number, number] = [Infinity, Infinity, Infinity];
-    const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-    for (const facts of all) {
-        for (let a = 0; a < 3; a++) {
-            min[a] = Math.min(min[a], facts.min[a]);
-            max[a] = Math.max(max[a], facts.max[a]);
-        }
-    }
-    return { min, max };
 }
 
 /**
@@ -964,7 +1161,7 @@ export function scanUsd(
     const stage = stageOf(path, files, limits);
     const all = [...stage.layers.values()].map((layer) => layer.facts);
     const sum = (key: "skeletons" | "blendShapes"): number => all.reduce((total, facts) => total + facts[key], 0);
-    const { triangles, meshes } = drawn(stage);
+    const { triangles, meshes, box } = drawn(stage);
     if (triangles > limits.maxTriangles) {
         refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
     }
@@ -986,7 +1183,7 @@ export function scanUsd(
         refuse("E_MODEL_TOO_LARGE", { what: "textureBytes", found: textureBytes, limit: limits.maxTextureBytes });
     }
 
-    const { min, max } = stageBounds(all);
+    const { min, max } = box;
     const binary = new TextDecoder("latin1").decode(files.get(path)?.subarray(0, 8)) === "PXR-USDC";
     return {
         summary: Object.freeze({

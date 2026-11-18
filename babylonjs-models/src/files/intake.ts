@@ -1190,8 +1190,8 @@ function bestOfEachBase(candidates: readonly Candidate[]): Candidate[] {
 }
 
 /**
- * Of candidates of one rank, those no other candidate names as a part: a USD stage's root layer,
- * not the layers it references (its payloads and sublayers are USD files too).
+ * Of candidates, those no other candidate names as a part: a USD stage's root layer, not the
+ * layers or packages it references (its payloads and sublayers are USD files too).
  * @param top - The candidates.
  * @param files - The set.
  * @returns The candidates left; all of them when that would leave none.
@@ -1241,12 +1241,11 @@ function chooseMain(files: ReadonlyMap<string, Uint8Array>, forced?: ModelFormat
         refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: cut([...files.keys()][0] ?? "") });
     }
 
-    const kept = bestOfEachBase(candidates);
+    // A file another candidate names as a part is never the main one, whatever its rank: a USD root
+    // layer beside the .usdz package it references.
+    const kept = withoutParts(bestOfEachBase(candidates), files);
     const best = Math.min(...kept.map((c) => c.rank));
-    const top = withoutParts(
-        kept.filter((c) => c.rank === best),
-        files,
-    );
+    const top = kept.filter((c) => c.rank === best);
     if (top.length > 1) {
         const names = top.map((c) => cut(c.path)).sort(byCodeUnits);
         refuse("E_MODEL_AMBIGUOUS", {

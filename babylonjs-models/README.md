@@ -131,8 +131,9 @@ The Draco decoder, the KTX2 transcoders and the OpenUSD importer are in `dist/wa
 `new URL("../wasm/<file>", import.meta.url)`, which Vite, webpack and Parcel copy into a build. Each
 loads only for a model that uses it: Draco, meshopt and KTX2 for a glTF that names them, OpenUSD
 (a module worker and 10 MB of WebAssembly and data, 2.5 MB compressed) for a USD or USDZ model.
-USD models load one at a time in one worker: models loaded together (a graph's) start OpenUSD
-once, and the worker ends when no USD load waits, so an idle page holds none of its memory. A
+USD models load one at a time in one worker: a scene's USD models, loaded together or one after
+another, start OpenUSD once, and the worker ends when every scene a USD model was loaded into is
+disposed and no USD load waits, so a page whose scenes are gone holds none of its memory. A
 `signal` that stops a USD load ends the worker reading it. A page with no `Worker` gets
 `E_MODEL_DECODER_UNAVAILABLE` with `format: "usd"` and `reason: "missing"`.
 
@@ -155,14 +156,21 @@ zlib's are in `licenses/openusd/`.
 ### What each format's summary says
 
 FBX and USD summaries count meshes, triangles, materials, pictures, clips, skins and blend shapes
-from the files without drawing them, give the bounds of the vertices as written, and say
+from the files without drawing them, give the bounds of what is drawn, and say
 `metersPerUnit` (FBX: its `UnitScaleFactor` / 100; USD: the stage's `metersPerUnit`). Their
 `upAxis` is `"y"`: Babylon's loaders turn a Z-up file upright. A USD stage's meshes and triangles
 are counted per use, as OpenUSD draws them: a prim or layer brought in again by a reference,
 payload, inherit or specialize counts each time, a point instancer's prototype once per instance,
 a mesh whose faces are only time samples by its largest sample, and a `.usdz` a layer references
-(beside it, or inside a package) with the rest; its materials, skeletons and blend shapes are
-counted per layer. Its one clip is `USD Animation 1`, as Babylon's loader names it. An FBX file's curves (NURBS curves, lines) are drawn as thin tubes. A BVH file's
+(beside it, inside a package, or one entry of it by a package-relative path,
+`@./pkg.usdz[geo.usda]@`) with the rest; a prim that writes its own type over the Mesh it
+references (`def Xform` referencing a `def Mesh`) draws none of its faces, as in OpenUSD. A USD
+stage's bounds are those of every use, where its `xformOp`s (translate, scale, rotate, orient,
+transform) and a point instancer's positions put it. Its materials, skeletons and blend shapes are
+counted per layer. Its one clip is `USD Animation 1`, as Babylon's loader names it. An FBX file's
+curves (NURBS curves, lines) are drawn as thin tubes, one mesh per polyline, and each tube's
+meshes and triangles are counted against the limits. When a set holds a USD layer and the `.usdz`
+it references, the layer is the main file. A BVH file's
 summary describes the figure it is drawn as: one box (12 triangles) per bone, skinned.
 
 ## License

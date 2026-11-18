@@ -1018,7 +1018,7 @@ export const DEFAULT_VIEW_MODE: ViewMode;
 // @public (undocumented)
 export const defaultEdgeStyle: EdgeStyleConfig;
 
-// @public (undocumented)
+// @public
 export const defaultNodeStyle: NodeStyleConfig;
 
 // @public
@@ -2807,13 +2807,9 @@ export interface FindValueRow {
 
 // @public
 export interface FitInsets {
-    // (undocumented)
     readonly bottom: number;
-    // (undocumented)
     readonly left: number;
-    // (undocumented)
     readonly right: number;
-    // (undocumented)
     readonly top: number;
 }
 
@@ -7077,7 +7073,7 @@ export const NodeStyle: z.ZodObject<{
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 
 // @public

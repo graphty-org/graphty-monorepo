@@ -169,7 +169,7 @@ export const DEFAULT_VIEW_MODE: ViewMode;
 // @public (undocumented)
 export const defaultEdgeStyle: EdgeStyleConfig;
 
-// @public (undocumented)
+// @public
 export const defaultNodeStyle: NodeStyleConfig;
 
 // @public
@@ -3169,7 +3169,7 @@ export const NodeStyle: z.ZodObject<{
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 
 // @public

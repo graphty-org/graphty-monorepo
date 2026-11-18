@@ -264,13 +264,34 @@ describe("recording a tour", () => {
     test("cancelCameraAnimation cancels a recording and leaves the element's framing as before the tour", async () => {
         const placed = graph.isCameraPlaced();
         const framing = graph.getUpdateManager().isZoomToFitEnabled();
+        let cancelled = 0;
+        const off = graph.on("animation-cancelled", () => {
+            cancelled++;
+        });
         const holding = reaches(graph, 0, "hold");
         const recording = refusalOf(graph.captureAnimation({ tour: [{ view: "a", hold: FOREVER }] }));
         await holding;
         graph.cancelCameraAnimation();
+        assert.isFalse(graph.cancelAnimationCapture(), "the recording is already cancelled");
         assert.strictEqual((await recording)?.code, "E_CANCELLED");
+        off();
+        assert.strictEqual(cancelled, 1, "the cancel is announced once, as a cancelAnimationCapture() is");
         assert.isFalse(standsAt(graph, POSE_A), "the camera is put back");
         assert.strictEqual(graph.isCameraPlaced(), placed, "putting the camera back is not a placement");
+        assert.strictEqual(graph.getUpdateManager().isZoomToFitEnabled(), framing, "the framing is as before");
+    });
+
+    test("a still recording with a camera replaces a playing tour and puts back the pre-tour framing and placement", async () => {
+        const placed = graph.isCameraPlaced();
+        const framing = graph.getUpdateManager().isZoomToFitEnabled();
+        const holding = reaches(graph, 0, "hold");
+        const playing = graph.playTour([{ view: "a", hold: FOREVER }]);
+        await holding;
+        await graph.captureAnimation({ cameraMode: "stationary", camera: { view: "b" }, duration: 300 });
+        assert.strictEqual((await playing).reason, "replaced");
+        // A replaced tour leaves the camera where it was; only the framing and placement go back.
+        assert.isTrue(standsAt(graph, POSE_A), "the camera is back where the recording found it");
+        assert.strictEqual(graph.isCameraPlaced(), placed, "the placement is the pre-tour one");
         assert.strictEqual(graph.getUpdateManager().isZoomToFitEnabled(), framing, "the framing is as before");
     });
 

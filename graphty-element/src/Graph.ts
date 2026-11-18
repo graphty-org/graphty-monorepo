@@ -8228,8 +8228,9 @@ export class Graph implements GraphContext {
         const before = this.getCameraState();
         const handle = this.#beginTour(flown.name, flown.states.length);
         handle.onEnd = (reason) => {
-            if (reason !== "finished") {
-                capture.fail(reason);
+            // A cancel that ends the tour (cancelCameraAnimation) is announced as any other.
+            if (reason !== "finished" && capture.fail(reason) && reason === "cancelled") {
+                this.eventManager.emit("animation-cancelled", {});
             }
         };
         const timed = options.duration !== undefined;

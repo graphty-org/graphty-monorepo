@@ -448,6 +448,8 @@ export class MediaRecorderCapture {
 
         this.isCancelled = true;
         this.activeRecorder = null;
+        // Kept, so a later call finds the recording already failed before its finally has run.
+        this.pendingFailure = reason;
         if (recorder.state !== "inactive") {
             recorder.stop();
         }
@@ -568,6 +570,9 @@ export async function holdCameraForCapture(
     if (immersive !== null) {
         throw cameraRefusal(immersive);
     }
+    // A capture's camera replaces a playing tour. Ended first, so what is saved below to put back
+    // is the pre-tour framing and placement, not the tour's.
+    graph.replaceTour();
     const updateManager = graph.getUpdateManager();
     const zoomToFitWasEnabled = updateManager.isZoomToFitEnabled();
     if (zoomToFitWasEnabled) {
@@ -576,7 +581,8 @@ export async function holdCameraForCapture(
     const original = graph.getCameraState();
     const restorePlacement = graph.saveCameraPlacement();
     const restore = async (): Promise<void> => {
-        await graph.setCameraState(original);
+        // The internal path: putting the camera back is no camera API call, so ends no tour.
+        await graph.applyCaptureCamera(original);
         restorePlacement();
         if (zoomToFitWasEnabled) {
             updateManager.enableZoomToFit();

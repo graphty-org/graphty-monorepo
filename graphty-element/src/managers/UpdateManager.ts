@@ -2698,6 +2698,23 @@ export class UpdateManager implements Manager {
      * source's shader, so it is answered by the source rather than one by one.
      * @returns True when no drawn mesh and no drawn effect is waiting for a shader.
      */
+    /**
+     * Whether a mesh can be drawn whole, its outline included. `Mesh.isReady` leaves the outline
+     * out, and the outline renderer skips the mesh while its shader compiles, which on WebGPU
+     * outlasts the frame first called final (#8734).
+     * @param scene - The scene.
+     * @param mesh - The mesh.
+     * @param instanced - Whether it draws instances.
+     * @returns True when the mesh and any outline it draws are ready.
+     */
+    private static meshIsReady(scene: Scene, mesh: Mesh, instanced: boolean): boolean {
+        if (!mesh.isReady(true, instanced)) {
+            return false;
+        }
+
+        return !mesh.renderOutline || mesh.subMeshes.every((sub) => scene.getOutlineRenderer().isReady(sub, instanced));
+    }
+
     private everyDrawnMeshIsReady(): boolean {
         const scene = this.graphContext.getScene();
         const layers = scene.effectLayers.filter((layer) => layer.shouldRender());
@@ -2717,7 +2734,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            if (!(mesh as Mesh).isReady(true, instanced)) {
+            if (!UpdateManager.meshIsReady(scene, mesh as Mesh, instanced)) {
                 return false;
             }
 

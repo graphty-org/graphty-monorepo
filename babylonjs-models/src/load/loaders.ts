@@ -143,11 +143,11 @@ RegisterSceneLoaderPlugin({
         type Loader = USDFileLoader;
         return Object.assign(Object.create(shared) as Loader, {
             loadAssetContainerAsync: (...args: Parameters<Loader["loadAssetContainerAsync"]>) =>
-                usdTurn(shared, own, given.signal, () => shared.loadAssetContainerAsync(...args)),
+                usdTurn(shared, own, given.signal, args[0], () => shared.loadAssetContainerAsync(...args)),
             importMeshAsync: (...args: Parameters<Loader["importMeshAsync"]>) =>
-                usdTurn(shared, own, given.signal, () => shared.importMeshAsync(...args)),
+                usdTurn(shared, own, given.signal, args[1], () => shared.importMeshAsync(...args)),
             loadAsync: (...args: Parameters<Loader["loadAsync"]>) =>
-                usdTurn(shared, own, given.signal, () => shared.loadAsync(...args)),
+                usdTurn(shared, own, given.signal, args[0], () => shared.loadAsync(...args)),
         });
     },
 });
@@ -179,12 +179,34 @@ let usdQueue: Promise<unknown> = Promise.resolve();
 let usdWaiting = 0;
 /** Ends the shared loader's worker, whatever is waiting (set by {@link keepWorker}). */
 let endWorker: (() => void) | undefined;
+/** The scenes a USD model was loaded into that are not disposed yet: the worker is kept for them. */
+const usdScenes = new Set<Scene>();
+
+/**
+ * Keep the worker for a scene until it is disposed; then end it, unless another scene still holds
+ * it or a USD load is waiting or running.
+ * @param scene - The scene a USD model loads into.
+ */
+function holdForScene(scene: Scene): void {
+    if (usdScenes.has(scene)) {
+        return;
+    }
+    usdScenes.add(scene);
+    scene.onDisposeObservable.addOnce(() => {
+        usdScenes.delete(scene);
+        const pending = (usdShared as unknown as UsdLoaderInternals | undefined)?._pending.size ?? 0;
+        if (usdScenes.size === 0 && usdWaiting === 0 && pending === 0) {
+            endWorker?.();
+        }
+    });
+}
 
 /**
  * Keep a USD loader's worker for the next load. Babylon's loader ends its worker (OpenUSD, about
  * 10 MB of WebAssembly, downloaded and compiled again by the next worker) as soon as no load is in
- * it; here it is kept while another USD load waits, and ended when none does, so a batch of
- * models (a graph's) starts OpenUSD once and an idle page holds none of its memory. A worker that
+ * it; here it is kept while another USD load waits or a scene a USD model was loaded into is not
+ * disposed, and ended when neither holds, so a graph's models, loaded together or one after another,
+ * start OpenUSD once, and a page whose scenes are gone holds none of its memory. A worker that
  * failed is ended as before.
  * @param loader - The shared loader.
  * @returns The loader.
@@ -194,7 +216,7 @@ function keepWorker(loader: USDFileLoader): USDFileLoader {
     const terminate = internals._terminateWorker.bind(loader);
     endWorker = terminate;
     internals._terminateWorker = () => {
-        if (internals._pending.size > 0 || usdWaiting === 0) {
+        if (internals._pending.size > 0 || (usdWaiting === 0 && usdScenes.size === 0)) {
             terminate();
         }
     };
@@ -208,6 +230,7 @@ function keepWorker(loader: USDFileLoader): USDFileLoader {
  * @param shared - The shared loader.
  * @param options - This load's options.
  * @param signal - Stops the load.
+ * @param scene - The scene it loads into: the worker is kept until it is disposed.
  * @param load - The load.
  * @returns What the load returns.
  */
@@ -215,6 +238,7 @@ async function usdTurn<T>(
     shared: USDFileLoader,
     options: object,
     signal: AbortSignal | undefined,
+    scene: Scene,
     load: () => Promise<T>,
 ): Promise<T> {
     signal?.throwIfAborted();
@@ -243,6 +267,7 @@ async function usdTurn<T>(
         usdWaiting--;
         waiting = false;
         signal?.throwIfAborted();
+        holdForScene(scene);
         // Read when the load starts, before its first await: the files, the root and the worker's URLs.
         (shared as unknown as UsdLoaderInternals)._options = options;
         // Ending the worker and the loader's requests rejects the load; the race also answers a
@@ -262,8 +287,13 @@ async function usdTurn<T>(
         signal?.throwIfAborted();
         throw error;
     } finally {
-        // Stopped while it waited: a worker kept for it is ended unless another load needs it.
-        if (waiting && --usdWaiting === 0 && (shared as unknown as UsdLoaderInternals)._pending.size === 0) {
+        // Stopped while it waited: a worker kept for it is ended unless another load or a scene needs it.
+        if (
+            waiting &&
+            --usdWaiting === 0 &&
+            usdScenes.size === 0 &&
+            (shared as unknown as UsdLoaderInternals)._pending.size === 0
+        ) {
             endWorker?.();
         }
         signal?.removeEventListener("abort", stop);

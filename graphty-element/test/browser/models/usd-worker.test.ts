@@ -1,6 +1,7 @@
 /**
- * @file The OpenUSD importer's worker: models loaded together share one worker (OpenUSD's 10 MB of
- * WebAssembly downloaded and compiled once), a stopped load ends its worker instead of running to
+ * @file The OpenUSD importer's worker: a scene's models, loaded together or one after another, share
+ * one worker (OpenUSD's 10 MB of WebAssembly downloaded and compiled once) that is ended with the
+ * scene, a stopped load ends its worker instead of running to
  * the end, and a page with no Worker is told the importer is missing rather than that the file is
  * damaged.
  *
@@ -92,17 +93,21 @@ function countWorkers(): Workers {
 }
 
 describe("the OpenUSD importer's worker", () => {
-    it("is started once for models loaded together, and ended after the last", async () => {
+    it("is started once for a scene's models, together or one after another, and ended with the scene", async () => {
         const scene = makeScene();
         const files = await cube();
         const workers = countWorkers();
         const loaded = await Promise.all([1, 2, 3].map(() => loadModel(scene, files, "cube.usdz", "usdz")));
+        loaded.push(await loadModel(scene, files, "cube.usdz", "usdz"));
+        loaded.push(await loadModel(scene, files, "cube.usdz", "usdz"));
         for (const container of loaded) {
             assert.isAbove(container.meshes.length, 0, "each model has meshes");
             container.dispose();
         }
-        assert.strictEqual(workers.started, 1, "one worker read all three");
-        assert.strictEqual(workers.ended, 1, "and was ended once none waited");
+        assert.strictEqual(workers.started, 1, "one worker read all five");
+        assert.strictEqual(workers.ended, 0, "kept while the scene lives");
+        scene.dispose();
+        assert.strictEqual(workers.ended, 1, "and ended when it is disposed");
     });
 
     it("is ended when a load is stopped while OpenUSD reads the model, and the load rejects", async () => {

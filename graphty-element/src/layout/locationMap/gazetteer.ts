@@ -8,7 +8,6 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
-import { isArray } from "../../utils/isArray";
 
 /** Where graphty.app hosts the gazetteer; the location map layout's `gazetteer` option default. */
 export const GAZETTEER_URL = "https://graphty.app/data/gazetteer/v1/";
@@ -120,7 +119,8 @@ function placeKeys(name: string, alternates: readonly string[], code: string | n
  */
 function layerFromFile(file: unknown): GazetteerLayer {
     const f = file as Partial<GazetteerFile> | null;
-    if (f?.format !== "graphty-gazetteer" || f.version !== 1 || !isArray(f.places) || f.layer === undefined) {
+    const places: GazetteerFile["places"] | undefined = Array.isArray(f?.places) ? f.places : undefined;
+    if (f?.format !== "graphty-gazetteer" || f.version !== 1 || places === undefined || f.layer === undefined) {
         throw new GraphtyError({
             code: "E_FETCH_FAILED",
             message: "not a graphty gazetteer layer (version 1)",
@@ -130,7 +130,7 @@ function layerFromFile(file: unknown): GazetteerLayer {
     }
 
     const byName = new Map<string, Place[]>();
-    for (const [name, alternates, country, region, lat, lon, population] of f.places) {
+    for (const [name, alternates, country, region, lat, lon, population] of places) {
         const place: Place = { name, country, region, lat, lon, population };
         for (const key of placeKeys(name, alternates, f.layer === "country" ? country : null)) {
             const list = byName.get(key);

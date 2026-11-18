@@ -61,7 +61,6 @@ import type {
 } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
-import { isArray } from "../../utils/isArray";
 import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
@@ -793,11 +792,11 @@ function assertFilter(filter: RuleTree): void {
             return;
         case "all":
         case "any":
-            if (!isArray(filter.of)) {
+            if (!Array.isArray(filter.of)) {
                 throw malformed(`An "${filter.kind}" filter needs a list of filters.`, { of: filter.of });
             }
 
-            for (const member of filter.of) {
+            for (const member of filter.of as readonly RuleTree[]) {
                 assertFilter(member);
             }
 

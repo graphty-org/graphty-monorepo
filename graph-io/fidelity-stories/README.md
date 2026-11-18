@@ -1,7 +1,8 @@
 # Style fidelity, side by side
 
 A Storybook of the graph-io package (not published to npm) that shows, for each style fidelity sample of graph-io, three
-panels side by side, each drawing at the oracle canvas size of 1200 x 900:
+panels side by side, and a fourth below them when the sample has an oracle drawing, each drawing at the oracle canvas
+size of 1200 x 900:
 
 1. **The program's own drawing**: the real SVG the program that wrote the file exported (or, where that program
    cannot be run, another program's real drawing standing in for it), rasterized, from the oracle library
@@ -15,6 +16,7 @@ panels side by side, each drawing at the oracle canvas size of 1200 x 900:
    `graphty-element/test/fidelity/oracle-known-failures.json` lists, red an element failing that it does not list
    (what fails the oracle tests; a rate below its recorded one never does). Hover a row for its tolerance and worst
    elements.
+4. **The overlay** (only when there is an oracle drawing): the oracle at 50% opacity over graphty-element's drawing.
 
 The stories are for looking; the oracle tests in graphty-element (`test/fidelity/oracle-report.test.ts` and the
 CI subset `test/browser/oracle-scorecard.test.ts`) run the same comparison and are what gate.
@@ -45,7 +47,7 @@ The stories are grouped by file format (never by file extension: Cytoscape.js, v
 JSON are four folders), one folder per format under `stories/<format>/`, titled "Style Fidelity/<Format>". Each
 folder holds:
 
-- `Specimens.stories.ts` ("Style Fidelity/<Format>/Specimens"): the same ten specimen sheet stories in every format,
+- `Specimens.stories.ts` ("Style Fidelity/<Format>/Specimens"): one story per specimen sheet the format has (10 to 83),
   from node shapes to mappings and bypasses, listed in `graph-io/test/fidelity/specimens/<format>/registry.ts`
   (`graph-io/test/fidelity/specimens/README.md` describes the sheets). A sheet the format has no setting for, or
   one not built yet, shows a short placeholder saying so.

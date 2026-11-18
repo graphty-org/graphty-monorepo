@@ -909,7 +909,9 @@ function converterFor(descriptor: ChannelDescriptor, format?: BindingNumberForma
             return (scaled): EncodedValue | undefined => {
                 const value = typeof scaled === "number" ? scaled : readNumber(scaled);
 
-                return Number.isFinite(value) ? clamp(value, low, high) : undefined;
+                return Number.isFinite(value)
+                    ? clamp(descriptor.integer === true ? Math.round(value) : value, low, high)
+                    : undefined;
             };
         }
         case "enum":

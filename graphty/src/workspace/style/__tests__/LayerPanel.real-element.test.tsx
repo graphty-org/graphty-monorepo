@@ -125,7 +125,7 @@ describe("the layer panel", () => {
         });
     });
 
-    it("keeps a text condition that matches no node on Enter, and flags it with a 0 badge", async () => {
+    it("keeps a text condition that matches no node on Enter, and says so in the Which row's name", async () => {
         const { session } = await openScene();
         const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
         // The cards of a layer and its twin: one rule layer alone opens the selection editor.
@@ -135,11 +135,10 @@ describe("the layer panel", () => {
         const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await userEvent.clear(box);
         await userEvent.type(box, "missing{Enter}");
-        // Kept as the reader wrote it, and flagged on the condition's chip: a 0 badge, no sentence.
-        const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        const badge = await within(row).findByLabelText("No node matches");
-        assert.equal(badge.textContent, "0");
-        assert.isNotNull(badge.closest("[data-chip]"), "the badge sits on the condition");
+        // Kept as the reader wrote it, its count of 0 said in the row's name and tooltip, never
+        // drawn in the sidebar as a badge (#8739).
+        const row = await screen.findByRole("button", { name: /^Which nodes, .*, 0 nodes(,|$)/ });
+        assert.isNull(row.querySelector(".mantine-Badge-root"), "no badge");
         assert.equal(session.styles.counts(layer.id).matched, 0);
         assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "the cards closed");
     });

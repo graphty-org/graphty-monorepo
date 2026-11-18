@@ -11,6 +11,7 @@
 
 import { createHash } from "node:crypto";
 
+import { sha256HexSync as sha256Hex } from "@graphty/graph-io";
 import { assert, describe, it } from "vitest";
 
 import { clearRegisteredShadersForTesting } from "../../src/catalog/shaderRegistry";
@@ -21,7 +22,9 @@ import { ShaderGuard } from "../../src/managers/ShaderGuard";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { type HostShader, shaderContentHash, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
 import { defineShader } from "../../src/simple/defineShader";
-import { sha256Hex } from "../../src/utils/sha256";
+import { disposedAfterEach } from "../helpers/disposed-after-each";
+
+const owned = disposedAfterEach();
 
 /** A node look with one parameter. */
 const TINT = `/* graphty-shader 1
@@ -125,7 +128,7 @@ function fakeHost(options: { problem?: ShaderProblem | null; crashMarked?: reado
  * @returns The session and the layer's id.
  */
 async function session(): Promise<{ session: GraphSession; layer: string }> {
-    const created = createGraphSession();
+    const created = owned(createGraphSession());
     await created.data.addNodes([{ id: "a" }, { id: "b" }]);
     const layer = await created.styles.add(MARBLES);
     return { session: created, layer: layer.id };

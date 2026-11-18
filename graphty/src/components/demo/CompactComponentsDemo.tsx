@@ -1,4 +1,4 @@
-import { CompactColorInput, PopoutManager } from "@graphty/compact-mantine";
+import { CompactColorInput, PopoutManager, SegmentedControl, Slider } from "@graphty/compact-mantine";
 import {
     ActionIcon,
     Autocomplete,
@@ -14,9 +14,7 @@ import {
     NumberInput,
     Pill,
     Radio,
-    SegmentedControl,
     Select,
-    Slider,
     Stack,
     Switch,
     Text,

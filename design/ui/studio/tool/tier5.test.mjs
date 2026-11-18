@@ -70,7 +70,9 @@ async function tierFixture(files, complete) {
 }
 
 test("the gate holds a tier 5 round to tier 5's evidence", async () => {
-    const tier = join(studio, "tier5/rounds");
+    // the round and its dry run's pass in a folder of the test's own, never in the studio's files (#8412)
+    const own = await mkdtemp(join(tmpdir(), "tier5-gate-"));
+    const tier = join(own, "rounds");
     const rd = join(tier, "round-97");
     const pass = join(tier, "r97");
     const files = await mkdtemp(join(tmpdir(), "tier5-files-"));
@@ -137,7 +139,7 @@ test("the gate holds a tier 5 round to tier 5's evidence", async () => {
     const gate = () =>
         spawnSync(process.execPath, [real, "--gate", rd], {
             encoding: "utf8",
-            env: { ...process.env, REAL_TIER: "", REAL_TIER_FILES: files },
+            env: { ...process.env, REAL_TIER: "5", REAL_TIER_FILES: files },
         });
     const clean = () => Promise.all([rd, pass].map((d) => rm(d, { recursive: true, force: true })));
     const good = async () => {
@@ -224,7 +226,7 @@ test("the gate holds a tier 5 round to tier 5's evidence", async () => {
             /decided\.md lists reference screenshots that do not exist: ref\.png/,
         );
     } finally {
-        await clean();
+        await rm(own, { recursive: true, force: true });
         await rm(files, { recursive: true, force: true });
     }
 });

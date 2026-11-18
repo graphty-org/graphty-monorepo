@@ -86,7 +86,7 @@ export function MatchRow({
         onChange({ ...choices, keys: choices.keys.map((each, i) => (i === at ? { ...each, ...key } : each)) });
     };
     return (
-        <div // NOSONAR(S6819): a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
             className="jn-match"
             role="group"
             aria-label="Match"
@@ -110,7 +110,7 @@ export function MatchRow({
                     return (
                         <div
                             className="jn-key"
-                            key={at} // NOSONAR(S6479): one slot per key position; the position is its identity
+                            key={at} // eslint-disable-line react/no-array-index-key -- one slot per key position; the position is its identity
                         >
                             <span className="jn-key-label">{side}</span>
                             <Select

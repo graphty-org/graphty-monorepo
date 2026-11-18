@@ -39,6 +39,9 @@ const FAKE_DATASET: DatasetMeta = {
     attributes: {},
     groundTruth: null,
     showcases: [],
+    hosting: "remote",
+    bytes: 1000,
+    sha256: "0".repeat(64),
 };
 
 /** A generator graph-samples does not ship. */

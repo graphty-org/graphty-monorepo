@@ -32,6 +32,7 @@ import {
 import { runSpmvPull, seededVector, spmvTolerance, tieredSpmvWorstFactor } from "../helpers/spmv.js";
 import { segmentedReduceOracle } from "../oracle/segmented-reduce.js";
 import { spmvPullOracle } from "../oracle/spmv.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const OPS: readonly ReduceOp[] = ["sum", "min", "max"];
@@ -206,7 +207,7 @@ describe("segmentedReduce / spmvPull degree tiers (GPU)", () => {
     });
 
     it("writer: the hub10k-tiers noise fixtures of segmented-reduce and spmv-pull (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
         }
         const ctx = await fresh(t, "tiers/noise");

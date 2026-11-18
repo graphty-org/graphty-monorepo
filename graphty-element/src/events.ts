@@ -588,13 +588,6 @@ export interface OperationCancelledEvent {
      * this one operation was cancelled. Write the reader-facing words from this code.
      */
     code: "queue-cleared" | "cancelled";
-    /**
-     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
-     * cleared, `"Manual cancellation"` when this one operation was cancelled.
-     * @deprecated Read {@link OperationCancelledEvent.code} instead; this English text is removed
-     * in the next major release.
-     */
-    reason: string;
 }
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
@@ -1027,7 +1020,7 @@ export interface AiApprovalRequest {
         | "plan"
         | "web-content"
         | "paid"
-        | (string & {}); // NOSONAR(S4335): the open-union idiom
+        | (string & {}); // the open-union idiom
     /** The tool calls held, as the model made them. */
     readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
     /** What the reader is shown before approving; empty for a `"policy"` hold. */
@@ -1149,7 +1142,7 @@ export interface AiPendingResolvedEvent {
     /** The request's id, as `ai-approval-requested` or `ai-question-asked` gave it. */
     id: string;
     /** What was waiting. OPEN UNION. */
-    kind: "approval" | "question" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    kind: "approval" | "question" | (string & {}); // the open-union idiom
     /**
      * How it ended: `AI_COMPLETED` (approved), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE`,
      * `AI_CANCELLED` or `AI_UNDONE`.

@@ -355,6 +355,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "csv-export.delimiter": { default: '`","`', doc: "The field delimiter." },
     "csv-export.newline": { default: '`"\\n"`', doc: "The line terminator." },
     "csv-export.header": { default: "`true`", doc: "Write the header row; an adjacency table never has one." },
+    "csv-export.spreadsheetSafe": {
+        default: "`false`",
+        doc: "Prefix `'` to cells a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a CR; not plain numbers); the round trip is then no longer exact.",
+    },
     "json-export.dialect": {
         default: '`"cytoscape"`',
         doc: 'The dialect to write. `"cytoscape"` is what `cy.json()` and `cy.add()` use and keeps edge ids, compound parents and positions; `"node-link"` is the NetworkX shape.',
@@ -380,6 +384,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "neo4j-export.weightColumn": {
         default: '`"weight"`',
         doc: "The property that receives the edge weights (`<name>:double`); null writes no weights.",
+    },
+    "neo4j-export.spreadsheetSafe": {
+        default: "`false`",
+        doc: "Prefix `'` to cells a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a CR; not plain numbers); the round trip is then no longer exact.",
     },
     "cx2-import.zAs": { doc: Z_AS },
     "cx-import.zAs": { doc: Z_AS },
@@ -737,8 +745,8 @@ const LITERAL_DEFAULTS: ReadonlySet<string> = new Set(["true", "false", "null", 
 function withoutDefault(doc: string): string {
     const trimmed = doc
         // linear: the two branches of each group never match the same character (and the text is our own doc comments)
-        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // NOSONAR(S5852): disjoint branches, trusted input
-        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // NOSONAR(S5852): disjoint branches, trusted input
+        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // disjoint branches, trusted input
+        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // disjoint branches, trusted input
         .replaceAll(/ \(default [^)]+\)/gi, "");
     return trimmed
         .split(/(?<=\.)\s+(?=[A-Z`"])/)
@@ -1312,7 +1320,7 @@ function datasets(): string[] {
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const d of Object.values(DATASETS)) {
-        const bytes = d.bytes ?? 0;
+        const { bytes } = d;
         const download = bytes < 1e6 ? `${Math.ceil(bytes / 1000)} kB` : `${(bytes / 1e6).toFixed(1)} MB`;
         // datasetElements makes a drawn dataset's x and y the node positions
         const drawn = "x" in d.attributes && "y" in d.attributes;

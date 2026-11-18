@@ -1672,7 +1672,7 @@ describe("a third party's file format being written", () => {
         assert.strictEqual(lines.length, element.session.data.edges().length);
         assert.strictEqual(lines[0], "a->b");
         assert.deepEqual(
-            result.lossNotes.map((note) => note.code),
+            result.losses.map((loss) => loss.code),
             ["W_EDGE_LINES_ATTRIBUTES"],
             "the writer's own check() is what reports its losses",
         );

@@ -357,11 +357,8 @@ describe("AI command result codes", () => {
     it("AI_CONFIG_INVALID: enableAiControl rejects helpers that cannot run, and builds no assistant", async () => {
         // A graph's methods with only the fields enableAiControl reads: no scene is needed, since it
         // rejects before building anything.
-        const graph = Object.assign(Object.create(Graph.prototype) as Graph, {
-            aiManager: null,
-            aiGeneration: 0,
-            aiEnabling: Promise.resolve(),
-        });
+        const graph = Object.create(Graph.prototype) as Graph;
+        Object.assign(graph, { aiManager: null, aiGeneration: 0, aiEnabling: Promise.resolve() });
 
         const error: unknown = await Graph.prototype.enableAiControl
             .call(graph, {
@@ -374,7 +371,7 @@ describe("AI command result codes", () => {
         const { code, params } = error;
         reached.add(code);
         assert.deepInclude(params, { agent: "counter", field: "commands", reason: "unknown-command" });
-        assert.isNull((graph as unknown as { aiManager: unknown }).aiManager);
+        assert.isNull(graph.getAiManager());
     });
 
     afterAll(() => {

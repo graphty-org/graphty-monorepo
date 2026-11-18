@@ -89,8 +89,7 @@ describe("a run over a scope is planned by what its descriptor says it computes 
         const harness = chain();
         const estimate = harness.session.estimate({ op: "algo.run", algorithm: WHOLE, scope: TEN });
 
-        assert.include(estimate.basis, "n=100 m=99");
-        assert.notInclude(estimate.basis, "derive");
+        assert.include(estimate.basisFacts, { nodes: 100, edges: 99, derivationSeconds: 0 });
         harness.session.dispose();
     });
 
@@ -99,8 +98,8 @@ describe("a run over a scope is planned by what its descriptor says it computes 
         const whole = harness.session.estimate({ op: "algo.run", algorithm: WHOLE, scope: TEN });
         const scoped = harness.session.estimate({ op: "algo.run", algorithm: "degree", scope: TEN });
 
-        assert.include(scoped.basis, "n=10 m=9");
-        assert.include(scoped.basis, "to derive the scope's subgraph");
+        assert.include(scoped.basisFacts, { nodes: 10, edges: 9 });
+        assert.isAbove(scoped.basisFacts.derivationSeconds, 0, "plus deriving the scope's subgraph");
         assert.notStrictEqual(scoped.seconds, whole.seconds);
         harness.session.dispose();
     });
@@ -109,8 +108,7 @@ describe("a run over a scope is planned by what its descriptor says it computes 
         const harness = chain();
         const estimate = harness.session.estimate({ op: "algo.run", algorithm: "degree", scope: "graph" });
 
-        assert.include(estimate.basis, "n=100 m=99");
-        assert.notInclude(estimate.basis, "derive");
+        assert.include(estimate.basisFacts, { nodes: 100, edges: 99, derivationSeconds: 0 });
         harness.session.dispose();
     });
 

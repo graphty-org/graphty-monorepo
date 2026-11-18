@@ -14,9 +14,10 @@ import {
     labelLook,
 } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
+import { Group, SimpleGrid, Stack, TextInput } from "@mantine/core";
 import React, { useId } from "react";
 
+import { ControlLabel } from "./ControlLabel";
 import { type Field, LABEL_SETTINGS } from "./labelFields";
 
 /**
@@ -221,9 +222,9 @@ function FieldGroupView({
             aria-labelledby={caption === undefined ? undefined : id}
         >
             {caption === undefined ? null : (
-                <Text id={id} component="h3" size="xs" fw={600} m={0}>
+                <ControlLabel id={id} component="h3" size="xs" fw={600} m={0}>
                     {caption}
-                </Text>
+                </ControlLabel>
             )}
             {children}
         </Stack>
@@ -584,14 +585,14 @@ function ColorsField({
         color,
     }));
     return (
-        <div // NOSONAR(S6819): an ARIA group naming the gradient's controls; a fieldset would draw its own border and padding
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the gradient's controls; a fieldset would draw its own border and padding
             role="group"
             aria-label={word}
             data-set={list(value) === undefined ? undefined : ""}
         >
-            <Text size="xs" component="div" aria-hidden>
+            <ControlLabel size="xs" component="div" aria-hidden>
                 {word}
-            </Text>
+            </ControlLabel>
             <GradientEditor
                 // Keyed by the colors, so Undo or another edit redraws the stops.
                 key={shown.join(",")}

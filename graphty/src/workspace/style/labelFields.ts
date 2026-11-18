@@ -153,7 +153,14 @@ export const LABEL_SETTINGS: readonly FieldGroup[] = [
                 ]),
             ],
             [number("letterSize", "Letter size"), number("rotation", "Rotation")],
-            number("lineHeight", "Line height", 0.1),
+            [
+                number("lineHeight", "Line height", 0.1),
+                choice("lineBox", "Line box", [
+                    ["font", "Font"],
+                    ["size", "Size"],
+                    ["glyphs", "Glyphs"],
+                ]),
+            ],
         ],
     },
     {
@@ -162,6 +169,7 @@ export const LABEL_SETTINGS: readonly FieldGroup[] = [
             [number("wrapWidth", "Wrap width"), number("maxLines", "Max lines")],
             [toggle("wrapEllipsis", "Ellipsis"), toggle("wrapAnywhere", "Wrap anywhere")],
             [toggle("wrapTrailingSpace", "Trailing space"), number("wrapSpaceCount", "Space count")],
+            [toggle("wrapSkipEndSpace", "Skip end space"), toggle("maxLinesEllipsis", "Ellipsis at max lines")],
             toggle("keepBlankLines", "Keep blank lines"),
         ],
     },
@@ -171,7 +179,17 @@ export const LABEL_SETTINGS: readonly FieldGroup[] = [
             [number("padding", "Padding"), number("cornerRadius", "Corners")],
             [number("boxPadding", "Box padding"), choice("box", "Box size", BOX_SIZES)],
             [number("borderWidth", "Border width"), color("borderColor", "Border color")],
-            percent("borderOpacity", "Border opacity"),
+            [
+                percent("borderOpacity", "Border opacity"),
+                choice("borderAlign", "Border align", [
+                    ["outside", "Outside"],
+                    ["center", "Center"],
+                ]),
+            ],
+            choice("backgroundShape", "Background shape", [
+                ["rectangle", "Rectangle"],
+                ["circle", "Circle"],
+            ]),
             [toggle("panelShadow", "Panel shadow"), toggle("closeButton", "Close button")],
             [color("panelShadowColor", "Panel shadow color"), number("panelShadowBlur", "Panel shadow blur")],
             [number("panelShadowOffsetX", "Panel shadow right"), number("panelShadowOffsetY", "Panel shadow down")],

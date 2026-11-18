@@ -1,4 +1,10 @@
-import { type ColumnDecl, GraphBuilder, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
+import {
+    type ColumnDecl,
+    fromRecords,
+    GraphBuilder,
+    GraphFormatError,
+    type GraphSnapshot,
+} from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { DirectionResolver } from "../../../src/common/direction.js";
@@ -798,5 +804,32 @@ describe("neo4j files for neo4j-admin and the weight property", () => {
         const builder = new GraphBuilder({ directed: true });
         builder.addEdge("a", "b");
         expect(() => neo4jExporter.check(builder.freeze(), { delimiter: ";" })).toThrow(/pass another arrayDelimiter/);
+    });
+});
+
+describe("neo4jExporter: spreadsheetSafe", () => {
+    const s = fromRecords({
+        directed: true,
+        nodes: [{ id: "=1+1", "@x": "+cmd", n: -5 }, { id: "b" }],
+        edges: [{ source: "=1+1", target: "b" }],
+    }).snapshot;
+
+    it("writes formula-like cells as is by default", async () => {
+        const text = await neo4jExporter.exportToString(s, { part: "nodes" });
+        expect(text).toContain("=1+1");
+        expect(text).not.toContain("'");
+    });
+
+    it("prefixes formula-like cells and headers with a quote, numbers left alone", async () => {
+        const text = await neo4jExporter.exportToString(s, { spreadsheetSafe: true });
+        expect(text).toContain("'@x");
+        expect(text).toContain("'=1+1");
+        expect(text).toContain("'+cmd");
+        expect(text).toContain(",-5");
+        expect(text).not.toMatch(/(^|[,\n])[=+@]/);
+    });
+
+    it("rejects a non-boolean", () => {
+        expect(() => neo4jExporter.check(s, { spreadsheetSafe: 1 as unknown as boolean })).toThrow(/spreadsheetSafe/);
     });
 });

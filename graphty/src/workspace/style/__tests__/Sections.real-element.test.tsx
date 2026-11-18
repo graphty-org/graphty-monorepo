@@ -3,7 +3,7 @@
  * panel design, 2026-10-13): a section lists only what the layer sets; "+" ("Add to <section>")
  * adds a property waiting for a value, writing nothing, with focus in it, and the minus removes
  * it, in every section; nothing a layer does not set looks like a value; Everything holds the
- * base look and its eye hides the graph; a covered row says who covers it; several rows read the
+ * base look and its eye hides the graph; a covered row carries no caption; several rows read the
  * value the rows that set a property agree on, and say who does not set it; every eye in the tree
  * shows at rest; Everything can be neither deleted nor moved.
  */
@@ -347,8 +347,8 @@ describe("the Style tab's sections", () => {
         const { session } = await openScene();
         await openStyle("Everything");
         await showKind("edge");
-        const note = within(section("edge", "ends")).getByTestId("edge-ends-note");
-        assert.equal(note.textContent, "Not available: undirected graph");
+        // Said by the disabled '+', never as a line in the sidebar (#8739).
+        assert.isNull(within(section("edge", "ends")).queryByText("Not available: undirected graph"));
         const plus = within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" });
         assert.equal(plus.getAttribute("aria-disabled"), "true");
         assert.equal(plus.getAttribute("aria-description"), "Not available: undirected graph");
@@ -508,17 +508,15 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
         await within(section("edge", "text")).findByRole("textbox", { name: /text$/ });
         await userEvent.keyboard("End{Enter}");
-        // Les Miserables draws no arrowheads, so the element draws the end text on no edge.
+        // Les Miserables draws no arrowheads, so the element draws the end text on no edge; the
+        // sidebar says nothing about it (#8739).
         await waitFor(() => {
-            assert.include(
-                section("edge", "text").textContent,
-                "Not drawn on 254 edges: it shows beside a target arrowhead, and they have none.",
-            );
+            assert.equal(written(session, "Everything", "edge.arrowHeadText"), "End");
         });
-        assert.equal(written(session, "Everything", "edge.arrowHeadText"), "End");
+        assert.notInclude(section("edge", "text").textContent, "Not drawn on");
     });
 
-    it("names a grouping's field after its method, and a bound row says once who covers it", async () => {
+    it("names a grouping's field after its method, and a covered bound row carries no caption", async () => {
         const { session } = await openScene();
         const { runId } = await session.runs.start("louvain");
         await session.styles.encode({ run: runId, channel: "node.color", name: "Groups" });
@@ -537,8 +535,8 @@ describe("the Style tab's sections", () => {
         });
         assert.isNotNull(pill);
         const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
-        assert.match(color?.querySelector("[data-covered-caption]")?.textContent ?? "", /^Covered by Cover on /);
-        assert.notInclude(color?.textContent ?? "", "Painted over", "one caption, not two");
+        assert.notInclude(color?.textContent ?? "", "Covered by", "no covered caption");
+        assert.notInclude(color?.textContent ?? "", "Painted over", "no painted-over note");
     });
 
     it("inside a binding, shows the palette and each group's color it paints now, though the layer set none", async () => {
@@ -642,35 +640,15 @@ describe("the Style tab's sections", () => {
         });
     });
 
-    it("says who covers a set row, and on how many of its elements", async () => {
-        const { degree } = await openScene({ degree: true });
+    it("draws no caption under a set row a layer above covers", async () => {
+        await openScene({ degree: true });
         await openStyle("Everything");
-        const caption = await waitFor(() => {
-            const found = section("node", "fill").querySelector<HTMLElement>("[data-covered-caption]");
+        const color = await waitFor(() => {
+            const found = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
             assert.isNotNull(found);
             return found;
         });
-        const words = caption?.textContent ?? "";
-        assert.match(words, /^Covered by .+ on 77 of 77$/, words);
-        assert.include(words, degree ?? "Degree");
-        assert.isNull(
-            section("node", "shape").querySelector("[data-covered-caption]"),
-            "a row nothing above writes has no caption",
-        );
-    });
-
-    it("names at most three covering layers and counts the rest", async () => {
-        const { session } = await openScene();
-        await session.runs.start("louvain", {}, { seed: 1, style: { groups: "layers", name: "Louvain" } });
-        await session.styles.settled();
-        await openStyle("Everything");
-        const words = await waitFor(() => {
-            const text = section("node", "fill").querySelector("[data-covered-caption]")?.textContent ?? "";
-            assert.match(text, /^Covered by /);
-            return text;
-        });
-        // Louvain's six group layers cover it: three by name, then a count, never all six.
-        assert.match(words, /^Covered by [^,]+, [^,]+, [^,]+ and 3 more on 77 of 77$/, words);
+        assert.notInclude(color?.textContent ?? "", "Covered by");
     });
 
     it("reads the value the setting rows give a property only some selected rows set, and who sets it", async () => {
@@ -691,10 +669,13 @@ describe("the Style tab's sections", () => {
         await user.keyboard("{/Control}");
         await waitFor(() => {
             const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
-            assert.equal(color?.querySelector("[data-breakdown]")?.textContent, "1 layer sets color; not set: Big");
+            assert.equal(
+                color?.querySelector("[data-notes]")?.getAttribute("data-notes"),
+                "1 layer sets color; not set: Big",
+            );
             const size = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.equal(
-                size?.querySelector("[data-breakdown]")?.textContent,
+                size?.querySelector("[data-notes]")?.getAttribute("data-notes"),
                 "1 layer sets size; not set: Key people",
             );
             assert.equal(

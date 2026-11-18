@@ -1,5 +1,12 @@
 # compact-mantine Implementation Plan
 
+> **Status: superseded.** This is the original extraction design. Its `size="compact"` API is now a
+> legacy size name: the package sets `defaultProps: { size: "sm" }` instead, as
+> [compact-mantine-refactor.md](./compact-mantine-refactor.md) describes. The binding
+> specification for how every component looks and behaves is
+> [compact-mantine/design/figma-spec.md](../../compact-mantine/design/figma-spec.md); the package is
+> locked to it.
+
 ## Overview
 
 This document provides a detailed, phased implementation plan for the `@graphty/compact-mantine` package as specified in the [design document](./compact-mantine-design.md).

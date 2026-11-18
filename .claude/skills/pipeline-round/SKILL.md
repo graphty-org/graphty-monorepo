@@ -192,6 +192,13 @@ first-parent merges since the last green full run.
 - **`[FLAKY-UNRELATED]`** on a pull request (failed then passed, in a file the pull request did not touch): dispatch
   `base-check.yml` with `repeat: 5` for that file; its master records can quarantine it.
 - `Failing on master: <first line>` issues (filed by base checks) get a fix subagent like any code failure.
+- **A manual flaky sweep** (filing `Flaky test(s): ...` issues from the `pipeline-health` tool `flaky_hotspots`):
+  before filing for a test file, search closed and open issues that name it
+  (`gh issue list --state all --search '<basename> flaky in:title,body'`). A fix that closed after the newest flaky
+  event's commit, so every event predates it: file nothing. The newest event ran on a commit that contains the fix
+  (`git merge-base --is-ancestor <fix sha> <event sha>`): reopen that issue with the new events as evidence instead
+  of filing a new one. File a new issue only when no issue names the file. (The 11-15 sweep filed 17 issues; 10 of
+  them closed with no code because the test was already fixed.)
 
 ### 4. Budget alarms
 
@@ -300,20 +307,39 @@ starts: issue-round counts the pull request's files again from then on.
   a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,
   always merge"). Instead, pipeline-round may revert the red part on the same branch by an ordinary commit.
 
+**Unarmed agent pull requests**, every round. One GraphQL query lists the open graphty-agent pull requests with
+`autoMergeRequest` and `timelineItems(itemTypes:[AUTO_MERGE_DISABLED_EVENT]){totalCount}`. This rule is only for a
+pull request whose `pr-open.sh` died before it armed auto-merge: one with auto-merge off and a `totalCount` of 0
+(auto-merge was never on). Auto-merge turned off on purpose is a hold (an owner wording approval, an owner budget
+review, an owner decision): any pull request with a non-zero `totalCount`, or with any recorded hold (a comment
+saying auto-merge stays off, or that it needs the owner), is never armed by this rule. For one that qualifies, do
+not copy pr-open.sh's hold rules: re-run `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` from the
+branch's worktree; it finds the open pull request and arms it only when none of its own checks (`GUARD_PATHS`,
+breaking commits and footers, `release-not-breaking.json`, renames, large file lists) holds it for the owner. A
+green pull request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master`
+(same as a red one above). The round's last line names every pull request armed and every conflicted one sent to a
+fix, by number.
+
 **Dependabot pull requests** (author `dependabot[bot]`): `dependabot-automerge.yml` arms their auto-merge; one with
 auto-merge off gets it turned on as graphty-agent (`gh pr merge <n> --auto --merge`), except Actions updates, which
 wait for the owner. A red one is classified like an agent pull request.
 
 ### 9. Finished branches with no pull request
 
-A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and
-no open pull request (a subagent whose `pr-open.sh` failed, or a job that stopped at its `ready` marker while master
-was red): open it, oldest first, as many as CI's runners allow (the `pipeline-health` MCP tool `runners`:
-`ci.saturated` ok and `ci.runner_wait` not red), checked again after each one. `CI_PR_RUN_CAP` already limits how many
+A branch on GitHub with commits master lacks, no open pull request, and an issue with a `ready <branch> <sha>`
+marker and no later `opened <branch> ...` marker for that branch (a subagent whose `pr-open.sh` failed, or a job that
+stopped at its `ready` marker while master was red), and the issue still open. Later markers of these kinds do not
+excuse it: `fix attempt`, `inherited`, `reran`, `diagnosis`, `asked session`. A later `stranded branch <b> not
+opened`, `released`, `restarted` or newer `taken` marker does: skip the branch. A tip that moved past the `ready` sha
+is opened only when every commit after that sha is a merge of master, or when the session that owns the issue fails
+the "Alive" check; then cite both shas in the Proof. Any other later commit means a session is still working: skip. Open them oldest first, as many as CI's runners allow, a branch whose `ready` marker is over 24 h old
+before any other (the `pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red,
+checked again after each one). `CI_PR_RUN_CAP` already limits how many
 pull requests CI runs at once. Only while master is green (see "While master is red" in the shared file);
 `pr-open.sh` merges master first. Run, from the branch's worktree (or a new worktree of the branch),
 `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and the
-tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent.
+tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent. The round's last line names every
+branch opened and every one still waiting by issue number, and says which `ready` markers are over 24 h old.
 
 ```bash
 git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refname:short) %(committerdate:unix)' \

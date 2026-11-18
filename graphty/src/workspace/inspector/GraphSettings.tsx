@@ -23,8 +23,10 @@ import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@ma
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
+import { useLayoutId } from "../frame/useLayoutId";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
+import { MAP_LAYOUT } from "../layout/methods";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -125,12 +127,16 @@ export function GraphSettings(): React.JSX.Element | null {
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
     const sameSize = sameSizeChosen ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
+    // While the map rule in Settings decides the node size space, this switch has nothing to say.
+    const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
+    const onMap = useLayoutId(session) === MAP_LAYOUT;
     const hidden = useNotInEffect(session);
     const { ref, onFocus } = useFocusPastHidden(hidden, store);
     if (session === null) {
         return null;
     }
     const shows = (key: GraphSettingKey): boolean => !hidden.includes(key);
+    const sameSizeShown = shows("node.sizeSpace") && !(mapAuto && onMap);
 
     return (
         <>
@@ -158,8 +164,8 @@ export function GraphSettings(): React.JSX.Element | null {
                                 />
                             </div>
                         )}
-                        {shows("node.depthIndependentSize") && (
-                            <div data-setting="node.depthIndependentSize">
+                        {sameSizeShown && (
+                            <div data-setting="node.sizeSpace">
                                 <Switch
                                     size="xs"
                                     label="Same size at any depth"

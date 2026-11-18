@@ -1,13 +1,12 @@
 /**
- * The `bc-forward` kernel body (design 8.4 "forward pass = BFS with sigma as array<atomic<u32>>", 8.10 "BC forward
- * (tagged)", 16.1): one level of the tagged multi-source breadth-first search of a betweenness batch. The level's
+ * The `bc-forward` kernel body (the forward pass: a BFS with sigma as `array<atomic<u32>>`): one level of the tagged multi-source breadth-first search of a betweenness batch. The level's
  * frontier is the range `S[ends[level] .. ends[level + 1])` of the claim log, every entry a packed `s * n + u`; the
  * expansion is `advance-expand`'s block-mapped strip (each workgroup loads up to `WG` entries, scans their degrees
  * in workgroup memory, and every lane strips the aggregate by an upper-bound binary search), fused with the claim, so
  * no edge queue exists.
  *
  * For the arc `(u, x)` of the entry `(u, s)`, with `t = s * n + x`: the CLAIM -- a relaxed pre-check that skips the
- * atomic when `t` is already claimed (design 16.1: a stale "unclaimed" costs one redundant atomic, a stale "claimed"
+ * atomic when `t` is already claimed (a stale "unclaimed" costs one redundant atomic, a stale "claimed"
  * cannot happen because a claim is never revoked), then `atomicMin(&depthK[t], level + 1)`, the invocation that
  * observes INVALID_INDEX the unique winner, which appends `t` to the log; and, as a SEPARATE condition, the COUNT:
  * every arc that reaches `t` at `level + 1` adds `sigma[s][u]` into `sigma[s][x]`, winner or not, which is what makes
@@ -16,7 +15,7 @@
  * `SCALED` (a batch rerun because the u32 counts wrapped) the count is skipped and `bc-count` pulls rescaled f32
  * counts after the level instead. The winners of
  * a strip are packed into the log with one workgroup-memory counter and ONE global `atomicAdd` on `stackTop` (word
- * 26) per strip. Uniformity (spec 3.5 rule 1): the range and the aggregate are `workgroupUniformLoad`s and the strip
+ * 26) per strip. Uniformity: the range and the aggregate are `workgroupUniformLoad`s and the strip
  * loop steps a uniform `p0`, so every barrier is in uniform control flow. The order of the log inside a level is
  * not deterministic; nothing downstream depends on it (the counts are integers and every dependency is written by
  * index). Body only; the sabotage rows of test/helpers/sabotage.ts are textual edits of it.
@@ -46,7 +45,7 @@ fn bc_forward(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
         var deg = 0u;
         var first = 0u;
         var entry = 0u;
-        if (i < count) {                                             // guarded loads into locals (3.5 rule 1)
+        if (i < count) {                                             // guarded loads into locals
             entry = S[start + i];
             let u = entry % P.n;
             first = rowPtr[u];
@@ -81,7 +80,7 @@ fn bc_forward(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
                 if (k > 0u) { exclusive = sh[k - 1u]; }
                 let origin = entryOf[k];                             // s * n + u
                 let x = (origin - (origin % P.n)) + colIdx[rowStart[k] + (p - exclusive)];   // s * n + x
-                if (atomicLoad(&depthK[x]) == INVALID_INDEX) {       // the pre-check of design 16.1
+                if (atomicLoad(&depthK[x]) == INVALID_INDEX) {       // the pre-check: a stale read costs one redundant atomic
                     won = atomicMin(&depthK[x], next) == INVALID_INDEX;   // the claim: the one winner appends
                 }
                 if (!SCALED && atomicLoad(&depthK[x]) == next) {     // the count: EVERY arc on a shortest path adds

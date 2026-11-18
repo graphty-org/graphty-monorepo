@@ -171,6 +171,7 @@ describe("the Style tab's rows outside file-styles", () => {
         const settings: readonly (readonly [plus: string, setting: Setting])[] = [
             ["Add to node halo", ["Shown", "node.halo", "choice", "Off", false]],
             ["Add to node size", ["Mode", "node.sizeMode", "choice", "Diameter", "diameter"]],
+            ["Add to node size", ["Space", "node.sizeSpace", "choice", "Screen", "screen"]],
         ];
         for (const [plus, setting] of settings) {
             const drawn = await addFrom(session, "node-shape", plus, setting);

@@ -262,22 +262,6 @@
         {
             "file": "graphty-element/src/session/styles/fileStyles/apply.ts",
             "rule": "source-by",
-            "detail": "template",
-            "count": 1,
-            "reason": "treats a layer differently because its source is \"template\"",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/fileStyles/apply.ts",
-            "rule": "template-id",
-            "detail": "templateId",
-            "count": 1,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/fileStyles/apply.ts",
-            "rule": "source-by",
             "detail": "element",
             "count": 1,
             "reason": "treats a layer differently because its source is \"element\"",
@@ -367,22 +351,6 @@
             "file": "graphty-element/src/session/styles/rows.ts",
             "rule": "template-id",
             "detail": "graphty:timeline-ghost",
-            "count": 1,
-            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/rows.ts",
-            "rule": "source-by",
-            "detail": "template",
-            "count": 1,
-            "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/rows.ts",
-            "rule": "template-id",
-            "detail": "templateId",
             "count": 1,
             "reason": "the default rows carry template ids as saved data: editableBase finds Everything by them, and the tree hides Ghost by them while the timeline is off",
             "issue": "#5905"

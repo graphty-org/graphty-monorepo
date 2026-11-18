@@ -14,7 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
 import { type AssetRecord, type AssetsApi, createAssetsApi, isAssetId } from "../../src/session/assets/AssetsApi";
-import { canonicalFileSet, sha256Fallback, sha256Hex } from "../../src/session/assets/digest";
+import { canonicalFileSet, sha256Hex } from "../../src/session/assets/digest";
 import { createGraphSession } from "../../src/session/GraphSession";
 import {
     accessorBomb,
@@ -203,7 +203,6 @@ describe("session.assets: ids and records", () => {
         );
         const big = new Uint8Array(100_003).map((_, i) => i * 7);
         assert.strictEqual(await sha256Hex(big, false), createHash("sha256").update(big).digest("hex"));
-        assert.strictEqual(sha256Fallback(new Uint8Array(0)).length, 32);
     });
 
     it("keeps a friendly name, refuses it for different files and reserves asset:sample/", async () => {

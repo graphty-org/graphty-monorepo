@@ -251,19 +251,67 @@ function slicesOf(mesh: Mesh): { material: Material | null; range?: [number, num
     }));
 }
 
-/**
- * Vertex data cut to a range of its indices (all its vertices kept).
- * @param data - The data.
- * @param range - The range, or undefined for all of it.
- * @returns The data, a copy when cut.
- */
-function cut(data: VertexData, range: [number, number] | undefined): VertexData {
-    if (range === undefined) {
-        return data;
-    }
+/** Every per-vertex array of a VertexData. */
+const PER_VERTEX = [
+    "positions",
+    "normals",
+    "tangents",
+    "uvs",
+    "uvs2",
+    "uvs3",
+    "uvs4",
+    "uvs5",
+    "uvs6",
+    "colors",
+    "matricesIndices",
+    "matricesWeights",
+    "matricesIndicesExtra",
+    "matricesWeightsExtra",
+] as const;
 
-    const copy = data.clone();
-    copy.indices = Array.from(data.indices ?? []).slice(range[0], range[1]);
+/**
+ * The vertices a range of a mesh's indices draws, in the order it first names them.
+ * @param indices - The mesh's indices.
+ * @param range - The range.
+ * @returns The mesh's index of each vertex kept.
+ */
+function verticesIn(indices: ArrayLike<number>, range: [number, number]): number[] {
+    const seen = new Set<number>();
+    for (let i = range[0]; i < range[1]; i++) {
+        seen.add(indices[i]);
+    }
+    return [...seen];
+}
+
+/**
+ * Vertex data cut to a range of its indices, keeping only the vertices that range draws, so a
+ * mesh sliced into many materials holds each vertex once, not once a slice.
+ * @param data - The data.
+ * @param range - The range of its indices.
+ * @param kept - The vertices kept ({@link verticesIn}), by their index in `data`.
+ * @returns The cut copy.
+ */
+function cut(data: VertexData, range: [number, number], kept: readonly number[]): VertexData {
+    const count = (data.positions?.length ?? 0) / 3;
+    const copy = new VertexData();
+    for (const kind of PER_VERTEX) {
+        const from = data[kind];
+        if (from === null || from === undefined || count === 0) {
+            continue;
+        }
+        const stride = from.length / count;
+        const to = new Float32Array(kept.length * stride);
+        for (const [v, old] of kept.entries()) {
+            for (let k = 0; k < stride; k++) {
+                to[v * stride + k] = from[old * stride + k];
+            }
+        }
+        copy[kind] = to;
+    }
+    const at = new Map(kept.map((old, v) => [old, v]));
+    copy.indices = Array.from(data.indices ?? [])
+        .slice(range[0], range[1])
+        .map((old) => at.get(old) ?? 0);
     return copy;
 }
 
@@ -289,12 +337,14 @@ function bakeMesh(mesh: Mesh, world: Matrix, turn: Matrix, animated: boolean): P
     const instances = mesh.thinInstanceGetWorldMatrices();
     // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) or a reused mesh's copy is drawn still; give each copy a bone if a file animates one.
     const local = animated && instances.length === 0 ? withoutWhiteColors(ownVertices(mesh)) : undefined;
-    // ponytail: a sliced mesh keeps all its vertices in each slice; compact them if a file needs the memory.
     return slicesOf(mesh).flatMap(({ material, range }) => {
-        const data = cut(whole, range);
+        const kept = range === undefined ? undefined : verticesIn(whole.indices ?? [], range);
+        const slice = (all: VertexData): VertexData =>
+            range === undefined || kept === undefined ? all : cut(all, range, kept);
+        const data = slice(whole);
         const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
         const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
-        const movable = local === undefined ? {} : { mesh, local: cut(local, range) };
+        const movable = local === undefined ? {} : { mesh, local: slice(local), from: kept };
         return (instances.length === 0 ? [Matrix.Identity()] : instances).map((instance) => {
             const copy = instances.length > 1 ? data.clone() : data;
             return { vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable };

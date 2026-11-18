@@ -587,8 +587,9 @@ describe("a write beside a running load is not counted as the load's rows (issue
 describe("the entry's edges", () => {
     it("an open that refuses its document gives its place up, so a later load lands", async () => {
         const session = fresh();
-        const document = JSON.parse(await triangleProject()) as { version: number };
-        const refused = session.project.open(JSON.stringify({ ...document, version: document.version + 1 }));
+        const document = JSON.parse(await triangleProject()) as object;
+        // A version no reader takes: version 2 is read with the save-files-v2 experiment on.
+        const refused = session.project.open(JSON.stringify({ ...document, version: 99 }));
         const later = session.data.import({ type: "json", config: { data: TRIANGLE } });
 
         const outcome = await refused.then(

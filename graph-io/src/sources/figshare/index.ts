@@ -17,6 +17,7 @@ import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { FIGSHARE_SOURCE_ID } from "../ids.js";
 import { readLink, refuseLink } from "../link.js";
+import { pageNames } from "../page.js";
 import { type GraphSource, type SourceContext, type SourceListing, type SourceListQuery } from "../types.js";
 import { FIGSHARE_DESCRIPTOR, type FigshareParams } from "./descriptor.js";
 
@@ -24,9 +25,6 @@ export { FIGSHARE_DESCRIPTOR, type FigshareParams } from "./descriptor.js";
 
 /** An item number: Figshare's ids are digits. */
 const ARTICLE = /^\d+$/;
-
-/** Files a listing returns when the caller gives no size. */
-const DEFAULT_PAGE = 100;
 
 /**
  * Check the article parameter.
@@ -98,15 +96,8 @@ export const figshareSource: GraphSource<FigshareParams> = defineSource<Figshare
     },
     async list(query: SourceListQuery<FigshareParams>, ctx): Promise<SourceListing> {
         const article = checkedArticle(query.params.article, ctx);
-        const search = query.search?.toLowerCase() ?? "";
-        const files = (await articleFiles(article, ctx)).flatMap((file) =>
-            file.name.toLowerCase().includes(search) ? [file.name] : [],
-        );
-        const start = Number(query.cursor?.start ?? 0);
-        const size = query.size ?? DEFAULT_PAGE;
-        const items = files.slice(start, start + size).map((file) => ({ params: { article, file }, name: file }));
-        const end = start + items.length;
-        return { items, next: end < files.length ? { start: end } : null, total: files.length };
+        const files = (await articleFiles(article, ctx)).map((file) => file.name);
+        return pageNames(files, query, (file) => ({ article, file }));
     },
 });
 

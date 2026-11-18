@@ -22,6 +22,7 @@ import { endpointOrigin } from "../credentials.js";
 import { defineSource } from "../define.js";
 import { failAlone, failOn } from "../fail.js";
 import { GITHUB_SOURCE_ID } from "../ids.js";
+import { pageNames } from "../page.js";
 import { type GraphSource, type SourceContext, type SourceListing, type SourceListQuery } from "../types.js";
 import { GITHUB_DESCRIPTOR } from "./descriptor.js";
 import { type GithubParams } from "./params.js";
@@ -34,9 +35,6 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 
 /** The statuses this source classifies itself: GitHub's 403 is a rate limit or a refusal. */
 const READ_STATUSES = [403, 404] as const;
-
-/** Files a listing returns when the caller gives no size. */
-const DEFAULT_PAGE = 100;
 
 /** One entry of a git tree answer. */
 interface TreeEntry {
@@ -218,27 +216,6 @@ async function releaseAssets(
 }
 
 /**
- * One page of names, narrowed by the query's search text.
- * @param names - every name, in order
- * @param query - the listing query (search, size, cursor)
- * @param params - the params that load a name
- * @returns the page
- */
-function page(
-    names: readonly string[],
-    query: SourceListQuery<GithubParams>,
-    params: (name: string) => Readonly<Record<string, unknown>>,
-): SourceListing {
-    const search = query.search?.toLowerCase() ?? "";
-    const found = names.filter((name) => name.toLowerCase().includes(search));
-    const start = Number(query.cursor?.start ?? 0);
-    const size = query.size ?? DEFAULT_PAGE;
-    const items = found.slice(start, start + size).map((name) => ({ params: params(name), name }));
-    const end = start + items.length;
-    return { items, next: end < found.length ? { start: end } : null, total: found.length };
-}
-
-/**
  * The GitHub source. Experimental.
  * @category Network sources
  */
@@ -281,7 +258,7 @@ export const githubSource: GraphSource<GithubParams> = defineSource<GithubParams
         const { release } = params;
         if (release !== undefined && release !== "") {
             const assets = await releaseAssets(repository, release, ctx);
-            return page(
+            return pageNames(
                 assets.map((asset) => asset.name),
                 query,
                 (path) => ({ repository, release, path }),
@@ -309,7 +286,7 @@ export const githubSource: GraphSource<GithubParams> = defineSource<GithubParams
                 ? [entry.path]
                 : [],
         );
-        return page(files, query, (path) =>
+        return pageNames(files, query, (path) =>
             params.ref === undefined ? { repository, path } : { repository, path, ref: params.ref },
         );
     },

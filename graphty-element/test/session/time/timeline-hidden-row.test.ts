@@ -54,6 +54,21 @@ function named(session: GraphSession, name: string): ReturnType<GraphSession["st
 }
 
 /**
+ * A project's text as a writer from before the row came only with the timeline saved it: with no
+ * record of the row.
+ * @param text - The project.
+ * @returns The older text.
+ */
+function stripped(text: string): string {
+    const document = JSON.parse(text) as { members: { kind: string; timelineHiddenAdded?: boolean }[] };
+    const member = document.members.find((each) => each.kind === "graphty-session");
+    assert.isBoolean(member?.timelineHiddenAdded);
+    delete member?.timelineHiddenAdded;
+
+    return JSON.stringify(document);
+}
+
+/**
  * Open a project's text in a new session.
  * @param text - The project.
  * @returns The session.
@@ -153,6 +168,25 @@ describe("the Timeline Hidden row", () => {
         assert.lengthOf(named(opened, "Timeline Hidden"), 0);
         for (const each of [session, kept, again, opened]) {
             each.dispose();
+        }
+    });
+
+    it("keeps its once-only record across a save with the timeline off, and an older file counts as having had it", async () => {
+        const session = await timed();
+        await session.time.setField(null);
+        const saved = (await session.project.save()).text;
+        session.dispose();
+
+        // Opened into a session drawing the starting rows, as the graphty app's are.
+        for (const text of [saved, stripped(saved)]) {
+            const opened = createGraphSession();
+            await opened.config.set({ startingRows: true });
+            await opened.project.open(text, { discard: true });
+            assert.isTrue(opened.config.timelineHiddenAdded);
+            assert.lengthOf(named(opened, "Timeline Hidden"), 2);
+            await opened.time.setField({ nodes: { start: "t" } });
+            assert.lengthOf(named(opened, "Timeline Hidden"), 2, "never a second row");
+            opened.dispose();
         }
     });
 

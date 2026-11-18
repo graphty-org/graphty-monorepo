@@ -361,3 +361,24 @@ describe("an inverted arrowhead on a line that kinks at its end", () => {
         assert.strictEqual(measureArrow(head, path, "target", { filled: true, color: null }).shape, "inverted");
     });
 });
+
+describe("yEd's standard arrowhead on a curved line", () => {
+    it("is read along its own axis where the line stops on its notch (yed-graphml-specimen-edges-lines bezier)", () => {
+        // yEd's standard head is notched (a vee to the comparator); yEd cuts the flattened curve where the head begins, its last run 21 degrees off the head's axis, and aims
+        // the head from the cut at the node; the head's back corners lie half its length behind the cut
+        const path: Pt[] = [
+            [834.7891, 442.1523],
+            [845.0625, 445.8438],
+            [849.8447, 445.9976],
+            [852.8885, 445.0529],
+            [852.9625, 444.9855],
+        ];
+        const head: Pt[] = [
+            [859.2877, 440.0873],
+            [846.7385, 443.4814],
+            [852.1718, 445.5978],
+            [852.8613, 451.3878],
+        ];
+        assert.strictEqual(measureArrow(head, path, "target", { filled: true, color: null }).shape, "vee");
+    });
+});

@@ -4,8 +4,9 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type FindHit, type GraphSession, isGraphtyError } from "../../session";
+import { createGraphSession, type FindHit, type GraphSession } from "../../session";
 import { lesMiserables } from "../helpers/les-miserables";
+import { rejectionCode } from "./helpers";
 
 /** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
 const LES_MISERABLES = await lesMiserables();
@@ -29,21 +30,6 @@ async function cast(): Promise<GraphSession> {
     ]);
     await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
     return session;
-}
-
-/**
- * The refusal code a call throws.
- * @param call - The call.
- * @returns The code, or what was thrown.
- */
-function codeOf(call: () => unknown): unknown {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : error;
-    }
-
-    return "no error";
 }
 
 /**
@@ -327,15 +313,15 @@ describe("finding without selecting", () => {
         const session = await cast();
 
         assert.strictEqual(
-            codeOf(() => session.find("v", { limit: -1 })),
+            rejectionCode(() => session.find("v", { limit: -1 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => session.find("v", { offset: 1.5 })),
+            rejectionCode(() => session.find("v", { offset: 1.5 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => session.find("v", { kinds: ["value" as "node"] })),
+            rejectionCode(() => session.find("v", { kinds: ["value" as "node"] })),
             "E_OPTION_RANGE",
         );
         session.dispose();

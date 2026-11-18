@@ -379,11 +379,13 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
                 ],
             });
             const out = await events(engine, request());
-            const calls = out.flatMap((e) => (e.type === "tool-call" ? [[e.id, e.arguments]] : []));
-            assert.deepStrictEqual(calls, [
-                ["t1", { selector: "a" }],
-                ["t2", { selector: "b" }],
-            ]);
+            const calls = out.flatMap((e) => (e.type === "tool-call" ? [e] : []));
+            assert.deepStrictEqual(
+                calls.map((call) => call.arguments),
+                [{ selector: "a" }, { selector: "b" }],
+            );
+            // An engine may mint its own ids, but each call has one no other call shares.
+            assert.strictEqual(new Set(calls.map((call) => call.id)).size, 2);
             assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "tool-calls" });
             // One turn is one request: the model is not asked again with the calls' results.
             assert.strictEqual(seen().length, 1);

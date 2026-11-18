@@ -310,6 +310,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                 plan.options.map((option) => [option.name, given[option.name] ?? option.default]),
             );
             if (plan.random && typeof this.#values.seed !== "number") {
+                // eslint-disable-next-line sonarjs/pseudo-random -- a seeded layout's random starting positions; nothing security-related depends on them
                 this.#values.seed = Math.floor(Math.random() * 2 ** 32);
                 logger.info(`${id}: drew a layout seed`, { layout: id, seed: this.#values.seed });
             }

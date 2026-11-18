@@ -1,9 +1,15 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest, localVerbose } from "../vitest.base.mjs";
 
 const config = defineConfig({
+    // the documentation examples (docs/examples/) import the package by its published name, as a reader does
+    resolve: {
+        alias: { "@graphty/graph-format": fileURLToPath(new URL("./src/index.ts", import.meta.url)) },
+    },
     test: {
         ...baseTest({ reporters: [localVerbose()] }),
         globals: true,

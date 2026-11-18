@@ -43,6 +43,8 @@ describe("Add note with a note already being written", () => {
         await userEvent.click(screen.getByRole("button", { name: "Add note" }));
         const field = await screen.findByRole("textbox", { name: "Note" });
         await userEvent.type(field, "Marriages only");
+        // Past the Tags field to Cancel.
+        await userEvent.tab();
         await userEvent.tab();
         assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Cancel" }));
 

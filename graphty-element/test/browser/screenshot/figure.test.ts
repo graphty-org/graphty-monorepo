@@ -81,11 +81,69 @@ test("the key is drawn as text in its corner", async () => {
     assert.ok(svg.querySelector('rect[fill="#00ff00"]'), "the row's chip");
 });
 
+test("a label's solid background is a box behind its text", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Labelled on blue",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.label": "N", "node.labelBackground": "#0000ff" },
+    });
+    await graph.waitForStableFrame();
+
+    const svg = await parse(exportFigure(graph).blob);
+    const boxes = [...svg.querySelectorAll('rect[fill="rgb(0,0,255)"]')];
+    assert.equal(boxes.length, 3, "one box per label");
+    const texts = [...svg.querySelectorAll("text")].filter((t) => t.textContent === "N");
+    for (const text of texts) {
+        const x = Number(text.querySelector("tspan")?.getAttribute("x"));
+        const inside = boxes.some((box) => {
+            const left = Number(box.getAttribute("x"));
+            return x > left && x < left + Number(box.getAttribute("width"));
+        });
+        assert.ok(inside, "the text sits on a box");
+    }
+});
+
+test("a PDF figure is one page the canvas's size with the labels and the key as text", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Labelled",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.label": "N(1)" },
+    });
+    await graph.waitForStableFrame();
+
+    const figure = exportFigure(graph, {
+        format: "pdf",
+        legend: [{ title: "Group", rows: [{ label: "First", color: "#00ff00" }] }],
+    });
+    assert.equal(figure.blob.type, "application/pdf");
+    const pdf = new TextDecoder("latin1").decode(await figure.blob.arrayBuffer());
+    assert.ok(pdf.startsWith("%PDF-1.4"));
+    assert.include(pdf, `/MediaBox [0 0 ${String(Math.round(figure.width * 100) / 100)} `);
+    assert.equal(pdf.match(/\(N\\\(1\\\)\) Tj/g)?.length, 3, "every label is text, its brackets escaped");
+    assert.include(pdf, "(Group) Tj");
+    assert.include(pdf, "(First) Tj");
+    // The cross-reference table points at each object.
+    const xref = Number(/startxref\n(\d+)/.exec(pdf)?.[1]);
+    assert.ok(pdf.slice(xref).startsWith("xref"));
+    const offsets = [...pdf.slice(xref).matchAll(/(\d{10}) 00000 n /g)].map((m) => Number(m[1]));
+    assert.equal(offsets.length, 4);
+    offsets.forEach((offset, i) => {
+        assert.ok(
+            pdf.slice(offset).startsWith(`${String(i + 1)} 0 obj`),
+            `object ${String(i + 1)} where the table says`,
+        );
+    });
+});
+
 test("an unknown format fails with E_BAD_COMMAND naming the field", async () => {
     graph = await createTestGraphWithData();
 
     try {
-        exportFigure(graph, { format: "pdf" as "svg" });
+        exportFigure(graph, { format: "png" as "svg" });
         assert.fail("expected a throw");
     } catch (error) {
         assert.instanceOf(error, GraphtyError);

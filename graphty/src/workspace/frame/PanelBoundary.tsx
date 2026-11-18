@@ -1,3 +1,4 @@
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import { Button, Stack, Text } from "@mantine/core";
 import * as Sentry from "@sentry/react";
 import React from "react";
@@ -49,5 +50,18 @@ export function PanelBoundary({
     name,
     children,
 }: Readonly<{ name: string; children: React.ReactNode }>): React.JSX.Element {
-    return <Sentry.ErrorBoundary fallback={fallbackFor(name)}>{children}</Sentry.ErrorBoundary>;
+    return (
+        <Sentry.ErrorBoundary
+            fallback={fallbackFor(name)}
+            onError={(error) => {
+                GraphtyLogger.getLogger(["graphty", "workspace"]).error(
+                    "panel crashed",
+                    error instanceof Error ? error : new Error(String(error)),
+                    { panel: name },
+                );
+            }}
+        >
+            {children}
+        </Sentry.ErrorBoundary>
+    );
 }

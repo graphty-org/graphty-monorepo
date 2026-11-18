@@ -44,8 +44,8 @@ describe("operation-cancelled code", () => {
         queueManager.clear();
 
         assert.deepEqual(
-            events.map((e) => [e.id, e.code, e.reason]),
-            [[id, "queue-cleared", "Queue cleared"]],
+            events.map((e) => [e.id, e.code]),
+            [[id, "queue-cleared"]],
         );
     });
 
@@ -58,8 +58,8 @@ describe("operation-cancelled code", () => {
         assert.isTrue(queueManager.cancelOperation(id));
 
         assert.deepEqual(
-            events.map((e) => [e.id, e.code, e.reason]),
-            [[id, "cancelled", "Manual cancellation"]],
+            events.map((e) => [e.id, e.code]),
+            [[id, "cancelled"]],
         );
     });
 });

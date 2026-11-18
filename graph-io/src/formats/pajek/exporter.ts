@@ -24,6 +24,8 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { respelledPositions } from "../../positions/convert.js";
+import type { PositionColumnExtra } from "../../positions/types.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { PAJEK_STYLE_CAPABILITIES, pajekStyledExport } from "./styles.js";
@@ -703,19 +705,23 @@ function spellsText(column: Column, row: number): string | null {
     return formatIntervals(pairs);
 }
 
+/** How Pajek spells a coordinate: y grows downward and depth is centered on 0.5 (as the importer reads it). */
+const PAJEK_SPELLING: PositionColumnExtra = { yAxis: "down", zOrigin: 0.5 };
+
 /**
  * The coordinates text of a vertex, or null when unset.
  * @param column - the position column (2 or 3 components)
  * @param i - the node index
  * @param writeZ - whether z is written for a 3-component column
+ * @param spelled - the column's rows in Pajek's spelling (`respelledPositions`), or null to write them as stored
  * @returns "x y" or "x y z", or null
  */
-function coordinatesText(column: Column, i: number, writeZ: boolean): string | null {
+function coordinatesText(column: Column, i: number, writeZ: boolean, spelled: Float64Array | null): string | null {
     if (!column.isSet(i)) {
         return null;
     }
     const dtype = column.dtype as "f32" | "f64" | "i32" | "u32" | "u8";
-    const vector = column.value(i) as ArrayLike<number>;
+    const vector = spelled === null ? (column.value(i) as ArrayLike<number>) : spelled.subarray(3 * i, 3 * i + 3);
     // the importer reads coordinates by position, so the shortest text of each is enough
     const x = formatNumber(vector[0], dtype);
     const y = formatNumber(vector[1], dtype);
@@ -875,8 +881,10 @@ function* writeVertices(
 ): Generator<string, void, undefined> {
     const slots = vertexSlots(nodePlan);
     const writeZ = slots.position !== null && needsZ(slots.position);
+    // Pajek draws y downward with depth centered on 0.5: a column spelled another way is converted
+    const spelled = respelledPositions(snapshot, slots.position, PAJEK_SPELLING);
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const parts = vertexParts(slots, i, writeZ);
+        const parts = vertexParts(slots, i, writeZ, spelled);
         if (mangle && ids.isChanged(i)) {
             parts.push(`${ORIGINAL_ID_KEY} ${quotePajekLabel(idText(ids.originalAt(i)))}`);
         }
@@ -949,12 +957,13 @@ function vertexSlots(nodePlan: readonly PlannedColumn[]): VertexSlots {
  * @param slots - the node columns by slot
  * @param i - the vertex's index
  * @param writeZ - whether coordinates carry a z
+ * @param spelled - the position column's rows in Pajek's spelling, or null to write them as stored
  * @returns the parts, in order
  */
-function vertexParts(slots: VertexSlots, i: number, writeZ: boolean): string[] {
+function vertexParts(slots: VertexSlots, i: number, writeZ: boolean, spelled: Float64Array | null): string[] {
     const { position, shape } = slots;
     const parts: string[] = [];
-    const coordinates = position === null ? null : coordinatesText(position, i, writeZ);
+    const coordinates = position === null ? null : coordinatesText(position, i, writeZ, spelled);
     if (coordinates !== null) {
         parts.push(coordinates);
     }

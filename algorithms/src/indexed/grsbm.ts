@@ -1,6 +1,6 @@
 import { type F64, type GraphSnapshot, INVALID_INDEX, renumberPartition, type U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 
@@ -296,19 +296,12 @@ function leafLabels(clusters: readonly MutableCluster[], n: number): U32 {
  * @returns The leaf partition and the hierarchy
  */
 export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult {
-    const {
-        maxDepth = 10,
-        minClusterSize = 2,
-        tolerance = 1e-6,
-        maxIterations = 100,
-        seed = 42,
-        weighted = true,
-    } = options;
+    const { maxDepth = 10, minClusterSize = 2, tolerance = 1e-6, maxIterations = 100, weighted = true } = options;
     const n = s.nodeCount;
     if (n === 0) {
         throw withCode(new Error("Cannot cluster empty graph"), "E_EMPTY_GRAPH");
     }
-    const random = mulberry32(seed);
+    const random = mulberry32(seedOption("grsbm", options));
     const arcWeights = weighted ? s.weights : null;
     checkWeights(arcWeights);
     const sc: Scorer = {

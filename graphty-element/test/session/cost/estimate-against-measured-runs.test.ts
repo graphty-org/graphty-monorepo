@@ -744,7 +744,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                         statistics: statistics(nodes, edges, maxDegree, transitivity),
                         calibration,
                     });
-                    assert.isTrue(estimate.available, estimate.reason);
+                    assert.isTrue(estimate.available, estimate.refusal?.code);
 
                     const ratio = estimate.seconds / measured;
                     const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;

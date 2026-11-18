@@ -34,7 +34,7 @@ async function opened(u) {
 }
 
 /**
- * Samples, then the sample's card: the graph opens on the Graph's Values tab.
+ * Samples, then the sample's card: the graph opens with the Everything layer row on its Style tab.
  * @param u the user's hands (README.md)
  * @param sample the sample as its card names it ("Les Miserables")
  */
@@ -44,6 +44,19 @@ async function openSample(u, sample) {
     const name = sample.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     await u.click(u.button(new RegExp(`^Open the ${name} sample: `)));
     await opened(u);
+}
+
+/**
+ * The graph's title in the Graph place, then the Graph inspector's Values tab.
+ * @param u the user's hands (README.md)
+ */
+async function graphValues(u) {
+    await u.page
+        .getByRole("region", { name: "Graph place" })
+        .getByRole("button", { name: /^Graph / })
+        .first()
+        .click();
+    await u.page.getByRole("tab", { name: "Values", exact: true }).click();
 }
 
 /**
@@ -85,9 +98,9 @@ async function openWhich(u) {
 }
 
 /**
- * A condition on the column. In the selection workspace: the new step's Value (or And...
- * for a further step), the column typed into the value picker and Enter; focus lands on the
- * step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
+ * A condition on the column. In the selection workspace: the new card's Value (or the card's
+ * Keep for a further condition), the column typed into the value picker and Enter; focus lands on
+ * the step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
  * @param u the user's hands (README.md)
  * @param column the column, as the pickers name it
  */
@@ -106,7 +119,7 @@ async function addCondition(u, column) {
         return;
     }
     const value = ws.getByRole("button", { name: "Value", exact: true });
-    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: /^(And|Add)\.\.\.$/ })).click();
+    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: "Keep", exact: true })).click();
     await u.page.getByRole("combobox", { name: "Find attributes, results" }).waitFor();
     await u.type(column);
     await u.key("Enter");
@@ -334,6 +347,7 @@ export const routes = [
         from: "T37 A",
         async walk(u) {
             await openSample(u, "Les Miserables");
+            await graphValues(u);
         },
         checks: {
             "Les Miserables opens with 77 nodes and 254 edges": sizeIs(77, 254),
@@ -347,6 +361,7 @@ export const routes = [
         from: "T37 B",
         async walk(u) {
             await openSample(u, "Zachary's karate club");
+            await graphValues(u);
         },
         checks: {
             "the karate club opens with 34 nodes and 78 edges": sizeIs(34, 78),

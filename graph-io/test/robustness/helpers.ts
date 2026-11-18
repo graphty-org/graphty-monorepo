@@ -3,7 +3,7 @@
  * that refuses to grow.
  */
 
-import { GraphBuilder, GraphFormatError } from "@graphty/graph-format";
+import { GraphBuilder, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
 import { ImportError, type ImportReport } from "../../src/types.js";
 
@@ -83,6 +83,25 @@ export async function rejection(promise: Promise<unknown>): Promise<unknown> {
  */
 export function codes(report: ImportReport): string[] {
     return report.issues.map((i) => i.code);
+}
+
+/**
+ * The distinct issue codes of a report, in order of first appearance; for an assertion that does
+ * not care how often a code was recorded.
+ * @param report - the report
+ * @returns the codes, each once
+ */
+export function uniqueCodes(report: ImportReport): string[] {
+    return [...new Set(codes(report))];
+}
+
+/**
+ * The node ids of a snapshot, in index order.
+ * @param s - the snapshot
+ * @returns the ids
+ */
+export function ids(s: GraphSnapshot): unknown[] {
+    return Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i));
 }
 
 /**

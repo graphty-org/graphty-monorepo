@@ -1,0 +1,15 @@
+id: network-merge-dialog
+name: Network Merge Dialog
+category: dialog
+description: "Dialog for merging two networks by union, intersection or difference, keeping which network each node came from."
+status: planned
+implements_capabilities:
+    - comparison-view
+used_in_workflows:
+    - W24
+dependencies: []
+props: {}
+sources: []
+version: 1.0.0
+created_at: 2026-11-18T00:00:00.000Z
+updated_at: 2026-11-18T00:00:00.000Z

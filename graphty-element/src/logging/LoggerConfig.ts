@@ -20,6 +20,20 @@ const DEFAULT_CONFIG: LoggerConfig = {
  */
 let currentConfig: LoggerConfig = { ...DEFAULT_CONFIG, format: { ...DEFAULT_CONFIG.format } };
 
+/** Whether anything has configured logging since the page loaded (or since the last reset). */
+let configured = false;
+
+/**
+ * Whether logging has been configured at all.
+ *
+ * Until it has, the element's warnings and errors still reach the console, so a page that never
+ * touches logging sees its failures; once a page configures logging, its configuration decides.
+ * @returns true once `configureLogging` has been called.
+ */
+export function isLoggingConfigured(): boolean {
+    return configured;
+}
+
 /**
  * Change the logging configuration, leaving alone everything the caller did not mention.
  *
@@ -31,6 +45,7 @@ let currentConfig: LoggerConfig = { ...DEFAULT_CONFIG, format: { ...DEFAULT_CONF
  * @param config - The settings to change. What is absent keeps the value it has.
  */
 export function configureLogging(config: Partial<LoggerConfig>): void {
+    configured = true;
     currentConfig = {
         enabled: config.enabled ?? currentConfig.enabled,
         level: config.level ?? currentConfig.level,
@@ -120,6 +135,7 @@ export function isModuleEnabled(category: string[]): boolean {
  * Primarily useful for testing.
  */
 export function resetLoggingConfig(): void {
+    configured = false;
     currentConfig = { ...DEFAULT_CONFIG, format: { ...DEFAULT_CONFIG.format } };
 }
 

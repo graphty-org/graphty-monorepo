@@ -267,7 +267,7 @@ describe("the node tab by part of the drawing", () => {
         const options = within(list).getAllByRole("option");
         assert.deepEqual(
             options.slice(0, 3).map((option) => option.textContent),
-            ["Box2 nodes", "Sphere1 node", "Cylinder"],
+            ["Box 2 nodes", "Sphere 1 node", "Cylinder"],
             "the graph's shapes first, with how many nodes each, then the rest",
         );
         assert.strictEqual(document.activeElement, search);
@@ -313,10 +313,11 @@ describe("the node tab by part of the drawing", () => {
         await session.styles.settled();
         const tab = await openStyle("Kinds");
         const row = await within(tab).findByRole("button", { name: /^Which nodes, / });
+        // The rule line is the Which row's name and tooltip, never words in the sidebar (#8739).
         await waitFor(() => {
-            assert.include(row.textContent, "class is Tool or Input");
+            assert.match(row.getAttribute("aria-label") ?? "", /class is Tool or Input$/);
         });
-        assert.match(row.getAttribute("aria-label") ?? "", /class is Tool or Input$/);
+        assert.notInclude(row.textContent, "class is Tool or Input");
     });
 
     it("Hide in Visibility hides the layer's nodes", async () => {
@@ -444,7 +445,7 @@ describe("the node tab by part of the drawing", () => {
             .getAllByRole("option")
             .filter((option) => option.getAttribute("aria-selected") === "true");
         assert.deepEqual(
-            selected.map((option) => option.textContent?.replace(/\d+ nodes?$/, "")),
+            selected.map((option) => option.textContent?.replace(/ \d+ nodes?$/, "")),
             ["Box"],
         );
     });

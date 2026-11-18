@@ -1,9 +1,18 @@
 # Feature Design: AI Tools Regression Testing
 
+Status: historical design, written in January 2026. What runs today differs: graphty-element's
+`llm-regression` vitest project sends each case to Google Gemini (the model is set in
+graphty-element/test/helpers/llm-regression-env.ts), and only in the release full run
+(`llm` job in .github/workflows/release.yml), never on a pull request, because every case is a paid
+call. A missing `GOOGLE_API_KEY` secret fails that job; locally, without a key, the suite skips.
+tools/llm-spend.mjs warns when a month's spend passes $60. The harness asks again only when the
+provider rate limited (429) or failed on its side (5xx); a failed assertion is never retried, and
+no test sets its own timeout (tools/README.md, "Testing").
+
 ## Overview
 
 - **User Value**: Confidence that LLM-powered graph commands work correctly with OpenAI, ensuring reliable natural language control of graph visualizations.
-- **Technical Value**: Automated regression testing on every PR that catches tool calling failures and parameter mismatches before they reach production. Enables safe iteration on prompts and tool definitions.
+- **Technical Value**: Automated regression testing in every release full run that catches tool calling failures and parameter mismatches before they reach production. Enables safe iteration on prompts and tool definitions.
 
 ## Requirements
 
@@ -342,9 +351,8 @@ interface TestGraphFixture {
 - [ ] Tests fail gracefully with clear error when API key is not available
 - [ ] Each command has at least 2 regression test cases
 - [ ] Test results include: tool called, parameters, command result, latency
-- [ ] Tests run in CI/CD on every PR (requires OpenAI API key as secret)
+- [ ] Tests run in the release full run (requires the provider's API key as a secret; a missing secret fails the job)
 - [ ] Test output is human-readable for debugging failures
-- [ ] Test timeouts are appropriate for LLM response times (60s+)
 - [ ] False positives are minimized through flexible parameter matching
 - [ ] Fixed graph test data is used for reproducible results
 
@@ -410,7 +418,7 @@ interface TestGraphFixture {
 
 - Run tests sequentially (not in parallel)
 - Add configurable delays between tests if needed
-- Handle rate limit errors gracefully with retries
+- Ask again only when the provider rate limited (429) or failed on its side (5xx)
 
 ### Risk: OpenAI API Changes
 
@@ -426,7 +434,6 @@ interface TestGraphFixture {
 
 - Focus on tool selection, not exact parameter values
 - Allow alternative valid tool choices (e.g., "ngraph" OR "d3" for force layout)
-- Use retry logic for intermittent failures
 - Document expected variability
 
 ---
@@ -444,15 +451,15 @@ interface TestGraphFixture {
 
 ## Design Decisions
 
-1. **CI/CD Integration**: LLM regression tests will run on **every PR**
-    - Requires `VITE_OPENAI_API_KEY` as CI/CD secret
+1. **CI/CD Integration**: LLM regression tests run in the **release full run** only, never on a pull request
+    - Requires the provider's API key as a CI secret; a missing secret fails the job
 
 2. **Provider Priority**: **OpenAI only** - tests will only run against OpenAI
     - Simplifies test infrastructure
     - Reduces API costs
     - Single point of truth for tool calling behavior
 
-3. **Failure Handling**: Tests must pass for OpenAI - failures block PR merge
+3. **Failure Handling**: A failure holds the release candidate
 
 4. **Test Data**: **Fixed graph data** for deterministic, reproducible testing
 

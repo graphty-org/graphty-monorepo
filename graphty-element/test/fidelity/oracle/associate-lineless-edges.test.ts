@@ -3,7 +3,9 @@
  * its heads' lengths it draws no line at all, only the heads. On cx-radiation-bibliography the circle heads of a blue
  * edge between two boxes 3.7 px apart are drawn alone, one after the other (at 148,727), and a green edge's triangle
  * head between two overlapping boxes is drawn alone (at 184,239), its tip on the target's outline though it points on
- * into the source. Each was left as unattached shapes, and graphty's edge there as one the program does not draw.
+ * into the source. Each was left as unattached shapes, and graphty's edge there as one the program does not draw. On
+ * cx-syn-mappings 189->192 the two heads differ: a filled red half head, one barb 97 px long slanting off the line and
+ * past the target, then an outlined dark circle 51 px across with the edge's label drawn inside it.
  */
 import { assert, describe, it } from "vitest";
 
@@ -117,5 +119,141 @@ describe("an edge drawn with no line, only its heads", () => {
             [["target", "triangle"]],
         );
         assert.isNull(arrow?.stroke ?? null, "the program drew no line, so the line has no paint to judge");
+    });
+
+    it("is read from two heads of different shapes and colors, one filled, one outlined", () => {
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        // Cytoscape desktop's transforms of its unit shapes, as its SVG export writes them
+        const at = ([a, b, c, d, e, f]: number[], pts: Pt[]): Pt[] =>
+            pts.map(([x, y]): Pt => [a * x + c * y + e, b * x + d * y + f]);
+        const half = at(
+            [-67.663, -2.2154, 2.2154, -67.663, 362.989, 163.055],
+            [
+                [-0.3, -0.1],
+                [-1.3, -1.1],
+                [-1.435, -1.1],
+                [-0.535, -0.2],
+                [-0.535, -0.1],
+                [-0.3, -0.1],
+            ],
+        );
+        const ring = at(
+            [50.747, 1.6616, -1.6616, 50.747, 412.048, 164.661],
+            Array.from({ length: 25 }, (_, i): Pt => [
+                -0.5 + 0.5 * Math.cos((i * Math.PI) / 12),
+                0.5 * Math.sin((i * Math.PI) / 12),
+            ]),
+        );
+        const words = { x0: 381.49, y0: 160.1, x1: 393.52, y1: 168.1 };
+        const nodes: PNode[] = [
+            ...BOXES.slice(0, 4).map(node),
+            { ...node(["tri", 347.76, 146.31, 366.6, 179.42]), shape: "triangle" },
+            { ...node(["dia", 411.16, 157.9, 447.27, 172.55]), shape: "diamond" },
+        ];
+        const prims = [
+            prim({ corners: 5, points: half, fill: { color: "#e41a1c", opacity: 0.82, gradient: null } }),
+            prim({
+                points: ring,
+                stroke: { color: "#6a030f", opacity: 0.82, width: 5.07, dash: null, dashClass: "solid" },
+            }),
+            {
+                ...prim({ points: [] }),
+                tag: "text",
+                kind: "text" as const,
+                closed: false,
+                box: words,
+                text: {
+                    content: "e80",
+                    x: words.x0,
+                    y: words.y1 - 2,
+                    box: words,
+                    sizePx: 6.47,
+                    family: "Times",
+                    weight: 400,
+                    style: "italic" as const,
+                    anchor: "start" as const,
+                    rotation: 0,
+                    color: "#2f4f4f",
+                    opacity: 1,
+                },
+            },
+            ...BOXES.slice(0, 4).map(([, x0, y0, x1, y1]) =>
+                prim({
+                    corners: 4,
+                    points: [
+                        [x0, y0],
+                        [x1, y0],
+                        [x1, y1],
+                        [x0, y1],
+                        [x0, y0],
+                    ],
+                    fill: WHITE,
+                    stroke: BORDER,
+                }),
+            ),
+            prim({
+                corners: 3,
+                points: [
+                    [366.6, 162.86],
+                    [347.76, 179.42],
+                    [347.76, 146.31],
+                    [366.6, 162.86],
+                ],
+                fill: WHITE,
+                stroke: BORDER,
+            }),
+            prim({
+                corners: 4,
+                points: [
+                    [411.16, 165.22],
+                    [429.22, 157.9],
+                    [447.27, 165.22],
+                    [429.22, 172.55],
+                    [411.16, 165.22],
+                ],
+                fill: WHITE,
+                stroke: BORDER,
+            }),
+        ];
+        const guide: PScene = {
+            side: "graphty",
+            width: 1200,
+            height: 900,
+            background: "#ffffff",
+            nodes,
+            edges: [edge("tri", "dia", "#0c336d")],
+            groups: [],
+            texts: [],
+            strays: [],
+        };
+        const o = associate(prims, 1200, 900, guide).scene;
+        assert.deepEqual(o.strays, [], "no head is left unattached");
+        const e = o.edges.find((x) => x.source === "tri" && x.target === "dia");
+        assert.deepEqual(
+            e?.arrows.map((a) => [a.end, a.end === "target" ? a.shape : a.color]),
+            [
+                ["source", "#e41a1c"],
+                ["target", "circle"],
+            ],
+        );
+        // along the line between the nodes, from the half head's tip to the circle's, not down its slanting barb
+        const [a, b] = [e?.points[0] ?? [0, 0], e?.points.at(-1) ?? [0, 0]];
+        assert.isBelow(Math.abs(b[1] - a[1]), 2);
+        assert.approximately(a[0], 383.3, 1);
+        assert.approximately(b[0], 412, 1);
     });
 });

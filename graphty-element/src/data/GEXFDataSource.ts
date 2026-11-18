@@ -2,7 +2,7 @@ import type { Column, GraphSnapshot } from "@graphty/graph-format";
 import { gexfImporter } from "@graphty/graph-io/gexf";
 
 import type { TimeField, TimeSource } from "../session/time/TimeApi";
-import { BaseDataSourceConfig, DataSource, DataSourceChunk, TIMELINE_READERS } from "./DataSource.js";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import {
     aggregateErrors,
     attributeKey,
@@ -249,15 +249,9 @@ function intervalKeys(table: Iterable<Column>, row: number, timeFormat: string |
  * @param snapshot - the imported graph
  * @param graphDirected - the direction declared for the whole graph
  * @param fileStyles - whether the load draws the file's styles, so no viz color or size is copied
- * @param readTimes - whether the timeline reads the load, so each list of instants is kept as `timestamps`
  * @returns the mapping
  */
-function gexfMapping(
-    snapshot: GraphSnapshot,
-    graphDirected: boolean,
-    fileStyles: boolean,
-    readTimes: boolean,
-): RecordMapping {
+function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles: boolean): RecordMapping {
     // Deprecated (removed in the next major): the viz color and size copied into the records.
     const vizKeys = fileStyles ? VIZ_POSITION : VIZ_KEYS;
     const { timeFormat } = snapshot.meta;
@@ -331,7 +325,7 @@ function gexfMapping(
                     : slices;
             } else if (column.meta.role === "spells" && column.isSet(row)) {
                 record.spells = spellsOf(column, spellsOpen.get(table) ?? null, row, timeFormat);
-            } else if (readTimes && column.meta.role === "timestamps" && column.isSet(row)) {
+            } else if (column.meta.role === "timestamps" && column.isSet(row)) {
                 record.timestamps = Array.from(column.value(row) as ArrayLike<number>, (at) =>
                     timeText(at, null, timeFormat),
                 );
@@ -527,9 +521,9 @@ function copyAttribute(kind: "node" | "edge", column: Column, row: number, recor
  *   `{ start, end }` intervals;
  * - an attribute with time-sliced `attvalue`s becomes a list of `{ value, start, end }` slices
  *   instead of a single value. An attribute with no timed `attvalue` keeps its plain value;
- * - with the timeline experiment on, a GEXF 1.3 `timestamps` list goes onto `timestamps` as text.
+ * - a GEXF 1.3 `timestamps` list goes onto `timestamps` as text.
  *
- * With the timeline experiment on, a `mode="dynamic"` graph designates its time field on load
+ * A `mode="dynamic"` graph designates its time field on load
  * (`session.time.field`): `start`, `end` and `spells`, or `timestamp` and `timestamps` for
  * `timerepresentation="timestamp"`, unless a time field is already set.
  *
@@ -615,8 +609,9 @@ export class GEXFDataSource extends DataSource {
         const fileStyles = this.config.styles === "file";
         const { nodes, edges } = toRecords(
             imported,
-            gexfMapping(snapshot, direction.directed, fileStyles, TIMELINE_READERS.has(this)),
+            gexfMapping(snapshot, direction.directed, fileStyles),
             this,
+            this.config.styles,
         );
         yield* this.chunkData(nodes, edges);
     }

@@ -371,6 +371,7 @@ export const READ_ONLY: readonly string[] = [
     "AssetsApi.accept",
     "AssetsApi.add",
     "AssetsApi.addEach",
+    "AssetsApi.copy",
     "AssetsApi.dropPart",
     "AssetsApi.allowHosts",
     "AssetsApi.files",

@@ -1618,7 +1618,10 @@ const LABEL_FIELD_OF_SUFFIX = {
     Box: "box",
 } as const satisfies Record<string, keyof LabelStyle>;
 
-/** A label style field one channel writes on its own. */
+/**
+ * A label style field one channel writes on its own: see {@link labelFieldOf}.
+ * @since 3.40.0
+ */
 export type LabelFieldName =
     | (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX]
     | "declutter"
@@ -2014,8 +2017,20 @@ const NODE_LABEL_MIN_NODE_SCREEN_SIZE: ChannelDescriptor = {
 
 /**
  * Where a label field channel writes: the label style channel it lands in and the field.
+ *
+ * A label field channel (`node.labelColor`, `edge.labelSize`, ...) sets one field of a label style
+ * on its own, and is the one a field varies through, since a whole label style cannot be bound to
+ * data. A settings panel that edits a label style field by field reads this to find the channel
+ * that varies a field, instead of copying the names.
  * @param channel - Any channel.
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
+ * @since 3.40.0
+ * @example
+ * ```ts
+ * import { labelFieldOf } from "@graphty/graphty-element/catalog";
+ * labelFieldOf("node.labelColor"); // { into: "node.labelStyle", field: "color" }
+ * labelFieldOf("node.labelSize"); // { into: "node.labelStyle", field: "sizePx" }
+ * ```
  */
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
     if (channel === "node.labelDeclutter") {

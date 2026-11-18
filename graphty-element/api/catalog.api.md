@@ -1789,6 +1789,15 @@ export type LabelBadge = "notification" | "label" | "label-success" | "label-war
 export type LabelDeclutterOrder = "degree" | "size";
 
 // @public
+export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter" | "minNodeScreenSize" | "textAlign" | "location";
+
+// @public
+export function labelFieldOf(channel: Channel): {
+    readonly into: Channel;
+    readonly field: LabelFieldName;
+} | undefined;
+
+// @public
 export type LabelFieldValueKind = "color" | "colors" | "number" | "text" | "boolean" | "enum";
 
 // @public

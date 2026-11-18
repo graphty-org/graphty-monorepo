@@ -232,12 +232,14 @@ export type {
     ChannelDescriptor,
     ChannelGroup,
     ChannelValueKind,
+    LabelFieldName,
 } from "./src/session/styles/channels";
 export {
     CHANNEL_DESCRIPTORS,
     channelDescriptor,
     CHANNELS,
     channelsFor,
+    labelFieldOf,
     PRIMARY_CHANNELS,
 } from "./src/session/styles/channels";
 // Every value of an enum channel with a default name and picture (`catalog.channelValues`), and the

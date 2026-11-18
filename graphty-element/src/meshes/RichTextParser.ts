@@ -202,6 +202,12 @@ export class RichTextParser {
 /** How a label's runs of different sizes meet on a line: their alphabetic baselines, hanging baselines or middles. */
 export type RunAlign = "baseline" | "hanging" | "middle";
 
+/**
+ * What one line is as tall as before the line height multiplies it: its font's ascent plus descent ("font"), its font
+ * size ("size", as CSS and Cytoscape.js measure a line), or its letters' own ink ("glyphs").
+ */
+export type LineBox = "font" | "size" | "glyphs";
+
 /** How a line is laid out. */
 export interface LineOptions {
     /** Line height multiplier. */
@@ -212,6 +218,8 @@ export interface LineOptions {
     textOutlineWidth: number;
     /** Where runs of different sizes meet (`runAlign`); unset, on their alphabetic baselines. */
     runAlign?: RunAlign;
+    /** What one line is as tall as (`lineBox`); unset, its font's ascent plus descent. */
+    lineBox?: LineBox;
 }
 
 const FONT_BOX_REFERENCE = 1000;
@@ -289,11 +297,13 @@ export function measureLine(
         maxSize = Math.max(maxSize, style.size);
         const [fontAscent, fontDescent] = fontBox(ctx, style);
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
+        const [inkAscent, inkDescent] = [metrics.actualBoundingBoxAscent || 0, metrics.actualBoundingBoxDescent || 0];
         return {
             // The font box keeps every label in one font the same height whatever its letters; the
-            // glyph box covers a face (a script font, say) whose ink overflows its own font box.
-            ascent: Math.max(fontAscent, metrics.actualBoundingBoxAscent || 0),
-            descent: Math.max(fontDescent, metrics.actualBoundingBoxDescent || 0),
+            // glyph box covers a face (a script font, say) whose ink overflows its own font box. A line
+            // as tall as its letters (`lineBox: "glyphs"`) has only their ink.
+            ascent: options.lineBox === "glyphs" ? inkAscent : Math.max(fontAscent, inkAscent),
+            descent: options.lineBox === "glyphs" ? inkDescent : Math.max(fontDescent, inkDescent),
             fontAscent,
             // a browser that reports no hanging baseline draws it at 80% of the ascent, as Chromium does
             hanging: Math.abs(metrics.hangingBaseline || 0) || 0.8 * fontAscent,
@@ -332,7 +342,8 @@ export function measureLine(
     }
 
     const inkHeight = ascent + descent;
-    const lineBox = inkHeight * options.lineHeight;
+    // a line as tall as its font size has its letters centered on it, reaching past it where the font box is taller
+    const lineBox = (options.lineBox === "size" ? maxSize : inkHeight) * options.lineHeight;
 
     return {
         width,

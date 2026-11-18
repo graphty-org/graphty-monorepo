@@ -159,3 +159,46 @@ describe("RichTextLabel size with an outline", () => {
         assert.closeTo(measured(20).perPixel, measured(0).perPixel, 1e-9);
     });
 });
+
+describe("RichTextLabel panel measured as Cytoscape.js measures it", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        scene.dispose();
+    });
+
+    /**
+     * The panel's height, without the room round it, and its words' height.
+     * @param more - The label's options past its words, size, line height and border.
+     * @returns The two heights, in label units.
+     */
+    const heights = (more: Record<string, unknown>): { panel: number; words: number } => {
+        const label = RichTextLabel.createLabel(scene, {
+            text: "Label",
+            fontSize: 48,
+            lineHeight: 1,
+            boxPadding: 0,
+            borderWidth: 4,
+            ...more,
+        });
+        const { actualDimensions, textSize, shadowMargin } = labelInternals.drawn(label);
+        return { panel: actualDimensions.height - shadowMargin * 2, words: textSize.height };
+    };
+
+    test("a line one font size tall, with the border centered on the panel's edge, makes the panel a font size tall at the border's middle", () => {
+        const { panel, words } = heights({ lineBox: "size", borderAlign: "center" });
+        assert.closeTo(words, 48, 1e-9);
+        // the border reaches half its width past the words' box on each side
+        assert.closeTo(panel, 48 + 4, 1e-9);
+    });
+
+    test("unset, a line is its font box tall and the border lies wholly outside it", () => {
+        const { panel, words } = heights({});
+        assert.isAbove(words, 48);
+        assert.closeTo(panel, words + 8, 1e-9);
+    });
+});

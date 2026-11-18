@@ -4600,10 +4600,19 @@ function backsText(p: Prim, t: PText): boolean {
     const w = Math.min(b.x1, t.box.x1) - Math.max(b.x0, t.box.x0);
     const h = Math.min(b.y1, t.box.y1) - Math.max(b.y0, t.box.y0);
     const covered = w > 0 && h > 0 ? (w * h) / Math.max(area(t.box), 1e-9) : 0;
+    // a disc centered on the words, about as tall as their box, narrower than they are (Cytoscape.js
+    // `text-background-shape: circle`: as wide as the box is tall)
+    const near = Math.max(t.sizePx / 2, 2);
+    const disc =
+        p.closed &&
+        shapeOf(p) === "ellipse" &&
+        Math.abs(cx(b) - cx(t.box)) <= near &&
+        Math.abs(cy(b) - cy(t.box)) <= near &&
+        bh(b) >= 0.6 * bh(t.box);
     return (
         (p.fill !== null || p.stroke !== null) &&
         inside([cx(t.box), cy(t.box)], b) &&
-        covered >= 0.6 &&
+        (covered >= 0.6 || disc) &&
         b.x0 >= t.box.x0 - reach &&
         b.y0 >= t.box.y0 - reach &&
         b.x1 <= t.box.x1 + reach &&

@@ -176,6 +176,8 @@ const LABEL: [string, CyjsPropertySpec][] = [
             enums: ["rectangle", "round-rectangle", "roundrectangle", "circle"],
         },
     ],
+    // what a line of the label measures as tall: its font size, or its letters' ink (`labelBoxShape`)
+    ["text-metrics", { property: "_textMetrics", type: "enum", enums: ["font", "glyph"] }],
     ["text-rotation", { property: "_rotation", type: "text" }],
     // the words' own opacity, drawn times the element's (`combineLabelOpacity`)
     ["text-opacity", { property: "_textOpacity", type: "zeroOne" }],

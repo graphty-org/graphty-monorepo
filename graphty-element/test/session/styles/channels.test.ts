@@ -66,6 +66,9 @@ const DECLARED = [
     "node.labelPadding",
     "node.labelCornerRadius",
     "node.labelLineHeight",
+    "node.labelLineBox",
+    "node.labelBorderAlign",
+    "node.labelBackgroundShape",
     "node.labelOffsetX",
     "node.labelOffsetY",
     "node.labelShiftX",
@@ -393,6 +396,9 @@ const DECLARED = [
     "edge.labelPadding",
     "edge.labelCornerRadius",
     "edge.labelLineHeight",
+    "edge.labelLineBox",
+    "edge.labelBorderAlign",
+    "edge.labelBackgroundShape",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
     "edge.labelShiftX",
@@ -441,9 +447,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and fourteen node channels and one hundred and seventy-two edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 214);
-        assert.strictEqual(channelsFor("edge").length, 172);
+    it("splits into two hundred and seventeen node channels and one hundred and seventy-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 217);
+        assert.strictEqual(channelsFor("edge").length, 175);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -870,6 +876,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelPadding",
         "node.labelCornerRadius",
         "node.labelLineHeight",
+        "node.labelLineBox",
+        "node.labelBorderAlign",
+        "node.labelBackgroundShape",
         "node.labelOffsetX",
         "node.labelOffsetY",
         "node.labelShiftX",
@@ -903,6 +912,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelPadding",
         "edge.labelCornerRadius",
         "edge.labelLineHeight",
+        "edge.labelLineBox",
+        "edge.labelBorderAlign",
+        "edge.labelBackgroundShape",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
         "edge.labelShiftX",

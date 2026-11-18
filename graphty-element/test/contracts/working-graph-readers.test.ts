@@ -197,6 +197,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "assets.states()": "not the graph",
     "assets.supply()": "writes",
     "assets.waiting()": "not the graph",
+    // Measures this machine for cost estimates.
+    "calibrate()": "not the graph",
     canRedo: "not the graph",
     canUndo: "not the graph",
     capabilities: "not the graph",

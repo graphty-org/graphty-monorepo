@@ -26,6 +26,8 @@ export default tseslint.config(
             "**/coverage/**",
             // Coverage parts a whole-shard test run writes (tools/run-tests.sh), merged later; gitignored.
             "**/.coverage-parts/**",
+            // `cdk synth` output, bundled Lambda code (tools/pipeline-health; gitignored).
+            "**/cdk.out/**",
             "**/storybook-static/**",
             "**/gh-pages/**",
             "**/tmp/**",
@@ -533,9 +535,6 @@ export default tseslint.config(
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
             "graph-io/test/fidelity/references/*.mjs",
-            // Temporary: the dry run's check deadlines decide route outcomes, so tools/dry-run-check-guard.mjs
-            // lets them change only on a branch of their own. Remove this line when that change lands (#7622).
-            "**/acceptance/run.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },

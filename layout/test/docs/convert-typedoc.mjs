@@ -1,7 +1,9 @@
 /**
  * @file Converts the package's API with TypeDoc and prints the outcome as JSON.
  *
- * Usage: node convert-typedoc.mjs <package dir>
+ * Usage: node convert-typedoc.mjs <package dir> [--not-documented]
+ *
+ * `--not-documented` also reports every exported symbol that has no description (TypeDoc's notDocumented check).
  *
  * Prints `{ converted, warningCount, errorCount, messages }`, where `messages` holds every warning and error
  * TypeDoc logged. typedoc-config.test.ts runs this in a child process rather than in its own test worker, for the
@@ -22,6 +24,7 @@ const app = await Application.bootstrapWithPlugins({
     tsconfig: resolve(pkg, "tsconfig.json"),
     entryPoints: config.entryPoints.map((p) => resolve(pkg, p)),
     logLevel: LogLevel.Warn,
+    ...(process.argv.includes("--not-documented") ? { validation: { notDocumented: true } } : {}),
 });
 const messages = [];
 const log = app.logger.log.bind(app.logger);

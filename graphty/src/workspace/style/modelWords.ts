@@ -5,12 +5,7 @@
  * caused it. A notice's sentences are `modelWords` in words.ts.
  */
 
-import type {
-    CodedFact,
-    GraphtyErrorCode,
-    GraphtyWarningCode,
-    ModelChange,
-} from "@graphty/graphty-element/session";
+import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode, ModelChange } from "@graphty/graphty-element/session";
 
 import { formatCount } from "../settings/numberFormat";
 

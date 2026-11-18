@@ -319,6 +319,20 @@ describe("model colors", () => {
         assert.strictEqual(count(untextured, BLUE), 0);
     });
 
+    it("draws an OBJ's faces, not points, when an empty group shares their MTL material (male02.obj)", async () => {
+        const element = await mount();
+        const files = boxesObj([["body", "blue", [-1, -1, 1, 1]]]);
+        // three.js's male02 opens each object with an "o" and a "g" holding no faces: Babylon's
+        // OBJ loader makes empty meshes of them and turned the material they share into points.
+        const text = new TextDecoder().decode(files.get("l.obj"));
+        files.set(
+            "l.obj",
+            new TextEncoder().encode(text.replace("mtllib l.mtl", "mtllib l.mtl\no empty\ng empty_blue\nusemtl blue")),
+        );
+        await drawModel(element, files, [{ id: "a", x: 0 }]);
+        assert.isAbove(count(await readFrame(element), BLUE), 300, "a solid blue box, not its eight corner dots");
+    });
+
     it("multiplies the node color into vertex colors on top, and drops them under 'replace'", async () => {
         const element = await mount();
         const { layer, asset } = await drawModel(element, "ply-ascii-colors", [{ id: "a", x: 0 }], {

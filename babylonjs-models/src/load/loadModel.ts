@@ -231,6 +231,22 @@ function clearReflections(container: AssetContainer, names: ReadonlySet<string>)
 }
 
 /**
+ * Draw an OBJ's faces as faces. Babylon's OBJ loader turns an MTL material into a point cloud when
+ * any mesh using it has no faces, and an OBJ's empty `o` or `g` line makes such a mesh: three.js's
+ * male02 drew its whole suit as sparse dots. A material a faced mesh uses draws faces again.
+ * @param container - The loaded OBJ.
+ */
+function facesNotPoints(container: AssetContainer): void {
+    // ponytail: a faceless mesh with vertices sharing that material loses its points; give it its
+    // own point material if an OBJ ever needs both.
+    for (const mesh of container.meshes) {
+        if (mesh.material?.pointsCloud === true && mesh.getTotalIndices() > 0) {
+            mesh.material.pointsCloud = false;
+        }
+    }
+}
+
+/**
  * A glTF 2.0 whose `uri`s climb above its folder (`../textures/wood.png`), which Babylon's glTF
  * loader refuses to resolve, with each `..` percent-encoded: the loader then asks the request
  * guard for it, which decodes it to the key the intake held the file under (design 3.3). A GLB
@@ -483,6 +499,10 @@ export async function loadModelFiles(
             options,
         );
         clearReflections(container, clear);
+        if (format === "obj") {
+            facesNotPoints(container);
+        }
+
         markWithoutPictures(container, root, skipped, lostPicture);
         return container;
     } catch (error) {

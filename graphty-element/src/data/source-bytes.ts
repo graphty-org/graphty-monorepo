@@ -154,13 +154,71 @@ export function takeFetched(url: string): FetchedFacts | undefined {
 }
 
 /**
+ * A refusal of a body over a size limit.
+ * @param limit - The limit, in bytes.
+ * @param count - The size found, or read so far.
+ * @returns The error.
+ */
+function tooLarge(limit: number, count: number): GraphtyError {
+    return new GraphtyError({
+        code: "E_TOO_LARGE",
+        message: `The body is over the limit of ${String(limit)} bytes.`,
+        source: "data",
+        details: { limit, count, of: "bytes" },
+    });
+}
+
+/**
+ * A response's body, read no further than a size limit: refused by its `Content-Length`, else
+ * as soon as the bytes read pass the limit.
+ * @param response - The response.
+ * @param limit - The limit, in bytes.
+ * @returns The body.
+ * @throws A `GraphtyError` with `E_TOO_LARGE` over the limit.
+ */
+async function boundedBody(response: Response, limit: number): Promise<ArrayBuffer> {
+    const declared = Number(response.headers.get("Content-Length") ?? Number.NaN);
+    if (declared > limit) {
+        throw tooLarge(limit, declared);
+    }
+
+    if (response.body === null) {
+        return response.arrayBuffer();
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (let read = await reader.read(); !read.done; read = await reader.read()) {
+        size += read.value.byteLength;
+        if (size > limit) {
+            await reader.cancel();
+            throw tooLarge(limit, size);
+        }
+
+        chunks.push(read.value);
+    }
+
+    const body = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) {
+        body.set(chunk, at);
+        at += chunk.byteLength;
+    }
+
+    return body.buffer;
+}
+
+/**
  * Read a URL's bytes, once.
  * @param url - The URL.
  * @param signal - Cancels the fetch; an abort rejects with the signal's reason, uncoded.
+ * @param limit - The most bytes to read; unbounded when absent.
  * @returns The bytes.
- * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
+ * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read, and `E_TOO_LARGE` when
+ *     its body is over the limit.
  */
-export async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
+export async function fetchBytes(url: string, signal?: AbortSignal, limit?: number): Promise<Uint8Array> {
     let response: Response;
     try {
         response = await fetch(url, signal === undefined ? undefined : { signal });
@@ -186,7 +244,8 @@ export async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uin
         });
     }
 
-    const bytes = new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url }));
+    const body = limit === undefined ? response.arrayBuffer() : boundedBody(response, limit);
+    const bytes = new Uint8Array(await readOrRefuse(body, { url }));
     const etag = response.headers.get("ETag");
     const lastModified = response.headers.get("Last-Modified");
     VALIDATORS.set(bytes, {

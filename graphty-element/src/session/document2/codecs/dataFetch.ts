@@ -13,12 +13,16 @@
 import { sha256HexSync } from "@graphty/graph-io";
 
 import { fetchBytes } from "../../../data/source-bytes";
+import { isGraphtyError } from "../../../errors/GraphtyError";
 import type { GraphSession, LoadChoices, TableMapping } from "../../types";
 import type { JsonObject } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
 
-/** Why a referenced source supplied nothing: unreachable, no location to read it from, or unreadable. */
-export type UnavailableReason = "unreachable" | "needs-file" | "read";
+/**
+ * Why a referenced source supplied nothing: unreachable, no location to read it from, unreadable,
+ * over the open's size limit, or a fetch the caller did not allow.
+ */
+export type UnavailableReason = "unreachable" | "needs-file" | "read" | "too-large" | "consent";
 
 /** A referenced source read again: its tables in copy form and its bytes' digest, or why not. */
 export type Refetched =
@@ -32,6 +36,15 @@ export interface RefetchOptions {
     /** Files the caller picked, by source id: read in place of fetching. */
     readonly files?: Readonly<Record<string, Blob>>;
     readonly signal?: AbortSignal;
+    /** Whether the caller lets the open fetch: a file cannot approve its own fetches. */
+    readonly fetch: boolean;
+    /** The most bytes one source may hold. */
+    readonly limit: number;
+    /**
+     * Whether the open builds the data section: asked only when a source would be fetched, so a
+     * file never makes an open fetch for a section it then refuses.
+     */
+    readonly builds: () => boolean;
     /** A scratch session to read a source in, disposed by the caller of this module. */
     readonly scratch: () => GraphSession;
 }
@@ -53,12 +66,16 @@ export function refetchedOf(record: object): Refetched | undefined {
  * each resolved against the location of the file being opened.
  * @param record - The record.
  * @param how - The open's options.
- * @returns The bytes, or `needs-file` when nothing says where they are.
+ * @returns The bytes, `needs-file` when nothing says where they are, `too-large` for a picked
+ *     file over the limit, or `consent` for a fetch the caller did not allow.
  */
-async function bytesOf(record: JsonObject, how: RefetchOptions): Promise<Uint8Array | "needs-file"> {
+async function bytesOf(
+    record: JsonObject,
+    how: RefetchOptions,
+): Promise<Uint8Array | "needs-file" | "too-large" | "consent"> {
     const picked = how.files?.[String(record.id)];
     if (picked !== undefined) {
-        return new Uint8Array(await picked.arrayBuffer());
+        return picked.size > how.limit ? "too-large" : new Uint8Array(await picked.arrayBuffer());
     }
 
     const origin = record.origin as JsonObject;
@@ -76,7 +93,7 @@ async function bytesOf(record: JsonObject, how: RefetchOptions): Promise<Uint8Ar
         return "needs-file";
     }
 
-    return fetchBytes(resolved.href, how.signal);
+    return how.fetch ? fetchBytes(resolved.href, how.signal, how.limit) : "consent";
 }
 
 /**
@@ -160,6 +177,9 @@ function ownColumns(record: Readonly<Record<string, unknown>>): JsonObject {
     return Object.fromEntries(Object.entries(record).filter(([name]) => !isReserved(name)));
 }
 
+/** A source's bytes parsed, whose saved roles no longer apply to them. */
+class RolesGone extends Error {}
+
 /**
  * Read a referenced source's bytes as its load read them: in a scratch session, with the record's
  * format, options (the style choices among them) and roles, into an empty graph, as a copy writes
@@ -168,6 +188,8 @@ function ownColumns(record: Readonly<Record<string, unknown>>): JsonObject {
  * @param bytes - Its bytes.
  * @param how - The open's options.
  * @returns The tables and their declarations.
+ * @throws {RolesGone} When the bytes parse but the saved roles do not read them; what the
+ *     parse throws when they do not parse.
  */
 async function reimport(
     record: JsonObject,
@@ -188,10 +210,16 @@ async function reimport(
         const mapping = isPlainObject(record.mapping) ? record.mapping : {};
         // A graph file's format sets its roles; a table's are the record's.
         const fixed = draft.tables.every((table) => table.fixed);
-        await draft.load({
-            ...(fixed ? {} : { mapping: tableMappingOf(mapping) }),
-            ...(settings as Pick<LoadChoices, "unmatched" | "duplicateIds">),
-        });
+        try {
+            await draft.load({
+                ...(fixed ? {} : { mapping: tableMappingOf(mapping) }),
+                ...(settings as Pick<LoadChoices, "unmatched" | "duplicateIds">),
+            });
+        } catch {
+            how.signal?.throwIfAborted();
+            throw new RolesGone();
+        }
+
         how.signal?.throwIfAborted();
         const format = typeof record.format === "string" ? record.format : "file";
         const columns = isPlainObject(record.columns) ? record.columns : {};
@@ -224,26 +252,32 @@ async function reimport(
  * @param how - The open's options.
  */
 async function refetch(record: JsonObject, how: RefetchOptions): Promise<void> {
-    let bytes: Uint8Array | "needs-file";
+    let bytes: Awaited<ReturnType<typeof bytesOf>>;
     try {
         bytes = await bytesOf(record, how);
-    } catch {
+    } catch (error) {
         how.signal?.throwIfAborted();
-        REFETCHED.set(record, { unavailable: "unreachable" });
+        const large = isGraphtyError(error) && error.code === "E_TOO_LARGE";
+        REFETCHED.set(record, { unavailable: large ? "too-large" : "unreachable" });
         return;
     }
 
-    if (bytes === "needs-file") {
-        REFETCHED.set(record, { unavailable: "needs-file" });
+    if (typeof bytes === "string") {
+        REFETCHED.set(record, { unavailable: bytes });
         return;
     }
 
+    const copyId = `sha256:${sha256HexSync(bytes)}`;
     try {
         const { tables, columns } = await reimport(record, bytes, how);
-        REFETCHED.set(record, { copyId: `sha256:${sha256HexSync(bytes)}`, tables, columns });
-    } catch {
+        REFETCHED.set(record, { copyId, tables, columns });
+    } catch (error) {
         how.signal?.throwIfAborted();
-        REFETCHED.set(record, { unavailable: "read" });
+        // Bytes that changed since the save and parse, but lack the columns the saved roles name,
+        // are a refresh that supplied no rows (spec 8.3 rules 1 and 2): reported changed, every
+        // saved column left out. The same bytes unreadable, or bytes that do not parse, are `read`.
+        const changed = error instanceof RolesGone && copyId !== (record.origin as JsonObject).copy;
+        REFETCHED.set(record, changed ? { copyId, tables: {}, columns: {} } : { unavailable: "read" });
     }
 }
 
@@ -269,5 +303,9 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
             (record.kind === "file" || record.kind === "url") &&
             isPlainObject(record.origin),
     );
+    if (referenced.length === 0 || !how.builds()) {
+        return;
+    }
+
     await Promise.all(referenced.map((record) => refetch(record, how)));
 }

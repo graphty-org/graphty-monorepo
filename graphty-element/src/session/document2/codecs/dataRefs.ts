@@ -12,6 +12,7 @@
 import { sha256HexSync } from "@graphty/graph-io";
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
+import { GraphtyError } from "../../../errors/GraphtyError";
 import { COLUMNS_VALUE, type ColumnSettings, SOURCES_VALUE } from "../../commands/data";
 import { dispatcherOf } from "../../dispatchers";
 import { expandedGraph } from "../../groups";
@@ -382,7 +383,7 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
     // ponytail: reader edits are baked into the copies on open, so the reader copy id the file
     // stamped is kept as read until the build changes, rather than derived from the session.
     memory.build = {
-        digest: bodyOf(dataModelOf(session), {}, []).digest,
+        digest: bodyOf(dataModelOf(session), { embed: {}, paths: {} }, []).digest,
         build: read.build,
         sources: { ...read.copies },
         ...(read.refused ? { written: mintUlid() } : {}),
@@ -1222,20 +1223,41 @@ function readMappingOf(source: ModelSource, model: DataModel, copy: Copy): JsonO
 
     const mapping = mappingOf(source, model, copy);
     const [table] = Object.values(source.load.mapping?.tables ?? {});
-    if (table === undefined) {
+    // A CSV read with no roles named was read by the header columns its reader chose.
+    const by = table ?? readByOf(model.session, source.load.key);
+    if (by === undefined) {
         return mapping;
     }
 
+    const key = "key" in by && typeof by.key === "string" ? by.key : undefined;
+    const ends =
+        table === undefined
+            ? (by as { source?: string; target?: string })
+            : { source: table.source?.column, target: table.target?.column };
     const nodes = mapping.nodes as JsonObject | undefined;
     const edges = mapping.edges as JsonObject | undefined;
     return {
-        ...(nodes === undefined
+        ...(nodes === undefined ? {} : { nodes: { ...nodes, ...(key === undefined ? {} : { key }) } }),
+        ...(edges === undefined || ends.source === undefined || ends.target === undefined
             ? {}
-            : { nodes: { ...nodes, ...(typeof table.key === "string" ? { key: table.key } : {}) } }),
-        ...(edges === undefined || table.source === undefined || table.target === undefined
-            ? {}
-            : { edges: { ...edges, source: table.source.column, target: table.target.column } }),
+            : { edges: { ...edges, source: ends.source, target: ends.target } }),
     };
+}
+
+/** The header columns a CSV table was read by, as its load's stored entry keeps them. */
+type ReadBy = { readonly source: string; readonly target: string } | { readonly key: string };
+
+/**
+ * The header columns a load's CSV table was read by when no roles were named, from its stored
+ * entry.
+ * @param session - The session.
+ * @param key - The load's key.
+ * @returns The columns, or undefined when the load kept none.
+ */
+function readByOf(session: GraphSession, key: string): ReadBy | undefined {
+    const stored = dispatcherOf(session).state.graph.values.get(SOURCES_VALUE) as
+        readonly { readonly key?: string; readonly readBy?: ReadBy }[] | undefined;
+    return stored?.find((entry) => entry.key === key)?.readBy;
 }
 
 /**
@@ -1318,9 +1340,15 @@ function originOf(source: ModelSource, model: DataModel, kind: string, copy: str
  * @param source - The source.
  * @param model - The model.
  * @param storage - Embedded or referenced.
+ * @param path - A file source's path the saver gave, if any.
  * @returns The record.
  */
-function sourceRecordOf(source: ModelSource, model: DataModel, storage: SourceStorage): JsonObject {
+function sourceRecordOf(
+    source: ModelSource,
+    model: DataModel,
+    storage: SourceStorage,
+    path: string | undefined,
+): JsonObject {
     const { load } = source;
     const copy = model.copies.get(source.id) as Copy;
     const kind = kindOfSource(source, memoryOf(model.session));
@@ -1330,6 +1358,10 @@ function sourceRecordOf(source: ModelSource, model: DataModel, storage: SourceSt
     delete options.url;
     const origin: JsonObject =
         kind === "network" ? networkOrigin(source, model, copy.copy) : originOf(source, model, kind, copy.copy);
+    if (kind === "file" && path !== undefined) {
+        origin.path = path;
+    }
+
     const { choices } = load;
     return {
         id: source.id,
@@ -1717,17 +1749,82 @@ function embedReason(source: ModelSource, model: DataModel): string | undefined 
     }
 
     const tables = Object.keys(source.load.mapping?.tables ?? {}).length;
-    return tables > 1 || source.load.choices?.kindIds === "scoped" ? "mapping" : undefined;
+    // A CSV this session read whose roles were neither named nor read by its header columns has no
+    // spelling. ponytail: one opened from an embedded copy keeps the copy's role names, right only
+    // for a `source,target` header; keep the header columns in the embedded record to know them.
+    const unnamed =
+        source.load.type === "csv" &&
+        tables === 0 &&
+        !memoryOf(model.session).origins.has(source.id) &&
+        readByOf(model.session, source.load.key) === undefined;
+    return tables > 1 || unnamed || source.load.choices?.kindIds === "scoped" ? "mapping" : undefined;
 }
+
+/** The saver's choices per source, each by source id or load key. */
+interface SourceChoices {
+    /** Embedded or referenced; embedded when absent. */
+    readonly embed: Readonly<Record<string, SourceStorage>>;
+    /** A file source's path relative to the folder the file is saved in. */
+    readonly paths: Readonly<Record<string, string>>;
+}
+
+/**
+ * A choice the saver made for a source, by its source id or, failing that, its load key.
+ * @param choices - The choices.
+ * @param source - The source.
+ * @returns The choice, if any.
+ */
+function chosenFor<T>(choices: Readonly<Record<string, T>>, source: ModelSource): T | undefined {
+    return choices[source.id] ?? choices[source.load.key];
+}
+
+/**
+ * Refuse a choice that names no source, which would otherwise be dropped silently, and a path
+ * that is not relative to the folder the file is saved in (spec 4.1.2 rule 6).
+ * @param model - The model.
+ * @param choices - The choices.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` (`details.option`, `details.value`).
+ */
+function checkChoices(model: DataModel, choices: SourceChoices): void {
+    const named = new Set([READER, ...model.sources.flatMap((source) => [source.id, source.load.key])]);
+    for (const option of ["embed", "paths"] as const) {
+        const unknown = Object.keys(choices[option]).find((key) => !named.has(key));
+        if (unknown !== undefined) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                source: "data",
+                message: `The ${option} option names ${JSON.stringify(unknown)}, which is no source of the open data.`,
+                details: { option, value: unknown },
+            });
+        }
+    }
+
+    for (const path of Object.values(choices.paths)) {
+        const parts = path.split("/");
+        if (path === "" || path.startsWith("/") || path.includes("\\") || parts.includes("..")) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                source: "data",
+                message: `The path ${JSON.stringify(path)} is not relative to the folder the file is saved in.`,
+                details: { option: "paths", value: path },
+            });
+        }
+    }
+}
+
+/** The kinds an open reads again (spec 8.3): the others are embedded when asked to be referenced. */
+const REFETCHED_KINDS = new Set(["file", "url"]);
 
 /**
  * How a source is saved: as asked, except that one no reference can stand for is embedded (spec
  * 4.1.2 rules 4 and 6): a derived source silently, as it has no bytes; a file source whose `path`
- * the session does not know, reported `W_SOURCE_NO_PATH`; and one whose rows are not its bytes
- * alone, reported `W_SOURCE_EMBEDDED` with the reason.
+ * neither the saver nor the file it was opened from gives, reported `W_SOURCE_NO_PATH`; a kind no
+ * open reads again, and one whose rows are not its bytes alone, reported `W_SOURCE_EMBEDDED` with
+ * the reason.
  * @param source - The source.
  * @param model - The model.
  * @param asked - What the caller asked for.
+ * @param path - The path the saver gave, if any.
  * @param problems - Collects `W_SOURCE_NO_PATH` and `W_SOURCE_EMBEDDED`.
  * @returns Embedded or referenced.
  */
@@ -1735,6 +1832,7 @@ function storageOf(
     source: ModelSource,
     model: DataModel,
     asked: SourceStorage,
+    path: string | undefined,
     problems: DocumentProblem[],
 ): SourceStorage {
     if (asked === "embedded") {
@@ -1747,12 +1845,12 @@ function storageOf(
         return "embedded";
     }
 
-    if (kind === "file" && typeof memory.origins.get(source.id)?.path !== "string") {
+    if (kind === "file" && path === undefined && typeof memory.origins.get(source.id)?.path !== "string") {
         problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
         return "embedded";
     }
 
-    const reason = embedReason(source, model);
+    const reason = embedReason(source, model) ?? (REFETCHED_KINDS.has(kind) ? undefined : "kind");
     if (reason !== undefined) {
         problems.push({ code: "W_SOURCE_EMBEDDED", params: { source: source.id, reason } });
         return "embedded";
@@ -1764,15 +1862,16 @@ function storageOf(
 /**
  * Every source record, the reader source first, and the ids of the embedded ones.
  * @param model - The model.
- * @param embed - Embedded or referenced, per source id; embedded when absent.
+ * @param choices - The saver's choices per source.
  * @param problems - Collects what the save reports.
  * @returns The records and the embedded ids.
  */
 function sourceRecordsOf(
     model: DataModel,
-    embed: Readonly<Record<string, SourceStorage>>,
+    choices: SourceChoices,
     problems: DocumentProblem[],
 ): { records: JsonObject[]; embedded: Set<string> } {
+    checkChoices(model, choices);
     const records: JsonObject[] = [];
     const embedded = new Set<string>([READER]);
     if (model.reader !== undefined) {
@@ -1795,13 +1894,14 @@ function sourceRecordsOf(
 
         // A source read by reference stays one unless the caller asks otherwise (spec 8.1 rule 5).
         const read = memoryOf(model.session).referenced.has(source.id);
-        const asked = embed[source.id] ?? (read ? "referenced" : "embedded");
-        const storage = storageOf(source, model, asked, problems);
+        const asked = chosenFor(choices.embed, source) ?? (read ? "referenced" : "embedded");
+        const path = chosenFor(choices.paths, source);
+        const storage = storageOf(source, model, asked, path, problems);
         if (storage === "embedded") {
             embedded.add(source.id);
         }
 
-        records.push(sourceRecordOf(source, model, storage));
+        records.push(sourceRecordOf(source, model, storage, path));
     }
 
     return { records, embedded };
@@ -1878,16 +1978,12 @@ function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
  * The data section's body (spec 4.1) from a model, with its build stamp: the one remembered while
  * the build inputs are unchanged, else a newly minted one.
  * @param model - The model.
- * @param embed - Embedded or referenced, per source id; embedded when absent.
+ * @param choices - The saver's choices per source.
  * @param problems - Collects what the save reports.
  * @returns The body, its digest and its stamp.
  */
-function bodyOf(
-    model: DataModel,
-    embed: Readonly<Record<string, SourceStorage>>,
-    problems: DocumentProblem[],
-): WrittenBody {
-    const { records, embedded } = sourceRecordsOf(model, embed, problems);
+function bodyOf(model: DataModel, choices: SourceChoices, problems: DocumentProblem[]): WrittenBody {
+    const { records, embedded } = sourceRecordsOf(model, choices, problems);
     reportLeftOut(model, problems);
     const types = typesOf(model);
     const conversions = conversionsOf(model.session);
@@ -1935,16 +2031,16 @@ function bodyOf(
 /**
  * The data section's body (spec 4.1), from today's model.
  * @param session - The session.
- * @param embed - Embedded or referenced, per source id; embedded when absent.
+ * @param choices - The saver's choices per source, each by source id or load key.
  * @param problems - Collects what the save reports.
  * @returns The body and its build stamp.
  */
 export function dataBodyOf(
     session: GraphSession,
-    embed: Readonly<Record<string, SourceStorage>>,
+    choices: SourceChoices,
     problems: DocumentProblem[],
 ): { readonly body: JsonObject; readonly stamp: BuildStamp } {
-    const { body, stamp } = bodyOf(dataModelOf(session), embed, problems);
+    const { body, stamp } = bodyOf(dataModelOf(session), choices, problems);
     return { body, stamp };
 }
 
@@ -2017,5 +2113,5 @@ export function elementRefsOf(session: GraphSession): ElementRefs {
  * @returns The stamp.
  */
 export function dataBindingOf(session: GraphSession): Promise<BuildStamp> {
-    return Promise.resolve(dataBodyOf(session, {}, []).stamp);
+    return Promise.resolve(dataBodyOf(session, { embed: {}, paths: {} }, []).stamp);
 }

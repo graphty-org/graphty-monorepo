@@ -1479,7 +1479,10 @@ export const dataCodec: SectionCodec = {
         "graph",
     ],
     write(context: WriteContext) {
-        return Promise.resolve({ body: dataBodyOf(context.session, context.embed, context.problems).body });
+        return Promise.resolve({
+            body: dataBodyOf(context.session, { embed: context.embed, paths: context.paths ?? {} }, context.problems)
+                .body,
+        });
     },
     holds(section: ReadSection, problems: DocumentProblem[]) {
         const found: DocumentProblem[] = [];

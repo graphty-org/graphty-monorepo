@@ -235,8 +235,10 @@ export interface BuildStamp {
 
 /** What a codec's `write` is given. */
 export interface WriteContext extends CodecContext {
-    /** The saver's choice per source id; a source with no entry is embedded. */
+    /** The saver's choice per source id or load key; a source with no entry is embedded. */
     readonly embed: Readonly<Record<string, SourceStorage>>;
+    /** A file source's path relative to the folder the file is saved in, per source id or load key. */
+    readonly paths?: Readonly<Record<string, string>>;
     /** Write the recipe from the session even when one was opened from a file (spec 8.1 rule 5). Default false. */
     readonly rewriteRecipe?: boolean;
     /** Whether a run's id was minted by the element (its namespace is the element's own). */

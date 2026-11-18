@@ -175,18 +175,29 @@ function rowsOf(session: GraphSession): unknown {
 }
 
 /**
- * A session that loaded friends.csv from its URL, and the file saved with it referenced.
+ * A session that loaded friends.csv from its URL, and the file saved with it referenced by its
+ * load key.
+ * @param choices - The load's choices.
  * @returns The session and the saved text.
  */
-async function savedByReference(): Promise<{ session: GraphSession; text: string; problems: readonly unknown[] }> {
+async function savedByReference(
+    choices: Parameters<GraphSession["data"]["import"]>[1] = {},
+): Promise<{ session: GraphSession; text: string; problems: readonly DocumentProblem[] }> {
     const session = createGraphSession(ON);
-    await session.data.import({ type: "csv", config: { url: FRIENDS } });
-    const first = JSON.parse((await session.project.save({ format: 2 })).text) as {
-        sections: { data: { sources: JsonObject[] } };
-    };
-    const id = String(first.sections.data.sources.find((each) => each.kind === "url")?.id);
-    const saved = await session.project.save({ format: 2, embed: { [id]: "referenced" } });
-    return { session, text: saved.text, problems: saved.report.leftOut };
+    await session.data.import({ type: "csv", config: { url: FRIENDS } }, choices);
+    const [{ key }] = session.data.sources();
+    const saved = await session.project.save({ format: 2, embed: { [key]: "referenced" } });
+    return { session, text: saved.text, problems: saved.report.leftOut as readonly DocumentProblem[] };
+}
+
+/**
+ * The saved data section's one url, file or sample source.
+ * @param text - The saved text.
+ * @returns The record.
+ */
+function loadedRecord(text: string): JsonObject {
+    const { sources } = (JSON.parse(text) as { sections: { data: { sources: JsonObject[] } } }).sections.data;
+    return sources.find((each) => each.kind !== "reader") as JsonObject;
 }
 
 describe("a source saved by reference", () => {
@@ -207,7 +218,7 @@ describe("a source saved by reference", () => {
 
         fetched.mockClear();
         const reopened = createGraphSession(ON);
-        const report = await reopened.project.open(text, { location: PROJECT_AT });
+        const report = await reopened.project.open(text, { fetchSources: true, location: PROJECT_AT });
         // The recipe that loaded the URL is kept, never applied: the data section rebuilt it.
         assert.deepEqual(codes(report.problems), ["W_RECIPE_NOT_APPLIED"]);
         assert.deepEqual(
@@ -248,7 +259,12 @@ describe("a source saved by reference", () => {
         const target = await ownProject();
         const before = { rows: rowsOf(target), dirty: target.project.dirty };
         const controller = new AbortController();
-        const opening = target.project.open(text, { location: PROJECT_AT, signal: controller.signal, discard: true });
+        const opening = target.project.open(text, {
+            fetchSources: true,
+            location: PROJECT_AT,
+            signal: controller.signal,
+            discard: true,
+        });
         await fetching;
         controller.abort(new Error("stop"));
         const error = await opening.then(
@@ -259,6 +275,143 @@ describe("a source saved by reference", () => {
         assert.deepEqual({ rows: rowsOf(target), dirty: target.project.dirty }, before);
         session.dispose();
         target.dispose();
+    });
+});
+
+describe("a source saved by reference, checked", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("reads a CSV again by the header columns its ends were found in", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response("from,to,w\nAva,Ben,1\nBen,Cara,2\n")));
+        const { session, text, problems } = await savedByReference();
+        assert.deepEqual(problems, []);
+        assert.deepInclude(loadedRecord(text).mapping as JsonObject, {
+            edges: {
+                ...((loadedRecord(text).mapping as JsonObject).edges as JsonObject),
+                source: "from",
+                target: "to",
+            },
+        });
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(text, { fetchSources: true, location: PROJECT_AT });
+        assert.deepEqual(codes(report.problems), ["W_RECIPE_NOT_APPLIED"]);
+        assert.deepEqual(rowsOf(reopened), rowsOf(session));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("embeds a sample asked to be referenced, which no open reads again, and says why", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const { session, text, problems } = await savedByReference({ origin: "sample" });
+        const record = loadedRecord(text);
+        assert.strictEqual(record.kind, "sample");
+        assert.property(record, "copy");
+        assert.deepEqual(problems, [
+            { code: "W_SOURCE_EMBEDDED", params: { source: String(record.id), reason: "kind" } },
+        ]);
+        session.dispose();
+    });
+
+    it("refuses an embed or paths key that names no source", async () => {
+        const session = await ownProject();
+        for (const options of [{ embed: { nope: "referenced" as const } }, { paths: { nope: "own.csv" } }]) {
+            const error = await refusal(session.project.save({ format: 2, ...options }));
+            assert.strictEqual(error.code, "E_OPTION_RANGE");
+            assert.deepEqual(error.details, { option: Object.keys(options)[0], value: "nope" });
+        }
+
+        session.dispose();
+    });
+
+    it("references a file source at the path the saver gives, refusing one above the folder", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { file: new File([FRIENDS_CSV], "friends.csv") } });
+        const [{ key }] = session.data.sources();
+        const above = await refusal(
+            session.project.save({ format: 2, embed: { [key]: "referenced" }, paths: { [key]: "../friends.csv" } }),
+        );
+        assert.strictEqual(above.code, "E_OPTION_RANGE");
+        const saved = await session.project.save({
+            format: 2,
+            embed: { [key]: "referenced" },
+            paths: { [key]: "data/friends.csv" },
+        });
+        assert.deepEqual(saved.report.leftOut, []);
+        const record = loadedRecord(saved.text);
+        assert.notProperty(record, "copy");
+        assert.strictEqual((record.origin as JsonObject).path, "data/friends.csv");
+
+        const fetched = vi.fn((_url: string) => Promise.resolve(new Response(FRIENDS_CSV)));
+        vi.stubGlobal("fetch", fetched);
+        const reopened = createGraphSession(ON);
+        await reopened.project.open(saved.text, { fetchSources: true, location: PROJECT_AT });
+        assert.deepEqual(
+            fetched.mock.calls.map(([url]) => url),
+            ["https://example.test/p/data/friends.csv"],
+        );
+        assert.deepEqual(rowsOf(reopened), rowsOf(session));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("fetches nothing a file names unless the caller lets it, nor for a data section it will not build", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const { session, text } = await savedByReference();
+        const fetched = vi.fn((_url: string) => Promise.resolve(new Response(FRIENDS_CSV)));
+        vi.stubGlobal("fetch", fetched);
+        const id = String(loadedRecord(text).id);
+        const unasked = createGraphSession(ON);
+        const report = await unasked.project.open(text, { location: PROJECT_AT });
+        assert.deepInclude(report.problems, {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: id, reason: "consent" },
+        });
+
+        const broken = JSON.parse(text) as { sections: { data: JsonObject } };
+        broken.sections.data.build = 42;
+        const refused = createGraphSession(ON);
+        const kept = await refused.project.open(JSON.stringify(broken), { fetchSources: true, location: PROJECT_AT });
+        assert.include(codes(kept.problems), "W_SECTION_KEPT");
+        assert.strictEqual(fetched.mock.calls.length, 0);
+        session.dispose();
+        unasked.dispose();
+        refused.dispose();
+    });
+
+    it("reads a referenced source no further than the open's size limit", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const { session, text } = await savedByReference();
+        // The file grew past the limit since the save; the project file is within it.
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV + "Dan,Eve,3\n".repeat(text.length))));
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(text, {
+            fetchSources: true,
+            location: PROJECT_AT,
+            limits: { fileBytes: text.length + 8 },
+        });
+        assert.deepInclude(report.problems, {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: String(loadedRecord(text).id), reason: "too-large" },
+        });
+        assert.strictEqual(reopened.data.nodes().length, 0);
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("reports a changed file whose saved ends are gone as changed, every saved column left out", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const { session, text } = await savedByReference();
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response("id\nAva\n")));
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(text, { fetchSources: true, location: PROJECT_AT });
+        const found = codes(report.problems);
+        assert.include(found, "W_SOURCE_CHANGED");
+        assert.include(found, "W_MEMBER_LEFT_OUT");
+        assert.notInclude(found, "W_SOURCE_UNAVAILABLE");
+        session.dispose();
+        reopened.dispose();
     });
 });
 

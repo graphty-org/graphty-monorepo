@@ -51,7 +51,7 @@ async function open(
     const report = await session.project.open(text, {
         rerun: false,
         discard: true,
-        ...(location === undefined ? {} : { location }),
+        ...(location === undefined ? {} : { location, fetchSources: true }),
     });
     return {
         session,

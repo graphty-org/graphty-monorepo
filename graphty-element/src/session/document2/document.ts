@@ -56,12 +56,14 @@ export interface SaveChoices {
     readonly form?: "full" | "section";
     /** Add results to the default sections. */
     readonly results?: boolean;
-    /** Embed or reference, per source id. */
+    /** Embed or reference, per source id or load key. */
     readonly embed?: Readonly<Record<string, SourceStorage>>;
     /** The caller's extensions, already checked. */
     readonly extensions?: Readonly<JsonObject>;
     /** Write the recipe from the session even when one was opened from a file; default false. */
     readonly rewriteRecipe?: boolean;
+    /** A file source's path relative to the folder the file is saved in, per source id or load key. */
+    readonly paths?: Readonly<Record<string, string>>;
 }
 
 /** What a version 2 open loads. */
@@ -121,7 +123,7 @@ function writeContextOf(
     session: GraphSession,
     state: DocumentState,
     sections: ReadonlySet<DocumentSection>,
-    choices: Pick<SaveChoices, "embed" | "rewriteRecipe">,
+    choices: Pick<SaveChoices, "embed" | "paths" | "rewriteRecipe">,
     isDerived: (id: RunId) => boolean,
     problems: DocumentProblem[],
     refs: () => ElementRefs = lazyRefs(session),
@@ -133,6 +135,7 @@ function writeContextOf(
         dataId: () => dataIdOf(state),
         sections,
         embed: choices.embed ?? {},
+        paths: choices.paths ?? {},
         rewriteRecipe: choices.rewriteRecipe === true,
         isDerived,
         bindsTo: (): Promise<BindsTo> => Promise.resolve({ data: dataIdOf(state) }),

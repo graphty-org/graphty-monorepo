@@ -283,6 +283,7 @@ describe("a file's looks in a source saved as a reference", () => {
 
         const reopened = createGraphSession(ON);
         const report = await reopened.project.open(text, {
+            fetchSources: true,
             location: "https://example.org/projects/ring.graphty.json",
         });
         assert.deepEqual(
@@ -311,7 +312,10 @@ describe("a file's looks in a source saved as a reference", () => {
         const { text } = await savedByReference(session);
 
         const reopened = createGraphSession(ON);
-        await reopened.project.open(text, { location: "https://example.org/projects/ring.graphty.json" });
+        await reopened.project.open(text, {
+            fetchSources: true,
+            location: "https://example.org/projects/ring.graphty.json",
+        });
         assert.strictEqual(reopened.data.node("n0")?.[suffixed], session.data.node("n0")?.[suffixed]);
         assert.notProperty(reopened.data.node("n0"), fill);
         assert.deepEqual(drawn(reopened), before);
@@ -332,6 +336,7 @@ describe("a file's looks in a source saved as a reference", () => {
         vi.stubGlobal("fetch", () => Promise.resolve(new Response(changed)));
         const reopened = createGraphSession(ON);
         const report = await reopened.project.open(text, {
+            fetchSources: true,
             location: "https://example.org/projects/ring.graphty.json",
         });
         const found = report.problems.find((problem) => problem.code === "W_SOURCE_CHANGED");

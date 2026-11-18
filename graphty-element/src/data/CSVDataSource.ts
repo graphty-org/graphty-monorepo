@@ -328,6 +328,13 @@ export class CSVDataSource extends DataSource {
     private readonly config: CSVDataSourceConfig;
 
     /**
+     * The header columns the one table it read was read by: an edge table's ends, or a node
+     * table's id column; unset for any other read (paired files, Neo4j, an adjacency list, node
+     * rows numbered). A version 2 save names them in a referenced source's mapping.
+     */
+    readBy: { readonly source: string; readonly target: string } | { readonly key: string } | undefined;
+
+    /**
      * Creates a new CSVDataSource instance.
      * @param config - Configuration options for CSV parsing and data loading
      */
@@ -417,7 +424,7 @@ export class CSVDataSource extends DataSource {
 
         let imported: ImportedRecords;
         try {
-            imported = await this.importTable(content, options);
+            imported = await this.importNamed(content, options);
         } catch (error) {
             const header = missingColumnHeader(error);
             if (header === null) {
@@ -442,6 +449,24 @@ export class CSVDataSource extends DataSource {
     }
 
     /**
+     * Read one table by the columns named, remembering them as what it was read by.
+     * @param content - the file's text
+     * @param options - the table's options, its columns named
+     * @returns the records
+     */
+    private async importNamed(content: string, options: CsvImportOptions): Promise<ImportedRecords> {
+        const imported = await this.importTable(content, options);
+        const { sourceColumn, targetColumn } = options;
+        if (options.table === "edges" && typeof sourceColumn === "string" && typeof targetColumn === "string") {
+            this.readBy = { source: sourceColumn, target: targetColumn };
+        } else if (options.table === "nodes" && typeof options.idColumn === "string") {
+            this.readBy = { key: options.idColumn };
+        }
+
+        return imported;
+    }
+
+    /**
      * Read a table whose columns were not configured, by the columns its header holds: an edge
      * table by the first pair of {@link ENDPOINT_PAIRS} it holds, a node table (or, where it may be
      * one, any table) by its id column, and a node table without one by row number.
@@ -462,11 +487,11 @@ export class CSVDataSource extends DataSource {
         const pair = ENDPOINT_PAIRS.find(([source, target]) => header.includes(source) && header.includes(target));
         const idColumn = mayBeNodeList || nodeTable ? NODE_ID_COLUMNS.find((name) => header.includes(name)) : undefined;
         if (edgeTable && pair !== undefined) {
-            return this.importTable(content, { ...table, sourceColumn: pair[0], targetColumn: pair[1] });
+            return this.importNamed(content, { ...table, sourceColumn: pair[0], targetColumn: pair[1] });
         }
 
         if (idColumn !== undefined) {
-            return this.importTable(content, { table: "nodes", idColumn });
+            return this.importNamed(content, { table: "nodes", idColumn });
         }
 
         if (nodeTable) {

@@ -7608,6 +7608,8 @@ export interface ProjectOpenOptions {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     };
+    // @beta
+    readonly fetchSources?: boolean;
     readonly fileName?: string;
     // @beta
     readonly files?: Readonly<Record<string, Blob>>;
@@ -7654,6 +7656,8 @@ export interface ProjectSaveOptions {
     readonly format?: 1 | 2;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
+    // @beta
+    readonly paths?: Readonly<Record<string, string>>;
     // @beta
     readonly results?: boolean;
     // @beta

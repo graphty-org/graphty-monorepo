@@ -1169,6 +1169,8 @@ describe("a source saved by reference, read again", () => {
     const LOCATION = "https://example.test/p/x.graphty.json";
     const CSV = "source,target\nAva,Ben\n";
     const scratch = (): GraphSession => createGraphSession(ON);
+    /** What an open the caller lets fetch gives the fetch. */
+    const how = { fetch: true, limit: 1 << 20, builds: (): boolean => true, scratch };
 
     /**
      * friends.csv saved by its path beside the file, as a data body.
@@ -1195,7 +1197,7 @@ describe("a source saved by reference, read again", () => {
         const fetched = vi.fn((_url: string) => Promise.resolve(new Response(CSV)));
         vi.stubGlobal("fetch", fetched);
         const beside = await referencedFriends();
-        await refetchSources(beside.body, { location: LOCATION, scratch });
+        await refetchSources(beside.body, { location: LOCATION, ...how });
         assert.deepStrictEqual(
             fetched.mock.calls.map(([url]) => url),
             ["https://example.test/p/friends.csv"],
@@ -1209,7 +1211,7 @@ describe("a source saved by reference, read again", () => {
 
         fetched.mockClear();
         const picked = await referencedFriends();
-        await refetchSources(picked.body, { files: { [picked.id]: new File([CSV], "friends.csv") }, scratch });
+        await refetchSources(picked.body, { files: { [picked.id]: new File([CSV], "friends.csv") }, ...how });
         assert.strictEqual(fetched.mock.calls.length, 0);
         const fromFile = createGraphSession(ON);
         assert.deepStrictEqual(await readBody(fromFile, picked.body), []);
@@ -1222,7 +1224,7 @@ describe("a source saved by reference, read again", () => {
         const fetched = vi.fn((_url: string) => Promise.resolve(new Response(CSV)));
         vi.stubGlobal("fetch", fetched);
         const { body, id } = await referencedFriends();
-        await refetchSources(body, { scratch });
+        await refetchSources(body, how);
         const reopened = createGraphSession(ON);
         assert.deepInclude(await readBody(reopened, body), {
             code: "W_SOURCE_UNAVAILABLE",
@@ -1237,7 +1239,7 @@ describe("a source saved by reference, read again", () => {
         const { body, at } = await referencedFriends();
         const record = (body.sources as JsonObject[])[at];
         ((record.columns as JsonObject).nodes as JsonObject).mood = { name: "mood", dtype: "string", nullable: true };
-        await refetchSources(body, { location: LOCATION, scratch });
+        await refetchSources(body, { location: LOCATION, ...how });
         const reopened = createGraphSession(ON);
         assert.deepInclude(await readBody(reopened, body), {
             code: "W_MEMBER_LEFT_OUT",

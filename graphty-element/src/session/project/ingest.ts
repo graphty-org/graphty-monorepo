@@ -16,6 +16,7 @@ import type { RequestedLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
+import { CSVDataSource } from "../../data/CSVDataSource";
 import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSignal } from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
@@ -155,6 +156,15 @@ function inputOf(command: { readonly input?: string }): { readonly input?: strin
 function drawnOf(command: DataImportCommand): { readonly drawn?: Pick<DataImportCommand, "styles" | "styleOptions"> } {
     const { styles, styleOptions } = command;
     return styles === undefined ? {} : { drawn: { styles, ...(styleOptions === undefined ? {} : { styleOptions }) } };
+}
+
+/**
+ * The header columns a CSV reader read its table by, if the reader is one.
+ * @param reader - The load's reader.
+ * @returns The columns, or undefined.
+ */
+function csvReadBy(reader: unknown): CSVDataSource["readBy"] {
+    return reader instanceof CSVDataSource ? reader.readBy : undefined;
 }
 
 /**
@@ -981,6 +991,7 @@ export class Ingest<K extends KnownEdge> {
                     : undefined;
             this.recordLoad(command, writer, {
                 described,
+                readBy: csvReadBy(outcome.reader),
                 type,
                 added,
                 leftOut,
@@ -1036,6 +1047,7 @@ export class Ingest<K extends KnownEdge> {
      * @param writer - The command's writer.
      * @param load - What the load read and did.
      * @param load.described - Where it came from.
+     * @param load.readBy - The header columns a CSV table was read by.
      * @param load.type - The data source that read it.
      * @param load.added - How many nodes and edges it added.
      * @param load.leftOut - The edge rows it left out, when it left any out.
@@ -1049,6 +1061,8 @@ export class Ingest<K extends KnownEdge> {
         writer: GraphWriter,
         load: {
             readonly described: DataSourceDescriptor;
+            /** The header columns a CSV table was read by, kept for a version 2 save. */
+            readonly readBy: CSVDataSource["readBy"];
             readonly type: string;
             readonly added: LoadedSource["added"];
             readonly leftOut: LoadedSource["leftOut"];
@@ -1058,7 +1072,7 @@ export class Ingest<K extends KnownEdge> {
             readonly same: number;
         },
     ): void {
-        const { described, type, added, leftOut, supplied, earlier, earlierProvenance, same } = load;
+        const { described, readBy, type, added, leftOut, supplied, earlier, earlierProvenance, same } = load;
         const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
         const kind: LoadedSourceKind = command.origin ?? kindOf(type, command.source.config);
         const loaded: LoadedSource = Object.freeze({
@@ -1066,6 +1080,7 @@ export class Ingest<K extends KnownEdge> {
             key,
             kind,
             ...tableFacts(command),
+            ...(readBy === undefined ? {} : { readBy }),
             added,
             ...(leftOut === undefined ? {} : { leftOut }),
             loadedAt: new Date().toISOString(),

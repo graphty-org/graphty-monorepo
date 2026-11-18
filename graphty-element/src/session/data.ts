@@ -2955,8 +2955,13 @@ export class SessionData implements SessionDataApi {
                 const {
                     input,
                     drawn: _drawn,
+                    readBy: _readBy,
                     ...entry
-                } = each as LoadedSource & { readonly input?: string; readonly drawn?: unknown };
+                } = each as LoadedSource & {
+                    readonly input?: string;
+                    readonly drawn?: unknown;
+                    readonly readBy?: unknown;
+                };
                 return Object.freeze({
                     ...entry,
                     key,

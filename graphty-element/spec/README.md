@@ -187,13 +187,13 @@ ending `Z` (`2026-11-14T18:00:00.000Z`).
 `dependencies` says what a section needs before it can work, so a reader can say what is missing
 instead of failing.
 
-| Member       | Allowed in                                                                                                                                                                                                              | Each entry                                             |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `columns`    | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; always for an embedded copy, and also for a referenced source, as what an open checks the rows it reads again against |
-| `types`      | style, recipe, settings                                                                                                                                                                                                 | a node or edge type name                               |
-| `sources`    | style, recipe, settings                                                                                                                                                                                                 | a source role name                                     |
-| `results`    | style, recipe, settings                                                                                                                                                                                                 | a run name (`as`) whose fields the section reads       |
-| `extensions` | every section                                                                                                                                                                                                           | `{ "name": "<reverse-domain>", "version": <integer> }` |
+| Member       | Allowed in              | Each entry                                             |
+| ------------ | ----------------------- | ------------------------------------------------------ |
+| `columns`    | style, recipe, settings | `{ "kind", "name", "schema" }`, and nothing else       |
+| `types`      | style, recipe, settings | a node or edge type name                               |
+| `sources`    | style, recipe, settings | a source role name                                     |
+| `results`    | style, recipe, settings | a run name (`as`) whose fields the section reads       |
+| `extensions` | every section           | `{ "name": "<reverse-domain>", "version": <integer> }` |
 
 1. A `columns` entry names a working column as graphty-element's `ColumnRef` does: `kind`
    (`"node"` or `"edge"`, REQUIRED) and `name`. The column mapping step matches it within that
@@ -271,7 +271,7 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 | `annotations`                     | the shapes and text a source draws beside its graph, in the source's frame (y up, its own units), with their scale                                                                                                                                                                                                             |
 | `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                                                                                                                       |
 | `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                                                                                                                    |
-| `columns`                         | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; present exactly when `copy` is                                                                                                                                                                                               |
+| `columns`                         | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; always with `copy`, and on a referenced source as what an open checks the rows it reads again against                                                                                                                        |
 | `loaded`                          | when the current copy was read                                                                                                                                                                                                                                                                                                 |
 
 1. **The copy id.** `origin.copy` is `sha256:` plus lower-case hex of the bytes as read for file,
@@ -308,8 +308,9 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    whatever the saver asked, and the save reports why (`W_SOURCE_EMBEDDED`, params
    `{ source, reason }`): `edited` (the reader edited, removed or merged its rows), `bytes` (the
    writer kept no digest of the bytes it read), `rows` (another source also supplied one of its
-   nodes or edges) or `mapping` (its read has no spelling in 4.1.3: several tables read as one, or
-   ids scoped by kind).
+   nodes or edges), `mapping` (its read has no spelling in 4.1.3: several tables read as one, ids
+   scoped by kind, or table columns the writer does not know it was read by) or `kind` (a kind an
+   open does not read again: only `file` and `url` sources are).
 
 #### 4.1.3 The mapping
 
@@ -822,14 +823,20 @@ resolve against the location of the file being opened (graphty-element's `locati
 when the caller gives one. Otherwise the load plan lists the source as needing a file, with its
 saved name.
 
+Nothing a file names is fetched without the caller's consent (graphty-element's `fetchSources`
+open option, `ownWork` by default), nor for a data section the open does not build, and each
+source is read no further than the open's size limit.
+
 1. The rows read again are built as an embedded copy's are. Each saved `columns` name the rows
    lack is reported (`W_MEMBER_LEFT_OUT`, pointer `/sources/<i>/columns/<table>/<name>`).
 2. A fetched or picked copy whose copy id differs is a refresh: it is reported
    (`W_SOURCE_CHANGED`, params `{ source, expected, found }`) and the build gets a new stamp
-   (4.1.1), so a run on the old copy reports `W_DATA_CHANGED`.
+   (4.1.1), so a run on the old copy reports `W_DATA_CHANGED`. A refresh that parses but lacks a
+   column its `mapping` names supplies no rows, and rule 1 reports every saved column.
 3. A source still not found reports `W_SOURCE_UNAVAILABLE` (params `{ source, reason }`: `unreachable`
    when its fetch failed, `needs-file` when nothing says where it is, `read` when its bytes could
-   not be parsed, `kind` for a kind this reader does not fetch), supplies no elements, keeps the
+   not be parsed, `too-large` when they pass the open's size limit, `consent` when the caller did
+   not let the open fetch it, `kind` for a kind this reader does not fetch), supplies no elements, keeps the
    edge ids its `edgeIds` names, and leaves references to them unbound. Its record is written back
    as read.
 

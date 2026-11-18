@@ -230,17 +230,35 @@ export interface ProjectSaveOptions {
      */
     readonly results?: boolean;
     /**
-     * Version 2 only: per source id, whether its rows are written into the file (`"embedded"`)
-     * or only referenced (`"referenced"`), its file or URL read again on open. Default: as the
-     * source was read, embedded for one never saved. A source whose rows are not its bytes alone
-     * (the reader edited them, another load also supplied them, or several tables were read as
-     * one) is embedded and reported `W_SOURCE_EMBEDDED` (`params.reason`); a file source whose
-     * path the session does not know, `W_SOURCE_NO_PATH`.
+     * Version 2 only: per source, by its load key (`session.data.sources()[i].key`) or its
+     * record id in a file it was opened from, whether its rows are written into the file
+     * (`"embedded"`) or only referenced (`"referenced"`), its file or URL read again on open.
+     * Default: as the source was read, embedded for one never saved. A source whose rows are not
+     * its bytes alone (the reader edited them, another load also supplied them, or several tables
+     * were read as one), and one of a kind no open reads again (a dataset, a network source), is
+     * embedded and reported `W_SOURCE_EMBEDDED` (`params.reason`); a file source with no path
+     * (see `paths`), `W_SOURCE_NO_PATH`. A key that names no source is refused with
+     * `E_OPTION_RANGE`.
+     *
+     * ```ts
+     * const [source] = session.data.sources();
+     * const { text } = await session.project.save({ format: 2, embed: { [source.key]: "referenced" } });
+     * ```
      * @since 3.40.0
      * @experimental save-files-v2
      * @beta
      */
     readonly embed?: Readonly<Record<string, SourceStorage>>;
+    /**
+     * Version 2 only: per file source, by load key or record id, its path relative to the folder
+     * the project file is saved in (`"data/friends.csv"`), so it can be referenced; an open
+     * resolves it against its `location` option. A path that is absolute or climbs above that
+     * folder, or a key that names no source, is refused with `E_OPTION_RANGE`.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly paths?: Readonly<Record<string, string>>;
 }
 
 /** What the session lends the project file for the loads. */
@@ -394,6 +412,18 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly location?: string;
+    /**
+     * Version 2 only: let the open fetch the referenced sources the file names by URL (resolved
+     * against `location`). A file cannot approve its own fetches, so the default is `ownWork`:
+     * without it, a source that would be fetched supplies nothing and is reported
+     * `W_SOURCE_UNAVAILABLE` (`reason: "consent"`). Nothing is fetched for a data section the
+     * open does not build. Each source is read no further than `limits.fileBytes`
+     * (`reason: "too-large"`). EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly fetchSources?: boolean;
     /**
      * Version 2 only: files the reader picked for referenced sources, by source id, read in place
      * of fetching them. EXPERIMENTAL.
@@ -3407,6 +3437,7 @@ export function projectOf(
                 ...(options.form === undefined ? {} : { form: options.form }),
                 ...(options.results === undefined ? {} : { results: options.results }),
                 ...(options.embed === undefined ? {} : { embed: options.embed }),
+                ...(options.paths === undefined ? {} : { paths: options.paths }),
                 extensions,
             },
             isDerived,
@@ -3439,12 +3470,20 @@ export function projectOf(
         fileName: unknown,
         before: readonly DocumentProblem[],
     ): Promise<ProjectOpenReport> => {
-        // Fetched before the section is checked, which builds it synchronously; an abort rejects
-        // here, before anything is applied.
+        // Fetched before the section is built, which builds it synchronously; an abort rejects
+        // here, before anything is applied. A file cannot approve its own fetches, and never makes
+        // one for a data section the open would not build.
+        const fetches = options.fetchSources ?? options.ownWork === true;
         await refetchSources(value, {
             ...(options.location === undefined ? {} : { location: options.location }),
             ...(options.files === undefined ? {} : { files: options.files }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
+            fetch: fetches,
+            limit: options.limits?.fileBytes ?? DEFAULT_FILE_BYTES,
+            builds: () =>
+                !fetches ||
+                ((options.sections?.includes("data") ?? true) &&
+                    parseDocument(value, SECTION_CODECS).sections.has("data")),
             scratch,
         });
         const parsed = parseDocument(value, SECTION_CODECS);
@@ -3507,7 +3546,7 @@ export function projectOf(
             return assetChoices(session);
         },
         save(options = {}) {
-            const versionTwoOnly = (["sections", "form", "results", "embed"] as const).find(
+            const versionTwoOnly = (["sections", "form", "results", "embed", "paths"] as const).find(
                 (key) => options[key] !== undefined,
             );
             if (options.format !== 2 && versionTwoOnly !== undefined) {

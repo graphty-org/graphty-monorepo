@@ -3,7 +3,7 @@ import "./toolbar.css";
 import { MenuCheckItem, MenuItemDescription, MenuShortcut, Toolbar, ToolButton } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Menu, Popover, Text } from "@mantine/core";
-import React, { forwardRef, useRef } from "react";
+import React, { forwardRef, useEffect, useReducer, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
 import { tabStops } from "../frame/focus";
@@ -15,7 +15,7 @@ import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
 import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { immersiveMode, reducedMotion } from "./commands";
+import { immersiveMode } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
 
@@ -259,6 +259,13 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
     const flat = session?.layout.dimension === "2d";
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const followSelection = useWorkspaceState((state) => state.followSelection);
+    const { element } = useWorkspace();
+    // The element answers whether motion is reduced; read it again when that answer changes.
+    const [, motionChanged] = useReducer((n: number) => n + 1, 0);
+    useEffect(() => {
+        element?.addEventListener("reduced-motion-changed", motionChanged);
+        return () => element?.removeEventListener("reduced-motion-changed", motionChanged);
+    }, [element]);
     return (
         <>
             <Sections
@@ -274,7 +281,7 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
             <CheckItem
                 command="view.auto-rotate"
                 label="Auto-rotate"
-                checked={autoRotate && !reducedMotion()}
+                checked={autoRotate && element?.isMotionReduced() !== true}
                 radio={false}
             />
             <CheckItem

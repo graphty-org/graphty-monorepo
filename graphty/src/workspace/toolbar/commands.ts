@@ -38,14 +38,6 @@ function filteredReach(session: GraphSession, center: NodeId): number {
 }
 
 /**
- * Whether the system asks for reduced motion, which keeps the canvas from turning on its own.
- * @returns True when it does.
- */
-export function reducedMotion(): boolean {
-    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-}
-
-/**
  * Why Frame selection cannot run: nothing is selected. The element frames a selected edge's ends.
  * @param session - the element's session, or null.
  * @returns the reason, or null when a node or an edge is selected.
@@ -165,11 +157,11 @@ export const registration = defineRegistration({
             id: "view.auto-rotate",
             label: "Auto-rotate",
             group: "View",
-            // The element turns only the 3D view, and the host keeps it still for reduced motion.
-            disabled: ({ session }) =>
+            // The element turns only the 3D view, and keeps it still while motion is reduced.
+            disabled: ({ session, element }) =>
                 nothingDrawn(session) ??
                 (session?.layout.dimension === "2d" ? "Only in 3D" : null) ??
-                (reducedMotion() ? "Reduced motion is on" : null),
+                (element?.isMotionReduced() === true ? "Reduced motion is on" : null),
             run: ({ workspace }) => {
                 workspace.set((state) => ({ autoRotate: !state.autoRotate }));
             },

@@ -299,10 +299,12 @@ claude -p --output-format text \
 n=$(verdict "$out")
 [ -n "$n" ] || die "the review ended without a 'Blocking findings: N' line; its output is not a verdict"
 # One marker per finding the reviewer cleared; one it did not clear counts as blocking.
+# An answer line may be a list item ("- ", "* ", "1. ") and may be bold ("**Member #N:** addressed"); nothing looser.
+lead='^[[:space:]]*(([-*]|[0-9]+\.)[[:space:]]+)?(\*\*)?' sep=':(\*\*)? (\*\*)?'
 cleared=() uncleared=0
 for i in "${!findings[@]}"; do
     # cleared only when answered so and never also "not cleared"
-    if grep -qE "^Integrity $((i + 1)): cleared\b" "$out" && ! grep -qE "^Integrity $((i + 1)): not cleared\b" "$out"; then
+    if grep -qE "${lead}Integrity $((i + 1))${sep}cleared\b" "$out" && ! grep -qE "${lead}Integrity $((i + 1))${sep}not cleared\b" "$out"; then
         cleared+=("<!-- integrity-cleared $head $(printf '%s' "${findings[$i]}" | sha256sum | cut -c1-16) -->")
     else
         uncleared=$((uncleared + 1))
@@ -312,7 +314,7 @@ done
 # not gets a marker tools/pr-open.sh refuses even with --review-answered: merging would close it unfixed.
 unaddressed=()
 for m in "${closing[@]}"; do
-    if ! grep -qE "^Member #$m: addressed\b" "$out" || grep -qE "^Member #$m: not addressed\b" "$out"; then
+    if ! grep -qE "${lead}Member #$m${sep}addressed\b" "$out" || grep -qE "${lead}Member #$m${sep}not addressed\b" "$out"; then
         uncleared=$((uncleared + 1))
         unaddressed+=("<!-- member-not-addressed $m -->")
     fi

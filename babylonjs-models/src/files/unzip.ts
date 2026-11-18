@@ -24,7 +24,9 @@ const ZIP_CAPS = Object.freeze({ entries: 1024, nameLength: 512, ratio: 100 });
  * @throws ModelError `E_MODEL_ZIP { reason }` or `E_MODEL_TOO_LARGE { what: "unzipped" }`.
  */
 export async function unzipModel(zip: Uint8Array, maxUnzipped: number): Promise<Map<string, Uint8Array>> {
-    // Loaded on the first zip, so a page that never adds one never downloads the inflater.
+    // ponytail: the FBX reader imports fflate's inflater with the checks, so this import no longer
+    // keeps it out of a page that adds no zip; it only defers the zip classes. Load the FBX reader
+    // lazily too if the checks' size ever matters.
     const { Unzip, UnzipInflate, UnzipPassThrough } = await import("fflate");
     const out = new Map<string, Uint8Array>();
     const lowerNames = new Set<string>();

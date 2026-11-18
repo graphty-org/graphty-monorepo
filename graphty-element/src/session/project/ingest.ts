@@ -2292,7 +2292,13 @@ export class Ingest<K extends KnownEdge> {
         held?: HeldRows,
         name?: string,
     ): Promise<ImportOutcome> {
-        this.logger.info("Loading data source", { type, options: opts });
+        // The option names only: an inline `data` option holds the whole file.
+        this.logger.info("Loading data source", {
+            type,
+            name: name ?? null,
+            url: "url" in opts && typeof opts.url === "string" ? opts.url : null,
+            options: Object.keys(opts),
+        });
 
         const startTime = Date.now();
         // Get file size for progress tracking (if available)

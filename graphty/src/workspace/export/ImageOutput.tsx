@@ -156,16 +156,32 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const [preview, setPreview] = useState<string | null>(null);
     const [previewError, setPreviewError] = useState<string | null>(null);
     const [refused, setRefused] = useState<Partial<Record<ImageSize, string>>>({});
-    const [backgroundReason, setBackgroundReason] = useState<string | null>(null);
+    // The transparency check's answer, kept with the format it was asked for: an answer for
+    // another format is stale and must not reset the background.
+    const [backgroundCheck, setBackgroundCheck] = useState<{ format: ImageFormat; reason: string | null } | null>(null);
+    const backgroundReason = backgroundCheck?.format === choices.format ? backgroundCheck.reason : null;
     const [status, setStatus] = useState<Status>({ kind: "idle" });
 
     const views = viewEntries(element, session);
-    const entries = [views.current, ...views.cameras, ...views.saved];
-    const chosen =
+    const found =
         choices.view === null
             ? views.current
             : (views.cameras.find((entry) => entry.view === choices.view) ??
               views.saved.find((entry) => entry.view === choices.view));
+    // A chosen view that is gone (removed, renamed, another project) stays chosen and shows the
+    // element's reason, so the field says why the capture would fail instead of hiding the choice.
+    const missing: ViewEntry | null =
+        found === undefined && choices.view !== null
+            ? {
+                  value: `missing:${choices.view}`,
+                  label: choices.view,
+                  view: choices.view,
+                  reason: viewProblemWords(element?.viewProblem(choices.view, { saved: true }) ?? null, true),
+              }
+            : null;
+    const chosen = found ?? missing ?? views.current;
+    const saved = missing === null ? views.saved : [...views.saved, missing];
+    const entries = [views.current, ...views.cameras, ...saved];
     const preset = presetOf(choices);
     const legendOn = choices.legend ?? legendShown;
 
@@ -240,11 +256,13 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
             .canCaptureScreenshot({ format: choices.format, transparentBackground: true })
             .then(({ reason }) => {
                 if (live) {
-                    setBackgroundReason(
-                        reason?.code === "E_BAD_COMMAND"
-                            ? failureWords({ code: reason.code, details: reason.params }, true)
-                            : null,
-                    );
+                    setBackgroundCheck({
+                        format: choices.format,
+                        reason:
+                            reason?.code === "E_BAD_COMMAND"
+                                ? failureWords({ code: reason.code, details: reason.params }, true)
+                                : null,
+                    });
                 }
             });
         return () => {
@@ -264,7 +282,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         onChange({ ...choices, ...change });
     };
 
-    const name = fileName(project, chosen?.label ?? choices.view ?? "", IMAGE_EXTENSIONS[choices.format]);
+    const name = fileName(project, chosen.label, IMAGE_EXTENSIONS[choices.format]);
 
     const capture = async (destination: "download" | "clipboard", waitForSettle = true): Promise<void> => {
         if (element === null) {
@@ -315,6 +333,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     })();
 
     const busy = status.kind === "capturing";
+    const blocked = busy || refused[choices.size] !== undefined || chosen.reason !== null;
 
     return (
         <>
@@ -346,7 +365,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                             { value: CURRENT, label: views.current.label },
                             ...[
                                 { group: "Camera views", items: views.cameras },
-                                { group: "Saved views", items: views.saved },
+                                { group: "Saved views", items: saved },
                             ]
                                 .filter(({ items }) => items.length > 0)
                                 .map(({ group, items }) => ({
@@ -358,8 +377,8 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                                     })),
                                 })),
                         ]}
-                        value={chosen?.value ?? CURRENT}
-                        error={chosen?.reason ?? undefined}
+                        value={chosen.value}
+                        error={chosen.reason ?? undefined}
                         allowDeselect={false}
                         renderOption={({ option }) => {
                             const reason = entries.find((entry) => entry.value === option.value)?.reason;
@@ -484,17 +503,10 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                     </>
                 ) : (
                     <>
-                        <Button
-                            variant="default"
-                            disabled={busy || refused[choices.size] !== undefined}
-                            onClick={() => void capture("clipboard")}
-                        >
+                        <Button variant="default" disabled={blocked} onClick={() => void capture("clipboard")}>
                             Copy
                         </Button>
-                        <Button
-                            disabled={busy || refused[choices.size] !== undefined}
-                            onClick={() => void capture("download")}
-                        >
+                        <Button disabled={blocked} onClick={() => void capture("download")}>
                             Export
                         </Button>
                     </>

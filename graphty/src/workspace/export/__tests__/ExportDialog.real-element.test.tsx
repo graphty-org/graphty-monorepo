@@ -302,6 +302,47 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.equal(picture?.blob.type, "image/png");
     });
 
+    it("keeps a removed saved view chosen, says it is not found, and refuses to export it", async () => {
+        const session = await openScoredGraph();
+        await session.views.save([{ name: "Overview" }]);
+
+        let dialog = await openExport();
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "View" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Overview" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
+        });
+        await session.views.remove(["Overview"]);
+
+        dialog = await openExport();
+        const view = within(dialog).getByRole<HTMLInputElement>("combobox", { name: "View" });
+        assert.equal(view.value, "Overview", "the choice is not silently swapped for the current camera");
+        assert.isNotNull(within(dialog).getByText("View not found"));
+        assert.isTrue(within(dialog).getByRole<HTMLButtonElement>("button", { name: "Export" }).disabled);
+    });
+
+    it("keeps Transparent when For documentation follows a JPEG preset", async () => {
+        await openScoredGraph();
+        const dialog = await openExport();
+        const transparent = (): HTMLInputElement =>
+            within(dialog).getByRole<HTMLInputElement>("radio", { name: "Transparent" });
+        const preset = within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Preset" });
+
+        await userEvent.click(preset);
+        await userEvent.click(await screen.findByRole("option", { name: "Thumbnail" }));
+        await waitFor(() => {
+            assert.isTrue(transparent().disabled, "JPEG keeps no transparency");
+        });
+        await userEvent.click(preset);
+        await userEvent.click(await screen.findByRole("option", { name: "For documentation" }));
+        await waitFor(() => {
+            assert.isFalse(transparent().disabled, "PNG keeps transparency");
+        });
+        assert.isTrue(transparent().checked);
+        assert.equal(preset.value, "For documentation");
+    });
+
     it("opens Export video... on Video, and offers Transparent for PNG and WebP but not JPEG", async () => {
         await openScoredGraph();
 

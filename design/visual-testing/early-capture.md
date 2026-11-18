@@ -241,13 +241,17 @@ key move as its first part.
   runner wait over the last hour 5 minutes or less.
 - **Idle slice** when quiet, 10 or fewer jobs running now, and the freshness target is not met: some
   unit's newest capture is older than `freshHours` (3).
+- **Overdue slice**: when some unit's newest capture is older than `overdueHours` (4, under the 6-hour
+  target), an idle slice starts however busy the pool is, since a CI busy all day would otherwise age the
+  set past the target (issue #8796). It still waits for no slice in flight and the idle share's caps (at
+  most about 4 an hour), and it is decided on the cycles that read the store, every 15 minutes.
 - **Base slice** when quiet, 30 or fewer running, and master's newest green build is newer than the last
   sliced commit. With 30 running, a base slice's 3 jobs still leave 27 free.
 - Otherwise nothing. A skipped base slice is not lost: the next quiet cycle slices master's newest green
   commit, and its reach rows cover every merge since the last sliced commit.
 
 **Budgets, each its own share, all repository-tunable** in `tools/pipeline-health/config/slices.json`
-(`baseDailyMin`, `idleDailyMin`, `idleHourlyMin`, `freshHours`, `idleRunning`, `baseRunning`, `quietMinutes`,
+(`baseDailyMin`, `idleDailyMin`, `idleHourlyMin`, `freshHours`, `overdueHours`, `idleRunning`, `baseRunning`, `quietMinutes`,
 `maxWaitMinutes`, the per-slice estimates, and `dispatch`, the kill switch; a pull request to that file
 changes them, and the stack redeploys itself from master):
 

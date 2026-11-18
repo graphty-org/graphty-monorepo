@@ -19,6 +19,9 @@ import { nextName, savedViewReason } from "../toolbar/commands";
 import { cameraViewName, stopProblemWords } from "../toolbar/viewWords";
 import { orRefusal } from "./actions";
 
+/** A stop that names a view (not a pause). */
+type ViewStop = Extract<TourStop, { view: string }>;
+
 /** Props for TourStops. */
 interface TourStopsProps {
     readonly session: GraphSession;
@@ -91,7 +94,7 @@ export function TourStops({
     const write = (what: string, next: readonly TourStop[]): void => {
         void orRefusal(store, what, session.tours.save([{ name, tour: { ...tour, stops: next } }]));
     };
-    const edit = (at: number, change: Partial<TourStop>): void => {
+    const edit = (at: number, change: Partial<ViewStop>): void => {
         write(
             `change ${name}`,
             stops.map((stop, i) => (i === at ? { ...stop, ...change } : stop)),
@@ -133,7 +136,7 @@ export function TourStops({
             }),
         );
     };
-    const items = (stop: TourStop, at: number, reason: string | null): SelectionMenuItem[] => [
+    const items = (stop: ViewStop, at: number, reason: string | null): SelectionMenuItem[] => [
         {
             id: "go",
             label: "Go to",
@@ -222,6 +225,10 @@ export function TourStops({
     return (
         <ol className="ws-tour-stops" ref={list} aria-label={`Stops of ${name}`}>
             {stops.map((stop, at) => {
+                // ponytail: a pause stop is not drawn until the Views place edits pauses.
+                if (!("view" in stop)) {
+                    return null;
+                }
                 const reason = stopProblemWords(problems[at] ?? null, element);
                 const label = `Stop ${String(at + 1)}`;
                 return (

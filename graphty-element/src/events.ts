@@ -629,7 +629,8 @@ export interface AnimationProgressEvent {
 
 /**
  * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the
- * flight to a stop (`"flight"`, absent for a zero-length flight) and the hold there (`"hold"`).
+ * flight to a stop (`"flight"`, absent for a zero-length flight), the hold there (`"hold"`), or a
+ * pause stop's wait where the camera is (`"pause"`, one event per pause).
  * @since 3.58.0
  */
 export interface TourProgressEvent {
@@ -642,10 +643,11 @@ export interface TourProgressEvent {
     stops: number;
     /**
      * The saved view this stop flies to, as the tour was when it started playing (an edit while it
-     * plays does not change it); absent for a stop given as a camera state.
+     * plays does not change it); absent for a stop given as a camera state and for a pause.
      */
     view?: string;
-    phase: "flight" | "hold";
+    /** The flight to the stop, the hold there, or a pause stop's wait. */
+    phase: "flight" | "hold" | "pause";
 }
 
 /**

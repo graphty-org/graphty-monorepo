@@ -36,7 +36,7 @@ function renderer(context: ActionContext): Renderer {
     return graph as Renderer;
 }
 
-const vec = z.array(z.number().min(-1e6).max(1e6)).length(3).describe("[x, y, z]");
+const vec = z.array(z.number().min(-1e6).max(1e6)).length(3).describe("[x,y,z]");
 
 /**
  * A point as the camera reads one.
@@ -47,7 +47,7 @@ function point(value: unknown): { x: number; y: number; z: number } {
     const [x, y, z] = value as [number, number, number];
     return { x, y, z };
 }
-const name = z.string().min(1).max(MAX_STRING).describe("The saved view's name.");
+const name = z.string().min(1).max(MAX_STRING).describe("Saved view.");
 
 /**
  * The `view` tool for a catalog.
@@ -56,11 +56,13 @@ const name = z.string().min(1).max(MAX_STRING).describe("The saved view's name."
  */
 export function viewTool(catalog: CatalogView): ToolDefinition {
     const cameras = catalog.cameras.map((each) => each.id);
+    // One field for a camera view id: the view `camera` applies, and the one `save` follows.
+    const preset = nameField(cameras, "View id; saved: restore; save: follows.").optional();
     const actions: ActionSpec[] = [
         {
             name: "dimension",
             summary: "",
-            fields: { dimension: z.enum(["2d", "3d"]).describe("2d or 3d.") },
+            fields: { dimension: z.enum(["2d", "3d"]).describe("Mode.") },
             effect: "write",
             reaches: [{ op: "view.dimension" }, { door: "SessionLayout.setDimension" }],
             run: async ({ tx }, args) => {
@@ -70,10 +72,10 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "camera",
-            summary: "camera view or position",
+            summary: "",
             fields: {
-                preset: nameField(cameras, "Camera view (saved: restore).").optional(),
-                options: z.record(z.string(), z.unknown()).optional().describe("The view's options."),
+                preset,
+                options: z.record(z.string(), z.unknown()).optional().describe("View options."),
                 position: vec.optional(),
                 target: vec.optional(),
             },
@@ -154,23 +156,16 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             summary: "",
             fields: {
                 name,
-                follows: z
-                    .string()
-                    .min(1)
-                    .max(MAX_STRING)
-                    .optional()
-                    .describe(
-                        "A camera view id the saved view follows, recomputed each time; absent saves the camera now.",
-                    ),
-                key: z.string().min(1).max(MAX_STRING).optional().describe("A key chord the application binds to it."),
+                preset,
+                key: z.string().min(1).max(MAX_STRING).optional().describe("Key."),
             },
             effect: "write",
             reaches: [{ op: "view.save" }, { door: "SessionViews.save" }, { door: "Graph.getCameraState" }],
             run: async (context, args) => {
                 const key = typeof args.key === "string" ? { key: args.key } : {};
                 const saved =
-                    typeof args.follows === "string"
-                        ? { name: text(args.name), follows: args.follows, ...key }
+                    typeof args.preset === "string"
+                        ? { name: text(args.name), follows: args.preset, ...key }
                         : { name: text(args.name), camera: renderer(context).getCameraState(), ...key };
                 await coded(() => context.tx.views.save([saved]));
                 return ok(undefined, { name: text(args.name) });
@@ -255,8 +250,8 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         name: "view",
         plainName: "View",
         core: true,
-        description: "Camera (not undoable), 2D/3D, saved views.",
-        example: { action: "zoom_to", ids: ["a"] },
+        description: "Camera (no undo), 2D/3D, saved views.",
+        example: { action: "fit" },
         actions,
     };
 }
@@ -274,7 +269,7 @@ export const tourTool: ToolDefinition = {
     plainName: "Camera tours",
     core: false,
     description:
-        "Saved camera tours: named stops in order, each a view (a camera view id or a saved view name) with a flight and a hold in ms. Writing is undoable; playing moves only the camera.",
+        "Saved camera tours: named stops in order, each a view (a camera view id or a saved view name) with a flight and a hold in ms, or a pause in ms. Writing is undoable; playing moves only the camera.",
     example: { action: "play", name: "intro" },
     actions: [
         {
@@ -293,11 +288,16 @@ export const tourTool: ToolDefinition = {
                 name: z.string().min(1).max(MAX_STRING).describe("The tour's name."),
                 stops: z
                     .array(
-                        z.object({
-                            view: z.string().min(1).max(MAX_STRING).describe("Camera view id or saved view name."),
-                            duration: ms.describe("Flight to the stop, ms; default 0 jumps."),
-                            hold: ms.describe("Hold at the stop, ms."),
-                        }),
+                        z.union([
+                            z.object({
+                                view: z.string().min(1).max(MAX_STRING).describe("Camera view id or saved view name."),
+                                duration: ms.describe("Flight to the stop, ms; default 0 jumps."),
+                                hold: ms.describe("Hold at the stop, ms."),
+                            }),
+                            z.object({
+                                pause: z.number().min(0).max(600_000).describe("Wait where the camera is, ms."),
+                            }),
+                        ]),
                     )
                     .max(MAX_ITEMS)
                     .describe("The stops, in order."),

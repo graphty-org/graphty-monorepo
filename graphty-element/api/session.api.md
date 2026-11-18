@@ -8004,9 +8004,14 @@ export interface Tour {
 }
 
 // @public
-export type TourStop = ViewWaypoint & {
+export interface TourPause {
+    readonly pause: number;
+}
+
+// @public
+export type TourStop = (ViewWaypoint & {
     view: string;
-};
+}) | TourPause;
 
 // @public
 export interface TransactionOptions {

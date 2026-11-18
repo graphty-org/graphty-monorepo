@@ -2,7 +2,7 @@
  * @file Tours fly the camera continuously: every frame of a playing tour is recorded, and each flight
  * is judged against what a slerp on the tour's clock guarantees -- it leaves the pose it held, never
  * snaps, never turns back, follows the eased time and ends on the stop's pose. A hold equals the pose
- * a cut to the same stop gives. The reported defect: Top, then Isometric, showed a front view for
+ * a cut to the same stop gives, and a pause holds the pose the stop before it left. The reported defect: Top, then Isometric, showed a front view for
  * one frame before turning, because the flight started from a stale Euler rotation.
  */
 
@@ -10,6 +10,7 @@ import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { commands } from "vitest/browser";
 
+import type { TourPause } from "../../src/camera/tour";
 import type { CameraState } from "../../src/camera/types";
 import type { TourProgressEvent } from "../../src/events";
 import type { Graph } from "../../src/Graph.js";
@@ -18,7 +19,7 @@ import { drag } from "../helpers/real-input";
 import { cleanupTestGraph, configureGraph, createTestGraph } from "../helpers/testSetup.js";
 
 /** A tour stop, as `playTour` takes it inline. */
-type Stop = ViewWaypoint;
+type Stop = ViewWaypoint | TourPause;
 
 /** One drawn frame. */
 interface Frame {
@@ -175,7 +176,7 @@ function flatProgress(a: CameraState, b: CameraState, s: CameraState): number | 
  * @param view - The stop's view.
  * @returns The camera state and the pivot orientation right after.
  */
-async function cutPose(graph: Graph, view: Stop["view"]): Promise<{ state: CameraState; q: number[] | null }> {
+async function cutPose(graph: Graph, view: ViewWaypoint["view"]): Promise<{ state: CameraState; q: number[] | null }> {
     await graph.playTour([{ view }]);
     return { state: graph.getCameraState(), q: pivotQuaternion(graph) };
 }
@@ -236,10 +237,10 @@ async function playAndCheck(graph: Graph, name: string, stops: Stop[]): Promise<
     const { frames } = recording;
     assert.strictEqual(reason, "finished", `tour ${name} finished`);
 
-    // The pose each stop must hold: a cut to the same stop.
-    const poses = [];
+    // The pose each stop must hold: a cut to the same stop; a pause holds the pose before it.
+    const poses: { state: CameraState; q: number[] | null }[] = [];
     for (const stop of stops) {
-        poses.push(await cutPose(graph, stop.view));
+        poses.push("pause" in stop ? poses[poses.length - 1] : await cutPose(graph, stop.view));
     }
 
     const problems: string[] = [];
@@ -249,7 +250,7 @@ async function playAndCheck(graph: Graph, name: string, stops: Stop[]): Promise<
 
     for (const [index, stop] of stops.entries()) {
         const flight = frames.filter((f) => f.stop === index && f.phase === "flight");
-        const holds = frames.filter((f) => f.stop === index && f.phase === "hold");
+        const holds = frames.filter((f) => f.stop === index && (f.phase === "hold" || f.phase === "pause"));
         const pose = poses[index];
 
         // Every hold equals the stop's pose.
@@ -262,6 +263,15 @@ async function playAndCheck(graph: Graph, name: string, stops: Stop[]): Promise<
             if (difference !== null) {
                 fail(`stop ${index} hold differs from its pose: ${difference}`, f.i);
             }
+        }
+
+        if ("pause" in stop) {
+            assert.isAbove(holds.length, 0, `tour ${name} stop ${index} drew its pause`);
+            assert.isTrue(
+                holds.every((f) => f.phase === "pause"),
+                `tour ${name} stop ${index} reports only the pause phase`,
+            );
+            continue;
         }
 
         if ((stop.duration ?? 0) === 0) {
@@ -466,6 +476,10 @@ describe("a tour flies the camera continuously", () => {
             { view: "isometric", duration: 800 },
             { view: "topView", duration: 800 },
         ]);
+    });
+
+    test("Top, a 500 ms pause, Isometric: the pause holds Top, then the flight leaves it", async () => {
+        await playAndCheck(graph, "5", [{ view: "topView" }, { pause: 500 }, { view: "isometric", duration: 800 }]);
     });
 
     test("a 2D tour: Top, Fit, Top", async () => {

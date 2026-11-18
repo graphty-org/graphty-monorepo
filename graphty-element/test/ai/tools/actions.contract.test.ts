@@ -376,7 +376,12 @@ const ROWS: Record<string, Row> = {
         setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
     },
     "tour.save": {
-        args: { action: "save", name: "intro", stops: [{ view: "fitToGraph", hold: 500 }], easing: "linear" },
+        args: {
+            action: "save",
+            name: "intro",
+            stops: [{ view: "fitToGraph", hold: 500 }, { pause: 250 }],
+            easing: "linear",
+        },
     },
     "tour.play": {
         args: { action: "play", name: "intro" },
@@ -780,6 +785,35 @@ describe("every generated action", () => {
         const [, refused] = assistant.lastResults();
         assert.strictEqual(refused.code, "AI_ARG_INVALID", JSON.stringify(refused));
         assert.strictEqual(refused.params.path, "result.op");
+    });
+
+    it("saves a keyed following view and a tour with a pause, and lists both back", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("save", [
+            { tool: "view", args: { action: "save", name: "above", preset: "topView", key: "7" } },
+            {
+                tool: "tour",
+                args: { action: "save", name: "walk", stops: [{ view: "above", hold: 100 }, { pause: 400 }] },
+            },
+        ]);
+        assert.deepStrictEqual(
+            assistant.lastResults().map((each) => each.code),
+            ["AI_OK", "AI_OK"],
+        );
+        assert.deepStrictEqual(session.views.get("above"), { follows: "topView", key: "7" });
+
+        await assistant.say("list", [
+            { tool: "view", args: { action: "list_saved" } },
+            { tool: "tour", args: { action: "list" } },
+        ]);
+        const [views, tours] = assistant.lastResults();
+        const listed = views.data as { following: Record<string, string>; keys: Record<string, string> };
+        assert.deepStrictEqual(listed.following, { above: "topView" });
+        assert.deepStrictEqual(listed.keys, { above: "7" });
+        assert.deepStrictEqual(tours.data, {
+            tours: [{ name: "walk", stops: [{ view: "above", hold: 100 }, { pause: 400 }] }],
+        });
     });
 
     it("describes an entry by its name alone when only one kind has it", async () => {

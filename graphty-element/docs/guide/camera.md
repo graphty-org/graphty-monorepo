@@ -195,56 +195,65 @@ graph.setCameraState(newState, {
 
 ## Saved views and tours
 
-A **saved view** is a camera position kept under a name in the project. A **tour** is a named list
-of stops, each naming a view, that the camera flies through and holds at. Both are saved in the
-project file and every change to them is one undo step; jumping to a view or playing a tour is
-not a change.
+A **saved view** is a camera position kept under a name in the project, or a camera view it follows.
+A **tour** is a named list of stops, each naming a view or pausing, that the camera flies through and
+holds at. Both are saved in the project file and every change to them is one undo step; jumping to a
+view or playing a tour is not a change.
 
 ```ts
 import "@graphty/graphty-element";
 const g = document.querySelector("graphty-element")!;
 await g.waitForSettled();
 await g.session.views.save([{ name: "overview" }]); // the current camera
-await g.applyCameraView("topView"); // a built-in camera view id
+await g.applyCameraView("topView", { animate: false }); // a built-in camera view id
 await g.session.views.save([{ name: "hub" }]);
+await g.session.views.save([{ name: "above", follows: "topView", key: "7" }]); // recomputed each time; key is yours to bind
 await g.session.tours.save([
     {
         name: "intro",
         tour: {
             stops: [
                 { view: "overview", hold: 2000 }, // no duration: jumps there
+                { pause: 1000 }, // wait where the camera is
                 { view: "hub", duration: 1500, hold: 3000 }, // a stop's duration is its flight
             ],
         },
     },
 ]);
 await g.playTour("intro", { restoreCamera: true }); // preview
-await g.captureAnimation({ tour: "intro", destination: { download: true } }); // 6.5 s, from the tour
+await g.captureAnimation({ tour: "intro", destination: { download: true } }); // 7.5 s, from the tour
 await g.captureScreenshot({ camera: { view: "hub" }, destination: { download: true } });
 ```
 
 In a stop, `duration` is the flight to that stop and `hold` the time spent there, both in
-milliseconds; an unset one is 0. In `captureAnimation`'s options `duration` means something else:
-the whole video's length. A tour recording needs none, since its length is the tour's.
+milliseconds; an unset one is 0. A pause, `{ pause }` in milliseconds, waits where the camera is.
+In `captureAnimation`'s options `duration` means something else: the whole video's length. A tour
+recording needs none, since its length is the tour's.
+
+`key: "7"` only stores the key: the element does not listen for it. Bind it yourself (see
+[Keys](#keys)).
 
 `playTour` and `captureAnimation` check the whole tour before anything moves and reject with a
 coded problem when it cannot be played, so this path needs no checks of its own.
 
 ### Saved views
 
-`session.views` reads as a map from name to camera state, in project order.
+`session.views` reads as a map from name to saved view, in project order. A saved view is
+`{ camera?, follows?, key? }`: a **fixed** view holds a `camera` state; a **following** view holds
+`follows`, a camera view id, and is recomputed for whatever is drawn each time it is applied.
 
-| Call                                           | What it does                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `views.save([{ name, camera? }])`              | Keeps a view, at the end of the order; no `camera` keeps the current one  |
-| `views.rename(from, to)`                       | Renames a view in its place, and every tour stop naming it follows        |
-| `views.move(name, index)`                      | Puts a view at a 0-based place in the order                               |
-| `views.remove([name])`                         | Forgets views; tour stops naming them stay, and `planTour` reports them   |
-| `applyCameraView(name, { animate, duration })` | Jumps or flies to a camera view or a saved view                           |
-| `viewProblem(name)`                            | `null` when the view can be applied now, else a coded fact saying why not |
+| Call                                              | What it does                                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `views.save([{ name, camera?, follows?, key? }])` | Keeps a view, at the end of the order; no `camera` and no `follows` keeps the current one |
+| `views.setKey(name, key)`                         | Gives a view a key, taking it from any other view that holds it; null clears it           |
+| `views.rename(from, to)`                          | Renames a view in its place, and every tour stop naming it follows                        |
+| `views.move(name, index)`                         | Puts a view at a 0-based place in the order                                               |
+| `views.remove([name])`                            | Forgets views; tour stops naming them stay, and `planTour` reports them                   |
+| `applyCameraView(name, { animate, duration })`    | Jumps or flies to a camera view or a saved view                                           |
+| `viewProblem(name)`                               | `null` when the view can be applied now, else a coded fact saying why not                 |
 
 **One name, one view.** A name is a **camera view** first -- one the element ships (`fitToGraph`,
-`topView`, `sideView`, `frontView`, `isometric`, listed by `session.catalog.cameras()`) or one an
+`topView`, `bottomView`, `sideView`, `frontView`, `isometric`, listed by `session.catalog.cameras()`) or one an
 extension registered -- and a saved view only when no camera view has it. Saving a view under a
 camera view's name is refused with `E_PROTECTED`. If a camera view registered later takes a saved
 view's name, the saved view can no longer be reached by that name until it is renamed;
@@ -269,12 +278,58 @@ const problem = element.viewProblem("Port nodes");
 row.disabled = problem !== null; // problem.code and problem.params, worded by your application
 ```
 
+**Listing saved views.** A list of the saved views asks `viewProblem(name, { saved: true })` for
+each row, so a view a camera view now shadows shows as `E_PROTECTED` instead of as the camera view
+it can no longer reach.
+
+**From a name to a pose.** `resolveCameraPreset(name)` answers where a camera view or a saved view
+(a following one recomputed now) would put the camera, without moving it.
+
+#### Keys
+
+A saved view's `key` is an opaque string the element stores, keeps unique among the saved views,
+and saves with the project. The element never listens for it: bind it in your page.
+
+```typescript
+document.addEventListener("keydown", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("input, textarea, select, [contenteditable]") || event.ctrlKey || event.metaKey) {
+        return; // a key typed in a field is the field's
+    }
+    const found = [...element.session.views].find(([, view]) => view.key === event.key);
+    if (found !== undefined) {
+        void element.applyCameraView(found[0], { animate: true });
+    }
+});
+```
+
+#### Starting cameras
+
+`views.setStartingCameras(list)` writes saved views into every project that never had them, once
+per project: a list of `{ name, follows, key? }`. The list is a session option and is never saved;
+each project records that it got its starting cameras in `config.startingCamerasWritten`, so a
+reader who renames or deletes one does not get it back. A name already saved is skipped, and a key
+another view holds is dropped. Afterwards they are ordinary saved views.
+
+```typescript
+await element.session.views.setStartingCameras([
+    { name: "Top", follows: "topView", key: "1" },
+    { name: "Side", follows: "sideView", key: "2" },
+]);
+```
+
 ### Tours
 
 `session.tours` reads as a map from name to tour, in project order, with `save`, `rename`, `move`
 and `remove` like the views. A tour is `{ stops, easing? }`; `easing` is `"linear"`, `"easeIn"`,
 `"easeOut"` or `"easeInOut"` (the default). An empty tour, and a stop naming a view nothing is
 saved under, can be saved, so a draft can exist and a rename never fails.
+
+**Pauses.** A stop is either `{ view, duration?, hold? }` or `{ pause }`: a pause waits where the
+camera is, for that many milliseconds (finite and at least 0, else `E_OPTION_RANGE`
+`{ option: "pause", stop }`). It plans with no flight and a hold of the pause, counts toward
+`totalMs`, and a recording shows it as a hold. A tour of pauses alone plays. Code that reads
+`stop.view` narrows first: `"view" in stop`.
 
 `playTour(tour, options)` takes a saved tour's name, a tour, or stops given inline. It resolves,
 however the tour ended, with `{ reason }`:
@@ -289,8 +344,9 @@ however the tour ended, with `{ reason }`:
 
 `restoreCamera: true` puts the camera back where it was, only when the tour finishes. After an
 interruption the camera stays where the reader left it. Auto-rotate and following the selection
-wait while a tour plays. `tour-progress` (`{ tour, stop, stops, view, phase }`, `view` absent for a
-stop given as a camera state) fires on each stop and phase, and `tour-ended` (`{ tour, reason }`) once at the end.
+wait while a tour plays. `tour-progress` (`{ tour, stop, stops, view, phase }`, `phase` one of
+`"flight"`, `"hold"` or `"pause"`, `view` absent for a stop given as a camera state and for a pause)
+fires on each stop and phase, and `tour-ended` (`{ tour, reason }`) once at the end.
 
 **The advanced path.** An editor that shows a tour's length and its broken stops before playing
 asks `planTour`, which checks and times a tour without moving anything, and plans again on
@@ -300,7 +356,7 @@ tours, the 2D/3D switch, an XR session, a registered camera view):
 ```typescript
 const show = (): void => {
     const plan = element.planTour("intro");
-    length.textContent = `${plan.totalMs / 1000} s`; // 6.5 s for the example above
+    length.textContent = `${plan.totalMs / 1000} s`; // 7.5 s for the example above
     play.disabled = !plan.playable;
     plan.stops.forEach((stop, index) => markBroken(index, stop.problem)); // null, or a coded fact
 };

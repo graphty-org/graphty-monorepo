@@ -3,7 +3,8 @@
  * checks and times a tour before anything moves.
  *
  * A tour is named stops in order. Each stop names a view and says how long to fly there
- * (`duration`) and how long to hold (`hold`); an unset flight or hold is 0. The plan is authored:
+ * (`duration`) and how long to hold (`hold`), or is a pause (`pause`) that waits where the camera
+ * is; an unset flight or hold is 0. The plan is authored:
  * its times come only from those values, the same for every reader and every recording.
  *
  * NODE-SAFE: plain data only.
@@ -21,11 +22,22 @@ export type EasingName = "linear" | "easeIn" | "easeOut" | "easeInOut";
 export const EASING_NAMES: readonly EasingName[] = ["linear", "easeIn", "easeOut", "easeInOut"];
 
 /**
- * One stop of a saved tour: the name of a view (a camera view's id or a saved view's name), the
- * flight there (`duration`, ms) and the hold (`hold`, ms). In a stop, `duration` is the flight to
- * that stop; in a recording's options it is the whole recording's length.
+ * A tour stop that waits where the camera is, moving nothing.
+ * @since 3.58.0
  */
-export type TourStop = ViewWaypoint & { view: string };
+export interface TourPause {
+    /** How long to wait, in ms: finite and at least 0. */
+    readonly pause: number;
+}
+
+/**
+ * One stop of a saved tour: the name of a view (a camera view's id or a saved view's name), the
+ * flight there (`duration`, ms) and the hold (`hold`, ms); or a pause (`{ pause }`, ms), which
+ * waits where the camera is. In a stop, `duration` is the flight to that stop; in a recording's
+ * options it is the whole recording's length. Code that reads `stop.view` narrows first
+ * (`"view" in stop`).
+ */
+export type TourStop = (ViewWaypoint & { view: string }) | TourPause;
 
 /** A tour: its stops in order, and how each flight eases. */
 export interface Tour {
@@ -36,7 +48,19 @@ export interface Tour {
 }
 
 /** What `planTour` and `playTour` take: a saved tour's name, a tour, or stops given inline. */
-export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint)[];
+export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint | TourPause)[];
+
+/** Any stop a tour can hold: a view, a camera state or a pause. */
+type AnyStop = ViewWaypoint | CameraWaypoint | TourPause;
+
+/**
+ * Whether a stop is a pause.
+ * @param stop - The stop.
+ * @returns True for `{ pause }`.
+ */
+export function isTourPause(stop: AnyStop): stop is TourPause {
+    return "pause" in stop;
+}
 
 /**
  * Why a tour ended: `"finished"` the last hold ended; `"cancelled"` its `signal` aborted or
@@ -53,12 +77,12 @@ export interface TourPlanStop {
     readonly startMs: number;
     /** The authored flight to the stop, ms. */
     readonly duration: number;
-    /** The authored hold at the stop, ms. */
+    /** The authored hold at the stop, ms; a pause's length for a pause (whose flight is 0). */
     readonly hold: number;
     /**
      * Why the stop cannot be flown now, as `viewProblem` answers for its view plus `stop` (the
-     * 0-based index), or `E_OPTION_RANGE` `{ option, stop }` for a bad flight or hold; null when
-     * it can.
+     * 0-based index), or `E_OPTION_RANGE` `{ option, stop }` for a bad flight, hold or pause; null
+     * when it can.
      */
     readonly problem: CodedFact | null;
 }
@@ -97,7 +121,7 @@ export interface TourPlanContext {
 export interface ResolvedTour {
     /** The saved tour's name, or null for a tour given inline. */
     readonly name: string | null;
-    readonly stops: readonly (ViewWaypoint | CameraWaypoint)[];
+    readonly stops: readonly AnyStop[];
     readonly easing: EasingName | undefined;
 }
 
@@ -144,7 +168,7 @@ function resolveTour(input: TourInput, tours: ReadonlyMap<string, Tour>): Resolv
     }
 
     if (Array.isArray(input)) {
-        return { name: null, stops: input as readonly (ViewWaypoint | CameraWaypoint)[], easing: undefined };
+        return { name: null, stops: input as readonly AnyStop[], easing: undefined };
     }
 
     const tour = input as Tour;
@@ -178,6 +202,13 @@ export function planTourStops(
     const immersive = context.mode === "ar" || context.mode === "vr";
     let startMs = 0;
     const stops = resolved.stops.map((stop, index): TourPlanStop => {
+        if (isTourPause(stop)) {
+            // A pause is a hold where the camera already is: no flight, and no view to judge.
+            const valid = Number.isFinite(stop.pause) && stop.pause >= 0;
+            const pause = { startMs, duration: 0, hold: valid ? stop.pause : 0, problem: pauseProblem(valid, index) };
+            startMs += pause.hold;
+            return pause;
+        }
         const duration = validTime(stop.duration) ? (stop.duration ?? 0) : 0;
         const hold = validTime(stop.hold) ? (stop.hold ?? 0) : 0;
         const planned = { startMs, duration, hold, problem: immersive ? null : stopProblem(stop, index, context) };
@@ -201,6 +232,16 @@ export function planTourStops(
             problem,
         },
     };
+}
+
+/**
+ * A bad pause's fact.
+ * @param valid - Whether the pause is finite and at least 0.
+ * @param index - Its 0-based index.
+ * @returns The `E_OPTION_RANGE` fact, or null.
+ */
+function pauseProblem(valid: boolean, index: number): CodedFact | null {
+    return valid ? null : { code: "E_OPTION_RANGE", params: { option: "pause", stop: index } };
 }
 
 /**

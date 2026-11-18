@@ -6,6 +6,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { planTourStops, type TourPlanContext } from "../../src/camera/tour";
 import { isGraphtyError } from "../../src/errors";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import type { ProjectSlice } from "../../src/session/types";
@@ -163,17 +164,85 @@ describe("session.tours", () => {
     });
 });
 
+describe("pause stops", () => {
+    const context = (session: GraphSession): TourPlanContext => ({
+        mode: "3d",
+        tours: session.tours,
+        judge: () => null,
+    });
+
+    it("save, round-trip, survive a view's rename, and plan as a hold of the pause with no flight", async () => {
+        const session = await twoTours();
+        await session.tours.save([
+            {
+                name: "paused",
+                tour: { stops: [{ view: "overview", hold: 200 }, { pause: 500 }, { view: "hub", duration: 300 }] },
+            },
+        ]);
+        await session.views.rename("overview", "Overview");
+        assert.deepStrictEqual(session.tours.get("paused")?.stops, [
+            { view: "Overview", hold: 200 },
+            { pause: 500 },
+            { view: "hub", duration: 300 },
+        ]);
+
+        const { plan } = planTourStops("paused", context(session));
+        assert.deepStrictEqual(
+            plan.stops.map(({ startMs, duration, hold, problem }) => ({ startMs, duration, hold, problem })),
+            [
+                { startMs: 0, duration: 0, hold: 200, problem: null },
+                { startMs: 200, duration: 0, hold: 500, problem: null },
+                { startMs: 700, duration: 300, hold: 0, problem: null },
+            ],
+        );
+        assert.strictEqual(plan.totalMs, 1000);
+        assert.isTrue(plan.playable);
+
+        const target = createGraphSession();
+        await target.project.open((await session.project.save()).text);
+        assert.deepStrictEqual(target.tours.get("paused"), session.tours.get("paused"));
+        session.dispose();
+        target.dispose();
+    });
+
+    it("a tour of pauses alone is playable", () => {
+        const session = createGraphSession();
+        const { plan } = planTourStops({ stops: [{ pause: 250 }, { pause: 0 }] }, context(session));
+        assert.strictEqual(plan.totalMs, 250);
+        assert.isTrue(plan.playable);
+        session.dispose();
+    });
+
+    it("refuses a negative or non-finite pause on save, and plans one as E_OPTION_RANGE", async () => {
+        const session = createGraphSession();
+        assert.deepStrictEqual(
+            await refusal(session.tours.save([{ name: "t", tour: { stops: [{ view: "a" }, { pause: -1 }] } }])),
+            { code: "E_OPTION_RANGE", details: { option: "pause", stop: 1 } },
+        );
+        assert.deepStrictEqual(
+            await refusal(session.tours.save([{ name: "t", tour: { stops: [{ pause: Number.POSITIVE_INFINITY }] } }])),
+            { code: "E_OPTION_RANGE", details: { option: "pause", stop: 0 } },
+        );
+        assert.strictEqual(session.tours.size, 0);
+
+        const { plan } = planTourStops({ stops: [{ pause: Number.NaN }] }, context(session));
+        assert.deepStrictEqual(plan.stops[0].problem, { code: "E_OPTION_RANGE", params: { option: "pause", stop: 0 } });
+        assert.isFalse(plan.playable);
+        session.dispose();
+    });
+});
+
 describe("a view's rename and the tours that name it", () => {
     it("rewrites every stop naming the view, says which tours in its fact, and one undo restores both", async () => {
         const session = await twoTours();
         await session.views.rename("hub", "Hub cluster");
 
         assert.deepStrictEqual(
-            session.tours.get("intro")?.stops.map((stop) => stop.view),
+            session.tours.get("intro")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")),
             ["overview", "Hub cluster"],
         );
         assert.deepStrictEqual(
-            session.tours.get("short")?.stops.map((stop) => stop.view),
+            session.tours.get("short")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")),
             ["Hub cluster"],
         );
         const fact = session.history.steps.at(session.history.position - 1)?.fact;
@@ -185,7 +254,7 @@ describe("a view's rename and the tours that name it", () => {
         await session.undo();
         assert.deepStrictEqual([...session.views.keys()], ["overview", "hub"]);
         assert.deepStrictEqual(
-            session.tours.get("short")?.stops.map((stop) => stop.view),
+            session.tours.get("short")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")),
             ["hub"],
         );
         session.dispose();
@@ -195,7 +264,7 @@ describe("a view's rename and the tours that name it", () => {
         const session = await twoTours();
         await session.views.remove(["hub"]);
         assert.deepStrictEqual(
-            session.tours.get("short")?.stops.map((stop) => stop.view),
+            session.tours.get("short")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")),
             ["hub"],
         );
         session.dispose();

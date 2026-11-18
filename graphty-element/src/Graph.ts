@@ -105,6 +105,7 @@ import {
 } from "./camera/resolve.js";
 import {
     type EasingName,
+    isTourPause,
     planTourStops,
     stopTarget,
     type TourEndReason,
@@ -8251,9 +8252,10 @@ export class Graph implements GraphContext {
         let flight: Promise<void> | undefined;
         let stopClock = (): void => undefined;
 
-        // The first frames show stop 0 when it is reached with no flight.
-        if (flown.plan.stops[0]?.duration === 0) {
-            await this.#applyTourCamera(flown.states[0], 0);
+        // The first frames show stop 0 when it is reached with no flight (a pause shows the camera as it is).
+        const first = flown.states[0];
+        if (first !== null && flown.plan.stops[0]?.duration === 0) {
+            await this.#applyTourCamera(first, 0);
         }
 
         try {
@@ -8367,11 +8369,14 @@ export class Graph implements GraphContext {
         }
 
         const states = tour.stops.map((stop) => {
+            if (isTourPause(stop)) {
+                return null;
+            }
             const target = stopTarget(stop);
             return orbitAnglesToPosition(typeof target === "string" ? this.resolveCameraPreset(target) : target);
         });
         const views = tour.stops.map((stop) => {
-            const target = stopTarget(stop);
+            const target = isTourPause(stop) ? undefined : stopTarget(stop);
             return typeof target === "string" ? target : undefined;
         });
         return { name: tour.name, easing: tour.easing, plan, states, views };
@@ -8506,7 +8511,7 @@ export class Graph implements GraphContext {
      *     `motion: "authored"`).
      */
     async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName, authored = false): Promise<void> {
-        const progress = (stop: number, phase: "flight" | "hold"): void => {
+        const progress = (stop: number, phase: TourProgressEvent["phase"]): void => {
             const view = flown.views[stop];
             this.eventManager.emit("tour-progress", {
                 tour: tour.name,
@@ -8521,6 +8526,13 @@ export class Graph implements GraphContext {
             const { duration, hold } = flown.plan.stops[index];
             if (tour.ended) {
                 return;
+            }
+
+            if (state === null) {
+                // A pause waits where the camera is.
+                progress(index, "pause");
+                await this.holdTourStop(hold, tour);
+                continue;
             }
 
             if (duration > 0) {
@@ -8574,8 +8586,9 @@ export class Graph implements GraphContext {
     /**
      * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A tour is a
      * saved tour's name (`session.tours`), a tour, or stops given inline; a stop names a view (a
-     * camera view or one saved in `session.views`), gives a camera state, or gives a 3D
-     * `position` and `target`. Every stop is checked before the camera moves, as `planTour`
+     * camera view or one saved in `session.views`), gives a camera state, gives a 3D
+     * `position` and `target`, or is a pause (`{ pause }`, ms) that waits where the camera is.
+     * Every stop is checked before the camera moves, as `planTour`
      * checks it. A stop's `duration` is the flight to it, taken as given; under reduced motion a
      * flight is a cut held for the flight's time. Auto-rotate and the glide to the selection wait
      * while it plays.
@@ -11595,9 +11608,9 @@ interface FlownTour {
     readonly name: string | null;
     readonly easing: EasingName | undefined;
     readonly plan: TourPlan;
-    /** The camera state each stop flies to. */
-    readonly states: readonly import("./screenshot/types.js").CameraState[];
-    /** The saved view each stop flies to, or undefined for a stop given as a camera state. */
+    /** The camera state each stop flies to, or null for a pause. */
+    readonly states: readonly (import("./screenshot/types.js").CameraState | null)[];
+    /** The saved view each stop flies to, or undefined for a stop given as a camera state or a pause. */
     readonly views: readonly (string | undefined)[];
 }
 

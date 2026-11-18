@@ -181,7 +181,7 @@ describe("the Views section", () => {
         await userEvent.click(within(section).getByRole("button", { name: "New tour" }));
         await waitFor(() => {
             assert.deepEqual(
-                session.tours.get("Tour 1")?.stops.map((stop) => stop.view),
+                session.tours.get("Tour 1")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")),
                 ["View 1"],
             );
         });
@@ -194,7 +194,7 @@ describe("the Views section", () => {
         await waitFor(() => {
             assert.deepEqual([...session.views.keys()], ["Hub"]);
             assert.deepEqual(
-                session.tours.get("Tour 1")?.stops.map((stop) => stop.view),
+                session.tours.get("Tour 1")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")),
                 ["Hub"],
             );
         });
@@ -242,7 +242,8 @@ describe("the Views section", () => {
         await waitFor(() => {
             assert.equal(session.tours.get("Tour 1")?.stops.length, 3);
         });
-        const stopViews = (): string[] => session.tours.get("Tour 1")?.stops.map((stop) => stop.view) ?? [];
+        const stopViews = (): string[] =>
+            session.tours.get("Tour 1")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")) ?? [];
 
         within(section).getByRole("button", { name: "More for Stop 1" }).focus();
         await userEvent.keyboard("{Control>}[[{/Control}");
@@ -279,7 +280,7 @@ describe("the Views section", () => {
         await userEvent.click(within(section).getByRole("button", { name: "Add stop" }));
         await waitFor(() => {
             assert.deepEqual(
-                session.tours.get("Tour 1")?.stops.map((stop) => stop.view),
+                session.tours.get("Tour 1")?.stops.map((stop) => ("view" in stop ? stop.view : "pause")),
                 ["View 1", "View 2"],
             );
         });
@@ -290,7 +291,7 @@ describe("the Views section", () => {
         await userEvent.clear(hold);
         await userEvent.type(hold, "0.5{Enter}");
         await waitFor(() => {
-            assert.equal(session.tours.get("Tour 1")?.stops[1]?.hold, 500);
+            assert.deepInclude(session.tours.get("Tour 1")?.stops[1], { hold: 500 });
         });
 
         const start = element.getCameraState();

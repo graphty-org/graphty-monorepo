@@ -8806,7 +8806,12 @@ export interface TourEndedEvent {
 export type TourEndReason = "finished" | "cancelled" | "interrupted" | "replaced" | "mode-changed";
 
 // @public
-export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint)[];
+export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint | TourPause)[];
+
+// @public
+export interface TourPause {
+    readonly pause: number;
+}
 
 // @public
 export interface TourPlan {
@@ -8826,8 +8831,7 @@ export interface TourPlanStop {
 
 // @public
 export interface TourProgressEvent {
-    // (undocumented)
-    phase: "flight" | "hold";
+    phase: "flight" | "hold" | "pause";
     stop: number;
     stops: number;
     tour: string | null;
@@ -8837,9 +8841,9 @@ export interface TourProgressEvent {
 }
 
 // @public
-export type TourStop = ViewWaypoint & {
+export type TourStop = (ViewWaypoint & {
     view: string;
-};
+}) | TourPause;
 
 // @public
 export class UpdateManager implements Manager {

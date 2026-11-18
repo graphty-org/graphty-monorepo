@@ -4603,7 +4603,8 @@ export class Graphty extends LitElement {
      * camera view or one saved in `session.views`), gives a camera state, or gives a 3D `position`
      * and `target`; `duration` is the flight to it and `hold` the time spent there, in
      * milliseconds, both taken as given (under reduced motion a flight is a cut held for its
-     * time). Every stop is checked before the camera moves. Auto-rotate and following the
+     * time). A stop may instead be a pause, `{ pause }` in milliseconds, which waits where the
+     * camera is. Every stop is checked before the camera moves. Auto-rotate and following the
      * selection wait while a tour plays.
      *
      * It always resolves, with how it ended: `"finished"`; `"cancelled"` by `signal` or

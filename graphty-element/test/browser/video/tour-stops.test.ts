@@ -2,7 +2,7 @@
  * Camera tours whose stops name saved views and hold (issue #817): `playTour` and a recorded
  * `cameraPath` or `tour`, in 2D and 3D, each reaching the pose `setCameraState` gives (issue
  * #7936). Holds are checked by counting the frames drawn while the camera sat at a stop and adding
- * up their frame time -- the same clock a hold counts in.
+ * up their frame time -- the same clock a hold counts in. A pause holds the camera where it is.
  */
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
@@ -135,6 +135,25 @@ for (const mode of ["3d", "2d"] as const) {
             assert.isAtLeast(atA.frames, 2, "frames recorded at the first stop");
             assert.isAtLeast(atA.ms, HOLD, "frame time recorded at the first stop");
             assert.isAtLeast(atB.frames, 1, "frames recorded at the second stop");
+        });
+
+        test("a pause waits where the camera is, as one pause phase, when played and when recorded", async () => {
+            const paused = [{ view: "tour-a" }, { pause: HOLD }, { view: "tour-b", duration: 200, hold: HOLD }];
+            assert.strictEqual(graph.planTour(paused).totalMs, 2 * HOLD + 200);
+            const phases: string[] = [];
+            const off = graph.on("tour-progress", ({ stop, phase }) => {
+                phases.push(`${String(stop)}:${phase}`);
+            });
+            const [atA] = await framesAt(graph, [viewA, viewB], () => graph.playTour(paused));
+            off();
+
+            assert.deepStrictEqual(phases, ["0:hold", "1:pause", "2:flight", "2:hold"]);
+            assert.isAtLeast(atA.ms, HOLD, "the pause held the first stop for its length");
+
+            const [recordedA] = await framesAt(graph, [viewA, viewB], () =>
+                graph.captureAnimation({ fps: 30, tour: paused }),
+            );
+            assert.isAtLeast(recordedA.ms, HOLD, "the recording held the first stop through the pause");
         });
 
         test("an unknown view name is refused before the camera moves", async () => {

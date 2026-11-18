@@ -76,11 +76,21 @@ describe("the camera guide's saved views and tours example", () => {
         click.mockRestore();
         off();
 
-        assert.deepStrictEqual([...element.session.views.keys()], ["overview", "hub"]);
+        assert.deepStrictEqual([...element.session.views.keys()], ["overview", "hub", "above"]);
+        assert.deepStrictEqual(element.session.views.get("above"), { follows: "topView", key: "7" });
         assert.deepStrictEqual([...element.session.tours.keys()], ["intro"]);
         const plan = element.planTour("intro");
         assert.isTrue(plan.playable);
-        assert.strictEqual(plan.totalMs, 6500, "the guide's 6.5 s");
+        assert.strictEqual(plan.totalMs, 7500, "the guide's 7.5 s");
+        assert.deepStrictEqual(
+            plan.stops.map(({ duration, hold }) => [duration, hold]),
+            [
+                [0, 2000],
+                [0, 1000],
+                [1500, 3000],
+            ],
+            "the pause plans as a hold where the camera is",
+        );
         assert.deepStrictEqual(ended, ["finished", "finished"], "the preview and the recording both played to the end");
         assert.lengthOf(downloads, 2, "the video and the picture were both saved");
     });

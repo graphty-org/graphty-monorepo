@@ -343,6 +343,8 @@ const { blob, metadata } = await graph.captureAnimation({ tour: stops });
 recording's options, it is the whole video's length: leave it out and the video is as long as the
 tour; give it and a shorter video cuts the tour off, a longer one holds the last stop.
 
+**Pauses.** A `{ pause }` stop records as a hold where the camera already is, for its length.
+
 **`["a", "b"]` is not a list of stops.** An array of view names is an older form that splits
 `duration` (then required) evenly between the views. It is deprecated; give stops instead,
 `[{ view: "a" }, { view: "b", duration: 1000 }]`.
@@ -355,6 +357,14 @@ with it, so an application that wants the reader's screen still covers the canva
 A recording fails, and makes no file, when its tour ends before the last stop, the tab is hidden
 or the canvas is resized (see [Errors](#errors)). `estimateAnimationCapture({ tour: "intro" })`
 says how many frames to expect and whether the machine is likely to drop some.
+
+**How each call ends.**
+
+| Call                                | When cancelled                                    | The camera afterwards                                                                                |
+| ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELLED` | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
+| `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
 
 You can also drive the camera yourself while recording:
 

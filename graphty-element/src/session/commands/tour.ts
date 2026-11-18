@@ -78,7 +78,7 @@ function assertTourName(name: string): void {
  * @param tour - The tour as given.
  * @returns The frozen copy.
  * @throws A `GraphtyError` with `E_OPTION_RANGE` `{ option, stop? }` for a bad flight, hold,
- *     view or easing.
+ *     pause, view or easing.
  */
 function frozenTour(tour: Tour): Tour {
     const range = (option: string, stop?: number): GraphtyError =>
@@ -98,6 +98,12 @@ function frozenTour(tour: Tour): Tour {
 
     const given: readonly TourStop[] = Array.isArray(tour.stops) ? tour.stops : [];
     const stops = given.map((stop, index): TourStop => {
+        if (typeof stop === "object" && "pause" in stop) {
+            if (!Number.isFinite(stop.pause) || stop.pause < 0) {
+                throw range("pause", index);
+            }
+            return Object.freeze({ pause: stop.pause });
+        }
         if (typeof stop?.view !== "string") {
             throw range("view", index);
         }
@@ -253,13 +259,12 @@ export function renameTourStops(
 ): { readonly tours: readonly SavedTour[]; readonly changed: readonly string[] } {
     const changed: string[] = [];
     const next = tours.map((saved) => {
-        if (!saved.tour.stops.some((stop) => stop.view === from)) {
+        const names = (stop: TourStop): boolean => "view" in stop && stop.view === from;
+        if (!saved.tour.stops.some((stop) => names(stop))) {
             return saved;
         }
         changed.push(saved.name);
-        const stops = saved.tour.stops.map((stop) =>
-            stop.view === from ? Object.freeze({ ...stop, view: to }) : stop,
-        );
+        const stops = saved.tour.stops.map((stop) => (names(stop) ? Object.freeze({ ...stop, view: to }) : stop));
         return Object.freeze({ name: saved.name, tour: Object.freeze({ ...saved.tour, stops: Object.freeze(stops) }) });
     });
     return { tours: next, changed };

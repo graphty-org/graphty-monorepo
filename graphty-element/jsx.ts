@@ -787,7 +787,7 @@ export interface GraphtyElementJSXProps {
      */
     "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
     /**
-     * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the flight to a stop (`"flight"`, absent for a zero-length flight) and the hold there (`"hold"`).
+     * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the flight to a stop (`"flight"`, absent for a zero-length flight), the hold there (`"hold"`), or a pause stop's wait where the camera is (`"pause"`, one event per pause).
      */
     "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
     /**
